@@ -40,4 +40,10 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
     implementation 'org.apache.commons:commons-compress:1.21'
+
+    // Real-time 3D Celin avatar. Filament renders a rigged GLB directly on-device;
+    // no portrait-frame swapping is used by the 3D path.
+    implementation 'com.google.android.filament:filament-android:1.75.0'
+    implementation 'com.google.android.filament:gltfio-android:1.75.0'
+    implementation 'com.google.android.filament:filament-utils-android:1.75.0'
 }
