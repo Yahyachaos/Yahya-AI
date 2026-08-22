@@ -1,30 +1,34 @@
 package de.yahya.ai;
 
 import android.animation.ObjectAnimator;
+import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageView;
 
 /**
- * Owns Celine's avatar state and subtle whole-frame motion.
- *
- * This is intentionally conservative: it keeps the approved Celine artwork
- * unchanged and only coordinates motion/state. Facial layers (blink, gaze,
- * mouth/visemes) can be added behind this controller later without coupling
- * them to MainActivity.
+ * Owns Celine's avatar state, whole-frame motion and facial overlay state.
+ * The approved portrait remains untouched; motion is applied to a container so
+ * the non-destructive face overlay stays perfectly aligned with the image.
  */
 public final class CelineAvatarController {
     public enum State { IDLE, LISTENING, THINKING, SPEAKING }
 
+    private final View motionView;
     private final ImageView avatar;
+    private final CelineFaceOverlayView face;
     private final float density;
     private ObjectAnimator breath;
     private ObjectAnimator sway;
     private ObjectAnimator lift;
     private State state = State.IDLE;
 
-    public CelineAvatarController(ImageView avatar, float density) {
+    public CelineAvatarController(View motionView, ImageView avatar,
+                                  CelineFaceOverlayView face, float density) {
+        this.motionView = motionView;
         this.avatar = avatar;
+        this.face = face;
         this.density = density;
+        if (face != null) face.start();
     }
 
     public State getState() { return state; }
@@ -34,58 +38,77 @@ public final class CelineAvatarController {
         state = next;
         stopMotion();
         avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);
+        syncFaceState(next);
         switch (next) {
             case LISTENING:
-                startBreath(1.0f, 1.018f, 1050L);
-                startLift(0f, -dp(1.2f), 1800L);
+                startBreath(1.0f, 1.014f, 1250L);
+                startLift(0f, -dp(0.8f), 2100L);
                 break;
             case THINKING:
-                startBreath(0.998f, 1.009f, 2100L);
-                startSway(-0.16f, 0.16f, 4200L);
+                startBreath(0.999f, 1.007f, 2300L);
+                startSway(-0.12f, 0.12f, 4800L);
                 break;
             case SPEAKING:
-                startBreath(1.0f, 1.012f, 1250L);
-                startSway(-0.12f, 0.12f, 2800L);
-                startLift(0f, -dp(0.8f), 2200L);
+                startBreath(1.0f, 1.010f, 1450L);
+                startSway(-0.09f, 0.09f, 3300L);
+                startLift(0f, -dp(0.6f), 2500L);
                 break;
             case IDLE:
             default:
-                startBreath(1.0f, 1.009f, 4700L);
-                startSway(-0.20f, 0.20f, 7800L);
-                startLift(0f, -dp(1.3f), 6100L);
+                startBreath(1.0f, 1.007f, 5200L);
+                startSway(-0.14f, 0.14f, 8800L);
+                startLift(0f, -dp(0.9f), 6900L);
                 break;
         }
     }
 
-    /** Small reaction to touch without changing Celine's artwork. */
+    /** Small reaction to touch while keeping image and facial overlay aligned. */
     public void lookToward(float normalizedX, float normalizedY) {
-        if (avatar == null) return;
+        if (motionView == null) return;
         float x = clamp(normalizedX, -0.5f, 0.5f);
         float y = clamp(normalizedY, -0.5f, 0.5f);
-        avatar.setTranslationX(x * dp(8f));
-        avatar.setTranslationY(y * dp(4f));
-        avatar.setRotation(x * 0.55f);
+        motionView.setTranslationX(x * dp(6f));
+        motionView.setTranslationY(y * dp(3f));
+        motionView.setRotation(x * 0.38f);
     }
 
     public void releaseLook() {
-        if (avatar == null) return;
-        avatar.animate().translationX(0f).translationY(0f).rotation(0f)
-                .setDuration(320L).setInterpolator(new AccelerateDecelerateInterpolator()).start();
+        if (motionView == null) return;
+        motionView.animate().translationX(0f).translationY(0f).rotation(0f)
+                .setDuration(360L).setInterpolator(new AccelerateDecelerateInterpolator()).start();
     }
 
-    public void release() { stopMotion(); }
+    public void blink() {
+        if (face != null) face.blinkNow(false);
+    }
+
+    public void release() {
+        stopMotion();
+        if (face != null) face.stop();
+    }
+
+    private void syncFaceState(State next) {
+        if (face == null) return;
+        switch (next) {
+            case LISTENING: face.setActivity(CelineFaceOverlayView.Activity.LISTENING); break;
+            case THINKING: face.setActivity(CelineFaceOverlayView.Activity.THINKING); break;
+            case SPEAKING: face.setActivity(CelineFaceOverlayView.Activity.SPEAKING); break;
+            case IDLE:
+            default: face.setActivity(CelineFaceOverlayView.Activity.IDLE); break;
+        }
+    }
 
     private void startBreath(float from, float to, long duration) {
-        breath = ObjectAnimator.ofFloat(avatar, "scaleX", from, to, from);
+        breath = ObjectAnimator.ofFloat(motionView, "scaleX", from, to, from);
         breath.setDuration(duration);
         breath.setRepeatCount(ObjectAnimator.INFINITE);
         breath.setInterpolator(new AccelerateDecelerateInterpolator());
-        breath.addUpdateListener(a -> avatar.setScaleY((Float) a.getAnimatedValue()));
+        breath.addUpdateListener(a -> motionView.setScaleY((Float) a.getAnimatedValue()));
         breath.start();
     }
 
     private void startSway(float from, float to, long duration) {
-        sway = ObjectAnimator.ofFloat(avatar, "rotation", from, to, from);
+        sway = ObjectAnimator.ofFloat(motionView, "rotation", from, to, from);
         sway.setDuration(duration);
         sway.setRepeatCount(ObjectAnimator.INFINITE);
         sway.setInterpolator(new AccelerateDecelerateInterpolator());
@@ -93,7 +116,7 @@ public final class CelineAvatarController {
     }
 
     private void startLift(float from, float to, long duration) {
-        lift = ObjectAnimator.ofFloat(avatar, "translationY", from, to, from);
+        lift = ObjectAnimator.ofFloat(motionView, "translationY", from, to, from);
         lift.setDuration(duration);
         lift.setRepeatCount(ObjectAnimator.INFINITE);
         lift.setInterpolator(new AccelerateDecelerateInterpolator());
@@ -105,9 +128,9 @@ public final class CelineAvatarController {
         try { if (sway != null) sway.cancel(); } catch (Exception ignored) {}
         try { if (lift != null) lift.cancel(); } catch (Exception ignored) {}
         breath = null; sway = null; lift = null;
-        if (avatar != null) {
-            avatar.setScaleX(1f); avatar.setScaleY(1f); avatar.setAlpha(1f);
-            avatar.setRotation(0f); avatar.setTranslationX(0f); avatar.setTranslationY(0f);
+        if (motionView != null) {
+            motionView.setScaleX(1f); motionView.setScaleY(1f); motionView.setAlpha(1f);
+            motionView.setRotation(0f); motionView.setTranslationX(0f); motionView.setTranslationY(0f);
         }
     }
 
