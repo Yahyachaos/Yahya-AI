@@ -31,6 +31,7 @@ public final class LocalNeuralTtsEngine {
     private final Context context;
     private volatile Object offlineTts;
     private volatile AudioTrack activeTrack;
+    private volatile Throwable lastError;
 
     public LocalNeuralTtsEngine(Context context) { this.context = context.getApplicationContext(); }
 
@@ -46,10 +47,57 @@ public final class LocalNeuralTtsEngine {
         return true;
     }
 
+    public String diagnosticReport() {
+        StringBuilder b = new StringBuilder();
+        File dir = getModelDir();
+        b.append("Modelordner: ").append(dir.getAbsolutePath()).append('\n');
+        b.append("Ordner vorhanden: ").append(dir.isDirectory() ? "JA" : "NEIN").append("\n\n");
+        for (String name : REQUIRED) {
+            File f = new File(dir, name);
+            b.append(name).append(": ");
+            if (f.isFile()) b.append(f.length()).append(" Bytes"); else b.append("FEHLT");
+            b.append('\n');
+        }
+        b.append("\nModell vollständig: ").append(isModelInstalled() ? "JA" : "NEIN").append('\n');
+        b.append("ABI: ");
+        try { b.append(android.os.Build.SUPPORTED_ABIS == null ? "?" : java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS)); }
+        catch (Throwable ignored) { b.append("?"); }
+        b.append('\n');
+        try {
+            Class.forName("com.k2fsa.sherpa.onnx.OfflineTts");
+            b.append("sherpa OfflineTts: OK\n");
+        } catch (Throwable e) {
+            b.append("sherpa OfflineTts: FEHLER: ").append(describe(e)).append('\n');
+        }
+        try {
+            Class.forName("com.k2fsa.sherpa.onnx.TtsKt");
+            b.append("sherpa TtsKt: OK\n");
+        } catch (Throwable e) {
+            b.append("sherpa TtsKt: FEHLER: ").append(describe(e)).append('\n');
+        }
+        try {
+            ensureInitialized();
+            b.append("Engine-Initialisierung: OK\n");
+        } catch (Throwable e) {
+            lastError = unwrap(e);
+            b.append("Engine-Initialisierung: FEHLER: ").append(describe(lastError)).append('\n');
+        }
+        Throwable le = lastError;
+        if (le != null) b.append("Letzter Sprachfehler: ").append(describe(le)).append('\n');
+        return b.toString();
+    }
+
+    public String getLastErrorSummary() {
+        Throwable e = lastError;
+        return e == null ? "Kein Fehler gespeichert" : describe(e);
+    }
+
     public void speak(String text, Listener listener) {
         if (text == null || text.trim().isEmpty()) return;
         if (!isModelInstalled()) {
-            listener.onError(new IllegalStateException("Supertonic model is not installed"));
+            IllegalStateException e = new IllegalStateException("Supertonic model is not installed");
+            lastError = e;
+            listener.onError(e);
             return;
         }
         new Thread(() -> {
@@ -65,12 +113,14 @@ public final class LocalNeuralTtsEngine {
                 int sampleRate = (Integer) getSampleRate.invoke(audio);
                 if (samples == null || samples.length == 0 || sampleRate <= 0)
                     throw new IllegalStateException("Supertonic returned no audio");
+                lastError = null;
                 listener.onSpeaking();
                 playBlocking(samples, sampleRate);
                 listener.onDone();
             } catch (Throwable error) {
                 SpeechAudioBus.reset();
-                listener.onError(unwrap(error));
+                lastError = unwrap(error);
+                listener.onError(lastError);
             }
         }, "celin-local-tts").start();
     }
@@ -177,4 +227,18 @@ public final class LocalNeuralTtsEngine {
     }
 
     private static Throwable unwrap(Throwable t) { Throwable cause = t.getCause(); return cause != null ? cause : t; }
+    private static String describe(Throwable t) {
+        if (t == null) return "unbekannt";
+        String m = t.getMessage();
+        if (m == null || m.trim().isEmpty()) m = t.getClass().getName();
+        else m = t.getClass().getSimpleName() + ": " + m;
+        Throwable c = t.getCause();
+        if (c != null && c != t) {
+            String cm = c.getMessage();
+            if (cm == null || cm.trim().isEmpty()) cm = c.getClass().getName();
+            else cm = c.getClass().getSimpleName() + ": " + cm;
+            m += " | Ursache: " + cm;
+        }
+        return m;
+    }
 }
