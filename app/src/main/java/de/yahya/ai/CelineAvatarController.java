@@ -10,7 +10,7 @@ import android.widget.ImageView;
  * The approved portrait remains untouched; motion is applied to a container so
  * the non-destructive face overlay stays perfectly aligned with the image.
  */
-public final class CelineAvatarController {
+public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public enum State { IDLE, LISTENING, THINKING, SPEAKING }
 
     private final View motionView;
@@ -29,6 +29,7 @@ public final class CelineAvatarController {
         this.face = face;
         this.density = density;
         if (face != null) face.start();
+        SpeechAudioBus.setListener(this);
     }
 
     public State getState() { return state; }
@@ -62,6 +63,11 @@ public final class CelineAvatarController {
         }
     }
 
+    /** Actual local-TTS PCM energy, delivered independently of MainActivity. */
+    @Override public void onSpeechAudioLevel(float level) {
+        if (face != null) face.setMouthLevel(state == State.SPEAKING ? level : 0f);
+    }
+
     /** Small reaction to touch while keeping image and facial overlay aligned. */
     public void lookToward(float normalizedX, float normalizedY) {
         if (motionView == null) return;
@@ -83,6 +89,7 @@ public final class CelineAvatarController {
     }
 
     public void release() {
+        SpeechAudioBus.clearListener(this);
         stopMotion();
         if (face != null) face.stop();
     }
