@@ -1,0 +1,11 @@
+name: Quality finalize
+on:
+  push:
+    branches: [ quality/video-call-pass ]
+jobs:
+  hashes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print changed checksums
+        run: sha256sum app/src/main/AndroidManifest.xml app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java app/src/main/java/de/yahya/ai/CelineFaceOverlayView.java app/src/main/java/de/yahya/ai/CelineAvatarController.java
