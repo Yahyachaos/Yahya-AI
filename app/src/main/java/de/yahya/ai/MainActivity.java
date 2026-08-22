@@ -14,8 +14,6 @@ import android.speech.tts.UtteranceProgressListener;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
-import android.animation.ObjectAnimator;
-import android.animation.Animator;
 import android.text.InputType;
 import android.view.*;
 import android.widget.*;
@@ -26,7 +24,7 @@ import java.util.*;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private LinearLayout chatBox; private ScrollView scroll; private EditText input; private TextView status; private Button mic; private ImageView avatar;
-    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private SupertonicModelManager supertonicModels; private ObjectAnimator avatarAnimator; private ObjectAnimator avatarSway; private ObjectAnimator avatarLift; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
+    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private SupertonicModelManager supertonicModels; private CelineAvatarController avatarController; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
     private final List<Message> messages=new ArrayList<>();
     private static final int REQ_MIC=44,REQ_SPEECH=55,REQ_PERMS=66; private static final String MODEL="gpt-5.6-luna";
     private int bg=Color.rgb(13,15,20),panel=Color.rgb(25,28,36),accent=Color.rgb(150,116,255),text=Color.rgb(242,242,246),muted=Color.rgb(160,164,176);
@@ -41,15 +39,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         TextView sub=new TextView(this);sub.setText("CELIN");sub.setTextSize(12);sub.setTextColor(accent);sub.setLetterSpacing(.22f);root.addView(sub);
         status=new TextView(this);status.setText("Bereit");status.setTextColor(muted);status.setTextSize(13);status.setPadding(0,dp(2),0,dp(8));root.addView(status);
         LinearLayout profile=new LinearLayout(this);profile.setOrientation(LinearLayout.VERTICAL);profile.setGravity(Gravity.CENTER_HORIZONTAL);profile.setPadding(dp(8),dp(8),dp(8),dp(10));profile.setBackground(round(panel,26));
-        avatar=new ImageView(this);avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);avatar.setBackground(round(Color.rgb(42,37,55),24));avatar.setClipToOutline(true);avatar.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+        avatar=new ImageView(this);avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);avatar.setBackground(round(Color.rgb(42,37,55),24));avatar.setClipToOutline(true);avatar.setOutlineProvider(ViewOutlineProvider.BACKGROUND);avatarController=new CelineAvatarController(avatar,getResources().getDisplayMetrics().density);
         LinearLayout.LayoutParams avp=new LinearLayout.LayoutParams(-1,dp(315));profile.addView(avatar,avp);
         TextView n=new TextView(this);n.setText("Celin");n.setTextColor(text);n.setTextSize(21);n.setTypeface(null,1);n.setPadding(dp(6),dp(9),dp(6),0);profile.addView(n);
         TextView vibe=new TextView(this);vibe.setText("Live mit Celin · tippe mich an oder sprich mit mir");vibe.setTextColor(muted);vibe.setTextSize(13);profile.addView(vibe);root.addView(profile);
         LinearLayout.LayoutParams plp=(LinearLayout.LayoutParams)profile.getLayoutParams();plp.bottomMargin=dp(8);profile.setLayoutParams(plp);
         avatar.setOnClickListener(v->{ if(status.getText().toString().contains("hört")) return; addAssistant("Ja, ich bin da.",false); speak("Ja, ich bin da."); });
         avatar.setOnTouchListener((v,e)->{
-            if(e.getAction()==MotionEvent.ACTION_MOVE){float nx=(e.getX()/Math.max(1f,v.getWidth())-.5f);float ny=(e.getY()/Math.max(1f,v.getHeight())-.5f);v.setTranslationX(nx*dp(5));v.setTranslationY(ny*dp(3));v.setRotation(nx*0.8f);}
-            else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){v.animate().translationX(0).translationY(0).rotation(0).setDuration(260).start();}
+            if(avatarController==null)return false;
+            if(e.getAction()==MotionEvent.ACTION_MOVE){float nx=(e.getX()/Math.max(1f,v.getWidth())-.5f);float ny=(e.getY()/Math.max(1f,v.getHeight())-.5f);avatarController.lookToward(nx,ny);}
+            else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL)avatarController.releaseLook();
             return false;
         });
         avatarIdle();
@@ -57,23 +56,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(8),0,0);input=new EditText(this);input.setHint("Nachricht an Celin …");input.setHintTextColor(muted);input.setTextColor(text);input.setTextSize(16);input.setSingleLine(false);input.setMaxLines(4);input.setBackground(round(panel,28));input.setPadding(dp(16),dp(12),dp(16),dp(12));row.addView(input,new LinearLayout.LayoutParams(0,-2,1));Button send=button("➤",accent);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(54),dp(54));sp.leftMargin=dp(8);row.addView(send,sp);send.setOnClickListener(v->{String t=input.getText().toString().trim();if(!t.isEmpty()){input.setText("");submit(t);}});root.addView(row);
         mic=button("🎙  Mit Celin sprechen",accent);mic.setTextSize(17);mic.setOnClickListener(v->startVoiceInput());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(58));mp.topMargin=dp(9);root.addView(mic,mp);return root;
     }
-    private void stopAvatarAnimation(){
-        try{if(avatarAnimator!=null){avatarAnimator.cancel();avatarAnimator=null;}}catch(Exception ignored){}
-        try{if(avatarSway!=null){avatarSway.cancel();avatarSway=null;}}catch(Exception ignored){}
-        try{if(avatarLift!=null){avatarLift.cancel();avatarLift=null;}}catch(Exception ignored){}
-        if(avatar!=null){avatar.setScaleX(1f);avatar.setScaleY(1f);avatar.setAlpha(1f);avatar.setRotation(0f);avatar.setTranslationX(0f);avatar.setTranslationY(0f);}
-    }
-    private void avatarPulse(float from,float to,long ms){if(avatar==null)return;avatarAnimator=ObjectAnimator.ofFloat(avatar,"scaleX",from,to,from);avatarAnimator.setDuration(ms);avatarAnimator.setRepeatCount(ObjectAnimator.INFINITE);avatarAnimator.setRepeatMode(ObjectAnimator.RESTART);avatarAnimator.addUpdateListener(a->{float v=(float)a.getAnimatedValue();avatar.setScaleY(v);});avatarAnimator.start();}
-    private void startIdleMotion(){
-        if(avatar==null)return;
-        avatarPulse(1.0f,1.012f,4200);
-        avatarSway=ObjectAnimator.ofFloat(avatar,"rotation",-0.35f,0.35f,-0.35f);avatarSway.setDuration(6500);avatarSway.setRepeatCount(ObjectAnimator.INFINITE);avatarSway.start();
-        avatarLift=ObjectAnimator.ofFloat(avatar,"translationY",0f,-dp(2),0f);avatarLift.setDuration(5200);avatarLift.setRepeatCount(ObjectAnimator.INFINITE);avatarLift.start();
-    }
-    private void avatarIdle(){stopAvatarAnimation();if(avatar!=null){avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);startIdleMotion();}}
-    private void avatarListening(){stopAvatarAnimation();if(avatar!=null)avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatarPulse(1f,1.024f,900);}
-    private void avatarThinking(){stopAvatarAnimation();if(avatar!=null)avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatarPulse(0.995f,1.012f,1500);}
-    private void avatarSpeaking(){stopAvatarAnimation();if(avatar!=null)avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatarPulse(1f,1.017f,620);avatarSway=ObjectAnimator.ofFloat(avatar,"rotation",-0.2f,0.2f,-0.2f);avatarSway.setDuration(1600);avatarSway.setRepeatCount(ObjectAnimator.INFINITE);avatarSway.start();}
+    private void avatarIdle(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.IDLE);}
+    private void avatarListening(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.LISTENING);}
+    private void avatarThinking(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.THINKING);}
+    private void avatarSpeaking(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.SPEAKING);}
 
     private Button button(String s,int c){Button b=new Button(this);b.setText(s);b.setTextColor(Color.WHITE);b.setAllCaps(false);b.setBackground(round(c,24));return b;}
     private GradientDrawable round(int c,int r){GradientDrawable g=new GradientDrawable();g.setColor(c);g.setCornerRadius(dp(r));return g;}
@@ -252,6 +238,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private JSONObject postJson(String endpoint,String key,JSONObject body)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(endpoint).openConnection();c.setRequestMethod("POST");c.setConnectTimeout(10000);c.setReadTimeout(60000);c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setRequestProperty("Authorization","Bearer "+key);OutputStreamWriter w=new OutputStreamWriter(c.getOutputStream(),"UTF-8");w.write(body.toString());w.close();int code=c.getResponseCode();BufferedReader r=new BufferedReader(new InputStreamReader(code>=200&&code<300?c.getInputStream():c.getErrorStream(),"UTF-8"));StringBuilder b=new StringBuilder();String line;while((line=r.readLine())!=null)b.append(line);r.close();if(code<200||code>=300)throw new Exception("HTTP "+code+": "+b);return new JSONObject(b.toString());}
     private String extractOutputText(JSONObject r){StringBuilder o=new StringBuilder();JSONArray a=r.optJSONArray("output");if(a==null)return"";for(int i=0;i<a.length();i++){JSONObject it=a.optJSONObject(i);if(it==null)continue;JSONArray c=it.optJSONArray("content");if(c==null)continue;for(int j=0;j<c.length();j++){JSONObject q=c.optJSONObject(j);if(q!=null&&"output_text".equals(q.optString("type"))){if(o.length()>0)o.append("\n");o.append(q.optString("text"));}}}return o.toString();}
     private String safeError(Exception e){String s=e.getMessage();if(s==null)s=e.getClass().getSimpleName();return s.length()>220?s.substring(0,220)+"…":s;}
-    @Override protected void onDestroy(){stopAvatarAnimation();if(neuralPlayer!=null){try{neuralPlayer.stop();neuralPlayer.release();}catch(Exception ignored){}}if(tts!=null){tts.stop();tts.shutdown();}if(localNeuralTts!=null)localNeuralTts.release();super.onDestroy();}
+    @Override protected void onDestroy(){if(avatarController!=null)avatarController.release();if(neuralPlayer!=null){try{neuralPlayer.stop();neuralPlayer.release();}catch(Exception ignored){}}if(tts!=null){tts.stop();tts.shutdown();}if(localNeuralTts!=null)localNeuralTts.release();super.onDestroy();}
     private int dp(int v){return(int)(v*getResources().getDisplayMetrics().density);} private static class Message{final String role,content;Message(String r,String c){role=r;content=c;}}
 }
