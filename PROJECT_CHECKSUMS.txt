@@ -9,7 +9,7 @@ d33773c836bb57636f77c7ddf947d2c4947d844949058dc4c1fab49a4db2c800  app/src/main/A
 c0b22812fe6771516bd39e691b383a5d5cdc630ac87fb6ba9224575035e0868d  app/src/main/java/de/yahya/ai/CelineAvatarController.java
 8cdb472b4f0749774a1cf1bd994eeef5a4b3354c2ac8d8a7c54845d4e6de059c  app/src/main/java/de/yahya/ai/CelineFaceOverlayView.java
 4c8a4954a1420f2ad4cdbb57991d7e98cb16fed5efda6abc7b65442e7c7c2a17  app/src/main/java/de/yahya/ai/DeviceBridge.java
-2c9ca0ee17393afdaac08d54d34796e7659ca8c6eaba9e85d6615375b43f9bbd  app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java
+7619dacdc9c527bfe721cc0826aea5344473c6c097b25b0b68ba99de61730574  app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java
 0517fab9478127a89ae1eeffffffdcae6f731f2ee09f9e46c23310cc41656156  app/src/main/java/de/yahya/ai/MainActivity.java
 690f8fab1667440f5e87beb40a6dd78b9cde1cf8621b670a665ef219310266c8  app/src/main/java/de/yahya/ai/PrincessAccessibilityService.java
 c85cf4bbf1c0263f26b6eb3f3d622e076c5b8a9972538f679a584d45ff5d0913  app/src/main/java/de/yahya/ai/PrincessNotificationService.java
