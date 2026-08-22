@@ -1,0 +1,27 @@
+name: Finalize viseme checksums
+on:
+  workflow_dispatch:
+  push:
+    branches: [ phase5/viseme-analysis ]
+    paths:
+      - '.github/workflows/finalize-viseme.yml'
+permissions:
+  contents: write
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase5/viseme-analysis
+          fetch-depth: 0
+      - name: Rebuild project checksums and remove finalizer
+        run: |
+          set -e
+          rm .github/workflows/finalize-viseme.yml
+          git ls-files | grep -v '^PROJECT_CHECKSUMS.txt$' | grep -v '^.github/workflows/finalize-viseme.yml$' | sort | xargs sha256sum > PROJECT_CHECKSUMS.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'Refresh checksums for viseme pipeline'
+          git push origin HEAD:phase5/viseme-analysis
