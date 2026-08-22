@@ -21,12 +21,12 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     private final float density;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Random random=new Random();
-    private final Bitmap approvedPortrait;
 
     private ObjectAnimator breath,lift;
     private State state=State.IDLE;
     private boolean released,userLooking;
     private float speechEnergy;
+    private CelineLivePortrait.Pose pose=CelineLivePortrait.Pose.NEUTRAL;
 
     private final Runnable microMotionTask=new Runnable(){
         @Override public void run(){if(released||motionView==null)return;if(!userLooking)playMicroMotion();scheduleMicroMotion();}
@@ -34,11 +34,13 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     private final Runnable gazeTask=new Runnable(){
         @Override public void run(){if(released||face==null)return;if(!userLooking)playNaturalGaze();scheduleGaze();}
     };
+    private final Runnable settleSmileTask=new Runnable(){
+        @Override public void run(){if(!released&&state==State.IDLE)applyPose(CelineLivePortrait.Pose.NEUTRAL);}
+    };
 
     public CelineAvatarController(View motionView,ImageView avatar,CelineFaceOverlayView face,float density){
         this.motionView=motionView;this.avatar=avatar;this.face=face;this.density=density;
-        approvedPortrait=avatar==null?null:CelineLivePortrait.load(avatar.getContext());
-        applyApprovedPortrait();
+        applyPose(CelineLivePortrait.Pose.NEUTRAL);
         if(face!=null)face.start();
         if(motionView!=null)motionView.post(()->{motionView.setPivotX(motionView.getWidth()*.50f);motionView.setPivotY(motionView.getHeight()*.78f);});
         SpeechAudioBus.setListener(this);scheduleMicroMotion();scheduleGaze();
@@ -47,7 +49,26 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public State getState(){return state;}
 
     public void setState(State next){
-        if(next==null)next=State.IDLE;state=next;stopLoopsOnly();applyApprovedPortrait();syncFaceState(next);
+        if(next==null)next=State.IDLE;
+        State previous=state;
+        state=next;
+        stopLoopsOnly();
+        handler.removeCallbacks(settleSmileTask);
+
+        switch(next){
+            case LISTENING: applyPose(CelineLivePortrait.Pose.LISTENING); break;
+            case THINKING: applyPose(CelineLivePortrait.Pose.LISTENING); break;
+            case SPEAKING: applyPose(CelineLivePortrait.Pose.SPEAKING); break;
+            case IDLE:
+            default:
+                if(previous==State.SPEAKING){
+                    applyPose(CelineLivePortrait.Pose.SMILE);
+                    handler.postDelayed(settleSmileTask,1200L);
+                }else applyPose(CelineLivePortrait.Pose.NEUTRAL);
+                break;
+        }
+        syncFaceState(next);
+
         switch(next){
             case LISTENING:startBreath(.998f,1.010f,3200);startLift(dp(.2f),-dp(1.4f),3600);break;
             case THINKING:startBreath(.998f,1.009f,4000);startLift(dp(.2f),-dp(1.1f),4400);break;
@@ -82,10 +103,20 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
 
     public void release(){released=true;handler.removeCallbacksAndMessages(null);SpeechAudioBus.clearListener(this);stopMotion();if(face!=null)face.stop();}
 
-    private void applyApprovedPortrait(){
+    private void applyPose(CelineLivePortrait.Pose next){
         if(avatar==null)return;
-        if(approvedPortrait!=null&&!approvedPortrait.isRecycled())avatar.setImageBitmap(approvedPortrait);else avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);
-        avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        if(next==null)next=CelineLivePortrait.Pose.NEUTRAL;
+        Bitmap bitmap=CelineLivePortrait.load(avatar.getContext(),next);
+        if(bitmap==null&&next!=CelineLivePortrait.Pose.NEUTRAL)bitmap=CelineLivePortrait.load(avatar.getContext(),CelineLivePortrait.Pose.NEUTRAL);
+        if(bitmap!=null&&!bitmap.isRecycled()){
+            pose=next;
+            avatar.animate().cancel();
+            avatar.setAlpha(.94f);
+            avatar.setImageBitmap(bitmap);
+            avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            avatar.animate().alpha(1f).setDuration(180L).start();
+            if(face!=null)face.setPose(next);
+        }else avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);
     }
 
     private void playMicroMotion(){
