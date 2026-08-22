@@ -5,11 +5,7 @@ import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageView;
 
-/**
- * Owns Celine's avatar state, whole-frame motion and facial overlay state.
- * The approved portrait remains untouched; motion is applied to a container so
- * the non-destructive face overlay stays perfectly aligned with the image.
- */
+/** Owns Celine's avatar state, whole-frame motion and facial overlay state. */
 public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public enum State { IDLE, LISTENING, THINKING, SPEAKING }
 
@@ -17,9 +13,7 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     private final ImageView avatar;
     private final CelineFaceOverlayView face;
     private final float density;
-    private ObjectAnimator breath;
-    private ObjectAnimator sway;
-    private ObjectAnimator lift;
+    private ObjectAnimator breath, sway, lift;
     private State state = State.IDLE;
 
     public CelineAvatarController(View motionView, ImageView avatar,
@@ -42,37 +36,28 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
         syncFaceState(next);
         switch (next) {
             case LISTENING:
-                startBreath(1.0f, 1.014f, 1250L);
-                startLift(0f, -dp(0.8f), 2100L);
-                break;
+                startBreath(1.0f, 1.014f, 1250L); startLift(0f, -dp(0.8f), 2100L); break;
             case THINKING:
-                startBreath(0.999f, 1.007f, 2300L);
-                startSway(-0.12f, 0.12f, 4800L);
-                break;
+                startBreath(0.999f, 1.007f, 2300L); startSway(-0.12f, 0.12f, 4800L); break;
             case SPEAKING:
-                startBreath(1.0f, 1.010f, 1450L);
-                startSway(-0.09f, 0.09f, 3300L);
-                startLift(0f, -dp(0.6f), 2500L);
-                break;
+                startBreath(1.0f, 1.010f, 1450L); startSway(-0.09f, 0.09f, 3300L); startLift(0f, -dp(0.6f), 2500L); break;
             case IDLE:
             default:
-                startBreath(1.0f, 1.007f, 5200L);
-                startSway(-0.14f, 0.14f, 8800L);
-                startLift(0f, -dp(0.9f), 6900L);
-                break;
+                startBreath(1.0f, 1.007f, 5200L); startSway(-0.14f, 0.14f, 8800L); startLift(0f, -dp(0.9f), 6900L); break;
         }
     }
 
-    /** Actual local-TTS PCM energy, delivered independently of MainActivity. */
     @Override public void onSpeechAudioLevel(float level) {
         if (face != null) face.setMouthLevel(state == State.SPEAKING ? level : 0f);
     }
 
-    /** Small reaction to touch while keeping image and facial overlay aligned. */
+    @Override public void onSpeechViseme(SpeechVisemeAnalyzer.Cue cue) {
+        if (face != null) face.setViseme(state == State.SPEAKING ? cue : SpeechVisemeAnalyzer.silent());
+    }
+
     public void lookToward(float normalizedX, float normalizedY) {
         if (motionView == null) return;
-        float x = clamp(normalizedX, -0.5f, 0.5f);
-        float y = clamp(normalizedY, -0.5f, 0.5f);
+        float x = clamp(normalizedX, -0.5f, 0.5f), y = clamp(normalizedY, -0.5f, 0.5f);
         motionView.setTranslationX(x * dp(6f));
         motionView.setTranslationY(y * dp(3f));
         motionView.setRotation(x * 0.38f);
@@ -84,9 +69,7 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                 .setDuration(360L).setInterpolator(new AccelerateDecelerateInterpolator()).start();
     }
 
-    public void blink() {
-        if (face != null) face.blinkNow(false);
-    }
+    public void blink() { if (face != null) face.blinkNow(false); }
 
     public void release() {
         SpeechAudioBus.clearListener(this);
@@ -107,29 +90,20 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
 
     private void startBreath(float from, float to, long duration) {
         breath = ObjectAnimator.ofFloat(motionView, "scaleX", from, to, from);
-        breath.setDuration(duration);
-        breath.setRepeatCount(ObjectAnimator.INFINITE);
+        breath.setDuration(duration); breath.setRepeatCount(ObjectAnimator.INFINITE);
         breath.setInterpolator(new AccelerateDecelerateInterpolator());
-        breath.addUpdateListener(a -> motionView.setScaleY((Float) a.getAnimatedValue()));
-        breath.start();
+        breath.addUpdateListener(a -> motionView.setScaleY((Float) a.getAnimatedValue())); breath.start();
     }
-
     private void startSway(float from, float to, long duration) {
         sway = ObjectAnimator.ofFloat(motionView, "rotation", from, to, from);
-        sway.setDuration(duration);
-        sway.setRepeatCount(ObjectAnimator.INFINITE);
-        sway.setInterpolator(new AccelerateDecelerateInterpolator());
-        sway.start();
+        sway.setDuration(duration); sway.setRepeatCount(ObjectAnimator.INFINITE);
+        sway.setInterpolator(new AccelerateDecelerateInterpolator()); sway.start();
     }
-
     private void startLift(float from, float to, long duration) {
         lift = ObjectAnimator.ofFloat(motionView, "translationY", from, to, from);
-        lift.setDuration(duration);
-        lift.setRepeatCount(ObjectAnimator.INFINITE);
-        lift.setInterpolator(new AccelerateDecelerateInterpolator());
-        lift.start();
+        lift.setDuration(duration); lift.setRepeatCount(ObjectAnimator.INFINITE);
+        lift.setInterpolator(new AccelerateDecelerateInterpolator()); lift.start();
     }
-
     private void stopMotion() {
         try { if (breath != null) breath.cancel(); } catch (Exception ignored) {}
         try { if (sway != null) sway.cancel(); } catch (Exception ignored) {}
@@ -140,7 +114,6 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
             motionView.setRotation(0f); motionView.setTranslationX(0f); motionView.setTranslationY(0f);
         }
     }
-
     private float dp(float value) { return value * density; }
     private static float clamp(float v, float min, float max) { return Math.max(min, Math.min(max, v)); }
 }
