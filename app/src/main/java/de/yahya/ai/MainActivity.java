@@ -168,28 +168,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if(ttsReady)status.setText("Bereit");
     }
 
-    private String speechClean(String s){
-        if(s==null)return"";
-        String x=s;
-        x=x.replaceAll("(?m)^#{1,6}\\s*","");
-        x=x.replace("**","").replace("__","").replace("`","").replace("•",", ").replace("…",",").replace("–",",").replace("—",",");
-        x=x.replaceAll("(?i)https?://\\S+"," Link ");
-        x=x.replaceAll("\\.{2,}",".");
-        x=x.replaceAll("[\\[\\]{}<>*_#|]"," ");
-        StringBuilder b=new StringBuilder();
-        for(int i=0;i<x.length();){
-            int cp=x.codePointAt(i);i+=Character.charCount(cp);
-            int type=Character.getType(cp);
-            boolean emojiRange=(cp>=0x1F000&&cp<=0x1FAFF)||(cp>=0x2600&&cp<=0x27BF)||(cp>=0xFE00&&cp<=0xFE0F)||(cp>=0x1F1E6&&cp<=0x1F1FF);
-            if(emojiRange||type==Character.OTHER_SYMBOL)continue;
-            b.appendCodePoint(cp);
-        }
-        x=b.toString().replaceAll("\\s+"," ").replaceAll("\\s+([,.!?;:])","$1").trim();
-        return x;
-    }
-
     private void speak(String s){
-        String clean=speechClean(s);if(clean.isEmpty())return;
+        String clean=SpeechTextNormalizer.clean(s);if(clean.isEmpty())return;
         String key=prefs.getString("api_key","").trim();boolean neural=prefs.getBoolean("neural_voice",true);
         if(neural&&!key.isEmpty()){speakNeural(clean,key);return;}
         speakAndroid(clean);
