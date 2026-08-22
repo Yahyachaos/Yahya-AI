@@ -1,0 +1,13 @@
+Yahya AI v0.9 · Celin
+
+1. Projektordner in AndroidIDE öffnen.
+2. Terminal öffnen.
+3. Eingeben:
+
+   bash SETUP_ANDROIDIDE.sh
+
+4. Auf "BUILD READY" warten.
+5. Play drücken.
+
+Die natürliche Celin-Stimme nutzt den bereits in der App hinterlegten OpenAI-API-Key.
+Ohne API-Key fällt die App automatisch auf Android-TTS zurück.

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Yahya AI</string>
+    <string name="accessibility_desc">Erlaubt Yahya AI, nach deiner ausdrücklichen Freigabe Bildschirmaktionen auszuführen.</string>
+</resources>

@@ -1,0 +1,16 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 30
+    defaultConfig {
+        applicationId 'de.yahya.ai'
+        minSdkVersion 26
+        targetSdkVersion 30
+        versionCode 20
+        versionName '1.0-celin-foundation'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
