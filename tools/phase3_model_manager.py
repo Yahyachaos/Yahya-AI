@@ -47,6 +47,5 @@ for line in CHECK.read_text(encoding='utf-8').splitlines():
     if p.exists(): entries.append(path)
 new_path='app/src/main/java/de/yahya/ai/SupertonicModelManager.java'
 if new_path not in entries: entries.append(new_path)
-# Preserve stable order and regenerate every checksum from actual branch contents.
 CHECK.write_text(''.join(f'{hashlib.sha256(Path(p).read_bytes()).hexdigest()}  {p}\n' for p in entries),encoding='utf-8')
 print('Supertonic model manager UI wired.')
