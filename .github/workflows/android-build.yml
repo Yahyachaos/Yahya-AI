@@ -36,13 +36,6 @@ jobs:
         with:
           gradle-version: '6.1.1'
 
-      - name: Print changed checksums
-        run: |
-          sha256sum app/src/main/AndroidManifest.xml
-          sha256sum app/src/main/java/de/yahya/ai/CelineAvatarController.java
-          sha256sum app/src/main/java/de/yahya/ai/CelineFaceOverlayView.java
-          sha256sum app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java
-
       - name: Verify project structure
         run: bash VERIFY_PROJECT.sh
 
