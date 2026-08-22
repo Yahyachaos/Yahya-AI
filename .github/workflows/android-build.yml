@@ -13,17 +13,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 8
+      - name: Set up Java 17 for Android SDK tools
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install Android 30 SDK
         run: sdkmanager "platforms;android-30" "build-tools;30.0.3"
+
+      - name: Set up Java 8 for legacy Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
 
       - name: Set up Gradle 6.1.1
         uses: gradle/actions/setup-gradle@v4
