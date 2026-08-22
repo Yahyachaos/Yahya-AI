@@ -1,12 +1,12 @@
 name: Finalize local TTS diagnostics
 on:
-  push:
-    branches: [ diagnostics/local-tts ]
-    paths: [ '.github/workflows/finalize-local-tts-diagnostics.yml' ]
+  pull_request:
+    branches: [ main ]
 permissions:
   contents: write
 jobs:
   patch:
+    if: github.head_ref == 'diagnostics/local-tts'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +33,6 @@ jobs:
 '''
           if anchor not in s: raise SystemExit('install method anchor not found')
           s=s.replace(anchor,method+anchor,1)
-          # Show concrete local error before fallback so target-device failures are actionable.
           old2='''            @Override public void onError(Throwable error){runOnUiThread(()->{Toast.makeText(MainActivity.this,"Lokale Neural-Stimme noch nicht bereit – Fallback aktiv.",Toast.LENGTH_SHORT).show();speakExistingFallback(clean);});}'''
           new2='''            @Override public void onError(Throwable error){runOnUiThread(()->{String why=localNeuralTts==null?"unbekannt":localNeuralTts.getLastErrorSummary();Toast.makeText(MainActivity.this,"Lokale Stimme: "+why,Toast.LENGTH_LONG).show();speakExistingFallback(clean);});}'''
           if old2 not in s: raise SystemExit('local fallback pattern not found')
