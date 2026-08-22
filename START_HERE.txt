@@ -1,4 +1,4 @@
-Yahya AI v0.9 · Celin
+Yahya AI · Celin v1.0 Foundation
 
 1. Projektordner in AndroidIDE öffnen.
 2. Terminal öffnen.
@@ -9,5 +9,8 @@ Yahya AI v0.9 · Celin
 4. Auf "BUILD READY" warten.
 5. Play drücken.
 
-Die natürliche Celin-Stimme nutzt den bereits in der App hinterlegten OpenAI-API-Key.
-Ohne API-Key fällt die App automatisch auf Android-TTS zurück.
+Die technische App-Version wird ausschließlich in app/build.gradle über versionCode und versionName festgelegt.
+
+Für Online-KI bzw. Online-TTS muss ein OpenAI-API-Key in der App eingetragen sein.
+Ohne API-Key bleibt die lokale Android-TTS-Engine als Sprach-Fallback verfügbar.
+Eine eigene lokale neuronale Celin-Stimme ist in dieser Foundation noch nicht integriert.
