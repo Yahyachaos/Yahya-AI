@@ -36,29 +36,35 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
         syncFaceState(next);
         switch (next) {
             case LISTENING:
-                startBreath(1.0f, 1.010f, 1550L);
-                startLift(0f, -dp(0.55f), 2600L);
+                startBreath(0.996f, 1.021f, 1450L);
+                startLift(dp(0.8f), -dp(2.4f), 2100L);
+                startSway(-0.30f, 0.30f, 4200L);
                 break;
             case THINKING:
-                startBreath(0.999f, 1.006f, 2500L);
-                startSway(-0.10f, 0.10f, 5200L);
+                startBreath(0.997f, 1.015f, 2200L);
+                startSway(-0.48f, 0.48f, 4300L);
+                startLift(dp(0.5f), -dp(1.8f), 3300L);
                 break;
             case SPEAKING:
-                startBreath(1.0f, 1.008f, 1750L);
-                startSway(-0.075f, 0.075f, 3700L);
-                startLift(0f, -dp(0.45f), 2800L);
+                startBreath(0.997f, 1.024f, 1300L);
+                startSway(-0.42f, 0.42f, 2600L);
+                startLift(dp(0.7f), -dp(2.8f), 1900L);
                 break;
             case IDLE:
             default:
-                startBreath(1.0f, 1.0055f, 5600L);
-                startSway(-0.11f, 0.11f, 9200L);
-                startLift(0f, -dp(0.65f), 7400L);
+                startBreath(0.998f, 1.018f, 4300L);
+                startSway(-0.34f, 0.34f, 6200L);
+                startLift(dp(0.5f), -dp(2.2f), 5200L);
                 break;
         }
     }
 
     @Override public void onSpeechAudioLevel(float level) {
         if (face != null) face.setMouthLevel(state == State.SPEAKING ? level : 0f);
+        if (motionView != null && state == State.SPEAKING) {
+            float pulse = Math.max(0f, Math.min(1f, level));
+            motionView.setTranslationX((pulse - 0.5f) * dp(0.7f));
+        }
     }
 
     @Override public void onSpeechViseme(SpeechVisemeAnalyzer.Cue cue) {
@@ -68,17 +74,16 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public void lookToward(float normalizedX, float normalizedY) {
         if (motionView == null) return;
         float x = clamp(normalizedX, -0.5f, 0.5f), y = clamp(normalizedY, -0.5f, 0.5f);
-        // Keep the head movement subtle; the overlay handles the smaller eye micro-shift.
-        motionView.setTranslationX(x * dp(3.2f));
-        motionView.setTranslationY(y * dp(1.8f));
-        motionView.setRotation(x * 0.24f);
+        motionView.setTranslationX(x * dp(8.0f));
+        motionView.setTranslationY(y * dp(4.6f));
+        motionView.setRotation(x * 0.9f);
         if (face != null) face.setGaze(x * 2f, y * 2f);
     }
 
     public void releaseLook() {
         if (motionView != null) {
             motionView.animate().translationX(0f).translationY(0f).rotation(0f)
-                    .setDuration(360L).setInterpolator(new AccelerateDecelerateInterpolator()).start();
+                    .setDuration(420L).setInterpolator(new AccelerateDecelerateInterpolator()).start();
         }
         if (face != null) face.releaseGaze();
     }

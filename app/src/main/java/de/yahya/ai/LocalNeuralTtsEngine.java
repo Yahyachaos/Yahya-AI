@@ -31,9 +31,9 @@ public final class LocalNeuralTtsEngine {
             "unicode_indexer.bin", "voice.bin"
     };
 
-    // Candidate feminine profile. The final Celine voice is selected on-device in Voice Lab.
-    private static final int DEFAULT_SID = 7;
-    private static final float DEFAULT_SPEED = 0.93f;
+    /* sherpa voice.bin is ordered F1..F5, M1..M5. F5 is the gentle female preset. */
+    private static final int DEFAULT_SID = 4;
+    private static final float DEFAULT_SPEED = 0.96f;
     private static final int DEFAULT_STEPS = 12;
 
     private final Context context;
@@ -44,17 +44,14 @@ public final class LocalNeuralTtsEngine {
     private volatile float speed = DEFAULT_SPEED;
     private volatile int numSteps = DEFAULT_STEPS;
 
-    public LocalNeuralTtsEngine(Context context) {
-        this.context = context.getApplicationContext();
-    }
+    public LocalNeuralTtsEngine(Context context) { this.context = context.getApplicationContext(); }
 
-    public File getModelDir() {
-        return new File(new File(context.getFilesDir(), "tts"), MODEL_DIR_NAME);
-    }
+    public File getModelDir() { return new File(new File(context.getFilesDir(), "tts"), MODEL_DIR_NAME); }
 
+    /** Only the five female Supertonic presets are allowed for Celine. */
     public void setVoiceProfile(int sid, float newSpeed) {
-        speakerId = Math.max(0, Math.min(9, sid));
-        speed = Math.max(0.78f, Math.min(1.18f, newSpeed));
+        speakerId = Math.max(0, Math.min(4, sid));
+        speed = Math.max(0.82f, Math.min(1.12f, newSpeed));
     }
 
     public int getSpeakerId() { return speakerId; }
@@ -72,49 +69,21 @@ public final class LocalNeuralTtsEngine {
 
     public String diagnosticReport() {
         StringBuilder b = new StringBuilder();
-        File dir = getModelDir();
-        b.append("Modelordner: ").append(dir.getAbsolutePath()).append('\n');
-        b.append("Ordner vorhanden: ").append(dir.isDirectory() ? "JA" : "NEIN").append("\n\n");
-        for (String name : REQUIRED) {
-            File f = new File(dir, name);
-            b.append(name).append(": ");
-            if (f.isFile()) b.append(f.length()).append(" Bytes"); else b.append("FEHLT");
-            b.append('\n');
-        }
-        b.append("\nModell vollständig: ").append(isModelInstalled() ? "JA" : "NEIN").append('\n');
-        b.append("Speaker-ID: ").append(speakerId).append(" | Speed: ").append(speed).append('\n');
-        b.append("ABI: ");
-        try { b.append(android.os.Build.SUPPORTED_ABIS == null ? "?" : java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS)); }
-        catch (Throwable ignored) { b.append("?"); }
-        b.append('\n');
-        try {
-            Class.forName("com.k2fsa.sherpa.onnx.OfflineTts");
-            Class.forName("com.k2fsa.sherpa.onnx.GenerationConfig");
-            b.append("sherpa Runtime-Klassen: OK\n");
-            ensureInitialized();
-            b.append("Engine-Initialisierung: OK\n");
-        } catch (Throwable e) {
-            lastError = unwrap(e);
-            b.append("Engine-Initialisierung: FEHLER: ").append(describe(lastError)).append('\n');
-        }
-        Throwable le = lastError;
-        if (le != null) b.append("Letzter Sprachfehler: ").append(describe(le)).append('\n');
+        b.append("Modelordner: ").append(getModelDir().getAbsolutePath()).append('\n');
+        b.append("Modell vollständig: ").append(isModelInstalled() ? "JA" : "NEIN").append('\n');
+        b.append("Celine female SID: ").append(speakerId).append(" | Speed: ").append(speed).append('\n');
+        Throwable e = lastError;
+        if (e != null) b.append("Letzter Sprachfehler: ").append(describe(e)).append('\n');
         return b.toString();
     }
 
-    public String getLastErrorSummary() {
-        Throwable e = lastError;
-        return e == null ? "Kein Fehler gespeichert" : describe(e);
-    }
+    public String getLastErrorSummary() { return lastError == null ? "Kein Fehler gespeichert" : describe(lastError); }
 
     public void speak(String text, Listener listener) {
         if (text == null || text.trim().isEmpty()) return;
         if (!isModelInstalled()) {
             IllegalStateException e = new IllegalStateException("Supertonic model is not installed");
-            lastError = e;
-            listener.onError(e);
-            showDeviceError(e);
-            return;
+            lastError = e; listener.onError(e); showDeviceError(e); return;
         }
         new Thread(() -> {
             try {
@@ -123,12 +92,9 @@ public final class LocalNeuralTtsEngine {
                 Object config = createGenerationConfig();
                 Method generate = findMethod(tts.getClass(), "generateWithConfig", 2);
                 Object audio = generate.invoke(tts, text, config);
-                Method getSamples = audio.getClass().getMethod("getSamples");
-                Method getSampleRate = audio.getClass().getMethod("getSampleRate");
-                float[] samples = (float[]) getSamples.invoke(audio);
-                int sampleRate = (Integer) getSampleRate.invoke(audio);
-                if (samples == null || samples.length == 0 || sampleRate <= 0)
-                    throw new IllegalStateException("Supertonic returned no audio");
+                float[] samples = (float[]) audio.getClass().getMethod("getSamples").invoke(audio);
+                int sampleRate = (Integer) audio.getClass().getMethod("getSampleRate").invoke(audio);
+                if (samples == null || samples.length == 0 || sampleRate <= 0) throw new IllegalStateException("Supertonic returned no audio");
                 lastError = null;
                 listener.onSpeaking();
                 playBlocking(samples, sampleRate);
@@ -144,14 +110,9 @@ public final class LocalNeuralTtsEngine {
 
     private void showDeviceError(Throwable error) {
         final String message = "Celine TTS Diagnose: " + describe(error);
-        new Handler(Looper.getMainLooper()).postDelayed(
-                () -> Toast.makeText(context, message, Toast.LENGTH_LONG).show(), 900L);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(context, message, Toast.LENGTH_LONG).show(), 900L);
     }
 
-    /**
-     * v1.13.4 is distributed with Kotlin data classes. Reflection keeps this legacy Java-8
-     * project binary-compatible with that API while still using the official Supertonic config.
-     */
     private synchronized Object ensureInitialized() throws Exception {
         if (offlineTts != null) return offlineTts;
         File dir = getModelDir();
@@ -163,12 +124,9 @@ public final class LocalNeuralTtsEngine {
                 "duration_predictor.int8.onnx", "text_encoder.int8.onnx",
                 "vector_estimator.int8.onnx", "vocoder.int8.onnx", "tts.json",
                 "unicode_indexer.bin", "voice.bin");
-
         Class<?> offlineClass = Class.forName("com.k2fsa.sherpa.onnx.OfflineTts");
         Constructor<?> ctor = null;
-        for (Constructor<?> c : offlineClass.getConstructors()) {
-            if (c.getParameterTypes().length == 2) { ctor = c; break; }
-        }
+        for (Constructor<?> c : offlineClass.getConstructors()) if (c.getParameterTypes().length == 2) { ctor = c; break; }
         if (ctor == null) throw new NoSuchMethodException("OfflineTts constructor");
         offlineTts = ctor.newInstance(null, config);
         return offlineTts;
@@ -177,37 +135,27 @@ public final class LocalNeuralTtsEngine {
     private Object createGenerationConfig() throws Exception {
         Class<?> c = Class.forName("com.k2fsa.sherpa.onnx.GenerationConfig");
         Constructor<?> ctor = null;
-        for (Constructor<?> x : c.getConstructors()) {
-            if (x.getParameterTypes().length == 8) { ctor = x; break; }
-        }
+        for (Constructor<?> x : c.getConstructors()) if (x.getParameterTypes().length == 8) { ctor = x; break; }
         if (ctor == null) throw new NoSuchMethodException("GenerationConfig constructor");
-        Map<String, String> extra = new HashMap<>();
-        extra.put("lang", "de");
+        Map<String, String> extra = new HashMap<>(); extra.put("lang", "de");
         return ctor.newInstance(0.16f, speed, speakerId, null, 0, null, numSteps, extra);
     }
 
     private void playBlocking(float[] samples, int sampleRate) {
-        int min = AudioTrack.getMinBufferSize(sampleRate,
-                AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT);
+        int min = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT);
         int buffer = Math.max(min, Math.min(samples.length * 4, 1024 * 1024));
-        AudioAttributes attrs = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
-        AudioFormat format = new AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(sampleRate)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
-        AudioTrack track = new AudioTrack(attrs, format, buffer,
-                AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
+        AudioAttributes attrs = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
+        AudioFormat format = new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
+        AudioTrack track = new AudioTrack(attrs, format, buffer, AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
         activeTrack = track;
         float envelope = 0f;
         try {
             track.play();
-            int pos = 0;
-            final int visualChunk = Math.max(384, sampleRate / 30);
+            int pos = 0; final int visualChunk = Math.max(320, sampleRate / 36);
             while (pos < samples.length) {
                 int count = Math.min(visualChunk, samples.length - pos);
                 float level = normalizedRms(samples, pos, count);
-                envelope = envelope * 0.24f + level * 0.76f;
+                envelope = envelope * 0.18f + level * 0.82f;
                 SpeechAudioBus.publish(envelope);
                 SpeechAudioBus.publishViseme(SpeechVisemeAnalyzer.analyze(samples, pos, count, sampleRate));
                 int written = track.write(samples, pos, count, AudioTrack.WRITE_BLOCKING);
@@ -215,8 +163,7 @@ public final class LocalNeuralTtsEngine {
                 pos += written;
             }
             SpeechAudioBus.reset();
-            long waitMs = Math.max(50L, (long) samples.length * 1000L / sampleRate + 80L);
-            try { Thread.sleep(waitMs); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            try { Thread.sleep(90L); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         } finally {
             SpeechAudioBus.reset();
             try { track.stop(); } catch (Exception ignored) {}
@@ -227,55 +174,24 @@ public final class LocalNeuralTtsEngine {
 
     private static float normalizedRms(float[] samples, int offset, int count) {
         if (samples == null || count <= 0) return 0f;
-        double sum = 0.0;
-        int end = Math.min(samples.length, offset + count);
-        for (int i = offset; i < end; i++) { float v = samples[i]; sum += v * v; }
-        int n = Math.max(1, end - offset);
-        double rms = Math.sqrt(sum / n);
-        float level = (float) ((rms - 0.0035) / 0.065);
-        return Math.max(0f, Math.min(1f, level));
+        double sum=0.0; int end=Math.min(samples.length,offset+count);
+        for(int i=offset;i<end;i++){float v=samples[i];sum+=v*v;}
+        double rms=Math.sqrt(sum/Math.max(1,end-offset));
+        return Math.max(0f,Math.min(1f,(float)((rms-0.003)/0.055)));
     }
 
     public synchronized void release() {
         SpeechAudioBus.reset();
-        AudioTrack track = activeTrack; activeTrack = null;
-        if (track != null) {
-            try { track.pause(); } catch (Exception ignored) {}
-            try { track.flush(); } catch (Exception ignored) {}
-            try { track.stop(); } catch (Exception ignored) {}
-            try { track.release(); } catch (Exception ignored) {}
-        }
-        Object tts = offlineTts; offlineTts = null;
-        if (tts != null) {
-            try { tts.getClass().getMethod("release").invoke(tts); } catch (Exception ignored) {}
-        }
+        AudioTrack track=activeTrack; activeTrack=null;
+        if(track!=null){try{track.pause();}catch(Exception ignored){} try{track.flush();}catch(Exception ignored){} try{track.stop();}catch(Exception ignored){} try{track.release();}catch(Exception ignored){}}
+        Object tts=offlineTts; offlineTts=null;
+        if(tts!=null) try{tts.getClass().getMethod("release").invoke(tts);}catch(Exception ignored){}
     }
 
-    private static Method findMethod(Class<?> c, String name, int params) throws NoSuchMethodException {
-        for (Method m : c.getMethods()) {
-            if (m.getName().equals(name) && m.getParameterTypes().length == params) return m;
-        }
-        throw new NoSuchMethodException(c.getName() + "." + name + "/" + params);
+    private static Method findMethod(Class<?> c,String name,int params)throws NoSuchMethodException{
+        for(Method m:c.getMethods())if(m.getName().equals(name)&&m.getParameterTypes().length==params)return m;
+        throw new NoSuchMethodException(c.getName()+"."+name+"/"+params);
     }
-
-    private static Throwable unwrap(Throwable t) {
-        if (t == null) return null;
-        Throwable cause = t.getCause();
-        return cause != null ? cause : t;
-    }
-
-    private static String describe(Throwable t) {
-        if (t == null) return "unbekannt";
-        String m = t.getMessage();
-        if (m == null || m.trim().isEmpty()) m = t.getClass().getName();
-        else m = t.getClass().getSimpleName() + ": " + m;
-        Throwable c = t.getCause();
-        if (c != null && c != t) {
-            String cm = c.getMessage();
-            if (cm == null || cm.trim().isEmpty()) cm = c.getClass().getName();
-            else cm = c.getClass().getSimpleName() + ": " + cm;
-            m += " | Ursache: " + cm;
-        }
-        return m;
-    }
+    private static Throwable unwrap(Throwable t){return t!=null&&t.getCause()!=null?t.getCause():t;}
+    private static String describe(Throwable t){if(t==null)return"unbekannt";String m=t.getMessage();return m==null||m.trim().isEmpty()?t.getClass().getSimpleName():t.getClass().getSimpleName()+": "+m;}
 }
