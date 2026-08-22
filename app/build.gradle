@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+def stableDebugKeystore = rootProject.file('signing/yahya-debug.keystore')
+def stableDebugKeystoreBase64 = rootProject.file('signing/yahya-debug.keystore.b64')
+if (!stableDebugKeystoreBase64.isFile()) {
+    throw new GradleException('Missing signing/yahya-debug.keystore.b64')
+}
+stableDebugKeystore.parentFile.mkdirs()
+stableDebugKeystore.bytes = java.util.Base64.getDecoder().decode(stableDebugKeystoreBase64.getText('UTF-8').trim())
+
 android {
     compileSdkVersion 30
     defaultConfig {
@@ -8,6 +16,19 @@ android {
         targetSdkVersion 30
         versionCode 20
         versionName '1.0-celin-foundation'
+    }
+    signingConfigs {
+        debug {
+            storeFile stableDebugKeystore
+            storePassword 'yahya-debug'
+            keyAlias 'yahya-debug'
+            keyPassword 'yahya-debug'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
