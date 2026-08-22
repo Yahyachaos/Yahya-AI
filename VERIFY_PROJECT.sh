@@ -12,6 +12,7 @@ done
 [ -f app/src/main/java/de/yahya/ai/SpeechRecognitionIntentFactory.java ] || { echo "FEHLT: SpeechRecognitionIntentFactory.java"; exit 1; }
 [ -f app/src/main/java/de/yahya/ai/SpeechOutputRouter.java ] || { echo "FEHLT: SpeechOutputRouter.java"; exit 1; }
 [ -f app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java ] || { echo "FEHLT: LocalNeuralTtsEngine.java"; exit 1; }
+[ -f app/src/main/java/de/yahya/ai/SupertonicModelManager.java ] || { echo "FEHLT: SupertonicModelManager.java"; exit 1; }
 [ -f app/src/main/res/drawable-nodpi/celine_avatar.png ] || { echo "FEHLT: Celin-Avatar"; exit 1; }
 
 grep -q "applicationId 'de.yahya.ai'" app/build.gradle

@@ -26,12 +26,12 @@ import java.util.*;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private LinearLayout chatBox; private ScrollView scroll; private EditText input; private TextView status; private Button mic; private ImageView avatar;
-    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private ObjectAnimator avatarAnimator; private ObjectAnimator avatarSway; private ObjectAnimator avatarLift; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
+    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private SupertonicModelManager supertonicModels; private ObjectAnimator avatarAnimator; private ObjectAnimator avatarSway; private ObjectAnimator avatarLift; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
     private final List<Message> messages=new ArrayList<>();
     private static final int REQ_MIC=44,REQ_SPEECH=55,REQ_PERMS=66; private static final String MODEL="gpt-5.6-luna";
     private int bg=Color.rgb(13,15,20),panel=Color.rgb(25,28,36),accent=Color.rgb(150,116,255),text=Color.rgb(242,242,246),muted=Color.rgb(160,164,176);
 
-    @Override protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("yahya_ai",MODE_PRIVATE);device=new DeviceBridge(this);localNeuralTts=new LocalNeuralTtsEngine(this);setContentView(buildUi());initTts();addAssistant("Hallo Yahya. Schön, dass du da bist. Was machen wir?",false);if(prefs.getBoolean("wake",false)){Intent ws=new Intent(this,WakeWordService.class);if(Build.VERSION.SDK_INT>=26)startForegroundService(ws);else startService(ws);}handleWakeIntent(getIntent());}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("yahya_ai",MODE_PRIVATE);device=new DeviceBridge(this);localNeuralTts=new LocalNeuralTtsEngine(this);supertonicModels=new SupertonicModelManager(this);setContentView(buildUi());initTts();addAssistant("Hallo Yahya. Schön, dass du da bist. Was machen wir?",false);if(prefs.getBoolean("wake",false)){Intent ws=new Intent(this,WakeWordService.class);if(Build.VERSION.SDK_INT>=26)startForegroundService(ws);else startService(ws);}handleWakeIntent(getIntent());}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);handleWakeIntent(i);}
     private void handleWakeIntent(Intent i){if(i==null||!i.getBooleanExtra("wake_celin",false))return;String c=i.getStringExtra("wake_command");handler.postDelayed(()->{addAssistant("Ja?",false);speak("Ja?");if(c!=null&&!c.trim().isEmpty())submit(c.trim());else handler.postDelayed(this::startVoiceInput,550);},350);}
 
@@ -81,9 +81,29 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void showSettings(){
         String wake=prefs.getBoolean("wake",false)?"an":"aus";String cloud=prefs.getString("api_key","").trim().isEmpty()?"nicht verbunden":"verbunden";
         String voiceMode=prefs.getBoolean("neural_voice",true)?"Celin Online-Stimme":"Celin Offline (Gerät)"; String voiceName=prefs.getString("openai_voice","marin");
-        String[] items={"Celin-Aktivierungswort: "+wake,"KI/API: "+cloud,"Gedächtnis","Berechtigungen & Gerätezugriff","Gerätestatus","Sprachmodus: "+voiceMode,"Online-Stimme: "+voiceName,"Stimme testen","Avatar ansehen","Datenschutz: Gedächtnis löschen"};
-        new AlertDialog.Builder(this).setTitle("Yahya AI · Einstellungen").setItems(items,(d,w)->{switch(w){case 0:toggleWake();break;case 1:showApiKeyDialog();break;case 2:showMemoryDialog();break;case 3:showAccess();break;case 4:addAssistant(device.status(),false);break;case 5:toggleVoiceMode();break;case 6:showOpenAiVoicePicker();break;case 7:speak("Hallo Yahya. Schön, dass du da bist. Was machen wir heute?");break;case 8:showAvatar();break;case 9:confirmDeleteMemory();break;}}).show();
+        String localVoice=(supertonicModels!=null&&supertonicModels.isInstalled())?"installiert":"nicht installiert";
+        String[] items={"Celin-Aktivierungswort: "+wake,"KI/API: "+cloud,"Gedächtnis","Berechtigungen & Gerätezugriff","Gerätestatus","Sprachmodus: "+voiceMode,"Lokale Neural-Stimme: "+localVoice,"Online-Stimme: "+voiceName,"Stimme testen","Avatar ansehen","Datenschutz: Gedächtnis löschen"};
+        new AlertDialog.Builder(this).setTitle("Yahya AI · Einstellungen").setItems(items,(d,w)->{switch(w){case 0:toggleWake();break;case 1:showApiKeyDialog();break;case 2:showMemoryDialog();break;case 3:showAccess();break;case 4:addAssistant(device.status(),false);break;case 5:toggleVoiceMode();break;case 6:showLocalVoiceSetup();break;case 7:showOpenAiVoicePicker();break;case 8:speak("Hallo Yahya. Schön, dass du da bist. Was machen wir heute?");break;case 9:showAvatar();break;case 10:confirmDeleteMemory();break;}}).show();
     }
+    private void showLocalVoiceSetup(){
+        if(supertonicModels==null)return;
+        if(supertonicModels.isInstalled()){
+            new AlertDialog.Builder(this).setTitle("Celines lokale Neural-Stimme").setMessage("Das Supertonic-Sprachmodell ist auf diesem Gerät installiert und wird vollständig lokal verwendet. Möchtest du die Stimme testen oder das Modell entfernen?").setPositiveButton("Stimme testen",(d,w)->speak("Hallo Yahya. Ich spreche jetzt vollständig lokal auf deinem Gerät. Wie gefällt dir meine Stimme?")).setNeutralButton("Modell entfernen",(d,w)->{if(localNeuralTts!=null)localNeuralTts.release();supertonicModels.remove();Toast.makeText(this,"Lokales Sprachmodell entfernt.",Toast.LENGTH_SHORT).show();}).setNegativeButton("Schließen",null).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Celines lokale Neural-Stimme").setMessage("Das hochwertige Supertonic-Sprachmodell wird einmal aus dem offiziellen sherpa-onnx-Release heruntergeladen. Danach läuft die Sprachausgabe lokal auf deinem Gerät. Für Download und Einrichtung sollten mindestens 320 MB frei sein.").setPositiveButton("Herunterladen",(d,w)->installLocalVoice()).setNegativeButton("Abbrechen",null).show();
+    }
+
+    private void installLocalVoice(){
+        status.setText("Lokale Stimme wird vorbereitet …");avatarThinking();
+        supertonicModels.install(new SupertonicModelManager.Listener(){
+            @Override public void onStatus(String t){runOnUiThread(()->status.setText(t));}
+            @Override public void onProgress(int p){runOnUiThread(()->status.setText("Celines Stimme: "+p+" %"));}
+            @Override public void onInstalled(){runOnUiThread(()->{status.setText("Lokale Neural-Stimme installiert");avatarIdle();Toast.makeText(MainActivity.this,"Celines lokale Neural-Stimme ist installiert. Jetzt testen wir sie.",Toast.LENGTH_LONG).show();speak("Hallo Yahya. Jetzt spreche ich vollständig lokal auf deinem Gerät. Wie gefällt dir meine Stimme?");});}
+            @Override public void onError(Throwable e){runOnUiThread(()->{status.setText("Bereit");avatarIdle();String m=e.getMessage();if(m==null||m.trim().isEmpty())m=e.getClass().getSimpleName();new AlertDialog.Builder(MainActivity.this).setTitle("Installation nicht abgeschlossen").setMessage(m).setPositiveButton("OK",null).show();});}
+        });
+    }
+
     private void toggleWake(){boolean on=!prefs.getBoolean("wake",false);if(on&&checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_MIC);Toast.makeText(this,"Mikrofon erlauben und Aktivierungswort danach erneut einschalten.",Toast.LENGTH_LONG).show();return;}prefs.edit().putBoolean("wake",on).apply();Intent s=new Intent(this,WakeWordService.class);if(on){if(Build.VERSION.SDK_INT>=26)startForegroundService(s);else startService(s);}else stopService(s);Toast.makeText(this,on?"Celin hört jetzt auf ihren Namen.":"Aktivierungswort ausgeschaltet.",Toast.LENGTH_SHORT).show();}
     private void showAccess(){String msg="Celin kann nur Rechte nutzen, die du Android ausdrücklich gibst. Ohne Root bleiben private Daten anderer Apps und geschützter System-RAM gesperrt.\n\n"+device.status();new AlertDialog.Builder(this).setTitle("Berechtigungen & Gerätezugriff").setMessage(msg).setPositiveButton("Normale Rechte",(d,w)->requestNormalPermissions()).setNeutralButton("Spezialrechte",(d,w)->showSpecialRights()).setNegativeButton("Schließen",null).show();}
     private void requestNormalPermissions(){if(Build.VERSION.SDK_INT>=23)requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO,Manifest.permission.CAMERA,Manifest.permission.READ_CONTACTS,Manifest.permission.WRITE_CONTACTS,Manifest.permission.READ_CALENDAR,Manifest.permission.WRITE_CALENDAR,Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},REQ_PERMS);}
