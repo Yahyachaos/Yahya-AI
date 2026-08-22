@@ -2,13 +2,7 @@ package de.yahya.ai;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.Rect;
-import android.graphics.RectF;
+import android.graphics.*;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
@@ -16,26 +10,13 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 
 import java.util.Random;
 
-/**
- * Non-destructive facial overlay for the approved Celine portrait.
- *
- * At rest this view draws nothing, so the original artwork is shown exactly as
- * stored. Blink and mouth motion are rendered only while active and use pixels
- * from that same source portrait; the PNG itself is never modified.
- *
- * Face boxes are normalized to the 768x768 reference image and intentionally
- * kept in one place so they can be fine-tuned on the target device later.
- */
+/** Non-destructive facial overlay for the approved Celine portrait. */
 public final class CelineFaceOverlayView extends View {
     public enum Activity { IDLE, LISTENING, THINKING, SPEAKING }
 
-    // Normalized source-image boxes. These are calibration values, not new art.
     private static final float LEFT_L = 0.305f, LEFT_R = 0.470f;
     private static final float RIGHT_L = 0.530f, RIGHT_R = 0.695f;
     private static final float EYE_T = 0.345f, EYE_B = 0.430f;
-
-    // Mouth region used for a local pixel warp driven by actual TTS PCM energy.
-    // This intentionally stays conservative; exact alignment is calibrated on-device.
     private static final float MOUTH_L = 0.385f, MOUTH_R = 0.615f;
     private static final float MOUTH_T = 0.545f, MOUTH_B = 0.635f;
 
@@ -47,184 +28,123 @@ public final class CelineFaceOverlayView extends View {
 
     private float blink = 0f;
     private float mouthLevel = 0f;
+    private float visemeOpen = 0f, visemeWide = 0f, visemeRound = 0f;
+    private SpeechVisemeAnalyzer.Shape visemeShape = SpeechVisemeAnalyzer.Shape.CLOSED;
     private boolean running = false;
     private Activity activity = Activity.IDLE;
     private ValueAnimator blinkAnimator;
 
     private final Runnable blinkTask = new Runnable() {
-        @Override public void run() {
-            if (!running) return;
-            blinkNow(random.nextInt(7) == 0);
-        }
+        @Override public void run() { if (running) blinkNow(random.nextInt(7) == 0); }
     };
 
     public CelineFaceOverlayView(Context context) {
         super(context);
         setWillNotDraw(false);
         source = BitmapFactory.decodeResource(getResources(), de.yahya.ai.R.drawable.celine_avatar);
-        lidPaint.setStyle(Paint.Style.STROKE);
-        lidPaint.setStrokeCap(Paint.Cap.ROUND);
-        lidPaint.setColor(0xCC2B2024);
+        lidPaint.setStyle(Paint.Style.STROKE); lidPaint.setStrokeCap(Paint.Cap.ROUND); lidPaint.setColor(0xCC2B2024);
     }
 
-    public void start() {
-        if (running) return;
-        running = true;
-        scheduleNext();
-    }
-
+    public void start() { if (!running) { running = true; scheduleNext(); } }
     public void stop() {
-        running = false;
-        handler.removeCallbacks(blinkTask);
+        running = false; handler.removeCallbacks(blinkTask);
         if (blinkAnimator != null) blinkAnimator.cancel();
-        blink = 0f;
-        mouthLevel = 0f;
-        invalidate();
+        blink = mouthLevel = visemeOpen = visemeWide = visemeRound = 0f;
+        visemeShape = SpeechVisemeAnalyzer.Shape.CLOSED; invalidate();
     }
 
     public void setActivity(Activity next) {
         activity = next == null ? Activity.IDLE : next;
-        if (activity != Activity.SPEAKING) setMouthLevel(0f);
-        if (running) {
-            handler.removeCallbacks(blinkTask);
-            scheduleNext();
-        }
+        if (activity != Activity.SPEAKING) { setMouthLevel(0f); setViseme(SpeechVisemeAnalyzer.silent()); }
+        if (running) { handler.removeCallbacks(blinkTask); scheduleNext(); }
     }
 
-    /** Receives normalized 0..1 speech energy generated from the actual local PCM. */
     public void setMouthLevel(float level) {
-        float next = Math.max(0f, Math.min(1f, level));
-        if (activity != Activity.SPEAKING) next = 0f;
-        // A little UI-side damping prevents single-frame twitching.
+        float next = activity == Activity.SPEAKING ? clamp(level) : 0f;
         mouthLevel = mouthLevel * 0.30f + next * 0.70f;
         if (mouthLevel < 0.025f) mouthLevel = 0f;
         invalidate();
     }
 
-    /** Manual blink hook for future emotional reactions/tests. */
+    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {
+        if (cue == null || activity != Activity.SPEAKING) cue = SpeechVisemeAnalyzer.silent();
+        visemeShape = cue.shape;
+        visemeOpen = visemeOpen * 0.30f + cue.openness * 0.70f;
+        visemeWide = visemeWide * 0.35f + cue.width * 0.65f;
+        visemeRound = visemeRound * 0.35f + cue.roundness * 0.65f;
+        invalidate();
+    }
+
     public void blinkNow(boolean doubleBlink) {
         if (blinkAnimator != null && blinkAnimator.isRunning()) return;
-        float[] values = doubleBlink
-                ? new float[]{0f, 1f, 0f, 0f, 1f, 0f}
-                : new float[]{0f, 1f, 0f};
+        float[] values = doubleBlink ? new float[]{0f,1f,0f,0f,1f,0f} : new float[]{0f,1f,0f};
         blinkAnimator = ValueAnimator.ofFloat(values);
         blinkAnimator.setDuration(doubleBlink ? 430L : 190L);
         blinkAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
-        blinkAnimator.addUpdateListener(a -> {
-            blink = (Float) a.getAnimatedValue();
-            invalidate();
-        });
+        blinkAnimator.addUpdateListener(a -> { blink = (Float)a.getAnimatedValue(); invalidate(); });
         blinkAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(android.animation.Animator animation) {
-                blink = 0f;
-                invalidate();
-                if (running) scheduleNext();
+                blink = 0f; invalidate(); if (running) scheduleNext();
             }
         });
-        handler.removeCallbacks(blinkTask);
-        blinkAnimator.start();
+        handler.removeCallbacks(blinkTask); blinkAnimator.start();
     }
 
     private void scheduleNext() {
         if (!running) return;
-        long base;
-        switch (activity) {
-            case LISTENING: base = 2200L; break;
-            case THINKING: base = 3000L; break;
-            case SPEAKING: base = 2600L; break;
-            case IDLE:
-            default: base = 3400L; break;
-        }
-        long jitter = 900L + random.nextInt(2800);
-        handler.postDelayed(blinkTask, base + jitter);
+        long base = activity == Activity.LISTENING ? 2200L : activity == Activity.THINKING ? 3000L : activity == Activity.SPEAKING ? 2600L : 3400L;
+        handler.postDelayed(blinkTask, base + 900L + random.nextInt(2800));
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (source == null || source.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return;
-        if (mouthLevel > 0.01f) drawAudioMouth(canvas);
-        if (blink > 0.01f) {
-            drawBlinkEye(canvas, LEFT_L, LEFT_R);
-            drawBlinkEye(canvas, RIGHT_L, RIGHT_R);
-        }
+        if (mouthLevel > 0.01f || visemeOpen > 0.01f) drawVisemeMouth(canvas);
+        if (blink > 0.01f) { drawBlinkEye(canvas, LEFT_L, LEFT_R); drawBlinkEye(canvas, RIGHT_L, RIGHT_R); }
     }
 
-    /**
-     * Re-renders only Celine's original mouth pixels with a small vertical warp.
-     * No synthetic lips/teeth are painted. The amount is driven by PCM energy,
-     * so silence closes the mouth and stronger speech opens it further.
-     */
-    private void drawAudioMouth(Canvas canvas) {
-        float bw = source.getWidth(), bh = source.getHeight();
-        float vw = getWidth(), vh = getHeight();
-        float imageScale = Math.max(vw / bw, vh / bh); // ImageView CENTER_CROP
-        float dx = (vw - bw * imageScale) * 0.5f;
-        float dy = (vh - bh * imageScale) * 0.5f;
-
+    private void drawVisemeMouth(Canvas canvas) {
+        float bw = source.getWidth(), bh = source.getHeight(), vw = getWidth(), vh = getHeight();
+        float imageScale = Math.max(vw / bw, vh / bh);
+        float dx = (vw - bw * imageScale) * 0.5f, dy = (vh - bh * imageScale) * 0.5f;
         RectF imageRect = new RectF(dx, dy, dx + bw * imageScale, dy + bh * imageScale);
-        RectF mouth = new RectF(
-                dx + MOUTH_L * bw * imageScale,
-                dy + MOUTH_T * bh * imageScale,
-                dx + MOUTH_R * bw * imageScale,
-                dy + MOUTH_B * bh * imageScale);
+        RectF mouth = new RectF(dx + MOUTH_L*bw*imageScale, dy + MOUTH_T*bh*imageScale,
+                dx + MOUTH_R*bw*imageScale, dy + MOUTH_B*bh*imageScale);
 
-        // Keep the deformation deliberately small to preserve identity.
-        float open = 1f + 0.20f * mouthLevel;
-        float cy = mouth.centerY();
+        float openSignal = Math.max(mouthLevel, visemeOpen);
+        float sx = 1f, sy = 1f + 0.16f * openSignal;
+        switch (visemeShape) {
+            case WIDE: sx += 0.055f * visemeWide; sy += 0.035f * openSignal; break;
+            case ROUND: sx -= 0.045f * visemeRound; sy += 0.060f * openSignal; break;
+            case OPEN: sy += 0.055f * openSignal; break;
+            case CLOSED:
+            default: sy = 1f + 0.025f * mouthLevel; break;
+        }
+        float cx = mouth.centerX(), cy = mouth.centerY();
         bitmapPaint.setAlpha(255);
-        canvas.save();
-        canvas.clipRect(mouth);
-        canvas.translate(0f, cy);
-        canvas.scale(1f, open);
-        canvas.translate(0f, -cy);
-        canvas.drawBitmap(source, null, imageRect, bitmapPaint);
-        canvas.restore();
+        canvas.save(); canvas.clipRect(mouth);
+        canvas.translate(cx, cy); canvas.scale(sx, sy); canvas.translate(-cx, -cy);
+        canvas.drawBitmap(source, null, imageRect, bitmapPaint); canvas.restore();
     }
 
     private void drawBlinkEye(Canvas canvas, float leftN, float rightN) {
-        float bw = source.getWidth(), bh = source.getHeight();
-        float vw = getWidth(), vh = getHeight();
-        float scale = Math.max(vw / bw, vh / bh); // mirrors ImageView CENTER_CROP
-        float dx = (vw - bw * scale) * 0.5f;
-        float dy = (vh - bh * scale) * 0.5f;
-
-        float sx0 = leftN * bw, sx1 = rightN * bw;
-        float sy0 = EYE_T * bh, sy1 = EYE_B * bh;
-
-        RectF eye = new RectF(dx + sx0 * scale, dy + sy0 * scale,
-                dx + sx1 * scale, dy + sy1 * scale);
-
-        // Sample skin immediately above the eye from Celine's own source image.
-        int srcL = clampInt((int) sx0, 0, source.getWidth() - 1);
-        int srcR = clampInt((int) sx1, srcL + 1, source.getWidth());
-        int eyeH = Math.max(2, (int) (sy1 - sy0));
-        int srcB = clampInt((int) sy0, 2, source.getHeight());
-        int srcT = clampInt(srcB - eyeH, 0, srcB - 1);
-        Rect skinSource = new Rect(srcL, srcT, srcR, srcB);
-
-        float close = Math.min(1f, blink * 1.18f);
-        RectF cover = new RectF(eye.left, eye.top,
-                eye.right, eye.top + eye.height() * close);
-        bitmapPaint.setAlpha((int) (255f * close));
-        canvas.save();
-        canvas.clipRect(eye);
-        canvas.drawBitmap(source, skinSource, cover, bitmapPaint);
-        canvas.restore();
-
-        if (blink > 0.42f) {
-            float lineY = eye.centerY() + eye.height() * 0.08f;
-            float inset = eye.width() * 0.12f;
-            Path p = new Path();
-            p.moveTo(eye.left + inset, lineY);
-            p.quadTo(eye.centerX(), lineY + eye.height() * 0.12f,
-                    eye.right - inset, lineY);
-            lidPaint.setStrokeWidth(Math.max(1.4f, eye.height() * 0.045f));
-            lidPaint.setAlpha((int) (220f * Math.min(1f, (blink - 0.42f) / 0.58f)));
-            canvas.drawPath(p, lidPaint);
+        float bw=source.getWidth(), bh=source.getHeight(), vw=getWidth(), vh=getHeight();
+        float scale=Math.max(vw/bw,vh/bh), dx=(vw-bw*scale)*0.5f, dy=(vh-bh*scale)*0.5f;
+        float sx0=leftN*bw,sx1=rightN*bw,sy0=EYE_T*bh,sy1=EYE_B*bh;
+        RectF eye=new RectF(dx+sx0*scale,dy+sy0*scale,dx+sx1*scale,dy+sy1*scale);
+        int srcL=clampInt((int)sx0,0,source.getWidth()-1), srcR=clampInt((int)sx1,srcL+1,source.getWidth());
+        int eyeH=Math.max(2,(int)(sy1-sy0)), srcB=clampInt((int)sy0,2,source.getHeight()), srcT=clampInt(srcB-eyeH,0,srcB-1);
+        Rect skinSource=new Rect(srcL,srcT,srcR,srcB);
+        float close=Math.min(1f,blink*1.18f);
+        RectF cover=new RectF(eye.left,eye.top,eye.right,eye.top+eye.height()*close);
+        bitmapPaint.setAlpha((int)(255f*close)); canvas.save(); canvas.clipRect(eye); canvas.drawBitmap(source,skinSource,cover,bitmapPaint); canvas.restore();
+        if(blink>0.42f){
+            float lineY=eye.centerY()+eye.height()*0.08f,inset=eye.width()*0.12f;
+            Path p=new Path();p.moveTo(eye.left+inset,lineY);p.quadTo(eye.centerX(),lineY+eye.height()*0.12f,eye.right-inset,lineY);
+            lidPaint.setStrokeWidth(Math.max(1.4f,eye.height()*0.045f));lidPaint.setAlpha((int)(220f*Math.min(1f,(blink-0.42f)/0.58f)));canvas.drawPath(p,lidPaint);
         }
     }
 
-    private static int clampInt(int v, int min, int max) {
-        return Math.max(min, Math.min(max, v));
-    }
+    private static float clamp(float v){return Math.max(0f,Math.min(1f,v));}
+    private static int clampInt(int v,int min,int max){return Math.max(min,Math.min(max,v));}
 }
