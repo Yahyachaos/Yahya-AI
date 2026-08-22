@@ -1,0 +1,17 @@
+name: Fix hashes
+
+on:
+  push:
+    branches: [ fix/avatar-keyboard-female-voice ]
+
+jobs:
+  hash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print changed checksums
+        run: |
+          sha256sum app/src/main/AndroidManifest.xml
+          sha256sum app/src/main/java/de/yahya/ai/CelineAvatarController.java
+          sha256sum app/src/main/java/de/yahya/ai/CelineFaceOverlayView.java
+          sha256sum app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java
