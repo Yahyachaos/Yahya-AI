@@ -83,6 +83,7 @@ public final class LocalNeuralTtsEngine {
                 playBlocking(samples, sampleRate);
                 listener.onDone();
             } catch (Throwable error) {
+                SpeechAudioBus.reset();
                 listener.onError(unwrap(error));
             }
         }, "celin-local-tts").start();
@@ -125,7 +126,7 @@ public final class LocalNeuralTtsEngine {
         Map<String, String> extra = new HashMap<>();
         extra.put("lang", "de");
         // Speaker 2 is only the initial candidate. We will audition all female
-        // speakers on the target device before locking Celin's final voice.
+        // speakers on the target device before locking Celine's final voice.
         return ctor.newInstance(0.20f, 0.96f, 2, null, 0, null, 8, extra);
     }
 
@@ -145,25 +146,52 @@ public final class LocalNeuralTtsEngine {
         AudioTrack track = new AudioTrack(attrs, format, buffer,
                 AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
         activeTrack = track;
+        float envelope = 0f;
         try {
             track.play();
             int pos = 0;
+            // ~85 ms at 24 kHz: responsive enough for visible mouth motion while
+            // avoiding UI updates at audio-sample frequency.
+            final int visualChunk = Math.max(512, sampleRate / 12);
             while (pos < samples.length) {
-                int count = Math.min(8192, samples.length - pos);
+                int count = Math.min(visualChunk, samples.length - pos);
+                float level = normalizedRms(samples, pos, count);
+                envelope = envelope * 0.42f + level * 0.58f;
+                SpeechAudioBus.publish(envelope);
                 int written = track.write(samples, pos, count, AudioTrack.WRITE_BLOCKING);
                 if (written < 0) throw new IllegalStateException("AudioTrack write failed: " + written);
                 pos += written;
             }
+            SpeechAudioBus.reset();
             long waitMs = Math.max(50L, (long) samples.length * 1000L / sampleRate + 80L);
             try { Thread.sleep(waitMs); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         } finally {
+            SpeechAudioBus.reset();
             try { track.stop(); } catch (Exception ignored) {}
             try { track.release(); } catch (Exception ignored) {}
             if (activeTrack == track) activeTrack = null;
         }
     }
 
+    private static float normalizedRms(float[] samples, int offset, int count) {
+        if (samples == null || count <= 0) return 0f;
+        double sum = 0.0;
+        int end = Math.min(samples.length, offset + count);
+        for (int i = offset; i < end; i++) {
+            float v = samples[i];
+            sum += v * v;
+        }
+        int n = Math.max(1, end - offset);
+        double rms = Math.sqrt(sum / n);
+        // Ignore near-silence and map ordinary speech energy into 0..1.
+        float level = (float) ((rms - 0.006) / 0.105);
+        if (level < 0f) return 0f;
+        if (level > 1f) return 1f;
+        return level;
+    }
+
     public synchronized void release() {
+        SpeechAudioBus.reset();
         AudioTrack track = activeTrack;
         activeTrack = null;
         if (track != null) {
