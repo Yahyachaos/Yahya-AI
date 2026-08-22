@@ -1,0 +1,10 @@
+name: TTS hash
+on:
+  push:
+    branches: [ quality/video-call-pass ]
+jobs:
+  hash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sha256sum app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java
