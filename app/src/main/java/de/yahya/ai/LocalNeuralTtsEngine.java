@@ -32,10 +32,13 @@ public final class LocalNeuralTtsEngine {
             "unicode_indexer.bin", "voice.bin"
     };
 
-    /* sherpa voice.bin is ordered F1..F5, M1..M5. F5 is the gentle female preset. */
+    /* sherpa voice.bin is ordered F1..F5, M1..M5. F5 is Celin's gentle female preset. */
     private static final int DEFAULT_SID = 4;
-    private static final float DEFAULT_SPEED = 0.96f;
-    private static final int DEFAULT_STEPS = 12;
+    /* Supertonic's reference examples use speed 1.0 and 8 flow-matching steps. */
+    private static final float DEFAULT_SPEED = 1.00f;
+    private static final int DEFAULT_STEPS = 8;
+    /* Slightly longer inter-sentence silence keeps German answers from sounding rushed. */
+    private static final float DEFAULT_SILENCE_SCALE = 0.22f;
 
     private final Context context;
     private volatile Object offlineTts;
@@ -139,7 +142,7 @@ public final class LocalNeuralTtsEngine {
         for (Constructor<?> x : c.getConstructors()) if (x.getParameterTypes().length == 8) { ctor = x; break; }
         if (ctor == null) throw new NoSuchMethodException("GenerationConfig constructor");
         Map<String, String> extra = new HashMap<>(); extra.put("lang", "de");
-        return ctor.newInstance(0.16f, speed, speakerId, null, 0, null, numSteps, extra);
+        return ctor.newInstance(DEFAULT_SILENCE_SCALE, speed, speakerId, null, 0, null, numSteps, extra);
     }
 
     private void playBlocking(float[] samples, int sampleRate) {
