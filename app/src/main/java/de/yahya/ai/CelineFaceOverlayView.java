@@ -17,18 +17,18 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 
 import java.util.Random;
 
-/** Facial rig calibrated for the approved Celin live-call portrait. */
+/** Facial rig calibrated for the approved Celin live-call portraits. */
 public final class CelineFaceOverlayView extends View {
     public enum Activity { IDLE, LISTENING, THINKING, SPEAKING }
 
-    // Normalized coordinates on the approved 4:3 live portrait.
     private static final float LEFT_L=.425f, LEFT_R=.495f;
     private static final float RIGHT_L=.515f, RIGHT_R=.590f;
     private static final float EYE_T=.255f, EYE_B=.335f;
     private static final float MOUTH_L=.455f, MOUTH_R=.590f;
     private static final float MOUTH_T=.405f, MOUTH_B=.495f;
 
-    private final Bitmap source;
+    private Bitmap source;
+    private CelineLivePortrait.Pose pose=CelineLivePortrait.Pose.NEUTRAL;
     private final Paint bitmapPaint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
     private final Paint lidPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint cavityPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -48,8 +48,8 @@ public final class CelineFaceOverlayView extends View {
     public CelineFaceOverlayView(Context context){
         super(context);
         setWillNotDraw(false);
-        Bitmap live=CelineLivePortrait.load(context);
-        source=live!=null?live:android.graphics.BitmapFactory.decodeResource(getResources(),de.yahya.ai.R.drawable.celine_avatar);
+        source=CelineLivePortrait.load(context,pose);
+        if(source==null)source=android.graphics.BitmapFactory.decodeResource(getResources(),de.yahya.ai.R.drawable.celine_avatar);
         lidPaint.setStyle(Paint.Style.STROKE);
         lidPaint.setStrokeCap(Paint.Cap.ROUND);
         lidPaint.setColor(0xB92B1D20);
@@ -58,6 +58,13 @@ public final class CelineFaceOverlayView extends View {
 
     public void start(){ if(!running){ running=true; scheduleNext(); } }
     public void stop(){ running=false; handler.removeCallbacks(blinkTask); if(blinkAnimator!=null)blinkAnimator.cancel(); blink=mouthLevel=visemeOpen=visemeWide=visemeRound=gazeX=gazeY=0f; invalidate(); }
+
+    public void setPose(CelineLivePortrait.Pose next){
+        if(next==null)next=CelineLivePortrait.Pose.NEUTRAL;
+        if(next==pose&&source!=null&&!source.isRecycled())return;
+        Bitmap b=CelineLivePortrait.load(getContext(),next);
+        if(b!=null){pose=next;source=b;blink=0f;gazeX=gazeY=0f;invalidate();}
+    }
 
     public void setActivity(Activity next){
         activity=next==null?Activity.IDLE:next;
