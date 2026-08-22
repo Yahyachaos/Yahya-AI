@@ -171,7 +171,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void speak(String s){
         String clean=SpeechTextNormalizer.clean(s);if(clean.isEmpty())return;
         String key=prefs.getString("api_key","").trim();boolean neural=prefs.getBoolean("neural_voice",true);
-        if(neural&&!key.isEmpty()){speakNeural(clean,key);return;}
+        SpeechOutputRouter.Engine engine=SpeechOutputRouter.select(neural,key);
+        if(engine==SpeechOutputRouter.Engine.ONLINE_NEURAL){speakNeural(clean,key);return;}
         speakAndroid(clean);
     }
 
