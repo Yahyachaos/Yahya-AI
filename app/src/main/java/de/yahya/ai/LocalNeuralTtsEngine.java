@@ -5,6 +5,9 @@ import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
@@ -98,6 +101,7 @@ public final class LocalNeuralTtsEngine {
             IllegalStateException e = new IllegalStateException("Supertonic model is not installed");
             lastError = e;
             listener.onError(e);
+            showDeviceError(e);
             return;
         }
         new Thread(() -> {
@@ -121,8 +125,15 @@ public final class LocalNeuralTtsEngine {
                 SpeechAudioBus.reset();
                 lastError = unwrap(error);
                 listener.onError(lastError);
+                showDeviceError(lastError);
             }
         }, "celin-local-tts").start();
+    }
+
+    private void showDeviceError(Throwable error) {
+        final String message = "Celine TTS Diagnose: " + describe(error);
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> Toast.makeText(context, message, Toast.LENGTH_LONG).show(), 900L);
     }
 
     private synchronized Object ensureInitialized() throws Exception {
