@@ -26,12 +26,12 @@ import java.util.*;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private LinearLayout chatBox; private ScrollView scroll; private EditText input; private TextView status; private Button mic; private ImageView avatar;
-    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private ObjectAnimator avatarAnimator; private ObjectAnimator avatarSway; private ObjectAnimator avatarLift; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
+    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private ObjectAnimator avatarAnimator; private ObjectAnimator avatarSway; private ObjectAnimator avatarLift; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
     private final List<Message> messages=new ArrayList<>();
     private static final int REQ_MIC=44,REQ_SPEECH=55,REQ_PERMS=66; private static final String MODEL="gpt-5.6-luna";
     private int bg=Color.rgb(13,15,20),panel=Color.rgb(25,28,36),accent=Color.rgb(150,116,255),text=Color.rgb(242,242,246),muted=Color.rgb(160,164,176);
 
-    @Override protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("yahya_ai",MODE_PRIVATE);device=new DeviceBridge(this);setContentView(buildUi());initTts();addAssistant("Hallo Yahya. Schön, dass du da bist. Was machen wir?",false);if(prefs.getBoolean("wake",false)){Intent ws=new Intent(this,WakeWordService.class);if(Build.VERSION.SDK_INT>=26)startForegroundService(ws);else startService(ws);}handleWakeIntent(getIntent());}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("yahya_ai",MODE_PRIVATE);device=new DeviceBridge(this);localNeuralTts=new LocalNeuralTtsEngine(this);setContentView(buildUi());initTts();addAssistant("Hallo Yahya. Schön, dass du da bist. Was machen wir?",false);if(prefs.getBoolean("wake",false)){Intent ws=new Intent(this,WakeWordService.class);if(Build.VERSION.SDK_INT>=26)startForegroundService(ws);else startService(ws);}handleWakeIntent(getIntent());}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);handleWakeIntent(i);}
     private void handleWakeIntent(Intent i){if(i==null||!i.getBooleanExtra("wake_celin",false))return;String c=i.getStringExtra("wake_command");handler.postDelayed(()->{addAssistant("Ja?",false);speak("Ja?");if(c!=null&&!c.trim().isEmpty())submit(c.trim());else handler.postDelayed(this::startVoiceInput,550);},350);}
 
@@ -170,10 +170,24 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void speak(String s){
         String clean=SpeechTextNormalizer.clean(s);if(clean.isEmpty())return;
+        if(localNeuralTts!=null&&localNeuralTts.isModelInstalled()){speakLocalNeural(clean);return;}
+        speakExistingFallback(clean);
+    }
+
+    private void speakExistingFallback(String clean){
         String key=prefs.getString("api_key","").trim();boolean neural=prefs.getBoolean("neural_voice",true);
         SpeechOutputRouter.Engine engine=SpeechOutputRouter.select(neural,key);
         if(engine==SpeechOutputRouter.Engine.ONLINE_NEURAL){speakNeural(clean,key);return;}
         speakAndroid(clean);
+    }
+
+    private void speakLocalNeural(String clean){
+        localNeuralTts.speak(clean,new LocalNeuralTtsEngine.Listener(){
+            @Override public void onPreparing(){runOnUiThread(()->{status.setText("Celin bereitet ihre lokale Stimme vor …");avatarThinking();});}
+            @Override public void onSpeaking(){runOnUiThread(()->{status.setText("Celin spricht …");avatarSpeaking();});}
+            @Override public void onDone(){runOnUiThread(()->{status.setText("Bereit");avatarIdle();});}
+            @Override public void onError(Throwable error){runOnUiThread(()->{Toast.makeText(MainActivity.this,"Lokale Neural-Stimme noch nicht bereit – Fallback aktiv.",Toast.LENGTH_SHORT).show();speakExistingFallback(clean);});}
+        });
     }
 
     private void speakAndroid(String clean){
@@ -218,6 +232,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private JSONObject postJson(String endpoint,String key,JSONObject body)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(endpoint).openConnection();c.setRequestMethod("POST");c.setConnectTimeout(10000);c.setReadTimeout(60000);c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setRequestProperty("Authorization","Bearer "+key);OutputStreamWriter w=new OutputStreamWriter(c.getOutputStream(),"UTF-8");w.write(body.toString());w.close();int code=c.getResponseCode();BufferedReader r=new BufferedReader(new InputStreamReader(code>=200&&code<300?c.getInputStream():c.getErrorStream(),"UTF-8"));StringBuilder b=new StringBuilder();String line;while((line=r.readLine())!=null)b.append(line);r.close();if(code<200||code>=300)throw new Exception("HTTP "+code+": "+b);return new JSONObject(b.toString());}
     private String extractOutputText(JSONObject r){StringBuilder o=new StringBuilder();JSONArray a=r.optJSONArray("output");if(a==null)return"";for(int i=0;i<a.length();i++){JSONObject it=a.optJSONObject(i);if(it==null)continue;JSONArray c=it.optJSONArray("content");if(c==null)continue;for(int j=0;j<c.length();j++){JSONObject q=c.optJSONObject(j);if(q!=null&&"output_text".equals(q.optString("type"))){if(o.length()>0)o.append("\n");o.append(q.optString("text"));}}}return o.toString();}
     private String safeError(Exception e){String s=e.getMessage();if(s==null)s=e.getClass().getSimpleName();return s.length()>220?s.substring(0,220)+"…":s;}
-    @Override protected void onDestroy(){stopAvatarAnimation();if(neuralPlayer!=null){try{neuralPlayer.stop();neuralPlayer.release();}catch(Exception ignored){}}if(tts!=null){tts.stop();tts.shutdown();}super.onDestroy();}
+    @Override protected void onDestroy(){stopAvatarAnimation();if(neuralPlayer!=null){try{neuralPlayer.stop();neuralPlayer.release();}catch(Exception ignored){}}if(tts!=null){tts.stop();tts.shutdown();}if(localNeuralTts!=null)localNeuralTts.release();super.onDestroy();}
     private int dp(int v){return(int)(v*getResources().getDisplayMetrics().density);} private static class Message{final String role,content;Message(String r,String c){role=r;content=c;}}
 }
