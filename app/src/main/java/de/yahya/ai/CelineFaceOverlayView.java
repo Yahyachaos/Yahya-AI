@@ -20,11 +20,10 @@ import java.util.Random;
  * Non-destructive facial overlay for the approved Celine portrait.
  *
  * At rest this view draws nothing, so the original artwork is shown exactly as
- * stored. During a blink it briefly covers only the eye areas using tiny skin
- * samples from the same source bitmap, then draws a soft eyelid line. No new
- * face asset is generated and the original PNG is never modified.
+ * stored. Blink and mouth motion are rendered only while active and use pixels
+ * from that same source portrait; the PNG itself is never modified.
  *
- * Eye boxes are normalized to the 768x768 reference image and intentionally
+ * Face boxes are normalized to the 768x768 reference image and intentionally
  * kept in one place so they can be fine-tuned on the target device later.
  */
 public final class CelineFaceOverlayView extends View {
@@ -35,6 +34,11 @@ public final class CelineFaceOverlayView extends View {
     private static final float RIGHT_L = 0.530f, RIGHT_R = 0.695f;
     private static final float EYE_T = 0.345f, EYE_B = 0.430f;
 
+    // Mouth region used for a local pixel warp driven by actual TTS PCM energy.
+    // This intentionally stays conservative; exact alignment is calibrated on-device.
+    private static final float MOUTH_L = 0.385f, MOUTH_R = 0.615f;
+    private static final float MOUTH_T = 0.545f, MOUTH_B = 0.635f;
+
     private final Bitmap source;
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint lidPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -42,6 +46,7 @@ public final class CelineFaceOverlayView extends View {
     private final Random random = new Random();
 
     private float blink = 0f;
+    private float mouthLevel = 0f;
     private boolean running = false;
     private Activity activity = Activity.IDLE;
     private ValueAnimator blinkAnimator;
@@ -73,15 +78,27 @@ public final class CelineFaceOverlayView extends View {
         handler.removeCallbacks(blinkTask);
         if (blinkAnimator != null) blinkAnimator.cancel();
         blink = 0f;
+        mouthLevel = 0f;
         invalidate();
     }
 
     public void setActivity(Activity next) {
         activity = next == null ? Activity.IDLE : next;
+        if (activity != Activity.SPEAKING) setMouthLevel(0f);
         if (running) {
             handler.removeCallbacks(blinkTask);
             scheduleNext();
         }
+    }
+
+    /** Receives normalized 0..1 speech energy generated from the actual local PCM. */
+    public void setMouthLevel(float level) {
+        float next = Math.max(0f, Math.min(1f, level));
+        if (activity != Activity.SPEAKING) next = 0f;
+        // A little UI-side damping prevents single-frame twitching.
+        mouthLevel = mouthLevel * 0.30f + next * 0.70f;
+        if (mouthLevel < 0.025f) mouthLevel = 0f;
+        invalidate();
     }
 
     /** Manual blink hook for future emotional reactions/tests. */
@@ -124,9 +141,44 @@ public final class CelineFaceOverlayView extends View {
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (source == null || source.isRecycled() || blink <= 0.01f || getWidth() <= 0 || getHeight() <= 0) return;
-        drawBlinkEye(canvas, LEFT_L, LEFT_R);
-        drawBlinkEye(canvas, RIGHT_L, RIGHT_R);
+        if (source == null || source.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return;
+        if (mouthLevel > 0.01f) drawAudioMouth(canvas);
+        if (blink > 0.01f) {
+            drawBlinkEye(canvas, LEFT_L, LEFT_R);
+            drawBlinkEye(canvas, RIGHT_L, RIGHT_R);
+        }
+    }
+
+    /**
+     * Re-renders only Celine's original mouth pixels with a small vertical warp.
+     * No synthetic lips/teeth are painted. The amount is driven by PCM energy,
+     * so silence closes the mouth and stronger speech opens it further.
+     */
+    private void drawAudioMouth(Canvas canvas) {
+        float bw = source.getWidth(), bh = source.getHeight();
+        float vw = getWidth(), vh = getHeight();
+        float imageScale = Math.max(vw / bw, vh / bh); // ImageView CENTER_CROP
+        float dx = (vw - bw * imageScale) * 0.5f;
+        float dy = (vh - bh * imageScale) * 0.5f;
+
+        RectF imageRect = new RectF(dx, dy, dx + bw * imageScale, dy + bh * imageScale);
+        RectF mouth = new RectF(
+                dx + MOUTH_L * bw * imageScale,
+                dy + MOUTH_T * bh * imageScale,
+                dx + MOUTH_R * bw * imageScale,
+                dy + MOUTH_B * bh * imageScale);
+
+        // Keep the deformation deliberately small to preserve identity.
+        float open = 1f + 0.20f * mouthLevel;
+        float cy = mouth.centerY();
+        bitmapPaint.setAlpha(255);
+        canvas.save();
+        canvas.clipRect(mouth);
+        canvas.translate(0f, cy);
+        canvas.scale(1f, open);
+        canvas.translate(0f, -cy);
+        canvas.drawBitmap(source, null, imageRect, bitmapPaint);
+        canvas.restore();
     }
 
     private void drawBlinkEye(Canvas canvas, float leftN, float rightN) {
