@@ -39,8 +39,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         TextView sub=new TextView(this);sub.setText("CELIN");sub.setTextSize(12);sub.setTextColor(accent);sub.setLetterSpacing(.22f);root.addView(sub);
         status=new TextView(this);status.setText("Bereit");status.setTextColor(muted);status.setTextSize(13);status.setPadding(0,dp(2),0,dp(8));root.addView(status);
         LinearLayout profile=new LinearLayout(this);profile.setOrientation(LinearLayout.VERTICAL);profile.setGravity(Gravity.CENTER_HORIZONTAL);profile.setPadding(dp(8),dp(8),dp(8),dp(10));profile.setBackground(round(panel,26));
-        avatar=new ImageView(this);avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);avatar.setBackground(round(Color.rgb(42,37,55),24));avatar.setClipToOutline(true);avatar.setOutlineProvider(ViewOutlineProvider.BACKGROUND);avatarController=new CelineAvatarController(avatar,getResources().getDisplayMetrics().density);
-        LinearLayout.LayoutParams avp=new LinearLayout.LayoutParams(-1,dp(315));profile.addView(avatar,avp);
+        FrameLayout avatarStage=new FrameLayout(this);avatarStage.setBackground(round(Color.rgb(42,37,55),24));avatarStage.setClipToOutline(true);avatarStage.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+        avatar=new ImageView(this);avatar.setImageResource(de.yahya.ai.R.drawable.celine_avatar);avatar.setScaleType(ImageView.ScaleType.CENTER_CROP);avatarStage.addView(avatar,new FrameLayout.LayoutParams(-1,-1));
+        CelineFaceOverlayView faceOverlay=new CelineFaceOverlayView(this);faceOverlay.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);avatarStage.addView(faceOverlay,new FrameLayout.LayoutParams(-1,-1));
+        avatarController=new CelineAvatarController(avatarStage,avatar,faceOverlay,getResources().getDisplayMetrics().density);
+        LinearLayout.LayoutParams avp=new LinearLayout.LayoutParams(-1,dp(315));profile.addView(avatarStage,avp);
         TextView n=new TextView(this);n.setText("Celin");n.setTextColor(text);n.setTextSize(21);n.setTypeface(null,1);n.setPadding(dp(6),dp(9),dp(6),0);profile.addView(n);
         TextView vibe=new TextView(this);vibe.setText("Live mit Celin · tippe mich an oder sprich mit mir");vibe.setTextColor(muted);vibe.setTextSize(13);profile.addView(vibe);root.addView(profile);
         LinearLayout.LayoutParams plp=(LinearLayout.LayoutParams)profile.getLayoutParams();plp.bottomMargin=dp(8);profile.setLayoutParams(plp);
