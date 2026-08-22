@@ -53,3 +53,4 @@ if new_path not in seen:
     p=Path(new_path); lines.append(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {new_path}')
 CHECK.write_text('\n'.join(lines)+'\n',encoding='utf-8')
 print('Local Supertonic engine wired with truthful fallback.')
+
