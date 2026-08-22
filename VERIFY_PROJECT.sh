@@ -25,6 +25,7 @@ grep -q "gradle-6.1.1-" gradle/wrapper/gradle-wrapper.properties
 
 bash -n gradlew
 bash -n SETUP_ANDROIDIDE.sh
+echo "LOCAL_TTS_SHA256=$(sha256sum app/src/main/java/de/yahya/ai/LocalNeuralTtsEngine.java | cut -d' ' -f1)"
 sha256sum -c PROJECT_CHECKSUMS.txt
 
 echo "PROJECT COMPLETE"
