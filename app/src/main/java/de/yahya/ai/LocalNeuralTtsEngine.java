@@ -7,6 +7,7 @@ import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.widget.Toast;
 
 import java.io.File;
@@ -160,15 +161,45 @@ public final class LocalNeuralTtsEngine {
                 SpeechAudioBus.publishViseme(SpeechVisemeAnalyzer.analyze(samples, pos, count, sampleRate));
                 int written = track.write(samples, pos, count, AudioTrack.WRITE_BLOCKING);
                 if (written < 0) throw new IllegalStateException("AudioTrack write failed: " + written);
+                if (written == 0) {
+                    SystemClock.sleep(4L);
+                    continue;
+                }
                 pos += written;
             }
+
+            // WRITE_BLOCKING only guarantees that PCM has been accepted by AudioTrack. It does not
+            // guarantee that the speaker has already played the tail. Keep the track alive until its
+            // playback head reaches the final frame so long answers cannot lose their last words.
+            waitForPlaybackHead(track, samples.length, sampleRate);
             SpeechAudioBus.reset();
-            try { Thread.sleep(90L); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         } finally {
             SpeechAudioBus.reset();
             try { track.stop(); } catch (Exception ignored) {}
             try { track.release(); } catch (Exception ignored) {}
             if (activeTrack == track) activeTrack = null;
+        }
+    }
+
+    private void waitForPlaybackHead(AudioTrack track, int expectedFrames, int sampleRate) {
+        if (track == null || expectedFrames <= 0 || sampleRate <= 0) return;
+        long expected = expectedFrames & 0xffffffffL;
+        long audioMs = Math.max(1L, (expectedFrames * 1000L) / sampleRate);
+        long deadline = SystemClock.elapsedRealtime() + audioMs + 2500L;
+        long lastHead = -1L;
+        long stalledSince = SystemClock.elapsedRealtime();
+
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (activeTrack != track) return;
+            long head = ((long) track.getPlaybackHeadPosition()) & 0xffffffffL;
+            if (head >= expected) return;
+            if (head != lastHead) {
+                lastHead = head;
+                stalledSince = SystemClock.elapsedRealtime();
+            } else if (SystemClock.elapsedRealtime() - stalledSince > 1200L && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                return;
+            }
+            SystemClock.sleep(12L);
         }
     }
 
