@@ -3,19 +3,32 @@ package de.yahya.ai;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.opengl.Matrix;
 import android.os.Handler;
 import android.view.Choreographer;
 import android.view.PixelCopy;
+import android.view.Surface;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
+import com.google.android.filament.Box;
+import com.google.android.filament.Camera;
 import com.google.android.filament.Engine;
+import com.google.android.filament.EntityManager;
 import com.google.android.filament.IndirectLight;
+import com.google.android.filament.LightManager;
+import com.google.android.filament.Renderer;
+import com.google.android.filament.Scene;
 import com.google.android.filament.Skybox;
+import com.google.android.filament.SwapChain;
+import com.google.android.filament.TransformManager;
+import com.google.android.filament.Viewport;
 import com.google.android.filament.android.UiHelper;
-import com.google.android.filament.utils.Float3;
-import com.google.android.filament.utils.ModelViewer;
-import com.google.android.filament.utils.Utils;
+import com.google.android.filament.gltfio.AssetLoader;
+import com.google.android.filament.gltfio.FilamentAsset;
+import com.google.android.filament.gltfio.Gltfio;
+import com.google.android.filament.gltfio.ResourceLoader;
+import com.google.android.filament.gltfio.UbershaderProvider;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -25,25 +38,38 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * Minimal 3D baseline for Celine.
+ * v29 minimal 3D baseline.
  *
- * v29 intentionally contains NO bone animation, NO morph animation and NO renderer switching.
- * The only goal is to prove that the imported GLB is visibly rendered on the target Android device.
+ * No ModelViewer, no animation, no morphs, no renderer switching. The imported GLB is loaded
+ * directly through gltfio and rendered into one SurfaceView with a fixed camera and fixed light.
  */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
     private static final String IMPORT_DIR = "models";
     private static final String IMPORT_FILE = "celine.glb";
 
-    static { Utils.INSTANCE.init(); }
+    static { Gltfio.init(); }
 
     public interface VisibilityCallback { void onResult(boolean visible); }
 
     private final SurfaceView surfaceView;
     private final Choreographer choreographer;
-    private final ModelViewer viewer;
+    private final Engine engine;
+    private final Renderer renderer;
+    private final Scene scene;
+    private final com.google.android.filament.View filamentView;
+    private final Camera camera;
+    private final int cameraEntity;
+    private final int lightEntity;
+    private final UiHelper uiHelper;
+    private final UbershaderProvider materialProvider;
+    private final AssetLoader assetLoader;
+    private final ResourceLoader resourceLoader;
+    private final FilamentAsset asset;
     private final Skybox skybox;
     private final IndirectLight indirectLight;
+
+    private SwapChain swapChain;
     private boolean running;
     private volatile Throwable renderError;
 
@@ -52,8 +78,11 @@ public final class Celine3DView extends FrameLayout {
             if (!running) return;
             choreographer.postFrameCallback(this);
             try {
-                // Standstill on purpose. Rendering itself is the only thing under test in v29.
-                viewer.render(frameTimeNanos);
+                if (!uiHelper.isReadyToRender() || swapChain == null) return;
+                if (renderer.beginFrame(swapChain, frameTimeNanos)) {
+                    renderer.render(filamentView);
+                    renderer.endFrame();
+                }
             } catch (Throwable e) {
                 renderError = e;
                 running = false;
@@ -64,7 +93,7 @@ public final class Celine3DView extends FrameLayout {
 
     public Celine3DView(Context context) throws Exception { this(context, true); }
 
-    /** The boolean is retained only for source compatibility with the controller. */
+    /** Retained for source compatibility; v29 always uses one SurfaceView renderer. */
     public Celine3DView(Context context, boolean ignoredRendererChoice) throws Exception {
         super(context);
         setClipChildren(false);
@@ -72,44 +101,126 @@ public final class Celine3DView extends FrameLayout {
 
         choreographer = Choreographer.getInstance();
         surfaceView = new SurfaceView(context);
-        // No special Z-order tricks in the baseline: use Android's normal SurfaceView path.
         addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
-        Engine engine = Engine.create();
-        UiHelper helper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
+        engine = Engine.create();
+        renderer = engine.createRenderer();
+        scene = engine.createScene();
+        filamentView = engine.createView();
 
-        // No camera manipulator. ModelViewer will not overwrite the fixed camera below.
-        viewer = new ModelViewer(surfaceView, engine, helper, null);
+        cameraEntity = EntityManager.get().create();
+        camera = engine.createCamera(cameraEntity);
+        camera.setExposure(16.0f, 1.0f / 125.0f, 100.0f);
+        filamentView.setScene(scene);
+        filamentView.setCamera(camera);
 
-        // Constant dark background. If the model renders, its skin/hair/clothes are much brighter.
+        // Dark neutral background: if Celine renders, her skin / hair / clothes are unmistakable.
         skybox = new Skybox.Builder()
                 .color(0.018f, 0.022f, 0.030f, 1.0f)
                 .build(engine);
-        viewer.getScene().setSkybox(skybox);
+        scene.setSkybox(skybox);
 
-        // Filament's ModelViewer explicitly expects the app to provide indirect/environment light.
-        // A one-band white SH is enough for this diagnostic baseline and avoids any KTX/IBL files.
+        // Constant ambient light so PBR materials are never left unlit.
         indirectLight = new IndirectLight.Builder()
                 .irradiance(1, new float[]{1.0f, 1.0f, 1.0f})
                 .intensity(30000.0f)
                 .build(engine);
-        viewer.getScene().setIndirectLight(indirectLight);
+        scene.setIndirectLight(indirectLight);
 
-        viewer.loadModelGlb(readModel(context));
-        if (viewer.getAsset() == null) {
-            throw new IllegalStateException("Filament konnte die importierte GLB-Datei nicht laden.");
+        // Strong front/upper directional key light.
+        lightEntity = EntityManager.get().create();
+        new LightManager.Builder(LightManager.Type.DIRECTIONAL)
+                .color(1.0f, 0.96f, 0.92f)
+                .intensity(110000.0f)
+                .direction(-0.35f, -0.65f, -1.0f)
+                .castShadows(false)
+                .build(engine, lightEntity);
+        scene.addEntity(lightEntity);
+
+        // Load the monolithic GLB synchronously. The Meshy texture is embedded in the GLB, so no
+        // external URI resolver is needed. Synchronous loading is intentional for this baseline.
+        materialProvider = new UbershaderProvider(engine);
+        assetLoader = new AssetLoader(engine, materialProvider, EntityManager.get());
+        resourceLoader = new ResourceLoader(engine, true);
+        asset = assetLoader.createAsset(readModel(context));
+        if (asset == null) {
+            throw new IllegalStateException("gltfio konnte die importierte GLB-Datei nicht laden.");
         }
+        resourceLoader.loadResources(asset);
+        asset.releaseSourceData();
 
-        // Official ModelViewer normalization. This compensates Meshy's Armature scale of 0.01.
-        viewer.transformToUnitCube(new Float3(0f, 0f, -4f));
+        normalizeAsset(asset);
+        scene.addEntities(asset.getEntities());
 
-        // Fixed camera directly in front of the centered model.
-        viewer.setCameraFocalLength(32f);
-        viewer.getCamera().lookAt(
+        // Fixed camera. The model root is normalized to a 2-unit cube centered at z=-4.
+        camera.lookAt(
                 0.0, 0.0, 1.0,
                 0.0, 0.0, -4.0,
                 0.0, 1.0, 0.0
         );
+
+        uiHelper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
+        uiHelper.setRenderCallback(new UiHelper.RendererCallback() {
+            @Override public void onNativeWindowChanged(Surface surface) {
+                try {
+                    if (swapChain != null) engine.destroySwapChain(swapChain);
+                    swapChain = engine.createSwapChain(surface, uiHelper.getSwapChainFlags());
+                } catch (Throwable e) {
+                    renderError = e;
+                }
+            }
+
+            @Override public void onDetachedFromSurface() {
+                try {
+                    if (swapChain != null) {
+                        engine.destroySwapChain(swapChain);
+                        engine.flushAndWait();
+                        swapChain = null;
+                    }
+                } catch (Throwable e) {
+                    renderError = e;
+                }
+            }
+
+            @Override public void onResized(int width, int height) {
+                if (width <= 0 || height <= 0) return;
+                filamentView.setViewport(new Viewport(0, 0, width, height));
+                camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);
+                camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
+            }
+        });
+        uiHelper.attachTo(surfaceView);
+    }
+
+    /** Equivalent to ModelViewer.transformToUnitCube, but with no filament-utils dependency. */
+    private void normalizeAsset(FilamentAsset loadedAsset) {
+        Box box = loadedAsset.getBoundingBox();
+        float[] center = box.getCenter();
+        float[] half = box.getHalfExtent();
+        float maxExtent = 2.0f * Math.max(half[0], Math.max(half[1], half[2]));
+        if (!(maxExtent > 0.000001f) || Float.isNaN(maxExtent) || Float.isInfinite(maxExtent)) {
+            throw new IllegalStateException("Ungültige 3D-Modellgröße: " + maxExtent);
+        }
+        float scale = 2.0f / maxExtent;
+
+        float[] moveToOrigin = new float[16];
+        float[] scaleMatrix = new float[16];
+        float[] centerAtTarget = new float[16];
+        float[] temp = new float[16];
+        float[] transform = new float[16];
+        Matrix.setIdentityM(moveToOrigin, 0);
+        Matrix.translateM(moveToOrigin, 0, -center[0], -center[1], -center[2]);
+        Matrix.setIdentityM(scaleMatrix, 0);
+        Matrix.scaleM(scaleMatrix, 0, scale, scale, scale);
+        Matrix.setIdentityM(centerAtTarget, 0);
+        Matrix.translateM(centerAtTarget, 0, 0.0f, 0.0f, -4.0f);
+        Matrix.multiplyMM(temp, 0, scaleMatrix, 0, moveToOrigin, 0);
+        Matrix.multiplyMM(transform, 0, centerAtTarget, 0, temp, 0);
+
+        TransformManager tm = engine.getTransformManager();
+        int instance = tm.getInstance(loadedAsset.getRoot());
+        if (instance == 0) throw new IllegalStateException("3D-Root-Transform fehlt.");
+        tm.setTransform(instance, transform);
     }
 
     public static File importedModelFile(Context context) {
@@ -127,7 +238,7 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
-    public String getRendererName() { return "SurfaceView · Filament 1.74"; }
+    public String getRendererName() { return "Direct SurfaceView · Filament 1.72"; }
 
     public String getRenderFailureReason() {
         Throwable e = renderError;
@@ -136,9 +247,9 @@ public final class Celine3DView extends FrameLayout {
         return m == null || m.trim().isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
-    /** Wait for the 27 MB GLB / 4K texture to become GPU-ready, then inspect real surface pixels. */
+    /** Check actual SurfaceView pixels, not merely whether a FilamentAsset object exists. */
     public void verifyVisibleFrame(Handler handler, VisibilityCallback callback) {
-        probeVisibleFrame(handler, callback, 40);
+        probeVisibleFrame(handler, callback, 35);
     }
 
     private void probeVisibleFrame(Handler handler, VisibilityCallback callback, int remaining) {
@@ -150,7 +261,7 @@ public final class Celine3DView extends FrameLayout {
         if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running ||
                 surfaceView.getHolder() == null || surfaceView.getHolder().getSurface() == null ||
                 !surfaceView.getHolder().getSurface().isValid()) {
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 300L);
+            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
             return;
         }
 
@@ -164,12 +275,12 @@ public final class Celine3DView extends FrameLayout {
                 } else if (remaining <= 1 || renderError != null) {
                     callback.onResult(false);
                 } else {
-                    handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 300L);
+                    handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
                 }
             }, handler);
         } catch (Throwable e) {
             sample.recycle();
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 300L);
+            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
         }
     }
 
@@ -178,14 +289,11 @@ public final class Celine3DView extends FrameLayout {
         int height = bitmap.getHeight();
         int[] pixels = new int[width * height];
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-
         int modelPixels = 0;
         int required = Math.max(24, pixels.length / 250);
         for (int c : pixels) {
-            int r = Color.red(c);
-            int g = Color.green(c);
-            int b = Color.blue(c);
-            if (Math.max(r, Math.max(g, b)) > 34 && r + g + b > 105) {
+            int r = Color.red(c), g = Color.green(c), b = Color.blue(c);
+            if (Math.max(r, Math.max(g, b)) > 38 && r + g + b > 115) {
                 if (++modelPixels >= required) return true;
             }
         }
@@ -211,10 +319,11 @@ public final class Celine3DView extends FrameLayout {
 
     @Override protected void onDetachedFromWindow() {
         stopRendering();
+        try { uiHelper.detach(); } catch (Throwable ignored) {}
         super.onDetachedFromWindow();
     }
 
-    // v29 standstill baseline: retained API hooks are intentionally no-ops.
+    // v29 is deliberately static. These API hooks return in the animation build after 3D is visible.
     public void setAvatarState(CelineAvatarController.State next) {}
     public void setSpeechEnergy(float level) {}
     public void setLook(float x, float y) {}
@@ -224,13 +333,9 @@ public final class Celine3DView extends FrameLayout {
     private static ByteBuffer readModel(Context context) throws Exception {
         File imported = importedModelFile(context);
         if (imported.isFile() && imported.length() > 32) {
-            try (InputStream in = new FileInputStream(imported)) {
-                return readAll(in);
-            }
+            try (InputStream in = new FileInputStream(imported)) { return readAll(in); }
         }
-        try (InputStream in = context.getAssets().open(MODEL_PATH)) {
-            return readAll(in);
-        }
+        try (InputStream in = context.getAssets().open(MODEL_PATH)) { return readAll(in); }
     }
 
     private static ByteBuffer readAll(InputStream in) throws Exception {
