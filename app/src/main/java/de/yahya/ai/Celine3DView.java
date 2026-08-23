@@ -42,6 +42,7 @@ import java.nio.ByteOrder;
  *
  * No ModelViewer, no animation, no morphs, no renderer switching. The imported GLB is loaded
  * directly through gltfio and rendered into one SurfaceView with a fixed camera and fixed light.
+ * This branch intentionally keeps the renderer unchanged so CI reproduces the current compiler error.
  */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
