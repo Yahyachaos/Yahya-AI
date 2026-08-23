@@ -1,0 +1,1 @@
+Temporary CI marker for v30 black-screen guard verification.
