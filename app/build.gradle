@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 26
+        versionCode 27
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -42,8 +42,8 @@ dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // Keep the proven Filament API line. TextureView participates in the normal Android view
-    // compositor and avoids the separate SurfaceView layer issues seen on Samsung devices.
+    // v27 keeps the proven Filament API line but probes SurfaceView and TextureView at runtime.
+    // Celine's 2D fallback stays visible until a real non-black 3D frame is verified.
     implementation 'com.google.android.filament:filament-android:1.31.4'
     implementation 'com.google.android.filament:gltfio-android:1.31.4'
     implementation 'com.google.android.filament:filament-utils-android:1.31.4'
