@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 22
+        versionCode 23
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -43,7 +43,9 @@ dependencies {
     implementation 'org.apache.commons:commons-compress:1.21'
 
     // Real-time GLB/glTF rendering for Celine's rigged 3D avatar.
-    implementation 'com.google.android.filament:filament-android:1.31.4'
-    implementation 'com.google.android.filament:gltfio-android:1.31.4'
-    implementation 'com.google.android.filament:filament-utils-android:1.31.4'
+    // 1.31.4 is from 2022 and has several known Android/glTF native crash issues.
+    // Use a current stable Filament release for modern Samsung / Android devices.
+    implementation 'com.google.android.filament:filament-android:1.74.0'
+    implementation 'com.google.android.filament:gltfio-android:1.74.0'
+    implementation 'com.google.android.filament:filament-utils-android:1.74.0'
 }
