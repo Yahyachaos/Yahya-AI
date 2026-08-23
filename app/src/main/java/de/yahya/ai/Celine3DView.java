@@ -4,23 +4,15 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Handler;
-import android.opengl.Matrix;
 import android.view.Choreographer;
-import android.view.MotionEvent;
 import android.view.PixelCopy;
 import android.view.SurfaceView;
-import android.view.TextureView;
-import android.view.View;
 import android.widget.FrameLayout;
 
 import com.google.android.filament.Engine;
-import com.google.android.filament.RenderableManager;
-import com.google.android.filament.TransformManager;
+import com.google.android.filament.Skybox;
 import com.google.android.filament.android.UiHelper;
-import com.google.android.filament.gltfio.Animator;
-import com.google.android.filament.gltfio.FilamentAsset;
 import com.google.android.filament.utils.Float3;
-import com.google.android.filament.utils.Manipulator;
 import com.google.android.filament.utils.ModelViewer;
 import com.google.android.filament.utils.Utils;
 
@@ -30,65 +22,35 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Locale;
 
-/** Real-time renderer for Celine's rigged GLB avatar. */
+/**
+ * Minimal 3D baseline for Celine.
+ *
+ * v29 intentionally contains NO bone animation, NO morph animation and NO renderer switching.
+ * The only goal is to prove that the imported GLB is visibly rendered on the target Android 16
+ * Samsung device. Once this baseline is confirmed, animation can be layered back on top.
+ */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
     private static final String IMPORT_DIR = "models";
     private static final String IMPORT_FILE = "celine.glb";
 
-    private static final int MORPH_JAW_OPEN = 0;
-    private static final int MORPH_MOUTH_WIDE = 1;
-    private static final int MORPH_MOUTH_ROUND = 2;
-    private static final int MORPH_MOUTH_LABIAL = 3;
-    private static final int MORPH_BLINK_LEFT = 4;
-    private static final int MORPH_BLINK_RIGHT = 5;
-    private static final int MORPH_SMILE = 6;
-    private static final int REQUIRED_MORPHS = 7;
-
     static { Utils.INSTANCE.init(); }
 
     public interface VisibilityCallback { void onResult(boolean visible); }
 
-    private final View surface;
     private final SurfaceView surfaceView;
-    private final TextureView textureView;
     private final Choreographer choreographer;
     private final ModelViewer viewer;
-    private final long startedAtNanos = System.nanoTime();
-    private final boolean usingSurfaceView;
-
     private boolean running;
     private volatile Throwable renderError;
-    private CelineAvatarController.State state = CelineAvatarController.State.IDLE;
-    private int activeAnimation = -1;
-    private float speechEnergy;
-    private float lookX, lookY, targetLookX, targetLookY;
-    private BonePose head, neck, spine, spine01, spine02;
-
-    private int faceRenderableInstance;
-    private int morphTargetCount;
-    private final float[] morphWeights = new float[REQUIRED_MORPHS];
-    private float targetJaw, targetWide, targetRound, targetLabial, targetSmile;
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
         @Override public void doFrame(long frameTimeNanos) {
             if (!running) return;
             choreographer.postFrameCallback(this);
             try {
-                final float seconds = (frameTimeNanos - startedAtNanos) / 1_000_000_000f;
-                Animator animator = viewer.getAnimator();
-                if (animator != null && activeAnimation >= 0 && activeAnimation < animator.getAnimationCount()) {
-                    float duration = animator.getAnimationDuration(activeAnimation);
-                    float t = duration > 0.001f ? seconds % duration : seconds;
-                    animator.applyAnimation(activeAnimation, t);
-                }
-                lookX += (targetLookX - lookX) * 0.14f;
-                lookY += (targetLookY - lookY) * 0.14f;
-                applyProceduralPose(seconds);
-                applyFacialMorphs(seconds);
-                if (animator != null) animator.updateBoneMatrices();
+                // Standstill on purpose. Rendering itself is the only thing under test in v29.
                 viewer.render(frameTimeNanos);
             } catch (Throwable e) {
                 renderError = e;
@@ -100,58 +62,48 @@ public final class Celine3DView extends FrameLayout {
 
     public Celine3DView(Context context) throws Exception { this(context, true); }
 
-    /**
-     * @param preferSurfaceView true uses SurfaceView first. v26's TextureView path produced a
-     *                          persistent black frame on the target Samsung device, therefore v27
-     *                          probes SurfaceView first and can fall back to TextureView.
-     */
-    public Celine3DView(Context context, boolean preferSurfaceView) throws Exception {
+    /** The boolean is retained only for binary/source compatibility with the controller. */
+    public Celine3DView(Context context, boolean ignoredRendererChoice) throws Exception {
         super(context);
-        usingSurfaceView = preferSurfaceView;
-        setClipChildren(true);
-        setClipToPadding(true);
+        setClipChildren(false);
+        setClipToPadding(false);
 
         choreographer = Choreographer.getInstance();
+        surfaceView = new SurfaceView(context);
+        // Keep the Filament surface in the normal app layer but above media-style child surfaces.
+        surfaceView.setZOrderMediaOverlay(true);
+        addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
         Engine engine = Engine.create();
         UiHelper helper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
-        Manipulator manipulator = new Manipulator.Builder()
-                .targetPosition(0f, 0f, -4f)
-                .orbitHomePosition(0f, 0f, 1f)
-                .viewport(1, 1)
-                .build(Manipulator.Mode.ORBIT);
 
-        if (preferSurfaceView) {
-            surfaceView = new SurfaceView(context);
-            textureView = null;
-            surface = surfaceView;
-            addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-            viewer = new ModelViewer(surfaceView, engine, helper, manipulator);
-        } else {
-            textureView = new TextureView(context);
-            textureView.setOpaque(true);
-            surfaceView = null;
-            surface = textureView;
-            addView(textureView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-            viewer = new ModelViewer(textureView, engine, helper, manipulator);
-        }
+        // Null manipulator is deliberate. It prevents an orbit controller from moving the camera.
+        // We set the camera explicitly below and keep it fixed for the standstill baseline.
+        viewer = new ModelViewer(surfaceView, engine, helper, null);
 
-        surface.setOnTouchListener((v,e)->{
-            if(e.getAction()==MotionEvent.ACTION_DOWN||e.getAction()==MotionEvent.ACTION_MOVE){
-                float nx=(e.getX()/Math.max(1f,v.getWidth())-.5f)*2f;
-                float ny=(e.getY()/Math.max(1f,v.getHeight())-.5f)*2f;
-                setLook(nx,ny);
-            }else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){releaseLook();}
-            return true;
-        });
+        // A very dark non-black skybox makes a working Filament swapchain distinguishable from a
+        // dead black surface, while staying below the visibility probe threshold.
+        Skybox skybox = new Skybox.Builder()
+                .color(0.025f, 0.028f, 0.035f, 1.0f)
+                .build(engine);
+        viewer.getScene().setSkybox(skybox);
 
         viewer.loadModelGlb(readModel(context));
-        if (viewer.getAsset() == null) throw new IllegalStateException("Filament konnte das GLB nicht laden.");
-        // Filament's asset bounds already include the Meshy Armature scale (0.01). Center the
-        // resulting unit cube on the camera target instead of applying any hard-coded x100 scale.
+        if (viewer.getAsset() == null) {
+            throw new IllegalStateException("Filament konnte die importierte GLB-Datei nicht laden.");
+        }
+
+        // This is the same normalization path used by Google's official ModelViewer sample.
+        // It also compensates Meshy's Armature root scale of 0.01.
         viewer.transformToUnitCube(new Float3(0f, 0f, -4f));
-        captureMeshyRig();
-        captureFaceMorphs();
-        chooseAnimation();
+
+        // Fixed camera: eye at +1m on Z, looking directly at the center of the normalized model.
+        viewer.setCameraFocalLength(32f);
+        viewer.getCamera().lookAt(
+                0.0, 0.0, 1.0,
+                0.0, 0.0, -4.0,
+                0.0, 1.0, 0.0
+        );
     }
 
     public static File importedModelFile(Context context) {
@@ -162,189 +114,132 @@ public final class Celine3DView extends FrameLayout {
     public static boolean hasModel(Context context) {
         File imported = importedModelFile(context);
         if (imported.isFile() && imported.length() > 32) return true;
-        try (InputStream in = context.getAssets().open(MODEL_PATH)) { return in.available() > 32; }
-        catch (Exception ignored) { return false; }
+        try (InputStream in = context.getAssets().open(MODEL_PATH)) {
+            return in.available() > 32;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
-    public String getRendererName() { return usingSurfaceView ? "SurfaceView" : "TextureView"; }
+    public String getRendererName() { return "SurfaceView · Filament 1.74"; }
+
     public String getRenderFailureReason() {
-        Throwable e=renderError;
-        if(e==null)return null;
-        String m=e.getMessage();
-        return m==null||m.trim().isEmpty()?e.getClass().getSimpleName():m;
+        Throwable e = renderError;
+        if (e == null) return null;
+        String m = e.getMessage();
+        return m == null || m.trim().isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
     /**
-     * Verify that the Android surface contains actual non-black pixels. This is deliberately a
-     * visual probe rather than merely checking that a GLB object exists: v26 loaded the model but
-     * still showed a completely black TextureView on the user's Samsung phone.
+     * Waits for GLB resources to become ready and then checks the real SurfaceView pixels.
+     * The dark skybox is intentionally ignored; only brighter model pixels count as success.
      */
     public void verifyVisibleFrame(Handler handler, VisibilityCallback callback) {
-        probeVisibleFrame(handler, callback, 12);
+        probeVisibleFrame(handler, callback, 30);
     }
 
     private void probeVisibleFrame(Handler handler, VisibilityCallback callback, int remaining) {
         if (callback == null) return;
-        if (renderError != null) { callback.onResult(false); return; }
-        if (remaining <= 0) { callback.onResult(false); return; }
-        if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running) {
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 450L);
+        if (renderError != null || remaining <= 0) {
+            callback.onResult(false);
             return;
         }
-
-        if (textureView != null) {
-            Bitmap b = null;
-            try { b = textureView.getBitmap(64, 64); } catch (Throwable ignored) {}
-            boolean visible = hasVisiblePixels(b);
-            if (b != null) b.recycle();
-            finishProbe(handler, callback, remaining, visible);
-            return;
-        }
-
-        if (surfaceView == null || surfaceView.getHolder() == null ||
-                surfaceView.getHolder().getSurface() == null ||
+        if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running ||
+                surfaceView.getHolder() == null || surfaceView.getHolder().getSurface() == null ||
                 !surfaceView.getHolder().getSurface().isValid()) {
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 450L);
+            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 350L);
             return;
         }
 
-        final Bitmap b = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888);
+        final Bitmap sample = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888);
         try {
-            PixelCopy.request(surfaceView, b, result -> {
-                boolean visible = result == PixelCopy.SUCCESS && hasVisiblePixels(b);
-                b.recycle();
-                finishProbe(handler, callback, remaining, visible);
+            PixelCopy.request(surfaceView, sample, result -> {
+                boolean visible = result == PixelCopy.SUCCESS && hasModelPixels(sample);
+                sample.recycle();
+                if (visible) {
+                    callback.onResult(true);
+                } else if (remaining <= 1 || renderError != null) {
+                    callback.onResult(false);
+                } else {
+                    handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 350L);
+                }
             }, handler);
         } catch (Throwable e) {
-            b.recycle();
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 450L);
+            sample.recycle();
+            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 350L);
         }
     }
 
-    private void finishProbe(Handler handler, VisibilityCallback callback, int remaining, boolean visible) {
-        if (visible) { callback.onResult(true); return; }
-        if (remaining <= 1 || renderError != null) { callback.onResult(false); return; }
-        handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 450L);
-    }
+    private static boolean hasModelPixels(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int[] pixels = new int[width * height];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
 
-    private static boolean hasVisiblePixels(Bitmap bitmap) {
-        if (bitmap == null || bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) return false;
-        int w=bitmap.getWidth(),h=bitmap.getHeight();
-        int[] pixels=new int[w*h];
-        bitmap.getPixels(pixels,0,w,0,0,w,h);
-        int bright=0;
-        int needed=Math.max(8,pixels.length/200); // at least 0.5% of the probe must be non-black.
-        for(int c:pixels){
-            int r=Color.red(c),g=Color.green(c),b=Color.blue(c);
-            if(Math.max(r,Math.max(g,b))>28 && r+g+b>80){
-                if(++bright>=needed)return true;
+        int modelPixels = 0;
+        int required = Math.max(24, pixels.length / 250); // ~0.4 % of the frame.
+        for (int c : pixels) {
+            int r = Color.red(c);
+            int g = Color.green(c);
+            int b = Color.blue(c);
+            // Skybox is roughly 6-9 / 255. Anything clearly brighter is model content.
+            if (Math.max(r, Math.max(g, b)) > 34 && r + g + b > 105) {
+                if (++modelPixels >= required) return true;
             }
         }
         return false;
     }
 
-    public void setAvatarState(CelineAvatarController.State next) {
-        state = next == null ? CelineAvatarController.State.IDLE : next;
-        targetSmile = state == CelineAvatarController.State.IDLE ? 0.12f : 0f;
-        chooseAnimation();
-    }
-
-    public void setSpeechEnergy(float level) { speechEnergy = clamp(level); }
-    public void setLook(float x,float y) { targetLookX=clampSigned(x); targetLookY=clampSigned(y); }
-    public void releaseLook() { targetLookX=targetLookY=0f; }
-
-    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {
-        if (cue == null || state != CelineAvatarController.State.SPEAKING) {
-            targetJaw=targetWide=targetRound=targetLabial=0f;
-            return;
-        }
-        targetJaw = clamp(cue.openness * 1.10f);
-        targetWide = clamp(cue.width * 0.90f);
-        targetRound = clamp(cue.roundness * 0.95f);
-        targetLabial = 0f;
-        switch (cue.shape) {
-            case CLOSED: targetJaw=targetWide=targetRound=0f; break;
-            case LABIAL: targetJaw*=0.20f;targetLabial=0.95f;targetRound*=0.35f;break;
-            case ROUND: targetWide*=0.20f;targetRound=Math.max(targetRound,0.75f);break;
-            case WIDE:
-            case TEETH: targetWide=Math.max(targetWide,0.70f);targetRound*=0.15f;break;
-            case OPEN:
-            default: targetRound*=0.35f;targetWide*=0.45f;break;
+    public void startRendering() {
+        if (!running && renderError == null) {
+            running = true;
+            choreographer.postFrameCallback(frameCallback);
         }
     }
 
-    public void startRendering(){if(!running&&renderError==null){running=true;choreographer.postFrameCallback(frameCallback);}}
-    public void stopRendering(){running=false;choreographer.removeFrameCallback(frameCallback);}
-    @Override protected void onAttachedToWindow(){super.onAttachedToWindow();startRendering();}
-    @Override protected void onDetachedFromWindow(){stopRendering();super.onDetachedFromWindow();}
-
-    private void captureMeshyRig(){
-        FilamentAsset asset=viewer.getAsset();if(asset==null)return;
-        head=capture(asset,"Head");neck=capture(asset,"neck");spine=capture(asset,"Spine");spine01=capture(asset,"Spine01");spine02=capture(asset,"Spine02");
+    public void stopRendering() {
+        running = false;
+        choreographer.removeFrameCallback(frameCallback);
     }
 
-    private void captureFaceMorphs(){
-        FilamentAsset asset=viewer.getAsset();if(asset==null)return;
-        int entity=asset.getFirstEntityByName("char1");if(entity==0)return;
-        RenderableManager rm=viewer.getEngine().getRenderableManager();int instance=rm.getInstance(entity);if(instance==0)return;
-        int count=rm.getMorphTargetCount(instance);if(count<REQUIRED_MORPHS)return;
-        faceRenderableInstance=instance;morphTargetCount=count;rm.setMorphWeights(faceRenderableInstance,morphWeights,0);
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        startRendering();
     }
 
-    private BonePose capture(FilamentAsset asset,String name){
-        int entity=asset.getFirstEntityByName(name);if(entity==0)return null;
-        TransformManager tm=viewer.getEngine().getTransformManager();int instance=tm.getInstance(entity);if(instance==0)return null;
-        float[] base=new float[16];tm.getTransform(instance,base);return new BonePose(instance,base);
+    @Override protected void onDetachedFromWindow() {
+        stopRendering();
+        super.onDetachedFromWindow();
     }
 
-    private void applyProceduralPose(float t){
-        float breath=(float)Math.sin(t*1.65f),slow=(float)Math.sin(t*.72f+.8f),talk=state==CelineAvatarController.State.SPEAKING?speechEnergy:0f;
-        float hp=0,hy=0,hr=0,cp=0,cr=0;
-        switch(state){
-            case LISTENING:hp=1.4f+slow;hy=(float)Math.sin(t*.45f)*1.7f;hr=(float)Math.sin(t*.31f)*.8f;cp=breath*.45f;break;
-            case THINKING:hp=-1.2f+slow*1.4f;hy=3.2f+(float)Math.sin(t*.38f)*2.1f;hr=-2f+(float)Math.sin(t*.29f)*.7f;cp=breath*.35f;cr=(float)Math.sin(t*.33f)*.55f;break;
-            case SPEAKING:hp=(float)Math.sin(t*2.15f)*(.8f+talk*1.9f);hy=(float)Math.sin(t*.83f)*(1.4f+talk*1.8f);hr=(float)Math.sin(t*.61f+1.1f)*.8f;cp=breath*.55f+talk*.45f;cr=(float)Math.sin(t*1.07f)*talk*.7f;break;
-            default:hp=slow*.65f;hy=(float)Math.sin(t*.34f)*.9f;hr=(float)Math.sin(t*.27f+1.4f)*.45f;cp=breath*.38f;break;
+    // v29 standstill baseline: retained API hooks are intentionally no-ops.
+    public void setAvatarState(CelineAvatarController.State next) {}
+    public void setSpeechEnergy(float level) {}
+    public void setLook(float x, float y) {}
+    public void releaseLook() {}
+    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}
+
+    private static ByteBuffer readModel(Context context) throws Exception {
+        File imported = importedModelFile(context);
+        if (imported.isFile() && imported.length() > 32) {
+            try (InputStream in = new FileInputStream(imported)) {
+                return readAll(in);
+            }
         }
-        hy+=lookX*12f;hp+=lookY*7f;
-        applyRotation(spine,cp*.35f,0,cr*.25f);applyRotation(spine01,cp*.45f,0,cr*.45f);applyRotation(spine02,cp*.60f,0,cr*.65f);
-        applyRotation(neck,hp*.30f,hy*.25f,hr*.25f);applyRotation(head,hp*.70f,hy*.75f,hr*.75f);
+        try (InputStream in = context.getAssets().open(MODEL_PATH)) {
+            return readAll(in);
+        }
     }
 
-    private void applyFacialMorphs(float t){
-        if(faceRenderableInstance==0||morphTargetCount<REQUIRED_MORPHS)return;
-        morphWeights[MORPH_JAW_OPEN]=smooth(morphWeights[MORPH_JAW_OPEN],targetJaw,.34f);
-        morphWeights[MORPH_MOUTH_WIDE]=smooth(morphWeights[MORPH_MOUTH_WIDE],targetWide,.28f);
-        morphWeights[MORPH_MOUTH_ROUND]=smooth(morphWeights[MORPH_MOUTH_ROUND],targetRound,.28f);
-        morphWeights[MORPH_MOUTH_LABIAL]=smooth(morphWeights[MORPH_MOUTH_LABIAL],targetLabial,.38f);
-        morphWeights[MORPH_SMILE]=smooth(morphWeights[MORPH_SMILE],targetSmile,.08f);
-        float blink=blinkPulse(t,4.65f,0.13f);float blink2=blinkPulse(t+1.37f,7.15f,0.12f)*0.92f;float b=Math.max(blink,blink2);
-        morphWeights[MORPH_BLINK_LEFT]=b;morphWeights[MORPH_BLINK_RIGHT]=b;
-        viewer.getEngine().getRenderableManager().setMorphWeights(faceRenderableInstance,morphWeights,0);
+    private static ByteBuffer readAll(InputStream in) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buffer = new byte[64 * 1024];
+        int n;
+        while ((n = in.read(buffer)) >= 0) out.write(buffer, 0, n);
+        byte[] bytes = out.toByteArray();
+        ByteBuffer direct = ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());
+        direct.put(bytes);
+        direct.rewind();
+        return direct;
     }
-
-    private static float blinkPulse(float t,float period,float duration){float p=t%period;if(p<0)p+=period;if(p>=duration)return 0f;return(float)Math.sin(Math.PI*(p/duration));}
-    private static float smooth(float current,float target,float speed){return current+(target-current)*speed;}
-
-    private void applyRotation(BonePose bone,float x,float y,float z){
-        if(bone==null)return;float[] rx=new float[16],ry=new float[16],rz=new float[16],tmp=new float[16],rot=new float[16],out=new float[16];
-        Matrix.setRotateM(rx,0,x,1,0,0);Matrix.setRotateM(ry,0,y,0,1,0);Matrix.setRotateM(rz,0,z,0,0,1);
-        Matrix.multiplyMM(tmp,0,ry,0,rx,0);Matrix.multiplyMM(rot,0,rz,0,tmp,0);Matrix.multiplyMM(out,0,bone.base,0,rot,0);
-        viewer.getEngine().getTransformManager().setTransform(bone.instance,out);
-    }
-
-    private void chooseAnimation(){
-        Animator a=viewer.getAnimator();activeAnimation=-1;if(a==null||a.getAnimationCount()==0)return;
-        String[] wanted;switch(state){case LISTENING:wanted=new String[]{"listen","attentive"};break;case THINKING:wanted=new String[]{"think","ponder"};break;case SPEAKING:wanted=new String[]{"talk","speak","conversation"};break;default:wanted=new String[]{"idle","breath","stand"};}
-        for(String key:wanted)for(int i=0;i<a.getAnimationCount();i++){String n=a.getAnimationName(i);if(n!=null&&n.toLowerCase(Locale.ROOT).contains(key)){activeAnimation=i;return;}}
-    }
-
-    private static ByteBuffer readModel(Context context)throws Exception{
-        File imported=importedModelFile(context);if(imported.isFile()&&imported.length()>32){try(InputStream in=new FileInputStream(imported)){return readAll(in);}}
-        try(InputStream in=context.getAssets().open(MODEL_PATH)){return readAll(in);}
-    }
-    private static ByteBuffer readAll(InputStream in)throws Exception{ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[32768];int n;while((n=in.read(b))>=0)out.write(b,0,n);byte[] bytes=out.toByteArray();ByteBuffer d=ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());d.put(bytes);d.rewind();return d;}
-    private static float clamp(float v){return Math.max(0f,Math.min(1f,v));}
-    private static float clampSigned(float v){return Math.max(-1f,Math.min(1f,v));}
-    private static final class BonePose{final int instance;final float[] base;BonePose(int instance,float[] base){this.instance=instance;this.base=base;}}
 }
