@@ -58,18 +58,30 @@ jobs:
       - name: Build debug APK
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          mkdir -p build-logs
+          status=1
           for attempt in 1 2 3; do
-            echo "Gradle build attempt $attempt/3"
-            if ./gradlew assembleDebug --console=plain --stacktrace; then
-              exit 0
+            echo "=== Gradle build attempt $attempt/3 ===" | tee -a build-logs/gradle-build.log
+            if ./gradlew assembleDebug --console=plain --stacktrace --info 2>&1 | tee -a build-logs/gradle-build.log; then
+              status=0
+              break
             fi
+            echo "Gradle attempt $attempt failed" | tee -a build-logs/gradle-build.log
             if [ "$attempt" -lt 3 ]; then
-              echo "Build failed; retrying after 20 seconds in case a dependency repository is temporarily unavailable."
+              echo "Retrying after 20 seconds in case a dependency repository is temporarily unavailable." | tee -a build-logs/gradle-build.log
               sleep 20
             fi
           done
-          exit 1
+          exit "$status"
+
+      - name: Upload Gradle build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: build-logs/gradle-build.log
+          if-no-files-found: warn
 
       - name: Upload debug APK
         if: success()
