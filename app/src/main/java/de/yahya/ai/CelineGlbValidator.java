@@ -15,12 +15,14 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Fast structural validation for the production Celine GLB before Filament ever sees it.
+ * Fast structural validation for a Celine GLB before Filament ever sees it.
  *
- * The old Meshy body export is a valid GLB, but it does not contain the facial morph targets
- * required by Yahya AI. Loading an arbitrary model directly into Filament also made startup
- * failures much harder to recover from. This validator keeps the last working avatar untouched
- * unless the newly selected file has the rig and the exact facial target layout our renderer uses.
+ * Yahya AI supports two compatible levels:
+ *  1) the Meshy body rig (real 3D body/head motion), and
+ *  2) the production facial rig with the seven ordered morph targets used for lip sync/blinks.
+ *
+ * Keeping the rig checks here prevents arbitrary/corrupt GLBs from reaching Filament while still
+ * allowing the already-created Meshy Celine model to be used immediately as the 3D body fallback.
  */
 public final class CelineGlbValidator {
     private static final int GLB_MAGIC = 0x46546C67;      // glTF
@@ -48,7 +50,13 @@ public final class CelineGlbValidator {
 
     private CelineGlbValidator() {}
 
-    public static void requireProductionCeline(File file) throws Exception {
+    /**
+     * Validates that the file is safe and compatible with Celine's renderer.
+     *
+     * @return true when the exact production facial morph layout is present; false when this is a
+     *         compatible body-rig-only model (for example the current Meshy export).
+     */
+    public static boolean requireProductionCeline(File file) throws Exception {
         if (file == null || !file.isFile()) {
             throw new IllegalArgumentException("Die ausgewählte 3D-Datei wurde nicht gefunden.");
         }
@@ -73,12 +81,7 @@ public final class CelineGlbValidator {
 
         TargetScan targets = new TargetScan();
         scanTargetNameArrays(json, targets);
-        if (!targets.foundAnyTargetArray) {
-            throw incompatible("Es wurden keine benannten Gesichts-Morphs gefunden.");
-        }
-        if (!targets.foundExactProductionOrder) {
-            throw incompatible("Die sieben Gesichts-Morphs fehlen oder stehen nicht in der für Celine benötigten Reihenfolge.");
-        }
+        return targets.foundExactProductionOrder;
     }
 
     private static JSONObject readGlbJson(File file) throws Exception {
@@ -189,8 +192,9 @@ public final class CelineGlbValidator {
 
     private static IllegalArgumentException incompatible(String detail) {
         return new IllegalArgumentException(
-                detail + " Benötigt wird celine_facial_v1.glb mit jawOpen, mouthWide, mouthRound, " +
-                        "mouthLabial, blinkLeft, blinkRight und smile. Das alte Meshy-ZIP ist dafür nicht geeignet."
+                detail + " Benötigt wird mindestens Celines Meshy-Körper-Rig mit char1, Head, neck, " +
+                        "Spine, Spine01 und Spine02. Für vollständige Lippen- und Blinzelanimationen " +
+                        "wird zusätzlich celine_facial_v1.glb mit sieben Gesichts-Morphs verwendet."
         );
     }
 
