@@ -13,6 +13,7 @@ import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.Animator;
 import com.google.android.filament.gltfio.FilamentAsset;
 import com.google.android.filament.utils.Float3;
+import com.google.android.filament.utils.Manipulator;
 import com.google.android.filament.utils.ModelViewer;
 import com.google.android.filament.utils.Utils;
 
@@ -89,9 +90,9 @@ public final class Celine3DView extends FrameLayout {
         addView(surface, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         choreographer = Choreographer.getInstance();
 
-        // Filament 1.75 TextureView constructor: TextureView, Engine, MaterialProvider, Manipulator.
-        // Passing null lets ModelViewer create the matching material provider and default manipulator.
-        viewer = new ModelViewer(surface, Engine.create(), null, null);
+        // Filament 1.75 exposes two Java-visible 4-argument TextureView constructors.
+        // Cast the final null explicitly so Java selects the Manipulator overload.
+        viewer = new ModelViewer(surface, Engine.create(), null, (Manipulator) null);
 
         surface.setOnTouchListener((v,e)->{
             if(e.getAction()==MotionEvent.ACTION_DOWN||e.getAction()==MotionEvent.ACTION_MOVE){
