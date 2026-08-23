@@ -1,6 +1,8 @@
 package de.yahya.ai;
 
 import android.animation.ObjectAnimator;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.Looper;
@@ -9,12 +11,16 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
+import android.widget.Toast;
 
+import java.io.File;
 import java.util.Random;
 
 /** Drives Celin as a live avatar. Uses the rigged GLB renderer whenever models/celine.glb exists. */
 public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public enum State { IDLE, LISTENING, THINKING, SPEAKING }
+
+    private static final String PREF_3D_LOADING = "celine_3d_load_in_progress";
 
     private final View motionView;
     private final ImageView avatar;
@@ -46,31 +52,76 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
 
     public CelineAvatarController(View motionView,ImageView avatar,CelineFaceOverlayView face,float density){
         this.motionView=motionView;this.avatar=avatar;this.face=face;this.density=density;
-        tryEnable3D();
-        if(!using3D){
-            applyPose(CelineLivePortrait.Pose.NEUTRAL);
-            if(face!=null)face.start();
-            if(motionView!=null)motionView.post(()->{motionView.setPivotX(motionView.getWidth()*.50f);motionView.setPivotY(motionView.getHeight()*.82f);});
-            scheduleMicroMotion();scheduleGaze();scheduleGesture();
-        }
+
+        // Keep the proven 2D avatar alive while the 3D surface is attached and initialized.
+        // Creating Filament synchronously inside MainActivity.buildUi() can kill the process on
+        // some Samsung devices before the SurfaceView is attached.
+        applyPose(CelineLivePortrait.Pose.NEUTRAL);
+        if(face!=null)face.start();
+        if(motionView!=null)motionView.post(()->{motionView.setPivotX(motionView.getWidth()*.50f);motionView.setPivotY(motionView.getHeight()*.82f);});
+        scheduleMicroMotion();scheduleGaze();scheduleGesture();
+
+        schedule3DEnable();
         SpeechAudioBus.setListener(this);
     }
 
-    private void tryEnable3D(){
+    private void schedule3DEnable(){
         if(!(motionView instanceof ViewGroup)||avatar==null)return;
-        if(!Celine3DView.hasModel(avatar.getContext()))return;
+        final Context context=avatar.getContext();
+        if(!Celine3DView.hasModel(context))return;
+
+        final SharedPreferences prefs=context.getSharedPreferences("yahya_ai",Context.MODE_PRIVATE);
+        if(prefs.getBoolean(PREF_3D_LOADING,false)){
+            // The last process died while Filament was loading this file. Disable that one model
+            // instead of putting the whole app into an endless startup crash loop.
+            prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
+            File imported=Celine3DView.importedModelFile(context);
+            if(imported.isFile()){
+                File failed=new File(imported.getParentFile(),"celine.failed.glb");
+                if(failed.exists())failed.delete();
+                imported.renameTo(failed);
+            }
+            Toast.makeText(context,"Der zuletzt importierte 3D-Avatar wurde nach einem Absturz sicher deaktiviert. Yahya AI bleibt benutzbar.",Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        // Defer until the host has been attached/la[id] out. This is important for SurfaceView/Filament.
+        motionView.post(()->tryEnable3D(prefs));
+    }
+
+    private void tryEnable3D(SharedPreferences prefs){
+        if(released||using3D||!(motionView instanceof ViewGroup)||avatar==null)return;
+        Context context=avatar.getContext();
+        if(!Celine3DView.hasModel(context))return;
+        prefs.edit().putBoolean(PREF_3D_LOADING,true).commit();
         try{
             ViewGroup host=(ViewGroup)motionView;
-            threeD=new Celine3DView(avatar.getContext());
+            Celine3DView candidate=new Celine3DView(context);
+            if(released){candidate.stopRendering();prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();return;}
+
+            stopLoopsOnly();
+            handler.removeCallbacks(microMotionTask);
+            handler.removeCallbacks(gazeTask);
+            handler.removeCallbacks(gestureTask);
+            handler.removeCallbacks(settleSmileTask);
+
+            threeD=candidate;
             host.addView(threeD,0,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
             avatar.setVisibility(View.GONE);
             if(face!=null){face.stop();face.setVisibility(View.GONE);}
             using3D=true;
             threeD.setAvatarState(state);
-        }catch(Throwable ignored){
+            prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
+            Toast.makeText(context,"3D-Celin ist geladen.",Toast.LENGTH_SHORT).show();
+        }catch(Throwable e){
+            prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
             threeD=null;using3D=false;
             avatar.setVisibility(View.VISIBLE);
-            if(face!=null)face.setVisibility(View.VISIBLE);
+            if(face!=null){face.setVisibility(View.VISIBLE);face.start();}
+            String reason=e.getMessage();
+            if(reason==null||reason.trim().isEmpty())reason=e.getClass().getSimpleName();
+            Toast.makeText(context,"3D-Avatar konnte nicht gestartet werden: "+reason,Toast.LENGTH_LONG).show();
+            setState(state);
         }
     }
 
@@ -118,10 +169,10 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     }
 
     public void lookToward(float nx,float ny){
-        if(using3D)return;
+        if(using3D&&threeD!=null){threeD.setLook(nx*2f,ny*2f);return;}
         userLooking=true;if(motionView==null)return;float x=clamp(nx,-.5f,.5f),y=clamp(ny,-.5f,.5f);motionView.animate().cancel();motionView.setTranslationX(x*dp(4.5f));motionView.setTranslationY(y*dp(2.4f));motionView.setRotation(x*.55f);if(face!=null)face.setGaze(x*2f,y*2f);
     }
-    public void releaseLook(){if(using3D)return;userLooking=false;if(motionView!=null)motionView.animate().translationX(0).translationY(0).rotation(0).scaleX(1).scaleY(1).setDuration(500).setInterpolator(new AccelerateDecelerateInterpolator()).start();if(face!=null)face.releaseGaze();}
+    public void releaseLook(){if(using3D&&threeD!=null){threeD.releaseLook();return;}userLooking=false;if(motionView!=null)motionView.animate().translationX(0).translationY(0).rotation(0).scaleX(1).scaleY(1).setDuration(500).setInterpolator(new AccelerateDecelerateInterpolator()).start();if(face!=null)face.releaseGaze();}
     public void blink(){if(!using3D&&face!=null)face.blinkNow(false);}
     public void release(){released=true;handler.removeCallbacksAndMessages(null);SpeechAudioBus.clearListener(this);if(threeD!=null)threeD.stopRendering();stopMotion();if(face!=null)face.stop();}
 
