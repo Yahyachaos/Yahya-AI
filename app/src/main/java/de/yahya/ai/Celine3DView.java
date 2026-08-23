@@ -12,6 +12,7 @@ import com.google.android.filament.RenderableManager;
 import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.Animator;
 import com.google.android.filament.gltfio.FilamentAsset;
+import com.google.android.filament.gltfio.MaterialProvider;
 import com.google.android.filament.utils.Float3;
 import com.google.android.filament.utils.Manipulator;
 import com.google.android.filament.utils.ModelViewer;
@@ -31,7 +32,6 @@ public final class Celine3DView extends FrameLayout {
     private static final String IMPORT_DIR = "models";
     private static final String IMPORT_FILE = "celine.glb";
 
-    // celine_facial_v1.glb target order. Keep this stable for production exports.
     private static final int MORPH_JAW_OPEN = 0;
     private static final int MORPH_MOUTH_WIDE = 1;
     private static final int MORPH_MOUTH_ROUND = 2;
@@ -43,8 +43,6 @@ public final class Celine3DView extends FrameLayout {
 
     static { Utils.INSTANCE.init(); }
 
-    // TextureView is intentional. It stays in Android's normal view compositor instead of
-    // creating the separate SurfaceView layer that showed corrupted frames on Samsung.
     private final TextureView surface;
     private final Choreographer choreographer;
     private final ModelViewer viewer;
@@ -84,22 +82,25 @@ public final class Celine3DView extends FrameLayout {
 
     public Celine3DView(Context context) throws Exception {
         super(context);
-        setClipChildren(true); setClipToPadding(true);
+        setClipChildren(true);
+        setClipToPadding(true);
         surface = new TextureView(context);
         surface.setOpaque(true);
         addView(surface, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         choreographer = Choreographer.getInstance();
 
-        // Filament 1.75 exposes two Java-visible 4-argument TextureView constructors.
-        // Cast the final null explicitly so Java selects the Manipulator overload.
-        viewer = new ModelViewer(surface, Engine.create(), null, (Manipulator) null);
+        // Filament 1.75 exposes several Java-visible TextureView overloads. Cast both nulls
+        // so Java selects the MaterialProvider + Manipulator constructor unambiguously.
+        viewer = new ModelViewer(surface, Engine.create(), (MaterialProvider) null, (Manipulator) null);
 
         surface.setOnTouchListener((v,e)->{
             if(e.getAction()==MotionEvent.ACTION_DOWN||e.getAction()==MotionEvent.ACTION_MOVE){
                 float nx=(e.getX()/Math.max(1f,v.getWidth())-.5f)*2f;
                 float ny=(e.getY()/Math.max(1f,v.getHeight())-.5f)*2f;
                 setLook(nx,ny);
-            }else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){releaseLook();}
+            }else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){
+                releaseLook();
+            }
             return true;
         });
         viewer.loadModelGlb(readModel(context));
@@ -131,7 +132,6 @@ public final class Celine3DView extends FrameLayout {
     public void setLook(float x,float y) { targetLookX=clampSigned(x); targetLookY=clampSigned(y); }
     public void releaseLook() { targetLookX=targetLookY=0f; }
 
-    /** Maps the existing local PCM viseme estimator directly onto the production GLB targets. */
     public void setViseme(SpeechVisemeAnalyzer.Cue cue) {
         if (cue == null || state != CelineAvatarController.State.SPEAKING) {
             targetJaw=targetWide=targetRound=targetLabial=0f;
@@ -157,10 +157,27 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
-    public void startRendering() { if (!running) { running=true; choreographer.postFrameCallback(frameCallback); } }
-    public void stopRendering() { running=false; choreographer.removeFrameCallback(frameCallback); }
-    @Override protected void onAttachedToWindow(){super.onAttachedToWindow();startRendering();}
-    @Override protected void onDetachedFromWindow(){stopRendering();super.onDetachedFromWindow();}
+    public void startRendering() {
+        if (!running) {
+            running=true;
+            choreographer.postFrameCallback(frameCallback);
+        }
+    }
+
+    public void stopRendering() {
+        running=false;
+        choreographer.removeFrameCallback(frameCallback);
+    }
+
+    @Override protected void onAttachedToWindow(){
+        super.onAttachedToWindow();
+        startRendering();
+    }
+
+    @Override protected void onDetachedFromWindow(){
+        stopRendering();
+        super.onDetachedFromWindow();
+    }
 
     private Animator getAnimator(){
         FilamentAsset asset=viewer.getAsset();
@@ -169,12 +186,18 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private void captureMeshyRig(){
-        FilamentAsset asset=viewer.getAsset(); if(asset==null)return;
-        head=capture(asset,"Head"); neck=capture(asset,"neck"); spine=capture(asset,"Spine"); spine01=capture(asset,"Spine01"); spine02=capture(asset,"Spine02");
+        FilamentAsset asset=viewer.getAsset();
+        if(asset==null)return;
+        head=capture(asset,"Head");
+        neck=capture(asset,"neck");
+        spine=capture(asset,"Spine");
+        spine01=capture(asset,"Spine01");
+        spine02=capture(asset,"Spine02");
     }
 
     private void captureFaceMorphs(){
-        FilamentAsset asset=viewer.getAsset(); if(asset==null)return;
+        FilamentAsset asset=viewer.getAsset();
+        if(asset==null)return;
         int entity=asset.getFirstEntityByName("char1");
         if(entity==0)return;
         RenderableManager rm=viewer.getEngine().getRenderableManager();
@@ -188,23 +211,36 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private BonePose capture(FilamentAsset asset,String name){
-        int entity=asset.getFirstEntityByName(name); if(entity==0)return null;
-        TransformManager tm=viewer.getEngine().getTransformManager(); int instance=tm.getInstance(entity); if(instance==0)return null;
-        float[] base=new float[16]; tm.getTransform(instance,base); return new BonePose(instance,base);
+        int entity=asset.getFirstEntityByName(name);
+        if(entity==0)return null;
+        TransformManager tm=viewer.getEngine().getTransformManager();
+        int instance=tm.getInstance(entity);
+        if(instance==0)return null;
+        float[] base=new float[16];
+        tm.getTransform(instance,base);
+        return new BonePose(instance,base);
     }
 
     private void applyProceduralPose(float t){
         float breath=(float)Math.sin(t*1.65f),slow=(float)Math.sin(t*.72f+.8f),talk=state==CelineAvatarController.State.SPEAKING?speechEnergy:0f;
         float hp=0,hy=0,hr=0,cp=0,cr=0;
         switch(state){
-            case LISTENING:hp=1.4f+slow;hy=(float)Math.sin(t*.45f)*1.7f;hr=(float)Math.sin(t*.31f)*.8f;cp=breath*.45f;break;
-            case THINKING:hp=-1.2f+slow*1.4f;hy=3.2f+(float)Math.sin(t*.38f)*2.1f;hr=-2f+(float)Math.sin(t*.29f)*.7f;cp=breath*.35f;cr=(float)Math.sin(t*.33f)*.55f;break;
-            case SPEAKING:hp=(float)Math.sin(t*2.15f)*(.8f+talk*1.9f);hy=(float)Math.sin(t*.83f)*(1.4f+talk*1.8f);hr=(float)Math.sin(t*.61f+1.1f)*.8f;cp=breath*.55f+talk*.45f;cr=(float)Math.sin(t*1.07f)*talk*.7f;break;
-            default:hp=slow*.65f;hy=(float)Math.sin(t*.34f)*.9f;hr=(float)Math.sin(t*.27f+1.4f)*.45f;cp=breath*.38f;break;
+            case LISTENING:
+                hp=1.4f+slow;hy=(float)Math.sin(t*.45f)*1.7f;hr=(float)Math.sin(t*.31f)*.8f;cp=breath*.45f;break;
+            case THINKING:
+                hp=-1.2f+slow*1.4f;hy=3.2f+(float)Math.sin(t*.38f)*2.1f;hr=-2f+(float)Math.sin(t*.29f)*.7f;cp=breath*.35f;cr=(float)Math.sin(t*.33f)*.55f;break;
+            case SPEAKING:
+                hp=(float)Math.sin(t*2.15f)*(.8f+talk*1.9f);hy=(float)Math.sin(t*.83f)*(1.4f+talk*1.8f);hr=(float)Math.sin(t*.61f+1.1f)*.8f;cp=breath*.55f+talk*.45f;cr=(float)Math.sin(t*1.07f)*talk*.7f;break;
+            default:
+                hp=slow*.65f;hy=(float)Math.sin(t*.34f)*.9f;hr=(float)Math.sin(t*.27f+1.4f)*.45f;cp=breath*.38f;break;
         }
-        hy+=lookX*12f;hp+=lookY*7f;
-        applyRotation(spine,cp*.35f,0,cr*.25f);applyRotation(spine01,cp*.45f,0,cr*.45f);applyRotation(spine02,cp*.60f,0,cr*.65f);
-        applyRotation(neck,hp*.30f,hy*.25f,hr*.25f);applyRotation(head,hp*.70f,hy*.75f,hr*.75f);
+        hy+=lookX*12f;
+        hp+=lookY*7f;
+        applyRotation(spine,cp*.35f,0,cr*.25f);
+        applyRotation(spine01,cp*.45f,0,cr*.45f);
+        applyRotation(spine02,cp*.60f,0,cr*.65f);
+        applyRotation(neck,hp*.30f,hy*.25f,hr*.25f);
+        applyRotation(head,hp*.70f,hy*.75f,hr*.75f);
     }
 
     private void applyFacialMorphs(float t){
@@ -215,7 +251,6 @@ public final class Celine3DView extends FrameLayout {
         morphWeights[MORPH_MOUTH_LABIAL]=smooth(morphWeights[MORPH_MOUTH_LABIAL],targetLabial,.38f);
         morphWeights[MORPH_SMILE]=smooth(morphWeights[MORPH_SMILE],targetSmile,.08f);
 
-        // Natural double-frequency blink pattern, independent of speech.
         float blink=blinkPulse(t,4.65f,0.13f);
         float blink2=blinkPulse(t+1.37f,7.15f,0.12f)*0.92f;
         float b=Math.max(blink,blink2);
@@ -226,37 +261,80 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private static float blinkPulse(float t,float period,float duration){
-        float p=t%period; if(p<0)p+=period;
+        float p=t%period;
+        if(p<0)p+=period;
         if(p>=duration)return 0f;
         return (float)Math.sin(Math.PI*(p/duration));
     }
 
-    private static float smooth(float current,float target,float speed){return current+(target-current)*speed;}
+    private static float smooth(float current,float target,float speed){
+        return current+(target-current)*speed;
+    }
 
     private void applyRotation(BonePose bone,float x,float y,float z){
-        if(bone==null)return;float[] rx=new float[16],ry=new float[16],rz=new float[16],tmp=new float[16],rot=new float[16],out=new float[16];
-        Matrix.setRotateM(rx,0,x,1,0,0);Matrix.setRotateM(ry,0,y,0,1,0);Matrix.setRotateM(rz,0,z,0,0,1);
-        Matrix.multiplyMM(tmp,0,ry,0,rx,0);Matrix.multiplyMM(rot,0,rz,0,tmp,0);Matrix.multiplyMM(out,0,bone.base,0,rot,0);
+        if(bone==null)return;
+        float[] rx=new float[16],ry=new float[16],rz=new float[16],tmp=new float[16],rot=new float[16],out=new float[16];
+        Matrix.setRotateM(rx,0,x,1,0,0);
+        Matrix.setRotateM(ry,0,y,0,1,0);
+        Matrix.setRotateM(rz,0,z,0,0,1);
+        Matrix.multiplyMM(tmp,0,ry,0,rx,0);
+        Matrix.multiplyMM(rot,0,rz,0,tmp,0);
+        Matrix.multiplyMM(out,0,bone.base,0,rot,0);
         viewer.getEngine().getTransformManager().setTransform(bone.instance,out);
     }
 
     private void chooseAnimation(){
-        Animator a=getAnimator();activeAnimation=-1;if(a==null||a.getAnimationCount()==0)return;
-        String[] wanted;switch(state){case LISTENING:wanted=new String[]{"listen","attentive"};break;case THINKING:wanted=new String[]{"think","ponder"};break;case SPEAKING:wanted=new String[]{"talk","speak","conversation"};break;default:wanted=new String[]{"idle","breath","stand"};}
-        for(String key:wanted)for(int i=0;i<a.getAnimationCount();i++){String n=a.getAnimationName(i);if(n!=null&&n.toLowerCase(Locale.ROOT).contains(key)){activeAnimation=i;return;}}
+        Animator a=getAnimator();
+        activeAnimation=-1;
+        if(a==null||a.getAnimationCount()==0)return;
+        String[] wanted;
+        switch(state){
+            case LISTENING:wanted=new String[]{"listen","attentive"};break;
+            case THINKING:wanted=new String[]{"think","ponder"};break;
+            case SPEAKING:wanted=new String[]{"talk","speak","conversation"};break;
+            default:wanted=new String[]{"idle","breath","stand"};
+        }
+        for(String key:wanted){
+            for(int i=0;i<a.getAnimationCount();i++){
+                String n=a.getAnimationName(i);
+                if(n!=null&&n.toLowerCase(Locale.ROOT).contains(key)){
+                    activeAnimation=i;
+                    return;
+                }
+            }
+        }
     }
 
     private static ByteBuffer readModel(Context context) throws Exception {
         File imported = importedModelFile(context);
         if (imported.isFile() && imported.length() > 32) {
-            try (InputStream in = new FileInputStream(imported)) { return readAll(in); }
+            try (InputStream in = new FileInputStream(imported)) {
+                return readAll(in);
+            }
         }
-        try (InputStream in = context.getAssets().open(MODEL_PATH)) { return readAll(in); }
+        try (InputStream in = context.getAssets().open(MODEL_PATH)) {
+            return readAll(in);
+        }
     }
 
     private static ByteBuffer readAll(InputStream in)throws Exception{
-        ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[32768];int n;while((n=in.read(b))>=0)out.write(b,0,n);byte[] bytes=out.toByteArray();ByteBuffer d=ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());d.put(bytes);d.rewind();return d;
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        byte[] b=new byte[32768];
+        int n;
+        while((n=in.read(b))>=0)out.write(b,0,n);
+        byte[] bytes=out.toByteArray();
+        ByteBuffer d=ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());
+        d.put(bytes);
+        d.rewind();
+        return d;
     }
-    private static float clamp(float v){return Math.max(0f,Math.min(1f,v));}private static float clampSigned(float v){return Math.max(-1f,Math.min(1f,v));}
-    private static final class BonePose{final int instance;final float[] base;BonePose(int instance,float[] base){this.instance=instance;this.base=base;}}
+
+    private static float clamp(float v){return Math.max(0f,Math.min(1f,v));}
+    private static float clampSigned(float v){return Math.max(-1f,Math.min(1f,v));}
+
+    private static final class BonePose{
+        final int instance;
+        final float[] base;
+        BonePose(int instance,float[] base){this.instance=instance;this.base=base;}
+    }
 }
