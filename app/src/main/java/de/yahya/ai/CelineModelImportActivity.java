@@ -1,6 +1,7 @@
 package de.yahya.ai;
 
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -52,8 +53,15 @@ public final class CelineModelImportActivity extends Activity {
             if (target.exists() && !target.delete()) throw new IllegalStateException("Altes Celine-Modell konnte nicht ersetzt werden.");
             if (!temp.renameTo(target)) throw new IllegalStateException("Celine-Modell konnte nicht gespeichert werden.");
             fallback.delete();
+
+            File failed = new File(parent, "celine.failed.glb");
+            if (failed.exists()) failed.delete();
+            getSharedPreferences("yahya_ai", MODE_PRIVATE).edit()
+                    .putBoolean("celine_3d_load_in_progress", false)
+                    .commit();
+
             ok = true;
-            message = "3D-Celine importiert. Yahya AI startet jetzt mit dem neuen Modell.";
+            message = "3D-Celin importiert. Yahya AI wird jetzt neu gestartet und lädt den Avatar.";
         } catch (Throwable e) {
             temp.delete(); fallback.delete();
             message = "Import fehlgeschlagen: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
@@ -110,9 +118,16 @@ public final class CelineModelImportActivity extends Activity {
 
     private void finishToMain(boolean ok, String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-        Intent main = new Intent(this, MainActivity.class);
-        main.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(main);
+        if (ok) {
+            // A clean task restart guarantees MainActivity rebuilds the avatar host and sees
+            // the newly imported private model immediately.
+            Intent restart = Intent.makeRestartActivityTask(new ComponentName(this, MainActivity.class));
+            startActivity(restart);
+        } else {
+            Intent main = new Intent(this, MainActivity.class);
+            main.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(main);
+        }
         finish();
     }
 }
