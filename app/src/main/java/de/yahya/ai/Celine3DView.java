@@ -65,7 +65,7 @@ public final class Celine3DView extends FrameLayout {
             if (!running) return;
             choreographer.postFrameCallback(this);
             final float seconds = (frameTimeNanos - startedAtNanos) / 1_000_000_000f;
-            Animator animator = viewer.getAnimator();
+            Animator animator = getAnimator();
             if (animator != null && activeAnimation >= 0 && activeAnimation < animator.getAnimationCount()) {
                 float duration = animator.getAnimationDuration(activeAnimation);
                 float t = duration > 0.001f ? seconds % duration : seconds;
@@ -155,6 +155,12 @@ public final class Celine3DView extends FrameLayout {
     @Override protected void onAttachedToWindow(){super.onAttachedToWindow();startRendering();}
     @Override protected void onDetachedFromWindow(){stopRendering();super.onDetachedFromWindow();}
 
+    private Animator getAnimator(){
+        FilamentAsset asset=viewer.getAsset();
+        if(asset==null||asset.getInstance()==null)return null;
+        try{return asset.getInstance().getAnimator();}catch(Throwable ignored){return null;}
+    }
+
     private void captureMeshyRig(){
         FilamentAsset asset=viewer.getAsset(); if(asset==null)return;
         head=capture(asset,"Head"); neck=capture(asset,"neck"); spine=capture(asset,"Spine"); spine01=capture(asset,"Spine01"); spine02=capture(asset,"Spine02");
@@ -228,7 +234,7 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private void chooseAnimation(){
-        Animator a=viewer.getAnimator();activeAnimation=-1;if(a==null||a.getAnimationCount()==0)return;
+        Animator a=getAnimator();activeAnimation=-1;if(a==null||a.getAnimationCount()==0)return;
         String[] wanted;switch(state){case LISTENING:wanted=new String[]{"listen","attentive"};break;case THINKING:wanted=new String[]{"think","ponder"};break;case SPEAKING:wanted=new String[]{"talk","speak","conversation"};break;default:wanted=new String[]{"idle","breath","stand"};}
         for(String key:wanted)for(int i=0;i<a.getAnimationCount();i++){String n=a.getAnimationName(i);if(n!=null&&n.toLowerCase(Locale.ROOT).contains(key)){activeAnimation=i;return;}}
     }
