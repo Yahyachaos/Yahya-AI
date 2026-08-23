@@ -32,6 +32,7 @@ public final class CelineFaceOverlayView extends View {
     private final Paint bitmapPaint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
     private final Paint lidPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint cavityPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint teethPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Random random=new Random();
 
@@ -54,6 +55,7 @@ public final class CelineFaceOverlayView extends View {
         lidPaint.setStrokeCap(Paint.Cap.ROUND);
         lidPaint.setColor(0xB92B1D20);
         cavityPaint.setColor(0xD11B080D);
+        teethPaint.setColor(0xEAF7F0EC);
     }
 
     public void start(){ if(!running){ running=true; scheduleNext(); } }
@@ -82,7 +84,7 @@ public final class CelineFaceOverlayView extends View {
 
     public void setMouthLevel(float level){
         float next=activity==Activity.SPEAKING?clamp(level):0f;
-        float attack=next>mouthLevel?.82f:.42f;
+        float attack=next>mouthLevel?.78f:.34f;
         mouthLevel=mouthLevel*(1f-attack)+next*attack;
         if(mouthLevel<.01f)mouthLevel=0f;
         invalidate();
@@ -91,9 +93,9 @@ public final class CelineFaceOverlayView extends View {
     public void setViseme(SpeechVisemeAnalyzer.Cue cue){
         if(cue==null||activity!=Activity.SPEAKING)cue=SpeechVisemeAnalyzer.silent();
         visemeShape=cue.shape;
-        visemeOpen=visemeOpen*.18f+cue.openness*.82f;
-        visemeWide=visemeWide*.28f+cue.width*.72f;
-        visemeRound=visemeRound*.28f+cue.roundness*.72f;
+        visemeOpen=visemeOpen*.28f+cue.openness*.72f;
+        visemeWide=visemeWide*.35f+cue.width*.65f;
+        visemeRound=visemeRound*.35f+cue.roundness*.65f;
         invalidate();
     }
 
@@ -112,7 +114,7 @@ public final class CelineFaceOverlayView extends View {
         super.onDraw(canvas);
         if(source==null||source.isRecycled()||getWidth()<=0||getHeight()<=0)return;
         if(Math.abs(gazeX)>.01f||Math.abs(gazeY)>.01f){drawEyePatch(canvas,LEFT_L,LEFT_R);drawEyePatch(canvas,RIGHT_L,RIGHT_R);}
-        if(activity==Activity.SPEAKING&&(mouthLevel>.01f||visemeOpen>.01f))drawMouth(canvas);
+        if(activity==Activity.SPEAKING&&(mouthLevel>.01f||visemeOpen>.01f||visemeShape==SpeechVisemeAnalyzer.Shape.TEETH))drawMouth(canvas);
         if(blink>.01f){drawBlink(canvas,LEFT_L,LEFT_R);drawBlink(canvas,RIGHT_L,RIGHT_R);}
     }
 
@@ -123,12 +125,35 @@ public final class CelineFaceOverlayView extends View {
         float sl=MOUTH_L*bw,sr=MOUTH_R*bw,st=MOUTH_T*bh,sb=MOUTH_B*bh,sm=(st+sb)*.5f;
         Rect up=new Rect((int)sl,(int)st,(int)sr,(int)sm),lo=new Rect((int)sl,(int)sm,(int)sr,(int)sb);
         RectF m=new RectF(dx+sl*s,dy+st*s,dx+sr*s,dy+sb*s);
-        float open=clamp(Math.max(mouthLevel*.76f,visemeOpen*.88f)); if(visemeShape==SpeechVisemeAnalyzer.Shape.CLOSED)open*=.08f;
-        float width=1f+(visemeShape==SpeechVisemeAnalyzer.Shape.WIDE?.08f*visemeWide:0f)-(visemeShape==SpeechVisemeAnalyzer.Shape.ROUND?.07f*visemeRound:0f);
-        float gap=m.height()*(.025f+.27f*open),cx=m.centerX(),half=m.width()*.5f*width,left=cx-half,right=cx+half,mid=m.centerY();
-        if(open>.06f){RectF cavity=new RectF(left+m.width()*.12f,mid-gap*.10f,right-m.width()*.12f,mid+gap*.62f);cavityPaint.setAlpha((int)(90+90*open));canvas.drawOval(cavity,cavityPaint);}
-        RectF ud=new RectF(left,m.top-gap*.08f,right,mid-gap*.20f),ld=new RectF(left,mid+gap*.27f,right,m.bottom+gap*.16f);
-        canvas.save();canvas.clipRect(new RectF(left,m.top-m.height()*.15f,right,m.bottom+m.height()*.22f));canvas.drawBitmap(source,up,ud,bitmapPaint);canvas.drawBitmap(source,lo,ld,bitmapPaint);canvas.restore();
+
+        float open=clamp(Math.max(mouthLevel*.68f,visemeOpen*.91f));
+        float width=1f;
+        float verticalBias=0f;
+        if(visemeShape==SpeechVisemeAnalyzer.Shape.CLOSED){open*=.05f;width=.985f;}
+        else if(visemeShape==SpeechVisemeAnalyzer.Shape.LABIAL){open*=.32f;width=.94f;verticalBias=.02f;}
+        else if(visemeShape==SpeechVisemeAnalyzer.Shape.WIDE){width=1f+.11f*visemeWide;open*=.82f;}
+        else if(visemeShape==SpeechVisemeAnalyzer.Shape.ROUND){width=1f-.12f*visemeRound;open*=.92f;}
+        else if(visemeShape==SpeechVisemeAnalyzer.Shape.TEETH){open=Math.max(.045f,open*.24f);width=1.025f+.035f*visemeWide;verticalBias=-.02f;}
+
+        float gap=m.height()*(.018f+.285f*open),cx=m.centerX(),half=m.width()*.5f*width,left=cx-half,right=cx+half,mid=m.centerY()+m.height()*verticalBias;
+        float jaw=m.height()*(.02f+.19f*open);
+
+        if(open>.045f){
+            RectF cavity=new RectF(left+m.width()*.12f,mid-gap*.08f,right-m.width()*.12f,mid+gap*.72f);
+            cavityPaint.setAlpha((int)(82+110*open));canvas.drawOval(cavity,cavityPaint);
+            if(visemeShape==SpeechVisemeAnalyzer.Shape.TEETH||visemeShape==SpeechVisemeAnalyzer.Shape.WIDE){
+                RectF teeth=new RectF(cavity.left+cavity.width()*.10f,cavity.top,cavity.right-cavity.width()*.10f,cavity.top+cavity.height()*(.23f+.16f*(1f-open)));
+                teethPaint.setAlpha((int)(105+95*(1f-open)));canvas.drawRoundRect(teeth,teeth.height()*.35f,teeth.height()*.35f,teethPaint);
+            }
+        }
+
+        RectF ud=new RectF(left,m.top-gap*.08f,right,mid-gap*.22f);
+        RectF ld=new RectF(left,mid+gap*.23f+jaw*.12f,right,m.bottom+gap*.16f+jaw);
+        canvas.save();
+        canvas.clipRect(new RectF(left,m.top-m.height()*.17f,right,m.bottom+m.height()*.30f));
+        canvas.drawBitmap(source,up,ud,bitmapPaint);
+        canvas.drawBitmap(source,lo,ld,bitmapPaint);
+        canvas.restore();
     }
 
     private void drawEyePatch(Canvas canvas,float ln,float rn){
