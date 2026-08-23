@@ -21,7 +21,9 @@
         <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true" android:windowSoftInputMode="adjustPan|stateAlwaysHidden">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
-        <activity android:name=".AvatarPickerActivity" android:exported="false" android:noHistory="true" />
+        <!-- Keep this Activity alive while the Samsung document picker is open so the selected URI
+             is delivered back through onActivityResult(). -->
+        <activity android:name=".AvatarPickerActivity" android:exported="false" />
         <activity android:name=".CelineModelImportActivity" android:exported="true" android:noHistory="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
