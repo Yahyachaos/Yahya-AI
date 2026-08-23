@@ -41,9 +41,7 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v29 is a deliberately minimal static 3D diagnostic baseline.
-    // 1.72.0 is published on Maven Central and provides the modern ModelViewer path needed here.
+    // v29 renders directly with Filament + gltfio. No filament-utils / ModelViewer dependency.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
-    implementation 'com.google.android.filament:filament-utils-android:1.72.0'
 }
