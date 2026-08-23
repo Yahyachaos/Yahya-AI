@@ -10,6 +10,7 @@ import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
 import com.google.android.filament.Engine;
+import com.google.android.filament.IndirectLight;
 import com.google.android.filament.Skybox;
 import com.google.android.filament.android.UiHelper;
 import com.google.android.filament.utils.Float3;
@@ -27,8 +28,7 @@ import java.nio.ByteOrder;
  * Minimal 3D baseline for Celine.
  *
  * v29 intentionally contains NO bone animation, NO morph animation and NO renderer switching.
- * The only goal is to prove that the imported GLB is visibly rendered on the target Android 16
- * Samsung device. Once this baseline is confirmed, animation can be layered back on top.
+ * The only goal is to prove that the imported GLB is visibly rendered on the target Android device.
  */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
@@ -42,6 +42,8 @@ public final class Celine3DView extends FrameLayout {
     private final SurfaceView surfaceView;
     private final Choreographer choreographer;
     private final ModelViewer viewer;
+    private final Skybox skybox;
+    private final IndirectLight indirectLight;
     private boolean running;
     private volatile Throwable renderError;
 
@@ -62,7 +64,7 @@ public final class Celine3DView extends FrameLayout {
 
     public Celine3DView(Context context) throws Exception { this(context, true); }
 
-    /** The boolean is retained only for binary/source compatibility with the controller. */
+    /** The boolean is retained only for source compatibility with the controller. */
     public Celine3DView(Context context, boolean ignoredRendererChoice) throws Exception {
         super(context);
         setClipChildren(false);
@@ -70,34 +72,38 @@ public final class Celine3DView extends FrameLayout {
 
         choreographer = Choreographer.getInstance();
         surfaceView = new SurfaceView(context);
-        // Keep the Filament surface in the normal app layer but above media-style child surfaces.
-        surfaceView.setZOrderMediaOverlay(true);
+        // No special Z-order tricks in the baseline: use Android's normal SurfaceView path.
         addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
         Engine engine = Engine.create();
         UiHelper helper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
 
-        // Null manipulator is deliberate. It prevents an orbit controller from moving the camera.
-        // We set the camera explicitly below and keep it fixed for the standstill baseline.
+        // No camera manipulator. ModelViewer will not overwrite the fixed camera below.
         viewer = new ModelViewer(surfaceView, engine, helper, null);
 
-        // A very dark non-black skybox makes a working Filament swapchain distinguishable from a
-        // dead black surface, while staying below the visibility probe threshold.
-        Skybox skybox = new Skybox.Builder()
-                .color(0.025f, 0.028f, 0.035f, 1.0f)
+        // Constant dark background. If the model renders, its skin/hair/clothes are much brighter.
+        skybox = new Skybox.Builder()
+                .color(0.018f, 0.022f, 0.030f, 1.0f)
                 .build(engine);
         viewer.getScene().setSkybox(skybox);
+
+        // Filament's ModelViewer explicitly expects the app to provide indirect/environment light.
+        // A one-band white SH is enough for this diagnostic baseline and avoids any KTX/IBL files.
+        indirectLight = new IndirectLight.Builder()
+                .irradiance(1, new float[]{1.0f, 1.0f, 1.0f})
+                .intensity(30000.0f)
+                .build(engine);
+        viewer.getScene().setIndirectLight(indirectLight);
 
         viewer.loadModelGlb(readModel(context));
         if (viewer.getAsset() == null) {
             throw new IllegalStateException("Filament konnte die importierte GLB-Datei nicht laden.");
         }
 
-        // This is the same normalization path used by Google's official ModelViewer sample.
-        // It also compensates Meshy's Armature root scale of 0.01.
+        // Official ModelViewer normalization. This compensates Meshy's Armature scale of 0.01.
         viewer.transformToUnitCube(new Float3(0f, 0f, -4f));
 
-        // Fixed camera: eye at +1m on Z, looking directly at the center of the normalized model.
+        // Fixed camera directly in front of the centered model.
         viewer.setCameraFocalLength(32f);
         viewer.getCamera().lookAt(
                 0.0, 0.0, 1.0,
@@ -130,12 +136,9 @@ public final class Celine3DView extends FrameLayout {
         return m == null || m.trim().isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
-    /**
-     * Waits for GLB resources to become ready and then checks the real SurfaceView pixels.
-     * The dark skybox is intentionally ignored; only brighter model pixels count as success.
-     */
+    /** Wait for the 27 MB GLB / 4K texture to become GPU-ready, then inspect real surface pixels. */
     public void verifyVisibleFrame(Handler handler, VisibilityCallback callback) {
-        probeVisibleFrame(handler, callback, 30);
+        probeVisibleFrame(handler, callback, 40);
     }
 
     private void probeVisibleFrame(Handler handler, VisibilityCallback callback, int remaining) {
@@ -147,7 +150,7 @@ public final class Celine3DView extends FrameLayout {
         if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running ||
                 surfaceView.getHolder() == null || surfaceView.getHolder().getSurface() == null ||
                 !surfaceView.getHolder().getSurface().isValid()) {
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 350L);
+            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 300L);
             return;
         }
 
@@ -161,12 +164,12 @@ public final class Celine3DView extends FrameLayout {
                 } else if (remaining <= 1 || renderError != null) {
                     callback.onResult(false);
                 } else {
-                    handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 350L);
+                    handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 300L);
                 }
             }, handler);
         } catch (Throwable e) {
             sample.recycle();
-            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 350L);
+            handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 300L);
         }
     }
 
@@ -177,12 +180,11 @@ public final class Celine3DView extends FrameLayout {
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
 
         int modelPixels = 0;
-        int required = Math.max(24, pixels.length / 250); // ~0.4 % of the frame.
+        int required = Math.max(24, pixels.length / 250);
         for (int c : pixels) {
             int r = Color.red(c);
             int g = Color.green(c);
             int b = Color.blue(c);
-            // Skybox is roughly 6-9 / 255. Anything clearly brighter is model content.
             if (Math.max(r, Math.max(g, b)) > 34 && r + g + b > 105) {
                 if (++modelPixels >= required) return true;
             }
