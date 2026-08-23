@@ -17,6 +17,8 @@ import com.google.android.filament.utils.ModelViewer;
 import com.google.android.filament.utils.Utils;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -25,6 +27,8 @@ import java.util.Locale;
 /** Real-time renderer for Celine's rigged GLB avatar. */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
+    private static final String IMPORT_DIR = "models";
+    private static final String IMPORT_FILE = "celine.glb";
     static { Utils.INSTANCE.init(); }
 
     private final SurfaceView surface;
@@ -73,12 +77,19 @@ public final class Celine3DView extends FrameLayout {
             }else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){releaseLook();}
             return true;
         });
-        viewer.loadModelGlb(readAsset(context, MODEL_PATH));
+        viewer.loadModelGlb(readModel(context));
         viewer.transformToUnitCube(new Float3(0f, 0f, -3.1f));
         captureMeshyRig(); chooseAnimation();
     }
 
+    public static File importedModelFile(Context context) {
+        File dir = new File(context.getFilesDir(), IMPORT_DIR);
+        return new File(dir, IMPORT_FILE);
+    }
+
     public static boolean hasModel(Context context) {
+        File imported = importedModelFile(context);
+        if (imported.isFile() && imported.length() > 32) return true;
         try (InputStream in = context.getAssets().open(MODEL_PATH)) { return in.available() > 32; }
         catch (Exception ignored) { return false; }
     }
@@ -131,8 +142,16 @@ public final class Celine3DView extends FrameLayout {
         for(String key:wanted)for(int i=0;i<a.getAnimationCount();i++){String n=a.getAnimationName(i);if(n!=null&&n.toLowerCase(Locale.ROOT).contains(key)){activeAnimation=i;return;}}
     }
 
-    private static ByteBuffer readAsset(Context c,String path)throws Exception{
-        try(InputStream in=c.getAssets().open(path);ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[32768];int n;while((n=in.read(b))>=0)out.write(b,0,n);byte[] bytes=out.toByteArray();ByteBuffer d=ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());d.put(bytes);d.rewind();return d;}
+    private static ByteBuffer readModel(Context context) throws Exception {
+        File imported = importedModelFile(context);
+        if (imported.isFile() && imported.length() > 32) {
+            try (InputStream in = new FileInputStream(imported)) { return readAll(in); }
+        }
+        try (InputStream in = context.getAssets().open(MODEL_PATH)) { return readAll(in); }
+    }
+
+    private static ByteBuffer readAll(InputStream in)throws Exception{
+        ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[32768];int n;while((n=in.read(b))>=0)out.write(b,0,n);byte[] bytes=out.toByteArray();ByteBuffer d=ByteBuffer.allocateDirect(bytes.length).order(ByteOrder.nativeOrder());d.put(bytes);d.rewind();return d;
     }
     private static float clamp(float v){return Math.max(0f,Math.min(1f,v));}private static float clampSigned(float v){return Math.max(-1f,Math.min(1f,v));}
     private static final class BonePose{final int instance;final float[] base;BonePose(int instance,float[] base){this.instance=instance;this.base=base;}}
