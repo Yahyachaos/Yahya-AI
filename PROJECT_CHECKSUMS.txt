@@ -15,7 +15,7 @@ c85cf4bbf1c0263f26b6eb3f3d622e076c5b8a9972538f679a584d45ff5d0913  app/src/main/j
 35e8bae5bff41226c3563a29856d4bd61d2bfe5dadeb5bbf25f7cc5902ee184b  app/src/main/java/de/yahya/ai/SpeechOutputRouter.java
 e7f1a29b9def430f1e5529cc697266047fcf66b828e7b865596ce8cbdb94960b  app/src/main/java/de/yahya/ai/SpeechRecognitionIntentFactory.java
 25c6706b7763452093cef1ab1198c6b44164c2fa5b1d458f56563b83f8a1b4e7  app/src/main/java/de/yahya/ai/SpeechTextNormalizer.java
-329f095aa543b85ddddbed75852bdd27335237128ac32c9b9a5c6b3f10878210  app/src/main/java/de/yahya/ai/SpeechVisemeAnalyzer.java
+b8b6752a21eabe0d1925991b6f1233826b619bcea2eb261b884550ed4f81b2b0  app/src/main/java/de/yahya/ai/SpeechVisemeAnalyzer.java
 4b02a55dde35ed60cdb14ca8dc4cf887e5a30c2a9f6b184579704dbd4c2cf4e0  app/src/main/java/de/yahya/ai/SupertonicModelManager.java
 b24f02e11b5c8851400257f7437a9d46f0b3832a861214113e8bfffb4731fa62  app/src/main/java/de/yahya/ai/WakeWordService.java
 deb7c0576b2ea9b0e3b07c3d37c9bb8a28a211b438482ac0061e8cd197c0ea1c  app/src/main/res/drawable-nodpi/celine_avatar.png
