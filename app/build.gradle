@@ -16,7 +16,7 @@ android {
         minSdkVersion 26
         targetSdkVersion 30
         versionCode 23
-        versionName '1.0-celin-foundation-v23'
+        versionName '1.0-celin-foundation'
     }
     signingConfigs {
         debug {
