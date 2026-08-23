@@ -8,15 +8,22 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/** Imports a GLB or Meshy ZIP as Celine's private on-device production model. */
+/** Imports Celine's production GLB. The model must include the facial morph rig used by the app. */
 public final class CelineModelImportActivity extends Activity {
+    private static final String[] REQUIRED_FACE_TARGETS = new String[]{
+            "jawOpen", "mouthWide", "mouthRound", "mouthLabial",
+            "blinkLeft", "blinkRight", "smile"
+    };
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         Uri uri = getIntent() == null ? null : getIntent().getData();
@@ -29,7 +36,7 @@ public final class CelineModelImportActivity extends Activity {
         File parent = target.getParentFile();
         if (parent != null) parent.mkdirs();
         File temp = new File(parent, "celine.glb.tmp");
-        File fallback = new File(parent, "celine_fallback.glb.tmp");
+        File fallback = new File(parent, "celine_candidate.glb.tmp");
         boolean ok = false;
         String message;
         try (InputStream raw = getContentResolver().openInputStream(uri)) {
@@ -43,10 +50,11 @@ public final class CelineModelImportActivity extends Activity {
 
             if (header[0]=='g' && header[1]=='l' && header[2]=='T' && header[3]=='F') {
                 copyGlb(in, temp);
+                validateProductionGlb(temp);
             } else if (header[0]=='P' && header[1]=='K') {
-                extractBestGlb(in, temp, fallback);
+                extractCompatibleGlb(in, temp, fallback);
             } else {
-                throw new IllegalArgumentException("Bitte eine .glb oder das originale Meshy-ZIP auswählen.");
+                throw new IllegalArgumentException("Bitte Celines .glb-Datei oder ein ZIP mit einer kompatiblen GLB auswählen.");
             }
 
             if (temp.length() < 100_000) throw new IllegalArgumentException("Die gefundene GLB-Datei ist unerwartet klein.");
@@ -61,7 +69,7 @@ public final class CelineModelImportActivity extends Activity {
                     .commit();
 
             ok = true;
-            message = "3D-Celin importiert. Yahya AI wird jetzt neu gestartet und lädt den Avatar.";
+            message = "3D-Celin mit Gesichts-Rig importiert. Yahya AI startet jetzt neu.";
         } catch (Throwable e) {
             temp.delete(); fallback.delete();
             message = "Import fehlgeschlagen: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
@@ -76,28 +84,79 @@ public final class CelineModelImportActivity extends Activity {
         validateGlb(target);
     }
 
-    private static void extractBestGlb(InputStream input, File target, File fallback) throws Exception {
-        boolean haveFallback = false;
+    /**
+     * A Meshy/Mixamo ZIP can contain several GLBs. Do not pick by filename alone: only accept
+     * the model that actually contains Celine's seven facial morph targets. This prevents the
+     * raw biped export from reaching native gltfio and also guarantees lip-sync/blinks can work.
+     */
+    private static void extractCompatibleGlb(InputStream input, File target, File candidate) throws Exception {
+        String lastReason = null;
         try (ZipInputStream zip = new ZipInputStream(input)) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
                 String name = entry.getName().toLowerCase();
                 if (!name.endsWith(".glb")) continue;
-                boolean preferred = name.contains("character_output");
-                File candidate = preferred ? target : fallback;
+
+                if (candidate.exists()) candidate.delete();
                 try (FileOutputStream out = new FileOutputStream(candidate)) { copy(zip, out); }
-                validateGlb(candidate);
-                if (preferred) return;
-                haveFallback = true;
+                try {
+                    validateProductionGlb(candidate);
+                    if (target.exists()) target.delete();
+                    if (!candidate.renameTo(target)) throw new IllegalStateException("Kompatible GLB konnte nicht übernommen werden.");
+                    return;
+                } catch (IllegalArgumentException incompatible) {
+                    lastReason = incompatible.getMessage();
+                    candidate.delete();
+                }
             }
         }
-        if (haveFallback && fallback.isFile()) {
-            if (target.exists()) target.delete();
-            if (!fallback.renameTo(target)) throw new IllegalStateException("GLB aus ZIP konnte nicht übernommen werden.");
-            return;
+        if (lastReason != null) throw new IllegalArgumentException(lastReason);
+        throw new IllegalArgumentException("Im ZIP wurde keine kompatible Celine-GLB gefunden.");
+    }
+
+    private static void validateProductionGlb(File file) throws Exception {
+        validateGlb(file);
+        String json = readJsonChunk(file);
+        if (!json.contains("\"char1\"") || !json.contains("\"Armature\"")) {
+            throw new IllegalArgumentException("Das Modell enthält nicht Celines erwartetes Körper-Rig.");
         }
-        throw new IllegalArgumentException("Im ZIP wurde keine GLB-Datei gefunden.");
+        for (String target : REQUIRED_FACE_TARGETS) {
+            if (!json.contains("\"" + target + "\"")) {
+                throw new IllegalArgumentException("Diese Meshy-Datei hat noch kein Gesichts-Rig. Bitte die Datei celine_facial_v1.glb auswählen.");
+            }
+        }
+    }
+
+    private static String readJsonChunk(File file) throws Exception {
+        try (InputStream in = new BufferedInputStream(new FileInputStream(file))) {
+            byte[] header = new byte[12];
+            if (readFully(in, header) != header.length) throw new IllegalArgumentException("GLB-Header ist unvollständig.");
+            byte[] chunkHeader = new byte[8];
+            if (readFully(in, chunkHeader) != chunkHeader.length) throw new IllegalArgumentException("GLB enthält keinen JSON-Block.");
+            int length = littleEndianInt(chunkHeader, 0);
+            int type = littleEndianInt(chunkHeader, 4);
+            if (type != 0x4E4F534A || length <= 0 || length > 16 * 1024 * 1024) {
+                throw new IllegalArgumentException("GLB enthält keinen gültigen JSON-Block.");
+            }
+            byte[] json = new byte[length];
+            if (readFully(in, json) != length) throw new IllegalArgumentException("GLB-JSON ist unvollständig.");
+            return new String(json, StandardCharsets.UTF_8);
+        }
+    }
+
+    private static int readFully(InputStream in, byte[] data) throws Exception {
+        int off = 0;
+        while (off < data.length) {
+            int n = in.read(data, off, data.length - off);
+            if (n < 0) break;
+            off += n;
+        }
+        return off;
+    }
+
+    private static int littleEndianInt(byte[] b, int off) {
+        return (b[off] & 0xff) | ((b[off+1] & 0xff) << 8) | ((b[off+2] & 0xff) << 16) | ((b[off+3] & 0xff) << 24);
     }
 
     private static void validateGlb(File file) throws Exception {
@@ -119,8 +178,6 @@ public final class CelineModelImportActivity extends Activity {
     private void finishToMain(boolean ok, String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         if (ok) {
-            // A clean task restart guarantees MainActivity rebuilds the avatar host and sees
-            // the newly imported private model immediately.
             Intent restart = Intent.makeRestartActivityTask(new ComponentName(this, MainActivity.class));
             startActivity(restart);
         } else {
