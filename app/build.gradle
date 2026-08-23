@@ -9,6 +9,7 @@ stableDebugKeystore.parentFile.mkdirs()
 stableDebugKeystore.bytes = java.util.Base64.getDecoder().decode(stableDebugKeystoreBase64.getText('UTF-8').trim())
 
 android {
+    namespace 'de.yahya.ai'
     compileSdkVersion 30
     defaultConfig {
         applicationId 'de.yahya.ai'
