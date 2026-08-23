@@ -9,14 +9,15 @@ import android.widget.Toast;
 
 import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/** Imports a GLB or Meshy ZIP as Celine's private on-device production model. */
+/** Imports only a production-ready Celine GLB into the app's private on-device model slot. */
 public final class CelineModelImportActivity extends Activity {
+    private static final long MAX_GLB_BYTES = 220L * 1024L * 1024L;
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         Uri uri = getIntent() == null ? null : getIntent().getData();
@@ -29,7 +30,6 @@ public final class CelineModelImportActivity extends Activity {
         File parent = target.getParentFile();
         if (parent != null) parent.mkdirs();
         File temp = new File(parent, "celine.glb.tmp");
-        File fallback = new File(parent, "celine_fallback.glb.tmp");
         boolean ok = false;
         String message;
         try (InputStream raw = getContentResolver().openInputStream(uri)) {
@@ -41,18 +41,24 @@ public final class CelineModelImportActivity extends Activity {
             in.reset();
             if (h != 4) throw new IllegalArgumentException("Datei ist leer oder beschädigt.");
 
+            temp.delete();
             if (header[0]=='g' && header[1]=='l' && header[2]=='T' && header[3]=='F') {
                 copyGlb(in, temp);
+                CelineGlbValidator.requireProductionCeline(temp);
             } else if (header[0]=='P' && header[1]=='K') {
-                extractBestGlb(in, temp, fallback);
+                extractCompatibleCelineGlb(in, temp);
+                CelineGlbValidator.requireProductionCeline(temp);
             } else {
-                throw new IllegalArgumentException("Bitte eine .glb oder das originale Meshy-ZIP auswählen.");
+                throw new IllegalArgumentException("Bitte celine_facial_v1.glb auswählen. ZIP-Dateien werden nur akzeptiert, wenn sie genau dieses kompatible Celine-Modell enthalten.");
             }
 
-            if (temp.length() < 100_000) throw new IllegalArgumentException("Die gefundene GLB-Datei ist unerwartet klein.");
-            if (target.exists() && !target.delete()) throw new IllegalStateException("Altes Celine-Modell konnte nicht ersetzt werden.");
-            if (!temp.renameTo(target)) throw new IllegalStateException("Celine-Modell konnte nicht gespeichert werden.");
-            fallback.delete();
+            // Do not touch the last working avatar until the new file has passed all checks.
+            if (target.exists() && !target.delete()) {
+                throw new IllegalStateException("Altes Celine-Modell konnte nicht ersetzt werden.");
+            }
+            if (!temp.renameTo(target)) {
+                throw new IllegalStateException("Celine-Modell konnte nicht gespeichert werden.");
+            }
 
             File failed = new File(parent, "celine.failed.glb");
             if (failed.exists()) failed.delete();
@@ -61,10 +67,10 @@ public final class CelineModelImportActivity extends Activity {
                     .commit();
 
             ok = true;
-            message = "3D-Celin importiert. Yahya AI wird jetzt neu gestartet und lädt den Avatar.";
+            message = "Celines Gesichts-Avatar wurde geprüft und importiert. Yahya AI startet jetzt neu.";
         } catch (Throwable e) {
-            temp.delete(); fallback.delete();
-            message = "Import fehlgeschlagen: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            temp.delete();
+            message = "Import abgelehnt: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
         final boolean result = ok;
         final String text = message;
@@ -72,47 +78,59 @@ public final class CelineModelImportActivity extends Activity {
     }
 
     private static void copyGlb(InputStream in, File target) throws Exception {
-        try (FileOutputStream out = new FileOutputStream(target)) { copy(in, out); }
-        validateGlb(target);
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            copyLimited(in, out, MAX_GLB_BYTES);
+        }
     }
 
-    private static void extractBestGlb(InputStream input, File target, File fallback) throws Exception {
-        boolean haveFallback = false;
+    /**
+     * Some file managers hand us the original Meshy ZIP. We inspect every GLB inside it, but only
+     * keep one if it actually contains Celine's seven facial morphs and expected rig. This means the
+     * old body-only Meshy export can no longer be installed accidentally and crash the 3D startup.
+     */
+    private static void extractCompatibleCelineGlb(InputStream input, File target) throws Exception {
+        String lastReason = null;
+        boolean sawGlb = false;
         try (ZipInputStream zip = new ZipInputStream(input)) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
                 String name = entry.getName().toLowerCase();
                 if (!name.endsWith(".glb")) continue;
-                boolean preferred = name.contains("character_output");
-                File candidate = preferred ? target : fallback;
-                try (FileOutputStream out = new FileOutputStream(candidate)) { copy(zip, out); }
-                validateGlb(candidate);
-                if (preferred) return;
-                haveFallback = true;
+                sawGlb = true;
+                target.delete();
+                try (FileOutputStream out = new FileOutputStream(target)) {
+                    copyLimited(zip, out, MAX_GLB_BYTES);
+                }
+                try {
+                    CelineGlbValidator.requireProductionCeline(target);
+                    return;
+                } catch (Throwable incompatible) {
+                    lastReason = incompatible.getMessage();
+                    target.delete();
+                }
             }
         }
-        if (haveFallback && fallback.isFile()) {
-            if (target.exists()) target.delete();
-            if (!fallback.renameTo(target)) throw new IllegalStateException("GLB aus ZIP konnte nicht übernommen werden.");
-            return;
+        if (!sawGlb) {
+            throw new IllegalArgumentException("Im ZIP wurde keine GLB-Datei gefunden.");
         }
-        throw new IllegalArgumentException("Im ZIP wurde keine GLB-Datei gefunden.");
+        if (lastReason != null && !lastReason.trim().isEmpty()) {
+            throw new IllegalArgumentException(lastReason);
+        }
+        throw new IllegalArgumentException("Im ZIP wurde kein kompatibler Celine-Gesichtsavatar gefunden.");
     }
 
-    private static void validateGlb(File file) throws Exception {
-        try (InputStream in = new BufferedInputStream(new FileInputStream(file))) {
-            byte[] h = new byte[4];
-            if (in.read(h) != 4 || h[0] != 'g' || h[1] != 'l' || h[2] != 'T' || h[3] != 'F') {
-                throw new IllegalArgumentException("Gefundene Datei ist keine gültige GLB.");
-            }
-        }
-    }
-
-    private static void copy(InputStream in, FileOutputStream out) throws Exception {
+    private static void copyLimited(InputStream in, FileOutputStream out, long maxBytes) throws Exception {
         byte[] buf = new byte[64 * 1024];
+        long total = 0L;
         int n;
-        while ((n = in.read(buf)) >= 0) out.write(buf, 0, n);
+        while ((n = in.read(buf)) >= 0) {
+            total += n;
+            if (total > maxBytes) {
+                throw new IllegalArgumentException("Die 3D-Datei ist zu groß. Maximal 220 MB werden unterstützt.");
+            }
+            out.write(buf, 0, n);
+        }
         out.flush();
     }
 

@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 22
+        versionCode 23
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -42,7 +42,8 @@ dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // Real-time GLB/glTF rendering for Celine's rigged 3D avatar.
+    // Keep the currently proven Filament line for v23. The important fix here is validating the
+    // facial GLB before it reaches the renderer; a renderer upgrade is a separate migration.
     implementation 'com.google.android.filament:filament-android:1.31.4'
     implementation 'com.google.android.filament:gltfio-android:1.31.4'
     implementation 'com.google.android.filament:filament-utils-android:1.31.4'
