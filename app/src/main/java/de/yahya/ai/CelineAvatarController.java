@@ -74,9 +74,11 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     }
 
     @Override public void onSpeechAudioLevel(float level){
-        float c=clamp(level,0f,1f);speechEnergy=speechEnergy*.70f+c*.30f;
-        if(face!=null)face.setMouthLevel(state==State.SPEAKING?c:0f);
-        if(avatar!=null&&state==State.SPEAKING&&!userLooking&&!gestureRunning){avatar.setTranslationX((speechEnergy-.35f)*dp(.30f));avatar.setTranslationY(-speechEnergy*dp(.24f));}
+        float c=clamp(level,0f,1f);
+        speechEnergy=speechEnergy*.76f+c*.24f;
+        if(face!=null)face.setMouthLevel(state==State.SPEAKING?speechEnergy:0f);
+        // Do not write avatar translation here: startLift() owns avatar translationY.
+        // Competing audio-frame updates caused visible jitter during speech.
     }
 
     @Override public void onSpeechViseme(SpeechVisemeAnalyzer.Cue cue){if(face!=null)face.setViseme(state==State.SPEAKING?cue:SpeechVisemeAnalyzer.silent());}
