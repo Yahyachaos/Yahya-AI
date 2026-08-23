@@ -4,7 +4,7 @@ import android.content.Context;
 import android.opengl.Matrix;
 import android.view.Choreographer;
 import android.view.MotionEvent;
-import android.view.SurfaceView;
+import android.view.TextureView;
 import android.widget.FrameLayout;
 
 import com.google.android.filament.Engine;
@@ -43,7 +43,10 @@ public final class Celine3DView extends FrameLayout {
 
     static { Utils.INSTANCE.init(); }
 
-    private final SurfaceView surface;
+    // TextureView is intentional. SurfaceView owns a separate compositor layer and can produce
+    // corrupted/unsynchronised frames on some Samsung devices when embedded inside our animated
+    // avatar hierarchy. TextureView stays in the regular Android view composition path.
+    private final TextureView surface;
     private final Choreographer choreographer;
     private final ModelViewer viewer;
     private final long startedAtNanos = System.nanoTime();
@@ -83,7 +86,8 @@ public final class Celine3DView extends FrameLayout {
     public Celine3DView(Context context) throws Exception {
         super(context);
         setClipChildren(true); setClipToPadding(true);
-        surface = new SurfaceView(context);
+        surface = new TextureView(context);
+        surface.setOpaque(true);
         addView(surface, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         choreographer = Choreographer.getInstance();
         viewer = new ModelViewer(surface, Engine.create(), new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK), null);
