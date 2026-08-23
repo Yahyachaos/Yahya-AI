@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 28
+        versionCode 29
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -39,12 +39,12 @@ android {
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v28 keeps the verified 3D probe and additionally guarantees visible live motion whenever
-    // the Samsung GPU/Filament path falls back to Celine's portrait.
-    implementation 'com.google.android.filament:filament-android:1.31.4'
-    implementation 'com.google.android.filament:gltfio-android:1.31.4'
-    implementation 'com.google.android.filament:filament-utils-android:1.31.4'
+    // v29 deliberately replaces the 2022 Filament 1.31 renderer. The target phone runs
+    // Android 16, so the 3D baseline now uses the current 2026 Filament line before any
+    // animation code is re-enabled.
+    implementation 'com.google.android.filament:filament-android:1.74.0'
+    implementation 'com.google.android.filament:gltfio-android:1.74.0'
+    implementation 'com.google.android.filament:filament-utils-android:1.74.0'
 }
