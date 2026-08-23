@@ -2,7 +2,7 @@ package de.yahya.ai;
 
 /** Lightweight local PCM-to-mouth-shape estimator. */
 public final class SpeechVisemeAnalyzer {
-    public enum Shape { CLOSED, OPEN, WIDE, ROUND }
+    public enum Shape { CLOSED, OPEN, WIDE, ROUND, LABIAL, TEETH }
 
     public static final class Cue {
         public final Shape shape;
@@ -27,11 +27,13 @@ public final class SpeechVisemeAnalyzer {
 
         double sumSq = 0.0;
         double diffSq = 0.0;
+        double absSum = 0.0;
         int zeroCrossings = 0;
         float prev = samples[offset];
         for (int i = offset; i < end; i++) {
             float s = samples[i];
             sumSq += s * s;
+            absSum += Math.abs(s);
             if (i > offset) {
                 float d = s - prev;
                 diffSq += d * d;
@@ -44,18 +46,27 @@ public final class SpeechVisemeAnalyzer {
         float rms = (float) Math.sqrt(sumSq / Math.max(1, n));
         if (rms < 0.0085f) return silent();
 
-        float openness = clamp((rms - 0.008f) * 8.0f);
+        float meanAbs = (float) (absSum / Math.max(1, n));
+        float openness = clamp((rms - 0.008f) * 8.2f);
         float roughness = (float) Math.sqrt(diffSq / Math.max(1, n - 1)) / Math.max(0.0001f, rms);
         float zcr = zeroCrossings / (float) Math.max(1, n - 1);
-        float bright = clamp((roughness - 0.55f) / 1.45f + zcr * 1.6f);
-        float round = clamp((1.0f - bright) * 0.85f + openness * 0.12f);
-        float wide = clamp(bright * 0.78f + openness * 0.20f);
+        float bright = clamp((roughness - 0.50f) / 1.35f + zcr * 1.75f);
+        float crest = clamp((rms - meanAbs) * 7.0f);
+        float round = clamp((1.0f - bright) * 0.82f + openness * 0.12f);
+        float wide = clamp(bright * 0.80f + openness * 0.18f);
 
         Shape shape;
-        if (openness < 0.14f) shape = Shape.CLOSED;
-        else if (round > 0.58f && wide < 0.55f) shape = Shape.ROUND;
-        else if (wide > 0.55f) shape = Shape.WIDE;
-        else shape = Shape.OPEN;
+        if (openness < 0.11f) {
+            shape = bright > 0.58f ? Shape.TEETH : Shape.CLOSED;
+        } else if (openness < 0.23f && bright < 0.42f && crest < 0.35f) {
+            shape = Shape.LABIAL;
+        } else if (round > 0.60f && wide < 0.56f) {
+            shape = Shape.ROUND;
+        } else if (wide > 0.60f || bright > 0.70f) {
+            shape = Shape.WIDE;
+        } else {
+            shape = Shape.OPEN;
+        }
         return new Cue(shape, openness, wide, round);
     }
 
