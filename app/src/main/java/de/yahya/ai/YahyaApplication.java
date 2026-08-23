@@ -3,14 +3,13 @@ package de.yahya.ai;
 import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** Adds the in-app avatar import control to Yahya AI's main screen. */
+/** Adds the in-app avatar import control and guarantees visible live motion for Celine. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
 
@@ -21,7 +20,12 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityResumed(Activity activity) {
         if (!(activity instanceof MainActivity)) return;
-        activity.getWindow().getDecorView().post(() -> ensureImportButton(activity));
+        View decor = activity.getWindow().getDecorView();
+        decor.post(() -> ensureImportButton(activity));
+        // Wait until the avatar card has real dimensions, then start the guaranteed visible
+        // fallback motion. Re-run once later because the 3D self-test can finish asynchronously.
+        decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 650L);
+        decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 6500L);
     }
 
     private void ensureImportButton(Activity activity) {
@@ -45,8 +49,6 @@ public final class YahyaApplication extends Application implements Application.A
         int d = (int) activity.getResources().getDisplayMetrics().density;
         lp.setMargins(0, 0, 0, Math.max(6, 8 * d));
 
-        // Main screen order: title, CELIN label, status, then avatar card.
-        // Insert directly before the avatar card so the control is easy to find.
         int index = Math.min(3, root.getChildCount());
         root.addView(button, index, lp);
     }
