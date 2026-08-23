@@ -1,0 +1,74 @@
+CELINE MESHY RIG AUDIT
+======================
+Source archive inspected: Meshy_AI_Beige_Elegance_biped.zip
+Inspection date: 2026-08-23
+
+FILES IN EXPORT
+---------------
+1) Meshy_AI_Beige_Elegance_biped_Character_output.glb
+   Size: 3,960,552 bytes
+   Skin count: 1
+   Node count: 26
+   Mesh count: 1
+   Animation: Armature|clip0|baselayer
+   Animation duration: ~0.0333 s (effectively a one-frame/rest clip)
+
+2) Meshy_AI_Beige_Elegance_biped_Meshy_AI_Meshy_Merged_Animations.glb
+   Size: 4,000,496 bytes
+   Skin count: 1
+   Node count: 26
+   Mesh count: 1
+   Animations: Running (~0.6333 s), Walking (~1.0333 s)
+
+HUMANOID BONES FOUND
+--------------------
+Hips
+LeftUpLeg
+LeftLeg
+LeftFoot
+LeftToeBase
+RightUpLeg
+RightLeg
+RightFoot
+RightToeBase
+Spine02
+Spine01
+Spine
+LeftShoulder
+LeftArm
+LeftForeArm
+LeftHand
+RightShoulder
+RightArm
+RightForeArm
+RightHand
+neck
+Head
+head_end
+headfront
+
+IMPORTANT LIMITATIONS OF THIS EXPORT
+------------------------------------
+- No glTF morph targets / facial blendshapes were found.
+- No dedicated jaw bone was found.
+- No dedicated eye bones were found.
+- Therefore true blinking, eye aiming and viseme lip sync cannot yet be produced from this file alone.
+- No embedded glTF materials or images were found in the inspected rigged GLBs. This export is therefore a geometry/rig base, not the final textured production avatar.
+
+RUNTIME DECISIONS
+-----------------
+- Never use Walking or Running as a fallback for IDLE/LISTENING/THINKING/SPEAKING.
+- Celine3DView drives Head, neck, Spine, Spine01 and Spine02 procedurally for natural live-call motion.
+- SpeechAudioBus energy increases subtle head/chest motion while Celine speaks.
+- Touch gaze is routed to the Head/neck bones and eases back to center.
+- When a future production GLB exposes proper idle/talk/listen clips, Celine3DView will prefer those by name.
+- When a future production GLB exposes facial morph targets, setViseme() is the integration point for lip sync.
+
+PRODUCTION ASSET PATH
+---------------------
+app/src/main/assets/models/celine.glb
+
+Recommended immediate production input:
+Meshy_AI_Beige_Elegance_biped_Character_output.glb
+
+Do not use the Merged_Animations GLB as the default conversational avatar unless proper idle/talking clips are added.
