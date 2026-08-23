@@ -17,10 +17,11 @@
     <queries>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
-    <application android:allowBackup="true" android:label="Yahya AI" android:theme="@style/AppTheme" android:usesCleartextTraffic="false">
+    <application android:name=".YahyaApplication" android:allowBackup="true" android:label="Yahya AI" android:theme="@style/AppTheme" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true" android:windowSoftInputMode="adjustPan|stateAlwaysHidden">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
+        <activity android:name=".AvatarPickerActivity" android:exported="false" android:noHistory="true" />
         <activity android:name=".CelineModelImportActivity" android:exported="true" android:noHistory="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
