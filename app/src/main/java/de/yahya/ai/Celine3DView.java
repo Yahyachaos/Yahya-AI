@@ -8,6 +8,7 @@ import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
 import com.google.android.filament.Engine;
+import com.google.android.filament.RenderableManager;
 import com.google.android.filament.TransformManager;
 import com.google.android.filament.android.UiHelper;
 import com.google.android.filament.gltfio.Animator;
@@ -29,6 +30,17 @@ public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
     private static final String IMPORT_DIR = "models";
     private static final String IMPORT_FILE = "celine.glb";
+
+    // celine_facial_v1.glb target order. Keep this stable for production exports.
+    private static final int MORPH_JAW_OPEN = 0;
+    private static final int MORPH_MOUTH_WIDE = 1;
+    private static final int MORPH_MOUTH_ROUND = 2;
+    private static final int MORPH_MOUTH_LABIAL = 3;
+    private static final int MORPH_BLINK_LEFT = 4;
+    private static final int MORPH_BLINK_RIGHT = 5;
+    private static final int MORPH_SMILE = 6;
+    private static final int REQUIRED_MORPHS = 7;
+
     static { Utils.INSTANCE.init(); }
 
     private final SurfaceView surface;
@@ -42,6 +54,11 @@ public final class Celine3DView extends FrameLayout {
     private float speechEnergy;
     private float lookX, lookY, targetLookX, targetLookY;
     private BonePose head, neck, spine, spine01, spine02;
+
+    private int faceRenderableInstance;
+    private int morphTargetCount;
+    private final float[] morphWeights = new float[REQUIRED_MORPHS];
+    private float targetJaw, targetWide, targetRound, targetLabial, targetSmile;
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
         @Override public void doFrame(long frameTimeNanos) {
@@ -57,6 +74,7 @@ public final class Celine3DView extends FrameLayout {
             lookX += (targetLookX - lookX) * 0.14f;
             lookY += (targetLookY - lookY) * 0.14f;
             applyProceduralPose(seconds);
+            applyFacialMorphs(seconds);
             if (animator != null) animator.updateBoneMatrices();
             viewer.render(frameTimeNanos);
         }
@@ -79,7 +97,9 @@ public final class Celine3DView extends FrameLayout {
         });
         viewer.loadModelGlb(readModel(context));
         viewer.transformToUnitCube(new Float3(0f, 0f, -3.1f));
-        captureMeshyRig(); chooseAnimation();
+        captureMeshyRig();
+        captureFaceMorphs();
+        chooseAnimation();
     }
 
     public static File importedModelFile(Context context) {
@@ -94,11 +114,41 @@ public final class Celine3DView extends FrameLayout {
         catch (Exception ignored) { return false; }
     }
 
-    public void setAvatarState(CelineAvatarController.State next) { state = next == null ? CelineAvatarController.State.IDLE : next; chooseAnimation(); }
+    public void setAvatarState(CelineAvatarController.State next) {
+        state = next == null ? CelineAvatarController.State.IDLE : next;
+        targetSmile = state == CelineAvatarController.State.IDLE ? 0.12f : 0f;
+        chooseAnimation();
+    }
+
     public void setSpeechEnergy(float level) { speechEnergy = clamp(level); }
     public void setLook(float x,float y) { targetLookX=clampSigned(x); targetLookY=clampSigned(y); }
     public void releaseLook() { targetLookX=targetLookY=0f; }
-    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { /* Current Meshy export has no facial morph targets. */ }
+
+    /** Maps the existing local PCM viseme estimator directly onto the production GLB targets. */
+    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {
+        if (cue == null || state != CelineAvatarController.State.SPEAKING) {
+            targetJaw=targetWide=targetRound=targetLabial=0f;
+            return;
+        }
+        targetJaw = clamp(cue.openness * 1.10f);
+        targetWide = clamp(cue.width * 0.90f);
+        targetRound = clamp(cue.roundness * 0.95f);
+        targetLabial = 0f;
+        switch (cue.shape) {
+            case CLOSED:
+                targetJaw = 0f; targetWide = 0f; targetRound = 0f; break;
+            case LABIAL:
+                targetJaw *= 0.20f; targetLabial = 0.95f; targetRound *= 0.35f; break;
+            case ROUND:
+                targetWide *= 0.20f; targetRound = Math.max(targetRound, 0.75f); break;
+            case WIDE:
+            case TEETH:
+                targetWide = Math.max(targetWide, 0.70f); targetRound *= 0.15f; break;
+            case OPEN:
+            default:
+                targetRound *= 0.35f; targetWide *= 0.45f; break;
+        }
+    }
 
     public void startRendering() { if (!running) { running=true; choreographer.postFrameCallback(frameCallback); } }
     public void stopRendering() { running=false; choreographer.removeFrameCallback(frameCallback); }
@@ -109,6 +159,21 @@ public final class Celine3DView extends FrameLayout {
         FilamentAsset asset=viewer.getAsset(); if(asset==null)return;
         head=capture(asset,"Head"); neck=capture(asset,"neck"); spine=capture(asset,"Spine"); spine01=capture(asset,"Spine01"); spine02=capture(asset,"Spine02");
     }
+
+    private void captureFaceMorphs(){
+        FilamentAsset asset=viewer.getAsset(); if(asset==null)return;
+        int entity=asset.getFirstEntityByName("char1");
+        if(entity==0)return;
+        RenderableManager rm=viewer.getEngine().getRenderableManager();
+        int instance=rm.getInstance(entity);
+        if(instance==0)return;
+        int count=rm.getMorphTargetCount(instance);
+        if(count<REQUIRED_MORPHS)return;
+        faceRenderableInstance=instance;
+        morphTargetCount=count;
+        rm.setMorphWeights(faceRenderableInstance,morphWeights,0);
+    }
+
     private BonePose capture(FilamentAsset asset,String name){
         int entity=asset.getFirstEntityByName(name); if(entity==0)return null;
         TransformManager tm=viewer.getEngine().getTransformManager(); int instance=tm.getInstance(entity); if(instance==0)return null;
@@ -128,6 +193,32 @@ public final class Celine3DView extends FrameLayout {
         applyRotation(spine,cp*.35f,0,cr*.25f);applyRotation(spine01,cp*.45f,0,cr*.45f);applyRotation(spine02,cp*.60f,0,cr*.65f);
         applyRotation(neck,hp*.30f,hy*.25f,hr*.25f);applyRotation(head,hp*.70f,hy*.75f,hr*.75f);
     }
+
+    private void applyFacialMorphs(float t){
+        if(faceRenderableInstance==0||morphTargetCount<REQUIRED_MORPHS)return;
+        morphWeights[MORPH_JAW_OPEN]=smooth(morphWeights[MORPH_JAW_OPEN],targetJaw,.34f);
+        morphWeights[MORPH_MOUTH_WIDE]=smooth(morphWeights[MORPH_MOUTH_WIDE],targetWide,.28f);
+        morphWeights[MORPH_MOUTH_ROUND]=smooth(morphWeights[MORPH_MOUTH_ROUND],targetRound,.28f);
+        morphWeights[MORPH_MOUTH_LABIAL]=smooth(morphWeights[MORPH_MOUTH_LABIAL],targetLabial,.38f);
+        morphWeights[MORPH_SMILE]=smooth(morphWeights[MORPH_SMILE],targetSmile,.08f);
+
+        // Natural double-frequency blink pattern, independent of speech.
+        float blink=blinkPulse(t,4.65f,0.13f);
+        float blink2=blinkPulse(t+1.37f,7.15f,0.12f)*0.92f;
+        float b=Math.max(blink,blink2);
+        morphWeights[MORPH_BLINK_LEFT]=b;
+        morphWeights[MORPH_BLINK_RIGHT]=b;
+
+        viewer.getEngine().getRenderableManager().setMorphWeights(faceRenderableInstance,morphWeights,0);
+    }
+
+    private static float blinkPulse(float t,float period,float duration){
+        float p=t%period; if(p<0)p+=period;
+        if(p>=duration)return 0f;
+        return (float)Math.sin(Math.PI*(p/duration));
+    }
+
+    private static float smooth(float current,float target,float speed){return current+(target-current)*speed;}
 
     private void applyRotation(BonePose bone,float x,float y,float z){
         if(bone==null)return;float[] rx=new float[16],ry=new float[16],rz=new float[16],tmp=new float[16],rot=new float[16],out=new float[16];
