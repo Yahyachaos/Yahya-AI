@@ -8,8 +8,12 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 /**
- * v29 controller: keep the path deliberately small until the imported GLB is visibly rendered.
- * There is one 3D renderer, one model, and no automatic model quarantine / renderer switching.
+ * v30 controller: never expose an unproven 3D surface to the user.
+ *
+ * The imported GLB is rendered and verified with PixelCopy while the 3D container is fully
+ * transparent. The existing 2D Celine therefore stays visible during loading. Only after real
+ * model pixels are detected do we reveal Filament and hide the fallback. A failed/black renderer
+ * is removed without ever replacing the working portrait with a black rectangle.
  */
 public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public enum State { IDLE, LISTENING, THINKING, SPEAKING }
@@ -47,12 +51,22 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
 
         final ViewGroup host = (ViewGroup) motionView;
         try {
-            Toast.makeText(avatar.getContext(), "Celines 3D-Modell wird geladen …", Toast.LENGTH_SHORT).show();
+            Toast.makeText(avatar.getContext(), "Celines 3D-Modell wird im Hintergrund geprüft …", Toast.LENGTH_SHORT).show();
             final Celine3DView candidate = new Celine3DView(avatar.getContext(), true);
             pending3D = candidate;
             candidate.setAvatarState(state);
 
-            // Add the real 3D surface as the top child. No second renderer is created behind it.
+            // Critical v30 rule: a SurfaceView may contain a perfectly valid black swap-chain
+            // before the GLB becomes visible. Keep the entire 3D container transparent while
+            // PixelCopy inspects its SurfaceView directly. PixelCopy reads the surface buffer,
+            // so verification still works even though the composed UI keeps showing 2D Celine.
+            candidate.setAlpha(0.0f);
+            avatar.setVisibility(View.VISIBLE);
+            if (face != null) {
+                face.setVisibility(View.VISIBLE);
+                face.start();
+            }
+
             host.addView(candidate, new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -68,6 +82,10 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                     pending3D = null;
                     threeD = candidate;
                     using3D = true;
+
+                    // Reveal only the already-proven frame, then remove the fallback.
+                    candidate.setAlpha(1.0f);
+                    candidate.bringToFront();
                     avatar.setVisibility(View.GONE);
                     if (face != null) {
                         face.stop();
@@ -79,6 +97,7 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                     pending3D = null;
                     String reason = candidate.getRenderFailureReason();
                     removeCandidate(host, candidate);
+                    using3D = false;
                     avatar.setVisibility(View.VISIBLE);
                     if (face != null) {
                         face.setVisibility(View.VISIBLE);
@@ -86,7 +105,7 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                     }
                     String suffix = reason == null ? "" : "\n" + reason;
                     Toast.makeText(avatar.getContext(),
-                            "3D-Standbild wurde nicht sichtbar gerendert." + suffix,
+                            "3D wurde nicht sichtbar gerendert – 2D-Celine bleibt aktiv." + suffix,
                             Toast.LENGTH_LONG).show();
                 }
             });
@@ -119,7 +138,6 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
         if (pending3D != null) pending3D.setAvatarState(state);
         if (threeD != null) threeD.setAvatarState(state);
 
-        // Only keep the old face overlay coherent while no 3D model is visible.
         if (!using3D && face != null) {
             switch (state) {
                 case LISTENING: face.setActivity(CelineFaceOverlayView.Activity.LISTENING); break;
