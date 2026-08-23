@@ -53,9 +53,6 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public CelineAvatarController(View motionView,ImageView avatar,CelineFaceOverlayView face,float density){
         this.motionView=motionView;this.avatar=avatar;this.face=face;this.density=density;
 
-        // Keep the proven 2D avatar alive while the 3D surface is attached and initialized.
-        // Creating Filament synchronously inside MainActivity.buildUi() can kill the process on
-        // some Samsung devices before the SurfaceView is attached.
         applyPose(CelineLivePortrait.Pose.NEUTRAL);
         if(face!=null)face.start();
         if(motionView!=null)motionView.post(()->{motionView.setPivotX(motionView.getWidth()*.50f);motionView.setPivotY(motionView.getHeight()*.82f);});
@@ -72,8 +69,6 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
 
         final SharedPreferences prefs=context.getSharedPreferences("yahya_ai",Context.MODE_PRIVATE);
         if(prefs.getBoolean(PREF_3D_LOADING,false)){
-            // The last process died while Filament was loading this file. Disable that one model
-            // instead of putting the whole app into an endless startup crash loop.
             prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
             File imported=Celine3DView.importedModelFile(context);
             if(imported.isFile()){
@@ -85,43 +80,71 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
             return;
         }
 
-        // Defer until the host has been attached/la[id] out. This is important for SurfaceView/Filament.
         motionView.post(()->tryEnable3D(prefs));
     }
 
     private void tryEnable3D(SharedPreferences prefs){
-        if(released||using3D||!(motionView instanceof ViewGroup)||avatar==null)return;
-        Context context=avatar.getContext();
+        if(released||using3D||threeD!=null||!(motionView instanceof ViewGroup)||avatar==null)return;
+        final Context context=avatar.getContext();
         if(!Celine3DView.hasModel(context))return;
+
+        // Keep this flag set until Filament confirms the model is fully loaded. If native code kills
+        // the process, the next launch sees the flag and quarantines only the offending GLB.
         prefs.edit().putBoolean(PREF_3D_LOADING,true).commit();
+        final ViewGroup host=(ViewGroup)motionView;
+        final Celine3DView candidate=new Celine3DView(context);
+        threeD=candidate;
+
+        candidate.setInitListener(new Celine3DView.InitListener(){
+            @Override public void onReady(){
+                if(released){
+                    candidate.stopRendering();
+                    if(candidate.getParent()==host)host.removeView(candidate);
+                    if(threeD==candidate)threeD=null;
+                    prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
+                    return;
+                }
+
+                stopLoopsOnly();
+                handler.removeCallbacks(microMotionTask);
+                handler.removeCallbacks(gazeTask);
+                handler.removeCallbacks(gestureTask);
+                handler.removeCallbacks(settleSmileTask);
+
+                using3D=true;
+                candidate.setAvatarState(state);
+                avatar.setVisibility(View.GONE);
+                if(face!=null){face.stop();face.setVisibility(View.GONE);}
+                prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
+                Toast.makeText(context,"3D-Celin ist geladen – Gesicht und Lippen-Sync sind aktiv.",Toast.LENGTH_SHORT).show();
+            }
+
+            @Override public void onError(Throwable e){
+                prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
+                candidate.stopRendering();
+                if(candidate.getParent()==host)host.removeView(candidate);
+                if(threeD==candidate)threeD=null;
+                using3D=false;
+                avatar.setVisibility(View.VISIBLE);
+                if(face!=null){face.setVisibility(View.VISIBLE);face.start();}
+                String reason=e==null?null:e.getMessage();
+                if(reason==null||reason.trim().isEmpty())reason=e==null?"Unbekannter Rendererfehler":e.getClass().getSimpleName();
+                Toast.makeText(context,"3D-Avatar konnte nicht gestartet werden: "+reason,Toast.LENGTH_LONG).show();
+                setState(state);
+            }
+        });
+
         try{
-            ViewGroup host=(ViewGroup)motionView;
-            Celine3DView candidate=new Celine3DView(context);
-            if(released){candidate.stopRendering();prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();return;}
-
-            stopLoopsOnly();
-            handler.removeCallbacks(microMotionTask);
-            handler.removeCallbacks(gazeTask);
-            handler.removeCallbacks(gestureTask);
-            handler.removeCallbacks(settleSmileTask);
-
-            threeD=candidate;
-            host.addView(threeD,0,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
-            avatar.setVisibility(View.GONE);
-            if(face!=null){face.stop();face.setVisibility(View.GONE);}
-            using3D=true;
-            threeD.setAvatarState(state);
-            prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
-            Toast.makeText(context,"3D-Celin ist geladen.",Toast.LENGTH_SHORT).show();
+            host.addView(candidate,0,new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT));
+            candidate.setAvatarState(state);
         }catch(Throwable e){
             prefs.edit().putBoolean(PREF_3D_LOADING,false).commit();
-            threeD=null;using3D=false;
-            avatar.setVisibility(View.VISIBLE);
-            if(face!=null){face.setVisibility(View.VISIBLE);face.start();}
+            if(candidate.getParent()==host)host.removeView(candidate);
+            if(threeD==candidate)threeD=null;
+            using3D=false;
             String reason=e.getMessage();
             if(reason==null||reason.trim().isEmpty())reason=e.getClass().getSimpleName();
-            Toast.makeText(context,"3D-Avatar konnte nicht gestartet werden: "+reason,Toast.LENGTH_LONG).show();
-            setState(state);
+            Toast.makeText(context,"3D-Ansicht konnte nicht angehängt werden: "+reason,Toast.LENGTH_LONG).show();
         }
     }
 
@@ -131,10 +154,8 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public void setState(State next){
         if(next==null)next=State.IDLE;
         State previous=state;state=next;
-        if(using3D&&threeD!=null){
-            threeD.setAvatarState(next);
-            return;
-        }
+        if(threeD!=null)threeD.setAvatarState(next);
+        if(using3D&&threeD!=null)return;
         stopLoopsOnly();handler.removeCallbacks(settleSmileTask);
         switch(next){
             case LISTENING:applyPose(CelineLivePortrait.Pose.LISTENING);break;
