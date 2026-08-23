@@ -7,7 +7,7 @@ import android.opengl.Matrix;
 import android.os.Handler;
 import android.view.Choreographer;
 import android.view.PixelCopy;
-import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
@@ -23,7 +23,6 @@ import com.google.android.filament.Skybox;
 import com.google.android.filament.SwapChain;
 import com.google.android.filament.TransformManager;
 import com.google.android.filament.Viewport;
-import com.google.android.filament.android.UiHelper;
 import com.google.android.filament.gltfio.AssetLoader;
 import com.google.android.filament.gltfio.FilamentAsset;
 import com.google.android.filament.gltfio.Gltfio;
@@ -38,10 +37,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * v29 minimal 3D baseline.
+ * v29 minimal direct 3D baseline.
  *
- * No ModelViewer, no animation, no morphs, no renderer switching. The imported GLB is loaded
- * directly through gltfio and rendered into one SurfaceView with a fixed camera and fixed light.
+ * No ModelViewer and no filament-utils. Filament owns a single SurfaceView through Android's
+ * SurfaceHolder callback. Animation / visemes stay disabled until the imported GLB is proven
+ * visible on the real device.
  */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
@@ -61,7 +61,6 @@ public final class Celine3DView extends FrameLayout {
     private final Camera camera;
     private final int cameraEntity;
     private final int lightEntity;
-    private final UiHelper uiHelper;
     private final UbershaderProvider materialProvider;
     private final AssetLoader assetLoader;
     private final ResourceLoader resourceLoader;
@@ -78,7 +77,7 @@ public final class Celine3DView extends FrameLayout {
             if (!running) return;
             choreographer.postFrameCallback(this);
             try {
-                if (!uiHelper.isReadyToRender() || swapChain == null) return;
+                if (swapChain == null || !isSurfaceReady()) return;
                 if (renderer.beginFrame(swapChain, frameTimeNanos)) {
                     renderer.render(filamentView);
                     renderer.endFrame();
@@ -127,7 +126,7 @@ public final class Celine3DView extends FrameLayout {
                 .build(engine);
         scene.setIndirectLight(indirectLight);
 
-        // Strong front/upper directional key light.
+        // Strong front / upper directional key light.
         lightEntity = EntityManager.get().create();
         new LightManager.Builder(LightManager.Type.DIRECTIONAL)
                 .color(1.0f, 0.96f, 0.92f)
@@ -137,8 +136,8 @@ public final class Celine3DView extends FrameLayout {
                 .build(engine, lightEntity);
         scene.addEntity(lightEntity);
 
-        // Load the monolithic GLB synchronously. The Meshy texture is embedded in the GLB, so no
-        // external URI resolver is needed. Synchronous loading is intentional for this baseline.
+        // The Meshy GLB is monolithic and embeds its texture, so synchronous resource loading is
+        // sufficient for the minimal visibility baseline.
         materialProvider = new UbershaderProvider(engine);
         assetLoader = new AssetLoader(engine, materialProvider, EntityManager.get());
         resourceLoader = new ResourceLoader(engine, true);
@@ -159,37 +158,66 @@ public final class Celine3DView extends FrameLayout {
                 0.0, 1.0, 0.0
         );
 
-        uiHelper = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
-        uiHelper.setRenderCallback(new UiHelper.RendererCallback() {
-            @Override public void onNativeWindowChanged(Surface surface) {
+        // Direct Android surface lifecycle. This deliberately removes UiHelper / filament-utils,
+        // which are not dependencies of v29 and caused the previous compile failure.
+        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override public void surfaceCreated(SurfaceHolder holder) {
                 try {
-                    if (swapChain != null) engine.destroySwapChain(swapChain);
-                    swapChain = engine.createSwapChain(surface, uiHelper.getSwapChainFlags());
+                    createSwapChain(holder);
                 } catch (Throwable e) {
                     renderError = e;
                 }
             }
 
-            @Override public void onDetachedFromSurface() {
+            @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
                 try {
-                    if (swapChain != null) {
-                        engine.destroySwapChain(swapChain);
-                        engine.flushAndWait();
-                        swapChain = null;
-                    }
+                    if (swapChain == null) createSwapChain(holder);
+                    resizeViewport(width, height);
                 } catch (Throwable e) {
                     renderError = e;
                 }
             }
 
-            @Override public void onResized(int width, int height) {
-                if (width <= 0 || height <= 0) return;
-                filamentView.setViewport(new Viewport(0, 0, width, height));
-                camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);
-                camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
+            @Override public void surfaceDestroyed(SurfaceHolder holder) {
+                destroySwapChain();
             }
         });
-        uiHelper.attachTo(surfaceView);
+    }
+
+    private void createSwapChain(SurfaceHolder holder) {
+        if (holder == null || holder.getSurface() == null || !holder.getSurface().isValid()) return;
+        destroySwapChain();
+        swapChain = engine.createSwapChain(holder.getSurface());
+    }
+
+    private void destroySwapChain() {
+        try {
+            if (swapChain != null) {
+                engine.destroySwapChain(swapChain);
+                engine.flushAndWait();
+                swapChain = null;
+            }
+        } catch (Throwable e) {
+            renderError = e;
+            swapChain = null;
+        }
+    }
+
+    private void resizeViewport(int width, int height) {
+        if (width <= 0 || height <= 0) return;
+        filamentView.setViewport(new Viewport(0, 0, width, height));
+        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);
+        camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
+    }
+
+    private boolean isSurfaceReady() {
+        try {
+            return surfaceView.getHolder() != null &&
+                    surfaceView.getHolder().getSurface() != null &&
+                    surfaceView.getHolder().getSurface().isValid();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /** Equivalent to ModelViewer.transformToUnitCube, but with no filament-utils dependency. */
@@ -258,9 +286,7 @@ public final class Celine3DView extends FrameLayout {
             callback.onResult(false);
             return;
         }
-        if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running ||
-                surfaceView.getHolder() == null || surfaceView.getHolder().getSurface() == null ||
-                !surfaceView.getHolder().getSurface().isValid()) {
+        if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running || !isSurfaceReady()) {
             handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
             return;
         }
@@ -319,7 +345,7 @@ public final class Celine3DView extends FrameLayout {
 
     @Override protected void onDetachedFromWindow() {
         stopRendering();
-        try { uiHelper.detach(); } catch (Throwable ignored) {}
+        destroySwapChain();
         super.onDetachedFromWindow();
     }
 

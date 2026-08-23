@@ -38,11 +38,14 @@ jobs:
           fi
           "$SDKMANAGER" "platforms;android-30" "build-tools;30.0.3"
 
-      - name: Set up Java 11 for Android build
+      # Filament 1.72 API jars are compiled for Java 17 (class-file version 61).
+      # Keep the Android build on JDK 17 as well; app bytecode compatibility remains Java 8
+      # through app/build.gradle compileOptions.
+      - name: Set up Java 17 for Android build
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
 
       - name: Set up Gradle 7.5.1
         uses: gradle/actions/setup-gradle@v4
@@ -56,20 +59,28 @@ jobs:
         run: gradle wrapper --gradle-version 7.5.1
 
       - name: Build debug APK
+        id: build
         shell: bash
         run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            echo "Gradle build attempt $attempt/3"
-            if ./gradlew assembleDebug --console=plain --stacktrace; then
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Build failed; retrying after 20 seconds in case a dependency repository is temporarily unavailable."
-              sleep 20
-            fi
-          done
-          exit 1
+          set +e
+          ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            {
+              echo "### Compiler diagnostics"
+              echo '```text'
+              grep -E 'Celine3DView.java|error:|FAILURE:|What went wrong|Execution failed for task' build.log | tail -120 || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$code"
+          fi
+
+      - name: Upload Gradle build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: build.log
 
       - name: Upload debug APK
         if: success()
