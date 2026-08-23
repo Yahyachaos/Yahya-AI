@@ -210,7 +210,7 @@ public final class Celine3DView extends FrameLayout {
         if(count<REQUIRED_MORPHS)return;
         faceRenderableInstance=instance;
         morphTargetCount=count;
-        rm.setMorphWeights(faceRenderableInstance,morphWeights,0,REQUIRED_MORPHS);
+        rm.setMorphWeights(faceRenderableInstance,morphWeights,0);
     }
 
     private BonePose capture(FilamentAsset asset,String name){
@@ -260,7 +260,7 @@ public final class Celine3DView extends FrameLayout {
         morphWeights[MORPH_BLINK_LEFT]=b;
         morphWeights[MORPH_BLINK_RIGHT]=b;
 
-        viewer.getEngine().getRenderableManager().setMorphWeights(faceRenderableInstance,morphWeights,0,REQUIRED_MORPHS);
+        viewer.getEngine().getRenderableManager().setMorphWeights(faceRenderableInstance,morphWeights,0);
     }
 
     private static float blinkPulse(float t,float period,float duration){
