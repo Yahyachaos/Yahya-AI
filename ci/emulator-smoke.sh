@@ -236,5 +236,22 @@ fi
 adb exec-out screencap -p > emulator-call.png
 python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
-echo "Avatar visibility smoke test passed with PID=$PID"
-echo "Verified: HOME composer space + HOME avatar pixels + CALL stage fill + CALL avatar pixels + updater only in settings"
+# Surface/Filament lifecycle regression gate: closing CALL must restore HOME and the avatar.
+echo "Closing videochat and verifying HOME recovery"
+adb shell input keyevent 4
+sleep 4
+PID_AFTER="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+if [[ -z "$PID_AFTER" ]]; then
+  fail_with_log "Yahya AI process died while returning from CALL"
+fi
+adb shell uiautomator dump /sdcard/yahya-home-return.xml >/dev/null || fail_with_log "HOME-return UI dump failed"
+adb pull /sdcard/yahya-home-return.xml emulator-home-return.xml >/dev/null || fail_with_log "HOME-return UI pull failed"
+if ! grep -q 'Mit Celin' emulator-home-return.xml; then
+  cat emulator-home-return.xml
+  fail_with_log "HOME did not recover after closing videochat"
+fi
+adb exec-out screencap -p > emulator-home-return.png
+python3 ci/check-magenta-avatar.py emulator-home-return.png HOME_RETURN || fail_with_log "HOME-return 3D avatar pixels missing"
+
+echo "Avatar visibility smoke test passed with PID=$PID_AFTER"
+echo "Verified: HOME composer space + HOME avatar + CALL stage/avatar + HOME-return avatar + updater only in settings"

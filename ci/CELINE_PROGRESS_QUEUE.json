@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "source_of_truth": "Yahyachaos/Yahya-AI",
+  "baseline": {
+    "version": 50,
+    "main_sha": "0896e1429ca676fe9da0285c37ff71886a30d3c0",
+    "protected": [
+      "TRUE-UNLIT/FORCE-C texture pipeline",
+      "Updater in Settings > App & Updates",
+      "HOME composer layout",
+      "HOME/CALL avatar visibility gate"
+    ]
+  },
+  "active": {
+    "id": "ci-call-return-avatar-proof",
+    "status": "in_progress",
+    "goal": "Prove that Celine remains visible after CALL is closed and HOME is restored",
+    "branch": "ci/v51-call-return-proof",
+    "risk": "ci_only"
+  },
+  "next": [
+    "safe root/camera micro-motion without Animator.updateBoneMatrices",
+    "state-aware breathing and presence",
+    "relaxed base pose in isolated bone-by-bone experiments",
+    "credible seated call pose",
+    "head/shoulder/gaze refinements",
+    "blink/face/lip-sync only after a face-capable rig exists"
+  ],
+  "blocked": [
+    {
+      "id": "true-face-blink-viseme",
+      "reason": "Current Meshy biped export has no facial morph targets, jaw bone, or eye bones",
+      "needed": "A compatible production GLB with facial blendshapes/morph targets or dedicated jaw/eye bones"
+    }
+  ]
+}
