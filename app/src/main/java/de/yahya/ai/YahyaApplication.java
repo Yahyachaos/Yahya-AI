@@ -10,7 +10,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** v40: bypasses the unreliable A/B/C picker and forces the decisive C texture test. */
+/** v41: keeps FORCE-C texture binding and tests a controlled softer lighting setup. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
     private static final int MODE_BUTTON_ID = 0x71A12;
@@ -24,18 +24,17 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityPreCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
 
-        // The device video proves B_CLEAN_PBR is already active and still white. v40 therefore
-        // skips the flaky AlertDialog picker and forces the decisive explicit GPU/baseColor test.
+        // v40 proved explicit GPU/baseColorMap binding works. Keep that exact path unchanged.
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V40-001", "FORCE-C Test aktiviert",
-                "C · FORCE TEXTURE · Picker umgangen · " + prepared);
+        Celine3DDiagnostics.record(activity, "V41-001", "FORCE-C beibehalten",
+                "Texturpfad unverändert · " + prepared);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V40-002", "Saubere Textur-Testumgebung",
-                "kein Emissive-Fill · kein konkurrierendes GLB-Rewrite · neutrales v36-Licht");
+        Celine3DDiagnostics.record(activity, "V41-002", "v41 Licht-Test vorbereitet",
+                "keine GLB-Änderung · keine neue Textur-Reparatur · nur Lichtmenge wird reduziert");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -43,10 +42,10 @@ public final class YahyaApplication extends Application implements Application.A
         View decor = activity.getWindow().getDecorView();
         decor.post(() -> ensureControls(activity));
 
-        // Keep only the neutral renderer path. Do not re-enable v37 overexposure.
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
 
-        // Explicit C binding runs after the real Celine3DView/gltfio asset exists.
+        // Explicit C binding plus a controlled softer scene light. Re-apply after Surface/dialog
+        // recreation without touching the model or texture source.
         decor.postDelayed(() -> applyTexturePass(activity, decor), 900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 1900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 4200L);
@@ -55,6 +54,7 @@ public final class YahyaApplication extends Application implements Application.A
 
     private void applyTexturePass(Activity activity, View decor) {
         CelineTexturePipelineV39.applyRuntime(decor);
+        CelineSoftLightV41.ensure(decor);
         updateModeButton(activity);
     }
 
@@ -99,7 +99,7 @@ public final class YahyaApplication extends Application implements Application.A
     private void updateModeButton(Activity activity) {
         View v = activity.findViewById(MODE_BUTTON_ID);
         if (v instanceof Button) {
-            ((Button) v).setText("3D-TEST C · FORCE TEXTURE · " + CelineTexturePipelineV39.statusLine(activity));
+            ((Button) v).setText("3D-TEST C · FORCE TEXTURE · SOFT LIGHT · " + CelineTexturePipelineV39.statusLine(activity));
         }
     }
 
