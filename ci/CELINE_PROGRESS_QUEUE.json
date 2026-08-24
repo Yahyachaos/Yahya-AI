@@ -21,10 +21,11 @@
     ]
   },
   "active": {
-    "id": "true-face-blink-viseme",
-    "status": "blocked",
-    "goal": "Add real blink, facial microexpressions and viseme lip-sync only when a face-capable production rig exists",
-    "risk": "external_face_rig_required"
+    "id": "v59-avatar-framing-regression",
+    "status": "ready",
+    "goal": "Repair the current HOME/CALL avatar framing regression observed in the user video: Celine is no longer visibly framed as a person and an oversized beige textured mesh fragment intrudes from the right/top-right. Diagnose camera target, model/root transform, bounds, scale, skinning ownership and HOME/CALL transition before changing anything; restore a clearly visible centered head/upper-body avatar and add regression evidence that rejects oversized edge fragments.",
+    "evidence": "User screen recording 2026-08-25 shows the room scene while Celine herself is absent; a large beige textured geometry fragment occupies the upper/right side, especially in CALL.",
+    "risk": "critical_visibility_and_transform_regression"
   },
   "completed": [
     {
@@ -84,12 +85,43 @@
       "release_status": "success"
     }
   ],
-  "next": [],
-  "blocked": [
+  "next": [
+    {
+      "id": "deep-face-geometry-scan",
+      "goal": "Perform a reproducible geometric scan of Celine's production head mesh before creating any facial motion. Determine the exact 3D facial region and boundaries and build a vertex/landmark map for forehead, temples, brows left/right, upper/lower eyelids, eye corners, eye openings, nose bridge/tip/alar region, cheeks, philtrum, upper/lower lips, mouth corners, chin and jawline. Measure symmetry/asymmetry, eye shape/opening, brow arcs, lip contour/volume and mouth opening topology. Preserve Celine's identity; do not modify the production GLB in this research step.",
+      "status": "queued",
+      "risk": "geometry_analysis_only"
+    },
+    {
+      "id": "facial-motion-reference-research",
+      "goal": "Research authoritative facial-animation references before deformation work. Prefer official MediaPipe Face Landmarker/Face Mesh style landmark topology, Apple/ARKit-style blendshape semantics where publicly documented, FACS/action-unit anatomy references, and established open facial tracking/rigging implementations. Use real human blink/speech motion references only to derive timing, direction and coupling; do not copy a proprietary character or blindly transfer another face's proportions. Document sources, assumptions and mapping to Celine's measured geometry.",
+      "status": "queued",
+      "risk": "research_before_rigging"
+    },
+    {
+      "id": "celine-face-region-model",
+      "goal": "Combine the measured mesh geometry and reference research into a Celine-specific facial region/deformation model. Define influence masks and safe movement directions for each eyelid, brow, cheek, lip segment, mouth corner, chin and jaw region. Account for Celine's actual eye and lip shapes rather than generic coordinates. Produce diagnostics/visual overlays or machine-readable region maps for review and automated validation.",
+      "status": "queued",
+      "risk": "identity_preserving_region_mapping"
+    },
+    {
+      "id": "facial-morph-prototype",
+      "goal": "On a COPY of the production avatar only, generate a minimal facial morph prototype from the Celine-specific region model. Start with neutral, BlinkLeft, BlinkRight, BlinkBoth, JawOpen/MouthOpen and a small phoneme/viseme proof. Never replace app/src/main/assets/models/celine.glb until geometry, render, identity and lifecycle tests pass. If reliable automatic generation is not possible, record the exact technical blocker and the smallest external asset/tool requirement rather than damaging the production model.",
+      "status": "queued",
+      "risk": "experimental_copy_only"
+    },
+    {
+      "id": "facial-morph-validation",
+      "goal": "Validate candidate morphs with automated renders and structural checks: no torn geometry, no inverted/exploding regions, eyes close over the actual eye shape, mouth opens around the measured lip contour, neutral identity remains unchanged, HOME/CALL framing remains correct, and transition back HOME survives. Compare blink and speech timing qualitatively to human reference behavior and reject exaggerated or puppet-like motion.",
+      "status": "queued",
+      "risk": "strict_candidate_gate"
+    },
     {
       "id": "true-face-blink-viseme",
-      "reason": "Current Meshy biped export has no facial morph targets, jaw bone, or eye bones",
-      "needed": "A compatible production GLB with facial blendshapes/morph targets or dedicated jaw/eye bones"
+      "goal": "Only after the candidate face rig passes validation, integrate natural asynchronous blinking, microexpressions and speech-driven viseme blending through the existing setViseme integration path. Use smooth coarticulation, restrained amplitudes and state-aware behavior for IDLE/LISTENING/THINKING/SPEAKING. Keep a rollback path to the proven non-facial baseline.",
+      "status": "queued",
+      "risk": "facial_runtime_integration_after_proof"
     }
-  ]
+  ],
+  "blocked": []
 }
