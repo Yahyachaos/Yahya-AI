@@ -38,11 +38,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * v33 direct 3D renderer.
+ * v34 direct 3D renderer.
  *
- * Keeps the proven direct SurfaceView path and live skeleton motion. The imported Meshy GLB is
- * normalized by CelineGlbMaterialRepair before load; runtime material overrides intentionally match
- * the verified celine_v2.glb PBR values instead of undoing them.
+ * Keeps the proven direct SurfaceView path and live skeleton motion. After gltfio has loaded all
+ * resources, the final Filament MaterialInstances are forced to skin/fabric PBR values so Samsung's
+ * runtime cannot keep Meshy's metallic defaults even when the GLB JSON itself is already repaired.
  */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
@@ -164,6 +164,9 @@ public final class Celine3DView extends FrameLayout {
         if (asset == null) {
             throw new IllegalStateException("gltfio konnte die importierte GLB-Datei nicht laden.");
         }
+
+        // Must stay in this order: load textures/resources first, then force the final runtime
+        // MaterialInstances, then release GLB source data.
         resourceLoader.loadResources(asset);
         tameMeshyMaterials();
         asset.releaseSourceData();
@@ -194,15 +197,23 @@ public final class Celine3DView extends FrameLayout {
         });
     }
 
+    /**
+     * Force Meshy's final gltfio MaterialInstances to non-metallic skin/fabric values after
+     * ResourceLoader.loadResources(). This is intentionally redundant with the GLB JSON repair:
+     * on the target Samsung/Filament path the runtime material state is the source of truth.
+     */
     private void tameMeshyMaterials() {
         try {
             MaterialInstance[] instances = asset.getInstance().getMaterialInstances();
             for (MaterialInstance material : instances) {
+                try { material.setParameter("metallicFactor", 0.0f); } catch (Throwable ignored) {}
+                try { material.setParameter("roughnessFactor", 0.75f); } catch (Throwable ignored) {}
+                try { material.setParameter("baseColorFactor", 1.0f, 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
                 try { material.setParameter("emissiveFactor", 0.0f, 0.0f, 0.0f); } catch (Throwable ignored) {}
                 try { material.setParameter("emissiveStrength", 0.0f); } catch (Throwable ignored) {}
-                try { material.setParameter("specularColorFactor", 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
-                // Match celine_v2.glb. v32 accidentally restored this to 1.0 after load.
                 try { material.setParameter("specularFactor", 0.3f); } catch (Throwable ignored) {}
+                try { material.setParameter("specularColorFactor", 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
+                try { material.setParameter("reflectance", 0.5f); } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
     }
@@ -357,7 +368,7 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
-    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v33"; }
+    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v34"; }
 
     public String getRenderFailureReason() {
         Throwable e = renderError;
