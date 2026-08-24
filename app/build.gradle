@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 48
+        versionCode 49
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -41,7 +41,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v48 keeps TRUE-UNLIT/FORCE-C, live speech, v46 rigged call posing and the v47 updater/call lock.
+    // v49 recovery: keep the proven v43 TRUE-UNLIT/FORCE-C renderer while experimental
+    // skin-matrix pose layers stay disabled until HOME + CALL visibility tests prove them safe.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
