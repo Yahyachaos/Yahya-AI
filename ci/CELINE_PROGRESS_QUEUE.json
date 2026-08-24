@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 57,
-    "main_sha": "d313a9df4f655a7b1da28fe29d2bee130cd1fc5d",
+    "version": 58,
+    "main_sha": "c46173149a6ed7a7650e3f541fcef2452398c966",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -16,16 +16,15 @@
       "v54 guarded Head-only skinning proof",
       "v55 guarded CALL neck+Head multi-joint skinning proof",
       "v56 guarded seated CALL pelvis foundation",
-      "v57 restrained state-aware CALL head/gaze refinement"
+      "v57 restrained state-aware CALL head/gaze refinement",
+      "v58 guarded symmetric CALL shoulder presence"
     ]
   },
   "active": {
-    "id": "shoulder-presence-refinement",
-    "status": "testing",
-    "goal": "Add one tiny symmetric CALL-only LeftShoulder+RightShoulder presence step on top of the proven v57 owner, with five-joint rendered skinning proof and no visibility/lifecycle regression",
-    "branch": "auto/celine/v58-shoulder-presence",
-    "pr": 78,
-    "risk": "guarded_symmetric_shoulder_skinning"
+    "id": "true-face-blink-viseme",
+    "status": "blocked",
+    "goal": "Add real blink, facial microexpressions and viseme lip-sync only when a face-capable production rig exists",
+    "risk": "external_face_rig_required"
   },
   "completed": [
     {
@@ -75,11 +74,17 @@
       "status": "merged",
       "pr": 77,
       "merge_sha": "d313a9df4f655a7b1da28fe29d2bee130cd1fc5d"
+    },
+    {
+      "id": "shoulder-presence-refinement",
+      "status": "merged",
+      "pr": 78,
+      "merge_sha": "c46173149a6ed7a7650e3f541fcef2452398c966",
+      "release_run": 32787731788,
+      "release_status": "success"
     }
   ],
-  "next": [
-    "blink/face/lip-sync only after a face-capable rig exists"
-  ],
+  "next": [],
   "blocked": [
     {
       "id": "true-face-blink-viseme",
