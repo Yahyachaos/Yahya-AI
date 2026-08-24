@@ -157,9 +157,20 @@ final class CelineGlbMaterialRepair {
 
     private static boolean isZeroRgb(JSONArray value) {
         if (value == null || value.length() < 3) return false;
-        return Math.abs(value.optDouble(0, 1.0)) < 0.000001 &&
-                Math.abs(value.optDouble(1, 1.0)) < 0.000001 &&
-                Math.abs(value.optDouble(2, 1.0)) < 0.000001;
+        return Math.abs(numberAt(value, 0, 1.0)) < 0.000001 &&
+                Math.abs(numberAt(value, 1, 1.0)) < 0.000001 &&
+                Math.abs(numberAt(value, 2, 1.0)) < 0.000001;
+    }
+
+    /** Android's bundled org.json does not expose JSONArray.optDouble(index, fallback) on all API levels. */
+    private static double numberAt(JSONArray value, int index, double fallback) {
+        try {
+            Object item = value.get(index);
+            if (item instanceof Number) return ((Number) item).doubleValue();
+            return Double.parseDouble(String.valueOf(item));
+        } catch (Throwable ignored) {
+            return fallback;
+        }
     }
 
     private static JSONArray rgb(double r, double g, double b) {
