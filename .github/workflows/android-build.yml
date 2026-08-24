@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -38,9 +41,6 @@ jobs:
           fi
           "$SDKMANAGER" "platforms;android-30" "build-tools;30.0.3"
 
-      # Filament 1.72 API jars are compiled for Java 17 (class-file version 61).
-      # Keep the Android build on JDK 17 as well; app bytecode compatibility remains Java 8
-      # through app/build.gradle compileOptions.
       - name: Set up Java 17 for Android build
         uses: actions/setup-java@v4
         with:
@@ -69,7 +69,7 @@ jobs:
             {
               echo "### Compiler diagnostics"
               echo '```text'
-              grep -E 'Celine3DView.java|error:|FAILURE:|What went wrong|Execution failed for task' build.log | tail -120 || true
+              grep -E 'Celine3DView.java|CelineUpdaterV47.java|CelineVideoChatV44.java|error:|FAILURE:|What went wrong|Execution failed for task' build.log | tail -160 || true
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit "$code"
@@ -88,3 +88,102 @@ jobs:
         with:
           name: yahya-ai-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+
+  emulator-smoke:
+    name: Android emulator smoke
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Download built APK
+        uses: actions/download-artifact@v4
+        with:
+          name: yahya-ai-debug
+          path: ci-apk
+
+      - name: Enable KVM permissions
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Boot emulator and smoke-test Yahya AI
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash ci/emulator-smoke.sh
+
+      - name: Upload emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-smoke-evidence
+          path: |
+            emulator-home.png
+            emulator-window.xml
+          if-no-files-found: ignore
+
+  publish-release:
+    name: Publish in-app update
+    needs: [build, emulator-smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download tested APK
+        uses: actions/download-artifact@v4
+        with:
+          name: yahya-ai-debug
+          path: release-apk
+
+      - name: Publish or refresh GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_CODE="$(grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' app/build.gradle | grep -oE '[0-9]+' | head -1)"
+          if [ -z "$VERSION_CODE" ]; then
+            echo "Could not determine versionCode"
+            exit 1
+          fi
+          TAG="v${VERSION_CODE}"
+          APK_NAME="Yahya-AI-v${VERSION_CODE}.apk"
+          cp release-apk/app-debug.apk "$APK_NAME"
+
+          NOTES_FILE="RELEASE_NOTES.md"
+          if [ ! -f "$NOTES_FILE" ]; then
+            printf 'Automatisch gebauter und im Android-Emulator gestarteter Yahya-AI-Build.\n' > "$NOTES_FILE"
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_NAME" --clobber
+            gh release edit "$TAG" --title "Yahya AI v${VERSION_CODE}" --notes-file "$NOTES_FILE" --latest
+          else
+            gh release create "$TAG" "$APK_NAME" \
+              --title "Yahya AI v${VERSION_CODE}" \
+              --notes-file "$NOTES_FILE" \
+              --target "${GITHUB_SHA}" \
+              --latest
+          fi
+
+          echo "Published $TAG for in-app updater" >> "$GITHUB_STEP_SUMMARY"
