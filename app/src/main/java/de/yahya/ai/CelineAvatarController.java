@@ -8,7 +8,8 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 /**
- * v30 controller: never expose an unproven 3D surface to the user.
+ * v31 controller: keep the proven 3D visibility guard and repair the known Meshy material layout
+ * before Filament reads the imported model.
  *
  * The imported GLB is rendered and verified with PixelCopy while the 3D container is fully
  * transparent. The existing 2D Celine therefore stays visible during loading. Only after real
@@ -38,6 +39,17 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
         if (face != null) face.start();
         SpeechAudioBus.setListener(this);
 
+        boolean materialRepaired = false;
+        if (avatar != null) {
+            try {
+                materialRepaired = CelineGlbMaterialRepair.repairImportedModel(avatar.getContext());
+            } catch (Throwable ignored) {}
+        }
+        if (materialRepaired && avatar != null) {
+            Toast.makeText(avatar.getContext(),
+                    "Celines 3D-Textur wurde repariert.", Toast.LENGTH_SHORT).show();
+        }
+
         if (motionView instanceof ViewGroup && avatar != null && Celine3DView.hasModel(avatar.getContext())) {
             motionView.post(this::startSingle3DBaseline);
         }
@@ -56,10 +68,6 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
             pending3D = candidate;
             candidate.setAvatarState(state);
 
-            // Critical v30 rule: a SurfaceView may contain a perfectly valid black swap-chain
-            // before the GLB becomes visible. Keep the entire 3D container transparent while
-            // PixelCopy inspects its SurfaceView directly. PixelCopy reads the surface buffer,
-            // so verification still works even though the composed UI keeps showing 2D Celine.
             candidate.setAlpha(0.0f);
             avatar.setVisibility(View.VISIBLE);
             if (face != null) {
@@ -83,7 +91,6 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                     threeD = candidate;
                     using3D = true;
 
-                    // Reveal only the already-proven frame, then remove the fallback.
                     candidate.setAlpha(1.0f);
                     candidate.bringToFront();
                     avatar.setVisibility(View.GONE);
