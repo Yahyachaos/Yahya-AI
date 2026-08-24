@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import json
-import math
 import struct
 import sys
 import zlib
@@ -39,8 +38,11 @@ def png_rgba(width: int, height: int, rgba):
     return sig + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b"")
 
 
-# Bright magenta is intentionally unlike the room colors, making a missing Filament avatar
-# detectable from emulator screenshots rather than merely proving that MainActivity launched.
+# Bright magenta is intentionally unlike the room colors. This fixture is deliberately UNSKINNED:
+# API-30 SwiftShader exposes a small vertex-uniform budget and a skinned glTF caused Filament's
+# generic Ubershader to exceed GL_MAX_VERTEX_UNIFORM_VECTORS. For v49 we are proving the critical
+# invariant only: a real Filament mesh must remain visible in HOME and CALL. Experimental skinning
+# is disabled in the production recovery build and will get its own guarded test before reactivation.
 magenta_png = png_rgba(32, 32, (255, 0, 220, 255))
 
 positions = [
@@ -55,48 +57,23 @@ indices = [0, 1, 2, 0, 2, 3]
 buf = bytearray()
 views = []
 
-pos_payload = b"".join(struct.pack("<3f", *p) for p in positions)
-views.append(add_view(buf, pos_payload, 34962))
+views.append(add_view(buf, b"".join(struct.pack("<3f", *p) for p in positions), 34962))
 pos_view = len(views) - 1
-
-uv_payload = b"".join(struct.pack("<2f", *uv) for uv in uvs)
-views.append(add_view(buf, uv_payload, 34962))
+views.append(add_view(buf, b"".join(struct.pack("<2f", *uv) for uv in uvs), 34962))
 uv_view = len(views) - 1
-
-# Every vertex is weighted to joint 0 (Hips). The remaining named bones exist so our production
-# reflection/bone discovery code is exercised, while this fixture stays intentionally simple.
-joint_payload = b"".join(struct.pack("<4B", 0, 0, 0, 0) for _ in positions)
-views.append(add_view(buf, joint_payload, 34962))
-joint_view = len(views) - 1
-
-weight_payload = b"".join(struct.pack("<4f", 1.0, 0.0, 0.0, 0.0) for _ in positions)
-views.append(add_view(buf, weight_payload, 34962))
-weight_view = len(views) - 1
-
-idx_payload = b"".join(struct.pack("<H", i) for i in indices)
-views.append(add_view(buf, idx_payload, 34963))
+views.append(add_view(buf, b"".join(struct.pack("<H", i) for i in indices), 34963))
 idx_view = len(views) - 1
-
-identity = [
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 1.0, 0.0,
-    0.0, 0.0, 0.0, 1.0,
-]
-ibm_payload = struct.pack("<16f", *identity)
-views.append(add_view(buf, ibm_payload))
-ibm_view = len(views) - 1
-
 views.append(add_view(buf, magenta_png))
 image_view = len(views) - 1
 
-# V39 intentionally ignores tiny accidental imports. Pad the BIN chunk so the CI fixture goes
-# through the exact same FORCE-C / TRUE-UNLIT preparation path as the real private model.
+# V39 ignores tiny accidental imports. Pad the BIN chunk so this CI fixture takes the exact same
+# FORCE-C / TRUE-UNLIT preparation path as the real private model.
 if len(buf) < 112_000:
     buf.extend(b"\0" * (112_000 - len(buf)))
 align4(buf)
 
-# Node hierarchy mirrors the important production bone names.
+# Keep production bone names so v44's discovery code executes normally. The visible mesh itself is
+# an unskinned child of Armature, therefore these named nodes cannot deform or hide the marker.
 nodes = [
     {"name": "Armature", "children": [1, 26]},
     {"name": "Hips", "children": [2, 3, 4]},
@@ -124,35 +101,31 @@ nodes = [
     {"name": "head_end"},
     {"name": "headfront"},
     {"name": "SmokeMarker"},
-    {"name": "char1", "mesh": 0, "skin": 0},
+    {"name": "char1", "mesh": 0},
 ]
 
 accessors = [
     {"bufferView": pos_view, "componentType": 5126, "count": 4, "type": "VEC3",
      "min": [-0.48, -1.0, 0.0], "max": [0.48, 1.0, 0.0]},
     {"bufferView": uv_view, "componentType": 5126, "count": 4, "type": "VEC2"},
-    {"bufferView": joint_view, "componentType": 5121, "count": 4, "type": "VEC4"},
-    {"bufferView": weight_view, "componentType": 5126, "count": 4, "type": "VEC4"},
     {"bufferView": idx_view, "componentType": 5123, "count": 6, "type": "SCALAR",
      "min": [0], "max": [3]},
-    {"bufferView": ibm_view, "componentType": 5126, "count": 1, "type": "MAT4"},
 ]
 
 root = {
-    "asset": {"version": "2.0", "generator": "Yahya-AI v49 CI smoke fixture"},
+    "asset": {"version": "2.0", "generator": "Yahya-AI v49 CI visibility fixture"},
     "scene": 0,
     "scenes": [{"nodes": [0]}],
     "nodes": nodes,
     "meshes": [{
         "name": "CelineSmokeAvatar",
         "primitives": [{
-            "attributes": {"POSITION": 0, "TEXCOORD_0": 1, "JOINTS_0": 2, "WEIGHTS_0": 3},
-            "indices": 4,
+            "attributes": {"POSITION": 0, "TEXCOORD_0": 1},
+            "indices": 2,
             "material": 0,
             "mode": 4,
         }],
     }],
-    "skins": [{"name": "SmokeSkin", "inverseBindMatrices": 5, "skeleton": 1, "joints": [1]}],
     "materials": [{
         "name": "CelineSmokeMagenta",
         "pbrMetallicRoughness": {
@@ -189,4 +162,4 @@ glb.extend(bin_bytes)
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_bytes(glb)
-print(f"wrote {OUT} ({len(glb)} bytes), image bufferView={image_view}")
+print(f"wrote {OUT} ({len(glb)} bytes), image bufferView={image_view}, skin=OFF")
