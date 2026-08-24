@@ -40,7 +40,7 @@ public final class Celine3DDiagnostics {
                     .putString(K_DETAIL, safeDetail)
                     .putString(K_TIME, time)
                     .putString(K_LOG, next)
-                    .apply();
+                    .commit();
         } catch (Throwable ignored) {}
     }
 
@@ -97,7 +97,7 @@ public final class Celine3DDiagnostics {
     }
 
     public static synchronized void clear(Context context) {
-        context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply();
+        context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().commit();
         record(context, "D3D-000", "Diagnose zurückgesetzt", modelSnapshot(context));
     }
 
