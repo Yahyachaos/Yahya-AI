@@ -14,7 +14,7 @@ trap collect_evidence EXIT
 
 fail_with_log() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V49-|V43-|V39-|REN-|CTL-' | tail -220 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V50-|V49-|V43-|V39-|REN-|CTL-' | tail -220 || true
   exit 1
 }
 
@@ -42,8 +42,6 @@ adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$ACTIVITY"
 sleep 12
 
-# pidof returns exit 1 when the process died. Do not let set -e hide that fact before we can print
-# Filament/native-crash evidence.
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$PID" ]]; then
   fail_with_log "Yahya AI process died before HOME visibility proof"
@@ -59,9 +57,10 @@ adb exec-out screencap -p > emulator-home.png
 adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null || fail_with_log "HOME UI dump failed"
 adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null || fail_with_log "HOME UI pull failed"
 
-if ! grep -q 'Update prüfen' emulator-window.xml; then
+# v50 UX gate: updater must no longer occupy the bottom of HOME.
+if grep -q 'Update prüfen' emulator-window.xml; then
   cat emulator-window.xml
-  fail_with_log "Update button was not found in the rendered UI"
+  fail_with_log "Update button is still visible on HOME instead of settings"
 fi
 
 if ! grep -q 'Mit Celin' emulator-window.xml; then
@@ -69,9 +68,46 @@ if ! grep -q 'Mit Celin' emulator-window.xml; then
   fail_with_log "Videochat entry button was not found in the rendered UI"
 fi
 
-# Critical gate: the screenshot itself must contain pixels from the real Filament fixture. A room,
-# an Activity or a SurfaceView alone can no longer produce a green release.
+# Critical gate: the screenshot itself must contain pixels from the real Filament fixture.
 python3 ci/check-magenta-avatar.py emulator-home.png HOME || fail_with_log "HOME 3D avatar pixels missing"
+
+# Verify the gear opens settings and exposes App & Updates + Update prüfen.
+read -r GEAR_X GEAR_Y <<< "$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root = ET.parse('emulator-window.xml').getroot()
+for node in root.iter('node'):
+    text = node.attrib.get('text', '')
+    desc = node.attrib.get('content-desc', '')
+    if text != '⚙' and desc != 'Einstellungen':
+        continue
+    m = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
+    if not m:
+        continue
+    x1, y1, x2, y2 = map(int, m.groups())
+    print((x1+x2)//2, (y1+y2)//2)
+    raise SystemExit(0)
+raise SystemExit('Could not resolve settings gear bounds')
+PY
+)"
+if [[ -z "${GEAR_X:-}" || -z "${GEAR_Y:-}" ]]; then
+  fail_with_log "Could not resolve settings gear coordinates"
+fi
+adb shell input tap "$GEAR_X" "$GEAR_Y"
+sleep 1
+adb shell uiautomator dump /sdcard/yahya-settings.xml >/dev/null || fail_with_log "Settings UI dump failed"
+adb pull /sdcard/yahya-settings.xml emulator-settings.xml >/dev/null || fail_with_log "Settings UI pull failed"
+adb exec-out screencap -p > emulator-settings.png
+if ! grep -q 'App &amp; Updates\|App & Updates' emulator-settings.xml; then
+  cat emulator-settings.xml
+  fail_with_log "App & Updates section was not found behind the settings gear"
+fi
+if ! grep -q 'Update prüfen' emulator-settings.xml; then
+  cat emulator-settings.xml
+  fail_with_log "Update prüfen was not found in settings"
+fi
+adb shell input keyevent 4
+sleep 1
 
 read -r TAP_X TAP_Y <<< "$(python3 - <<'PY'
 import re
@@ -115,4 +151,4 @@ adb exec-out screencap -p > emulator-call.png
 python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
 echo "Avatar visibility smoke test passed with PID=$PID"
-echo "Verified: real Filament model + HOME avatar pixels + CALL avatar pixels + updater + videochat"
+echo "Verified: HOME avatar pixels + CALL avatar pixels + updater only in settings + videochat"
