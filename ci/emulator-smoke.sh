@@ -12,28 +12,29 @@ collect_evidence() {
 }
 trap collect_evidence EXIT
 
-if [[ ! -f "$APK" ]]; then
-  echo "Missing APK: $APK"
+fail_with_log() {
+  echo "ERROR: $*"
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V49-|V43-|V39-|REN-|CTL-' | tail -220 || true
   exit 1
+}
+
+if [[ ! -f "$APK" ]]; then
+  fail_with_log "Missing APK: $APK"
 fi
 
 python3 ci/generate-celine-smoke-glb.py "$FIXTURE"
 if [[ ! -s "$FIXTURE" ]]; then
-  echo "Synthetic Filament fixture was not generated"
-  exit 1
+  fail_with_log "Synthetic Filament fixture was not generated"
 fi
 
 adb install -r "$APK"
 adb shell am force-stop "$PACKAGE" || true
 
-# Put a deterministic, non-private GLB into the same internal path used by the real Meshy model.
-# This is done after installation and before MainActivity starts, so V39/V43 and Celine3DView see
-# a real 3D asset rather than silently exercising the 2D fallback.
+# Put a deterministic, non-private GLB into the exact private path used by the real Meshy model.
 cat "$FIXTURE" | adb shell "run-as $PACKAGE sh -c 'mkdir -p files/models; cat > files/models/celine.glb'"
 REMOTE_BYTES="$(adb shell "run-as $PACKAGE sh -c 'wc -c < files/models/celine.glb'" | tr -d '\r ' || true)"
 if [[ -z "$REMOTE_BYTES" || "$REMOTE_BYTES" -lt 100000 ]]; then
-  echo "CI 3D model was not installed into app-private storage (bytes=$REMOTE_BYTES)"
-  exit 1
+  fail_with_log "CI 3D model was not installed into app-private storage (bytes=$REMOTE_BYTES)"
 fi
 
 echo "Injected synthetic 3D model: $REMOTE_BYTES bytes"
@@ -41,37 +42,36 @@ adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$ACTIVITY"
 sleep 12
 
-PID="$(adb shell pidof "$PACKAGE" | tr -d '\r')"
+# pidof returns exit 1 when the process died. Do not let set -e hide that fact before we can print
+# Filament/native-crash evidence.
+PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$PID" ]]; then
-  echo "Yahya AI process is not running"
-  exit 1
+  fail_with_log "Yahya AI process died before HOME visibility proof"
 fi
 
+echo "HOME process alive: PID=$PID"
 if ! adb shell dumpsys activity activities | grep -q "$ACTIVITY"; then
-  echo "MainActivity is not the active Yahya AI activity"
   adb shell dumpsys activity activities | grep -A4 -B4 "$PACKAGE" || true
-  exit 1
+  fail_with_log "MainActivity is not the active Yahya AI activity"
 fi
 
 adb exec-out screencap -p > emulator-home.png
-adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null
-adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null
+adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null || fail_with_log "HOME UI dump failed"
+adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null || fail_with_log "HOME UI pull failed"
 
 if ! grep -q 'Update prüfen' emulator-window.xml; then
-  echo "Update button was not found in the rendered UI"
   cat emulator-window.xml
-  exit 1
+  fail_with_log "Update button was not found in the rendered UI"
 fi
 
 if ! grep -q 'Mit Celin' emulator-window.xml; then
-  echo "Videochat entry button was not found in the rendered UI"
   cat emulator-window.xml
-  exit 1
+  fail_with_log "Videochat entry button was not found in the rendered UI"
 fi
 
-# This is the key regression gate: the screenshot itself must contain pixels from the Filament
-# avatar fixture. A visible room or a running Activity is no longer enough for a green build.
-python3 ci/check-magenta-avatar.py emulator-home.png HOME
+# Critical gate: the screenshot itself must contain pixels from the real Filament fixture. A room,
+# an Activity or a SurfaceView alone can no longer produce a green release.
+python3 ci/check-magenta-avatar.py emulator-home.png HOME || fail_with_log "HOME 3D avatar pixels missing"
 
 read -r TAP_X TAP_Y <<< "$(python3 - <<'PY'
 import re
@@ -91,20 +91,28 @@ raise SystemExit('Could not resolve videochat button bounds')
 PY
 )"
 
+if [[ -z "${TAP_X:-}" || -z "${TAP_Y:-}" ]]; then
+  fail_with_log "Could not resolve videochat button coordinates"
+fi
+
 echo "Opening videochat at $TAP_X,$TAP_Y"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 6
 
-adb shell uiautomator dump /sdcard/yahya-call.xml >/dev/null
-adb pull /sdcard/yahya-call.xml emulator-call.xml >/dev/null
+PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+if [[ -z "$PID" ]]; then
+  fail_with_log "Yahya AI process died while opening CALL"
+fi
+
+adb shell uiautomator dump /sdcard/yahya-call.xml >/dev/null || fail_with_log "CALL UI dump failed"
+adb pull /sdcard/yahya-call.xml emulator-call.xml >/dev/null || fail_with_log "CALL UI pull failed"
 if ! grep -q 'Live mit Celin' emulator-call.xml; then
-  echo "Live videochat overlay did not open"
   cat emulator-call.xml
-  exit 1
+  fail_with_log "Live videochat overlay did not open"
 fi
 
 adb exec-out screencap -p > emulator-call.png
-python3 ci/check-magenta-avatar.py emulator-call.png CALL
+python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
 echo "Avatar visibility smoke test passed with PID=$PID"
 echo "Verified: real Filament model + HOME avatar pixels + CALL avatar pixels + updater + videochat"
