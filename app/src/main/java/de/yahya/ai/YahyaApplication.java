@@ -6,8 +6,8 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v46 keeps the proven TRUE-UNLIT / FORCE-C rendering and v45 live speech loop,
- * then adds a natural seated call pose with real skin-matrix updates.
+ * v47 keeps TRUE-UNLIT/FORCE-C rendering, the natural-call layer and the live speech loop,
+ * fixes the v44/v46 motion ownership conflict and adds the self-update channel.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -20,17 +20,17 @@ public final class YahyaApplication extends Application implements Application.A
 
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V46-001", "Produktionsquelle vorbereitet",
+        Celine3DDiagnostics.record(activity, "V47-001", "Produktionsquelle vorbereitet",
                 "FORCE-C · " + prepared);
 
         String unlit = CelineTrueUnlitProbeV43.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V46-002", "TRUE-UNLIT beibehalten", unlit);
+        Celine3DDiagnostics.record(activity, "V47-002", "TRUE-UNLIT beibehalten", unlit);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V46-003", "Natural-Videochat vorbereitet",
-                "v45 live speech + seated rig pose + Animator.updateBoneMatrices");
+        Celine3DDiagnostics.record(activity, "V47-003", "Updater + Natural-Videochat vorbereitet",
+                "GitHub Releases updater · v44 call lock · v46 seated presence");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -44,8 +44,10 @@ public final class YahyaApplication extends Application implements Application.A
 
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
         decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 900L);
+        decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 1100L);
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 1700L);
         decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 1900L);
+        decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 2200L);
     }
 
     private void applyProduction(Activity activity, View decor) {
@@ -54,6 +56,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineVideoChatV44.ensure(activity, decor);
         CelineVideoCallV45.install(activity, decor);
         CelineNaturalPresenceV46.install(activity, decor);
+        CelineUpdaterV47.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
