@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 56,
-    "main_sha": "f98e8b3cd2be8a129ce9c04e7814a9e88e932946",
+    "version": 57,
+    "main_sha": "d313a9df4f655a7b1da28fe29d2bee130cd1fc5d",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -15,16 +15,17 @@
       "v53 camera-only state-aware breathing depth",
       "v54 guarded Head-only skinning proof",
       "v55 guarded CALL neck+Head multi-joint skinning proof",
-      "v56 guarded seated CALL pelvis foundation"
+      "v56 guarded seated CALL pelvis foundation",
+      "v57 restrained state-aware CALL head/gaze refinement"
     ]
   },
   "active": {
-    "id": "head-shoulder-gaze-refinement",
+    "id": "shoulder-presence-refinement",
     "status": "researching",
-    "goal": "Refine believable CALL head/shoulder/gaze presence from the proven v56 path with one small independently gated change and no regression to visibility, lifecycle or skinning safety",
+    "goal": "Determine the exact production shoulder joint names and, only if present and safely capturable, add one tiny CALL-only shoulder presence step on top of the proven v57 owner",
     "branch": null,
     "pr": null,
-    "risk": "incremental_presence"
+    "risk": "single_joint_discovery_then_incremental_presence"
   },
   "completed": [
     {
@@ -68,6 +69,12 @@
       "status": "merged",
       "pr": 76,
       "merge_sha": "f98e8b3cd2be8a129ce9c04e7814a9e88e932946"
+    },
+    {
+      "id": "head-gaze-refinement-v57",
+      "status": "merged",
+      "pr": 77,
+      "merge_sha": "d313a9df4f655a7b1da28fe29d2bee130cd1fc5d"
     }
   ],
   "next": [
