@@ -19,6 +19,7 @@ import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
  * v43 decisive TRUE-UNLIT probe.
@@ -37,6 +38,8 @@ final class CelineTrueUnlitProbeV43 {
     private static final int JSON_CHUNK = 0x4E4F534A;
     private static final String UNLIT = "KHR_materials_unlit";
     private static final String SPECULAR = "KHR_materials_specular";
+    private static final String PREFS = "yahya_ai";
+    private static final String V39_LAST_WORKING_SHA = "v39_last_working_sha256";
 
     private CelineTrueUnlitProbeV43() {}
 
@@ -98,10 +101,20 @@ final class CelineTrueUnlitProbeV43 {
             byte[] patched = rebuildGlb(original, declaredLength, jsonLength, root.toString());
             writeAtomically(working, patched);
 
+            // v39 identifies a fresh user import by comparing celine.glb with this SHA. Because v43
+            // deliberately changes only the disposable working copy, we must synchronize the marker
+            // after our own patch; otherwise the next app restart could mistake v43 for a new import
+            // and overwrite the immutable original snapshot.
+            String patchedSha = sha256(working);
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .putString(V39_LAST_WORKING_SHA, patchedSha)
+                    .commit();
+
             String detail = "materials=" + materials.length() +
                     " · unlitAdded=" + unlitAdded +
                     " · specularRemoved=" + specularRemoved +
                     " · bytes=" + working.length() +
+                    " · sha=" + patchedSha.substring(0, Math.min(12, patchedSha.length())) +
                     " · Original-Snapshot unverändert";
             Celine3DDiagnostics.record(context, "V43-100", "TRUE-UNLIT Arbeitsmodell vorbereitet", detail);
             return detail;
@@ -209,13 +222,31 @@ final class CelineTrueUnlitProbeV43 {
         }
     }
 
+    private static String sha256(File file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (FileInputStream in = new FileInputStream(file)) {
+            byte[] buffer = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buffer)) >= 0) digest.update(buffer, 0, n);
+        }
+        byte[] hash = digest.digest();
+        StringBuilder out = new StringBuilder(hash.length * 2);
+        for (byte b : hash) out.append(String.format(java.util.Locale.ROOT, "%02x", b & 0xff));
+        return out.toString();
+    }
+
     private static void writeAtomically(File target, byte[] data) throws Exception {
         File parent = target.getParentFile();
         if (parent == null) throw new IllegalStateException("Modellordner fehlt");
         File temp = new File(parent, target.getName() + ".v43.tmp");
+        File backup = new File(parent, target.getName() + ".v43.bak");
         if (temp.exists() && !temp.delete()) {
             throw new IllegalStateException("Alte v43-Tempdatei kann nicht gelöscht werden");
         }
+        if (backup.exists() && !backup.delete()) {
+            throw new IllegalStateException("Altes v43-Backup kann nicht gelöscht werden");
+        }
+
         try (FileOutputStream out = new FileOutputStream(temp, false)) {
             out.write(data);
             out.flush();
@@ -225,14 +256,17 @@ final class CelineTrueUnlitProbeV43 {
             temp.delete();
             throw new IllegalStateException("v43-Arbeitskopie ist ungültig");
         }
-        if (target.exists() && !target.delete()) {
+
+        if (target.exists() && !target.renameTo(backup)) {
             temp.delete();
-            throw new IllegalStateException("Alte Arbeitskopie kann nicht ersetzt werden");
+            throw new IllegalStateException("Arbeitskopie konnte nicht gesichert werden");
         }
         if (!temp.renameTo(target)) {
+            if (backup.exists()) backup.renameTo(target);
             temp.delete();
             throw new IllegalStateException("v43-Arbeitskopie konnte nicht aktiviert werden");
         }
+        if (backup.exists()) backup.delete();
     }
 
     private static Celine3DView find3D(View view) {
