@@ -6,8 +6,8 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v44 production-style startup: keep the proven v43 TRUE-UNLIT / FORCE-C texture path,
- * remove the old on-screen test controls, and layer the video-chat room/presence on top.
+ * v45 keeps the proven v43 TRUE-UNLIT/FORCE-C visual path and the v44 room,
+ * then adds a real in-app live conversation mode on top.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -18,48 +18,50 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityPreCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
 
-        // Preserve the exact visual path that finally rendered Celine correctly.
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V44-001", "Produktionsquelle vorbereitet",
+        Celine3DDiagnostics.record(activity, "V45-001", "Produktionsquelle vorbereitet",
                 "FORCE-C · " + prepared);
 
         String unlit = CelineTrueUnlitProbeV43.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V44-002", "TRUE-UNLIT beibehalten", unlit);
+        Celine3DDiagnostics.record(activity, "V45-002", "TRUE-UNLIT beibehalten", unlit);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V44-003", "Videochat-Modus vorbereitet",
-                "keine v41/v42 Materialexperimente · TRUE-UNLIT bleibt Referenz");
+        Celine3DDiagnostics.record(activity, "V45-003", "Live-Videochat vorbereitet",
+                "v44 room + continuous in-app speech loop · material path unchanged");
     }
 
     @Override public void onActivityResumed(Activity activity) {
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
 
-        // Keep the normal 2D fallback alive only until the 3D candidate is ready.
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
-
-        // First pass normally lands after Celine3DView has been created. Repeating a few times is
-        // intentional: Samsung/Android may recreate the Surface while the activity settles.
         decor.postDelayed(() -> applyProduction(activity, decor), 850L);
         decor.postDelayed(() -> applyProduction(activity, decor), 1800L);
         decor.postDelayed(() -> applyProduction(activity, decor), 3800L);
+
+        // The call entry button exists immediately; repeating installation is harmless and also
+        // restores the live session if Android briefly pauses/resumes the Activity.
+        decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
+        decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 1700L);
     }
 
     private void applyProduction(Activity activity, View decor) {
-        // Proven 4096x4096 baseColor GPU binding from v39.
         CelineTexturePipelineV39.applyRuntime(decor);
-        // Audit the true-unlit state; no emissive/PBR rescue is reintroduced.
         CelineTrueUnlitProbeV43.auditRuntime(decor);
-        // Presentation only: room, transparent SurfaceView, close camera and bounded movement.
         CelineVideoChatV44.ensure(activity, decor);
+        CelineVideoCallV45.install(activity, decor);
     }
 
+    @Override public void onActivityPaused(Activity activity) {
+        if (activity instanceof MainActivity) CelineVideoCallV45.onPaused(activity);
+    }
+    @Override public void onActivityDestroyed(Activity activity) {
+        if (activity instanceof MainActivity) CelineVideoCallV45.onDestroyed(activity);
+    }
     @Override public void onActivityStarted(Activity activity) {}
-    @Override public void onActivityPaused(Activity activity) {}
     @Override public void onActivityStopped(Activity activity) {}
     @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
-    @Override public void onActivityDestroyed(Activity activity) {}
 }
