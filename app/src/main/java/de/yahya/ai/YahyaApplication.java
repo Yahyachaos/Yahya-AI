@@ -10,7 +10,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** v42: decisive RAW-TEXTURE probe after the proven FORCE-C GPU upload. */
+/** v43: true KHR_materials_unlit diagnostic while keeping the proven FORCE-C texture path. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
     private static final int MODE_BUTTON_ID = 0x71A12;
@@ -24,16 +24,22 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityPreCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
 
+        // Step 1: recreate exactly the same controlled FORCE-C working model used by v42.
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V42-001", "FORCE-C als Quelle beibehalten",
-                "GLB/Rig unverändert · " + prepared);
+        Celine3DDiagnostics.record(activity, "V43-001", "FORCE-C Quelle neu vorbereitet",
+                "Mesh/Rig/PNG unverändert · " + prepared);
+
+        // Step 2: change only the disposable working copy's shading model to real glTF UNLIT.
+        String unlit = CelineTrueUnlitProbeV43.prepareWorkingModel(activity);
+        Celine3DDiagnostics.record(activity, "V43-002", "TRUE-UNLIT vor Filament aktiviert",
+                unlit);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V42-002", "RAW-TEXTURE Test vorbereitet",
-                "PBR/BaseColor wird nach TEXTURE_OK deaktiviert; gleiche GPU-PNG läuft direkt ueber emissiveMap + UV0");
+        Celine3DDiagnostics.record(activity, "V43-003", "v43 Beweistest vorbereitet",
+                "gleiche FORCE-C GPU-PNG + gleiche UVs · nur Shading=LIT→KHR_materials_unlit · v42 emissive override AUS");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -42,8 +48,8 @@ public final class YahyaApplication extends Application implements Application.A
         decor.post(() -> ensureControls(activity));
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
 
-        // Each pass first recreates the already proven FORCE-C binding and immediately afterwards
-        // overrides only the drawing material with the raw emissive texture probe.
+        // Repeat the proven v39 baseColor bind several times because the Surface can be recreated.
+        // v42's emissive override is intentionally NOT called. The actual material itself is now UNLIT.
         decor.postDelayed(() -> applyTexturePass(activity, decor), 900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 1900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 4200L);
@@ -51,9 +57,15 @@ public final class YahyaApplication extends Application implements Application.A
     }
 
     private void applyTexturePass(Activity activity, View decor) {
+        // Same exact forced 4096x4096 texture path as v42.
         CelineTexturePipelineV39.applyRuntime(decor);
+
+        // Keep v41's environment unchanged for an apples-to-apples comparison. In true UNLIT it
+        // should have no visible influence, which is itself part of the diagnostic.
         CelineSoftLightV41.ensure(decor);
-        CelineRawTextureProbeV42.apply(decor);
+
+        // Audit only; do not rebind through emissive or introduce another shader/material hack.
+        CelineTrueUnlitProbeV43.auditRuntime(decor);
         updateModeButton(activity);
     }
 
@@ -98,7 +110,7 @@ public final class YahyaApplication extends Application implements Application.A
     private void updateModeButton(Activity activity) {
         View v = activity.findViewById(MODE_BUTTON_ID);
         if (v instanceof Button) {
-            ((Button) v).setText("3D-TEST V42 · RAW TEXTURE · GPU-PNG direkt auf UV0");
+            ((Button) v).setText("3D-TEST V43 · TRUE UNLIT · FORCE-C BaseColor");
         }
     }
 
