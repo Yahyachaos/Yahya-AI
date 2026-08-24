@@ -1,9 +1,7 @@
 package de.yahya.ai;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.Application;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -12,7 +10,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** v39: controlled A/B/C texture diagnostics with neutral renderer settings. */
+/** v40: bypasses the unreliable A/B/C picker and forces the decisive C texture test. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
     private static final int MODE_BUTTON_ID = 0x71A12;
@@ -25,13 +23,18 @@ public final class YahyaApplication extends Application implements Application.A
     /** Runs before MainActivity creates CelineAvatarController / Celine3DView. */
     @Override public void onActivityPreCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
+
+        // The device video proves B_CLEAN_PBR is already active and still white. v40 therefore
+        // skips the flaky AlertDialog picker and forces the decisive explicit GPU/baseColor test.
+        CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V39-100", "A/B/C-Pipeline vor Activity vorbereitet", prepared);
+        Celine3DDiagnostics.record(activity, "V40-001", "FORCE-C Test aktiviert",
+                "C · FORCE TEXTURE · Picker umgangen · " + prepared);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V39-106", "v38-Rescue-Hacks deaktiviert",
+        Celine3DDiagnostics.record(activity, "V40-002", "Saubere Textur-Testumgebung",
                 "kein Emissive-Fill · kein konkurrierendes GLB-Rewrite · neutrales v36-Licht");
     }
 
@@ -40,12 +43,10 @@ public final class YahyaApplication extends Application implements Application.A
         View decor = activity.getWindow().getDecorView();
         decor.post(() -> ensureControls(activity));
 
-        // No v37 Celine3DVisualTuning here: keep the neutral v36 exposure/light so textures cannot
-        // be washed out by the former keyLight=85000 / bright-camera debug settings.
+        // Keep only the neutral renderer path. Do not re-enable v37 overexposure.
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
 
-        // The actual material inspection / explicit C binding happens only after gltfio created the
-        // real Celine3DView. Re-run a few times to survive Surface recreation and dialogs.
+        // Explicit C binding runs after the real Celine3DView/gltfio asset exists.
         decor.postDelayed(() -> applyTexturePass(activity, decor), 900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 1900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 4200L);
@@ -86,7 +87,7 @@ public final class YahyaApplication extends Application implements Application.A
             modeButton.setId(MODE_BUTTON_ID);
             modeButton.setAllCaps(false);
             modeButton.setTextSize(13f);
-            modeButton.setOnClickListener(v -> showModePicker(activity));
+            modeButton.setEnabled(false);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.setMargins(0, 0, 0, Math.max(6, 8 * d));
@@ -98,32 +99,8 @@ public final class YahyaApplication extends Application implements Application.A
     private void updateModeButton(Activity activity) {
         View v = activity.findViewById(MODE_BUTTON_ID);
         if (v instanceof Button) {
-            ((Button) v).setText("3D-TEST  " + CelineTexturePipelineV39.statusLine(activity) + "  ▾");
+            ((Button) v).setText("3D-TEST C · FORCE TEXTURE · " + CelineTexturePipelineV39.statusLine(activity));
         }
-    }
-
-    private void showModePicker(Activity activity) {
-        final CelineTexturePipelineV39.Mode[] modes = {
-                CelineTexturePipelineV39.Mode.A_ORIGINAL,
-                CelineTexturePipelineV39.Mode.B_CLEAN_PBR,
-                CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE
-        };
-        String[] items = {
-                "A · ORIGINAL – Meshy-Material + automatische Textur",
-                "B · CLEAN PBR – emissive aus, metallic 0, automatische Textur",
-                "C · FORCE TEXTURE – Clean PBR + PNG explizit auf GPU/baseColorMap"
-        };
-        new AlertDialog.Builder(activity)
-                .setTitle("Celine 3D · Textur-Test")
-                .setMessage("Modus wählen. Die App startet danach neu. Für einen wirklich sauberen Test bitte die originale Meshy-ZIP einmal über „3D-Avatar importieren“ importieren.")
-                .setItems(items, (dialog, which) -> {
-                    Celine3DDiagnostics.clear(activity);
-                    CelineTexturePipelineV39.setMode(activity, modes[Math.max(0, Math.min(which, modes.length - 1))]);
-                    Intent restart = Intent.makeRestartActivityTask(new ComponentName(activity, MainActivity.class));
-                    activity.startActivity(restart);
-                })
-                .setNegativeButton("Abbrechen", null)
-                .show();
     }
 
     @Override public void onActivityStarted(Activity activity) {}
