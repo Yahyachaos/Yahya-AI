@@ -8,13 +8,17 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 /**
- * v31 controller: keep the proven 3D visibility guard and repair the known Meshy material layout
- * before Filament reads the imported model.
+ * v35 controller.
  *
- * The imported GLB is rendered and verified with PixelCopy while the 3D container is fully
- * transparent. The existing 2D Celine therefore stays visible during loading. Only after real
- * model pixels are detected do we reveal Filament and hide the fallback. A failed/black renderer
- * is removed without ever replacing the working portrait with a black rectangle.
+ * A valid imported/bundled GLB must be allowed to reach the screen even when the conservative
+ * PixelCopy visibility probe returns a false negative. v31-v34 removed the 3D SurfaceView whenever
+ * the probe did not find enough bright pixels, which made a successfully loaded dark/incorrectly
+ * lit model look exactly like "3D never started" because the legacy 2D portrait was restored.
+ *
+ * v35 keeps the guard for real renderer exceptions. If Filament reports no renderer error, a valid
+ * model is kept and revealed even when the brightness probe fails. This makes the actual 3D output
+ * visible on the target Samsung device and stops silently masking renderer/material problems with
+ * the 2D fallback.
  */
 public final class CelineAvatarController implements SpeechAudioBus.Listener {
     public enum State { IDLE, LISTENING, THINKING, SPEAKING }
@@ -63,12 +67,16 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
 
         final ViewGroup host = (ViewGroup) motionView;
         try {
-            Toast.makeText(avatar.getContext(), "Celines 3D-Modell wird im Hintergrund geprüft …", Toast.LENGTH_SHORT).show();
+            Toast.makeText(avatar.getContext(),
+                    "3D-Modell gefunden – Filament wird gestartet …", Toast.LENGTH_SHORT).show();
+
             final Celine3DView candidate = new Celine3DView(avatar.getContext(), true);
             pending3D = candidate;
             candidate.setAvatarState(state);
 
-            candidate.setAlpha(0.0f);
+            // v35: keep the actual SurfaceView visible while probing. A zero-alpha SurfaceView can
+            // produce a false-negative PixelCopy result on some SurfaceControl implementations.
+            candidate.setAlpha(1.0f);
             avatar.setVisibility(View.VISIBLE);
             if (face != null) {
                 face.setVisibility(View.VISIBLE);
@@ -79,6 +87,7 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
             ));
+            candidate.bringToFront();
 
             candidate.verifyVisibleFrame(handler, visible -> {
                 if (released || pending3D != candidate) {
@@ -86,7 +95,12 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                     return;
                 }
 
-                if (visible) {
+                String reason = candidate.getRenderFailureReason();
+                if (visible || reason == null) {
+                    // If Filament has not thrown, do not silently throw away a valid 3D model just
+                    // because the brightness heuristic missed it. Keep the renderer on screen so
+                    // the real device output can be evaluated and fixed instead of masking it with
+                    // the legacy 2D portrait.
                     pending3D = null;
                     threeD = candidate;
                     using3D = true;
@@ -98,11 +112,14 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                         face.stop();
                         face.setVisibility(View.GONE);
                     }
+
                     Toast.makeText(avatar.getContext(),
-                            "3D-Celine ist sichtbar geladen.", Toast.LENGTH_LONG).show();
+                            visible
+                                    ? "3D-Celine ist sichtbar geladen."
+                                    : "3D-Celine wurde geladen; der alte Helligkeits-Test wurde übersprungen.",
+                            Toast.LENGTH_LONG).show();
                 } else {
                     pending3D = null;
-                    String reason = candidate.getRenderFailureReason();
                     removeCandidate(host, candidate);
                     using3D = false;
                     avatar.setVisibility(View.VISIBLE);
@@ -110,9 +127,8 @@ public final class CelineAvatarController implements SpeechAudioBus.Listener {
                         face.setVisibility(View.VISIBLE);
                         face.start();
                     }
-                    String suffix = reason == null ? "" : "\n" + reason;
                     Toast.makeText(avatar.getContext(),
-                            "3D wurde nicht sichtbar gerendert – 2D-Celine bleibt aktiv." + suffix,
+                            "3D-Rendererfehler: " + reason + " – 2D-Celine bleibt aktiv.",
                             Toast.LENGTH_LONG).show();
                 }
             });
