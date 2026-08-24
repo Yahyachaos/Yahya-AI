@@ -20,7 +20,7 @@
     "status": "testing",
     "goal": "Prove real Filament skinning with Head only, restore spine/neck bases before every update, and require both legacy visibility gates plus a rendered one-joint motion proof before merge",
     "branch": "auto/celine/v54-relaxed-base-pose",
-    "pr": null,
+    "pr": 74,
     "risk": "single_bone_experiment"
   },
   "completed": [
