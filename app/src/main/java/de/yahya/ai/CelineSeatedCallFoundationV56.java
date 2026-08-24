@@ -14,12 +14,13 @@ import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * v56 seated-call foundation.
+ * v56 seated-call foundation with the v57 attentive head/gaze refinement layered inside the same
+ * proven CALL skinning owner.
  *
- * This is intentionally NOT the old v46 seated pose. It extends the proven v55 CALL owner by one
- * lower-body joint only: Hips. Production tilt stays tiny. Spine nodes remain at renderer bases,
- * while neck + Head retain the already-proven v55 motion. A CI fixture exaggerates all three
- * joints so the emulator can prove the combined skinning path before release.
+ * This is intentionally NOT the old v46 seated pose. Hips + neck + Head remain the only animated
+ * joints. v57 changes only tiny state-aware neck/head intent; no new shoulder/root/leg joint is
+ * activated and the probe path stays unchanged so the established rendered-skinning gate remains
+ * directly comparable.
  */
 final class CelineSeatedCallFoundationV56 {
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
@@ -91,7 +92,7 @@ final class CelineSeatedCallFoundationV56 {
                     boundView = view;
                     driver = new Driver(activity, view);
                 } catch (Throwable e) {
-                    Celine3DDiagnostics.error(activity, "V56-199", "CALL Sitzbasis Initialisierung FEHLER", e);
+                    Celine3DDiagnostics.error(activity, "V57-199", "CALL Blickpraesenz Initialisierung FEHLER", e);
                     driver = null;
                     return;
                 }
@@ -99,7 +100,7 @@ final class CelineSeatedCallFoundationV56 {
             try {
                 driver.apply(frameTimeNanos);
             } catch (Throwable e) {
-                Celine3DDiagnostics.error(activity, "V56-198", "CALL Sitzbasis Frame FEHLER", e);
+                Celine3DDiagnostics.error(activity, "V57-198", "CALL Blickpraesenz Frame FEHLER", e);
                 driver.disableAfterFailure();
             }
         }
@@ -147,6 +148,8 @@ final class CelineSeatedCallFoundationV56 {
             probeModel = asset.getFirstEntityByName("CelineSkinningProbe") != 0;
             Celine3DDiagnostics.record(activity, "V56-100", "CALL Sitzbasis gebunden",
                     "Hips=true · neck=true · Head=true · probe=" + probeModel + " · Spine bleibt Basis");
+            Celine3DDiagnostics.record(activity, "V57-100", "CALL Blickpraesenz gebunden",
+                    "v56 owner · keine neuen Bones · state-aware neck+Head · probe=" + probeModel);
         }
 
         void apply(long frameTimeNanos) {
@@ -164,6 +167,7 @@ final class CelineSeatedCallFoundationV56 {
             float neckPitch, neckYaw, neckRoll;
             float headPitch, headYaw, headRoll;
             if (probeModel) {
+                // Keep the proven v56 CI fixture motion byte-for-byte equivalent in behavior.
                 hipsPitch = -18.0f + (float) Math.sin(t * Math.PI * 0.5) * 7.0f;
                 hipsYaw = (float) Math.sin(t * Math.PI * 0.75) * 8.0f;
                 hipsRoll = 0f;
@@ -177,22 +181,52 @@ final class CelineSeatedCallFoundationV56 {
                 CelineAvatarController.State state = avatarState(view);
                 float speech = speechEnergy(view);
                 float slow = (float) Math.sin(t * 0.48);
+                float glance = (float) Math.sin(t * 0.23 + 1.7);
                 float breath = (float) Math.sin(t * 1.28 + 0.4);
-                float nod = state == CelineAvatarController.State.SPEAKING
-                        ? (float) Math.sin(t * 4.0) * (0.18f + 0.32f * speech) : 0f;
+                float motionScale = 1.0f;
+                float intentYaw = 0f;
+                float intentPitch = 0f;
+                float intentRoll = 0f;
+                float nod = 0f;
 
-                // First seated-pose step only: a tiny posterior pelvis tilt, not the old -70° v46 legs.
+                switch (state) {
+                    case LISTENING:
+                        // Hold eye-line steadier and lean into an attentive micro-tilt.
+                        motionScale = 0.52f;
+                        intentPitch = -0.10f;
+                        intentRoll = 0.18f;
+                        break;
+                    case THINKING:
+                        // A very slow, sub-degree side glance; no abrupt looping head sweep.
+                        motionScale = 0.72f;
+                        intentYaw = glance * 0.34f;
+                        intentPitch = -0.05f;
+                        break;
+                    case SPEAKING:
+                        // Speech gets tiny emphasis nods proportional to real speech energy.
+                        motionScale = 0.92f + 0.18f * speech;
+                        intentYaw = (float) Math.sin(t * 1.05) * 0.10f * speech;
+                        nod = (float) Math.sin(t * 4.0) * (0.18f + 0.32f * speech);
+                        break;
+                    case IDLE:
+                    default:
+                        // Neutral presence keeps the v56 baseline without extra bias.
+                        break;
+                }
+
+                // Preserve the proven v56 seated pelvis exactly apart from its existing micro-motion.
                 hipsPitch = -4.0f + breath * 0.20f;
                 hipsYaw = slow * 0.18f;
                 hipsRoll = slow * 0.08f;
 
-                neckYaw = slow * 0.32f;
-                neckPitch = breath * 0.16f;
-                neckRoll = -slow * 0.10f;
-                headYaw = slow * 0.58f;
-                headPitch = breath * 0.24f + nod;
-                headRoll = -slow * 0.16f
-                        + (state == CelineAvatarController.State.LISTENING ? 0.18f : 0f);
+                // v57: coordinate neck + Head as one restrained attention gesture. All values remain
+                // sub-degree in production and no new skinning joint is introduced.
+                neckYaw = slow * 0.32f * motionScale + intentYaw * 0.35f;
+                neckPitch = breath * 0.16f * motionScale + intentPitch * 0.35f;
+                neckRoll = -slow * 0.10f * motionScale + intentRoll * 0.25f;
+                headYaw = slow * 0.58f * motionScale + intentYaw;
+                headPitch = breath * 0.24f * motionScale + intentPitch + nod;
+                headRoll = -slow * 0.16f * motionScale + intentRoll;
             }
 
             try {
@@ -211,6 +245,8 @@ final class CelineSeatedCallFoundationV56 {
                 logged = true;
                 Celine3DDiagnostics.record(activity, "V56-110", "CALL Sitzbasis Skinning aktiv",
                         "Animator.updateBoneMatrices OK · Hips+neck+Head · CALL-only · probe=" + probeModel);
+                Celine3DDiagnostics.record(activity, "V57-120", "CALL Blickpraesenz aktiv",
+                        "state-aware neck+Head refinement · same v56 owner · probe=" + probeModel);
             }
         }
 
