@@ -21,8 +21,14 @@ public final class CelineModelImportActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         Uri uri = getIntent() == null ? null : getIntent().getData();
-        if (uri == null) { finishToMain(false, "Keine 3D-Datei gefunden."); return; }
-        new Thread(() -> importModel(uri)).start();
+        Celine3DDiagnostics.record(this, "IMP-200", "Import gestartet",
+                uri == null ? "URI fehlt" : String.valueOf(uri));
+        if (uri == null) {
+            Celine3DDiagnostics.record(this, "IMP-299", "Import abgebrochen", "Keine 3D-Datei/URI erhalten");
+            finishToMain(false, "Keine 3D-Datei gefunden.");
+            return;
+        }
+        new Thread(() -> importModel(uri), "celine-3d-import").start();
     }
 
     private void importModel(Uri uri) {
@@ -33,6 +39,8 @@ public final class CelineModelImportActivity extends Activity {
         File bodyFallback = new File(parent, "celine.body.tmp");
         boolean ok = false;
         String message;
+        Celine3DDiagnostics.record(this, "IMP-201", "Ziel vorbereitet",
+                "target=" + target.getAbsolutePath() + " · vorhanden=" + target.isFile() + " · alt=" + (target.isFile() ? target.length() : 0L));
         try (InputStream raw = getContentResolver().openInputStream(uri)) {
             if (raw == null) throw new IllegalStateException("Datei kann nicht geöffnet werden.");
             BufferedInputStream in = new BufferedInputStream(raw);
@@ -46,12 +54,23 @@ public final class CelineModelImportActivity extends Activity {
             bodyFallback.delete();
             boolean facial;
             if (header[0]=='g' && header[1]=='l' && header[2]=='T' && header[3]=='F') {
+                Celine3DDiagnostics.record(this, "IMP-210", "Dateityp erkannt", "GLB");
                 copyGlb(in, temp);
+                Celine3DDiagnostics.record(this, "IMP-211", "GLB kopiert", temp.length() + " Bytes");
                 facial = CelineGlbValidator.requireProductionCeline(temp);
+                Celine3DDiagnostics.record(this, "IMP-212", "Validator bestanden",
+                        facial ? "Facial-Rig vollständig" : "Meshy Body-Rig kompatibel");
             } else if (header[0]=='P' && header[1]=='K') {
+                Celine3DDiagnostics.record(this, "IMP-220", "Dateityp erkannt", "ZIP");
                 facial = extractBestCelineGlb(in, temp, bodyFallback);
+                Celine3DDiagnostics.record(this, "IMP-223", "ZIP-Auswahl abgeschlossen",
+                        (facial ? "Facial-Rig" : "Meshy Body-Rig") + " · temp=" + temp.length() + " Bytes");
             } else {
                 throw new IllegalArgumentException("Bitte eine Celine-GLB oder das Meshy-ZIP auswählen.");
+            }
+
+            if (!temp.isFile() || temp.length() < 100_000L) {
+                throw new IllegalStateException("Validierte GLB fehlt nach Import oder ist zu klein: " + temp.length());
             }
 
             // Do not touch the last working avatar until the new file has passed all checks.
@@ -60,6 +79,9 @@ public final class CelineModelImportActivity extends Activity {
             }
             if (!temp.renameTo(target)) {
                 throw new IllegalStateException("Celine-Modell konnte nicht gespeichert werden.");
+            }
+            if (!target.isFile() || target.length() < 100_000L) {
+                throw new IllegalStateException("Gespeicherte celine.glb ist nach rename ungültig: " + target.length());
             }
 
             File failed = new File(parent, "celine.failed.glb");
@@ -70,6 +92,8 @@ public final class CelineModelImportActivity extends Activity {
                     .commit();
 
             ok = true;
+            Celine3DDiagnostics.record(this, "IMP-250", "Import ERFOLGREICH",
+                    "celine.glb=" + target.length() + " Bytes · " + (facial ? "Facial" : "Body-Rig"));
             if (facial) {
                 message = "Celines vollständiger 3D-Gesichtsavatar wurde geprüft und importiert. Yahya AI startet jetzt neu.";
             } else {
@@ -78,6 +102,7 @@ public final class CelineModelImportActivity extends Activity {
         } catch (Throwable e) {
             temp.delete();
             bodyFallback.delete();
+            Celine3DDiagnostics.error(this, "IMP-299", "Import FEHLER", e);
             message = "Import abgelehnt: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
         final boolean result = ok;
@@ -91,16 +116,12 @@ public final class CelineModelImportActivity extends Activity {
         }
     }
 
-    /**
-     * Scans every GLB in a ZIP. A facial-rigged Celine is preferred when present. Otherwise the
-     * first compatible Meshy body rig is kept as the fallback, so the existing user export works.
-     *
-     * @return true when the selected file contains Celine's production facial morph layout.
-     */
-    private static boolean extractBestCelineGlb(InputStream input, File target, File bodyFallback) throws Exception {
+    /** Scans every GLB in a ZIP and keeps the best compatible Celine model. */
+    private boolean extractBestCelineGlb(InputStream input, File target, File bodyFallback) throws Exception {
         String lastReason = null;
         boolean sawGlb = false;
         boolean haveBodyFallback = false;
+        int glbIndex = 0;
         try (ZipInputStream zip = new ZipInputStream(input)) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
@@ -108,12 +129,16 @@ public final class CelineModelImportActivity extends Activity {
                 String name = entry.getName().toLowerCase();
                 if (!name.endsWith(".glb")) continue;
                 sawGlb = true;
+                glbIndex++;
+                Celine3DDiagnostics.record(this, "IMP-221", "ZIP-GLB gefunden", "#" + glbIndex + " " + entry.getName());
                 target.delete();
                 try (FileOutputStream out = new FileOutputStream(target)) {
                     copyLimited(zip, out, MAX_GLB_BYTES);
                 }
                 try {
                     boolean facial = CelineGlbValidator.requireProductionCeline(target);
+                    Celine3DDiagnostics.record(this, "IMP-222", "ZIP-GLB kompatibel",
+                            entry.getName() + " · " + target.length() + " Bytes · facial=" + facial);
                     if (facial) {
                         bodyFallback.delete();
                         return true;
@@ -129,6 +154,7 @@ public final class CelineModelImportActivity extends Activity {
                     }
                 } catch (Throwable incompatible) {
                     lastReason = incompatible.getMessage();
+                    Celine3DDiagnostics.error(this, "IMP-229", "ZIP-GLB verworfen: " + entry.getName(), incompatible);
                     target.delete();
                 }
             }
@@ -141,12 +167,8 @@ public final class CelineModelImportActivity extends Activity {
             }
             return false;
         }
-        if (!sawGlb) {
-            throw new IllegalArgumentException("Im ZIP wurde keine GLB-Datei gefunden.");
-        }
-        if (lastReason != null && !lastReason.trim().isEmpty()) {
-            throw new IllegalArgumentException(lastReason);
-        }
+        if (!sawGlb) throw new IllegalArgumentException("Im ZIP wurde keine GLB-Datei gefunden.");
+        if (lastReason != null && !lastReason.trim().isEmpty()) throw new IllegalArgumentException(lastReason);
         throw new IllegalArgumentException("Im ZIP wurde kein kompatibles Celine-Modell gefunden.");
     }
 
@@ -156,19 +178,17 @@ public final class CelineModelImportActivity extends Activity {
         int n;
         while ((n = in.read(buf)) >= 0) {
             total += n;
-            if (total > maxBytes) {
-                throw new IllegalArgumentException("Die 3D-Datei ist zu groß. Maximal 220 MB werden unterstützt.");
-            }
+            if (total > maxBytes) throw new IllegalArgumentException("Die 3D-Datei ist zu groß. Maximal 220 MB werden unterstützt.");
             out.write(buf, 0, n);
         }
         out.flush();
     }
 
     private void finishToMain(boolean ok, String message) {
+        Celine3DDiagnostics.record(this, ok ? "IMP-260" : "IMP-298",
+                ok ? "App-Neustart nach Import" : "Zurück zur App nach Importfehler", message);
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         if (ok) {
-            // A clean task restart guarantees MainActivity rebuilds the avatar host and sees
-            // the newly imported private model immediately.
             Intent restart = Intent.makeRestartActivityTask(new ComponentName(this, MainActivity.class));
             startActivity(restart);
         } else {
