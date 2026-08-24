@@ -220,7 +220,7 @@ public final class Celine3DView extends FrameLayout {
             if (entity == 0) return null;
             int instance = transformManager.getInstance(entity);
             if (instance == 0) return null;
-            return new BonePose(instance, transformManager.getTransform(instance, null));
+            return new BonePose(instance, transformManager.getTransform(instance, new float[16]));
         } catch (Throwable ignored) {
             return null;
         }
