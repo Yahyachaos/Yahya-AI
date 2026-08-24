@@ -26,6 +26,7 @@
     "goal": "Repair the current HOME/CALL avatar framing regression observed in the user video: Celine is no longer visibly framed as a person and an oversized beige textured mesh fragment intrudes from the right/top-right. Restore a clearly visible centered avatar without reactivating the unsafe production shoulder path.",
     "evidence": "User screen recording 2026-08-25 shows the room scene while Celine herself is absent; a large beige textured geometry fragment occupies the upper/right side, especially in CALL. Code comparison isolates v58's newly activated LeftShoulder+RightShoulder production skinning as the only new CALL joint scope after the proven v57 Hips+neck+Head owner. v59 therefore quarantines the v56-v58 advanced CALL writer and restores the proven v55 neck+Head CALL owner while keeping v54 HOME.",
     "branch": "auto/celine/v59-avatar-framing-regression",
+    "pr": 79,
     "risk": "critical_visibility_and_transform_regression"
   },
   "completed": [
