@@ -129,7 +129,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
-            set -euo pipefail
+            set -eu
             adb install -r ci-apk/app-debug.apk
             adb shell am start -W -n de.yahya.ai/.MainActivity
             sleep 10
