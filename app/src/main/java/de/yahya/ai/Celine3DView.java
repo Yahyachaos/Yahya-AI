@@ -37,13 +37,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-/**
- * v34 direct 3D renderer.
- *
- * Keeps the proven direct SurfaceView path and live skeleton motion. After gltfio has loaded all
- * resources, the final Filament MaterialInstances are forced to skin/fabric PBR values so Samsung's
- * runtime cannot keep Meshy's metallic defaults even when the GLB JSON itself is already repaired.
- */
+/** v36 direct Filament renderer with persistent on-device diagnostics. */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
     private static final String IMPORT_DIR = "models";
@@ -63,6 +57,7 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
+    private final Context appContext;
     private final SurfaceView surfaceView;
     private final Choreographer choreographer;
     private final Engine engine;
@@ -88,6 +83,7 @@ public final class Celine3DView extends FrameLayout {
 
     private SwapChain swapChain;
     private boolean running;
+    private boolean firstFrameLogged;
     private volatile Throwable renderError;
     private volatile float speechEnergy;
     private volatile float lookX;
@@ -105,9 +101,15 @@ public final class Celine3DView extends FrameLayout {
                 if (renderer.beginFrame(swapChain, frameTimeNanos)) {
                     renderer.render(filamentView);
                     renderer.endFrame();
+                    if (!firstFrameLogged) {
+                        firstFrameLogged = true;
+                        Celine3DDiagnostics.record(appContext, "REN-331", "Erster Filament-Frame gerendert",
+                                "Surface=" + getWidth() + "x" + getHeight());
+                    }
                 }
             } catch (Throwable e) {
                 renderError = e;
+                Celine3DDiagnostics.error(appContext, "REN-399", "Filament Frame FEHLER", e);
                 running = false;
                 choreographer.removeFrameCallback(this);
             }
@@ -118,18 +120,23 @@ public final class Celine3DView extends FrameLayout {
 
     public Celine3DView(Context context, boolean ignoredRendererChoice) throws Exception {
         super(context);
+        appContext = context.getApplicationContext();
+        Celine3DDiagnostics.record(appContext, "REN-300", "Celine3DView Konstruktor", Celine3DDiagnostics.modelSnapshot(appContext));
         setClipChildren(false);
         setClipToPadding(false);
 
         choreographer = Choreographer.getInstance();
         surfaceView = new SurfaceView(context);
         addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        Celine3DDiagnostics.record(appContext, "REN-301", "SurfaceView erstellt", "OK");
 
         engine = Engine.create();
+        Celine3DDiagnostics.record(appContext, "REN-302", "Filament Engine erstellt", String.valueOf(engine != null));
         renderer = engine.createRenderer();
         scene = engine.createScene();
         filamentView = engine.createView();
         transformManager = engine.getTransformManager();
+        Celine3DDiagnostics.record(appContext, "REN-303", "Renderer/Scene/View erstellt", "OK");
 
         cameraEntity = EntityManager.get().create();
         camera = engine.createCamera(cameraEntity);
@@ -156,52 +163,64 @@ public final class Celine3DView extends FrameLayout {
                 .castShadows(false)
                 .build(engine, lightEntity);
         scene.addEntity(lightEntity);
+        Celine3DDiagnostics.record(appContext, "REN-304", "Licht/Kamera eingerichtet", "OK");
 
         materialProvider = new UbershaderProvider(engine);
         assetLoader = new AssetLoader(engine, materialProvider, EntityManager.get());
         resourceLoader = new ResourceLoader(engine, true);
-        asset = assetLoader.createAsset(readModel(context));
+        ByteBuffer modelBuffer = readModel(context);
+        Celine3DDiagnostics.record(appContext, "REN-310", "GLB ByteBuffer bereit", modelBuffer.remaining() + " Bytes");
+        asset = assetLoader.createAsset(modelBuffer);
         if (asset == null) {
+            Celine3DDiagnostics.record(appContext, "REN-398", "gltfio createAsset FEHLER", "asset == null");
             throw new IllegalStateException("gltfio konnte die importierte GLB-Datei nicht laden.");
         }
+        Celine3DDiagnostics.record(appContext, "REN-311", "gltfio Asset erstellt",
+                "entities=" + asset.getEntities().length);
 
-        // Must stay in this order: load textures/resources first, then force the final runtime
-        // MaterialInstances, then release GLB source data.
         resourceLoader.loadResources(asset);
+        Celine3DDiagnostics.record(appContext, "REN-312", "GLB Ressourcen geladen", "loadResources OK");
         tameMeshyMaterials();
+        Celine3DDiagnostics.record(appContext, "REN-313", "Runtime-Materialwerte gesetzt", "PBR repair angewendet");
         asset.releaseSourceData();
 
         normalizeAsset(asset);
         captureLiveBones();
         scene.addEntities(asset.getEntities());
+        Celine3DDiagnostics.record(appContext, "REN-316", "Entities zur Scene hinzugefügt",
+                "entities=" + asset.getEntities().length);
 
         camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
 
         surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override public void surfaceCreated(SurfaceHolder holder) {
-                try { createSwapChain(holder); } catch (Throwable e) { renderError = e; }
+                Celine3DDiagnostics.record(appContext, "REN-320", "Surface created", "valid=" + isSurfaceReady());
+                try { createSwapChain(holder); }
+                catch (Throwable e) {
+                    renderError = e;
+                    Celine3DDiagnostics.error(appContext, "REN-397", "SwapChain bei surfaceCreated FEHLER", e);
+                }
             }
 
             @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                Celine3DDiagnostics.record(appContext, "REN-322", "Surface changed", width + "x" + height + " format=" + format);
                 try {
                     if (swapChain == null) createSwapChain(holder);
                     resizeViewport(width, height);
                 } catch (Throwable e) {
                     renderError = e;
+                    Celine3DDiagnostics.error(appContext, "REN-396", "Viewport/SwapChain FEHLER", e);
                 }
             }
 
             @Override public void surfaceDestroyed(SurfaceHolder holder) {
+                Celine3DDiagnostics.record(appContext, "REN-323", "Surface destroyed", "stop/destroy swapchain");
                 destroySwapChain();
             }
         });
+        Celine3DDiagnostics.record(appContext, "REN-319", "3D-Konstruktor abgeschlossen", "warte auf Surface/Frames");
     }
 
-    /**
-     * Force Meshy's final gltfio MaterialInstances to non-metallic skin/fabric values after
-     * ResourceLoader.loadResources(). This is intentionally redundant with the GLB JSON repair:
-     * on the target Samsung/Filament path the runtime material state is the source of truth.
-     */
     private void tameMeshyMaterials() {
         try {
             MaterialInstance[] instances = asset.getInstance().getMaterialInstances();
@@ -215,7 +234,9 @@ public final class Celine3DView extends FrameLayout {
                 try { material.setParameter("specularColorFactor", 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
                 try { material.setParameter("reflectance", 0.5f); } catch (Throwable ignored) {}
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable e) {
+            Celine3DDiagnostics.error(appContext, "REN-395", "Material-Reparatur Exception", e);
+        }
     }
 
     private void captureLiveBones() {
@@ -224,6 +245,16 @@ public final class Celine3DView extends FrameLayout {
         spineBone = captureBone("Spine");
         spine01Bone = captureBone("Spine01");
         spine02Bone = captureBone("Spine02");
+        int count = 0;
+        if (headBone != null) count++;
+        if (neckBone != null) count++;
+        if (spineBone != null) count++;
+        if (spine01Bone != null) count++;
+        if (spine02Bone != null) count++;
+        Celine3DDiagnostics.record(appContext, "REN-315", "Live-Bones erfasst",
+                count + "/5 · Head=" + (headBone != null) + " neck=" + (neckBone != null) +
+                        " Spine=" + (spineBone != null) + " Spine01=" + (spine01Bone != null) +
+                        " Spine02=" + (spine02Bone != null));
     }
 
     private BonePose captureBone(String name) {
@@ -289,9 +320,13 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private void createSwapChain(SurfaceHolder holder) {
-        if (holder == null || holder.getSurface() == null || !holder.getSurface().isValid()) return;
+        if (holder == null || holder.getSurface() == null || !holder.getSurface().isValid()) {
+            Celine3DDiagnostics.record(appContext, "REN-321", "SwapChain übersprungen", "Surface ungültig");
+            return;
+        }
         destroySwapChain();
         swapChain = engine.createSwapChain(holder.getSurface());
+        Celine3DDiagnostics.record(appContext, "REN-321", "SwapChain erstellt", "swapChain=" + (swapChain != null));
     }
 
     private void destroySwapChain() {
@@ -304,6 +339,7 @@ public final class Celine3DView extends FrameLayout {
         } catch (Throwable e) {
             renderError = e;
             swapChain = null;
+            Celine3DDiagnostics.error(appContext, "REN-394", "SwapChain destroy FEHLER", e);
         }
     }
 
@@ -312,6 +348,7 @@ public final class Celine3DView extends FrameLayout {
         filamentView.setViewport(new Viewport(0, 0, width, height));
         camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);
         camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
+        Celine3DDiagnostics.record(appContext, "REN-324", "Viewport gesetzt", width + "x" + height);
     }
 
     private boolean isSurfaceReady() {
@@ -351,6 +388,8 @@ public final class Celine3DView extends FrameLayout {
         int instance = transformManager.getInstance(loadedAsset.getRoot());
         if (instance == 0) throw new IllegalStateException("3D-Root-Transform fehlt.");
         transformManager.setTransform(instance, transform);
+        Celine3DDiagnostics.record(appContext, "REN-314", "Modell normalisiert",
+                "maxExtent=" + maxExtent + " scale=" + scale + " center=" + center[0] + "," + center[1] + "," + center[2]);
     }
 
     public static File importedModelFile(Context context) {
@@ -360,15 +399,24 @@ public final class Celine3DView extends FrameLayout {
 
     public static boolean hasModel(Context context) {
         File imported = importedModelFile(context);
-        if (imported.isFile() && imported.length() > 32) return true;
+        if (imported.isFile() && imported.length() > 32) {
+            Celine3DDiagnostics.record(context, "MOD-101", "Privates 3D-Modell gefunden", imported.length() + " Bytes");
+            return true;
+        }
         try (InputStream in = context.getAssets().open(MODEL_PATH)) {
-            return in.available() > 32;
-        } catch (Exception ignored) {
+            int available = in.available();
+            boolean ok = available > 32;
+            Celine3DDiagnostics.record(context, ok ? "MOD-102" : "MOD-199", "APK-3D-Asset geprüft",
+                    "available=" + available + " · ok=" + ok);
+            return ok;
+        } catch (Exception e) {
+            Celine3DDiagnostics.record(context, "MOD-199", "KEIN 3D-Modell gefunden",
+                    "private=" + (imported.isFile() ? imported.length() : 0L) + " Bytes · asset fehlt · " + e.getClass().getSimpleName());
             return false;
         }
     }
 
-    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v34"; }
+    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v36 diagnostics"; }
 
     public String getRenderFailureReason() {
         Throwable e = renderError;
@@ -378,16 +426,24 @@ public final class Celine3DView extends FrameLayout {
     }
 
     public void verifyVisibleFrame(Handler handler, VisibilityCallback callback) {
+        Celine3DDiagnostics.record(appContext, "VIS-400", "PixelCopy-Sichtbarkeitstest gestartet", "35 Versuche max");
         probeVisibleFrame(handler, callback, 35);
     }
 
     private void probeVisibleFrame(Handler handler, VisibilityCallback callback, int remaining) {
         if (callback == null) return;
         if (renderError != null || remaining <= 0) {
+            Celine3DDiagnostics.record(appContext, "VIS-499", "Sichtbarkeitstest beendet",
+                    "renderError=" + getRenderFailureReason() + " remaining=" + remaining);
             callback.onResult(false);
             return;
         }
         if (!isAttachedToWindow() || getWidth() <= 0 || getHeight() <= 0 || !running || !isSurfaceReady()) {
+            if (remaining == 35 || remaining <= 1) {
+                Celine3DDiagnostics.record(appContext, "VIS-401", "Warte auf renderfähige Surface",
+                        "attached=" + isAttachedToWindow() + " size=" + getWidth() + "x" + getHeight() +
+                                " running=" + running + " surface=" + isSurfaceReady() + " remaining=" + remaining);
+            }
             handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
             return;
         }
@@ -395,7 +451,13 @@ public final class Celine3DView extends FrameLayout {
         final Bitmap sample = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888);
         try {
             PixelCopy.request(surfaceView, sample, result -> {
-                boolean visible = result == PixelCopy.SUCCESS && hasModelPixels(sample);
+                int[] stats = modelPixelStats(sample);
+                boolean visible = result == PixelCopy.SUCCESS && stats[0] >= stats[1];
+                if (visible || remaining <= 1 || result != PixelCopy.SUCCESS) {
+                    Celine3DDiagnostics.record(appContext, visible ? "VIS-450" : "VIS-498",
+                            visible ? "3D-Pixel erkannt" : "PixelCopy ohne bestätigte 3D-Pixel",
+                            "pixelCopy=" + result + " bright=" + stats[0] + " required=" + stats[1] + " remaining=" + remaining);
+                }
                 sample.recycle();
                 if (visible) callback.onResult(true);
                 else if (remaining <= 1 || renderError != null) callback.onResult(false);
@@ -403,11 +465,12 @@ public final class Celine3DView extends FrameLayout {
             }, handler);
         } catch (Throwable e) {
             sample.recycle();
+            if (remaining <= 1) Celine3DDiagnostics.error(appContext, "VIS-497", "PixelCopy Exception", e);
             handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
         }
     }
 
-    private static boolean hasModelPixels(Bitmap bitmap) {
+    private static int[] modelPixelStats(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
         int[] pixels = new int[width * height];
@@ -416,16 +479,15 @@ public final class Celine3DView extends FrameLayout {
         int required = Math.max(24, pixels.length / 250);
         for (int c : pixels) {
             int r = Color.red(c), g = Color.green(c), b = Color.blue(c);
-            if (Math.max(r, Math.max(g, b)) > 32 && r + g + b > 95) {
-                if (++modelPixels >= required) return true;
-            }
+            if (Math.max(r, Math.max(g, b)) > 32 && r + g + b > 95) modelPixels++;
         }
-        return false;
+        return new int[]{modelPixels, required};
     }
 
     public void startRendering() {
         if (!running && renderError == null) {
             running = true;
+            Celine3DDiagnostics.record(appContext, "REN-330", "Rendering gestartet", "Choreographer callback aktiv");
             choreographer.postFrameCallback(frameCallback);
         }
     }
@@ -437,10 +499,12 @@ public final class Celine3DView extends FrameLayout {
 
     @Override protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        Celine3DDiagnostics.record(appContext, "REN-325", "Celine3DView attached", getWidth() + "x" + getHeight());
         startRendering();
     }
 
     @Override protected void onDetachedFromWindow() {
+        Celine3DDiagnostics.record(appContext, "REN-326", "Celine3DView detached", "stop renderer");
         stopRendering();
         destroySwapChain();
         super.onDetachedFromWindow();
@@ -469,9 +533,13 @@ public final class Celine3DView extends FrameLayout {
     private static ByteBuffer readModel(Context context) throws Exception {
         File imported = importedModelFile(context);
         if (imported.isFile() && imported.length() > 32) {
+            Celine3DDiagnostics.record(context, "REN-305", "Modellquelle gewählt", "PRIVATE celine.glb · " + imported.length() + " Bytes");
             try (InputStream in = new FileInputStream(imported)) { return readAll(in); }
         }
-        try (InputStream in = context.getAssets().open(MODEL_PATH)) { return readAll(in); }
+        try (InputStream in = context.getAssets().open(MODEL_PATH)) {
+            Celine3DDiagnostics.record(context, "REN-306", "Modellquelle gewählt", "APK ASSET models/celine.glb · available=" + in.available());
+            return readAll(in);
+        }
     }
 
     private static ByteBuffer readAll(InputStream in) throws Exception {
