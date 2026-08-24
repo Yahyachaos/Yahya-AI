@@ -9,7 +9,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** Adds the in-app avatar import control and guarantees visible live motion for Celine. */
+/** Adds the in-app avatar import control and v37's confirmed-3D reveal pass. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
 
@@ -22,10 +22,15 @@ public final class YahyaApplication extends Application implements Application.A
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
         decor.post(() -> ensureImportButton(activity));
-        // Wait until the avatar card has real dimensions, then start the guaranteed visible
-        // fallback motion. Re-run once later because the 3D self-test can finish asynchronously.
-        decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 650L);
-        decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 6500L);
+
+        // Keep a small early 2D motion only while Filament is still starting. Once v36 has actually
+        // switched the avatar to 3D, v37 removes the hidden fallback, brightens Filament and performs
+        // an unmistakable real-bone head movement. Run the reveal more than once because Samsung can
+        // recreate the Surface after dialogs/background transitions.
+        decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
+        decor.postDelayed(() -> Celine3DForceReveal.ensure(decor), 1400L);
+        decor.postDelayed(() -> Celine3DForceReveal.ensure(decor), 4200L);
+        decor.postDelayed(() -> Celine3DForceReveal.ensure(decor), 8000L);
     }
 
     private void ensureImportButton(Activity activity) {
