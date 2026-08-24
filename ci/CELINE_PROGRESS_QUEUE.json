@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 54,
-    "main_sha": "9ce7f5bdbf261c0c9502d01bf6257c864348a2e5",
+    "version": 55,
+    "main_sha": "d96362a0e99460487a4b51d221de0e61c021ee9f",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -13,16 +13,17 @@
       "Pipeline V2 stale-safe auto-merge + exact-SHA release continuation",
       "v52 safe state-aware camera micro-presence",
       "v53 camera-only state-aware breathing depth",
-      "v54 guarded Head-only skinning proof"
+      "v54 guarded Head-only skinning proof",
+      "v55 guarded CALL neck+Head multi-joint skinning proof"
     ]
   },
   "active": {
-    "id": "call-upper-body-pose-foundation",
+    "id": "credible-seated-call-pose",
     "status": "researching",
-    "goal": "Extend the proven v54 skinning path by one joint group at a time in CALL only, with synthetic multi-joint pixel-motion proof and all HOME/CALL/return visibility gates preserved before any merge",
-    "branch": "auto/celine/v55-call-upper-body-pose",
+    "goal": "Build the first credible seated CALL pose only from the proven v55 path, adding one lower-body/root element at a time and preserving all visibility, lifecycle and skinning gates",
+    "branch": "auto/celine/v56-seated-call-pose",
     "pr": null,
-    "risk": "incremental_multi_bone"
+    "risk": "incremental_pose"
   },
   "completed": [
     {
@@ -54,10 +55,15 @@
       "status": "merged",
       "pr": 74,
       "merge_sha": "9ce7f5bdbf261c0c9502d01bf6257c864348a2e5"
+    },
+    {
+      "id": "call-upper-body-pose-foundation",
+      "status": "merged",
+      "pr": 75,
+      "merge_sha": "d96362a0e99460487a4b51d221de0e61c021ee9f"
     }
   ],
   "next": [
-    "credible seated call pose after multi-joint proof",
     "head/shoulder/gaze refinements",
     "blink/face/lip-sync only after a face-capable rig exists"
   ],
