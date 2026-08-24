@@ -1,24 +1,35 @@
 {
-  "schema": 1,
+  "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 51,
-    "main_sha": "16d4354f264c3447d2a4c5bddca0736ba6f13eff",
+    "main_sha": "bc5b563e33ad84ed002022a0456cc5d4114fef57",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
       "HOME composer layout",
-      "HOME/CALL avatar visibility gate"
+      "HOME/CALL avatar visibility gate",
+      "CALL -> HOME avatar lifecycle proof"
     ]
   },
   "active": {
-    "id": "safe-camera-micro-presence",
+    "id": "pipeline-v2-hardening",
     "status": "in_progress",
-    "goal": "Add tiny state-aware camera micro-motion without Animator.updateBoneMatrices or material changes",
-    "branch": "auto/celine/v52-camera-micro-presence",
-    "risk": "camera_only"
+    "goal": "Make automatic Celine PR completion stale-safe, self-finishing and release-continuous after green Android CI",
+    "branch": "ci/celine-pipeline-v2",
+    "pr": 71,
+    "risk": "ci_only"
   },
+  "completed": [
+    {
+      "id": "ci-call-return-avatar-proof",
+      "status": "merged",
+      "pr": 69,
+      "merge_sha": "9c9492f50a09c8a2647ff495f0c40599845eb2a3"
+    }
+  ],
   "next": [
+    "safe root/camera micro-motion without Animator.updateBoneMatrices",
     "state-aware breathing and presence",
     "relaxed base pose in isolated bone-by-bone experiments",
     "credible seated call pose",
