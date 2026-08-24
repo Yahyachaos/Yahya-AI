@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 53,
-    "main_sha": "5d4cbbe45bd5965ed70da7dd5ab1d153c77a4f60",
+    "version": 54,
+    "main_sha": "9ce7f5bdbf261c0c9502d01bf6257c864348a2e5",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -12,16 +12,17 @@
       "CALL -> HOME avatar lifecycle proof",
       "Pipeline V2 stale-safe auto-merge + exact-SHA release continuation",
       "v52 safe state-aware camera micro-presence",
-      "v53 camera-only state-aware breathing depth"
+      "v53 camera-only state-aware breathing depth",
+      "v54 guarded Head-only skinning proof"
     ]
   },
   "active": {
-    "id": "relaxed-base-pose-experiment",
-    "status": "testing",
-    "goal": "Prove real Filament skinning with Head only, restore spine/neck bases before every update, and require both legacy visibility gates plus a rendered one-joint motion proof before merge",
-    "branch": "auto/celine/v54-relaxed-base-pose",
-    "pr": 74,
-    "risk": "single_bone_experiment"
+    "id": "call-upper-body-pose-foundation",
+    "status": "researching",
+    "goal": "Extend the proven v54 skinning path by one joint group at a time in CALL only, with synthetic multi-joint pixel-motion proof and all HOME/CALL/return visibility gates preserved before any merge",
+    "branch": "auto/celine/v55-call-upper-body-pose",
+    "pr": null,
+    "risk": "incremental_multi_bone"
   },
   "completed": [
     {
@@ -47,10 +48,16 @@
       "status": "merged",
       "pr": 73,
       "merge_sha": "4f2627dd8082a9303cf9167ec682e71b4751ed50"
+    },
+    {
+      "id": "relaxed-base-pose-experiment",
+      "status": "merged",
+      "pr": 74,
+      "merge_sha": "9ce7f5bdbf261c0c9502d01bf6257c864348a2e5"
     }
   ],
   "next": [
-    "credible seated call pose",
+    "credible seated call pose after multi-joint proof",
     "head/shoulder/gaze refinements",
     "blink/face/lip-sync only after a face-capable rig exists"
   ],
