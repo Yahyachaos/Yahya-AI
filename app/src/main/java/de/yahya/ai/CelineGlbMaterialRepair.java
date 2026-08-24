@@ -175,9 +175,14 @@ final class CelineGlbMaterialRepair {
 
     private static JSONArray rgb(double r, double g, double b) {
         JSONArray result = new JSONArray();
-        result.put(r);
-        result.put(g);
-        result.put(b);
+        try {
+            result.put(r);
+            result.put(g);
+            result.put(b);
+        } catch (Throwable impossibleForFiniteRgb) {
+            // Values supplied by this class are finite constants. Keep a valid array even on old org.json.
+            return new JSONArray();
+        }
         return result;
     }
 
