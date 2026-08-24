@@ -29,8 +29,6 @@ fi
 
 adb install -r "$APK"
 adb shell am force-stop "$PACKAGE" || true
-
-# Put a deterministic, non-private GLB into the exact private path used by the real Meshy model.
 cat "$FIXTURE" | adb shell "run-as $PACKAGE sh -c 'mkdir -p files/models; cat > files/models/celine.glb'"
 REMOTE_BYTES="$(adb shell "run-as $PACKAGE sh -c 'wc -c < files/models/celine.glb'" | tr -d '\r ' || true)"
 if [[ -z "$REMOTE_BYTES" || "$REMOTE_BYTES" -lt 100000 ]]; then
@@ -56,22 +54,16 @@ fi
 adb exec-out screencap -p > emulator-home.png
 adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null || fail_with_log "HOME UI dump failed"
 adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null || fail_with_log "HOME UI pull failed"
-
-# v50 UX gate: updater must no longer occupy the bottom of HOME.
 if grep -qi 'Update prüfen' emulator-window.xml; then
   cat emulator-window.xml
   fail_with_log "Update button is still visible on HOME instead of settings"
 fi
-
 if ! grep -q 'Mit Celin' emulator-window.xml; then
   cat emulator-window.xml
   fail_with_log "Videochat entry button was not found in the rendered UI"
 fi
-
-# Critical gate: the screenshot itself must contain pixels from the real Filament fixture.
 python3 ci/check-magenta-avatar.py emulator-home.png HOME || fail_with_log "HOME 3D avatar pixels missing"
 
-# Verify the gear opens settings and exposes App & Updates + Update prüfen.
 read -r GEAR_X GEAR_Y <<< "$(python3 - <<'PY'
 import re
 import xml.etree.ElementTree as ET
@@ -126,7 +118,6 @@ for node in root.iter('node'):
 raise SystemExit('Could not resolve videochat button bounds')
 PY
 )"
-
 if [[ -z "${TAP_X:-}" || -z "${TAP_Y:-}" ]]; then
   fail_with_log "Could not resolve videochat button coordinates"
 fi
@@ -139,16 +130,31 @@ PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$PID" ]]; then
   fail_with_log "Yahya AI process died while opening CALL"
 fi
-
 adb shell uiautomator dump /sdcard/yahya-call.xml >/dev/null || fail_with_log "CALL UI dump failed"
 adb pull /sdcard/yahya-call.xml emulator-call.xml >/dev/null || fail_with_log "CALL UI pull failed"
 if ! grep -q 'Live mit Celin' emulator-call.xml; then
   cat emulator-call.xml
   fail_with_log "Live videochat overlay did not open"
 fi
-
 adb exec-out screencap -p > emulator-call.png
 python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
-echo "Avatar visibility smoke test passed with PID=$PID"
-echo "Verified: HOME avatar pixels + CALL avatar pixels + updater only in settings + videochat"
+# Regression gate for Surface/Filament lifecycle: closing CALL must restore HOME with the avatar still rendered.
+echo "Closing videochat and verifying HOME recovery"
+adb shell input keyevent 4
+sleep 4
+PID_AFTER="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+if [[ -z "$PID_AFTER" ]]; then
+  fail_with_log "Yahya AI process died while returning from CALL"
+fi
+adb shell uiautomator dump /sdcard/yahya-home-return.xml >/dev/null || fail_with_log "HOME-return UI dump failed"
+adb pull /sdcard/yahya-home-return.xml emulator-home-return.xml >/dev/null || fail_with_log "HOME-return UI pull failed"
+if ! grep -q 'Mit Celin' emulator-home-return.xml; then
+  cat emulator-home-return.xml
+  fail_with_log "HOME did not recover after closing videochat"
+fi
+adb exec-out screencap -p > emulator-home-return.png
+python3 ci/check-magenta-avatar.py emulator-home-return.png HOME_RETURN || fail_with_log "HOME-return 3D avatar pixels missing"
+
+echo "Avatar visibility smoke test passed with PID=$PID_AFTER"
+echo "Verified: HOME avatar + CALL avatar + HOME-return avatar + updater only in settings"
