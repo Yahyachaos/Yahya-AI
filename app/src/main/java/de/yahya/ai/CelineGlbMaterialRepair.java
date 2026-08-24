@@ -16,32 +16,22 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Normalizes the specific Meshy material exported for Celine before Filament loads it.
- *
- * v32 keeps the proven direct renderer untouched and fixes only the GLB material:
- * BaseColor uses the embedded PNG, the material is non-metallic, roughness is suitable for
- * skin / hair / fabric, emissive is disabled, and the extreme Meshy specular value is clamped.
+ * Clean-PBR GLB normalizer retained as a pure byte[] transform for v39 mode B/C.
+ * The old in-place startup repair is deliberately disabled so it cannot overwrite the controlled
+ * A/B/C working copy after CelineTexturePipelineV39 prepared it.
  */
 final class CelineGlbMaterialRepair {
-    private static final int GLB_MAGIC = 0x46546C67; // "glTF" little-endian
-    private static final int JSON_CHUNK = 0x4E4F534A; // "JSON" little-endian
+    private static final int GLB_MAGIC = 0x46546C67;
+    private static final int JSON_CHUNK = 0x4E4F534A;
 
     private CelineGlbMaterialRepair() {}
 
     static boolean repairImportedModel(Context context) {
-        if (context == null) return false;
-        File model = Celine3DView.importedModelFile(context);
-        if (!model.isFile() || model.length() < 64) return false;
-
-        try {
-            byte[] original = readAll(model);
-            byte[] repaired = repairIfNeeded(original);
-            if (repaired == original) return false;
-            return replaceAtomically(model, repaired);
-        } catch (Throwable ignored) {
-            // Never risk preventing the renderer from starting. The existing file remains intact.
-            return false;
+        if (context != null) {
+            Celine3DDiagnostics.record(context, "V39-105", "Legacy-Materialrepair übersprungen",
+                    CelineTexturePipelineV39.modeLabel(CelineTexturePipelineV39.getMode(context)));
         }
+        return false;
     }
 
     static byte[] repairIfNeeded(byte[] original) throws Exception {
@@ -77,7 +67,6 @@ final class CelineGlbMaterialRepair {
             JSONObject material = materials.optJSONObject(i);
             if (material == null) continue;
 
-            // Meshy exported full emissive white + emissiveTexture. Disable both.
             JSONArray emissive = material.optJSONArray("emissiveFactor");
             if (!isZeroRgb(emissive)) {
                 material.put("emissiveFactor", rgb(0.0, 0.0, 0.0));
@@ -95,21 +84,17 @@ final class CelineGlbMaterialRepair {
                 changed = true;
             }
 
-            // Explicitly use a neutral multiplier for the embedded BaseColor PNG.
             JSONArray baseColorFactor = pbr.optJSONArray("baseColorFactor");
             if (!isRgba(baseColorFactor, 1.0, 1.0, 1.0, 1.0)) {
                 pbr.put("baseColorFactor", rgba(1.0, 1.0, 1.0, 1.0));
                 changed = true;
             }
 
-            // Critical v32 fix: glTF defaults metallicFactor to 1.0 when omitted.
-            // Celine is skin / hair / fabric, not metal.
             if (!pbr.has("metallicFactor") || Math.abs(pbr.optDouble("metallicFactor", 1.0)) > 0.000001) {
                 pbr.put("metallicFactor", 0.0);
                 changed = true;
             }
 
-            // Match the verified celine_v2.glb material.
             if (!pbr.has("roughnessFactor") || Math.abs(pbr.optDouble("roughnessFactor", -1.0) - 0.72) > 0.000001) {
                 pbr.put("roughnessFactor", 0.72);
                 changed = true;
@@ -132,8 +117,6 @@ final class CelineGlbMaterialRepair {
                 }
             }
 
-            // Meshy emitted KHR_materials_specular.specularColorFactor = [2,2,2].
-            // Keep the extension but normalize it to the verified celine_v2 values.
             JSONObject extensions = material.optJSONObject("extensions");
             if (extensions == null) {
                 extensions = new JSONObject();
@@ -157,8 +140,6 @@ final class CelineGlbMaterialRepair {
             }
         }
 
-        // Meshy exported duplicate texture records that both reference the same single PNG.
-        // Collapse only when every texture truly points at the same source, so unrelated GLBs stay untouched.
         if (textures.length() > 1 && allTexturesUseSameSource(textures)) {
             JSONObject first = textures.optJSONObject(0);
             if (first != null) {
@@ -220,7 +201,6 @@ final class CelineGlbMaterialRepair {
         return isRgb(value, r, g, b) && Math.abs(numberAt(value, 3, Double.NaN) - a) < 0.000001;
     }
 
-    /** Android's bundled org.json does not expose JSONArray.optDouble(index, fallback) on all API levels. */
     private static double numberAt(JSONArray value, int index, double fallback) {
         try {
             Object item = value.get(index);
