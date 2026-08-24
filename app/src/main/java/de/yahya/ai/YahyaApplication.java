@@ -43,9 +43,11 @@ public final class YahyaApplication extends Application implements Application.A
         decor.postDelayed(() -> applyProduction(activity, decor), 3800L);
 
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
+        decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 760L);
         decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 900L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 1100L);
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 1700L);
+        decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 1760L);
         decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 1900L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 2200L);
     }
@@ -55,12 +57,14 @@ public final class YahyaApplication extends Application implements Application.A
         CelineTrueUnlitProbeV43.auditRuntime(decor);
         CelineVideoChatV44.ensure(activity, decor);
         CelineVideoCallV45.install(activity, decor);
+        CelineCallMotionLockV47.install(activity, decor);
         CelineNaturalPresenceV46.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
+            CelineCallMotionLockV47.onPaused(activity);
             CelineNaturalPresenceV46.onPaused(activity);
             CelineVideoCallV45.onPaused(activity);
         }
@@ -68,6 +72,7 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
+            CelineCallMotionLockV47.onDestroyed(activity);
             CelineNaturalPresenceV46.onDestroyed(activity);
             CelineVideoCallV45.onDestroyed(activity);
         }
