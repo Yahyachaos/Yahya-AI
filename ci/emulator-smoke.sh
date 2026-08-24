@@ -58,7 +58,7 @@ adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null || fail_with_log 
 adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null || fail_with_log "HOME UI pull failed"
 
 # v50 UX gate: updater must no longer occupy the bottom of HOME.
-if grep -q 'Update prüfen' emulator-window.xml; then
+if grep -qi 'Update prüfen' emulator-window.xml; then
   cat emulator-window.xml
   fail_with_log "Update button is still visible on HOME instead of settings"
 fi
@@ -102,7 +102,7 @@ if ! grep -q 'App &amp; Updates\|App & Updates' emulator-settings.xml; then
   cat emulator-settings.xml
   fail_with_log "App & Updates section was not found behind the settings gear"
 fi
-if ! grep -q 'Update prüfen' emulator-settings.xml; then
+if ! grep -qi 'Update prüfen' emulator-settings.xml; then
   cat emulator-settings.xml
   fail_with_log "Update prüfen was not found in settings"
 fi
