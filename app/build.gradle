@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 56
+        versionCode 57
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -41,8 +41,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v56 extends the proven v55 CALL skinning owner by Hips only. No legs/root or v46 pose is
-    // restored; every release still requires visibility, lifecycle and rendered skinning gates.
+    // v57 keeps the proven v56 Hips+neck+Head CALL skinning owner and only refines tiny
+    // state-aware neck/head attention. No shoulder/root/leg joints or old v46 pose are restored.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
