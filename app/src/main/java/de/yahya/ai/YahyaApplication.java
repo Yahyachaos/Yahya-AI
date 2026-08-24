@@ -6,14 +6,13 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v49 visibility-recovery baseline.
+ * v50 keeps the v49 visibility-recovery baseline and adds only a layout/presence guard.
  *
  * Real-device evidence showed that v46's skin-matrix pose layer could make the Meshy body vanish
- * even though Filament, the room, FORCE-C and TRUE-UNLIT were all healthy. v49 therefore returns
- * production rendering to the last known-visible path: v43 texture/unlit + v44 room/presentation
- * + v45 live call + v47 call lock/updater. The v46/v48 experimental pose/gaze layers remain in
- * source for diagnosis but are deliberately NOT installed until avatar visibility is proven in CI
- * with an actual Filament test model in both HOME and CALL states.
+ * even though Filament, the room, FORCE-C and TRUE-UNLIT were all healthy. Production rendering
+ * therefore remains on the proven path: v43 texture/unlit + v44 room/presentation + v45 live call
+ * + v47 call lock/updater. v50 does not reactivate the risky v46/v48 pose/gaze layers; it only
+ * gives HOME more conversation space and lets the avatar stage fill the live-call slot.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -35,16 +34,15 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V49-003", "Sichtbarkeits-Recovery aktiv",
-                "v46/v48 pose layers OFF · v43 texture/unlit + v44 room + v45 call + v47 lock/updater");
+        Celine3DDiagnostics.record(activity, "V50-003", "Sichere Layout-/Presence-Stufe aktiv",
+                "v49 renderer unverändert · HOME composer space + CALL stage fill");
     }
 
     @Override public void onActivityResumed(Activity activity) {
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
 
-        // GitHub Actions API-30 SwiftShader cannot compile Filament 1.72 FXAA. This is a no-op on
-        // real devices and only removes emulator post-processing so the CI can inspect 3D pixels.
+        // Emulator-only renderer guard; no-op on real devices.
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 80L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 260L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 620L);
@@ -69,6 +67,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineTexturePipelineV39.applyRuntime(decor);
         CelineTrueUnlitProbeV43.auditRuntime(decor);
         CelineVideoChatV44.ensure(activity, decor);
+        CelineLayoutV50.install(activity, decor);
         CelineEmulatorRenderGuardV49.apply(decor);
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);

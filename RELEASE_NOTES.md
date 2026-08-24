@@ -1,11 +1,10 @@
-### Stand v49
+### Stand v50
 
-- **Celine-Sichtbarkeit hat absolute Priorität:** Die v46/v48 experimentellen Pose-/Skin-Matrix-Layer sind vorerst deaktiviert, weil das echte Samsung-Gerät gezeigt hat, dass der Raum sichtbar bleiben kann, während das 3D-Mesh verschwindet.
-- Rückkehr auf die letzte bekannte sichtbare Produktionsbasis: **v43 TRUE-UNLIT/FORCE-C + v44 Raum/Präsentation + v45 Live-Videochat + v47 Call-Lock/Updater**.
-- Die funktionierende TRUE-UNLIT / FORCE-C-Texturpipeline wird nicht verändert.
-- Der Emulator-Test bekommt jetzt ein echtes, synthetisches Filament-GLB im privaten `files/models/celine.glb`-Pfad. Damit wird nicht mehr nur geprüft, ob die App startet.
-- CI verlangt sichtbare 3D-Avatar-Pixel sowohl auf der **Startseite** als auch nach dem Öffnen von **Live mit Celin**. Nur wenn beide Prüfungen bestehen, darf ein Release veröffentlicht werden.
-- Screenshots, UI-Dumps, Logcat und App-Diagnosedaten werden bei jedem Emulatorlauf als Beweismaterial gespeichert.
-- Der In-App-Button **Update prüfen** bleibt erhalten.
+- Die bewährte **v49-Sichtbarkeitsbasis bleibt unangetastet**: TRUE-UNLIT/FORCE-C sowie die riskanten v46/v48 Skin-Matrix-Layer werden nicht verändert bzw. nicht wieder aktiviert.
+- Auf der **Startseite** wird Celines 3D-Bühne kompakter, damit der Gesprächsverlauf und der Schreibbereich deutlich mehr Platz bekommen.
+- Der Schreibbereich erhält eine feste Zugänglichkeits-/Prüfmarke und Android nutzt `adjustResize`, damit das Eingabefeld auch mit geöffneter Tastatur im sichtbaren Bereich bleibt.
+- Im **Live-Videochat** darf dieselbe 3D-Bühne den verfügbaren Call-Bereich vollständig ausfüllen, statt die kompakte HOME-Höhe mitzunehmen.
+- Die neue CI-Prüfung kontrolliert nicht nur Avatar-Pixel auf HOME und CALL, sondern zusätzlich die sichtbare Schreibfläche auf HOME und die vergrößerte Bühne im Live-Videochat.
+- Der In-App-Updater bleibt ausschließlich in **Einstellungen → App & Updates**.
 
-Die natürliche Sitz-/Gesprächsbewegung wird erst wieder schrittweise aktiviert, nachdem jede Änderung den neuen HOME- und CALL-Sichtbarkeitstest bestanden hat.
+Weitere natürliche Körper-, Gesichts- und Gesprächsbewegungen werden weiterhin nur in kleinen Schritten aktiviert und müssen vor einer Veröffentlichung den HOME- und CALL-Sichtbarkeitstest bestehen.
