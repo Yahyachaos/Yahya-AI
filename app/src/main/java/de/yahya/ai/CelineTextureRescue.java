@@ -3,6 +3,7 @@ package de.yahya.ai;
 import android.content.Context;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -189,12 +190,12 @@ final class CelineTextureRescue {
         }
     }
 
-    private static JSONArray rgb(double r, double g, double b) {
+    private static JSONArray rgb(double r, double g, double b) throws JSONException {
         JSONArray a = new JSONArray();
         a.put(r); a.put(g); a.put(b); return a;
     }
 
-    private static JSONArray rgba(double r, double g, double b, double a0) {
+    private static JSONArray rgba(double r, double g, double b, double a0) throws JSONException {
         JSONArray a = rgb(r, g, b); a.put(a0); return a;
     }
 
