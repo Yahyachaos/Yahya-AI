@@ -6,8 +6,8 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v55 keeps the proven v49-v54 stack. HOME remains guarded Head-only skinning; CALL may add only
- * neck + Head through CelineCallUpperBodyPresenceV55. TRUE-UNLIT/FORCE-C and layout stay unchanged.
+ * v56 keeps the proven v49-v55 stack. HOME remains guarded Head-only skinning; CALL is owned by
+ * the single v56 writer for Hips + neck + Head. TRUE-UNLIT/FORCE-C and layout stay unchanged.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -17,37 +17,31 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityPreCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V49-001", "Produktionsquelle vorbereitet",
-                "FORCE-C · " + prepared);
-
+        Celine3DDiagnostics.record(activity, "V49-001", "Produktionsquelle vorbereitet", "FORCE-C · " + prepared);
         String unlit = CelineTrueUnlitProbeV43.prepareWorkingModel(activity);
         Celine3DDiagnostics.record(activity, "V49-002", "TRUE-UNLIT beibehalten", unlit);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V55-003", "Guarded CALL Upper-Body Presence aktiv",
-                "HOME Head-only · CALL neck+Head · Spine/Renderer/TRUE-UNLIT geschützt");
+        Celine3DDiagnostics.record(activity, "V56-003", "Guarded CALL Sitzbasis aktiv",
+                "HOME Head-only · CALL Hips+neck+Head · Spine/Renderer/TRUE-UNLIT geschützt");
     }
 
     @Override public void onActivityResumed(Activity activity) {
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
-
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 80L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 260L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 620L);
-
         CelineSingleBonePresenceV54.install(activity, decor);
-        CelineCallUpperBodyPresenceV55.install(activity, decor);
+        CelineSeatedCallFoundationV56.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
         decor.postDelayed(() -> applyProduction(activity, decor), 850L);
         decor.postDelayed(() -> applyProduction(activity, decor), 1800L);
         decor.postDelayed(() -> applyProduction(activity, decor), 3800L);
-
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 760L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 1100L);
@@ -70,12 +64,12 @@ public final class YahyaApplication extends Application implements Application.A
         CelineUpdaterV47.install(activity, decor);
         CelineUpdaterSettingsV50.install(activity, decor);
         CelineSingleBonePresenceV54.install(activity, decor);
-        CelineCallUpperBodyPresenceV55.install(activity, decor);
+        CelineSeatedCallFoundationV56.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
-            CelineCallUpperBodyPresenceV55.onPaused(activity);
+            CelineSeatedCallFoundationV56.onPaused(activity);
             CelineSingleBonePresenceV54.onPaused(activity);
             CelineCallMotionLockV47.onPaused(activity);
             CelineVideoCallV45.onPaused(activity);
@@ -84,7 +78,7 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
-            CelineCallUpperBodyPresenceV55.onDestroyed(activity);
+            CelineSeatedCallFoundationV56.onDestroyed(activity);
             CelineSingleBonePresenceV54.onDestroyed(activity);
             CelineCallMotionLockV47.onDestroyed(activity);
             CelineVideoCallV45.onDestroyed(activity);
