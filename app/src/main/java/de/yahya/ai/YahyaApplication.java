@@ -9,7 +9,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** Adds the in-app avatar import control and v37's confirmed-3D reveal pass. */
+/** Adds the in-app avatar import control plus v37 reveal and v38 texture rescue passes. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
 
@@ -18,19 +18,38 @@ public final class YahyaApplication extends Application implements Application.A
         registerActivityLifecycleCallbacks(this);
     }
 
+    @Override public void onActivityCreated(Activity activity, Bundle state) {
+        if (!(activity instanceof MainActivity)) return;
+        // MainActivity has now built CelineAvatarController (including the older material cleanup),
+        // but its posted 3D start has not yet run. This is the exact safe window to restore the
+        // embedded Meshy atlas as both BaseColor and a low-strength Emissive texture before gltfio
+        // reads celine.glb.
+        boolean changed = CelineTextureRescue.apply(activity);
+        Celine3DDiagnostics.record(activity,
+                changed ? "V38-110" : "V38-111",
+                changed ? "Textur-Rettung vor 3D-Laden angewendet" : "Textur-Rettung bereits vorhanden",
+                Celine3DDiagnostics.modelSnapshot(activity));
+    }
+
     @Override public void onActivityResumed(Activity activity) {
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
         decor.post(() -> ensureImportButton(activity));
 
         // Keep a small early 2D motion only while Filament is still starting. Once v36 has actually
-        // switched the avatar to 3D, v37 removes the hidden fallback, brightens Filament and performs
-        // an unmistakable real-bone head movement. Run the reveal more than once because Samsung can
-        // recreate the Surface after dialogs/background transitions.
+        // switched the avatar to 3D, v37 removes the hidden fallback and performs a real-bone reveal.
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
         decor.postDelayed(() -> Celine3DForceReveal.ensure(decor), 1400L);
         decor.postDelayed(() -> Celine3DForceReveal.ensure(decor), 4200L);
         decor.postDelayed(() -> Celine3DForceReveal.ensure(decor), 8000L);
+
+        // v34's runtime PBR pass intentionally zeroed emissive. v38 restores the low-strength
+        // emissive atlas AFTER the real Celine3DView exists. Re-apply a few times so Samsung
+        // Surface recreation/dialog transitions cannot leave the old white/gray material active.
+        decor.postDelayed(() -> CelineRuntimeTextureRescue.ensure(decor), 1100L);
+        decor.postDelayed(() -> CelineRuntimeTextureRescue.ensure(decor), 2200L);
+        decor.postDelayed(() -> CelineRuntimeTextureRescue.ensure(decor), 4800L);
+        decor.postDelayed(() -> CelineRuntimeTextureRescue.ensure(decor), 8500L);
     }
 
     private void ensureImportButton(Activity activity) {
@@ -58,7 +77,6 @@ public final class YahyaApplication extends Application implements Application.A
         root.addView(button, index, lp);
     }
 
-    @Override public void onActivityCreated(Activity activity, Bundle state) {}
     @Override public void onActivityStarted(Activity activity) {}
     @Override public void onActivityPaused(Activity activity) {}
     @Override public void onActivityStopped(Activity activity) {}
