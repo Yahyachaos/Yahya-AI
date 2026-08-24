@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 50
+        versionCode 52
         versionName '1.0-celin-foundation'
     }
     signingConfigs {

@@ -3,43 +3,36 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 50,
-    "main_sha": "bc5b563e33ad84ed002022a0456cc5d4114fef57",
+    "main_sha": "01607594e886dbaae316a616622e4cc94aebcbeb",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
       "HOME composer layout",
       "HOME/CALL avatar visibility gate",
-      "CALL -> HOME avatar lifecycle proof"
+      "CALL -> HOME avatar lifecycle proof",
+      "Pipeline V2 stale-safe auto-merge + exact-SHA release continuation"
     ]
   },
   "active": {
-    "id": "pipeline-v2-hardening",
+    "id": "safe-camera-micro-presence",
     "status": "in_progress",
-    "goal": "Make automatic Celine PR completion stale-safe, self-finishing and release-continuous after green Android CI",
-    "branch": "ci/celine-pipeline-v2",
-    "pr": 72,
-    "risk": "ci_only"
+    "goal": "Add tiny state-aware camera micro-motion without Animator.updateBoneMatrices or material changes",
+    "branch": "auto/celine/v52-camera-micro-presence",
+    "pr": 70,
+    "risk": "camera_only"
   },
-  "prepared": [
-    {
-      "id": "safe-camera-micro-presence",
-      "status": "paused_until_pipeline_v2_green",
-      "branch": "auto/celine/v52-camera-micro-presence",
-      "pr": 70,
-      "risk": "camera_only",
-      "required_before_merge": [
-        "pipeline-v2-hardening merged",
-        "versionCode > current main",
-        "fresh Android Build + HOME/CALL avatar/layout gates"
-      ]
-    }
-  ],
   "completed": [
     {
       "id": "ci-call-return-avatar-proof",
       "status": "merged",
       "pr": 69,
       "merge_sha": "9c9492f50a09c8a2647ff495f0c40599845eb2a3"
+    },
+    {
+      "id": "pipeline-v2-hardening",
+      "status": "merged",
+      "pr": 72,
+      "merge_sha": "01607594e886dbaae316a616622e4cc94aebcbeb"
     }
   ],
   "next": [
