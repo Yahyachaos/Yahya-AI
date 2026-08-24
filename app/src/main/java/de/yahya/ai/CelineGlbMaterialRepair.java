@@ -16,12 +16,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Repairs the specific Meshy GLB material layout that produced white / blown-out areas on device.
+ * Normalizes the specific Meshy material exported for Celine before Filament loads it.
  *
- * The original Meshy export uses duplicate texture slots that point to the same embedded PNG,
- * drives BaseColor through slot 1, and also emits the same texture at full white emissive strength.
- * Filament can load the asset, but this combination is not a stable production input on our
- * Android path. v31 normalizes the imported file once, before Celine3DView reads it.
+ * v32 keeps the proven direct renderer untouched and fixes only the GLB material:
+ * BaseColor uses the embedded PNG, the material is non-metallic, roughness is suitable for
+ * skin / hair / fabric, emissive is disabled, and the extreme Meshy specular value is clamped.
  */
 final class CelineGlbMaterialRepair {
     private static final int GLB_MAGIC = 0x46546C67; // "glTF" little-endian
@@ -78,6 +77,7 @@ final class CelineGlbMaterialRepair {
             JSONObject material = materials.optJSONObject(i);
             if (material == null) continue;
 
+            // Meshy exported full emissive white + emissiveTexture. Disable both.
             JSONArray emissive = material.optJSONArray("emissiveFactor");
             if (!isZeroRgb(emissive)) {
                 material.put("emissiveFactor", rgb(0.0, 0.0, 0.0));
@@ -89,22 +89,71 @@ final class CelineGlbMaterialRepair {
             }
 
             JSONObject pbr = material.optJSONObject("pbrMetallicRoughness");
-            if (pbr == null) continue;
-            JSONObject baseColor = pbr.optJSONObject("baseColorTexture");
-            if (baseColor == null) continue;
+            if (pbr == null) {
+                pbr = new JSONObject();
+                material.put("pbrMetallicRoughness", pbr);
+                changed = true;
+            }
 
-            int currentIndex = baseColor.optInt("index", -1);
-            if (currentIndex > 0 && currentIndex < textures.length()) {
-                JSONObject currentTexture = textures.optJSONObject(currentIndex);
-                JSONObject firstTexture = textures.optJSONObject(0);
-                if (currentTexture != null && firstTexture != null) {
-                    int currentSource = currentTexture.optInt("source", -1);
-                    int firstSource = firstTexture.optInt("source", -2);
-                    if (currentSource >= 0 && currentSource == firstSource) {
-                        baseColor.put("index", 0);
-                        changed = true;
+            // Explicitly use a neutral multiplier for the embedded BaseColor PNG.
+            JSONArray baseColorFactor = pbr.optJSONArray("baseColorFactor");
+            if (!isRgba(baseColorFactor, 1.0, 1.0, 1.0, 1.0)) {
+                pbr.put("baseColorFactor", rgba(1.0, 1.0, 1.0, 1.0));
+                changed = true;
+            }
+
+            // Critical v32 fix: glTF defaults metallicFactor to 1.0 when omitted.
+            // Celine is skin / hair / fabric, not metal.
+            if (!pbr.has("metallicFactor") || Math.abs(pbr.optDouble("metallicFactor", 1.0)) > 0.000001) {
+                pbr.put("metallicFactor", 0.0);
+                changed = true;
+            }
+
+            // Match the verified celine_v2.glb material.
+            if (!pbr.has("roughnessFactor") || Math.abs(pbr.optDouble("roughnessFactor", -1.0) - 0.72) > 0.000001) {
+                pbr.put("roughnessFactor", 0.72);
+                changed = true;
+            }
+
+            JSONObject baseColor = pbr.optJSONObject("baseColorTexture");
+            if (baseColor != null) {
+                int currentIndex = baseColor.optInt("index", -1);
+                if (currentIndex > 0 && currentIndex < textures.length()) {
+                    JSONObject currentTexture = textures.optJSONObject(currentIndex);
+                    JSONObject firstTexture = textures.optJSONObject(0);
+                    if (currentTexture != null && firstTexture != null) {
+                        int currentSource = currentTexture.optInt("source", -1);
+                        int firstSource = firstTexture.optInt("source", -2);
+                        if (currentSource >= 0 && currentSource == firstSource) {
+                            baseColor.put("index", 0);
+                            changed = true;
+                        }
                     }
                 }
+            }
+
+            // Meshy emitted KHR_materials_specular.specularColorFactor = [2,2,2].
+            // Keep the extension but normalize it to the verified celine_v2 values.
+            JSONObject extensions = material.optJSONObject("extensions");
+            if (extensions == null) {
+                extensions = new JSONObject();
+                material.put("extensions", extensions);
+                changed = true;
+            }
+            JSONObject specular = extensions.optJSONObject("KHR_materials_specular");
+            if (specular == null) {
+                specular = new JSONObject();
+                extensions.put("KHR_materials_specular", specular);
+                changed = true;
+            }
+            if (!specular.has("specularFactor") || Math.abs(specular.optDouble("specularFactor", -1.0) - 0.3) > 0.000001) {
+                specular.put("specularFactor", 0.3);
+                changed = true;
+            }
+            JSONArray specularColor = specular.optJSONArray("specularColorFactor");
+            if (!isRgb(specularColor, 1.0, 1.0, 1.0)) {
+                specular.put("specularColorFactor", rgb(1.0, 1.0, 1.0));
+                changed = true;
             }
         }
 
@@ -156,10 +205,19 @@ final class CelineGlbMaterialRepair {
     }
 
     private static boolean isZeroRgb(JSONArray value) {
+        return isRgb(value, 0.0, 0.0, 0.0);
+    }
+
+    private static boolean isRgb(JSONArray value, double r, double g, double b) {
         if (value == null || value.length() < 3) return false;
-        return Math.abs(numberAt(value, 0, 1.0)) < 0.000001 &&
-                Math.abs(numberAt(value, 1, 1.0)) < 0.000001 &&
-                Math.abs(numberAt(value, 2, 1.0)) < 0.000001;
+        return Math.abs(numberAt(value, 0, Double.NaN) - r) < 0.000001 &&
+                Math.abs(numberAt(value, 1, Double.NaN) - g) < 0.000001 &&
+                Math.abs(numberAt(value, 2, Double.NaN) - b) < 0.000001;
+    }
+
+    private static boolean isRgba(JSONArray value, double r, double g, double b, double a) {
+        if (value == null || value.length() < 4) return false;
+        return isRgb(value, r, g, b) && Math.abs(numberAt(value, 3, Double.NaN) - a) < 0.000001;
     }
 
     /** Android's bundled org.json does not expose JSONArray.optDouble(index, fallback) on all API levels. */
@@ -180,7 +238,19 @@ final class CelineGlbMaterialRepair {
             result.put(g);
             result.put(b);
         } catch (Throwable impossibleForFiniteRgb) {
-            // Values supplied by this class are finite constants. Keep a valid array even on old org.json.
+            return new JSONArray();
+        }
+        return result;
+    }
+
+    private static JSONArray rgba(double r, double g, double b, double a) {
+        JSONArray result = new JSONArray();
+        try {
+            result.put(r);
+            result.put(g);
+            result.put(b);
+            result.put(a);
+        } catch (Throwable impossibleForFiniteRgba) {
             return new JSONArray();
         }
         return result;
