@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 34
+        versionCode 35
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -41,7 +41,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v34 forces final Meshy/Celine PBR parameters on Filament MaterialInstances after loadResources.
+    // v35 keeps a valid loaded 3D SurfaceView visible when the PixelCopy brightness guard
+    // produces a false negative, while still falling back on real Filament renderer errors.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
