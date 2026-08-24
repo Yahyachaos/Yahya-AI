@@ -97,6 +97,7 @@ public final class Celine3DView extends FrameLayout {
             choreographer.postFrameCallback(this);
             try {
                 if (swapChain == null || !isSurfaceReady()) return;
+                updateCameraPresence(frameTimeNanos);
                 updateLivePose(frameTimeNanos);
                 if (renderer.beginFrame(swapChain, frameTimeNanos)) {
                     renderer.render(filamentView);
@@ -267,6 +268,36 @@ public final class Celine3DView extends FrameLayout {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private void updateCameraPresence(long frameTimeNanos) {
+        double t = frameTimeNanos * 1.0e-9;
+        float amplitude;
+        float speed;
+        switch (avatarState) {
+            case LISTENING:
+                amplitude = 0.0055f;
+                speed = 0.46f;
+                break;
+            case THINKING:
+                amplitude = 0.0140f;
+                speed = 0.32f;
+                break;
+            case SPEAKING:
+                amplitude = 0.0090f + 0.0040f * clamp(speechEnergy, 0.0f, 1.0f);
+                speed = 0.62f;
+                break;
+            case IDLE:
+            default:
+                amplitude = 0.0080f;
+                speed = 0.40f;
+                break;
+        }
+        float side = (float) Math.sin(t * speed) * amplitude;
+        float lift = (float) Math.sin(t * (speed * 0.73f) + 1.1) * amplitude * 0.32f;
+        float targetX = side * 0.22f;
+        float targetY = lift * 0.18f;
+        camera.lookAt(side, lift, 1.0, targetX, targetY, -4.0, 0.0, 1.0, 0.0);
     }
 
     private void updateLivePose(long frameTimeNanos) {
