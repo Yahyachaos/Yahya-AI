@@ -64,5 +64,20 @@ jobs:
             exit 1
           fi
 
-          echo "Android Build + emulator gate passed for exact head $CURRENT_SHA; merging PR #$PR_NUMBER."
+          MAIN_BEFORE="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          COMPARE_STATUS="$(gh api "repos/$REPO/compare/$MAIN_BEFORE...$CURRENT_SHA" --jq '.status')"
+          if [ "$COMPARE_STATUS" != "ahead" ] && [ "$COMPARE_STATUS" != "identical" ]; then
+            echo "PR head is not based on current main ($MAIN_BEFORE); refreshing branch before merge."
+            gh pr update-branch "$PR_NUMBER" --repo "$REPO" --rebase
+            echo "Branch refreshed. A new Android Build must pass for the new head before merge."
+            exit 0
+          fi
+
+          MAIN_AFTER="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$MAIN_AFTER" != "$MAIN_BEFORE" ]; then
+            echo "main moved during verification ($MAIN_BEFORE -> $MAIN_AFTER); refusing race-prone merge."
+            exit 1
+          fi
+
+          echo "Android Build + emulator gate passed for exact head $CURRENT_SHA on current main $MAIN_BEFORE; merging PR #$PR_NUMBER."
           gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --delete-branch
