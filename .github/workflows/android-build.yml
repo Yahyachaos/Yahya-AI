@@ -122,12 +122,14 @@ jobs:
       - name: Boot emulator and prove Celine is rendered
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          # The app still compiles/targets Android 30. A modern system image is used only because
+          # API-30 SwiftShader cannot compile Filament 1.72's internal FXAA/blit shaders.
+          api-level: 35
           arch: x86_64
           profile: pixel_2
           target: default
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: bash ci/emulator-smoke.sh
 
       - name: Upload emulator evidence
