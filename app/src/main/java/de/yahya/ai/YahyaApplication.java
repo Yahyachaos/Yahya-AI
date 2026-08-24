@@ -10,7 +10,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-/** v41: keeps FORCE-C texture binding and tests a controlled softer lighting setup. */
+/** v42: decisive RAW-TEXTURE probe after the proven FORCE-C GPU upload. */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private static final int IMPORT_BUTTON_ID = 0x71A11;
     private static final int MODE_BUTTON_ID = 0x71A12;
@@ -24,28 +24,26 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityPreCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
 
-        // v40 proved explicit GPU/baseColorMap binding works. Keep that exact path unchanged.
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V41-001", "FORCE-C beibehalten",
-                "Texturpfad unverändert · " + prepared);
+        Celine3DDiagnostics.record(activity, "V42-001", "FORCE-C als Quelle beibehalten",
+                "GLB/Rig unverändert · " + prepared);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V41-002", "v41 Licht-Test vorbereitet",
-                "keine GLB-Änderung · keine neue Textur-Reparatur · nur Lichtmenge wird reduziert");
+        Celine3DDiagnostics.record(activity, "V42-002", "RAW-TEXTURE Test vorbereitet",
+                "PBR/BaseColor wird nach TEXTURE_OK deaktiviert; gleiche GPU-PNG läuft direkt ueber emissiveMap + UV0");
     }
 
     @Override public void onActivityResumed(Activity activity) {
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
         decor.post(() -> ensureControls(activity));
-
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
 
-        // Explicit C binding plus a controlled softer scene light. Re-apply after Surface/dialog
-        // recreation without touching the model or texture source.
+        // Each pass first recreates the already proven FORCE-C binding and immediately afterwards
+        // overrides only the drawing material with the raw emissive texture probe.
         decor.postDelayed(() -> applyTexturePass(activity, decor), 900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 1900L);
         decor.postDelayed(() -> applyTexturePass(activity, decor), 4200L);
@@ -55,6 +53,7 @@ public final class YahyaApplication extends Application implements Application.A
     private void applyTexturePass(Activity activity, View decor) {
         CelineTexturePipelineV39.applyRuntime(decor);
         CelineSoftLightV41.ensure(decor);
+        CelineRawTextureProbeV42.apply(decor);
         updateModeButton(activity);
     }
 
@@ -99,7 +98,7 @@ public final class YahyaApplication extends Application implements Application.A
     private void updateModeButton(Activity activity) {
         View v = activity.findViewById(MODE_BUTTON_ID);
         if (v instanceof Button) {
-            ((Button) v).setText("3D-TEST C · FORCE TEXTURE · SOFT LIGHT · " + CelineTexturePipelineV39.statusLine(activity));
+            ((Button) v).setText("3D-TEST V42 · RAW TEXTURE · GPU-PNG direkt auf UV0");
         }
     }
 
