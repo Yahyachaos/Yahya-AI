@@ -24,7 +24,13 @@
     "relaxed base pose in isolated bone-by-bone experiments",
     "credible seated call pose",
     "head/shoulder/gaze refinements",
-    "blink/face/lip-sync only if rig support is verified"
+    "blink/face/lip-sync only after a face-capable rig exists"
   ],
-  "blocked": []
+  "blocked": [
+    {
+      "id": "true-face-blink-viseme",
+      "reason": "Current Meshy biped export has no facial morph targets, jaw bone, or eye bones",
+      "needed": "A compatible production GLB with facial blendshapes/morph targets or dedicated jaw/eye bones"
+    }
+  ]
 }
