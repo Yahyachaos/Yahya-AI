@@ -69,7 +69,7 @@ jobs:
             {
               echo "### Compiler diagnostics"
               echo '```text'
-              grep -E 'Celine3DView.java|CelineUpdaterV47.java|CelineVideoChatV44.java|error:|FAILURE:|What went wrong|Execution failed for task' build.log | tail -160 || true
+              grep -E 'Celine3DView.java|CelineUpdaterV47.java|CelineVideoChatV44.java|YahyaApplication.java|error:|FAILURE:|What went wrong|Execution failed for task' build.log | tail -160 || true
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit "$code"
@@ -90,7 +90,7 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
   emulator-smoke:
-    name: Android emulator smoke
+    name: Android emulator avatar visibility
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -119,7 +119,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Boot emulator and smoke-test Yahya AI
+      - name: Boot emulator and prove Celine is rendered
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -134,10 +134,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: emulator-smoke-evidence
+          name: emulator-avatar-visibility-evidence
           path: |
             emulator-home.png
+            emulator-call.png
             emulator-window.xml
+            emulator-call.xml
+            emulator-logcat.txt
+            emulator-prefs.xml
           if-no-files-found: ignore
 
   publish-release:
@@ -172,7 +176,7 @@ jobs:
 
           NOTES_FILE="RELEASE_NOTES.md"
           if [ ! -f "$NOTES_FILE" ]; then
-            printf 'Automatisch gebauter und im Android-Emulator gestarteter Yahya-AI-Build.\n' > "$NOTES_FILE"
+            printf 'Automatisch gebauter und im Android-Emulator mit sichtbarem 3D-Avatar geprüfter Yahya-AI-Build.\n' > "$NOTES_FILE"
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -186,4 +190,4 @@ jobs:
               --latest
           fi
 
-          echo "Published $TAG for in-app updater" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published $TAG only after HOME + CALL avatar visibility proof" >> "$GITHUB_STEP_SUMMARY"
