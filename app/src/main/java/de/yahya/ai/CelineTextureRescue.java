@@ -200,11 +200,22 @@ final class CelineTextureRescue {
 
     private static boolean isRgb(JSONArray a, double r, double g, double b) {
         if (a == null || a.length() < 3) return false;
-        return near(a.optDouble(0), r) && near(a.optDouble(1), g) && near(a.optDouble(2), b);
+        return near(numberAt(a, 0), r) && near(numberAt(a, 1), g) && near(numberAt(a, 2), b);
     }
 
     private static boolean isRgba(JSONArray a, double r, double g, double b, double alpha) {
-        return isRgb(a, r, g, b) && a.length() >= 4 && near(a.optDouble(3), alpha);
+        return isRgb(a, r, g, b) && a.length() >= 4 && near(numberAt(a, 3), alpha);
+    }
+
+    /** Android's bundled org.json does not expose the same JSONArray numeric overloads on all API levels. */
+    private static double numberAt(JSONArray value, int index) {
+        try {
+            Object item = value.get(index);
+            if (item instanceof Number) return ((Number) item).doubleValue();
+            return Double.parseDouble(String.valueOf(item));
+        } catch (Throwable ignored) {
+            return Double.NaN;
+        }
     }
 
     private static boolean near(double a, double b) { return Math.abs(a - b) < 0.00001; }
