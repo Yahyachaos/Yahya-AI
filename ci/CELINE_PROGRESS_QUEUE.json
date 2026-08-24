@@ -2,7 +2,7 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 51,
+    "version": 50,
     "main_sha": "bc5b563e33ad84ed002022a0456cc5d4114fef57",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
@@ -17,9 +17,23 @@
     "status": "in_progress",
     "goal": "Make automatic Celine PR completion stale-safe, self-finishing and release-continuous after green Android CI",
     "branch": "ci/celine-pipeline-v2",
-    "pr": 71,
+    "pr": 72,
     "risk": "ci_only"
   },
+  "prepared": [
+    {
+      "id": "safe-camera-micro-presence",
+      "status": "paused_until_pipeline_v2_green",
+      "branch": "auto/celine/v52-camera-micro-presence",
+      "pr": 70,
+      "risk": "camera_only",
+      "required_before_merge": [
+        "pipeline-v2-hardening merged",
+        "versionCode > current main",
+        "fresh Android Build + HOME/CALL avatar/layout gates"
+      ]
+    }
+  ],
   "completed": [
     {
       "id": "ci-call-return-avatar-proof",
@@ -29,7 +43,6 @@
     }
   ],
   "next": [
-    "safe root/camera micro-motion without Animator.updateBoneMatrices",
     "state-aware breathing and presence",
     "relaxed base pose in isolated bone-by-bone experiments",
     "credible seated call pose",
