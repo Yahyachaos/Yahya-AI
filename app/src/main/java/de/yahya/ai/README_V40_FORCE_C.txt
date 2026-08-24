@@ -1,0 +1,1 @@
+v40 test marker: UI picker bypassed. The application forces C_FORCE_TEXTURE before the working GLB is prepared so the existing v39 explicit embedded-PNG GPU/baseColor binding path is tested without user selection.
