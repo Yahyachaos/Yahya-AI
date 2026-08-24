@@ -57,9 +57,11 @@ public final class YahyaApplication extends Application implements Application.A
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 760L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 1100L);
+        decor.postDelayed(() -> CelineUpdaterSettingsV50.install(activity, decor), 1180L);
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 1700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 1760L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 2200L);
+        decor.postDelayed(() -> CelineUpdaterSettingsV50.install(activity, decor), 2280L);
     }
 
     private void applyProduction(Activity activity, View decor) {
@@ -71,6 +73,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
+        CelineUpdaterSettingsV50.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
