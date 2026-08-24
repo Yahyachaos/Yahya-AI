@@ -6,8 +6,10 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v56 keeps the proven v49-v55 stack. HOME remains guarded Head-only skinning; CALL is owned by
- * the single v56 writer for Hips + neck + Head. TRUE-UNLIT/FORCE-C and layout stay unchanged.
+ * v59 safety rollback after the real-avatar framing regression seen on v58.
+ * HOME keeps the proven v54 Head-only owner. CALL is deliberately handed back to the proven v55
+ * neck + Head owner while the v56-v58 Hips/shoulder path is quarantined for production models.
+ * TRUE-UNLIT/FORCE-C, layout and updater placement remain unchanged.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -26,8 +28,8 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V56-003", "Guarded CALL Sitzbasis aktiv",
-                "HOME Head-only · CALL Hips+neck+Head · Spine/Renderer/TRUE-UNLIT geschützt");
+        Celine3DDiagnostics.record(activity, "V59-003", "CALL Skinning Sicherheitsmodus aktiv",
+                "HOME Head-only · CALL neck+Head · v56-v58 Hips/Shoulder Produktion quarantiniert");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -37,7 +39,7 @@ public final class YahyaApplication extends Application implements Application.A
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 260L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 620L);
         CelineSingleBonePresenceV54.install(activity, decor);
-        CelineSeatedCallFoundationV56.install(activity, decor);
+        CelineCallUpperBodyPresenceV55.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
         decor.postDelayed(() -> applyProduction(activity, decor), 850L);
         decor.postDelayed(() -> applyProduction(activity, decor), 1800L);
@@ -64,12 +66,12 @@ public final class YahyaApplication extends Application implements Application.A
         CelineUpdaterV47.install(activity, decor);
         CelineUpdaterSettingsV50.install(activity, decor);
         CelineSingleBonePresenceV54.install(activity, decor);
-        CelineSeatedCallFoundationV56.install(activity, decor);
+        CelineCallUpperBodyPresenceV55.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
-            CelineSeatedCallFoundationV56.onPaused(activity);
+            CelineCallUpperBodyPresenceV55.onPaused(activity);
             CelineSingleBonePresenceV54.onPaused(activity);
             CelineCallMotionLockV47.onPaused(activity);
             CelineVideoCallV45.onPaused(activity);
@@ -78,7 +80,7 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
-            CelineSeatedCallFoundationV56.onDestroyed(activity);
+            CelineCallUpperBodyPresenceV55.onDestroyed(activity);
             CelineSingleBonePresenceV54.onDestroyed(activity);
             CelineCallMotionLockV47.onDestroyed(activity);
             CelineVideoCallV45.onDestroyed(activity);
