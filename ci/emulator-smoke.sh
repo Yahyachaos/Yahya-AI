@@ -57,7 +57,7 @@ adb exec-out screencap -p > emulator-home.png
 adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null || fail_with_log "HOME UI dump failed"
 adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null || fail_with_log "HOME UI pull failed"
 
-# v50 UX gate: updater must no longer occupy the bottom of HOME.
+# Updater must no longer occupy HOME.
 if grep -qi 'Update prüfen' emulator-window.xml; then
   cat emulator-window.xml
   fail_with_log "Update button is still visible on HOME instead of settings"
@@ -66,6 +66,60 @@ fi
 if ! grep -q 'Mit Celin' emulator-window.xml; then
   cat emulator-window.xml
   fail_with_log "Videochat entry button was not found in the rendered UI"
+fi
+
+# v50 UX gate: the avatar may not consume the whole HOME screen anymore. The composer must be a
+# real, fully visible control above the videochat button so the conversation remains usable.
+python3 - <<'PY' || exit 17
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse('emulator-window.xml').getroot()
+pat = re.compile(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]')
+
+def bounds(node):
+    m = pat.fullmatch(node.attrib.get('bounds', ''))
+    return tuple(map(int, m.groups())) if m else None
+
+def find(desc=None, text_contains=None):
+    for node in root.iter('node'):
+        if desc is not None and node.attrib.get('content-desc', '') == desc:
+            return node
+        if text_contains is not None and text_contains in node.attrib.get('text', ''):
+            return node
+    return None
+
+root_bounds = bounds(root.find('node')) if root.find('node') is not None else None
+stage = find(desc='Celin 3D Ansicht')
+composer = find(desc='Celin Nachricht schreiben')
+video = find(text_contains='Mit Celin')
+if not root_bounds or not stage or not composer or not video:
+    print('V50 layout markers missing', file=sys.stderr)
+    sys.exit(1)
+
+rb, sb, cb, vb = root_bounds, bounds(stage), bounds(composer), bounds(video)
+if not sb or not cb or not vb:
+    print('V50 layout bounds missing', file=sys.stderr)
+    sys.exit(1)
+
+screen_h = rb[3] - rb[1]
+stage_h = sb[3] - sb[1]
+if stage_h > int(screen_h * 0.47):
+    print(f'HOME avatar stage too tall: {stage_h}/{screen_h}', file=sys.stderr)
+    sys.exit(1)
+if cb[3] <= cb[1] or cb[3] > screen_h:
+    print(f'HOME composer not fully visible: {cb}', file=sys.stderr)
+    sys.exit(1)
+if cb[3] >= vb[1]:
+    print(f'HOME composer overlaps videochat button: composer={cb} video={vb}', file=sys.stderr)
+    sys.exit(1)
+
+print(f'HOME layout OK: stage={sb}, composer={cb}, video={vb}, screenH={screen_h}')
+PY
+if [[ "$?" -ne 0 ]]; then
+  cat emulator-window.xml
+  fail_with_log "HOME composer/layout visibility gate failed"
 fi
 
 # Critical gate: the screenshot itself must contain pixels from the real Filament fixture.
@@ -147,8 +201,39 @@ if ! grep -q 'Live mit Celin' emulator-call.xml; then
   fail_with_log "Live videochat overlay did not open"
 fi
 
+# The same avatar stage must grow into the call slot instead of retaining HOME's compact height.
+python3 - <<'PY' || exit 18
+import re
+import sys
+import xml.etree.ElementTree as ET
+root = ET.parse('emulator-call.xml').getroot()
+pat = re.compile(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]')
+
+def b(node):
+    m = pat.fullmatch(node.attrib.get('bounds', ''))
+    return tuple(map(int, m.groups())) if m else None
+
+nodes = list(root.iter('node'))
+root_node = root.find('node')
+stage = next((n for n in nodes if n.attrib.get('content-desc', '') == 'Celin 3D Ansicht'), None)
+if root_node is None or stage is None or b(root_node) is None or b(stage) is None:
+    print('CALL stage layout marker missing', file=sys.stderr)
+    sys.exit(1)
+rb, sb = b(root_node), b(stage)
+screen_h = rb[3] - rb[1]
+stage_h = sb[3] - sb[1]
+if stage_h < int(screen_h * 0.45):
+    print(f'CALL avatar stage did not fill call slot: {stage_h}/{screen_h}', file=sys.stderr)
+    sys.exit(1)
+print(f'CALL layout OK: stage={sb}, screenH={screen_h}')
+PY
+if [[ "$?" -ne 0 ]]; then
+  cat emulator-call.xml
+  fail_with_log "CALL stage layout gate failed"
+fi
+
 adb exec-out screencap -p > emulator-call.png
 python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
 echo "Avatar visibility smoke test passed with PID=$PID"
-echo "Verified: HOME avatar pixels + CALL avatar pixels + updater only in settings + videochat"
+echo "Verified: HOME composer space + HOME avatar pixels + CALL stage fill + CALL avatar pixels + updater only in settings"
