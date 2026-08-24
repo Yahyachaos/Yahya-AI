@@ -6,8 +6,9 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v47 keeps TRUE-UNLIT/FORCE-C rendering, the natural-call layer and the live speech loop,
- * fixes the v44/v46 motion ownership conflict and adds the self-update channel.
+ * v48 keeps TRUE-UNLIT/FORCE-C rendering, the natural-call layer, the live speech loop and the
+ * v47 motion lock/updater, and adds a narrow human-presence gaze layer on top of the existing
+ * head/neck look API.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -20,17 +21,17 @@ public final class YahyaApplication extends Application implements Application.A
 
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V47-001", "Produktionsquelle vorbereitet",
+        Celine3DDiagnostics.record(activity, "V48-001", "Produktionsquelle vorbereitet",
                 "FORCE-C · " + prepared);
 
         String unlit = CelineTrueUnlitProbeV43.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V47-002", "TRUE-UNLIT beibehalten", unlit);
+        Celine3DDiagnostics.record(activity, "V48-002", "TRUE-UNLIT beibehalten", unlit);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V47-003", "Updater + Natural-Videochat vorbereitet",
-                "GitHub Releases updater · v44 call lock · v46 seated presence");
+        Celine3DDiagnostics.record(activity, "V48-003", "Human-Presence + Videochat vorbereitet",
+                "state-aware gaze · v47 updater/call lock · v46 seated presence");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -45,10 +46,12 @@ public final class YahyaApplication extends Application implements Application.A
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 760L);
         decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 900L);
+        decor.postDelayed(() -> CelineHumanPresenceV48.install(activity, decor), 980L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 1100L);
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 1700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 1760L);
         decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 1900L);
+        decor.postDelayed(() -> CelineHumanPresenceV48.install(activity, decor), 1980L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 2200L);
     }
 
@@ -59,11 +62,13 @@ public final class YahyaApplication extends Application implements Application.A
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);
         CelineNaturalPresenceV46.install(activity, decor);
+        CelineHumanPresenceV48.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
+            CelineHumanPresenceV48.onPaused(activity);
             CelineCallMotionLockV47.onPaused(activity);
             CelineNaturalPresenceV46.onPaused(activity);
             CelineVideoCallV45.onPaused(activity);
@@ -72,6 +77,7 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
+            CelineHumanPresenceV48.onDestroyed(activity);
             CelineCallMotionLockV47.onDestroyed(activity);
             CelineNaturalPresenceV46.onDestroyed(activity);
             CelineVideoCallV45.onDestroyed(activity);
