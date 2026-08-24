@@ -19,7 +19,7 @@
     "status": "in_progress",
     "goal": "Add a tiny state-aware breathing depth cue to the already proven camera-only presence layer without touching materials, skin matrices or bone-pose plumbing",
     "branch": "auto/celine/v53-breathing-presence",
-    "pr": null,
+    "pr": 73,
     "risk": "camera_only"
   },
   "completed": [
