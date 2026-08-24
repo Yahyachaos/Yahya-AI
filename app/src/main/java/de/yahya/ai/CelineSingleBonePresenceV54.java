@@ -16,11 +16,8 @@ import java.util.WeakHashMap;
 /**
  * v54 guarded skinning proof.
  *
- * Only the Head joint is allowed to deform the skin. Spine / neck nodes are restored to the
- * renderer's captured bind bases before Animator.updateBoneMatrices() is called, so the old v46
- * multi-bone pose cannot accidentally come back. A synthetic CI model can expose the special
- * CelineSkinningProbe node; only that fixture gets an intentionally larger motion so emulator
- * screenshots can prove that skinning really moved pixels.
+ * Only the Head joint is allowed to deform the skin on HOME. v55 temporarily owns neck + Head
+ * while the same stage is reparented into CALL, avoiding competing transform writers.
  */
 final class CelineSingleBonePresenceV54 {
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
@@ -153,18 +150,18 @@ final class CelineSingleBonePresenceV54 {
 
             probeModel = asset.getFirstEntityByName("CelineSkinningProbe") != 0;
             Celine3DDiagnostics.record(activity, "V54-100", "Ein-Knochen-Rig gebunden",
-                    "Head=true · probe=" + probeModel + " · spine/neck werden vor Skinning restauriert");
+                    "Head=true · probe=" + probeModel + " · HOME owner; CALL wird v55 übergeben");
         }
 
         void apply(long frameTimeNanos) {
             if (disabled) return;
+            if (CelineCallUpperBodyPresenceV55.isCallStage(view)) return;
             double t = frameTimeNanos * 1.0e-9;
             float pitch;
             float yaw;
             float roll;
 
             if (probeModel) {
-                // Deliberately obvious only in the synthetic CI fixture. Period = 2 seconds.
                 yaw = (float) Math.sin(t * Math.PI) * 14.0f;
                 pitch = (float) Math.cos(t * Math.PI) * 5.0f;
                 roll = (float) Math.sin(t * Math.PI * 0.5 + 0.4) * 2.5f;
@@ -197,7 +194,7 @@ final class CelineSingleBonePresenceV54 {
             if (!logged) {
                 logged = true;
                 Celine3DDiagnostics.record(activity, "V54-110", "Ein-Knochen-Skinning aktiv",
-                        "Animator.updateBoneMatrices OK · Head-only · probe=" + probeModel);
+                        "Animator.updateBoneMatrices OK · Head-only HOME · probe=" + probeModel);
             }
         }
 
