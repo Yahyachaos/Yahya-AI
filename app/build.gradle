@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 54
+        versionCode 55
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -41,8 +41,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v54 keeps the proven v49-v53 renderer/visibility baseline and activates only a guarded
-    // Head-joint skinning proof. Every release still requires HOME/CALL plus skinning CI gates.
+    // v55 keeps the proven v49-v54 renderer/visibility baseline. HOME remains Head-only;
+    // CALL adds only guarded neck + Head skinning and must pass all visibility/motion gates.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
