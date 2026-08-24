@@ -2,23 +2,24 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 50,
-    "main_sha": "01607594e886dbaae316a616622e4cc94aebcbeb",
+    "version": 52,
+    "main_sha": "0e780508dd857074ab885fc5b3f6945863c173a0",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
       "HOME composer layout",
       "HOME/CALL avatar visibility gate",
       "CALL -> HOME avatar lifecycle proof",
-      "Pipeline V2 stale-safe auto-merge + exact-SHA release continuation"
+      "Pipeline V2 stale-safe auto-merge + exact-SHA release continuation",
+      "v52 safe state-aware camera micro-presence"
     ]
   },
   "active": {
-    "id": "safe-camera-micro-presence",
+    "id": "state-aware-breathing-presence",
     "status": "in_progress",
-    "goal": "Add tiny state-aware camera micro-motion without Animator.updateBoneMatrices or material changes",
-    "branch": "auto/celine/v52-camera-micro-presence",
-    "pr": 70,
+    "goal": "Add a tiny state-aware breathing depth cue to the already proven camera-only presence layer without touching materials, skin matrices or bone-pose plumbing",
+    "branch": "auto/celine/v53-breathing-presence",
+    "pr": null,
     "risk": "camera_only"
   },
   "completed": [
@@ -33,10 +34,15 @@
       "status": "merged",
       "pr": 72,
       "merge_sha": "01607594e886dbaae316a616622e4cc94aebcbeb"
+    },
+    {
+      "id": "safe-camera-micro-presence",
+      "status": "merged",
+      "pr": 70,
+      "merge_sha": "0e780508dd857074ab885fc5b3f6945863c173a0"
     }
   ],
   "next": [
-    "state-aware breathing and presence",
     "relaxed base pose in isolated bone-by-bone experiments",
     "credible seated call pose",
     "head/shoulder/gaze refinements",
