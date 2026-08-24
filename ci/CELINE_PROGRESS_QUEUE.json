@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 52,
-    "main_sha": "0e780508dd857074ab885fc5b3f6945863c173a0",
+    "version": 53,
+    "main_sha": "4f2627dd8082a9303cf9167ec682e71b4751ed50",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -11,16 +11,17 @@
       "HOME/CALL avatar visibility gate",
       "CALL -> HOME avatar lifecycle proof",
       "Pipeline V2 stale-safe auto-merge + exact-SHA release continuation",
-      "v52 safe state-aware camera micro-presence"
+      "v52 safe state-aware camera micro-presence",
+      "v53 camera-only state-aware breathing depth"
     ]
   },
   "active": {
-    "id": "state-aware-breathing-presence",
-    "status": "in_progress",
-    "goal": "Add a tiny state-aware breathing depth cue to the already proven camera-only presence layer without touching materials, skin matrices or bone-pose plumbing",
-    "branch": "auto/celine/v53-breathing-presence",
-    "pr": 73,
-    "risk": "camera_only"
+    "id": "relaxed-base-pose-experiment",
+    "status": "researching",
+    "goal": "Prove one isolated skeletal transform path safely before enabling any broader relaxed pose",
+    "branch": "auto/celine/v54-relaxed-base-pose",
+    "pr": null,
+    "risk": "single_bone_experiment"
   },
   "completed": [
     {
@@ -40,10 +41,15 @@
       "status": "merged",
       "pr": 70,
       "merge_sha": "0e780508dd857074ab885fc5b3f6945863c173a0"
+    },
+    {
+      "id": "state-aware-breathing-presence",
+      "status": "merged",
+      "pr": 73,
+      "merge_sha": "4f2627dd8082a9303cf9167ec682e71b4751ed50"
     }
   ],
   "next": [
-    "relaxed base pose in isolated bone-by-bone experiments",
     "credible seated call pose",
     "head/shoulder/gaze refinements",
     "blink/face/lip-sync only after a face-capable rig exists"
