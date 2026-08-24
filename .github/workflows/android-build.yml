@@ -123,8 +123,6 @@ jobs:
       - name: Boot emulator and prove Celine is rendered
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # The app still compiles/targets Android 30. API 35 is used only for the CI renderer.
-          # ANGLE avoids both the old SwiftShader GLSL crash and the headless-host GPU stall.
           api-level: 35
           arch: x86_64
           profile: pixel_2
@@ -141,8 +139,10 @@ jobs:
           path: |
             emulator-home.png
             emulator-call.png
+            emulator-home-return.png
             emulator-window.xml
             emulator-call.xml
+            emulator-home-return.xml
             emulator-logcat.txt
             emulator-prefs.xml
           if-no-files-found: ignore
