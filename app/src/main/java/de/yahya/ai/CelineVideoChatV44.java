@@ -2,7 +2,6 @@ package de.yahya.ai;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,7 +12,6 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.google.android.filament.Camera;
@@ -28,13 +26,13 @@ import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * v44 presentation layer: keeps v43 TRUE-UNLIT + FORCE-C untouched and turns the avatar stage
- * into a video-call-like room. The 3D model moves through a small bounded space and the camera
- * follows gently, while the existing head/spine animation continues to run in Celine3DView.
+ * v44 presentation layer. v47 adds explicit call ownership: while the seated-call layer owns the
+ * rig and camera, v44 is locked and cannot silently recreate its walking MotionState.
  */
 final class CelineVideoChatV44 {
     private static final long TRANSPARENT_SWAP_CHAIN = 0x1L;
     private static final WeakHashMap<Celine3DView, MotionState> STATES = new WeakHashMap<>();
+    private static final WeakHashMap<Celine3DView, Boolean> CALL_LOCKS = new WeakHashMap<>();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private CelineVideoChatV44() {}
@@ -47,6 +45,16 @@ final class CelineVideoChatV44 {
         installRoom(activity, threeD);
         hideDiagnosticBadge(threeD.getParent() instanceof ViewGroup ? (ViewGroup) threeD.getParent() : null);
         installDiagnosticsLongPress(activity, threeD);
+
+        if (isCallLocked(threeD)) {
+            MotionState existing;
+            synchronized (STATES) { existing = STATES.get(threeD); }
+            if (existing != null) {
+                existing.stopForCall();
+                existing.ensurePresentation();
+            }
+            return;
+        }
 
         MotionState state;
         synchronized (STATES) {
@@ -65,6 +73,32 @@ final class CelineVideoChatV44 {
             }
         }
         state.ensurePresentation();
+    }
+
+    /** Called by the seated-call owner before it starts changing root/bones/camera. */
+    static boolean pauseForCall(Celine3DView view) {
+        if (view == null) return false;
+        synchronized (CALL_LOCKS) { CALL_LOCKS.put(view, Boolean.TRUE); }
+        MotionState state;
+        synchronized (STATES) { state = STATES.get(view); }
+        if (state != null) {
+            state.stopForCall();
+            return true;
+        }
+        return false;
+    }
+
+    /** Called only after the seated-call owner has restored its pose. */
+    static void resumeAfterCall(Activity activity, View decor) {
+        Celine3DView view = find3D(decor);
+        if (view != null) {
+            synchronized (CALL_LOCKS) { CALL_LOCKS.remove(view); }
+        }
+        MAIN.postDelayed(() -> ensure(activity, decor), 90L);
+    }
+
+    private static boolean isCallLocked(Celine3DView view) {
+        synchronized (CALL_LOCKS) { return Boolean.TRUE.equals(CALL_LOCKS.get(view)); }
     }
 
     private static void installRoom(Activity activity, Celine3DView threeD) {
@@ -213,6 +247,14 @@ final class CelineVideoChatV44 {
             choreographer.postFrameCallback(this);
         }
 
+        void stopForCall() {
+            running = false;
+            choreographer.removeFrameCallback(this);
+            synchronized (STATES) {
+                if (STATES.get(view) == this) STATES.remove(view);
+            }
+        }
+
         void ensurePresentation() {
             try {
                 surface.setZOrderOnTop(true);
@@ -277,9 +319,11 @@ final class CelineVideoChatV44 {
         }
 
         @Override public void doFrame(long frameTimeNanos) {
-            if (!running || !view.isAttachedToWindow()) {
+            if (!running || !view.isAttachedToWindow() || isCallLocked(view)) {
                 running = false;
-                synchronized (STATES) { STATES.remove(view); }
+                synchronized (STATES) {
+                    if (STATES.get(view) == this) STATES.remove(view);
+                }
                 return;
             }
             choreographer.postFrameCallback(this);
@@ -314,8 +358,6 @@ final class CelineVideoChatV44 {
                 transforms.commitLocalTransformTransaction();
             }
 
-            // A camera operator would follow a person only partially; this keeps the shot alive
-            // without pinning Celine rigidly to the center.
             double targetX = x * 0.48;
             double targetY = 0.38 + bob * 0.35;
             double targetZ = -4.0 + z * 0.30;
