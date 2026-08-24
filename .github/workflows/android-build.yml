@@ -128,22 +128,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: |
-            set -eu
-            adb install -r ci-apk/app-debug.apk
-            adb shell am start -W -n de.yahya.ai/.MainActivity
-            sleep 10
-            PID="$(adb shell pidof de.yahya.ai | tr -d '\r')"
-            if [ -z "$PID" ]; then
-              echo "Yahya AI process is not running"
-              adb logcat -d | tail -250
-              exit 1
-            fi
-            adb shell dumpsys activity activities | grep -q 'de.yahya.ai/.MainActivity'
-            adb exec-out screencap -p > emulator-home.png
-            adb shell uiautomator dump /sdcard/yahya-window.xml || true
-            adb pull /sdcard/yahya-window.xml emulator-window.xml || true
-            echo "Emulator smoke test passed with PID=$PID"
+          script: bash ci/emulator-smoke.sh
 
       - name: Upload emulator evidence
         if: always()
