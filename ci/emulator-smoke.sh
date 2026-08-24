@@ -70,7 +70,7 @@ fi
 
 # v50 UX gate: the avatar may not consume the whole HOME screen anymore. The composer must be a
 # real, fully visible control above the videochat button so the conversation remains usable.
-python3 - <<'PY' || exit 17
+if ! python3 - <<'PY'
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -90,25 +90,26 @@ def find(desc=None, text_contains=None):
             return node
     return None
 
-root_bounds = bounds(root.find('node')) if root.find('node') is not None else None
+root_node = root.find('node')
+root_bounds = bounds(root_node) if root_node is not None else None
 stage = find(desc='Celin 3D Ansicht')
 composer = find(desc='Celin Nachricht schreiben')
 video = find(text_contains='Mit Celin')
-if not root_bounds or not stage or not composer or not video:
+if root_bounds is None or stage is None or composer is None or video is None:
     print('V50 layout markers missing', file=sys.stderr)
     sys.exit(1)
 
-rb, sb, cb, vb = root_bounds, bounds(stage), bounds(composer), bounds(video)
-if not sb or not cb or not vb:
+sb, cb, vb = bounds(stage), bounds(composer), bounds(video)
+if sb is None or cb is None or vb is None:
     print('V50 layout bounds missing', file=sys.stderr)
     sys.exit(1)
 
-screen_h = rb[3] - rb[1]
+screen_h = root_bounds[3] - root_bounds[1]
 stage_h = sb[3] - sb[1]
 if stage_h > int(screen_h * 0.47):
     print(f'HOME avatar stage too tall: {stage_h}/{screen_h}', file=sys.stderr)
     sys.exit(1)
-if cb[3] <= cb[1] or cb[3] > screen_h:
+if cb[3] <= cb[1] or cb[3] > root_bounds[3]:
     print(f'HOME composer not fully visible: {cb}', file=sys.stderr)
     sys.exit(1)
 if cb[3] >= vb[1]:
@@ -117,7 +118,7 @@ if cb[3] >= vb[1]:
 
 print(f'HOME layout OK: stage={sb}, composer={cb}, video={vb}, screenH={screen_h}')
 PY
-if [[ "$?" -ne 0 ]]; then
+then
   cat emulator-window.xml
   fail_with_log "HOME composer/layout visibility gate failed"
 fi
@@ -202,7 +203,7 @@ if ! grep -q 'Live mit Celin' emulator-call.xml; then
 fi
 
 # The same avatar stage must grow into the call slot instead of retaining HOME's compact height.
-python3 - <<'PY' || exit 18
+if ! python3 - <<'PY'
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -227,7 +228,7 @@ if stage_h < int(screen_h * 0.45):
     sys.exit(1)
 print(f'CALL layout OK: stage={sb}, screenH={screen_h}')
 PY
-if [[ "$?" -ne 0 ]]; then
+then
   cat emulator-call.xml
   fail_with_log "CALL stage layout gate failed"
 fi
