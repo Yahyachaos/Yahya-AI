@@ -21,11 +21,11 @@
   },
   "active": {
     "id": "shoulder-presence-refinement",
-    "status": "researching",
-    "goal": "Determine the exact production shoulder joint names and, only if present and safely capturable, add one tiny CALL-only shoulder presence step on top of the proven v57 owner",
-    "branch": null,
-    "pr": null,
-    "risk": "single_joint_discovery_then_incremental_presence"
+    "status": "testing",
+    "goal": "Add one tiny symmetric CALL-only LeftShoulder+RightShoulder presence step on top of the proven v57 owner, with five-joint rendered skinning proof and no visibility/lifecycle regression",
+    "branch": "auto/celine/v58-shoulder-presence",
+    "pr": 78,
+    "risk": "guarded_symmetric_shoulder_skinning"
   },
   "completed": [
     {

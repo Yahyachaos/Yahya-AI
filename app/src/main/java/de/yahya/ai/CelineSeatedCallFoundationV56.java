@@ -14,13 +14,11 @@ import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * v56 seated-call foundation with the v57 attentive head/gaze refinement layered inside the same
- * proven CALL skinning owner.
+ * Proven CALL skinning owner, extended incrementally through v58.
  *
- * This is intentionally NOT the old v46 seated pose. Hips + neck + Head remain the only animated
- * joints. v57 changes only tiny state-aware neck/head intent; no new shoulder/root/leg joint is
- * activated and the probe path stays unchanged so the established rendered-skinning gate remains
- * directly comparable.
+ * v58 adds only LeftShoulder + RightShoulder to the already proven Hips + neck + Head owner.
+ * Shoulder motion is symmetric, sub-degree and CALL-only. No arm, root, leg or v46/v48 pose path
+ * is restored. Spine nodes remain pinned to renderer-captured bases.
  */
 final class CelineSeatedCallFoundationV56 {
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
@@ -92,7 +90,7 @@ final class CelineSeatedCallFoundationV56 {
                     boundView = view;
                     driver = new Driver(activity, view);
                 } catch (Throwable e) {
-                    Celine3DDiagnostics.error(activity, "V57-199", "CALL Blickpraesenz Initialisierung FEHLER", e);
+                    Celine3DDiagnostics.error(activity, "V58-199", "CALL Schulterpraesenz Initialisierung FEHLER", e);
                     driver = null;
                     return;
                 }
@@ -100,7 +98,7 @@ final class CelineSeatedCallFoundationV56 {
             try {
                 driver.apply(frameTimeNanos);
             } catch (Throwable e) {
-                Celine3DDiagnostics.error(activity, "V57-198", "CALL Blickpraesenz Frame FEHLER", e);
+                Celine3DDiagnostics.error(activity, "V58-198", "CALL Schulterpraesenz Frame FEHLER", e);
                 driver.disableAfterFailure();
             }
         }
@@ -119,6 +117,8 @@ final class CelineSeatedCallFoundationV56 {
         final TransformManager transforms;
         final Animator animator;
         final Bone hips;
+        final Bone leftShoulder;
+        final Bone rightShoulder;
         final Bone head;
         final Bone neck;
         final Bone spine;
@@ -137,19 +137,23 @@ final class CelineSeatedCallFoundationV56 {
             animator = asset.getInstance().getAnimator();
             if (animator == null) throw new IllegalStateException("Filament Animator fehlt");
             hips = rendererBone(view, asset, transforms, "hipsBone", "Hips");
+            leftShoulder = assetBone(asset, transforms, "LeftShoulder");
+            rightShoulder = assetBone(asset, transforms, "RightShoulder");
             head = rendererBone(view, asset, transforms, "headBone", "Head");
             neck = rendererBone(view, asset, transforms, "neckBone", "neck");
             spine = rendererBone(view, asset, transforms, "spineBone", "Spine");
             spine01 = rendererBone(view, asset, transforms, "spine01Bone", "Spine01");
             spine02 = rendererBone(view, asset, transforms, "spine02Bone", "Spine02");
-            if (hips == null || head == null || neck == null) {
-                throw new IllegalStateException("Hips/neck/Head joints fehlen");
+            if (hips == null || leftShoulder == null || rightShoulder == null || head == null || neck == null) {
+                throw new IllegalStateException("Hips/LeftShoulder/RightShoulder/neck/Head joints fehlen");
             }
             probeModel = asset.getFirstEntityByName("CelineSkinningProbe") != 0;
             Celine3DDiagnostics.record(activity, "V56-100", "CALL Sitzbasis gebunden",
                     "Hips=true · neck=true · Head=true · probe=" + probeModel + " · Spine bleibt Basis");
             Celine3DDiagnostics.record(activity, "V57-100", "CALL Blickpraesenz gebunden",
-                    "v56 owner · keine neuen Bones · state-aware neck+Head · probe=" + probeModel);
+                    "v56 owner · state-aware neck+Head · probe=" + probeModel);
+            Celine3DDiagnostics.record(activity, "V58-100", "CALL Schulterpraesenz gebunden",
+                    "LeftShoulder=true · RightShoulder=true · same skinning owner · probe=" + probeModel);
         }
 
         void apply(long frameTimeNanos) {
@@ -164,13 +168,21 @@ final class CelineSeatedCallFoundationV56 {
 
             double t = frameTimeNanos * 1.0e-9;
             float hipsPitch, hipsYaw, hipsRoll;
+            float leftShoulderPitch, leftShoulderYaw, leftShoulderRoll;
+            float rightShoulderPitch, rightShoulderYaw, rightShoulderRoll;
             float neckPitch, neckYaw, neckRoll;
             float headPitch, headYaw, headRoll;
             if (probeModel) {
-                // Keep the proven v56 CI fixture motion byte-for-byte equivalent in behavior.
                 hipsPitch = -18.0f + (float) Math.sin(t * Math.PI * 0.5) * 7.0f;
                 hipsYaw = (float) Math.sin(t * Math.PI * 0.75) * 8.0f;
                 hipsRoll = 0f;
+                float shoulderProbe = (float) Math.sin(t * Math.PI * 0.8) * 13.0f;
+                leftShoulderPitch = shoulderProbe;
+                leftShoulderYaw = 0f;
+                leftShoulderRoll = (float) Math.cos(t * Math.PI * 0.65) * 9.0f;
+                rightShoulderPitch = -shoulderProbe;
+                rightShoulderYaw = 0f;
+                rightShoulderRoll = (float) Math.cos(t * Math.PI * 0.65) * -9.0f;
                 neckYaw = (float) Math.sin(t * Math.PI) * 11.0f;
                 neckPitch = (float) Math.cos(t * Math.PI * 0.5) * 4.0f;
                 neckRoll = (float) Math.sin(t * Math.PI * 0.5 + 0.7) * 2.0f;
@@ -188,39 +200,48 @@ final class CelineSeatedCallFoundationV56 {
                 float intentPitch = 0f;
                 float intentRoll = 0f;
                 float nod = 0f;
+                float shoulderBreath = 0.12f;
+                float shoulderSpeech = 0f;
 
                 switch (state) {
                     case LISTENING:
-                        // Hold eye-line steadier and lean into an attentive micro-tilt.
                         motionScale = 0.52f;
                         intentPitch = -0.10f;
                         intentRoll = 0.18f;
+                        shoulderBreath = 0.08f;
                         break;
                     case THINKING:
-                        // A very slow, sub-degree side glance; no abrupt looping head sweep.
                         motionScale = 0.72f;
                         intentYaw = glance * 0.34f;
                         intentPitch = -0.05f;
+                        shoulderBreath = 0.10f;
                         break;
                     case SPEAKING:
-                        // Speech gets tiny emphasis nods proportional to real speech energy.
                         motionScale = 0.92f + 0.18f * speech;
                         intentYaw = (float) Math.sin(t * 1.05) * 0.10f * speech;
                         nod = (float) Math.sin(t * 4.0) * (0.18f + 0.32f * speech);
+                        shoulderBreath = 0.14f;
+                        shoulderSpeech = (float) Math.sin(t * 2.1 + 0.6) * 0.10f * speech;
                         break;
                     case IDLE:
                     default:
-                        // Neutral presence keeps the v56 baseline without extra bias.
                         break;
                 }
 
-                // Preserve the proven v56 seated pelvis exactly apart from its existing micro-motion.
                 hipsPitch = -4.0f + breath * 0.20f;
                 hipsYaw = slow * 0.18f;
                 hipsRoll = slow * 0.08f;
 
-                // v57: coordinate neck + Head as one restrained attention gesture. All values remain
-                // sub-degree in production and no new skinning joint is introduced.
+                // v58 shoulder presence: symmetric breathing/voice response only. The largest
+                // production rotation remains below half a degree and never touches arms.
+                float shoulderLift = breath * shoulderBreath + shoulderSpeech;
+                leftShoulderPitch = shoulderLift;
+                leftShoulderYaw = 0f;
+                leftShoulderRoll = -0.10f + slow * 0.05f * motionScale;
+                rightShoulderPitch = shoulderLift;
+                rightShoulderYaw = 0f;
+                rightShoulderRoll = 0.10f - slow * 0.05f * motionScale;
+
                 neckYaw = slow * 0.32f * motionScale + intentYaw * 0.35f;
                 neckPitch = breath * 0.16f * motionScale + intentPitch * 0.35f;
                 neckRoll = -slow * 0.10f * motionScale + intentRoll * 0.25f;
@@ -235,6 +256,8 @@ final class CelineSeatedCallFoundationV56 {
                 restore(spine);
                 restore(spine01);
                 restore(spine02);
+                applyRotation(leftShoulder, leftShoulderPitch, leftShoulderYaw, leftShoulderRoll);
+                applyRotation(rightShoulder, rightShoulderPitch, rightShoulderYaw, rightShoulderRoll);
                 applyRotation(neck, neckPitch, neckYaw, neckRoll);
                 applyRotation(head, headPitch, headYaw, headRoll);
             } finally {
@@ -246,7 +269,9 @@ final class CelineSeatedCallFoundationV56 {
                 Celine3DDiagnostics.record(activity, "V56-110", "CALL Sitzbasis Skinning aktiv",
                         "Animator.updateBoneMatrices OK · Hips+neck+Head · CALL-only · probe=" + probeModel);
                 Celine3DDiagnostics.record(activity, "V57-120", "CALL Blickpraesenz aktiv",
-                        "state-aware neck+Head refinement · same v56 owner · probe=" + probeModel);
+                        "state-aware neck+Head refinement · same owner · probe=" + probeModel);
+                Celine3DDiagnostics.record(activity, "V58-120", "CALL Schulterpraesenz aktiv",
+                        "Hips+LeftShoulder+RightShoulder+neck+Head · one owner · probe=" + probeModel);
             }
         }
 
@@ -255,7 +280,8 @@ final class CelineSeatedCallFoundationV56 {
         void restore() {
             try {
                 transforms.openLocalTransformTransaction();
-                restore(hips); restore(spine); restore(spine01); restore(spine02); restore(neck); restore(head);
+                restore(hips); restore(spine); restore(spine01); restore(spine02);
+                restore(leftShoulder); restore(rightShoulder); restore(neck); restore(head);
             } catch (Throwable ignored) {
             } finally {
                 try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
@@ -292,6 +318,10 @@ final class CelineSeatedCallFoundationV56 {
                 if (instance != 0 && base instanceof float[]) return new Bone(instance, ((float[]) base).clone());
             }
         } catch (Throwable ignored) {}
+        return assetBone(asset, transforms, entityName);
+    }
+
+    private static Bone assetBone(FilamentAsset asset, TransformManager transforms, String entityName) {
         try {
             int entity = asset.getFirstEntityByName(entityName);
             if (entity == 0) return null;
