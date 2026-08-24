@@ -274,30 +274,38 @@ public final class Celine3DView extends FrameLayout {
         double t = frameTimeNanos * 1.0e-9;
         float amplitude;
         float speed;
+        float breathDepth;
         switch (avatarState) {
             case LISTENING:
                 amplitude = 0.0055f;
                 speed = 0.46f;
+                breathDepth = 0.0035f;
                 break;
             case THINKING:
                 amplitude = 0.0140f;
                 speed = 0.32f;
+                breathDepth = 0.0045f;
                 break;
             case SPEAKING:
                 amplitude = 0.0090f + 0.0040f * clamp(speechEnergy, 0.0f, 1.0f);
                 speed = 0.62f;
+                breathDepth = 0.0045f + 0.0025f * clamp(speechEnergy, 0.0f, 1.0f);
                 break;
             case IDLE:
             default:
                 amplitude = 0.0080f;
                 speed = 0.40f;
+                breathDepth = 0.0060f;
                 break;
         }
         float side = (float) Math.sin(t * speed) * amplitude;
         float lift = (float) Math.sin(t * (speed * 0.73f) + 1.1) * amplitude * 0.32f;
+        float breath = (float) Math.sin(t * 1.45 + 0.35);
+        float depth = breath * breathDepth;
+        float breathLift = breath * breathDepth * 0.30f;
         float targetX = side * 0.22f;
-        float targetY = lift * 0.18f;
-        camera.lookAt(side, lift, 1.0, targetX, targetY, -4.0, 0.0, 1.0, 0.0);
+        float targetY = lift * 0.18f + breathLift * 0.12f;
+        camera.lookAt(side, lift + breathLift, 1.0 + depth, targetX, targetY, -4.0, 0.0, 1.0, 0.0);
     }
 
     private void updateLivePose(long frameTimeNanos) {
