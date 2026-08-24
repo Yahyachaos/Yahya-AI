@@ -6,9 +6,14 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v48 keeps TRUE-UNLIT/FORCE-C rendering, the natural-call layer, the live speech loop and the
- * v47 motion lock/updater, and adds a narrow human-presence gaze layer on top of the existing
- * head/neck look API.
+ * v49 visibility-recovery baseline.
+ *
+ * Real-device evidence showed that v46's skin-matrix pose layer could make the Meshy body vanish
+ * even though Filament, the room, FORCE-C and TRUE-UNLIT were all healthy. v49 therefore returns
+ * production rendering to the last known-visible path: v43 texture/unlit + v44 room/presentation
+ * + v45 live call + v47 call lock/updater. The v46/v48 experimental pose/gaze layers remain in
+ * source for diagnosis but are deliberately NOT installed until avatar visibility is proven in CI
+ * with an actual Filament test model in both HOME and CALL states.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -21,17 +26,17 @@ public final class YahyaApplication extends Application implements Application.A
 
         CelineTexturePipelineV39.setMode(activity, CelineTexturePipelineV39.Mode.C_FORCE_TEXTURE);
         String prepared = CelineTexturePipelineV39.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V48-001", "Produktionsquelle vorbereitet",
+        Celine3DDiagnostics.record(activity, "V49-001", "Produktionsquelle vorbereitet",
                 "FORCE-C · " + prepared);
 
         String unlit = CelineTrueUnlitProbeV43.prepareWorkingModel(activity);
-        Celine3DDiagnostics.record(activity, "V48-002", "TRUE-UNLIT beibehalten", unlit);
+        Celine3DDiagnostics.record(activity, "V49-002", "TRUE-UNLIT beibehalten", unlit);
     }
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V48-003", "Human-Presence + Videochat vorbereitet",
-                "state-aware gaze · v47 updater/call lock · v46 seated presence");
+        Celine3DDiagnostics.record(activity, "V49-003", "Sichtbarkeits-Recovery aktiv",
+                "v46/v48 pose layers OFF · v43 texture/unlit + v44 room + v45 call + v47 lock/updater");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -45,13 +50,9 @@ public final class YahyaApplication extends Application implements Application.A
 
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 760L);
-        decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 900L);
-        decor.postDelayed(() -> CelineHumanPresenceV48.install(activity, decor), 980L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 1100L);
         decor.postDelayed(() -> CelineVideoCallV45.install(activity, decor), 1700L);
         decor.postDelayed(() -> CelineCallMotionLockV47.install(activity, decor), 1760L);
-        decor.postDelayed(() -> CelineNaturalPresenceV46.install(activity, decor), 1900L);
-        decor.postDelayed(() -> CelineHumanPresenceV48.install(activity, decor), 1980L);
         decor.postDelayed(() -> CelineUpdaterV47.install(activity, decor), 2200L);
     }
 
@@ -61,25 +62,19 @@ public final class YahyaApplication extends Application implements Application.A
         CelineVideoChatV44.ensure(activity, decor);
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);
-        CelineNaturalPresenceV46.install(activity, decor);
-        CelineHumanPresenceV48.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
-            CelineHumanPresenceV48.onPaused(activity);
             CelineCallMotionLockV47.onPaused(activity);
-            CelineNaturalPresenceV46.onPaused(activity);
             CelineVideoCallV45.onPaused(activity);
         }
     }
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
-            CelineHumanPresenceV48.onDestroyed(activity);
             CelineCallMotionLockV47.onDestroyed(activity);
-            CelineNaturalPresenceV46.onDestroyed(activity);
             CelineVideoCallV45.onDestroyed(activity);
         }
     }
