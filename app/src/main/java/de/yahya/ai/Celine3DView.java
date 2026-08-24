@@ -17,6 +17,7 @@ import com.google.android.filament.Engine;
 import com.google.android.filament.EntityManager;
 import com.google.android.filament.IndirectLight;
 import com.google.android.filament.LightManager;
+import com.google.android.filament.MaterialInstance;
 import com.google.android.filament.Renderer;
 import com.google.android.filament.Scene;
 import com.google.android.filament.Skybox;
@@ -37,20 +38,30 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * v29 minimal direct 3D baseline.
+ * v30 direct 3D renderer.
  *
- * No ModelViewer and no filament-utils. Filament owns a single SurfaceView through Android's
- * SurfaceHolder callback. Animation / visemes stay disabled until the imported GLB is proven
- * visible on the real device.
+ * Keeps the proven v29 SurfaceView path, corrects Meshy's over-bright emissive material,
+ * frames Celine larger, and adds subtle procedural skeleton motion so the 3D avatar is alive
+ * even when the imported Character_output.glb only contains a one-frame bind-pose clip.
  */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
     private static final String IMPORT_DIR = "models";
     private static final String IMPORT_FILE = "celine.glb";
+    private static final float MODEL_TARGET_SIZE = 3.15f;
 
     static { Gltfio.init(); }
 
     public interface VisibilityCallback { void onResult(boolean visible); }
+
+    private static final class BonePose {
+        final int instance;
+        final float[] base;
+        BonePose(int instance, float[] base) {
+            this.instance = instance;
+            this.base = base;
+        }
+    }
 
     private final SurfaceView surfaceView;
     private final Choreographer choreographer;
@@ -67,10 +78,22 @@ public final class Celine3DView extends FrameLayout {
     private final FilamentAsset asset;
     private final Skybox skybox;
     private final IndirectLight indirectLight;
+    private final TransformManager transformManager;
+
+    private BonePose headBone;
+    private BonePose neckBone;
+    private BonePose spineBone;
+    private BonePose spine01Bone;
+    private BonePose spine02Bone;
 
     private SwapChain swapChain;
     private boolean running;
     private volatile Throwable renderError;
+    private volatile float speechEnergy;
+    private volatile float lookX;
+    private volatile float lookY;
+    private volatile boolean lookActive;
+    private volatile CelineAvatarController.State avatarState = CelineAvatarController.State.IDLE;
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
         @Override public void doFrame(long frameTimeNanos) {
@@ -78,6 +101,7 @@ public final class Celine3DView extends FrameLayout {
             choreographer.postFrameCallback(this);
             try {
                 if (swapChain == null || !isSurfaceReady()) return;
+                updateLivePose(frameTimeNanos);
                 if (renderer.beginFrame(swapChain, frameTimeNanos)) {
                     renderer.render(filamentView);
                     renderer.endFrame();
@@ -92,7 +116,6 @@ public final class Celine3DView extends FrameLayout {
 
     public Celine3DView(Context context) throws Exception { this(context, true); }
 
-    /** Retained for source compatibility; v29 always uses one SurfaceView renderer. */
     public Celine3DView(Context context, boolean ignoredRendererChoice) throws Exception {
         super(context);
         setClipChildren(false);
@@ -106,38 +129,34 @@ public final class Celine3DView extends FrameLayout {
         renderer = engine.createRenderer();
         scene = engine.createScene();
         filamentView = engine.createView();
+        transformManager = engine.getTransformManager();
 
         cameraEntity = EntityManager.get().create();
         camera = engine.createCamera(cameraEntity);
-        camera.setExposure(16.0f, 1.0f / 125.0f, 100.0f);
+        camera.setExposure(8.0f, 1.0f / 125.0f, 100.0f);
         filamentView.setScene(scene);
         filamentView.setCamera(camera);
 
-        // Dark neutral background: if Celine renders, her skin / hair / clothes are unmistakable.
         skybox = new Skybox.Builder()
                 .color(0.018f, 0.022f, 0.030f, 1.0f)
                 .build(engine);
         scene.setSkybox(skybox);
 
-        // Constant ambient light so PBR materials are never left unlit.
         indirectLight = new IndirectLight.Builder()
-                .irradiance(1, new float[]{1.0f, 1.0f, 1.0f})
-                .intensity(30000.0f)
+                .irradiance(1, new float[]{1.0f, 0.98f, 0.96f})
+                .intensity(7000.0f)
                 .build(engine);
         scene.setIndirectLight(indirectLight);
 
-        // Strong front / upper directional key light.
         lightEntity = EntityManager.get().create();
         new LightManager.Builder(LightManager.Type.DIRECTIONAL)
                 .color(1.0f, 0.96f, 0.92f)
-                .intensity(110000.0f)
-                .direction(-0.35f, -0.65f, -1.0f)
+                .intensity(32000.0f)
+                .direction(-0.28f, -0.55f, -1.0f)
                 .castShadows(false)
                 .build(engine, lightEntity);
         scene.addEntity(lightEntity);
 
-        // The Meshy GLB is monolithic and embeds its texture, so synchronous resource loading is
-        // sufficient for the minimal visibility baseline.
         materialProvider = new UbershaderProvider(engine);
         assetLoader = new AssetLoader(engine, materialProvider, EntityManager.get());
         resourceLoader = new ResourceLoader(engine, true);
@@ -146,27 +165,18 @@ public final class Celine3DView extends FrameLayout {
             throw new IllegalStateException("gltfio konnte die importierte GLB-Datei nicht laden.");
         }
         resourceLoader.loadResources(asset);
+        tameMeshyMaterials();
         asset.releaseSourceData();
 
         normalizeAsset(asset);
+        captureLiveBones();
         scene.addEntities(asset.getEntities());
 
-        // Fixed camera. The model root is normalized to a 2-unit cube centered at z=-4.
-        camera.lookAt(
-                0.0, 0.0, 1.0,
-                0.0, 0.0, -4.0,
-                0.0, 1.0, 0.0
-        );
+        camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
 
-        // Direct Android surface lifecycle. This deliberately removes UiHelper / filament-utils,
-        // which are not dependencies of v29 and caused the previous compile failure.
         surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override public void surfaceCreated(SurfaceHolder holder) {
-                try {
-                    createSwapChain(holder);
-                } catch (Throwable e) {
-                    renderError = e;
-                }
+                try { createSwapChain(holder); } catch (Throwable e) { renderError = e; }
             }
 
             @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
@@ -182,6 +192,88 @@ public final class Celine3DView extends FrameLayout {
                 destroySwapChain();
             }
         });
+    }
+
+    private void tameMeshyMaterials() {
+        try {
+            MaterialInstance[] instances = asset.getInstance().getMaterialInstances();
+            for (MaterialInstance material : instances) {
+                try { material.setParameter("emissiveFactor", 0.0f, 0.0f, 0.0f); } catch (Throwable ignored) {}
+                try { material.setParameter("emissiveStrength", 0.0f); } catch (Throwable ignored) {}
+                try { material.setParameter("specularColorFactor", 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
+                try { material.setParameter("specularFactor", 1.0f); } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private void captureLiveBones() {
+        headBone = captureBone("Head");
+        neckBone = captureBone("neck");
+        spineBone = captureBone("Spine");
+        spine01Bone = captureBone("Spine01");
+        spine02Bone = captureBone("Spine02");
+    }
+
+    private BonePose captureBone(String name) {
+        try {
+            int entity = asset.getFirstEntityByName(name);
+            if (entity == 0) return null;
+            int instance = transformManager.getInstance(entity);
+            if (instance == 0) return null;
+            return new BonePose(instance, transformManager.getTransform(instance, new float[16]));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private void updateLivePose(long frameTimeNanos) {
+        if (headBone == null && neckBone == null && spineBone == null && spine01Bone == null && spine02Bone == null) return;
+
+        double t = frameTimeNanos * 1.0e-9;
+        float breath = (float) Math.sin(t * 1.45);
+        float slowSway = (float) Math.sin(t * 0.58);
+        float micro = (float) Math.sin(t * 0.91 + 0.7);
+        float speech = clamp(speechEnergy, 0.0f, 1.0f);
+        float speakingNod = avatarState == CelineAvatarController.State.SPEAKING
+                ? (float) Math.sin(t * 5.7) * (0.8f + 1.8f * speech)
+                : 0.0f;
+        float listeningTilt = avatarState == CelineAvatarController.State.LISTENING ? 1.2f : 0.0f;
+
+        float targetYaw = lookActive ? clamp(lookX, -1.0f, 1.0f) * 7.0f : slowSway * 1.3f;
+        float targetPitch = lookActive ? clamp(-lookY, -1.0f, 1.0f) * 4.5f : breath * 0.65f;
+
+        try {
+            transformManager.openLocalTransformTransaction();
+            applyBone(spineBone, 0.25f * breath, 0.0f, 0.45f * slowSway);
+            applyBone(spine01Bone, 0.45f * breath, 0.0f, 0.65f * slowSway);
+            applyBone(spine02Bone, 0.55f * breath, 0.15f * micro, 0.75f * slowSway);
+            applyBone(neckBone,
+                    targetPitch * 0.35f + speakingNod * 0.20f,
+                    targetYaw * 0.45f,
+                    -0.45f * slowSway + listeningTilt * 0.35f);
+            applyBone(headBone,
+                    targetPitch + speakingNod,
+                    targetYaw,
+                    -0.85f * slowSway + listeningTilt);
+        } finally {
+            transformManager.commitLocalTransformTransaction();
+        }
+    }
+
+    private void applyBone(BonePose bone, float pitchDeg, float yawDeg, float rollDeg) {
+        if (bone == null) return;
+        float[] delta = new float[16];
+        float[] out = new float[16];
+        Matrix.setIdentityM(delta, 0);
+        if (yawDeg != 0.0f) Matrix.rotateM(delta, 0, yawDeg, 0.0f, 1.0f, 0.0f);
+        if (pitchDeg != 0.0f) Matrix.rotateM(delta, 0, pitchDeg, 1.0f, 0.0f, 0.0f);
+        if (rollDeg != 0.0f) Matrix.rotateM(delta, 0, rollDeg, 0.0f, 0.0f, 1.0f);
+        Matrix.multiplyMM(out, 0, bone.base, 0, delta, 0);
+        transformManager.setTransform(bone.instance, out);
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private void createSwapChain(SurfaceHolder holder) {
@@ -220,7 +312,6 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
-    /** Equivalent to ModelViewer.transformToUnitCube, but with no filament-utils dependency. */
     private void normalizeAsset(FilamentAsset loadedAsset) {
         Box box = loadedAsset.getBoundingBox();
         float[] center = box.getCenter();
@@ -229,7 +320,7 @@ public final class Celine3DView extends FrameLayout {
         if (!(maxExtent > 0.000001f) || Float.isNaN(maxExtent) || Float.isInfinite(maxExtent)) {
             throw new IllegalStateException("Ungültige 3D-Modellgröße: " + maxExtent);
         }
-        float scale = 2.0f / maxExtent;
+        float scale = MODEL_TARGET_SIZE / maxExtent;
 
         float[] moveToOrigin = new float[16];
         float[] scaleMatrix = new float[16];
@@ -245,10 +336,9 @@ public final class Celine3DView extends FrameLayout {
         Matrix.multiplyMM(temp, 0, scaleMatrix, 0, moveToOrigin, 0);
         Matrix.multiplyMM(transform, 0, centerAtTarget, 0, temp, 0);
 
-        TransformManager tm = engine.getTransformManager();
-        int instance = tm.getInstance(loadedAsset.getRoot());
+        int instance = transformManager.getInstance(loadedAsset.getRoot());
         if (instance == 0) throw new IllegalStateException("3D-Root-Transform fehlt.");
-        tm.setTransform(instance, transform);
+        transformManager.setTransform(instance, transform);
     }
 
     public static File importedModelFile(Context context) {
@@ -266,7 +356,7 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
-    public String getRendererName() { return "Direct SurfaceView · Filament 1.72"; }
+    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v30"; }
 
     public String getRenderFailureReason() {
         Throwable e = renderError;
@@ -275,7 +365,6 @@ public final class Celine3DView extends FrameLayout {
         return m == null || m.trim().isEmpty() ? e.getClass().getSimpleName() : m;
     }
 
-    /** Check actual SurfaceView pixels, not merely whether a FilamentAsset object exists. */
     public void verifyVisibleFrame(Handler handler, VisibilityCallback callback) {
         probeVisibleFrame(handler, callback, 35);
     }
@@ -296,13 +385,9 @@ public final class Celine3DView extends FrameLayout {
             PixelCopy.request(surfaceView, sample, result -> {
                 boolean visible = result == PixelCopy.SUCCESS && hasModelPixels(sample);
                 sample.recycle();
-                if (visible) {
-                    callback.onResult(true);
-                } else if (remaining <= 1 || renderError != null) {
-                    callback.onResult(false);
-                } else {
-                    handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
-                }
+                if (visible) callback.onResult(true);
+                else if (remaining <= 1 || renderError != null) callback.onResult(false);
+                else handler.postDelayed(() -> probeVisibleFrame(handler, callback, remaining - 1), 250L);
             }, handler);
         } catch (Throwable e) {
             sample.recycle();
@@ -319,7 +404,7 @@ public final class Celine3DView extends FrameLayout {
         int required = Math.max(24, pixels.length / 250);
         for (int c : pixels) {
             int r = Color.red(c), g = Color.green(c), b = Color.blue(c);
-            if (Math.max(r, Math.max(g, b)) > 38 && r + g + b > 115) {
+            if (Math.max(r, Math.max(g, b)) > 32 && r + g + b > 95) {
                 if (++modelPixels >= required) return true;
             }
         }
@@ -349,11 +434,24 @@ public final class Celine3DView extends FrameLayout {
         super.onDetachedFromWindow();
     }
 
-    // v29 is deliberately static. These API hooks return in the animation build after 3D is visible.
-    public void setAvatarState(CelineAvatarController.State next) {}
-    public void setSpeechEnergy(float level) {}
-    public void setLook(float x, float y) {}
-    public void releaseLook() {}
+    public void setAvatarState(CelineAvatarController.State next) {
+        avatarState = next == null ? CelineAvatarController.State.IDLE : next;
+    }
+
+    public void setSpeechEnergy(float level) {
+        speechEnergy = clamp(level, 0.0f, 1.0f);
+    }
+
+    public void setLook(float x, float y) {
+        lookX = clamp(x, -1.0f, 1.0f);
+        lookY = clamp(y, -1.0f, 1.0f);
+        lookActive = true;
+    }
+
+    public void releaseLook() {
+        lookActive = false;
+    }
+
     public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}
 
     private static ByteBuffer readModel(Context context) throws Exception {
