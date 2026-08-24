@@ -17,8 +17,8 @@
   },
   "active": {
     "id": "relaxed-base-pose-experiment",
-    "status": "researching",
-    "goal": "Prove one isolated skeletal transform path safely before enabling any broader relaxed pose",
+    "status": "testing",
+    "goal": "Prove real Filament skinning with Head only, restore spine/neck bases before every update, and require both legacy visibility gates plus a rendered one-joint motion proof before merge",
     "branch": "auto/celine/v54-relaxed-base-pose",
     "pr": null,
     "risk": "single_bone_experiment"
