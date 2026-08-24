@@ -43,6 +43,12 @@ public final class YahyaApplication extends Application implements Application.A
         if (!(activity instanceof MainActivity)) return;
         View decor = activity.getWindow().getDecorView();
 
+        // GitHub Actions API-30 SwiftShader cannot compile Filament 1.72 FXAA. This is a no-op on
+        // real devices and only removes emulator post-processing so the CI can inspect 3D pixels.
+        decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 80L);
+        decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 260L);
+        decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 620L);
+
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
         decor.postDelayed(() -> applyProduction(activity, decor), 850L);
         decor.postDelayed(() -> applyProduction(activity, decor), 1800L);
@@ -57,9 +63,11 @@ public final class YahyaApplication extends Application implements Application.A
     }
 
     private void applyProduction(Activity activity, View decor) {
+        CelineEmulatorRenderGuardV49.apply(decor);
         CelineTexturePipelineV39.applyRuntime(decor);
         CelineTrueUnlitProbeV43.auditRuntime(decor);
         CelineVideoChatV44.ensure(activity, decor);
+        CelineEmulatorRenderGuardV49.apply(decor);
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
