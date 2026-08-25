@@ -46,7 +46,9 @@ python3 ci/check-camera-zoom-range.py \
   real-candidate-zoom-default.png \
   real-candidate-zoom-near.png
 
-# Prove that the old unsafe request can no longer exceed the empirically safe near bound.
+# Move away from the safe near bound first, then prove that the old unsafe request is actively
+# clamped back to 1.25. This makes the clamp an observable camera state transition in the emulator.
+set_zoom "1.0"
 set_zoom "2.2" "1.25"
 
 # Restore the normal presentation before evidence collection finishes.
