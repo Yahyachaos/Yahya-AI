@@ -17,7 +17,8 @@ import java.util.WeakHashMap;
  * HOME intentionally retains composer focus when the keyboard is dismissed. Android may restore
  * that focus again when the CALL overlay is removed. Focus-change callbacks proved unreliable for
  * this overlay lifecycle, so this guard observes the actual CALL layout instead: on CALL entry it
- * clears any inherited HOME composer focus and hides the IME; on CALL exit it repeats that cleanup
+ * clears any inherited HOME composer focus and hides the IME; while CALL remains visible it keeps
+ * that focus from being restored by later layout passes; on CALL exit it repeats that cleanup
  * immediately and on the next UI turns to catch Android's automatic focus restoration.
  *
  * The helper owns no camera, pose or CALL layout state.
@@ -87,7 +88,10 @@ final class CelineCallImeGuardV70 {
         void evaluate() {
             if (!installed || activity.isFinishing() || activity.isDestroyed()) return;
             boolean callNow = containsText(decor, CALL_TITLE);
-            if (callNow == callVisible) return;
+            if (callNow == callVisible) {
+                if (callNow) clearComposerFocusAndHideIme();
+                return;
+            }
 
             callVisible = callNow;
             if (callNow) {
