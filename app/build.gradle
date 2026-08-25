@@ -10,6 +10,13 @@ stableDebugKeystore.bytes = java.util.Base64.getDecoder().decode(stableDebugKeys
 
 def celineV62GeneratedDir = file("$buildDir/generated/source/celineV62")
 def celineV62Source = file('src/main/java/de/yahya/ai/Celine3DView.java')
+def celineV65GeneratedAssetsDir = file("$buildDir/generated/celineV65/assets")
+def celineV65Candidate = file("$celineV65GeneratedAssetsDir/models/celine.glb")
+def celineV65Report = file("$buildDir/reports/celineV65/production-morph.json")
+def celineV65Validation = file("$buildDir/reports/celineV65/validation.json")
+def celineCanonicalSource = file('src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb')
+def celineV65Generator = rootProject.file('ci/celine_production_morph_v65.py')
+def celineV65Validator = rootProject.file('ci/celine_facial_morph_validation.py')
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -52,6 +59,34 @@ tasks.register('generateCeline3DViewV62') {
     }
 }
 
+
+tasks.register('generateCelineProductionMorphV65', Exec) {
+    inputs.files(celineCanonicalSource, celineV65Generator)
+    outputs.files(celineV65Candidate, celineV65Report)
+    doFirst {
+        celineV65Candidate.parentFile.mkdirs()
+        celineV65Report.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV65Generator.absolutePath,
+            celineCanonicalSource.absolutePath,
+            celineV65Candidate.absolutePath,
+            '--report', celineV65Report.absolutePath,
+            '--expected-sha256', '4c433114d1e5475899d1170acb44706a7a8c75bc130f3a1400992c0369f8b804'
+}
+
+tasks.register('validateCelineProductionMorphV65', Exec) {
+    dependsOn tasks.named('generateCelineProductionMorphV65')
+    inputs.files(celineCanonicalSource, celineV65Candidate, celineV65Validator)
+    outputs.file(celineV65Validation)
+    doFirst { celineV65Validation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV65Validator.absolutePath,
+            celineCanonicalSource.absolutePath,
+            celineV65Candidate.absolutePath,
+            '--report', celineV65Validation.absolutePath
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -59,7 +94,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 64
+        versionCode 65
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -79,6 +114,7 @@ android {
         main {
             java.srcDir celineV62GeneratedDir
             java.exclude 'de/yahya/ai/Celine3DView.java'
+            assets.srcDir celineV65GeneratedAssetsDir
         }
     }
     compileOptions {
@@ -89,14 +125,15 @@ android {
 
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
+    dependsOn tasks.named('validateCelineProductionMorphV65')
 }
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v64 preserves v61 framing, v59 safe HOME/CALL ownership and the guarded v63
-    // face-morph runtime while keeping HOME camera zoom stable across CALL lifecycle changes.
+    // v65 packages the exact validated real six-target candidate reproducibly while preserving
+    // v64 framing/media coexistence, v61 rig-scale correction, v59 joint ownership and runtime rollback.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
