@@ -15,7 +15,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 59
+        versionCode 60
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -41,8 +41,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v59 restores the proven v54 HOME + v55 CALL neck+Head skinning ownership while the
-    // v56-v58 Hips/shoulder production path is quarantined after the real-avatar framing regression.
+    // v60 preserves the proven v59 HOME Head-only + CALL neck+Head skinning ownership while
+    // adding bounded camera search/reset controls and production-model presence diagnostics.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }

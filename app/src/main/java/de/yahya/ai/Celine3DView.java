@@ -6,7 +6,10 @@ import android.graphics.Color;
 import android.opengl.Matrix;
 import android.os.Handler;
 import android.view.Choreographer;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.PixelCopy;
+import android.view.ScaleGestureDetector;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
@@ -18,6 +21,7 @@ import com.google.android.filament.EntityManager;
 import com.google.android.filament.IndirectLight;
 import com.google.android.filament.LightManager;
 import com.google.android.filament.MaterialInstance;
+import com.google.android.filament.RenderableManager;
 import com.google.android.filament.Renderer;
 import com.google.android.filament.Scene;
 import com.google.android.filament.Skybox;
@@ -37,12 +41,18 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-/** v36 direct Filament renderer with persistent on-device diagnostics. */
+/** v60 direct Filament renderer with bounded camera search controls and production-model diagnostics. */
 public final class Celine3DView extends FrameLayout {
     private static final String MODEL_PATH = "models/celine.glb";
     private static final String IMPORT_DIR = "models";
     private static final String IMPORT_FILE = "celine.glb";
     private static final float MODEL_TARGET_SIZE = 3.15f;
+    private static final float CAMERA_TARGET_Z = -4.0f;
+    private static final float CAMERA_BASE_DISTANCE = 5.0f;
+    private static final float CAMERA_PAN_X_MAX = 2.50f;
+    private static final float CAMERA_PAN_Y_MAX = 2.00f;
+    private static final float CAMERA_ZOOM_MIN = 0.55f;
+    private static final float CAMERA_ZOOM_MAX = 2.20f;
 
     static { Gltfio.init(); }
 
@@ -74,6 +84,8 @@ public final class Celine3DView extends FrameLayout {
     private final Skybox skybox;
     private final IndirectLight indirectLight;
     private final TransformManager transformManager;
+    private final GestureDetector gestureDetector;
+    private final ScaleGestureDetector scaleGestureDetector;
 
     private BonePose headBone;
     private BonePose neckBone;
@@ -89,6 +101,9 @@ public final class Celine3DView extends FrameLayout {
     private volatile float lookX;
     private volatile float lookY;
     private volatile boolean lookActive;
+    private volatile float cameraPanX;
+    private volatile float cameraPanY;
+    private volatile float cameraZoom = 1.0f;
     private volatile CelineAvatarController.State avatarState = CelineAvatarController.State.IDLE;
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -130,6 +145,44 @@ public final class Celine3DView extends FrameLayout {
         surfaceView = new SurfaceView(context);
         addView(surfaceView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         Celine3DDiagnostics.record(appContext, "REN-301", "SurfaceView erstellt", "OK");
+
+        scaleGestureDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override public boolean onScale(ScaleGestureDetector detector) {
+                float before = cameraZoom;
+                cameraZoom = clamp(cameraZoom * detector.getScaleFactor(), CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX);
+                if (Math.abs(cameraZoom - before) > 0.001f) {
+                    Celine3DDiagnostics.record(appContext, "V60-121", "Kamera Zoom geändert",
+                            "zoom=" + cameraZoom + " bounds=" + CAMERA_ZOOM_MIN + ".." + CAMERA_ZOOM_MAX);
+                }
+                return true;
+            }
+        });
+        gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onDown(MotionEvent e) { return true; }
+
+            @Override public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+                if (scaleGestureDetector.isInProgress()) return false;
+                float width = Math.max(1.0f, getWidth());
+                float height = Math.max(1.0f, getHeight());
+                cameraPanX = clamp(cameraPanX + (distanceX / width) * 4.2f, -CAMERA_PAN_X_MAX, CAMERA_PAN_X_MAX);
+                cameraPanY = clamp(cameraPanY - (distanceY / height) * 3.4f, -CAMERA_PAN_Y_MAX, CAMERA_PAN_Y_MAX);
+                Celine3DDiagnostics.record(appContext, "V60-120", "Kamera Suchposition geändert",
+                        "pan=" + cameraPanX + "," + cameraPanY + " zoom=" + cameraZoom);
+                return true;
+            }
+
+            @Override public boolean onDoubleTap(MotionEvent e) {
+                resetCameraSearch();
+                return true;
+            }
+        });
+        surfaceView.setOnTouchListener((view, event) -> {
+            boolean scaled = scaleGestureDetector.onTouchEvent(event);
+            boolean gestured = gestureDetector.onTouchEvent(event);
+            return scaled || gestured || event.getActionMasked() == MotionEvent.ACTION_MOVE;
+        });
+        Celine3DDiagnostics.record(appContext, "V60-119", "Bounded Kamera-Suche aktiv",
+                "1 Finger Pan/Orbit · Pinch Zoom · Doppeltipp Reset");
 
         engine = Engine.create();
         Celine3DDiagnostics.record(appContext, "REN-302", "Filament Engine erstellt", String.valueOf(engine != null));
@@ -176,8 +229,12 @@ public final class Celine3DView extends FrameLayout {
             Celine3DDiagnostics.record(appContext, "REN-398", "gltfio createAsset FEHLER", "asset == null");
             throw new IllegalStateException("gltfio konnte die importierte GLB-Datei nicht laden.");
         }
+        int renderableCount = countRenderables(asset);
         Celine3DDiagnostics.record(appContext, "REN-311", "gltfio Asset erstellt",
-                "entities=" + asset.getEntities().length);
+                "entities=" + asset.getEntities().length + " renderables=" + renderableCount);
+        Celine3DDiagnostics.record(appContext, renderableCount > 0 ? "V60-110" : "V60-199",
+                renderableCount > 0 ? "Produktionsmodell enthält Renderables" : "Produktionsmodell OHNE Renderables",
+                "entities=" + asset.getEntities().length + " renderables=" + renderableCount);
 
         resourceLoader.loadResources(asset);
         Celine3DDiagnostics.record(appContext, "REN-312", "GLB Ressourcen geladen", "loadResources OK");
@@ -189,9 +246,11 @@ public final class Celine3DView extends FrameLayout {
         captureLiveBones();
         scene.addEntities(asset.getEntities());
         Celine3DDiagnostics.record(appContext, "REN-316", "Entities zur Scene hinzugefügt",
-                "entities=" + asset.getEntities().length);
+                "entities=" + asset.getEntities().length + " renderables=" + renderableCount);
+        Celine3DDiagnostics.record(appContext, "V60-111", "Produktionsmodell zur Scene hinzugefügt",
+                "root=" + asset.getRoot() + " entities=" + asset.getEntities().length + " renderables=" + renderableCount);
 
-        camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
+        resetCameraSearch();
 
         surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override public void surfaceCreated(SurfaceHolder holder) {
@@ -220,6 +279,20 @@ public final class Celine3DView extends FrameLayout {
             }
         });
         Celine3DDiagnostics.record(appContext, "REN-319", "3D-Konstruktor abgeschlossen", "warte auf Surface/Frames");
+    }
+
+    private int countRenderables(FilamentAsset loadedAsset) {
+        try {
+            RenderableManager manager = engine.getRenderableManager();
+            int count = 0;
+            for (int entity : loadedAsset.getEntities()) {
+                if (manager.hasComponent(entity)) count++;
+            }
+            return count;
+        } catch (Throwable e) {
+            Celine3DDiagnostics.error(appContext, "V60-198", "Renderable-Zählung fehlgeschlagen", e);
+            return -1;
+        }
     }
 
     private void tameMeshyMaterials() {
@@ -303,9 +376,24 @@ public final class Celine3DView extends FrameLayout {
         float breath = (float) Math.sin(t * 1.45 + 0.35);
         float depth = breath * breathDepth;
         float breathLift = breath * breathDepth * 0.30f;
-        float targetX = side * 0.22f;
-        float targetY = lift * 0.18f + breathLift * 0.12f;
-        camera.lookAt(side, lift + breathLift, 1.0 + depth, targetX, targetY, -4.0, 0.0, 1.0, 0.0);
+        float microTargetX = side * 0.22f;
+        float microTargetY = lift * 0.18f + breathLift * 0.12f;
+        float distance = CAMERA_BASE_DISTANCE / cameraZoom;
+        float eyeX = side + cameraPanX * 0.28f;
+        float eyeY = lift + breathLift + cameraPanY * 0.28f;
+        float eyeZ = CAMERA_TARGET_Z + distance + depth;
+        float targetX = cameraPanX + microTargetX;
+        float targetY = cameraPanY + microTargetY;
+        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
+    }
+
+    private void resetCameraSearch() {
+        cameraPanX = 0.0f;
+        cameraPanY = 0.0f;
+        cameraZoom = 1.0f;
+        camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
+        Celine3DDiagnostics.record(appContext, "V60-122", "Kamera auf sicheren Default zurückgesetzt",
+                "pan=0,0 zoom=1 targetZ=" + CAMERA_TARGET_Z);
     }
 
     private void updateLivePose(long frameTimeNanos) {
@@ -386,8 +474,8 @@ public final class Celine3DView extends FrameLayout {
         if (width <= 0 || height <= 0) return;
         filamentView.setViewport(new Viewport(0, 0, width, height));
         camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);
-        camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, -4.0, 0.0, 1.0, 0.0);
-        Celine3DDiagnostics.record(appContext, "REN-324", "Viewport gesetzt", width + "x" + height);
+        updateCameraPresence(System.nanoTime());
+        Celine3DDiagnostics.record(appContext, "REN-324", "Viewport gesetzt", width + "x" + height + " · v60 bounded camera retained");
     }
 
     private boolean isSurfaceReady() {
@@ -420,7 +508,7 @@ public final class Celine3DView extends FrameLayout {
         Matrix.setIdentityM(scaleMatrix, 0);
         Matrix.scaleM(scaleMatrix, 0, scale, scale, scale);
         Matrix.setIdentityM(centerAtTarget, 0);
-        Matrix.translateM(centerAtTarget, 0, 0.0f, 0.0f, -4.0f);
+        Matrix.translateM(centerAtTarget, 0, 0.0f, 0.0f, CAMERA_TARGET_Z);
         Matrix.multiplyMM(temp, 0, scaleMatrix, 0, moveToOrigin, 0);
         Matrix.multiplyMM(transform, 0, centerAtTarget, 0, temp, 0);
 
@@ -429,6 +517,10 @@ public final class Celine3DView extends FrameLayout {
         transformManager.setTransform(instance, transform);
         Celine3DDiagnostics.record(appContext, "REN-314", "Modell normalisiert",
                 "maxExtent=" + maxExtent + " scale=" + scale + " center=" + center[0] + "," + center[1] + "," + center[2]);
+        Celine3DDiagnostics.record(appContext, "V60-112", "Produktions-Bounds für Kamera-Suche",
+                "center=" + center[0] + "," + center[1] + "," + center[2] +
+                        " half=" + half[0] + "," + half[1] + "," + half[2] +
+                        " maxExtent=" + maxExtent + " scale=" + scale + " targetZ=" + CAMERA_TARGET_Z);
     }
 
     public static File importedModelFile(Context context) {
@@ -455,7 +547,7 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
-    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v36 diagnostics"; }
+    public String getRendererName() { return "Direct SurfaceView · Filament 1.72 · v60 bounded camera diagnostics"; }
 
     public String getRenderFailureReason() {
         Throwable e = renderError;
@@ -573,10 +665,13 @@ public final class Celine3DView extends FrameLayout {
         File imported = importedModelFile(context);
         if (imported.isFile() && imported.length() > 32) {
             Celine3DDiagnostics.record(context, "REN-305", "Modellquelle gewählt", "PRIVATE celine.glb · " + imported.length() + " Bytes");
+            Celine3DDiagnostics.record(context, "V60-101", "Produktionsmodellquelle PRIVATE", imported.getAbsolutePath() + " · " + imported.length() + " Bytes");
             try (InputStream in = new FileInputStream(imported)) { return readAll(in); }
         }
         try (InputStream in = context.getAssets().open(MODEL_PATH)) {
-            Celine3DDiagnostics.record(context, "REN-306", "Modellquelle gewählt", "APK ASSET models/celine.glb · available=" + in.available());
+            int available = in.available();
+            Celine3DDiagnostics.record(context, "REN-306", "Modellquelle gewählt", "APK ASSET models/celine.glb · available=" + available);
+            Celine3DDiagnostics.record(context, "V60-102", "Produktionsmodellquelle APK", MODEL_PATH + " · available=" + available);
             return readAll(in);
         }
     }
