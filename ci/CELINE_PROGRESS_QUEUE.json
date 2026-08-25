@@ -29,7 +29,7 @@
     "id": "true-face-blink-viseme",
     "status": "v66_packaged_source_render_recovery_in_progress",
     "current_branch": "auto/celine/v65-packaged-source-render-fix",
-    "current_pr": null,
+    "current_pr": 93,
     "target_version": 66,
     "goal": "Complete the strict roadmap in order: v65 guarded face activation first; then remove A-pose, feminine/attractive posture, natural body motion and styling; only afterward expand conversation intelligence and practical assistant usefulness.",
     "risk": "packaged_source_legacy_guard_recovery",
