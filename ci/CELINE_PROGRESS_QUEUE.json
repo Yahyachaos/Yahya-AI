@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 60,
-    "main_sha": "d9327761eefa57f0c40b2b05b40f76debd5a303f",
+    "version": 61,
+    "main_sha": "4cc50ac768b527398afd54aa71221ced5f4b1f99",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -17,13 +17,14 @@
       "v55 guarded CALL neck+Head multi-joint skinning proof",
       "v57 restrained state-aware CALL head/gaze refinement",
       "v59 safety ownership: HOME Head-only, CALL neck+Head; v56-v58 advanced Hips/shoulder production writer quarantined",
-      "v60 bounded camera search/reset controls and production-avatar diagnostics"
+      "v60 bounded camera search/reset controls and production-avatar diagnostics",
+      "v61 production-only Meshy 0.01 Armature/inverse-bind x100 rig-scale framing correction"
     ]
   },
   "active": {
     "id": "deep-face-geometry-scan",
     "status": "ready",
-    "goal": "Perform a reproducible geometric scan of Celine's production head mesh before creating any facial motion. Determine the exact 3D facial region and boundaries and build a vertex/landmark map for forehead, temples, brows left/right, upper/lower eyelids, eye corners, eye openings, nose bridge/tip/alar region, cheeks, philtrum, upper/lower lips, mouth corners, chin and jawline. Measure symmetry/asymmetry, eye shape/opening, brow arcs, lip contour/volume and mouth opening topology. Preserve Celine's identity; do not modify the production GLB in this research step.",
+    "goal": "Perform a reproducible geometric scan of Celine's production head mesh before creating any facial motion. Determine the exact 3D facial region and boundaries and build a vertex/landmark map for forehead, temples, brows left/right, upper/lower eyelids, eye corners, eye openings, nose bridge/tip/alar region, cheeks, philtrum, upper/lower lips, mouth corners, chin and jawline. Measure symmetry/asymmetry, eye shape/opening, brow arcs, lip contour/volume and mouth opening topology. Preserve Celine's identity; do not modify the production GLB in this research step. v61 has been released but its production-scale correction remains pending real-device confirmation; this geometry-analysis step must therefore stay copy/read-only and must not overwrite the production avatar.",
     "risk": "geometry_analysis_only"
   },
   "completed": [
@@ -101,7 +102,18 @@
       "pr_validation_run": 32793777860,
       "release_run": 32794130145,
       "release_status": "success",
-      "result": "Bounded one-finger camera pan/search, pinch zoom and double-tap reset integrated. Production-model source/renderable/scene/bounds/normalization diagnostics added. HOME/CALL/HOME-return emulator gates and exact merge-SHA release pipeline passed. v59 safe skinning ownership preserved."
+      "result": "Bounded one-finger camera pan/search, pinch zoom and double-tap reset integrated. Production-model source/renderable/scene/bounds/normalization diagnostics added. HOME/CALL/HOME-return emulator gates and exact merge-SHA release pipeline passed. v59 safe skinning ownership preserved. Real-device video then proved the rendered production geometry remained massively oversized."
+    },
+    {
+      "id": "v61-meshy-rig-scale-framing-fix",
+      "status": "merged_released_pending_real_device_confirmation",
+      "pr": 81,
+      "tested_head_sha": "d7ec27995a91eab810019ec9262715875dfeaf27",
+      "merge_sha": "4cc50ac768b527398afd54aa71221ced5f4b1f99",
+      "pr_validation_run": 32795696985,
+      "release_run": 32796066153,
+      "release_status": "success",
+      "result": "Direct inspection of the production Meshy GLB found Armature scale 0.01 with inverse-bind compensation around x100 and mesh extent around 1.7. v61 adds a production-only correction for suspiciously tiny Filament bounds before root framing, targets a safe 2.35 m effective avatar height, preserves v60 pan/zoom/reset and v59 HOME Head-only/CALL neck+Head ownership, and passed APK, HOME/CALL/HOME-return, camera and skinning emulator gates. Real-device visual confirmation is still required because CI uses synthetic small GLBs."
     }
   ],
   "next": [
