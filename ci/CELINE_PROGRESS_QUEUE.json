@@ -27,13 +27,13 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "v64_released_next_guarded_candidate_activation",
-    "current_branch": null,
+    "status": "v65_guarded_production_candidate_activation_started",
+    "current_branch": "auto/celine/v65-guarded-production-candidate-activation",
     "current_pr": null,
     "target_version": 65,
     "goal": "Finish the v64 exact-main release after the already-proven real Celine render/identity/zoom/lifecycle and media-coexistence gates, then continue the same canonical true-face-blink-viseme task toward guarded production candidate activation.",
     "risk": "guarded_production_candidate_activation",
-    "progress": "v64 is fully released and testable. PR #91 exact head 235d5c47bdf734e2a393f0b2d282c4e274f2299b passed Android Build #372 and merged exactly to main as d22f956329d7a75ba5481ac217407d52190ad084. Main Android Build #373 passed build plus HOME/CALL/HOME-return emulator validation. Manual exact-main release Android Build #374 (run 32836316381) revalidated the same merge SHA, passed the emulator gate, and published immutable v64. The next canonical step is guarded production candidate activation on a fresh single-active branch; no runtime change has been started yet.",
+    "progress": "v64 is fully released and testable. PR #91 exact head 235d5c47bdf734e2a393f0b2d282c4e274f2299b passed Android Build #372 and merged exactly to main as d22f956329d7a75ba5481ac217407d52190ad084. Main Android Build #373 passed build plus HOME/CALL/HOME-return emulator validation. Manual exact-main release Android Build #374 (run 32836316381) revalidated the same merge SHA, passed the emulator gate, and published immutable v64. The next canonical step is guarded production candidate activation on a fresh single-active branch; no runtime change has been started yet. A fresh canonical v65 branch was created from reconciled main commit 19dbb182db1a702a50de719fbe358b8261829b59. Initial inspection confirms the guarded six-target runtime and automatic no-morph fallback already exist; the remaining implementation decision is the smallest reproducible way to place the validated generated candidate at the production models/celine.glb source without losing AndroidIDE/offline build reproducibility.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -233,7 +233,7 @@
   "next": [
     {
       "id": "true-face-blink-viseme-guarded-production-candidate-activation",
-      "status": "ready",
+      "status": "in_progress",
       "target_version": 65,
       "goal": "Activate the already-validated real six-target Celine candidate behind existing automatic no-morph rollback and v61/v59 safety ownership, then prove identity, blink/viseme behavior and HOME/CALL/HOME-return lifecycle on the exact PR head.",
       "constraints": [
