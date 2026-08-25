@@ -73,6 +73,8 @@ final class CelineCallImeGuardV70 {
 
         void destroy() {
             returnGeneration++;
+            EditText composer = findHomeComposer(decor);
+            if (composer != null) composer.setFocusableInTouchMode(true);
             if (installed) {
                 ViewTreeObserver observer = decor.getViewTreeObserver();
                 if (observer.isAlive()) observer.removeOnGlobalLayoutListener(this);
@@ -89,21 +91,22 @@ final class CelineCallImeGuardV70 {
             if (!installed || activity.isFinishing() || activity.isDestroyed()) return;
             boolean callNow = containsText(decor, CALL_TITLE);
             if (callNow == callVisible) {
-                if (callNow) clearComposerFocusAndHideIme();
+                if (callNow) suppressComposerDuringCall();
                 return;
             }
 
             callVisible = callNow;
             if (callNow) {
                 returnGeneration++;
-                boolean focused = clearComposerFocusAndHideIme();
-                decor.postDelayed(this::clearComposerFocusAndHideIme, 80L);
+                boolean focused = suppressComposerDuringCall();
+                decor.postDelayed(this::suppressComposerDuringCall, 80L);
                 Celine3DDiagnostics.record(activity, "V70-151", "CALL uebernimmt HOME Eingabefokus",
                         "composerFocused=" + focused + " · layoutConfirmed=true · imeHideRequested=true");
                 return;
             }
 
             final int generation = ++returnGeneration;
+            restoreComposerAfterCall();
             boolean focused = clearComposerFocusAndHideIme();
             decor.post(() -> cleanupReturn(generation));
             decor.postDelayed(() -> cleanupReturn(generation), 80L);
@@ -114,7 +117,29 @@ final class CelineCallImeGuardV70 {
 
         void cleanupReturn(int generation) {
             if (!installed || generation != returnGeneration || callVisible) return;
+            restoreComposerAfterCall();
             clearComposerFocusAndHideIme();
+        }
+
+        boolean suppressComposerDuringCall() {
+            EditText composer = findHomeComposer(decor);
+            if (composer == null) return false;
+            boolean focused = composer.isFocused();
+            hideIme(composer);
+            if (focused) composer.clearFocus();
+            // The HOME editor remains in the same hierarchy underneath the CALL overlay. On the
+            // emulator Android re-selected it on a later layout pass even after clearFocus(). While
+            // CALL is visible, temporarily make only that hidden editor ineligible for touch focus.
+            // This prevents it from owning CALL focus without changing HOME layout or editor state.
+            composer.setFocusableInTouchMode(false);
+            decor.setFocusableInTouchMode(true);
+            decor.requestFocus();
+            return focused;
+        }
+
+        void restoreComposerAfterCall() {
+            EditText composer = findHomeComposer(decor);
+            if (composer != null) composer.setFocusableInTouchMode(true);
         }
 
         boolean clearComposerFocusAndHideIme() {
