@@ -72,7 +72,7 @@ tasks.register('generateCelineProductionMorphV65', Exec) {
             celineCanonicalSource.absolutePath,
             celineV65Candidate.absolutePath,
             '--report', celineV65Report.absolutePath,
-            '--expected-sha256', '4c433114d1e5475899d1170acb44706a7a8c75bc130f3a1400992c0369f8b804'
+            '--expected-sha256', '6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146'
 }
 
 tasks.register('validateCelineProductionMorphV65', Exec) {
