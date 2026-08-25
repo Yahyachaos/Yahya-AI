@@ -94,7 +94,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 65
+        versionCode 66
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -132,8 +132,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v65 packages the exact validated real six-target candidate reproducibly while preserving
-    // v64 framing/media coexistence, v61 rig-scale correction, v59 joint ownership and runtime rollback.
+    // v66 recovers the packaged six-target candidate by making legacy texture/rig guards honor
+    // the APK asset source while preserving v64 framing, v59 ownership and runtime rollback.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }

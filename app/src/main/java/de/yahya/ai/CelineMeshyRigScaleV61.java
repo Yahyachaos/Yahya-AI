@@ -11,6 +11,7 @@ import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
@@ -120,8 +121,7 @@ final class CelineMeshyRigScaleV61 {
     }
 
     private static boolean repair(Activity activity, Celine3DView view) throws Exception {
-        File production = Celine3DView.importedModelFile(activity);
-        long bytes = production.isFile() ? production.length() : 0L;
+        long bytes = productionModelBytes(activity);
 
         FilamentAsset asset = (FilamentAsset) field(view, "asset");
         TransformManager transforms = (TransformManager) field(view, "transformManager");
@@ -194,6 +194,22 @@ final class CelineMeshyRigScaleV61 {
                         " correctedExtent=" + correctedExtent + " rootScale=" + rootScale +
                         " targetHeight=" + TARGET_HEIGHT + " center=" + correctedCenterX + "," + correctedCenterY + "," + correctedCenterZ);
         return true;
+    }
+
+    private static long productionModelBytes(Activity activity) {
+        File imported = Celine3DView.importedModelFile(activity);
+        if (imported.isFile() && imported.length() > 32L) return imported.length();
+        try (InputStream in = activity.getAssets().open("models/celine.glb")) {
+            long available = in.available();
+            if (available > 0L) return available;
+            long total = 0L;
+            byte[] buffer = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buffer)) >= 0) total += n;
+            return total;
+        } catch (Throwable ignored) {
+            return 0L;
+        }
     }
 
     private static float basisLength(float[] m, int offset) {

@@ -27,13 +27,13 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "v65_guarded_production_candidate_activation_started",
-    "current_branch": "auto/celine/v65-guarded-production-candidate-activation",
+    "status": "v66_packaged_source_render_recovery_in_progress",
+    "current_branch": "auto/celine/v65-packaged-source-render-fix",
     "current_pr": null,
-    "target_version": 65,
+    "target_version": 66,
     "goal": "Complete the strict roadmap in order: v65 guarded face activation first; then remove A-pose, feminine/attractive posture, natural body motion and styling; only afterward expand conversation intelligence and practical assistant usefulness.",
-    "risk": "guarded_production_candidate_activation",
-    "progress": "v64 is fully released and testable. PR #91 exact head 235d5c47bdf734e2a393f0b2d282c4e274f2299b passed Android Build #372 and merged exactly to main as d22f956329d7a75ba5481ac217407d52190ad084. Main Android Build #373 passed build plus HOME/CALL/HOME-return emulator validation. Manual exact-main release Android Build #374 (run 32836316381) revalidated the same merge SHA, passed the emulator gate, and published immutable v64. The next canonical step is guarded production candidate activation on a fresh single-active branch; no runtime change has been started yet. A fresh canonical v65 branch was created from reconciled main commit 19dbb182db1a702a50de719fbe358b8261829b59. Initial inspection confirms the guarded six-target runtime and automatic no-morph fallback already exist; the remaining implementation decision is the smallest reproducible way to place the validated generated candidate at the production models/celine.glb source without losing AndroidIDE/offline build reproducibility. The user reconfirmed the full product order: complete Celine's visual/body sequence first, then make the app smarter and more useful. This is now recorded as a strict sequential roadmap so later intelligence work cannot displace the active visual/body focus.",
+    "risk": "packaged_source_legacy_guard_recovery",
+    "progress": "v65 was merged and automatically published from edeb170ef9a4f9f4e12b12413533d53fd21494c3 before the dedicated real-candidate image gate completed. That APK is quarantined and not testable: exact evidence showed the HOME fallback photo and empty CALL/HOME-return room because legacy FORCE-C texture and v61 rig-scale guards only recognized a private model file. v66 is the single active recovery step. It changes only those proven packaged-source assumptions and strengthens the emulator proof to require V61-110, V39-150 and CTL-350 before screenshots; A-pose/body work remains pending.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -44,8 +44,8 @@
       "verification": "PASS"
     },
     "candidate": {
-      "generation_policy": "copy_only_from_canonical_source",
-      "sha256": "4c433114d1e5475899d1170acb44706a7a8c75bc130f3a1400992c0369f8b804",
+      "generation_policy": "reproducible_generated_production_asset_from_canonical_source",
+      "sha256": "6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146",
       "vertex_count": 66700,
       "target_names": [
         "BlinkLeft",
@@ -58,9 +58,9 @@
       "structural_validation": "PASS",
       "topology_preserved": true,
       "source_modified": false,
-      "real_render_validation": "PASS on PR #90 exact head",
+      "real_render_validation": "FAILED on v65 merged head: fallback photo / empty room; release quarantined",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v64 release complete on exact main SHA d22f956329d7a75ba5481ac217407d52190ad084; next gate is a fresh exact-head PR for guarded production candidate activation without weakening v64/v61/v59 fallback protections"
+      "remaining_gate": "v66 exact-head Android plus dedicated HOME/CALL/HOME real-candidate proof, then exact-main validation and new immutable release; do not mark v65 testable"
     }
   },
   "completed": [
@@ -228,24 +228,42 @@
       "main_validation_run": 32835392747,
       "release_run": 32836316381,
       "result": "Bounded uiautomator dump retries with app-PID continuity checks passed exact-head and exact-main Android/emulator validation; immutable v64 was published from the exact merge SHA."
+    },
+    {
+      "id": "v65-guarded-production-face-premature-release",
+      "status": "merged_release_quarantined_not_testable",
+      "pr": 92,
+      "tested_head_sha": "6594d4475fa29c21d065489f7a44e6d05adab0a2",
+      "merge_sha": "edeb170ef9a4f9f4e12b12413533d53fd21494c3",
+      "android_run": 32838879913,
+      "failed_real_candidate_run": 32838418181,
+      "result": "The general Android workflow passed and published v65, but the dedicated real-candidate proof showed only the fallback photo on HOME and an empty room on CALL/HOME-return. v65 is quarantined and must not be described as testable."
     }
   ],
   "next": [
     {
-      "id": "true-face-blink-viseme-guarded-production-candidate-activation",
+      "id": "v66-packaged-source-render-recovery",
       "status": "in_progress",
-      "target_version": 65,
-      "goal": "Activate the already-validated real six-target Celine candidate behind existing automatic no-morph rollback and v61/v59 safety ownership, then prove identity, blink/viseme behavior and HOME/CALL/HOME-return lifecycle on the exact PR head.",
+      "target_version": 66,
+      "goal": "Make the already generated six-target production candidate visible when loaded from the packaged APK asset by aligning legacy FORCE-C texture and Meshy rig-scale guards with the renderer's selected source, then prove real 3D HOME/CALL/HOME images on the exact head.",
       "constraints": [
-        "single active branch and PR",
-        "preserve v64 media coexistence and 38mm HOME framing",
-        "preserve v61 rig-scale correction and v59 HOME/CALL joint ownership",
-        "automatic no-morph fallback remains mandatory",
-        "no release before exact-head and exact-main emulator proof"
+        "single active recovery branch and PR",
+        "no A-pose/body/styling work in this recovery",
+        "require packaged source REN-306 and reject private REN-305",
+        "require V61-110 rig-scale correction, V39-150 texture bind and CTL-350 visible 3D activation",
+        "reject fallback photo and empty-room false positives",
+        "no testable release claim before exact-head and exact-main proof"
       ]
     }
   ],
-  "blocked": [],
+  "blocked": [
+    {
+      "id": "v65-release",
+      "status": "quarantined_not_testable",
+      "sha": "edeb170ef9a4f9f4e12b12413533d53fd21494c3",
+      "reason": "dedicated real-candidate evidence contains fallback photo and empty room; supersede with validated v66"
+    }
+  ],
   "release_retry": {
     "failed_main_run": 32833820523,
     "failure_classification": "ci_infrastructure_uiautomator_transient",
@@ -274,14 +292,15 @@
         "steps": [
           {
             "order": 1,
-            "id": "v65-guarded-production-face",
+            "id": "v65-v66-guarded-production-face-recovery",
             "status": "in_progress",
             "deliverables": [
-              "real six-target face candidate in production",
+              "quarantine premature v65 release as not testable",
+              "real six-target face candidate visible from packaged APK source in v66",
               "natural asynchronous blink",
               "speech-driven jaw/rounded/spread visemes",
               "automatic no-morph rollback",
-              "identity and HOME/CALL/HOME proof"
+              "identity and HOME/CALL/HOME real-image proof"
             ]
           },
           {

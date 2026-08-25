@@ -14,8 +14,21 @@ trap collect EXIT
 
 fail() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V62-|V61-|V60-|REN-|VIS-' | tail -260 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -260 || true
   exit 1
+}
+
+wait_for_log() {
+  local needle="$1"
+  local label="$2"
+  for _ in $(seq 1 35); do
+    if adb logcat -d | grep -q "$needle"; then
+      echo "Ready: $label"
+      return 0
+    fi
+    sleep 1
+  done
+  fail "timed out waiting for $label ($needle)"
 }
 
 [[ -s "$APK" ]] || fail "missing APK: $APK"
@@ -40,7 +53,9 @@ PRIVATE_MODEL="$(adb shell "run-as $PACKAGE sh -c 'test -e files/models/celine.g
 
 adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$ACTIVITY"
-sleep 13
+wait_for_log 'V61-110' 'packaged production rig-scale correction'
+wait_for_log 'V39-150' 'packaged production texture binding'
+wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
 
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail "process died before HOME proof"
@@ -64,8 +79,17 @@ fi
 if ! grep -q 'V62-210' real-candidate-logcat-home.txt; then
   fail "real candidate loaded but six-target morph runtime did not activate (V62-210 missing)"
 fi
-if grep -Eq 'V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
-  fail "runtime error detected during real-candidate HOME proof"
+if ! grep -q 'V61-110' real-candidate-logcat-home.txt; then
+  fail "packaged production rig-scale correction did not activate (V61-110 missing)"
+fi
+if ! grep -q 'V39-150' real-candidate-logcat-home.txt; then
+  fail "packaged production texture was not explicitly bound (V39-150 missing)"
+fi
+if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
+  fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
+fi
+if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+  fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
 read -r TAP_X TAP_Y <<< "$(python3 - <<'PY'
@@ -106,11 +130,11 @@ python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETUR
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
 if ! grep -q 'V62-210' real-candidate-logcat-final.txt; then
   fail "morph runtime activation evidence missing after lifecycle"
 fi
 
-printf 'PASS packaged v65 real Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v66 recovery Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
