@@ -31,9 +31,9 @@
     "current_branch": "auto/celine/v65-guarded-production-candidate-activation",
     "current_pr": null,
     "target_version": 65,
-    "goal": "Finish the v64 exact-main release after the already-proven real Celine render/identity/zoom/lifecycle and media-coexistence gates, then continue the same canonical true-face-blink-viseme task toward guarded production candidate activation.",
+    "goal": "Complete the strict roadmap in order: v65 guarded face activation first; then remove A-pose, feminine/attractive posture, natural body motion and styling; only afterward expand conversation intelligence and practical assistant usefulness.",
     "risk": "guarded_production_candidate_activation",
-    "progress": "v64 is fully released and testable. PR #91 exact head 235d5c47bdf734e2a393f0b2d282c4e274f2299b passed Android Build #372 and merged exactly to main as d22f956329d7a75ba5481ac217407d52190ad084. Main Android Build #373 passed build plus HOME/CALL/HOME-return emulator validation. Manual exact-main release Android Build #374 (run 32836316381) revalidated the same merge SHA, passed the emulator gate, and published immutable v64. The next canonical step is guarded production candidate activation on a fresh single-active branch; no runtime change has been started yet. A fresh canonical v65 branch was created from reconciled main commit 19dbb182db1a702a50de719fbe358b8261829b59. Initial inspection confirms the guarded six-target runtime and automatic no-morph fallback already exist; the remaining implementation decision is the smallest reproducible way to place the validated generated candidate at the production models/celine.glb source without losing AndroidIDE/offline build reproducibility.",
+    "progress": "v64 is fully released and testable. PR #91 exact head 235d5c47bdf734e2a393f0b2d282c4e274f2299b passed Android Build #372 and merged exactly to main as d22f956329d7a75ba5481ac217407d52190ad084. Main Android Build #373 passed build plus HOME/CALL/HOME-return emulator validation. Manual exact-main release Android Build #374 (run 32836316381) revalidated the same merge SHA, passed the emulator gate, and published immutable v64. The next canonical step is guarded production candidate activation on a fresh single-active branch; no runtime change has been started yet. A fresh canonical v65 branch was created from reconciled main commit 19dbb182db1a702a50de719fbe358b8261829b59. Initial inspection confirms the guarded six-target runtime and automatic no-morph fallback already exist; the remaining implementation decision is the smallest reproducible way to place the validated generated candidate at the production models/celine.glb source without losing AndroidIDE/offline build reproducibility. The user reconfirmed the full product order: complete Celine's visual/body sequence first, then make the app smarter and more useful. This is now recorded as a strict sequential roadmap so later intelligence work cannot displace the active visual/body focus.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -262,5 +262,126 @@
     "release_run": 32836316381,
     "release_tag": "v64",
     "release_status": "published_testable"
+  },
+  "roadmap": {
+    "policy": "strict_sequential_single_active_step",
+    "focus_rule": "Do not skip ahead. Finish and exact-head validate one step, merge it, pass exact-main validation, and release it before starting the next runtime step.",
+    "phases": [
+      {
+        "id": "celine_visual_body_completion",
+        "status": "in_progress",
+        "goal": "Finish Celine's face, posture, movement and styling before expanding intelligence or utility.",
+        "steps": [
+          {
+            "order": 1,
+            "id": "v65-guarded-production-face",
+            "status": "in_progress",
+            "deliverables": [
+              "real six-target face candidate in production",
+              "natural asynchronous blink",
+              "speech-driven jaw/rounded/spread visemes",
+              "automatic no-morph rollback",
+              "identity and HOME/CALL/HOME proof"
+            ]
+          },
+          {
+            "order": 2,
+            "id": "remove-a-pose",
+            "status": "pending",
+            "deliverables": [
+              "arms leave A-pose",
+              "shoulders relax safely",
+              "natural HOME base pose",
+              "credible seated CALL pose",
+              "clean HOME/CALL/HOME transitions"
+            ]
+          },
+          {
+            "order": 3,
+            "id": "feminine-presence",
+            "status": "pending",
+            "deliverables": [
+              "more feminine and attractive posture",
+              "natural shoulder/hip balance without deformation",
+              "confident but restrained stance",
+              "real-image review before release"
+            ]
+          },
+          {
+            "order": 4,
+            "id": "natural-body-motion",
+            "status": "pending",
+            "deliverables": [
+              "bounded arm and hand presence",
+              "subtle breathing and weight shifts",
+              "coordinated head/gaze/body motion",
+              "no frozen or robotic transitions"
+            ]
+          },
+          {
+            "order": 5,
+            "id": "appearance-and-styling",
+            "status": "pending",
+            "deliverables": [
+              "hair and material refinement",
+              "outfit and styling refinement",
+              "consistent attractive appearance in HOME and CALL",
+              "identity preserved"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "intelligence_and_usefulness",
+        "status": "pending_after_visual_body_completion",
+        "goal": "Make Yahya AI substantially smarter and more useful only after the Celine visual/body sequence is complete.",
+        "steps": [
+          {
+            "order": 6,
+            "id": "conversation-intelligence",
+            "status": "pending",
+            "deliverables": [
+              "better intent understanding",
+              "stronger multi-turn context",
+              "more reliable and less repetitive answers",
+              "clear recovery when uncertain"
+            ]
+          },
+          {
+            "order": 7,
+            "id": "personal-assistant-usefulness",
+            "status": "pending",
+            "deliverables": [
+              "useful notes, reminders and daily assistance",
+              "structured follow-up actions",
+              "safe user-controlled memory and preferences",
+              "clear confirmations for important actions"
+            ]
+          },
+          {
+            "order": 8,
+            "id": "phone-and-media-integration",
+            "status": "pending",
+            "deliverables": [
+              "reliable app and media coexistence",
+              "useful device actions within Android permissions",
+              "stable WhatsApp/Deezer and microphone behavior",
+              "graceful background lifecycle"
+            ]
+          },
+          {
+            "order": 9,
+            "id": "quality-and-polish",
+            "status": "pending",
+            "deliverables": [
+              "speed and stability improvements",
+              "battery and resource discipline",
+              "accessibility and clearer settings",
+              "full regression coverage and release proof"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
