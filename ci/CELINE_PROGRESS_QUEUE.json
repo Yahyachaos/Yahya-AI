@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 63,
-    "main_sha": "0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23",
+    "main_sha": "42871b0a5fda9c3e8422a9a3af1dec9e4fea0501",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -21,18 +21,19 @@
       "v61 production-only Meshy 0.01 Armature/inverse-bind x100 rig-scale framing correction",
       "v62 dormant bounded facial-motion scaffold with automatic v61/v59 no-morph fallback",
       "v63 guarded Filament six-target face-morph runtime with automatic no-morph rollback",
+      "v64 HOME 38mm lifecycle-stable framing and external-media wake-word coexistence",
       "canonical Celine source persisted via Git LFS and SHA-verified before candidate generation"
     ]
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "in_progress_v64_real_candidate_visual_repair_and_media_coexistence",
-    "current_branch": "auto/celine-real-candidate-render-proof",
-    "current_pr": 90,
+    "status": "v64_merged_release_retry_after_main_uiautomator_flake",
+    "current_branch": "auto/celine-v64-main-emulator-retry",
+    "current_pr": 91,
     "target_version": 64,
-    "goal": "Complete real Celine six-target morph rendering with preserved identity and stable HOME/CALL/HOME-return framing, while shipping the user-reported media-coexistence repair so the next app version does not hold SpeechRecognizer/microphone resources over Deezer or WhatsApp voice-note playback.",
-    "risk": "real_candidate_visual_identity_lifecycle_and_audio_resource_coexistence",
-    "progress": "PR #89 merged canonical Celine source persistence to main at 0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23. PR #90 real-candidate run 32831971703 proved the real six-target candidate renders and activates v63 morph playback across HOME/CALL/HOME-return, but manual evidence review exposed a HOME-return zoom regression: the established 38mm HOME presentation was later overwritten by the renderer's 32mm viewport reset, making Celine about 16% smaller. v64 now keeps late HOME viewport projection at 38mm while CALL retains its 50mm lens, and adds an image-scale gate. The same v64 also changes WakeWordService to suspend/cancel SpeechRecognizer while external media is active and resume only after playback ends, addressing Deezer/WhatsApp interference without disabling the wake-word feature.",
+    "goal": "Finish the v64 exact-main release after the already-proven real Celine render/identity/zoom/lifecycle and media-coexistence gates, then continue the same canonical true-face-blink-viseme task toward guarded production candidate activation.",
+    "risk": "main_release_ci_infrastructure_retry_only",
+    "progress": "PR #90 exact head 20a91f8282483786309065be97295d97a8a51237 passed Android Build #369, real-candidate render proof #9 and Wakeword Media Coexistence #2, including visual identity review and HOME-return zoom ratio 1.005. It merged to main as 42871b0a5fda9c3e8422a9a3af1dec9e4fea0501. Main Android Build #370 compiled successfully and its normal HOME/CALL/HOME-return stage passed, but the later synthetic skinning stage hit one API-35 uiautomator UiAutomation crash on the CALL XML dump while the Yahya AI process remained alive; publication was correctly skipped. PR #91 adds only bounded UI-dump retries with PID continuity checks and does not change v64 runtime behavior.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -50,7 +51,9 @@
       "structural_validation": "PASS",
       "topology_preserved": true,
       "source_modified": false,
-      "remaining_gate": "exact v64 head: Android build + real render + visual identity + HOME/CALL + HOME-return zoom consistency + lifecycle + wake-word media coexistence"
+      "real_render_validation": "PASS on PR #90 exact head",
+      "home_return_zoom_ratio": 1.005,
+      "remaining_gate": "PR #91 exact head Android/emulator green -> exact-head merge -> main exact-SHA Android/emulator + v64 publication"
     }
   },
   "completed": [
@@ -73,8 +76,18 @@
     {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256},
     {"id":"true-face-blink-viseme-scaffold","status":"merged","pr":87,"tested_head_sha":"49a923c3fe1049f07d8589f2f2d6b31290f8af4c","merge_sha":"8078813323611bb16f0212a848cd83b04ddcc8d8","pr_validation_run":32821818824},
     {"id":"true-face-blink-viseme-runtime","status":"merged_released_guarded","pr":88,"tested_head_sha":"6aff7e6f5cade4f00e4960420e5d7113365a1405","merge_sha":"786171e84359663c4e37c7520b957c6e12791c5b","pr_validation_run":32822689680,"release_run":32823119139,"result":"Guarded six-target Filament morph playback, asynchronous blink, restrained microexpression and speech-driven JawOpen/rounded/spread blending passed build and emulator avatar visibility; exact merge SHA was published. Production candidate replacement remained gated."},
-    {"id":"canonical-celine-source-persistence","status":"merged","pr":89,"tested_head_sha":"a16b6e7af2b7785d6a59dfaf15a7225831ca06d9","merge_sha":"0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23","android_run":32831139288,"candidate_run":32831139319,"result":"Canonical real Celine source is persisted via Git LFS, SHA-verified and reproducibly generates a structurally valid real six-target candidate in CI."}
+    {"id":"canonical-celine-source-persistence","status":"merged","pr":89,"tested_head_sha":"a16b6e7af2b7785d6a59dfaf15a7225831ca06d9","merge_sha":"0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23","android_run":32831139288,"candidate_run":32831139319,"result":"Canonical real Celine source is persisted via Git LFS, SHA-verified and reproducibly generates a structurally valid real six-target candidate in CI."},
+    {"id":"true-face-blink-viseme-real-render-v64","status":"merged_awaiting_main_release","pr":90,"tested_head_sha":"20a91f8282483786309065be97295d97a8a51237","merge_sha":"42871b0a5fda9c3e8422a9a3af1dec9e4fea0501","android_run":32833349787,"real_candidate_run":32833349764,"media_coexistence_run":32833349765,"result":"Real six-target candidate, identity, HOME/CALL/HOME-return lifecycle, stable 38mm HOME framing and external-media wake-word coexistence all passed on exact PR head; main publication remains pending after an unrelated transient API35 UiAutomation dump failure in Android Build #370."}
   ],
   "next": [],
-  "blocked": []
+  "blocked": [],
+  "release_retry": {
+    "failed_main_run": 32833820523,
+    "failure_classification": "ci_infrastructure_uiautomator_transient",
+    "app_process_alive": true,
+    "build_passed": true,
+    "stage1_home_call_home_passed": true,
+    "failing_step": "ci/skinning-smoke.sh CALL uiautomator dump",
+    "repair_pr": 91
+  }
 }
