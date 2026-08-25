@@ -25,18 +25,18 @@ CANDIDATE_BYTES="$(wc -c < "$CANDIDATE" | tr -d ' ')"
 if [[ "$CANDIDATE_BYTES" -lt 1000000 ]]; then
   fail "candidate unexpectedly small: $CANDIDATE_BYTES"
 fi
+CANDIDATE_SHA="$(sha256sum "$CANDIDATE" | awk '{print $1}')"
+APK_CANDIDATE_SHA="$(unzip -p "$APK" assets/models/celine.glb | sha256sum | awk '{print $1}')"
+[[ "$APK_CANDIDATE_SHA" = "$CANDIDATE_SHA" ]] ||
+  fail "APK candidate mismatch expected=$CANDIDATE_SHA packaged=$APK_CANDIDATE_SHA"
+echo "Packaged production candidate: bytes=$CANDIDATE_BYTES sha256=$CANDIDATE_SHA"
 
-echo "Candidate local bytes=$CANDIDATE_BYTES"
 adb install -r "$APK"
+adb shell pm clear "$PACKAGE" >/dev/null || fail "could not clear private model state"
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c || true
-
-# Candidate is injected only into app-private storage. The checked-in production source/baseline is
-# never overwritten by this proof.
-cat "$CANDIDATE" | adb shell "run-as $PACKAGE sh -c 'mkdir -p files/models; cat > files/models/celine.glb'"
-REMOTE_BYTES="$(adb shell "run-as $PACKAGE sh -c 'wc -c < files/models/celine.glb'" | tr -d '\r ' || true)"
-[[ "$REMOTE_BYTES" = "$CANDIDATE_BYTES" ]] || fail "candidate injection byte mismatch local=$CANDIDATE_BYTES remote=$REMOTE_BYTES"
-echo "Injected real candidate copy: $REMOTE_BYTES bytes"
+PRIVATE_MODEL="$(adb shell "run-as $PACKAGE sh -c 'test -e files/models/celine.glb && echo yes || echo no'" | tr -d '\r ' || true)"
+[[ "$PRIVATE_MODEL" = "no" ]] || fail "private candidate unexpectedly present before APK-source proof"
 
 adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$ACTIVITY"
@@ -53,8 +53,14 @@ grep -q 'Celin 3D Ansicht' real-candidate-home.xml || fail "HOME 3D stage missin
 grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
 
-# The v63 guarded runtime must recognize this exact real candidate as morph-capable.
+# v65 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
+if ! grep -q 'REN-306' real-candidate-logcat-home.txt; then
+  fail "packaged APK production model source was not selected (REN-306 missing)"
+fi
+if grep -q 'REN-305' real-candidate-logcat-home.txt; then
+  fail "private model unexpectedly overrode the packaged v65 production candidate"
+fi
 if ! grep -q 'V62-210' real-candidate-logcat-home.txt; then
   fail "real candidate loaded but six-target morph runtime did not activate (V62-210 missing)"
 fi
@@ -107,4 +113,4 @@ if ! grep -q 'V62-210' real-candidate-logcat-final.txt; then
   fail "morph runtime activation evidence missing after lifecycle"
 fi
 
-printf 'PASS real Celine candidate: bytes=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v65 real Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"

@@ -9,6 +9,8 @@ on:
       - '.github/workflows/celine-real-candidate-render-proof.yml'
       - 'app/src/main/assets/models/celine-source/**'
       - 'ci/celine_facial_morph_prototype.py'
+      - 'ci/celine_production_morph_v65.py'
+      - 'ci/celine_true_face_runtime_contract.py'
       - 'ci/celine_facial_morph_validation.py'
       - 'app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java'
       - 'app/build.gradle'
@@ -37,17 +39,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install morph dependency
-        run: python -m pip install --disable-pip-version-check numpy
-
-      - name: Generate and structurally validate real candidate copy
+      - name: Generate and structurally validate exact production candidate
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p morph-proof
           SOURCE='app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb'
-          python ci/celine_facial_morph_prototype.py "$SOURCE" morph-proof/celine_morph_candidate.glb --report morph-proof/prototype-report.json
+          python ci/celine_production_morph_v65.py "$SOURCE" morph-proof/celine_morph_candidate.glb \
+            --report morph-proof/production-report.json \
+            --expected-sha256 6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146
           python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_morph_candidate.glb --report morph-proof/validation-report.json
+          python ci/celine_true_face_runtime_contract.py
           echo "candidate_sha256=$(sha256sum morph-proof/celine_morph_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 17 for Android SDK
@@ -73,7 +75,7 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Build unchanged guarded v63 runtime APK
+      - name: Build guarded v65 production-face APK
         shell: bash
         run: |
           set -euo pipefail
@@ -105,7 +107,7 @@ jobs:
         with:
           name: celine-real-candidate-render-evidence
           path: |
-            morph-proof/prototype-report.json
+            morph-proof/production-report.json
             morph-proof/validation-report.json
             real-candidate-home.png
             real-candidate-call.png
