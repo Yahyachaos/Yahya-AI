@@ -6,7 +6,9 @@ APP="app/src/main/java/de/yahya/ai/YahyaApplication.java"
 GRADLE="app/build.gradle"
 
 test -f "$SRC" || { echo "ERROR: v61 Meshy rig-scale guard missing"; exit 1; }
-grep -q 'versionCode 61' "$GRADLE" || { echo "ERROR: versionCode 61 missing"; exit 1; }
+version_code="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' "$GRADLE" | head -n1)"
+[[ "$version_code" =~ ^[0-9]+$ ]] || { echo "ERROR: versionCode missing"; exit 1; }
+(( version_code >= 61 )) || { echo "ERROR: versionCode regressed below protected v61 baseline: $version_code"; exit 1; }
 grep -q 'CelineMeshyRigScaleV61.install(activity, decor)' "$APP" || { echo "ERROR: v61 guard not wired into application lifecycle"; exit 1; }
 grep -q 'asset.getFirstEntityByName("Armature")' "$SRC" || { echo "ERROR: Armature detection missing"; exit 1; }
 grep -q 'asset.getFirstEntityByName("Hips")' "$SRC" || { echo "ERROR: Hips detection missing"; exit 1; }
@@ -30,4 +32,4 @@ assert old_scale / new_scale > 100.0, (old_scale, new_scale)
 print(f"v61 Meshy math OK: old={old_scale:.2f} correctedExtent={corrected_extent:.2f} new={new_scale:.3f}")
 PY
 
-echo "v61 Meshy rig-scale guard OK"
+echo "v61 Meshy rig-scale guard OK (versionCode=$version_code)"
