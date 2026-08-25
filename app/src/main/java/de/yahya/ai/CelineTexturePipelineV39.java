@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -204,7 +205,7 @@ final class CelineTexturePipelineV39 {
 
             if (mode == Mode.C_FORCE_TEXTURE) {
                 BindResult result = bindEmbeddedBaseColor(context, threeD, engine, materials,
-                        originalModelFile(context).isFile() ? originalModelFile(context) : Celine3DView.importedModelFile(context));
+                        readSelectedModelBytes(context));
                 context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                         .putString(KEY_TEXTURE_STATUS, result.ok ? "JA (GPU)" : "NEIN")
                         .apply();
@@ -239,7 +240,7 @@ final class CelineTexturePipelineV39 {
     }
 
     private static BindResult bindEmbeddedBaseColor(Context context, Celine3DView view, Engine engine,
-                                                     MaterialInstance[] materials, File glb) {
+                                                     MaterialInstance[] materials, byte[] glbBytes) {
         try {
             synchronized (FORCED_TEXTURES) {
                 Texture existing = FORCED_TEXTURES.get(view);
@@ -249,7 +250,7 @@ final class CelineTexturePipelineV39 {
                 }
             }
 
-            ImageBytes image = extractEmbeddedImage(glb);
+            ImageBytes image = extractEmbeddedImage(glbBytes);
             Bitmap bitmap = BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.length);
             if (bitmap == null) return new BindResult(false, "BitmapFactory.decodeByteArray=null");
             if (bitmap.getConfig() == Bitmap.Config.HARDWARE) bitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false);
@@ -330,8 +331,7 @@ final class CelineTexturePipelineV39 {
         return null;
     }
 
-    private static ImageBytes extractEmbeddedImage(File glb) throws Exception {
-        byte[] bytes = readAll(glb);
+    private static ImageBytes extractEmbeddedImage(byte[] bytes) throws Exception {
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         if (bytes.length < 28 || bb.getInt(0) != GLB_MAGIC || bb.getInt(4) != 2) {
             throw new IllegalArgumentException("GLB-Header ungültig");
@@ -439,9 +439,24 @@ final class CelineTexturePipelineV39 {
         if (!temp.renameTo(target)) throw new IllegalStateException("Arbeitsdatei rename fehlgeschlagen");
     }
 
+    private static byte[] readSelectedModelBytes(Context context) throws Exception {
+        File original = originalModelFile(context);
+        if (original.isFile() && original.length() > 32L) return readAll(original);
+        File imported = Celine3DView.importedModelFile(context);
+        if (imported.isFile() && imported.length() > 32L) return readAll(imported);
+        try (InputStream in = context.getAssets().open("models/celine.glb")) {
+            return readAll(in);
+        }
+    }
+
     private static byte[] readAll(File file) throws Exception {
-        try (FileInputStream in = new FileInputStream(file);
-             ByteArrayOutputStream out = new ByteArrayOutputStream((int) Math.min(file.length(), Integer.MAX_VALUE))) {
+        try (FileInputStream in = new FileInputStream(file)) {
+            return readAll(in);
+        }
+    }
+
+    private static byte[] readAll(InputStream in) throws Exception {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[64 * 1024];
             int n;
             while ((n = in.read(buffer)) >= 0) out.write(buffer, 0, n);
