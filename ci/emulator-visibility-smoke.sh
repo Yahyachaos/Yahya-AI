@@ -9,12 +9,13 @@ FIXTURE="ci/celine-smoke.glb"
 collect_evidence() {
   adb logcat -d > emulator-logcat.txt 2>/dev/null || true
   adb shell "run-as $PACKAGE cat shared_prefs/yahya_ai.xml" > emulator-prefs.xml 2>/dev/null || true
+  adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" > emulator-celine-diagnostics.xml 2>/dev/null || true
 }
 trap collect_evidence EXIT
 
 fail_with_log() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V50-|V49-|V43-|V39-|REN-|CTL-' | tail -220 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V60-|V50-|V49-|V43-|V39-|REN-|VIS-|CTL-' | tail -280 || true
   exit 1
 }
 
@@ -30,7 +31,30 @@ fi
 adb install -r "$APK"
 adb shell am force-stop "$PACKAGE" || true
 
-# Put a deterministic, non-private GLB into the exact private path used by the real Meshy model.
+# v60 production-model gate: prove the bundled real Celine asset itself reaches Filament before the
+# deterministic synthetic fixture is injected. This closes the old loophole where CI could stay green
+# while only the synthetic GLB rendered successfully.
+adb shell "run-as $PACKAGE rm -f files/models/celine.glb" 2>/dev/null || true
+adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
+adb shell am start -W -n "$ACTIVITY"
+sleep 12
+PROD_PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+[[ -n "$PROD_PID" ]] || fail_with_log "Yahya AI process died during production-model proof"
+adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" > emulator-production-diagnostics.xml 2>/dev/null || fail_with_log "Could not read v60 production diagnostics"
+adb exec-out screencap -p > emulator-production-home.png
+
+grep -q 'V60-102' emulator-production-diagnostics.xml || fail_with_log "v60 did not select bundled production celine.glb"
+grep -q 'V60-110' emulator-production-diagnostics.xml || fail_with_log "Production celine.glb has no proven renderables"
+grep -q 'V60-111' emulator-production-diagnostics.xml || fail_with_log "Production Celine entities were not proven in the Filament scene"
+grep -q 'V60-112' emulator-production-diagnostics.xml || fail_with_log "Production Celine bounds/normalization evidence missing"
+grep -q 'REN-331' emulator-production-diagnostics.xml || fail_with_log "Production Celine did not reach a rendered Filament frame"
+grep -q 'VIS-450' emulator-production-diagnostics.xml || fail_with_log "Production Celine did not produce confirmed visible 3D pixels at safe default framing"
+
+echo "Production Celine gate passed before synthetic fixture injection (PID=$PROD_PID)"
+adb shell am force-stop "$PACKAGE" || true
+
+# Put a deterministic, non-private GLB into the exact private path used by imported models for the
+# remaining layout/lifecycle pixel gates.
 cat "$FIXTURE" | adb shell "run-as $PACKAGE sh -c 'mkdir -p files/models; cat > files/models/celine.glb'"
 REMOTE_BYTES="$(adb shell "run-as $PACKAGE sh -c 'wc -c < files/models/celine.glb'" | tr -d '\r ' || true)"
 if [[ -z "$REMOTE_BYTES" || "$REMOTE_BYTES" -lt 100000 ]]; then
@@ -38,7 +62,6 @@ if [[ -z "$REMOTE_BYTES" || "$REMOTE_BYTES" -lt 100000 ]]; then
 fi
 
 echo "Injected synthetic 3D model: $REMOTE_BYTES bytes"
-adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$ACTIVITY"
 sleep 12
 
@@ -57,7 +80,6 @@ adb exec-out screencap -p > emulator-home.png
 adb shell uiautomator dump /sdcard/yahya-window.xml >/dev/null || fail_with_log "HOME UI dump failed"
 adb pull /sdcard/yahya-window.xml emulator-window.xml >/dev/null || fail_with_log "HOME UI pull failed"
 
-# Updater must no longer occupy HOME.
 if grep -qi 'Update prüfen' emulator-window.xml; then
   cat emulator-window.xml
   fail_with_log "Update button is still visible on HOME instead of settings"
@@ -68,8 +90,6 @@ if ! grep -q 'Mit Celin' emulator-window.xml; then
   fail_with_log "Videochat entry button was not found in the rendered UI"
 fi
 
-# v50 UX gate: the avatar may not consume the whole HOME screen anymore. The composer must be a
-# real, fully visible control above the videochat button so the conversation remains usable.
 if ! python3 - <<'PY'
 import re
 import sys
@@ -123,10 +143,8 @@ then
   fail_with_log "HOME composer/layout visibility gate failed"
 fi
 
-# Critical gate: the screenshot itself must contain pixels from the real Filament fixture.
 python3 ci/check-magenta-avatar.py emulator-home.png HOME || fail_with_log "HOME 3D avatar pixels missing"
 
-# Verify the gear opens settings and exposes App & Updates + Update prüfen.
 read -r GEAR_X GEAR_Y <<< "$(python3 - <<'PY'
 import re
 import xml.etree.ElementTree as ET
@@ -202,7 +220,6 @@ if ! grep -q 'Live mit Celin' emulator-call.xml; then
   fail_with_log "Live videochat overlay did not open"
 fi
 
-# The same avatar stage must grow into the call slot instead of retaining HOME's compact height.
 if ! python3 - <<'PY'
 import re
 import sys
@@ -236,7 +253,6 @@ fi
 adb exec-out screencap -p > emulator-call.png
 python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
-# Surface/Filament lifecycle regression gate: closing CALL must restore HOME and the avatar.
 echo "Closing videochat and verifying HOME recovery"
 adb shell input keyevent 4
 sleep 4
@@ -254,4 +270,4 @@ adb exec-out screencap -p > emulator-home-return.png
 python3 ci/check-magenta-avatar.py emulator-home-return.png HOME_RETURN || fail_with_log "HOME-return 3D avatar pixels missing"
 
 echo "Avatar visibility smoke test passed with PID=$PID_AFTER"
-echo "Verified: HOME composer space + HOME avatar + CALL stage/avatar + HOME-return avatar + updater only in settings"
+echo "Verified: production Celine default visibility + HOME composer + synthetic HOME/CALL/HOME-return avatar + updater only in settings"
