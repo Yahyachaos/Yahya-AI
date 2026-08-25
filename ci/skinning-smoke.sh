@@ -8,8 +8,31 @@ FIXTURE="ci/celine-skinned-probe.glb"
 fail_skin() {
   echo "SKINNING ERROR: $*"
   adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" 2>/dev/null || true
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V54-|V55-|V56-|V57-|V58-|V59-|V60-|V61-|REN-' | tail -320 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|UiAutomation|V54-|V55-|V56-|V57-|V58-|V59-|V60-|V61-|REN-' | tail -320 || true
   exit 1
+}
+
+# API 35 uiautomator occasionally terminates its own UiAutomation process while the tested app
+# remains healthy. Retry only the dump operation; never restart Yahya AI or mask an app/process
+# failure. This keeps the v61/v59 lifecycle proof strict while removing the proven infrastructure
+# race seen on main Android Build #370.
+dump_ui() {
+  local remote="$1"
+  local label="$2"
+  local attempt
+  for attempt in 1 2 3; do
+    adb shell rm -f "$remote" >/dev/null 2>&1 || true
+    if adb shell uiautomator dump "$remote" >/dev/null 2>&1; then
+      echo "UI dump $label succeeded on attempt $attempt"
+      return 0
+    fi
+    local pid
+    pid="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+    [[ -n "$pid" ]] || return 1
+    echo "UI dump $label transient failure on attempt $attempt; Yahya AI PID=$pid, retrying..."
+    sleep 2
+  done
+  return 1
 }
 
 # Keep the current multi-panel synthetic fixture: v61 preserves v59's proven production ownership,
@@ -28,7 +51,7 @@ sleep 8
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail_skin "Yahya AI process died before v61 CALL proof"
 
-adb shell uiautomator dump /sdcard/v59-home.xml >/dev/null || fail_skin "Could not dump HOME UI"
+dump_ui /sdcard/v59-home.xml HOME || fail_skin "Could not dump HOME UI after bounded retries"
 adb pull /sdcard/v59-home.xml v59-home.xml >/dev/null || fail_skin "Could not pull HOME UI"
 read -r TAP_X TAP_Y <<< "$(python3 - <<'PY'
 import re, xml.etree.ElementTree as ET
@@ -44,7 +67,9 @@ PY
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail_skin "Could not resolve CALL entry coordinates"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 6
-adb shell uiautomator dump /sdcard/v59-call.xml >/dev/null || fail_skin "Could not dump CALL UI"
+PID_CALL="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+[[ -n "$PID_CALL" ]] || fail_skin "Yahya AI process died while opening CALL"
+dump_ui /sdcard/v59-call.xml CALL || fail_skin "Could not dump CALL UI after bounded retries"
 adb pull /sdcard/v59-call.xml v59-call.xml >/dev/null || fail_skin "Could not pull CALL UI"
 grep -q 'Live mit Celin' v59-call.xml || fail_skin "CALL did not open for v61 proof"
 
