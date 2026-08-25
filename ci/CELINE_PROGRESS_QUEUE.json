@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 61,
-    "main_sha": "743790e4dfc055312ea1a566559b505cb9544100",
+    "main_sha": "3c408b233f87e8cbcf031319dd90ad47ef4a66c6",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -23,9 +23,11 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "blocked_external_candidate_required",
+    "status": "in_progress_external_candidate_gate",
     "goal": "Integrate natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path only after a renderable morph-enabled Celine candidate passes identity, HOME/CALL and lifecycle evidence. Keep rollback to the proven non-facial baseline and do not replace production celine.glb without proof.",
-    "risk": "facial_runtime_integration_after_proof"
+    "risk": "facial_runtime_integration_after_proof",
+    "current_branch": "auto/celine-true-face-blink-viseme",
+    "progress": "Dormant bounded facial-motion planner and CI contract scaffold added. Production setViseme remains intentionally inactive until candidate gates pass."
   },
   "completed": [
     {"id":"ci-call-return-avatar-proof","status":"merged","pr":69,"merge_sha":"9c9492f50a09c8a2647ff495f0c40599845eb2a3"},
@@ -48,6 +50,6 @@
   ],
   "next": [],
   "blocked": [
-    {"id":"true-face-blink-viseme","reason":"The validated generator can only create morph targets from the real Celine GLB, but that production GLB is intentionally external/read-only and is not present in GitHub. The repository therefore has no renderable morph-enabled Celine candidate on which to prove identity, HOME/CALL framing and lifecycle gates before runtime integration. Smallest required input: make the real production Celine GLB available to the execution environment for copy-only candidate generation/testing, or provide an already generated morph-enabled candidate copy; production replacement remains prohibited until gates pass."}
+    {"id":"true-face-blink-viseme-production-activation","reason":"The dormant runtime planner can be implemented and compiled without touching production, but actual Filament morph-weight activation still requires a renderable morph-enabled copy of the real Celine GLB. The real production GLB is intentionally external/read-only and is not present in GitHub. Before setViseme is wired to RenderableManager.setMorphWeights, a copy-only candidate must pass identity, HOME/CALL framing and lifecycle evidence. Smallest required input remains the real production Celine GLB made available to the execution environment for copy-only generation/testing, or an already generated morph-enabled candidate copy."}
   ]
 }
