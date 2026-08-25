@@ -71,10 +71,19 @@ def decode(path):
     return width, height, channels, rows
 
 
+def is_warm_detail(r, g, b):
+    spread = max(r, g, b) - min(r, g, b)
+    return r >= 65 and spread >= 18 and r - g >= 9 and r - b >= 18 and g <= int(r * 0.82)
+
+
+def is_skin_detail(r, g, b):
+    return r > 135 and 45 < g < 125 and b < 85 and r - g > 35
+
+
 def avatar_height(path):
     width, height, channels, rows = decode(path)
-    # Same warm Celine-detail family used by the stable HOME-return gate, but with a taller crop
-    # so the 2.20 near checkpoint can grow without being artificially capped by the old window.
+    # Same warm Celine-detail family used by the stable HOME-return gate. The crop is intentionally
+    # much taller than the room card so clipping cannot be hidden by the measurement window itself.
     x0, x1 = int(width * 0.28), int(width * 0.68)
     y0, y1 = int(height * 0.08), int(height * 0.76)
     active = []
@@ -85,8 +94,7 @@ def avatar_height(path):
         for x in range(x0, x1):
             i = x * channels
             r, g, b = row[i], row[i + 1], row[i + 2]
-            spread = max(r, g, b) - min(r, g, b)
-            if r >= 65 and spread >= 18 and r - g >= 9 and r - b >= 18 and g <= int(r * 0.82):
+            if is_warm_detail(r, g, b):
                 count += 1
         if count >= 5:
             active.append(y)
@@ -100,6 +108,31 @@ def avatar_height(path):
     return hi - lo + 1, warm_pixels, (lo, hi), (width, height)
 
 
+def framing_anchors(path):
+    width, height, channels, rows = decode(path)
+    # Empirical anchors from the exact v70 production avatar. At the old 2.20 checkpoint the head
+    # leaves the viewport and this face crop loses almost all strict skin pixels; simultaneously the
+    # feet leave the lower central crop. A usable close checkpoint must retain both relative to the
+    # fully framed default image, so torso-only zoom can no longer pass as "visible".
+    face = (int(width * 0.45), int(width * 0.56), int(height * 0.22), int(height * 0.29))
+    lower = (int(width * 0.38), int(width * 0.62), int(height * 0.47), int(height * 0.62))
+    face_skin = 0
+    lower_warm = 0
+    for y in range(face[2], face[3]):
+        row = rows[y]
+        for x in range(face[0], face[1]):
+            i = x * channels
+            if is_skin_detail(row[i], row[i + 1], row[i + 2]):
+                face_skin += 1
+    for y in range(lower[2], lower[3]):
+        row = rows[y]
+        for x in range(lower[0], lower[1]):
+            i = x * channels
+            if is_warm_detail(row[i], row[i + 1], row[i + 2]):
+                lower_warm += 1
+    return face_skin, lower_warm, face, lower
+
+
 if len(sys.argv) != 4:
     raise SystemExit("usage: check-camera-zoom-range.py FAR.png DEFAULT.png NEAR.png")
 
@@ -109,18 +142,42 @@ near_h, near_px, near_bounds, size_near = avatar_height(sys.argv[3])
 if not (size_far == size_def == size_near):
     raise SystemExit(f"zoom image size mismatch: {size_far}, {size_def}, {size_near}")
 
+def_face, def_lower, face_crop, lower_crop = framing_anchors(sys.argv[2])
+near_face, near_lower, _, _ = framing_anchors(sys.argv[3])
+if def_face < 1000 or def_lower < 500:
+    raise SystemExit(
+        f"default framing anchors are unexpectedly weak: face={def_face} lower={def_lower} "
+        f"faceCrop={face_crop} lowerCrop={lower_crop}"
+    )
+
 far_ratio = def_h / float(far_h)
 near_ratio = near_h / float(def_h)
+face_ratio = near_face / float(def_face)
+lower_ratio = near_lower / float(def_lower)
 print(
     "V70 zoom range proof: "
     f"farHeight={far_h} defaultHeight={def_h} nearHeight={near_h} "
     f"far->default={far_ratio:.3f} default->near={near_ratio:.3f} "
-    f"warm={far_px}/{def_px}/{near_px} bounds={far_bounds}/{def_bounds}/{near_bounds}"
+    f"warm={far_px}/{def_px}/{near_px} bounds={far_bounds}/{def_bounds}/{near_bounds} "
+    f"face={def_face}->{near_face}({face_ratio:.3f}) lower={def_lower}->{near_lower}({lower_ratio:.3f})"
 )
 
-# The camera must actually move toward Celine. Keep margins generous for v44's small natural
-# body motion but reject the old failure where pinch changed state without a visible scale change.
+# The camera must actually move toward Celine. Keep margins generous for v44's small natural body
+# motion but reject the old failure where pinch changed state without a visible scale change.
 if far_ratio < 1.10:
     raise SystemExit(f"default is not meaningfully closer than zoom 0.55: ratio={far_ratio:.3f}")
 if near_ratio < 1.10:
-    raise SystemExit(f"zoom 2.20 is not meaningfully closer than default: ratio={near_ratio:.3f}")
+    raise SystemExit(f"safe near zoom is not meaningfully closer than default: ratio={near_ratio:.3f}")
+
+# The old 2.20 image kept a large torso visible while losing the head and feet. Relative anchors
+# explicitly protect both ends of the person so a clipped close-up cannot satisfy the visual gate.
+if face_ratio < 0.50:
+    raise SystemExit(
+        f"safe near zoom clipped or lost Celine's face/head anchor: ratio={face_ratio:.3f} "
+        f"default={def_face} near={near_face}"
+    )
+if lower_ratio < 0.50:
+    raise SystemExit(
+        f"safe near zoom clipped or lost Celine's lower-body/feet anchor: ratio={lower_ratio:.3f} "
+        f"default={def_lower} near={near_lower}"
+    )
