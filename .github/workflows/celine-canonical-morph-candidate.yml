@@ -1,0 +1,97 @@
+name: Celine Canonical Morph Candidate
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/src/main/assets/models/celine-source/**'
+      - 'ci/CELINE_SOURCE_ASSET.json'
+      - 'ci/verify-celine-source.sh'
+      - 'ci/celine_facial_morph_prototype.py'
+      - 'ci/celine_facial_morph_validation.py'
+      - '.github/workflows/celine-canonical-morph-candidate.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/src/main/assets/models/celine-source/**'
+      - 'ci/CELINE_SOURCE_ASSET.json'
+      - 'ci/verify-celine-source.sh'
+      - 'ci/celine_facial_morph_prototype.py'
+      - 'ci/celine_facial_morph_validation.py'
+      - '.github/workflows/celine-canonical-morph-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-candidate:
+    name: Verify source and generate real Celine morph candidate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with Git LFS source assets
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Prove canonical Celine source bytes
+        run: bash ci/verify-celine-source.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install generator dependency
+        run: python -m pip install --disable-pip-version-check numpy
+
+      - name: Record immutable source hash
+        id: before
+        shell: bash
+        run: |
+          SOURCE='app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb'
+          echo "sha=$(sha256sum "$SOURCE" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate isolated six-target candidate from canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p morph-candidate
+          python ci/celine_facial_morph_prototype.py \
+            app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb \
+            morph-candidate/celine_morph_candidate.glb \
+            --report morph-candidate/prototype-report.json
+
+      - name: Strict structural and neutral-identity validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python ci/celine_facial_morph_validation.py \
+            app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb \
+            morph-candidate/celine_morph_candidate.glb \
+            --report morph-candidate/validation-report.json
+
+      - name: Prove canonical source remained byte-identical
+        env:
+          BEFORE: ${{ steps.before.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE='app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb'
+          AFTER="$(sha256sum "$SOURCE" | awk '{print $1}')"
+          test "$BEFORE" = "$AFTER"
+          echo "canonical_source_sha256=$AFTER" >> "$GITHUB_STEP_SUMMARY"
+          echo "Candidate was generated copy-only; canonical source bytes remained unchanged." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reproducible real-Celine candidate and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-canonical-morph-candidate
+          path: |
+            morph-candidate/celine_morph_candidate.glb
+            morph-candidate/prototype-report.json
+            morph-candidate/validation-report.json
+          if-no-files-found: error
+          retention-days: 30
