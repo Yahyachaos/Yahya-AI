@@ -1,0 +1,61 @@
+name: Celine Facial Morph Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'ci/celine_facial_morph_prototype.py'
+      - 'ci/celine_facial_morph_validation.py'
+      - 'ci/CELINE_FACE_REGION_MODEL.json'
+      - '.github/workflows/celine-facial-morph-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-copy-only-morphs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install generator dependency
+        run: python -m pip install --disable-pip-version-check numpy
+      - name: Assert production source exists
+        run: test -s app/src/main/assets/models/celine.glb
+      - name: Record production source hash
+        id: before
+        shell: bash
+        run: echo "sha=$(sha256sum app/src/main/assets/models/celine.glb | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - name: Generate isolated candidate
+        run: |
+          mkdir -p morph-validation
+          python ci/celine_facial_morph_prototype.py \
+            app/src/main/assets/models/celine.glb \
+            morph-validation/celine-candidate.glb \
+            --report morph-validation/prototype-report.json
+      - name: Run strict structural and identity validation
+        run: |
+          python ci/celine_facial_morph_validation.py \
+            app/src/main/assets/models/celine.glb \
+            morph-validation/celine-candidate.glb \
+            --report morph-validation/validation-report.json
+      - name: Prove production source remained byte-identical
+        env:
+          BEFORE: ${{ steps.before.outputs.sha }}
+        shell: bash
+        run: |
+          AFTER="$(sha256sum app/src/main/assets/models/celine.glb | awk '{print $1}')"
+          test "$BEFORE" = "$AFTER"
+          echo "production_sha256=$AFTER" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload candidate evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-facial-morph-validation-evidence
+          path: |
+            morph-validation/prototype-report.json
+            morph-validation/validation-report.json
+          if-no-files-found: error
