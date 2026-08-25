@@ -6,6 +6,7 @@ on:
     paths:
       - 'ci/celine_facial_morph_prototype.py'
       - 'ci/celine_facial_morph_validation.py'
+      - 'ci/generate-celine-face-morph-fixture.py'
       - 'ci/CELINE_FACE_REGION_MODEL.json'
       - '.github/workflows/celine-facial-morph-validation.yml'
   workflow_dispatch:
@@ -23,33 +24,37 @@ jobs:
           python-version: '3.12'
       - name: Install generator dependency
         run: python -m pip install --disable-pip-version-check numpy
-      - name: Assert production source exists
-        run: test -s app/src/main/assets/models/celine.glb
-      - name: Record production source hash
-        id: before
-        shell: bash
-        run: echo "sha=$(sha256sum app/src/main/assets/models/celine.glb | awk '{print $1}')" >> "$GITHUB_OUTPUT"
-      - name: Generate isolated candidate
+      - name: Generate deterministic face-morph source fixture
         run: |
           mkdir -p morph-validation
+          python ci/generate-celine-face-morph-fixture.py \
+            morph-validation/celine-source-fixture.glb
+      - name: Record source fixture hash
+        id: before
+        shell: bash
+        run: echo "sha=$(sha256sum morph-validation/celine-source-fixture.glb | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - name: Generate isolated candidate
+        run: |
           python ci/celine_facial_morph_prototype.py \
-            app/src/main/assets/models/celine.glb \
+            morph-validation/celine-source-fixture.glb \
             morph-validation/celine-candidate.glb \
             --report morph-validation/prototype-report.json
       - name: Run strict structural and identity validation
         run: |
           python ci/celine_facial_morph_validation.py \
-            app/src/main/assets/models/celine.glb \
+            morph-validation/celine-source-fixture.glb \
             morph-validation/celine-candidate.glb \
             --report morph-validation/validation-report.json
-      - name: Prove production source remained byte-identical
+      - name: Prove source fixture remained byte-identical
         env:
           BEFORE: ${{ steps.before.outputs.sha }}
         shell: bash
         run: |
-          AFTER="$(sha256sum app/src/main/assets/models/celine.glb | awk '{print $1}')"
+          AFTER="$(sha256sum morph-validation/celine-source-fixture.glb | awk '{print $1}')"
           test "$BEFORE" = "$AFTER"
-          echo "production_sha256=$AFTER" >> "$GITHUB_STEP_SUMMARY"
+          echo "fixture_sha256=$AFTER" >> "$GITHUB_STEP_SUMMARY"
+          echo "CI validates generator/validator mechanics on a deterministic non-production fixture." >> "$GITHUB_STEP_SUMMARY"
+          echo "Production Celine GLB remains external/read-only and still requires candidate render/identity/lifecycle evidence before integration." >> "$GITHUB_STEP_SUMMARY"
       - name: Upload candidate evidence only
         if: always()
         uses: actions/upload-artifact@v4
