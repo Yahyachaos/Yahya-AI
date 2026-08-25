@@ -24,7 +24,7 @@
   "active": {
     "id": "facial-morph-validation",
     "status": "in_progress",
-    "goal": "Validate candidate morphs with automated candidate generation, structural and identity checks, then render/lifecycle evidence before any production integration. Reject torn, exploding, exaggerated or puppet-like motion and preserve neutral identity plus HOME/CALL framing.",
+    "goal": "Validate candidate morphs with automated candidate generation and strict structural/identity checks. CI exercises generator/validator mechanics on a deterministic face fixture because the private production GLB is intentionally not committed; production-specific render/identity/lifecycle evidence remains mandatory before integration. Reject torn, exploding, exaggerated or puppet-like motion and preserve neutral identity plus HOME/CALL framing.",
     "risk": "strict_candidate_gate"
   },
   "completed": [
