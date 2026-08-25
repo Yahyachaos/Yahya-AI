@@ -45,6 +45,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
+        CelineCameraZoomV70.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
         decor.postDelayed(() -> applyProduction(activity, decor), 850L);
         decor.postDelayed(() -> applyProduction(activity, decor), 1800L);
@@ -68,6 +69,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineEmulatorRenderGuardV49.apply(decor);
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);
+        CelineCameraZoomV70.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
         CelineUpdaterSettingsV50.install(activity, decor);
         CelineMeshyRigScaleV61.install(activity, decor);
@@ -80,6 +82,7 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineMeshyRigScaleV61.onPaused(activity);
+            CelineCameraZoomV70.onPaused(activity);
             CelineSeatedCallV70.onPaused(activity);
             CelineArmPoseV69.onPaused(activity);
             CelineCallUpperBodyPresenceV55.onPaused(activity);
@@ -92,6 +95,7 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineMeshyRigScaleV61.onDestroyed(activity);
+            CelineCameraZoomV70.onDestroyed(activity);
             CelineSeatedCallV70.onDestroyed(activity);
             CelineArmPoseV69.onDestroyed(activity);
             CelineCallUpperBodyPresenceV55.onDestroyed(activity);
