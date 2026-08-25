@@ -41,7 +41,7 @@ build_required = {
     "validateCelineProductionMorphV65": "structural candidate validation",
     "assets.srcDir celineV65GeneratedAssetsDir": "generated production asset packaging",
     "CelineMorphRuntimeV62.onViseme(this, cue)": "generated runtime viseme activation",
-    "4c433114d1e5475899d1170acb44706a7a8c75bc130f3a1400992c0369f8b804": "exact validated candidate hash",
+    "6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146": "exact validated candidate hash",
 }
 for needle, purpose in build_required.items():
     if needle not in build:
