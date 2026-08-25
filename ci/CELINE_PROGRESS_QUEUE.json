@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 61,
-    "main_sha": "4cc50ac768b527398afd54aa71221ced5f4b1f99",
+    "main_sha": "86a44ccfdd19cace01a5cc11f18a910331b989e0",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -22,10 +22,10 @@
     ]
   },
   "active": {
-    "id": "deep-face-geometry-scan",
-    "status": "ready",
-    "goal": "Perform a reproducible geometric scan of Celine's production head mesh before creating any facial motion. Determine the exact 3D facial region and boundaries and build a vertex/landmark map for forehead, temples, brows left/right, upper/lower eyelids, eye corners, eye openings, nose bridge/tip/alar region, cheeks, philtrum, upper/lower lips, mouth corners, chin and jawline. Measure symmetry/asymmetry, eye shape/opening, brow arcs, lip contour/volume and mouth opening topology. Preserve Celine's identity; do not modify the production GLB in this research step. v61 has been released but its production-scale correction remains pending real-device confirmation; this geometry-analysis step must therefore stay copy/read-only and must not overwrite the production avatar.",
-    "risk": "geometry_analysis_only"
+    "id": "facial-motion-reference-research",
+    "status": "in_progress",
+    "goal": "Research authoritative facial-animation references before deformation work. Prefer official MediaPipe Face Landmarker/Face Mesh style landmark topology, Apple/ARKit-style blendshape semantics where publicly documented, FACS/action-unit anatomy references, and established open facial tracking/rigging implementations. Use real human blink/speech motion references only to derive timing, direction and coupling; do not copy a proprietary character or blindly transfer another face's proportions. Document sources, assumptions and mapping to Celine's measured geometry.",
+    "risk": "research_before_rigging"
   },
   "completed": [
     {
@@ -114,15 +114,18 @@
       "release_run": 32796066153,
       "release_status": "success",
       "result": "Direct inspection of the production Meshy GLB found Armature scale 0.01 with inverse-bind compensation around x100 and mesh extent around 1.7. v61 adds a production-only correction for suspiciously tiny Filament bounds before root framing, targets a safe 2.35 m effective avatar height, preserves v60 pan/zoom/reset and v59 HOME Head-only/CALL neck+Head ownership, and passed APK, HOME/CALL/HOME-return, camera and skinning emulator gates. Real-device visual confirmation is still required because CI uses synthetic small GLBs."
+    },
+    {
+      "id": "deep-face-geometry-scan",
+      "status": "merged",
+      "pr": 82,
+      "tested_head_sha": "e3dd5257343b477fb812f336384feda04bacb212",
+      "merge_sha": "86a44ccfdd19cace01a5cc11f18a910331b989e0",
+      "pr_validation_run": 32798138367,
+      "result": "Reproducible read-only production-head scan completed with Celine-specific landmark and region mapping; production celine.glb was not modified."
     }
   ],
   "next": [
-    {
-      "id": "facial-motion-reference-research",
-      "goal": "Research authoritative facial-animation references before deformation work. Prefer official MediaPipe Face Landmarker/Face Mesh style landmark topology, Apple/ARKit-style blendshape semantics where publicly documented, FACS/action-unit anatomy references, and established open facial tracking/rigging implementations. Use real human blink/speech motion references only to derive timing, direction and coupling; do not copy a proprietary character or blindly transfer another face's proportions. Document sources, assumptions and mapping to Celine's measured geometry.",
-      "status": "queued",
-      "risk": "research_before_rigging"
-    },
     {
       "id": "celine-face-region-model",
       "goal": "Combine the measured mesh geometry and reference research into a Celine-specific facial region/deformation model. Define influence masks and safe movement directions for each eyelid, brow, cheek, lip segment, mouth corner, chin and jaw region. Account for Celine's actual eye and lip shapes rather than generic coordinates. Produce diagnostics/visual overlays or machine-readable region maps for review and automated validation.",
