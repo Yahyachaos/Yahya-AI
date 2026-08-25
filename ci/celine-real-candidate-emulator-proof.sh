@@ -70,6 +70,7 @@ adb exec-out screencap -p > real-candidate-home.png
 grep -q 'Celin 3D Ansicht' real-candidate-home.xml || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
+python3 ci/check-celine-person-presence.py real-candidate-home.png HOME
 
 # v65 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
@@ -121,6 +122,7 @@ adb exec-out screencap -p > real-candidate-call.png
 grep -q 'Live mit Celin' real-candidate-call.xml || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' real-candidate-call.xml || fail "CALL 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-call.png CALL
+python3 ci/check-celine-person-presence.py real-candidate-call.png CALL
 
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
 adb shell input keyevent 4
@@ -135,6 +137,7 @@ adb exec-out screencap -p > real-candidate-home-return.png
 grep -q 'Mit Celin' real-candidate-home-return.xml || fail "HOME did not recover"
 grep -q 'Celin 3D Ansicht' real-candidate-home-return.xml || fail "HOME-return 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETURN
+python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_RETURN
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt

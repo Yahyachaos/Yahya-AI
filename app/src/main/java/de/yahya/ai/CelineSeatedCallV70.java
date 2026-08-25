@@ -6,7 +6,6 @@ import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.google.android.filament.Camera;
 import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.Animator;
 import com.google.android.filament.gltfio.FilamentAsset;
@@ -30,7 +29,6 @@ final class CelineSeatedCallV70 {
     private static final float UPPER_LEG_PITCH = -70.0f;
     private static final float LOWER_LEG_PITCH = 90.0f;
     private static final float FOOT_PITCH = -15.0f;
-    private static final double CALL_LENS_MM = 58.0;
 
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
 
@@ -143,7 +141,6 @@ final class CelineSeatedCallV70 {
         final FilamentAsset asset;
         final TransformManager transforms;
         final Animator animator;
-        final Camera camera;
         final int rootInstance;
         final float[] rootBase;
         final Bone hips;
@@ -167,7 +164,6 @@ final class CelineSeatedCallV70 {
             asset = (FilamentAsset) field(view, "asset");
             transforms = (TransformManager) field(view, "transformManager");
             animator = asset.getInstance().getAnimator();
-            camera = (Camera) field(view, "camera");
             if (animator == null) throw new IllegalStateException("Filament Animator fehlt");
 
             rootInstance = transforms.getInstance(asset.getRoot());
@@ -234,18 +230,10 @@ final class CelineSeatedCallV70 {
             }
             animator.updateBoneMatrices();
 
-            int width = Math.max(1, view.getWidth());
-            int height = Math.max(1, view.getHeight());
-            camera.setLensProjection(CALL_LENS_MM, (double) width / (double) height, 0.05, 1000.0);
-            camera.lookAt(
-                    0.02, 0.62, 0.78,
-                    0.00, 0.34, -3.92,
-                    0.0, 1.0, 0.0);
-
             if (!loggedFrame) {
                 loggedFrame = true;
                 Celine3DDiagnostics.record(activity, "V70-120", "Sitzende CALL-Matrizen aktiv",
-                        "hips=-1° · upperLeg=-70° · knees=90° · feet=-15° · lens=58mm");
+                        "hips=-1° · upperLeg=-70° · knees=90° · feet=-15° · baseline CALL camera unchanged");
             }
         }
 

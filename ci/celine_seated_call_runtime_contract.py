@@ -36,7 +36,6 @@ required_source = {
     "UPPER_LEG_PITCH = -70.0f": "seated thigh angle",
     "LOWER_LEG_PITCH = 90.0f": "seated knee angle",
     "FOOT_PITCH = -15.0f": "seated foot angle",
-    "CALL_LENS_MM = 58.0": "seated upper-body framing",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "CALL-only activation",
     "disabled = true": "automatic failure disable",
@@ -70,7 +69,7 @@ for forbidden_joint in (
 # videochat button or any ancestor.
 for forbidden_geometry in (
     "addView(", "removeView(", "setLayoutParams(", "setTranslation",
-    "requestLayout(", "scrollTo(",
+    "requestLayout(", "scrollTo(", "setLensProjection(", "lookAt(",
 ):
     if forbidden_geometry in source:
         raise SystemExit(f"v70 unexpectedly changes external UI geometry: {forbidden_geometry}")

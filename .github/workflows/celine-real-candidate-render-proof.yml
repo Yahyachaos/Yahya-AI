@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'ci/check-real-celine-render.py'
+      - 'ci/check-celine-person-presence.py'
       - 'ci/celine-real-candidate-emulator-proof.sh'
       - '.github/workflows/celine-real-candidate-render-proof.yml'
       - 'app/src/main/assets/models/celine-source/**'
