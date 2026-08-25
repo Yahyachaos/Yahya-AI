@@ -26,14 +26,14 @@
     ]
   },
   "active": {
-    "id": "keyboard-chat-visibility-regression",
-    "status": "v67_exact_home_geometry_proof_pending_exact_head",
-    "current_branch": "auto/celine/v67-keyboard-chat-visibility",
-    "current_pr": 94,
-    "target_version": 67,
-    "goal": "Correct the confirmed keyboard overlap as one isolated usability regression, prove that typed chat text and send control stay visible above the IME, then resume strict roadmap order 2: remove A-pose.",
-    "risk": "keyboard_composer_occlusion",
-    "progress": "v66 is fully validated and testable. PR #93 exact head 91b4389d797695681b0b1ba3ce34f24dd4c5d8ee passed Android Build #381 and dedicated real-candidate run #15 with real textured 3D Celine visible in HOME/CALL/HOME-return, V61-110 rig scaling, V39-150 texture binding, V62-210 six-target morph activation and CTL-350 visible-3D confirmation. It merged to accc72653451a107bac2a4737fe551e8bd1a8c94; exact-main Android Build #382 passed build, emulator and publish jobs, and v66 was published with the matching APK. The user then reported that the chat composer is covered by the software keyboard. MainActivity is confirmed to use adjustPan. v67 is an isolated corrective gate before A-pose work; it must not alter Celine face/body runtime. PR #94 now contains the narrow adjustResize plus keyboard-aware HOME layout change and a real IME emulator regression proof. Exact-head validation is pending. Android Build #383 proved the runtime issue rather than a CI-only mismatch: the IME was shown and adjustResize reduced content to y=1019, but the API-30 WindowInsets listener on the inner content view did not receive visible IME insets, so the avatar stayed visible and clipped the composer. The narrow repair now uses the measured visible window frame on every supported Android version; the existing real IME proof remains unchanged. On repaired head bb1fa2f4fef9690b52320e2a06b49c81e68f5bd9 the unchanged IME gate passed the real requirement: composer=(42,844)-(876,981) and send=(897,842)-(1038,983) were visible above the keyboard, then the full avatar HOME returned. The only remaining failure was a stale assertion expecting the obsolete label 'Mit Celin sprechen'; the actual protected HOME action is the existing 'Mit Celin videochatten' button. Only that test label is reconciled. At the user's request the proof is strengthened again: after keyboard close it now requires exact equality of the real avatar-stage, composer and videochat-button bounds against the pre-keyboard HOME dump, so a shifted videochat layout cannot pass.",
+    "id": "keyboard-chat-focus-preservation-recovery",
+    "status": "v68_keyboard_focus_recovery_implemented_pending_exact_head",
+    "current_branch": "auto/celine/v68-keyboard-focus-preservation",
+    "current_pr": 95,
+    "target_version": 68,
+    "goal": "Repair only the proven v67 focus loss: keep the real composer focused through IME-driven layout compaction, exact-head validate, merge and publish from exact main; then resume remove-a-pose.",
+    "risk": "composer_focus_stolen_by_fullScroll",
+    "progress": "v66 is fully validated and testable. PR #93 exact head 91b4389d797695681b0b1ba3ce34f24dd4c5d8ee passed Android Build #381 and dedicated real-candidate run #15 with real textured 3D Celine visible in HOME/CALL/HOME-return, V61-110 rig scaling, V39-150 texture binding, V62-210 six-target morph activation and CTL-350 visible-3D confirmation. It merged to accc72653451a107bac2a4737fe551e8bd1a8c94; exact-main Android Build #382 passed build, emulator and publish jobs, and v66 was published with the matching APK. The user then reported that the chat composer is covered by the software keyboard. MainActivity is confirmed to use adjustPan. v67 is an isolated corrective gate before A-pose work; it must not alter Celine face/body runtime. PR #94 now contains the narrow adjustResize plus keyboard-aware HOME layout change and a real IME emulator regression proof. Exact-head validation is pending. Android Build #383 proved the runtime issue rather than a CI-only mismatch: the IME was shown and adjustResize reduced content to y=1019, but the API-30 WindowInsets listener on the inner content view did not receive visible IME insets, so the avatar stayed visible and clipped the composer. The narrow repair now uses the measured visible window frame on every supported Android version; the existing real IME proof remains unchanged. On repaired head bb1fa2f4fef9690b52320e2a06b49c81e68f5bd9 the unchanged IME gate passed the real requirement: composer=(42,844)-(876,981) and send=(897,842)-(1038,983) were visible above the keyboard, then the full avatar HOME returned. The only remaining failure was a stale assertion expecting the obsolete label 'Mit Celin sprechen'; the actual protected HOME action is the existing 'Mit Celin videochatten' button. Only that test label is reconciled. At the user's request the proof is strengthened again: after keyboard close it now requires exact equality of the real avatar-stage, composer and videochat-button bounds against the pre-keyboard HOME dump, so a shifted videochat layout cannot pass. PR #94 exact head a600d98e1d52f73a7158b57c43a7b84850a6059c passed every gate, including exact pre/post HOME geometry and a full typed marker. It merged to main 2e48a97b359f823b755609f49912c50d48e3fa6a. Exact-main run #387 reproduced a timing-dependent real runtime fault: only 'k' entered, then ScrollView became focused because updateKeyboardMode called fullScroll(FOCUS_DOWN). Publication was skipped, so v67 is quarantined/not testable. v68 is the single active recovery and will replace focus-moving scroll with position-only scroll while requiring post-IME EditText focus before typing. PR #95 now replaces only updateKeyboardMode's focus-moving fullScroll with position-only scrollTo. The unchanged real IME proof now waits for settled compact layout plus EditText focused=true before entering the marker and requires focus to remain true afterward.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -252,20 +252,31 @@
       "release_asset": "Yahya-AI-v66.apk",
       "release_digest": "sha256:19c69a4168bcba88ad01e5592c4ffdda7b0bf67801924324bf367c291a3cc199",
       "result": "Packaged production candidate rendered as real textured 3D Celine across HOME/CALL/HOME-return, preserved stable HOME framing, activated the guarded six-target morph runtime and passed exact-head plus exact-main emulator validation before v66 publication."
+    },
+    {
+      "id": "v67-keyboard-chat-visibility-merge-blocked-release",
+      "status": "merged_main_release_blocked_not_testable",
+      "pr": 94,
+      "tested_head_sha": "a600d98e1d52f73a7158b57c43a7b84850a6059c",
+      "merge_sha": "2e48a97b359f823b755609f49912c50d48e3fa6a",
+      "pr_android_run": 32842969296,
+      "pr_real_candidate_run": 32842969307,
+      "failed_main_run": 32843487815,
+      "result": "PR exact-head passed IME visibility and exact HOME/videochat geometry restoration, but exact-main evidence exposed timing-dependent focus theft by ScrollView.fullScroll: only the first input character survived. Release was correctly skipped; v67 is not testable."
     }
   ],
   "next": [
     {
-      "id": "v67-keyboard-chat-visibility",
-      "status": "exact_home_geometry_proof_added_pending_exact_head",
-      "target_version": 67,
-      "goal": "Replace adjustPan with resize behavior and make the conversation layout keyboard-aware so typed text and the send control remain visible while the IME is open.",
+      "id": "v68-keyboard-focus-preservation",
+      "status": "implemented_pending_exact_head",
+      "target_version": 68,
+      "goal": "Replace focus-moving keyboard-open scrolling with position-only scrolling and prove the real EditText stays focused after full IME/layout settlement before entering the complete marker.",
       "constraints": [
-        "isolated usability regression only; no Celine face/body/posture changes",
-        "hide only large nonessential HOME presentation controls while typing and restore them when the keyboard closes",
-        "emulator must focus the real composer, type a marker, prove IME visibility, prove composer/send visibility above the keyboard, and prove HOME restoration",
-        "preserve v66 real-avatar, face, HOME/CALL/HOME-return and updater gates",
-        "after exact-head and exact-main release, resume remove-a-pose as roadmap order 2"
+        "no Celine face/body/posture/camera/videochat runtime changes",
+        "retain adjustResize and measured visible-frame compaction",
+        "require EditText focused=true after IME is confirmed visible and layout is compacted",
+        "require complete typed marker, composer/send bounds above keyboard, exact HOME/avatar/videochat geometry restoration",
+        "no testable release claim before exact-head and exact-main success"
       ]
     }
   ],
@@ -275,6 +286,12 @@
       "status": "quarantined_not_testable",
       "sha": "edeb170ef9a4f9f4e12b12413533d53fd21494c3",
       "reason": "dedicated real-candidate evidence contains fallback photo and empty room; supersede with validated v66"
+    },
+    {
+      "id": "v67-release",
+      "status": "blocked_not_testable",
+      "sha": "2e48a97b359f823b755609f49912c50d48e3fa6a",
+      "reason": "exact-main run 32843487815 showed ScrollView focus theft after first typed character; publish job skipped"
     }
   ],
   "release_retry": {
@@ -416,9 +433,9 @@
       }
     ],
     "corrective_gate": {
-      "id": "v67-keyboard-chat-visibility",
-      "status": "exact_home_geometry_proof_added_pending_exact_head",
-      "reason": "User-reported composer occlusion blocks basic chat usability; isolated correction does not reorder or replace the visual/body roadmap.",
+      "id": "v68-keyboard-focus-preservation",
+      "status": "implemented_pending_exact_head",
+      "reason": "v67 main release blocked after exact-main exposed composer focus theft; v68 is the narrow recovery.",
       "resumes_with": "remove-a-pose"
     }
   },

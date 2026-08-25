@@ -75,7 +75,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         int target=keyboardVisible?View.GONE:View.VISIBLE;
         if(profile.getVisibility()!=target)profile.setVisibility(target);
         if(mic!=null&&mic.getVisibility()!=target)mic.setVisibility(target);
-        if(keyboardVisible&&scroll!=null)scroll.post(()->scroll.fullScroll(View.FOCUS_DOWN));
+        if(keyboardVisible&&scroll!=null)scroll.post(()->scroll.scrollTo(0,Math.max(0,chatBox.getHeight()-scroll.getHeight())));
     }
 
     private void avatarIdle(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.IDLE);}
