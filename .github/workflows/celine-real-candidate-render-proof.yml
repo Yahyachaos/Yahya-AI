@@ -6,7 +6,9 @@ on:
     paths:
       - 'ci/check-real-celine-render.py'
       - 'ci/check-celine-person-presence.py'
+      - 'ci/check-camera-zoom-range.py'
       - 'ci/celine-real-candidate-emulator-proof.sh'
+      - 'ci/celine-camera-zoom-emulator-proof.sh'
       - '.github/workflows/celine-real-candidate-render-proof.yml'
       - 'app/src/main/assets/models/celine-source/**'
       - 'ci/celine_facial_morph_prototype.py'
@@ -15,6 +17,7 @@ on:
       - 'ci/celine_a_pose_runtime_contract.py'
       - 'ci/celine_seated_call_runtime_contract.py'
       - 'app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java'
+      - 'app/src/main/java/de/yahya/ai/CelineCameraZoomV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineArmPoseV69.java'
       - 'app/src/main/java/de/yahya/ai/YahyaApplication.java'
       - 'ci/celine_facial_morph_validation.py'
@@ -100,7 +103,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Boot emulator and prove real candidate across HOME CALL HOME
+      - name: Boot emulator and prove real candidate across HOME CALL HOME plus zoom bounds
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -109,7 +112,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 300s bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_morph_candidate.glb
+          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_morph_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh'
 
       - name: Upload real candidate visual/identity/lifecycle evidence
         if: always()
@@ -122,11 +125,15 @@ jobs:
             real-candidate-home.png
             real-candidate-call.png
             real-candidate-home-return.png
+            real-candidate-zoom-far.png
+            real-candidate-zoom-default.png
+            real-candidate-zoom-near.png
             real-candidate-home.xml
             real-candidate-call.xml
             real-candidate-home-return.xml
             real-candidate-logcat-home.txt
             real-candidate-logcat-final.txt
+            real-candidate-zoom-logcat.txt
             real-candidate-logcat.txt
             real-candidate-prefs.xml
           if-no-files-found: ignore
