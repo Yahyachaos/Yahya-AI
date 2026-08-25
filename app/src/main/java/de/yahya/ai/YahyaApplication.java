@@ -28,8 +28,10 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
-        Celine3DDiagnostics.record(activity, "V61-003", "CALL Skinning Sicherheitsmodus + Rig-Scale Guard aktiv",
-                "HOME Head-only · CALL neck+Head · Meshy 0.01/IBMs x100 Korrektur · v56-v58 Hips/Shoulder quarantiniert");
+        Celine3DDiagnostics.record(activity, "V59-003", "CALL Skinning Sicherheitsmodus aktiv",
+                "HOME Head-only · CALL neck+Head · v56-v58 Hips/Shoulder Produktion quarantiniert");
+        Celine3DDiagnostics.record(activity, "V61-003", "Meshy Rig-Scale Guard aktiv",
+                "0.01 Armature / inverse-bind x100 Korrektur · v60 Kamera-Steuerung beibehalten");
     }
 
     @Override public void onActivityResumed(Activity activity) {
