@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "canonical_source": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
+  "uploaded_archive_name": "125Meshy_AI_biped.zip",
+  "source_file_name": "Meshy_AI_biped_Character_output.glb",
+  "source_sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
+  "source_size_bytes": 27381856,
+  "companion_animation_file": "Meshy_AI_biped_Meshy_AI_Meshy_Merged_Animations.glb",
+  "companion_animation_sha256": "95c68ce04d85bbffbb2fd3253dc211bb4047283744b0efa83717353b62d03b83",
+  "companion_animation_size_bytes": 27421412,
+  "mesh": "char1",
+  "position_vertex_count": 66700,
+  "head_weight_ge_0_5_vertices": 17641,
+  "rig_nodes": ["Armature","Hips","Spine","Spine01","Spine02","neck","Head","LeftShoulder","RightShoulder"],
+  "morph_generator_seed_gate": "PASS",
+  "all_required_face_regions_nonempty": true,
+  "previous_source_sha256": "db9c0c22097ed2e9aecb97de8d9a58708a16f7e9a1ec7cd3846df07e54ebbbe2",
+  "same_as_previous_export_bytes": false,
+  "policy": "Treat Celine source assets as normal canonical project inputs. Future work must resolve the source through this manifest and must not silently fall back to an unavailable transient path."
+}
