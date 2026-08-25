@@ -123,8 +123,8 @@ root=ET.parse("emulator-keyboard-restored.xml").getroot()
 nodes=list(root.iter("node"))
 if not any(n.attrib.get("content-desc")=="Celin 3D Ansicht" for n in nodes):
     raise SystemExit("HOME avatar presentation did not return after closing keyboard")
-if not any("Mit Celin sprechen" in n.attrib.get("text","") for n in nodes):
-    raise SystemExit("HOME voice control did not return after closing keyboard")
+if not any(n.attrib.get("class")=="android.widget.Button" and "Mit Celin" in n.attrib.get("text","") for n in nodes):
+    raise SystemExit("HOME interaction control did not return after closing keyboard")
 print("keyboard-close HOME restoration OK")
 PY
 

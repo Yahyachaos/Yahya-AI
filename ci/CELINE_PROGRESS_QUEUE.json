@@ -27,13 +27,13 @@
   },
   "active": {
     "id": "keyboard-chat-visibility-regression",
-    "status": "v67_keyboard_visible_frame_fix_pending_exact_head",
+    "status": "v67_keyboard_proof_label_reconciled_pending_exact_head",
     "current_branch": "auto/celine/v67-keyboard-chat-visibility",
     "current_pr": 94,
     "target_version": 67,
     "goal": "Correct the confirmed keyboard overlap as one isolated usability regression, prove that typed chat text and send control stay visible above the IME, then resume strict roadmap order 2: remove A-pose.",
     "risk": "keyboard_composer_occlusion",
-    "progress": "v66 is fully validated and testable. PR #93 exact head 91b4389d797695681b0b1ba3ce34f24dd4c5d8ee passed Android Build #381 and dedicated real-candidate run #15 with real textured 3D Celine visible in HOME/CALL/HOME-return, V61-110 rig scaling, V39-150 texture binding, V62-210 six-target morph activation and CTL-350 visible-3D confirmation. It merged to accc72653451a107bac2a4737fe551e8bd1a8c94; exact-main Android Build #382 passed build, emulator and publish jobs, and v66 was published with the matching APK. The user then reported that the chat composer is covered by the software keyboard. MainActivity is confirmed to use adjustPan. v67 is an isolated corrective gate before A-pose work; it must not alter Celine face/body runtime. PR #94 now contains the narrow adjustResize plus keyboard-aware HOME layout change and a real IME emulator regression proof. Exact-head validation is pending. Android Build #383 proved the runtime issue rather than a CI-only mismatch: the IME was shown and adjustResize reduced content to y=1019, but the API-30 WindowInsets listener on the inner content view did not receive visible IME insets, so the avatar stayed visible and clipped the composer. The narrow repair now uses the measured visible window frame on every supported Android version; the existing real IME proof remains unchanged.",
+    "progress": "v66 is fully validated and testable. PR #93 exact head 91b4389d797695681b0b1ba3ce34f24dd4c5d8ee passed Android Build #381 and dedicated real-candidate run #15 with real textured 3D Celine visible in HOME/CALL/HOME-return, V61-110 rig scaling, V39-150 texture binding, V62-210 six-target morph activation and CTL-350 visible-3D confirmation. It merged to accc72653451a107bac2a4737fe551e8bd1a8c94; exact-main Android Build #382 passed build, emulator and publish jobs, and v66 was published with the matching APK. The user then reported that the chat composer is covered by the software keyboard. MainActivity is confirmed to use adjustPan. v67 is an isolated corrective gate before A-pose work; it must not alter Celine face/body runtime. PR #94 now contains the narrow adjustResize plus keyboard-aware HOME layout change and a real IME emulator regression proof. Exact-head validation is pending. Android Build #383 proved the runtime issue rather than a CI-only mismatch: the IME was shown and adjustResize reduced content to y=1019, but the API-30 WindowInsets listener on the inner content view did not receive visible IME insets, so the avatar stayed visible and clipped the composer. The narrow repair now uses the measured visible window frame on every supported Android version; the existing real IME proof remains unchanged. On repaired head bb1fa2f4fef9690b52320e2a06b49c81e68f5bd9 the unchanged IME gate passed the real requirement: composer=(42,844)-(876,981) and send=(897,842)-(1038,983) were visible above the keyboard, then the full avatar HOME returned. The only remaining failure was a stale assertion expecting the obsolete label 'Mit Celin sprechen'; the actual protected HOME action is the existing 'Mit Celin videochatten' button. Only that test label is reconciled.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -257,7 +257,7 @@
   "next": [
     {
       "id": "v67-keyboard-chat-visibility",
-      "status": "runtime_cause_repaired_pending_exact_head",
+      "status": "real_ime_layout_passed_test_label_reconciled_pending_exact_head",
       "target_version": 67,
       "goal": "Replace adjustPan with resize behavior and make the conversation layout keyboard-aware so typed text and the send control remain visible while the IME is open.",
       "constraints": [
@@ -417,7 +417,7 @@
     ],
     "corrective_gate": {
       "id": "v67-keyboard-chat-visibility",
-      "status": "runtime_cause_repaired_pending_exact_head",
+      "status": "real_ime_layout_passed_test_label_reconciled_pending_exact_head",
       "reason": "User-reported composer occlusion blocks basic chat usability; isolated correction does not reorder or replace the visual/body roadmap.",
       "resumes_with": "remove-a-pose"
     }
