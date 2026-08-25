@@ -24,7 +24,7 @@ import java.util.WeakHashMap;
  */
 final class CelineCallImeGuardV70 {
     private static final String HOME_COMPOSER_DESC = "Celin Nachricht schreiben";
-    private static final String CALL_TITLE = "Live mit Celin";
+    private static final String CALL_TITLE = "●  Live mit Celin";
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
 
     private CelineCallImeGuardV70() {}
