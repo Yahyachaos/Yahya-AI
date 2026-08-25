@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 61,
-    "main_sha": "912c9f726645a84352842f688f9854cbdfd328cb",
+    "main_sha": "a96db916c95eb44fe0b74241f2e8dc8424e4d38d",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -22,10 +22,10 @@
     ]
   },
   "active": {
-    "id": "facial-morph-validation",
+    "id": "true-face-blink-viseme",
     "status": "in_progress",
-    "goal": "Validate candidate morphs with automated candidate generation and strict structural/identity checks. CI exercises generator/validator mechanics on a deterministic face fixture because the private production GLB is intentionally not committed; production-specific render/identity/lifecycle evidence remains mandatory before integration. Reject torn, exploding, exaggerated or puppet-like motion and preserve neutral identity plus HOME/CALL framing.",
-    "risk": "strict_candidate_gate"
+    "goal": "Only after the validated copy-only facial candidate gate, integrate natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path. Preserve smooth coarticulation and state-aware behavior for IDLE/LISTENING/THINKING/SPEAKING, maintain rollback to the proven non-facial baseline, and require render, identity, HOME/CALL and lifecycle evidence before any production GLB replacement.",
+    "risk": "facial_runtime_integration_after_proof"
   },
   "completed": [
     {"id":"ci-call-return-avatar-proof","status":"merged","pr":69,"merge_sha":"9c9492f50a09c8a2647ff495f0c40599845eb2a3"},
@@ -43,10 +43,9 @@
     {"id":"deep-face-geometry-scan","status":"merged","pr":82,"tested_head_sha":"e3dd5257343b477fb812f336384feda04bacb212","merge_sha":"86a44ccfdd19cace01a5cc11f18a910331b989e0","pr_validation_run":32798138367},
     {"id":"facial-motion-reference-research","status":"merged","pr":83,"tested_head_sha":"757a7ba47aa886562e350892c43b19bb78c61e9c","merge_sha":"2a59bd994ada8c807754ecb13ce4da549439800c","pr_validation_run":32802033629},
     {"id":"celine-face-region-model","status":"merged","pr":84,"tested_head_sha":"d512ea77dc286d8eaf4f150c29f23d127b6534d2","merge_sha":"cec7f191f3e838509fcd4b65eee0cd92b001f25f","pr_validation_run":32805823681,"result":"Machine-readable identity-preserving Celine facial region/deformation model passed build and emulator avatar visibility gates; production celine.glb unchanged."},
-    {"id":"facial-morph-prototype","status":"merged","pr":85,"tested_head_sha":"b0290b503fdf64f99d11d1f97263ac05cf220965","merge_sha":"912c9f726645a84352842f688f9854cbdfd328cb","pr_validation_run":32809734940,"result":"Copy-only generator for blink, jaw-open and rounded/spread vowel proof targets passed Android build and production avatar visibility gates; production celine.glb unchanged."}
+    {"id":"facial-morph-prototype","status":"merged","pr":85,"tested_head_sha":"b0290b503fdf64f99d11d1f97263ac05cf220965","merge_sha":"912c9f726645a84352842f688f9854cbdfd328cb","pr_validation_run":32809734940,"result":"Copy-only generator for blink, jaw-open and rounded/spread vowel proof targets passed Android build and production avatar visibility gates; production celine.glb unchanged."},
+    {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256,"result":"Copy-only facial morph validation mechanics and Android/emulator avatar gate passed on the exact PR head; production celine.glb remained external/read-only."}
   ],
-  "next": [
-    {"id":"true-face-blink-viseme","goal":"Only after the candidate face rig passes validation, integrate natural asynchronous blinking, microexpressions and speech-driven viseme blending through the existing setViseme integration path. Use smooth coarticulation, restrained amplitudes and state-aware behavior for IDLE/LISTENING/THINKING/SPEAKING. Keep a rollback path to the proven non-facial baseline.","status":"queued","risk":"facial_runtime_integration_after_proof"}
-  ],
+  "next": [],
   "blocked": []
 }
