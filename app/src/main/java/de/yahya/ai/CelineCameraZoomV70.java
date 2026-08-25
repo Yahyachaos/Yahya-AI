@@ -105,7 +105,13 @@ final class CelineCameraZoomV70 {
         @Override public void doFrame(long frameTimeNanos) {
             if (!running) return;
             choreographer.postFrameCallback(this);
-            if (paused) return;
+            if (paused) {
+                if (activity.isFinishing() || activity.isDestroyed()
+                        || !decor.isAttachedToWindow() || !decor.hasWindowFocus()) return;
+                paused = false;
+                Celine3DDiagnostics.record(activity, "V70-147", "Kamera-Zoom Controller reaktiviert",
+                        "sichtbares fokussiertes MainActivity-Fenster nach Lifecycle-Pause");
+            }
 
             Celine3DView view = find3D(decor);
             if (view == null || !view.isAttachedToWindow()) return;
