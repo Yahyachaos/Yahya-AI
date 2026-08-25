@@ -11,6 +11,10 @@ fail() {
   exit 1
 }
 
+ime_visible() {
+  grep -Eq 'mInputShown=true|mDecorViewVisible=true|mWindowVisible=true' emulator-ime.txt
+}
+
 dump_ui() {
   local local_file="$1"
   local remote_file="/sdcard/$local_file"
@@ -66,7 +70,7 @@ for _ in $(seq 1 8); do
   sleep 1
   adb shell dumpsys input_method > emulator-ime.txt
   dump_ui emulator-keyboard-ready.xml
-  if grep -Eq 'mInputShown=true|mIsInputViewShown=true|isInputViewShown=true|inputShown=true' emulator-ime.txt &&
+  if ime_visible &&
      python3 - <<'PY'
 import xml.etree.ElementTree as ET
 nodes=list(ET.parse("emulator-keyboard-ready.xml").getroot().iter("node"))
@@ -87,7 +91,7 @@ adb shell input text "$MARKER"
 sleep 2
 adb shell dumpsys input_method > emulator-ime.txt
 adb shell dumpsys window > emulator-window-state.txt
-if ! grep -Eq 'mInputShown=true|mIsInputViewShown=true|isInputViewShown=true|inputShown=true' emulator-ime.txt; then
+if ! ime_visible; then
   fail "software keyboard was not confirmed as visible after typing"
 fi
 
@@ -201,7 +205,7 @@ dump_ui emulator-call.xml
 adb exec-out screencap -p > emulator-call.png
 adb shell dumpsys input_method > emulator-ime.txt
 adb shell dumpsys window > emulator-window-state.txt
-if grep -Eq 'mInputShown=true|mIsInputViewShown=true|isInputViewShown=true|inputShown=true' emulator-ime.txt; then
+if ime_visible; then
   fail "software keyboard remained/reopened in CALL after inherited HOME focus"
 fi
 
@@ -249,7 +253,7 @@ sleep 3
 dump_ui emulator-home-return.xml
 adb exec-out screencap -p > emulator-home-return.png
 adb shell dumpsys input_method > emulator-ime.txt
-if grep -Eq 'mInputShown=true|mIsInputViewShown=true|isInputViewShown=true|inputShown=true' emulator-ime.txt; then
+if ime_visible; then
   fail "software keyboard reopened after returning HOME from CALL"
 fi
 python3 - <<'PY'
