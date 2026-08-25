@@ -97,6 +97,7 @@ adb exec-out screencap -p > real-candidate-home-return.png
 grep -q 'Mit Celin' real-candidate-home-return.xml || fail "HOME did not recover"
 grep -q 'Celin 3D Ansicht' real-candidate-home-return.xml || fail "HOME-return 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETURN
+python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
 if grep -Eq 'V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
