@@ -18,6 +18,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -161,6 +162,7 @@ final class CelineVideoCallV45 {
                 return;
             }
 
+            dismissInheritedHomeInput();
             callActive = true;
             paused = false;
             muted = false;
@@ -183,6 +185,20 @@ final class CelineVideoCallV45 {
                 applyCallLens();
                 scheduleListen(300L);
             }, 280L);
+        }
+
+        void dismissInheritedHomeInput() {
+            View focused = activity.getCurrentFocus();
+            View tokenView = focused != null ? focused : decor;
+            try {
+                InputMethodManager imm = (InputMethodManager) activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
+                if (imm != null && tokenView != null && tokenView.getWindowToken() != null) {
+                    imm.hideSoftInputFromWindow(tokenView.getWindowToken(), 0);
+                }
+            } catch (Throwable ignored) {}
+            if (focused != null) focused.clearFocus();
+            Celine3DDiagnostics.record(activity, "V70-150", "HOME Eingabefokus vor CALL geloest",
+                    "hadFocus=" + (focused != null) + " · imeHideRequested=true");
         }
 
         void buildOverlay() {
