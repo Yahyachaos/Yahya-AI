@@ -2,7 +2,7 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 62,
+    "version": 63,
     "main_sha": "8078813323611bb16f0212a848cd83b04ddcc8d8",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
@@ -27,10 +27,10 @@
     "status": "in_progress_private_candidate_structurally_validated",
     "current_branch": "auto/celine/true-face-blink-viseme",
     "current_pr": 88,
-    "target_version": 62,
+    "target_version": 63,
     "goal": "Use the validated private morph-enabled Celine candidate for guarded natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path. Keep v61/v59 as the automatic no-morph rollback path and never publish the private candidate binary to the public repository.",
     "risk": "facial_runtime_integration_after_proof",
-    "progress": "PR #87 scaffold merged on exact green head. PR #88 adds guarded Filament morph playback and private-candidate structural evidence; production replacement remains gated by render, identity, HOME/CALL and lifecycle proof.",
+    "progress": "PR #87 scaffold merged on exact green head as versionCode 62. PR #88 is the runtime integration increment and therefore targets versionCode 63; it adds guarded Filament morph playback and private-candidate structural evidence while production replacement remains gated by render, identity, HOME/CALL and lifecycle proof.",
     "private_candidate": {
       "source_sha256": "db9c0c22097ed2e9aecb97de8d9a58708a16f7e9a1ec7cd3846df07e54ebbbe2",
       "candidate_sha256": "8c0d25b3f1b8d3b889eb40a85cd45c0d1afdab7eaeb461d8e04fb310f605ed37",
