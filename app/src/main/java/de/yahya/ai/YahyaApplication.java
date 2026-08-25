@@ -44,6 +44,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineSingleBonePresenceV54.install(activity, decor);
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
+        CelineSeatedCallV70.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
         decor.postDelayed(() -> applyProduction(activity, decor), 850L);
         decor.postDelayed(() -> applyProduction(activity, decor), 1800L);
@@ -73,11 +74,13 @@ public final class YahyaApplication extends Application implements Application.A
         CelineSingleBonePresenceV54.install(activity, decor);
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
+        CelineSeatedCallV70.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineMeshyRigScaleV61.onPaused(activity);
+            CelineSeatedCallV70.onPaused(activity);
             CelineArmPoseV69.onPaused(activity);
             CelineCallUpperBodyPresenceV55.onPaused(activity);
             CelineSingleBonePresenceV54.onPaused(activity);
@@ -89,6 +92,7 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineMeshyRigScaleV61.onDestroyed(activity);
+            CelineSeatedCallV70.onDestroyed(activity);
             CelineArmPoseV69.onDestroyed(activity);
             CelineCallUpperBodyPresenceV55.onDestroyed(activity);
             CelineSingleBonePresenceV54.onDestroyed(activity);

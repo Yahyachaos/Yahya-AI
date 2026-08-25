@@ -27,13 +27,13 @@
   },
   "active": {
     "id": "credible-seated-call-pose-v70",
-    "status": "v70_safety_diagnosis_started",
+    "status": "v70_implementation_in_progress_draft_pr97",
     "current_branch": "auto/celine/v70-seated-call-foundation",
-    "current_pr": null,
+    "current_pr": 97,
     "target_version": 70,
     "goal": "Create a credible seated CALL pose as the remaining safe part of roadmap order 2, preserving v69 relaxed arms, Celine face/identity and all keyboard/videochat geometry.",
     "risk": "lower_body_skinning_deformation_and_runtime_writer_conflict",
-    "progress": "v69 is fully released and testable. PR #96 exact head dab1100a41648f853ce88fcfd0224649381f8b8b passed Android Build #390 and dedicated real-candidate run #21. The exact production images show both arms resting at Celine's sides in HOME, CALL and HOME-return with no shoulder, face or mesh deformation. It merged to f56cc37fb1ab694b842b17010840374c108901f3; exact-main Android Build #391 passed build, full emulator keyboard/videochat geometry regression and publication. The next and only active substep remains within roadmap order 2: diagnose a narrow seated CALL lower-body owner without reactivating the v58 shoulder deformation path.",
+    "progress": "v69 is fully released and testable. PR #96 exact head dab1100a41648f853ce88fcfd0224649381f8b8b passed Android Build #390 and dedicated real-candidate run #21. The exact production images show both arms resting at Celine's sides in HOME, CALL and HOME-return with no shoulder, face or mesh deformation. It merged to f56cc37fb1ab694b842b17010840374c108901f3; exact-main Android Build #391 passed build, full emulator keyboard/videochat geometry regression and publication. The next and only active substep remains within roadmap order 2: diagnose a narrow seated CALL lower-body owner without reactivating the v58 shoulder deformation path. PR #97 is held as a draft while the new owner is proven. The implementation scope is Root + Hips + both upper legs + both lower legs + both feet in CALL only, using the former v46 seated angles, exact v44-captured bases, a stage-internal chair and automatic HOME rollback. No shoulder, arm, head, face or external layout ownership is added.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -296,7 +296,7 @@
   "next": [
     {
       "id": "v70-credible-seated-call-foundation",
-      "status": "diagnosis_in_progress",
+      "status": "implementation_in_progress_draft_pr97",
       "target_version": 70,
       "goal": "Create a credible seated CALL lower-body foundation without touching shoulders or reviving the quarantined broad v56-v58 writer.",
       "constraints": [
@@ -365,7 +365,7 @@
           {
             "order": 2,
             "id": "remove-a-pose",
-            "status": "in_progress_v70_seated_call_foundation",
+            "status": "in_progress_v70_seated_call_implementation",
             "deliverables": [
               "arms leave A-pose",
               "shoulders relax safely",

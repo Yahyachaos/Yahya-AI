@@ -11,8 +11,8 @@ source = SOURCE.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 
-if "versionCode 69" not in build:
-    raise SystemExit("v69 versionCode gate missing")
+if "versionCode 70" not in build:
+    raise SystemExit("v70 versionCode gate missing while preserving v69 arm owner")
 
 expected_joints = {"LeftArm", "RightArm", "LeftForeArm", "RightForeArm"}
 bound_joints = set(re.findall(r'armBone\(asset, transforms, "([^"]+)"\)', source))
@@ -50,4 +50,4 @@ for forbidden in ("LayoutParams", "setTranslation", "scrollTo(", "setLensProject
     if forbidden in source:
         raise SystemExit(f"v69 arm owner unexpectedly touches geometry/camera: {forbidden}")
 
-print("v69 four-joint A-pose removal contract: PASS")
+print("v69 four-joint A-pose removal contract preserved in v70: PASS")

@@ -12,6 +12,8 @@ on:
       - 'ci/celine_production_morph_v65.py'
       - 'ci/celine_true_face_runtime_contract.py'
       - 'ci/celine_a_pose_runtime_contract.py'
+      - 'ci/celine_seated_call_runtime_contract.py'
+      - 'app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineArmPoseV69.java'
       - 'app/src/main/java/de/yahya/ai/YahyaApplication.java'
       - 'ci/celine_facial_morph_validation.py'
@@ -56,6 +58,7 @@ jobs:
           python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_morph_candidate.glb --report morph-proof/validation-report.json
           python ci/celine_true_face_runtime_contract.py
           python ci/celine_a_pose_runtime_contract.py
+          python ci/celine_seated_call_runtime_contract.py
           echo "candidate_sha256=$(sha256sum morph-proof/celine_morph_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 17 for Android SDK
@@ -81,7 +84,7 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Build guarded v69 four-joint A-pose removal APK
+      - name: Build guarded v70 seated CALL foundation APK
         shell: bash
         run: |
           set -euo pipefail
