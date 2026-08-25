@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 63,
-    "main_sha": "8078813323611bb16f0212a848cd83b04ddcc8d8",
+    "main_sha": "786171e84359663c4e37c7520b957c6e12791c5b",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -19,18 +19,19 @@
       "v59 safety ownership: HOME Head-only, CALL neck+Head; v56-v58 advanced Hips/shoulder production writer quarantined",
       "v60 bounded camera search/reset controls and production-avatar diagnostics",
       "v61 production-only Meshy 0.01 Armature/inverse-bind x100 rig-scale framing correction",
-      "v62 dormant bounded facial-motion scaffold with automatic v61/v59 no-morph fallback"
+      "v62 dormant bounded facial-motion scaffold with automatic v61/v59 no-morph fallback",
+      "v63 guarded Filament six-target face-morph runtime with automatic no-morph rollback"
     ]
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "in_progress_private_candidate_structurally_validated",
-    "current_branch": "auto/celine/true-face-blink-viseme",
-    "current_pr": 88,
+    "status": "released_guarded_runtime_awaiting_private_candidate_real_render_proof",
+    "current_branch": null,
+    "current_pr": null,
     "target_version": 63,
     "goal": "Use the validated private morph-enabled Celine candidate for guarded natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path. Keep v61/v59 as the automatic no-morph rollback path and never publish the private candidate binary to the public repository.",
     "risk": "facial_runtime_integration_after_proof",
-    "progress": "PR #87 scaffold merged on exact green head as versionCode 62. PR #88 is the runtime integration increment and therefore targets versionCode 63; it adds guarded Filament morph playback and private-candidate structural evidence while production replacement remains gated by render, identity, HOME/CALL and lifecycle proof.",
+    "progress": "PR #87 scaffold and PR #88 guarded runtime are merged. Exact merge SHA 786171e84359663c4e37c7520b957c6e12791c5b passed Android build, emulator avatar visibility and in-app release publication. Runtime probes loaded renderables for >=6 morph targets and otherwise falls back automatically to the proven v61/v59 behavior. Existing validation artifacts contain reports only, not the private candidate GLB; remaining work is real-candidate render/identity/HOME-CALL/lifecycle proof before production replacement.",
     "private_candidate": {
       "source_sha256": "db9c0c22097ed2e9aecb97de8d9a58708a16f7e9a1ec7cd3846df07e54ebbbe2",
       "candidate_sha256": "8c0d25b3f1b8d3b889eb40a85cd45c0d1afdab7eaeb461d8e04fb310f605ed37",
@@ -58,10 +59,11 @@
     {"id":"celine-face-region-model","status":"merged","pr":84,"tested_head_sha":"d512ea77dc286d8eaf4f150c29f23d127b6534d2","merge_sha":"cec7f191f3e838509fcd4b65eee0cd92b001f25f","pr_validation_run":32805823681},
     {"id":"facial-morph-prototype","status":"merged","pr":85,"tested_head_sha":"b0290b503fdf64f99d11d1f97263ac05cf220965","merge_sha":"912c9f726645a84352842f688f9854cbdfd328cb","pr_validation_run":32809734940},
     {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256},
-    {"id":"true-face-blink-viseme-scaffold","status":"merged","pr":87,"tested_head_sha":"49a923c3fe1049f07d8589f2f2d6b31290f8af4c","merge_sha":"8078813323611bb16f0212a848cd83b04ddcc8d8","pr_validation_run":32821818824}
+    {"id":"true-face-blink-viseme-scaffold","status":"merged","pr":87,"tested_head_sha":"49a923c3fe1049f07d8589f2f2d6b31290f8af4c","merge_sha":"8078813323611bb16f0212a848cd83b04ddcc8d8","pr_validation_run":32821818824},
+    {"id":"true-face-blink-viseme-runtime","status":"merged_released_guarded","pr":88,"tested_head_sha":"6aff7e6f5cade4f00e4960420e5d7113365a1405","merge_sha":"786171e84359663c4e37c7520b957c6e12791c5b","pr_validation_run":32822689680,"release_run":32823119139,"result":"Guarded six-target Filament morph playback, asynchronous blink, restrained microexpression and speech-driven JawOpen/rounded/spread blending passed build and emulator avatar visibility; exact merge SHA was published. Production candidate replacement remains gated."}
   ],
   "next": [],
   "blocked": [
-    {"id":"true-face-blink-viseme-production-proof","reason":"The private candidate is structurally validated and guarded runtime code exists, but production activation/replacement is still prohibited until the private candidate passes real render, identity, HOME/CALL framing and CALL->HOME lifecycle evidence. v61/v59 fallback must remain automatic until those gates pass."}
+    {"id":"true-face-blink-viseme-production-proof","reason":"The private candidate is structurally validated and the v63 guarded runtime is released, but production activation/replacement is still prohibited until the private candidate passes real render, identity, HOME/CALL framing and CALL->HOME lifecycle evidence. Existing CI artifacts contain only validation reports, not the private candidate GLB. Smallest required input is the real morph-enabled private candidate made available to the execution environment for copy-only render proof, or an equivalent protected artifact containing that candidate. v61/v59 fallback remains automatic until those gates pass."}
   ]
 }
