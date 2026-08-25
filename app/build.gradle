@@ -8,6 +8,43 @@ if (!stableDebugKeystoreBase64.isFile()) {
 stableDebugKeystore.parentFile.mkdirs()
 stableDebugKeystore.bytes = java.util.Base64.getDecoder().decode(stableDebugKeystoreBase64.getText('UTF-8').trim())
 
+def celineV62GeneratedDir = file("$buildDir/generated/source/celineV62")
+def celineV62Source = file('src/main/java/de/yahya/ai/Celine3DView.java')
+
+tasks.register('generateCeline3DViewV62') {
+    inputs.file(celineV62Source)
+    outputs.dir(celineV62GeneratedDir)
+    doLast {
+        String text = celineV62Source.getText('UTF-8')
+        String classAnchor = 'public final class Celine3DView extends FrameLayout {'
+        String frameAnchor = '                updateLivePose(frameTimeNanos);'
+        String visemeAnchor = '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}'
+        if (!text.contains(classAnchor)) throw new GradleException('v62 source transform: class anchor missing')
+        if (!text.contains(frameAnchor)) throw new GradleException('v62 source transform: frame anchor missing')
+        if (!text.contains(visemeAnchor)) throw new GradleException('v62 source transform: viseme anchor missing')
+
+        text = text.replace(classAnchor, 'final class Celine3DView extends FrameLayout {')
+        text = text.replace(frameAnchor,
+                frameAnchor + '\n                CelineMorphRuntimeV62.onFrame(Celine3DView.this, frameTimeNanos);')
+        text = text.replace(visemeAnchor,
+                '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
+
+        int finalBrace = text.lastIndexOf('\n}')
+        if (finalBrace <= 0) throw new GradleException('v62 source transform: final class brace missing')
+        String accessors = '''
+
+    Engine v62Engine() { return engine; }
+    FilamentAsset v62Asset() { return asset; }
+    CelineAvatarController.State v62AvatarState() { return avatarState; }
+'''
+        text = text.substring(0, finalBrace) + accessors + text.substring(finalBrace)
+
+        File output = new File(celineV62GeneratedDir, 'de/yahya/ai/Celine3DViewV62.java')
+        output.parentFile.mkdirs()
+        output.setText(text, 'UTF-8')
+    }
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -31,10 +68,20 @@ android {
             signingConfig signingConfigs.debug
         }
     }
+    sourceSets {
+        main {
+            java.srcDir celineV62GeneratedDir
+            java.exclude 'de/yahya/ai/Celine3DView.java'
+        }
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('generateCeline3DViewV62')
 }
 
 dependencies {
