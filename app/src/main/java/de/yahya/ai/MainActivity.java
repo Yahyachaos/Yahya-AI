@@ -5,6 +5,7 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.speech.*;
@@ -56,9 +57,34 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         });
         avatarIdle();
         chatBox=new LinearLayout(this);chatBox.setOrientation(LinearLayout.VERTICAL);scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(chatBox);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(8),0,0);input=new EditText(this);input.setHint("Nachricht an Celin …");input.setHintTextColor(muted);input.setTextColor(text);input.setTextSize(16);input.setSingleLine(false);input.setMaxLines(4);input.setBackground(round(panel,28));input.setPadding(dp(16),dp(12),dp(16),dp(12));row.addView(input,new LinearLayout.LayoutParams(0,-2,1));Button send=button("➤",accent);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(54),dp(54));sp.leftMargin=dp(8);row.addView(send,sp);send.setOnClickListener(v->{String t=input.getText().toString().trim();if(!t.isEmpty()){input.setText("");submit(t);}});root.addView(row);
-        mic=button("🎙  Mit Celin sprechen",accent);mic.setTextSize(17);mic.setOnClickListener(v->startVoiceInput());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(58));mp.topMargin=dp(9);root.addView(mic,mp);return root;
+        LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,dp(8),0,0);input=new EditText(this);input.setHint("Nachricht an Celin …");input.setContentDescription("Celin Nachricht schreiben");input.setHintTextColor(muted);input.setTextColor(text);input.setTextSize(16);input.setSingleLine(false);input.setMaxLines(4);input.setBackground(round(panel,28));input.setPadding(dp(16),dp(12),dp(16),dp(12));row.addView(input,new LinearLayout.LayoutParams(0,-2,1));Button send=button("➤",accent);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(54),dp(54));sp.leftMargin=dp(8);row.addView(send,sp);send.setOnClickListener(v->{String t=input.getText().toString().trim();if(!t.isEmpty()){input.setText("");submit(t);}});root.addView(row);
+        mic=button("🎙  Mit Celin sprechen",accent);mic.setTextSize(17);mic.setOnClickListener(v->startVoiceInput());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(58));mp.topMargin=dp(9);root.addView(mic,mp);installKeyboardVisibilityGuard(root,profile);return root;
     }
+
+    private void installKeyboardVisibilityGuard(View root, View profile){
+        if(Build.VERSION.SDK_INT>=30){
+            root.setOnApplyWindowInsetsListener((v,insets)->{
+                updateKeyboardMode(profile,insets.isVisible(WindowInsets.Type.ime()));
+                return insets;
+            });
+        }else{
+            Rect visibleFrame=new Rect();
+            root.getViewTreeObserver().addOnGlobalLayoutListener(()->{
+                root.getWindowVisibleDisplayFrame(visibleFrame);
+                int fullHeight=root.getRootView().getHeight();
+                boolean keyboardVisible=fullHeight>0&&fullHeight-visibleFrame.height()>fullHeight*.15f;
+                updateKeyboardMode(profile,keyboardVisible);
+            });
+        }
+    }
+
+    private void updateKeyboardMode(View profile,boolean keyboardVisible){
+        int target=keyboardVisible?View.GONE:View.VISIBLE;
+        if(profile.getVisibility()!=target)profile.setVisibility(target);
+        if(mic!=null&&mic.getVisibility()!=target)mic.setVisibility(target);
+        if(keyboardVisible&&scroll!=null)scroll.post(()->scroll.fullScroll(View.FOCUS_DOWN));
+    }
+
     private void avatarIdle(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.IDLE);}
     private void avatarListening(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.LISTENING);}
     private void avatarThinking(){if(avatarController!=null)avatarController.setState(CelineAvatarController.State.THINKING);}

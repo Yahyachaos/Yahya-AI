@@ -287,6 +287,12 @@ jobs:
             emulator-window.xml
             emulator-call.xml
             emulator-home-return.xml
+            emulator-keyboard.png
+            emulator-keyboard.xml
+            emulator-keyboard-restored.png
+            emulator-keyboard-restored.xml
+            emulator-ime.txt
+            emulator-window-state.txt
             emulator-logcat.txt
             emulator-prefs.xml
           if-no-files-found: ignore

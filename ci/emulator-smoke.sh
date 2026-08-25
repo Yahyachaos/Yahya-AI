@@ -7,6 +7,9 @@ bash ci/v61-meshy-rig-scale-guard.sh
 # Stage 1 preserves every proven HOME / CALL / HOME-return visibility and layout gate.
 bash ci/emulator-visibility-smoke.sh
 
+# Stage 1a proves the real composer remains readable and sendable while the Android IME is open.
+bash ci/keyboard-chat-visibility-smoke.sh
+
 # Stage 1b proves v60's bounded camera-search controls on the recovered HOME stage.
 bash ci/v60-camera-controls-smoke.sh
 
