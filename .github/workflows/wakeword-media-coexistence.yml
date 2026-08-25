@@ -1,0 +1,28 @@
+name: Wakeword Media Coexistence
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/src/main/java/de/yahya/ai/WakeWordService.java'
+      - 'ci/wakeword-media-coexistence-guard.sh'
+      - '.github/workflows/wakeword-media-coexistence.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/src/main/java/de/yahya/ai/WakeWordService.java'
+      - 'ci/wakeword-media-coexistence-guard.sh'
+      - '.github/workflows/wakeword-media-coexistence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Prove wake-word yields to external media
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static coexistence guard
+        run: bash ci/wakeword-media-coexistence-guard.sh

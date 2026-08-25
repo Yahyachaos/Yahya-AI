@@ -19,15 +19,22 @@ tasks.register('generateCeline3DViewV62') {
         String classAnchor = 'public final class Celine3DView extends FrameLayout {'
         String frameAnchor = '                updateLivePose(frameTimeNanos);'
         String visemeAnchor = '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}'
+        String homeLensAnchor = '        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);'
         if (!text.contains(classAnchor)) throw new GradleException('v62 source transform: class anchor missing')
         if (!text.contains(frameAnchor)) throw new GradleException('v62 source transform: frame anchor missing')
         if (!text.contains(visemeAnchor)) throw new GradleException('v62 source transform: viseme anchor missing')
+        if (!text.contains(homeLensAnchor)) throw new GradleException('v64 HOME lens transform: anchor missing')
 
         text = text.replace(classAnchor, 'final class Celine3DView extends FrameLayout {')
         text = text.replace(frameAnchor,
                 frameAnchor + '\n                CelineMorphRuntimeV62.onFrame(Celine3DView.this, frameTimeNanos);')
         text = text.replace(visemeAnchor,
                 '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
+        // HOME presentation is established at 38 mm by v44. Keep the renderer's late
+        // Surface/viewport resize on the same lens so CALL -> HOME cannot fall back to 32 mm
+        // and make Celine visibly smaller after the stage is reparented.
+        text = text.replace(homeLensAnchor,
+                '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
 
         int finalBrace = text.lastIndexOf('\n}')
         if (finalBrace <= 0) throw new GradleException('v62 source transform: final class brace missing')
@@ -52,7 +59,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 63
+        versionCode 64
         versionName '1.0-celin-foundation'
     }
     signingConfigs {
@@ -88,8 +95,8 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v63 preserves v61 framing and v59 safe HOME/CALL ownership while adding
-    // guarded private-candidate facial morph playback for blink / jaw / viseme motion.
+    // v64 preserves v61 framing, v59 safe HOME/CALL ownership and the guarded v63
+    // face-morph runtime while keeping HOME camera zoom stable across CALL lifecycle changes.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
