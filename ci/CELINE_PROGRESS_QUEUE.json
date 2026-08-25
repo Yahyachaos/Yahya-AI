@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 61,
-    "main_sha": "a96db916c95eb44fe0b74241f2e8dc8424e4d38d",
+    "main_sha": "743790e4dfc055312ea1a566559b505cb9544100",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -23,8 +23,8 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "in_progress",
-    "goal": "Only after the validated copy-only facial candidate gate, integrate natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path. Preserve smooth coarticulation and state-aware behavior for IDLE/LISTENING/THINKING/SPEAKING, maintain rollback to the proven non-facial baseline, and require render, identity, HOME/CALL and lifecycle evidence before any production GLB replacement.",
+    "status": "blocked_external_candidate_required",
+    "goal": "Integrate natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path only after a renderable morph-enabled Celine candidate passes identity, HOME/CALL and lifecycle evidence. Keep rollback to the proven non-facial baseline and do not replace production celine.glb without proof.",
     "risk": "facial_runtime_integration_after_proof"
   },
   "completed": [
@@ -47,5 +47,7 @@
     {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256,"result":"Copy-only facial morph validation mechanics and Android/emulator avatar gate passed on the exact PR head; production celine.glb remained external/read-only."}
   ],
   "next": [],
-  "blocked": []
+  "blocked": [
+    {"id":"true-face-blink-viseme","reason":"The validated generator can only create morph targets from the real Celine GLB, but that production GLB is intentionally external/read-only and is not present in GitHub. The repository therefore has no renderable morph-enabled Celine candidate on which to prove identity, HOME/CALL framing and lifecycle gates before runtime integration. Smallest required input: make the real production Celine GLB available to the execution environment for copy-only candidate generation/testing, or provide an already generated morph-enabled candidate copy; production replacement remains prohibited until gates pass."}
+  ]
 }
