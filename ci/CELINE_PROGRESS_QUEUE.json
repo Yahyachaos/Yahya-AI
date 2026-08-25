@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 63,
-    "main_sha": "42871b0a5fda9c3e8422a9a3af1dec9e4fea0501",
+    "version": 64,
+    "main_sha": "d22f956329d7a75ba5481ac217407d52190ad084",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -27,13 +27,13 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "v64_merged_release_retry_after_main_uiautomator_flake",
-    "current_branch": "auto/celine-v64-main-emulator-retry",
-    "current_pr": 91,
-    "target_version": 64,
+    "status": "v64_released_next_guarded_candidate_activation",
+    "current_branch": null,
+    "current_pr": null,
+    "target_version": 65,
     "goal": "Finish the v64 exact-main release after the already-proven real Celine render/identity/zoom/lifecycle and media-coexistence gates, then continue the same canonical true-face-blink-viseme task toward guarded production candidate activation.",
-    "risk": "main_release_ci_infrastructure_retry_only",
-    "progress": "PR #90 exact head 20a91f8282483786309065be97295d97a8a51237 passed Android Build #369, real-candidate render proof #9 and Wakeword Media Coexistence #2, including visual identity review and HOME-return zoom ratio 1.005. It merged to main as 42871b0a5fda9c3e8422a9a3af1dec9e4fea0501. Main Android Build #370 compiled successfully and its normal HOME/CALL/HOME-return stage passed, but the later synthetic skinning stage hit one API-35 uiautomator UiAutomation crash on the CALL XML dump while the Yahya AI process remained alive; publication was correctly skipped. PR #91 adds only bounded UI-dump retries with PID continuity checks and does not change v64 runtime behavior.",
+    "risk": "guarded_production_candidate_activation",
+    "progress": "v64 is fully released and testable. PR #91 exact head 235d5c47bdf734e2a393f0b2d282c4e274f2299b passed Android Build #372 and merged exactly to main as d22f956329d7a75ba5481ac217407d52190ad084. Main Android Build #373 passed build plus HOME/CALL/HOME-return emulator validation. Manual exact-main release Android Build #374 (run 32836316381) revalidated the same merge SHA, passed the emulator gate, and published immutable v64. The next canonical step is guarded production candidate activation on a fresh single-active branch; no runtime change has been started yet.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -47,39 +47,204 @@
       "generation_policy": "copy_only_from_canonical_source",
       "sha256": "4c433114d1e5475899d1170acb44706a7a8c75bc130f3a1400992c0369f8b804",
       "vertex_count": 66700,
-      "target_names": ["BlinkLeft", "BlinkRight", "BlinkBoth", "JawOpen", "RoundedVowelProof", "SpreadVowelProof"],
+      "target_names": [
+        "BlinkLeft",
+        "BlinkRight",
+        "BlinkBoth",
+        "JawOpen",
+        "RoundedVowelProof",
+        "SpreadVowelProof"
+      ],
       "structural_validation": "PASS",
       "topology_preserved": true,
       "source_modified": false,
       "real_render_validation": "PASS on PR #90 exact head",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "PR #91 exact head Android/emulator green -> exact-head merge -> main exact-SHA Android/emulator + v64 publication"
+      "remaining_gate": "v64 release complete on exact main SHA d22f956329d7a75ba5481ac217407d52190ad084; next gate is a fresh exact-head PR for guarded production candidate activation without weakening v64/v61/v59 fallback protections"
     }
   },
   "completed": [
-    {"id":"ci-call-return-avatar-proof","status":"merged","pr":69,"merge_sha":"9c9492f50a09c8a2647ff495f0c40599845eb2a3"},
-    {"id":"pipeline-v2-hardening","status":"merged","pr":72,"merge_sha":"01607594e886dbaae316a616622e4cc94aebcbeb"},
-    {"id":"safe-camera-micro-presence","status":"merged","pr":70,"merge_sha":"0e780508dd857074ab885fc5b3f6945863c173a0"},
-    {"id":"state-aware-breathing-presence","status":"merged","pr":73,"merge_sha":"4f2627dd8082a9303cf9167ec682e71b4751ed50"},
-    {"id":"relaxed-base-pose-experiment","status":"merged","pr":74,"merge_sha":"9ce7f5bdbf261c0c9502d01bf6257c864348a2e5"},
-    {"id":"call-upper-body-pose-foundation","status":"merged","pr":75,"merge_sha":"d96362a0e99460487a4b51d221de0e61c021ee9f"},
-    {"id":"credible-seated-call-pose","status":"merged","pr":76,"merge_sha":"f98e8b3cd2be8a129ce9c04e7814a9e88e932946"},
-    {"id":"head-gaze-refinement-v57","status":"merged","pr":77,"merge_sha":"d313a9df4f655a7b1da28fe29d2bee130cd1fc5d"},
-    {"id":"shoulder-presence-refinement","status":"merged_then_quarantined_in_v59","pr":78,"merge_sha":"c46173149a6ed7a7650e3f541fcef2452398c966"},
-    {"id":"v59-avatar-framing-regression","status":"merged_released","pr":79,"merge_sha":"700b93299d84b61ae7617a699200a5db01d55674"},
-    {"id":"v60-production-avatar-presence","status":"merged_released","pr":80,"merge_sha":"d9327761eefa57f0c40b2b05b40f76debd5a303f"},
-    {"id":"v61-meshy-rig-scale-framing-fix","status":"merged_released_pending_real_device_confirmation","pr":81,"merge_sha":"4cc50ac768b527398afd54aa71221ced5f4b1f99"},
-    {"id":"deep-face-geometry-scan","status":"merged","pr":82,"tested_head_sha":"e3dd5257343b477fb812f336384feda04bacb212","merge_sha":"86a44ccfdd19cace01a5cc11f18a910331b989e0","pr_validation_run":32798138367},
-    {"id":"facial-motion-reference-research","status":"merged","pr":83,"tested_head_sha":"757a7ba47aa886562e350892c43b19bb78c61e9c","merge_sha":"2a59bd994ada8c807754ecb13ce4da549439800c","pr_validation_run":32802033629},
-    {"id":"celine-face-region-model","status":"merged","pr":84,"tested_head_sha":"d512ea77dc286d8eaf4f150c29f23d127b6534d2","merge_sha":"cec7f191f3e838509fcd4b65eee0cd92b001f25f","pr_validation_run":32805823681},
-    {"id":"facial-morph-prototype","status":"merged","pr":85,"tested_head_sha":"b0290b503fdf64f99d11d1f97263ac05cf220965","merge_sha":"912c9f726645a84352842f688f9854cbdfd328cb","pr_validation_run":32809734940},
-    {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256},
-    {"id":"true-face-blink-viseme-scaffold","status":"merged","pr":87,"tested_head_sha":"49a923c3fe1049f07d8589f2f2d6b31290f8af4c","merge_sha":"8078813323611bb16f0212a848cd83b04ddcc8d8","pr_validation_run":32821818824},
-    {"id":"true-face-blink-viseme-runtime","status":"merged_released_guarded","pr":88,"tested_head_sha":"6aff7e6f5cade4f00e4960420e5d7113365a1405","merge_sha":"786171e84359663c4e37c7520b957c6e12791c5b","pr_validation_run":32822689680,"release_run":32823119139,"result":"Guarded six-target Filament morph playback, asynchronous blink, restrained microexpression and speech-driven JawOpen/rounded/spread blending passed build and emulator avatar visibility; exact merge SHA was published. Production candidate replacement remained gated."},
-    {"id":"canonical-celine-source-persistence","status":"merged","pr":89,"tested_head_sha":"a16b6e7af2b7785d6a59dfaf15a7225831ca06d9","merge_sha":"0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23","android_run":32831139288,"candidate_run":32831139319,"result":"Canonical real Celine source is persisted via Git LFS, SHA-verified and reproducibly generates a structurally valid real six-target candidate in CI."},
-    {"id":"true-face-blink-viseme-real-render-v64","status":"merged_awaiting_main_release","pr":90,"tested_head_sha":"20a91f8282483786309065be97295d97a8a51237","merge_sha":"42871b0a5fda9c3e8422a9a3af1dec9e4fea0501","android_run":32833349787,"real_candidate_run":32833349764,"media_coexistence_run":32833349765,"result":"Real six-target candidate, identity, HOME/CALL/HOME-return lifecycle, stable 38mm HOME framing and external-media wake-word coexistence all passed on exact PR head; main publication remains pending after an unrelated transient API35 UiAutomation dump failure in Android Build #370."}
+    {
+      "id": "ci-call-return-avatar-proof",
+      "status": "merged",
+      "pr": 69,
+      "merge_sha": "9c9492f50a09c8a2647ff495f0c40599845eb2a3"
+    },
+    {
+      "id": "pipeline-v2-hardening",
+      "status": "merged",
+      "pr": 72,
+      "merge_sha": "01607594e886dbaae316a616622e4cc94aebcbeb"
+    },
+    {
+      "id": "safe-camera-micro-presence",
+      "status": "merged",
+      "pr": 70,
+      "merge_sha": "0e780508dd857074ab885fc5b3f6945863c173a0"
+    },
+    {
+      "id": "state-aware-breathing-presence",
+      "status": "merged",
+      "pr": 73,
+      "merge_sha": "4f2627dd8082a9303cf9167ec682e71b4751ed50"
+    },
+    {
+      "id": "relaxed-base-pose-experiment",
+      "status": "merged",
+      "pr": 74,
+      "merge_sha": "9ce7f5bdbf261c0c9502d01bf6257c864348a2e5"
+    },
+    {
+      "id": "call-upper-body-pose-foundation",
+      "status": "merged",
+      "pr": 75,
+      "merge_sha": "d96362a0e99460487a4b51d221de0e61c021ee9f"
+    },
+    {
+      "id": "credible-seated-call-pose",
+      "status": "merged",
+      "pr": 76,
+      "merge_sha": "f98e8b3cd2be8a129ce9c04e7814a9e88e932946"
+    },
+    {
+      "id": "head-gaze-refinement-v57",
+      "status": "merged",
+      "pr": 77,
+      "merge_sha": "d313a9df4f655a7b1da28fe29d2bee130cd1fc5d"
+    },
+    {
+      "id": "shoulder-presence-refinement",
+      "status": "merged_then_quarantined_in_v59",
+      "pr": 78,
+      "merge_sha": "c46173149a6ed7a7650e3f541fcef2452398c966"
+    },
+    {
+      "id": "v59-avatar-framing-regression",
+      "status": "merged_released",
+      "pr": 79,
+      "merge_sha": "700b93299d84b61ae7617a699200a5db01d55674"
+    },
+    {
+      "id": "v60-production-avatar-presence",
+      "status": "merged_released",
+      "pr": 80,
+      "merge_sha": "d9327761eefa57f0c40b2b05b40f76debd5a303f"
+    },
+    {
+      "id": "v61-meshy-rig-scale-framing-fix",
+      "status": "merged_released_pending_real_device_confirmation",
+      "pr": 81,
+      "merge_sha": "4cc50ac768b527398afd54aa71221ced5f4b1f99"
+    },
+    {
+      "id": "deep-face-geometry-scan",
+      "status": "merged",
+      "pr": 82,
+      "tested_head_sha": "e3dd5257343b477fb812f336384feda04bacb212",
+      "merge_sha": "86a44ccfdd19cace01a5cc11f18a910331b989e0",
+      "pr_validation_run": 32798138367
+    },
+    {
+      "id": "facial-motion-reference-research",
+      "status": "merged",
+      "pr": 83,
+      "tested_head_sha": "757a7ba47aa886562e350892c43b19bb78c61e9c",
+      "merge_sha": "2a59bd994ada8c807754ecb13ce4da549439800c",
+      "pr_validation_run": 32802033629
+    },
+    {
+      "id": "celine-face-region-model",
+      "status": "merged",
+      "pr": 84,
+      "tested_head_sha": "d512ea77dc286d8eaf4f150c29f23d127b6534d2",
+      "merge_sha": "cec7f191f3e838509fcd4b65eee0cd92b001f25f",
+      "pr_validation_run": 32805823681
+    },
+    {
+      "id": "facial-morph-prototype",
+      "status": "merged",
+      "pr": 85,
+      "tested_head_sha": "b0290b503fdf64f99d11d1f97263ac05cf220965",
+      "merge_sha": "912c9f726645a84352842f688f9854cbdfd328cb",
+      "pr_validation_run": 32809734940
+    },
+    {
+      "id": "facial-morph-validation",
+      "status": "merged",
+      "pr": 86,
+      "tested_head_sha": "e511179ea2a002478dbdbf02f2ef1a6aa70608b0",
+      "merge_sha": "a96db916c95eb44fe0b74241f2e8dc8424e4d38d",
+      "pr_validation_run": 32814580216,
+      "dedicated_validation_run": 32814580256
+    },
+    {
+      "id": "true-face-blink-viseme-scaffold",
+      "status": "merged",
+      "pr": 87,
+      "tested_head_sha": "49a923c3fe1049f07d8589f2f2d6b31290f8af4c",
+      "merge_sha": "8078813323611bb16f0212a848cd83b04ddcc8d8",
+      "pr_validation_run": 32821818824
+    },
+    {
+      "id": "true-face-blink-viseme-runtime",
+      "status": "merged_released_guarded",
+      "pr": 88,
+      "tested_head_sha": "6aff7e6f5cade4f00e4960420e5d7113365a1405",
+      "merge_sha": "786171e84359663c4e37c7520b957c6e12791c5b",
+      "pr_validation_run": 32822689680,
+      "release_run": 32823119139,
+      "result": "Guarded six-target Filament morph playback, asynchronous blink, restrained microexpression and speech-driven JawOpen/rounded/spread blending passed build and emulator avatar visibility; exact merge SHA was published. Production candidate replacement remained gated."
+    },
+    {
+      "id": "canonical-celine-source-persistence",
+      "status": "merged",
+      "pr": 89,
+      "tested_head_sha": "a16b6e7af2b7785d6a59dfaf15a7225831ca06d9",
+      "merge_sha": "0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23",
+      "android_run": 32831139288,
+      "candidate_run": 32831139319,
+      "result": "Canonical real Celine source is persisted via Git LFS, SHA-verified and reproducibly generates a structurally valid real six-target candidate in CI."
+    },
+    {
+      "id": "true-face-blink-viseme-real-render-v64",
+      "status": "merged_released",
+      "pr": 90,
+      "tested_head_sha": "20a91f8282483786309065be97295d97a8a51237",
+      "merge_sha": "42871b0a5fda9c3e8422a9a3af1dec9e4fea0501",
+      "android_run": 32833349787,
+      "real_candidate_run": 32833349764,
+      "media_coexistence_run": 32833349765,
+      "result": "Real six-target candidate, identity, HOME/CALL/HOME-return lifecycle, stable 38mm HOME framing and external-media wake-word coexistence passed. PR #91 repaired only the proven UiAutomation dump flake; exact main SHA d22f956329d7a75ba5481ac217407d52190ad084 then passed Android Build #373 and exact-SHA release run #374, which published immutable v64.",
+      "release_run": 32836316381,
+      "release_sha": "d22f956329d7a75ba5481ac217407d52190ad084"
+    },
+    {
+      "id": "v64-main-emulator-retry",
+      "status": "merged_released",
+      "pr": 91,
+      "tested_head_sha": "235d5c47bdf734e2a393f0b2d282c4e274f2299b",
+      "merge_sha": "d22f956329d7a75ba5481ac217407d52190ad084",
+      "pr_validation_run": 32834562000,
+      "main_validation_run": 32835392747,
+      "release_run": 32836316381,
+      "result": "Bounded uiautomator dump retries with app-PID continuity checks passed exact-head and exact-main Android/emulator validation; immutable v64 was published from the exact merge SHA."
+    }
   ],
-  "next": [],
+  "next": [
+    {
+      "id": "true-face-blink-viseme-guarded-production-candidate-activation",
+      "status": "ready",
+      "target_version": 65,
+      "goal": "Activate the already-validated real six-target Celine candidate behind existing automatic no-morph rollback and v61/v59 safety ownership, then prove identity, blink/viseme behavior and HOME/CALL/HOME-return lifecycle on the exact PR head.",
+      "constraints": [
+        "single active branch and PR",
+        "preserve v64 media coexistence and 38mm HOME framing",
+        "preserve v61 rig-scale correction and v59 HOME/CALL joint ownership",
+        "automatic no-morph fallback remains mandatory",
+        "no release before exact-head and exact-main emulator proof"
+      ]
+    }
+  ],
   "blocked": [],
   "release_retry": {
     "failed_main_run": 32833820523,
@@ -88,6 +253,14 @@
     "build_passed": true,
     "stage1_home_call_home_passed": true,
     "failing_step": "ci/skinning-smoke.sh CALL uiautomator dump",
-    "repair_pr": 91
+    "repair_pr": 91,
+    "resolved": true,
+    "repair_head_sha": "235d5c47bdf734e2a393f0b2d282c4e274f2299b",
+    "repair_pr_run": 32834562000,
+    "merge_sha": "d22f956329d7a75ba5481ac217407d52190ad084",
+    "main_validation_run": 32835392747,
+    "release_run": 32836316381,
+    "release_tag": "v64",
+    "release_status": "published_testable"
   }
 }
