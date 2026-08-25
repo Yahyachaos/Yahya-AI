@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 61,
-    "main_sha": "743790e4dfc055312ea1a566559b505cb9544100",
+    "main_sha": "3c408b233f87e8cbcf031319dd90ad47ef4a66c6",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -23,9 +23,19 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "blocked_external_candidate_required",
-    "goal": "Integrate natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path only after a renderable morph-enabled Celine candidate passes identity, HOME/CALL and lifecycle evidence. Keep rollback to the proven non-facial baseline and do not replace production celine.glb without proof.",
-    "risk": "facial_runtime_integration_after_proof"
+    "status": "in_progress_private_candidate_structurally_validated",
+    "branch": "auto/celine/true-face-blink-viseme",
+    "target_version": 62,
+    "goal": "Use the validated private morph-enabled Celine candidate for guarded natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path. Keep v61/v59 as the automatic no-morph rollback path and never publish the private candidate binary to the public repository.",
+    "risk": "facial_runtime_integration_after_proof",
+    "private_candidate": {
+      "source_sha256": "db9c0c22097ed2e9aecb97de8d9a58708a16f7e9a1ec7cd3846df07e54ebbbe2",
+      "candidate_sha256": "8c0d25b3f1b8d3b889eb40a85cd45c0d1afdab7eaeb461d8e04fb310f605ed37",
+      "vertex_count": 63824,
+      "head_weight_ge_0_5_vertices": 12600,
+      "structural_validation": "PASS",
+      "public_repo_binary": false
+    }
   },
   "completed": [
     {"id":"ci-call-return-avatar-proof","status":"merged","pr":69,"merge_sha":"9c9492f50a09c8a2647ff495f0c40599845eb2a3"},
@@ -48,6 +58,6 @@
   ],
   "next": [],
   "blocked": [
-    {"id":"true-face-blink-viseme","reason":"The validated generator can only create morph targets from the real Celine GLB, but that production GLB is intentionally external/read-only and is not present in GitHub. The repository therefore has no renderable morph-enabled Celine candidate on which to prove identity, HOME/CALL framing and lifecycle gates before runtime integration. Smallest required input: make the real production Celine GLB available to the execution environment for copy-only candidate generation/testing, or provide an already generated morph-enabled candidate copy; production replacement remains prohibited until gates pass."}
+    {"id":"true-face-blink-viseme-production-proof","reason":"The real private candidate has now been generated and structurally validated outside the public repository. Remaining gate is runtime build plus render/identity/HOME/CALL/lifecycle evidence with that private candidate before any production replacement or merge that would remove the v61/v59 fallback."}
   ]
 }
