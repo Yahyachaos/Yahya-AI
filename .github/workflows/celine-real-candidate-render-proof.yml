@@ -47,7 +47,7 @@ jobs:
           SOURCE='app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb'
           python ci/celine_production_morph_v65.py "$SOURCE" morph-proof/celine_morph_candidate.glb \
             --report morph-proof/production-report.json \
-            --expected-sha256 4c433114d1e5475899d1170acb44706a7a8c75bc130f3a1400992c0369f8b804
+            --expected-sha256 6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146
           python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_morph_candidate.glb --report morph-proof/validation-report.json
           python ci/celine_true_face_runtime_contract.py
           echo "candidate_sha256=$(sha256sum morph-proof/celine_morph_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
