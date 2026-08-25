@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "source": {
+    "geometry_scan": "ci/CELINE_FACE_GEOMETRY_SCAN.json",
+    "reference_research": "ci/CELINE_FACIAL_MOTION_REFERENCE_RESEARCH.md",
+    "production_glb_policy": "read_only"
+  },
+  "neutral_policy": {
+    "weight_zero_equals_neutral": true,
+    "production_geometry_must_not_be_modified": true,
+    "identity_preserving": true
+  },
+  "coordinate_convention": {
+    "x": "geometric left/right sign from PR #82 scan",
+    "y": "+Y up",
+    "z": "+Z anterior/front"
+  },
+  "regions": {
+    "upper_eyelid_xneg": {"source_region":"upper_eyelid_xneg","primary_motion":[0.0,-1.0,-0.08],"max_relative_displacement":0.42,"falloff":"toward brow and eye corners","couples_with":["lower_eyelid_xneg"],"locked_neighbors":["eye_geometry","nose_bridge","temple_xneg"]},
+    "lower_eyelid_xneg": {"source_region":"lower_eyelid_xneg","primary_motion":[0.0,0.35,-0.03],"max_relative_displacement":0.16,"falloff":"toward cheek and eye corners","couples_with":["upper_eyelid_xneg","cheek_xneg"],"locked_neighbors":["eye_geometry","nose_bridge"]},
+    "upper_eyelid_xpos": {"source_region":"upper_eyelid_xpos","primary_motion":[0.0,-1.0,-0.08],"max_relative_displacement":0.42,"falloff":"toward brow and eye corners","couples_with":["lower_eyelid_xpos"],"locked_neighbors":["eye_geometry","nose_bridge","temple_xpos"]},
+    "lower_eyelid_xpos": {"source_region":"lower_eyelid_xpos","primary_motion":[0.0,0.35,-0.03],"max_relative_displacement":0.16,"falloff":"toward cheek and eye corners","couples_with":["upper_eyelid_xpos","cheek_xpos"],"locked_neighbors":["eye_geometry","nose_bridge"]},
+    "brow_xneg": {"source_region":"brow_xneg","primary_motion":[0.0,1.0,0.05],"max_relative_displacement":0.20,"falloff":"inner/outer brow submasks required","couples_with":["forehead"],"locked_neighbors":["upper_eyelid_xneg","temple_xneg"]},
+    "brow_xpos": {"source_region":"brow_xpos","primary_motion":[0.0,1.0,0.05],"max_relative_displacement":0.20,"falloff":"inner/outer brow submasks required","couples_with":["forehead"],"locked_neighbors":["upper_eyelid_xpos","temple_xpos"]},
+    "cheek_xneg": {"source_region":"cheek_xneg","primary_motion":[0.16,0.26,0.06],"max_relative_displacement":0.14,"falloff":"local only","couples_with":["lower_eyelid_xneg","mouth_corner_xneg"],"locked_neighbors":["nose_bridge","temple_xneg","forehead"]},
+    "cheek_xpos": {"source_region":"cheek_xpos","primary_motion":[-0.16,0.26,0.06],"max_relative_displacement":0.14,"falloff":"local only","couples_with":["lower_eyelid_xpos","mouth_corner_xpos"],"locked_neighbors":["nose_bridge","temple_xpos","forehead"]},
+    "upper_lip": {"source_region":"upper_lip","primary_motion":[0.0,0.10,0.10],"max_relative_displacement":0.18,"falloff":"preserve philtrum and nose base","couples_with":["mouth_corner_xneg","mouth_corner_xpos"],"locked_neighbors":["nose_tip_alar"]},
+    "lower_lip": {"source_region":"lower_lip","primary_motion":[0.0,-0.26,0.08],"max_relative_displacement":0.26,"falloff":"blend into chin","couples_with":["chin","jawline_xneg","jawline_xpos"],"locked_neighbors":["nose_tip_alar"]},
+    "mouth_corner_xneg": {"source_region":"mouth_corner_xneg","primary_motion":[-0.36,0.22,0.03],"max_relative_displacement":0.24,"falloff":"blend into cheek and lips","couples_with":["cheek_xneg","upper_lip","lower_lip"],"locked_neighbors":["nose_bridge"]},
+    "mouth_corner_xpos": {"source_region":"mouth_corner_xpos","primary_motion":[0.36,0.22,0.03],"max_relative_displacement":0.24,"falloff":"blend into cheek and lips","couples_with":["cheek_xpos","upper_lip","lower_lip"],"locked_neighbors":["nose_bridge"]},
+    "chin": {"source_region":"chin","primary_motion":[0.0,-0.34,-0.04],"max_relative_displacement":0.24,"falloff":"jaw-open support only","couples_with":["lower_lip","jawline_xneg","jawline_xpos"],"locked_neighbors":["upper_lip","nose_tip_alar"]},
+    "jawline_xneg": {"source_region":"jawline_xneg","primary_motion":[0.0,-0.28,-0.03],"max_relative_displacement":0.18,"falloff":"toward chin and neck boundary","couples_with":["chin","lower_lip"],"locked_neighbors":["cheek_xneg","temple_xneg"]},
+    "jawline_xpos": {"source_region":"jawline_xpos","primary_motion":[0.0,-0.28,-0.03],"max_relative_displacement":0.18,"falloff":"toward chin and neck boundary","couples_with":["chin","lower_lip"],"locked_neighbors":["cheek_xpos","temple_xpos"]}
+  },
+  "prototype_channels": {
+    "BlinkLeft": {"regions":["upper_eyelid_xneg","lower_eyelid_xneg"],"asymmetric":true,"upper_lid_share":0.78,"lower_lid_share":0.22},
+    "BlinkRight": {"regions":["upper_eyelid_xpos","lower_eyelid_xpos"],"asymmetric":true,"upper_lid_share":0.78,"lower_lid_share":0.22},
+    "BlinkBoth": {"compose":["BlinkLeft","BlinkRight"]},
+    "JawOpen": {"regions":["lower_lip","chin","jawline_xneg","jawline_xpos"],"upper_lip_anchor":true},
+    "RoundedVowelProof": {"compose":["JawOpen"],"additional_regions":["upper_lip","lower_lip","mouth_corner_xneg","mouth_corner_xpos"],"intent":"funnel/pucker without global scaling"},
+    "SpreadVowelProof": {"compose":["JawOpen"],"additional_regions":["mouth_corner_xneg","mouth_corner_xpos","cheek_xneg","cheek_xpos"],"intent":"restrained lateral spread"}
+  },
+  "validation": {
+    "reject_if_neutral_moves_at_zero": true,
+    "reject_if_eye_geometry_scaled": true,
+    "reject_if_nose_bridge_moves_for_blink": true,
+    "reject_if_forehead_moves_for_mouth": true,
+    "reject_if_regions_cross_midline_unintentionally": true,
+    "reject_if_production_glb_changed": true,
+    "require_home_call_lifecycle_regression": true
+  }
+}
