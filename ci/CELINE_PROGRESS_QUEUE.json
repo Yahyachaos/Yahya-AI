@@ -2,8 +2,8 @@
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
-    "version": 61,
-    "main_sha": "3c408b233f87e8cbcf031319dd90ad47ef4a66c6",
+    "version": 63,
+    "main_sha": "8078813323611bb16f0212a848cd83b04ddcc8d8",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -18,16 +18,27 @@
       "v57 restrained state-aware CALL head/gaze refinement",
       "v59 safety ownership: HOME Head-only, CALL neck+Head; v56-v58 advanced Hips/shoulder production writer quarantined",
       "v60 bounded camera search/reset controls and production-avatar diagnostics",
-      "v61 production-only Meshy 0.01 Armature/inverse-bind x100 rig-scale framing correction"
+      "v61 production-only Meshy 0.01 Armature/inverse-bind x100 rig-scale framing correction",
+      "v62 dormant bounded facial-motion scaffold with automatic v61/v59 no-morph fallback"
     ]
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "in_progress_external_candidate_gate",
-    "goal": "Integrate natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path only after a renderable morph-enabled Celine candidate passes identity, HOME/CALL and lifecycle evidence. Keep rollback to the proven non-facial baseline and do not replace production celine.glb without proof.",
+    "status": "in_progress_private_candidate_structurally_validated",
+    "current_branch": "auto/celine/true-face-blink-viseme",
+    "current_pr": 88,
+    "target_version": 63,
+    "goal": "Use the validated private morph-enabled Celine candidate for guarded natural asynchronous blinking, restrained microexpressions, JawOpen and speech-driven viseme blending through the existing setViseme path. Keep v61/v59 as the automatic no-morph rollback path and never publish the private candidate binary to the public repository.",
     "risk": "facial_runtime_integration_after_proof",
-    "current_branch": "auto/celine-true-face-blink-viseme",
-    "progress": "Dormant bounded facial-motion planner and CI contract scaffold added. Production setViseme remains intentionally inactive until candidate gates pass."
+    "progress": "PR #87 scaffold merged on exact green head as versionCode 62. PR #88 is the runtime integration increment and therefore targets versionCode 63; it adds guarded Filament morph playback and private-candidate structural evidence while production replacement remains gated by render, identity, HOME/CALL and lifecycle proof.",
+    "private_candidate": {
+      "source_sha256": "db9c0c22097ed2e9aecb97de8d9a58708a16f7e9a1ec7cd3846df07e54ebbbe2",
+      "candidate_sha256": "8c0d25b3f1b8d3b889eb40a85cd45c0d1afdab7eaeb461d8e04fb310f605ed37",
+      "vertex_count": 63824,
+      "head_weight_ge_0_5_vertices": 12600,
+      "structural_validation": "PASS",
+      "public_repo_binary": false
+    }
   },
   "completed": [
     {"id":"ci-call-return-avatar-proof","status":"merged","pr":69,"merge_sha":"9c9492f50a09c8a2647ff495f0c40599845eb2a3"},
@@ -44,12 +55,13 @@
     {"id":"v61-meshy-rig-scale-framing-fix","status":"merged_released_pending_real_device_confirmation","pr":81,"merge_sha":"4cc50ac768b527398afd54aa71221ced5f4b1f99"},
     {"id":"deep-face-geometry-scan","status":"merged","pr":82,"tested_head_sha":"e3dd5257343b477fb812f336384feda04bacb212","merge_sha":"86a44ccfdd19cace01a5cc11f18a910331b989e0","pr_validation_run":32798138367},
     {"id":"facial-motion-reference-research","status":"merged","pr":83,"tested_head_sha":"757a7ba47aa886562e350892c43b19bb78c61e9c","merge_sha":"2a59bd994ada8c807754ecb13ce4da549439800c","pr_validation_run":32802033629},
-    {"id":"celine-face-region-model","status":"merged","pr":84,"tested_head_sha":"d512ea77dc286d8eaf4f150c29f23d127b6534d2","merge_sha":"cec7f191f3e838509fcd4b65eee0cd92b001f25f","pr_validation_run":32805823681,"result":"Machine-readable identity-preserving Celine facial region/deformation model passed build and emulator avatar visibility gates; production celine.glb unchanged."},
-    {"id":"facial-morph-prototype","status":"merged","pr":85,"tested_head_sha":"b0290b503fdf64f99d11d1f97263ac05cf220965","merge_sha":"912c9f726645a84352842f688f9854cbdfd328cb","pr_validation_run":32809734940,"result":"Copy-only generator for blink, jaw-open and rounded/spread vowel proof targets passed Android build and production avatar visibility gates; production celine.glb unchanged."},
-    {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256,"result":"Copy-only facial morph validation mechanics and Android/emulator avatar gate passed on the exact PR head; production celine.glb remained external/read-only."}
+    {"id":"celine-face-region-model","status":"merged","pr":84,"tested_head_sha":"d512ea77dc286d8eaf4f150c29f23d127b6534d2","merge_sha":"cec7f191f3e838509fcd4b65eee0cd92b001f25f","pr_validation_run":32805823681},
+    {"id":"facial-morph-prototype","status":"merged","pr":85,"tested_head_sha":"b0290b503fdf64f99d11d1f97263ac05cf220965","merge_sha":"912c9f726645a84352842f688f9854cbdfd328cb","pr_validation_run":32809734940},
+    {"id":"facial-morph-validation","status":"merged","pr":86,"tested_head_sha":"e511179ea2a002478dbdbf02f2ef1a6aa70608b0","merge_sha":"a96db916c95eb44fe0b74241f2e8dc8424e4d38d","pr_validation_run":32814580216,"dedicated_validation_run":32814580256},
+    {"id":"true-face-blink-viseme-scaffold","status":"merged","pr":87,"tested_head_sha":"49a923c3fe1049f07d8589f2f2d6b31290f8af4c","merge_sha":"8078813323611bb16f0212a848cd83b04ddcc8d8","pr_validation_run":32821818824}
   ],
   "next": [],
   "blocked": [
-    {"id":"true-face-blink-viseme-production-activation","reason":"The dormant runtime planner can be implemented and compiled without touching production, but actual Filament morph-weight activation still requires a renderable morph-enabled copy of the real Celine GLB. The real production GLB is intentionally external/read-only and is not present in GitHub. Before setViseme is wired to RenderableManager.setMorphWeights, a copy-only candidate must pass identity, HOME/CALL framing and lifecycle evidence. Smallest required input remains the real production Celine GLB made available to the execution environment for copy-only generation/testing, or an already generated morph-enabled candidate copy."}
+    {"id":"true-face-blink-viseme-production-proof","reason":"The private candidate is structurally validated and guarded runtime code exists, but production activation/replacement is still prohibited until the private candidate passes real render, identity, HOME/CALL framing and CALL->HOME lifecycle evidence. v61/v59 fallback must remain automatic until those gates pass."}
   ]
 }

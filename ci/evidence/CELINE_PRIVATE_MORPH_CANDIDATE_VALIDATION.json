@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "source_policy": "private_external_copy_only",
+  "source_file": "Meshy_AI_Beige_Elegance_biped_Character_output.glb",
+  "source_sha256": "db9c0c22097ed2e9aecb97de8d9a58708a16f7e9a1ec7cd3846df07e54ebbbe2",
+  "candidate_file": "celine_morph_candidate.glb",
+  "candidate_sha256": "8c0d25b3f1b8d3b889eb40a85cd45c0d1afdab7eaeb461d8e04fb310f605ed37",
+  "candidate_committed_to_public_repo": false,
+  "production_asset_modified": false,
+  "vertex_count": 63824,
+  "head_weight_ge_0_5_vertices": 12600,
+  "neutral_position_sha256": "5caecdf7726960ef4b6bc1c07b5110783afecfd4954e9688d172a9fca2e1b13e",
+  "topology_preserved": true,
+  "target_names": [
+    "BlinkLeft",
+    "BlinkRight",
+    "BlinkBoth",
+    "JawOpen",
+    "RoundedVowelProof",
+    "SpreadVowelProof"
+  ],
+  "nonzero_vertices": {
+    "BlinkLeft": 196,
+    "BlinkRight": 416,
+    "BlinkBoth": 612,
+    "JawOpen": 1043,
+    "RoundedVowelProof": 1194,
+    "SpreadVowelProof": 1838
+  },
+  "max_delta_m": {
+    "BlinkLeft": 0.015986073949618252,
+    "BlinkRight": 0.013502051197935992,
+    "BlinkBoth": 0.015986073949618252,
+    "JawOpen": 0.032483171135038846,
+    "RoundedVowelProof": 0.019032613925000795,
+    "SpreadVowelProof": 0.015775576308235565
+  },
+  "blink_bilateral_composition_max_error_m": 0.0,
+  "structural_validation": "PASS",
+  "remaining_gate": "build plus runtime render/identity/HOME/CALL/lifecycle evidence using the private candidate before replacing any proven production baseline"
+}
