@@ -118,14 +118,31 @@ sleep 2
 dump_ui emulator-keyboard-restored.xml
 adb exec-out screencap -p > emulator-keyboard-restored.png
 python3 - <<'PY'
+import re
 import xml.etree.ElementTree as ET
-root=ET.parse("emulator-keyboard-restored.xml").getroot()
-nodes=list(root.iter("node"))
-if not any(n.attrib.get("content-desc")=="Celin 3D Ansicht" for n in nodes):
-    raise SystemExit("HOME avatar presentation did not return after closing keyboard")
-if not any(n.attrib.get("class")=="android.widget.Button" and "Mit Celin" in n.attrib.get("text","") for n in nodes):
-    raise SystemExit("HOME interaction control did not return after closing keyboard")
-print("keyboard-close HOME restoration OK")
+
+pat=re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+
+def read(path):
+    return list(ET.parse(path).getroot().iter("node"))
+
+def bounds(node):
+    m=pat.fullmatch(node.attrib.get("bounds",""))
+    return tuple(map(int,m.groups())) if m else None
+
+def markers(nodes):
+    stage=next((n for n in nodes if n.attrib.get("content-desc")=="Celin 3D Ansicht"),None)
+    composer=next((n for n in nodes if n.attrib.get("class")=="android.widget.EditText" and n.attrib.get("content-desc")=="Celin Nachricht schreiben"),None)
+    video=next((n for n in nodes if n.attrib.get("class")=="android.widget.Button" and "Mit Celin" in n.attrib.get("text","")),None)
+    if stage is None or composer is None or video is None:
+        raise SystemExit("HOME avatar/composer/videochat marker missing after keyboard lifecycle")
+    return {"stage":bounds(stage),"composer":bounds(composer),"videochat":bounds(video)}
+
+before=markers(read("emulator-keyboard-before.xml"))
+restored=markers(read("emulator-keyboard-restored.xml"))
+if before!=restored:
+    raise SystemExit(f"HOME geometry shifted across keyboard lifecycle: before={before} restored={restored}")
+print(f"keyboard-close HOME restoration exact: {restored}")
 PY
 
 echo "Keyboard chat visibility proof passed with PID=$PID"
