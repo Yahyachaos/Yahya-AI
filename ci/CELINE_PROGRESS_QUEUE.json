@@ -22,9 +22,9 @@
   "active": {
     "id": "v60-production-avatar-presence",
     "status": "ready",
-    "goal": "Repair the remaining real-device production-avatar absence shown in the user's v59 screen recording. The v58 oversized beige mesh fragment is gone, but Celine herself is still not visible in HOME or CALL; only the room/background scene is visible. Diagnose the production GLB path and renderer before changing pose logic: private imported model versus APK asset selection, GLB byte size and entity/renderable count, resource loading, scene membership, render layers/culling, root transform, production bounding box normalization, scale/origin, camera projection/target, SurfaceView stacking/visibility and HOME/CALL lifecycle. Do not assume this is only a camera-framing issue. Add production-model-specific evidence so the existing synthetic emulator GLB gate can no longer pass while the real Celine model is absent. Restore a clearly recognizable Celine head/upper body in HOME and CALL while preserving the v59 safe skinning ownership.",
-    "evidence": "User screen recording 1000765683.mp4 on v59 (App & Updates shows Aktuelle Version: v59) shows the room background in HOME and CALL but no recognizable Celine avatar. The prior v58 oversized beige mesh fragment is no longer present. This proves v59 removed the deformation symptom but did not restore real production-avatar presence; the existing emulator visibility gate can therefore still miss a production-GLB-specific failure.",
-    "risk": "critical_production_avatar_absence"
+    "goal": "Repair the remaining real-device production-avatar absence/framing problem shown in the user's v59 screen recording. The user reports that a grey part of Celine is briefly visible, so treat off-camera or incorrect camera/root framing as a leading hypothesis but do not assume it is the only cause. Build bounded camera search controls directly into this v60 diagnostic/fix: one-finger drag to pan/orbit the framing, two-finger pinch to zoom in/out, and double-tap to reset to a known safe default. Use these controls during diagnosis to search for the rendered production avatar and determine whether she is merely outside the current frustum. Clamp movement/zoom so the camera cannot pass through/behind the avatar or reach unusable extremes. At the same time inspect private imported model versus APK asset selection, GLB byte size and entity/renderable count, resource loading, scene membership, render layers/culling, root transform, production bounding box normalization, scale/origin, camera projection/target, SurfaceView stacking/visibility and HOME/CALL lifecycle. Add production-model-specific evidence so synthetic emulator GLB gates cannot pass while real Celine is absent. End state: Celine is clearly recognizable in HOME and CALL at reset/default framing, and pan/zoom remains available as a permanent bounded user and diagnostic control while preserving v59 safe skinning ownership.",
+    "evidence": "User screen recording 1000765683.mp4 on v59 (App & Updates shows Aktuelle Version: v59) shows the room background in HOME and CALL with no stable recognizable Celine avatar. The user additionally reports a grey part is briefly visible, which strengthens the hypothesis that the production avatar may be rendered but positioned outside or at the edge of the camera framing. The prior v58 oversized beige mesh fragment is no longer present. Camera search controls are therefore part of the v60 diagnosis itself, not a later cosmetic feature.",
+    "risk": "critical_production_avatar_absence_or_offcamera_framing"
   },
   "completed": [
     {
@@ -90,16 +90,10 @@
       "merge_sha": "700b93299d84b61ae7617a699200a5db01d55674",
       "release_run": 32791388970,
       "release_status": "success",
-      "result": "Oversized v58 beige mesh deformation removed; v59 real-device video still shows production avatar absent, therefore follow-up v60 required."
+      "result": "Oversized v58 beige mesh deformation removed; v59 real-device video still shows no stable recognizable production avatar, therefore follow-up v60 required."
     }
   ],
   "next": [
-    {
-      "id": "bounded-camera-pan-zoom-controls",
-      "goal": "Add user-controllable but bounded camera interaction to Celine's 3D view after production-avatar presence is proven: one-finger drag pans/orbits the framing gently, two-finger pinch zooms in/out, and double-tap resets immediately to the correct default framing. Clamp yaw/pitch/translation/zoom so the camera cannot pass through or behind the avatar and cannot zoom to unusable extremes. Keep separate stable defaults for HOME and CALL if the two layouts require them. Camera controls are a usability and diagnostic feature, never a substitute for fixing a missing/deformed production avatar.",
-      "status": "queued",
-      "risk": "bounded_camera_interaction"
-    },
     {
       "id": "deep-face-geometry-scan",
       "goal": "Perform a reproducible geometric scan of Celine's production head mesh before creating any facial motion. Determine the exact 3D facial region and boundaries and build a vertex/landmark map for forehead, temples, brows left/right, upper/lower eyelids, eye corners, eye openings, nose bridge/tip/alar region, cheeks, philtrum, upper/lower lips, mouth corners, chin and jawline. Measure symmetry/asymmetry, eye shape/opening, brow arcs, lip contour/volume and mouth opening topology. Preserve Celine's identity; do not modify the production GLB in this research step.",
