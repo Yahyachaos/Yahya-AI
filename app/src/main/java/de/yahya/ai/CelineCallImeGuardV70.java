@@ -14,12 +14,13 @@ import java.util.WeakHashMap;
 /**
  * v70 CALL-only IME/focus guard.
  *
- * The normal v45 video-call code stays on the already proven camera/lifecycle path. This helper
- * activates only for the specific regression where HOME's composer still owns focus after the
- * software keyboard was dismissed and the user immediately opens CALL. The composer can lose
- * focus before v45 has synchronously finished adding its overlay, so v70 arms the transition and
- * confirms CALL from the full decor shortly afterwards. If Android restores composer focus when
- * CALL is removed, the helper clears that restored focus and keeps the IME hidden.
+ * HOME intentionally retains composer focus when the keyboard is dismissed. Android may restore
+ * that focus again when the CALL overlay is removed. Focus-change callbacks proved unreliable for
+ * this overlay lifecycle, so this guard observes the actual CALL layout instead: on CALL entry it
+ * clears any inherited HOME composer focus and hides the IME; on CALL exit it repeats that cleanup
+ * immediately and on the next UI turns to catch Android's automatic focus restoration.
+ *
+ * The helper owns no camera, pose or CALL layout state.
  */
 final class CelineCallImeGuardV70 {
     private static final String HOME_COMPOSER_DESC = "Celin Nachricht schreiben";
@@ -47,12 +48,12 @@ final class CelineCallImeGuardV70 {
         if (controller != null) controller.destroy();
     }
 
-    private static final class Controller implements ViewTreeObserver.OnGlobalFocusChangeListener {
+    private static final class Controller implements ViewTreeObserver.OnGlobalLayoutListener {
         final Activity activity;
         final View decor;
         boolean installed;
-        boolean guardedCall;
-        boolean callArmPending;
+        boolean callVisible;
+        int returnGeneration;
 
         Controller(Activity activity, View decor) {
             this.activity = activity;
@@ -63,48 +64,65 @@ final class CelineCallImeGuardV70 {
             if (installed) return;
             ViewTreeObserver observer = decor.getViewTreeObserver();
             if (!observer.isAlive()) return;
-            observer.addOnGlobalFocusChangeListener(this);
+            observer.addOnGlobalLayoutListener(this);
             installed = true;
+            callVisible = containsText(decor, CALL_TITLE);
+            decor.post(this::evaluate);
         }
 
         void destroy() {
+            returnGeneration++;
             if (installed) {
                 ViewTreeObserver observer = decor.getViewTreeObserver();
-                if (observer.isAlive()) observer.removeOnGlobalFocusChangeListener(this);
+                if (observer.isAlive()) observer.removeOnGlobalLayoutListener(this);
             }
             installed = false;
-            guardedCall = false;
-            callArmPending = false;
+            callVisible = false;
         }
 
-        @Override public void onGlobalFocusChanged(View oldFocus, View newFocus) {
-            if (isHomeComposer(oldFocus) && !guardedCall && !callArmPending) {
-                callArmPending = true;
-                final View composer = oldFocus;
-                decor.postDelayed(() -> {
-                    callArmPending = false;
-                    if (!installed || activity.isFinishing() || activity.isDestroyed()) return;
-                    if (!containsText(decor, CALL_TITLE)) return;
-                    guardedCall = true;
-                    hideIme(composer);
-                    Celine3DDiagnostics.record(activity, "V70-151", "CALL uebernimmt HOME Eingabefokus",
-                            "composerRetainedFocus=true · delayedDecorConfirmation=true · imeHideRequested=true");
-                }, 60L);
-            }
-
-            if (guardedCall && isHomeComposer(newFocus) && !containsText(decor, CALL_TITLE)) {
-                guardedCall = false;
-                hideIme(newFocus);
-                final View restoredComposer = newFocus;
-                restoredComposer.post(() -> {
-                    if (restoredComposer.isFocused()) restoredComposer.clearFocus();
-                });
-                Celine3DDiagnostics.record(activity, "V70-152", "HOME Fokus nach CALL bereinigt",
-                        "restoredComposerFocus=true · imeKeptHidden=true");
-            }
+        @Override public void onGlobalLayout() {
+            evaluate();
         }
 
-        private void hideIme(View tokenView) {
+        void evaluate() {
+            if (!installed || activity.isFinishing() || activity.isDestroyed()) return;
+            boolean callNow = containsText(decor, CALL_TITLE);
+            if (callNow == callVisible) return;
+
+            callVisible = callNow;
+            if (callNow) {
+                returnGeneration++;
+                boolean focused = clearComposerFocusAndHideIme();
+                decor.postDelayed(this::clearComposerFocusAndHideIme, 80L);
+                Celine3DDiagnostics.record(activity, "V70-151", "CALL uebernimmt HOME Eingabefokus",
+                        "composerFocused=" + focused + " · layoutConfirmed=true · imeHideRequested=true");
+                return;
+            }
+
+            final int generation = ++returnGeneration;
+            boolean focused = clearComposerFocusAndHideIme();
+            decor.post(() -> cleanupReturn(generation));
+            decor.postDelayed(() -> cleanupReturn(generation), 80L);
+            decor.postDelayed(() -> cleanupReturn(generation), 180L);
+            Celine3DDiagnostics.record(activity, "V70-152", "HOME Fokus nach CALL bereinigt",
+                    "focusedAtOverlayRemoval=" + focused + " · imeKeptHidden=true");
+        }
+
+        void cleanupReturn(int generation) {
+            if (!installed || generation != returnGeneration || callVisible) return;
+            clearComposerFocusAndHideIme();
+        }
+
+        boolean clearComposerFocusAndHideIme() {
+            EditText composer = findHomeComposer(decor);
+            if (composer == null) return false;
+            boolean focused = composer.isFocused();
+            hideIme(composer);
+            if (focused) composer.clearFocus();
+            return focused;
+        }
+
+        void hideIme(View tokenView) {
             try {
                 InputMethodManager imm = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
                 if (imm == null) return;
@@ -116,10 +134,21 @@ final class CelineCallImeGuardV70 {
         }
     }
 
-    private static boolean isHomeComposer(View view) {
-        if (!(view instanceof EditText)) return false;
-        CharSequence description = view.getContentDescription();
-        return description != null && HOME_COMPOSER_DESC.contentEquals(description);
+    private static EditText findHomeComposer(View root) {
+        if (root instanceof EditText) {
+            CharSequence description = root.getContentDescription();
+            if (description != null && HOME_COMPOSER_DESC.contentEquals(description)) {
+                return (EditText) root;
+            }
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                EditText found = findHomeComposer(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static boolean containsText(View root, String needle) {
