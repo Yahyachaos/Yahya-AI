@@ -27,12 +27,15 @@ import java.util.WeakHashMap;
 
 /**
  * v44 presentation layer. v47 adds explicit call ownership: while the seated-call layer owns the
- * rig and camera, v44 is locked and cannot silently recreate its walking MotionState.
+ * rig and camera, v44 is locked and cannot silently recreate its walking MotionState. v70 adds a
+ * separate HOME zoom camera lock: motion/surface stay alive while only v44 camera-follow writes
+ * pause, so repeated pinch zoom never tears down and rebuilds the transparent Filament surface.
  */
 final class CelineVideoChatV44 {
     private static final long TRANSPARENT_SWAP_CHAIN = 0x1L;
     private static final WeakHashMap<Celine3DView, MotionState> STATES = new WeakHashMap<>();
     private static final WeakHashMap<Celine3DView, Boolean> CALL_LOCKS = new WeakHashMap<>();
+    private static final WeakHashMap<Celine3DView, Boolean> ZOOM_CAMERA_LOCKS = new WeakHashMap<>();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private CelineVideoChatV44() {}
@@ -78,6 +81,7 @@ final class CelineVideoChatV44 {
     /** Called by the seated-call owner before it starts changing root/bones/camera. */
     static boolean pauseForCall(Celine3DView view) {
         if (view == null) return false;
+        resumeCameraAfterZoom(view);
         synchronized (CALL_LOCKS) { CALL_LOCKS.put(view, Boolean.TRUE); }
         MotionState state;
         synchronized (STATES) { state = STATES.get(view); }
@@ -97,8 +101,27 @@ final class CelineVideoChatV44 {
         MAIN.postDelayed(() -> ensure(activity, decor), 90L);
     }
 
+    /** v70 HOME pinch ownership: keep motion and presentation alive, pause only v44 camera writes. */
+    static boolean pauseCameraForZoom(Celine3DView view) {
+        if (view == null) return false;
+        synchronized (ZOOM_CAMERA_LOCKS) { ZOOM_CAMERA_LOCKS.put(view, Boolean.TRUE); }
+        MotionState state;
+        synchronized (STATES) { state = STATES.get(view); }
+        return state != null && state.running;
+    }
+
+    /** Release only the v70 HOME camera writer lock; never touches CALL ownership or MotionState. */
+    static void resumeCameraAfterZoom(Celine3DView view) {
+        if (view == null) return;
+        synchronized (ZOOM_CAMERA_LOCKS) { ZOOM_CAMERA_LOCKS.remove(view); }
+    }
+
     private static boolean isCallLocked(Celine3DView view) {
         synchronized (CALL_LOCKS) { return Boolean.TRUE.equals(CALL_LOCKS.get(view)); }
+    }
+
+    private static boolean isZoomCameraLocked(Celine3DView view) {
+        synchronized (ZOOM_CAMERA_LOCKS) { return Boolean.TRUE.equals(ZOOM_CAMERA_LOCKS.get(view)); }
     }
 
     private static void installRoom(Activity activity, Celine3DView threeD) {
@@ -250,6 +273,7 @@ final class CelineVideoChatV44 {
         void stopForCall() {
             running = false;
             choreographer.removeFrameCallback(this);
+            resumeCameraAfterZoom(view);
             synchronized (STATES) {
                 if (STATES.get(view) == this) STATES.remove(view);
             }
@@ -321,6 +345,7 @@ final class CelineVideoChatV44 {
         @Override public void doFrame(long frameTimeNanos) {
             if (!running || !view.isAttachedToWindow() || isCallLocked(view)) {
                 running = false;
+                resumeCameraAfterZoom(view);
                 synchronized (STATES) {
                     if (STATES.get(view) == this) STATES.remove(view);
                 }
@@ -364,9 +389,11 @@ final class CelineVideoChatV44 {
             double cameraX = x * 0.16;
             double cameraY = 0.56;
             double cameraZ = 0.62 + z * 0.08;
-            camera.lookAt(cameraX, cameraY, cameraZ,
-                    targetX, targetY, targetZ,
-                    0.0, 1.0, 0.0);
+            if (!isZoomCameraLocked(view)) {
+                camera.lookAt(cameraX, cameraY, cameraZ,
+                        targetX, targetY, targetZ,
+                        0.0, 1.0, 0.0);
+            }
         }
 
         private void applyRoot(float x, float y, float z, float yawDeg) {

@@ -16,10 +16,10 @@ import java.util.WeakHashMap;
  *
  * The normal v45 video-call code stays on the already proven camera/lifecycle path. This helper
  * activates only for the specific regression where HOME's composer still owns focus after the
- * software keyboard was dismissed and the user immediately opens CALL. In that one transition it
- * hides the inherited IME once the CALL overlay has actually taken focus. If Android restores the
- * composer focus when CALL is removed, the helper clears that restored focus and keeps the IME
- * hidden. Opening CALL from an unfocused HOME state does not touch focus or camera ownership.
+ * software keyboard was dismissed and the user immediately opens CALL. The composer can lose
+ * focus before v45 has synchronously finished adding its overlay, so v70 arms the transition and
+ * confirms CALL from the full decor shortly afterwards. If Android restores composer focus when
+ * CALL is removed, the helper clears that restored focus and keeps the IME hidden.
  */
 final class CelineCallImeGuardV70 {
     private static final String HOME_COMPOSER_DESC = "Celin Nachricht schreiben";
@@ -52,6 +52,7 @@ final class CelineCallImeGuardV70 {
         final View decor;
         boolean installed;
         boolean guardedCall;
+        boolean callArmPending;
 
         Controller(Activity activity, View decor) {
             this.activity = activity;
@@ -67,20 +68,28 @@ final class CelineCallImeGuardV70 {
         }
 
         void destroy() {
-            if (!installed) return;
-            ViewTreeObserver observer = decor.getViewTreeObserver();
-            if (observer.isAlive()) observer.removeOnGlobalFocusChangeListener(this);
+            if (installed) {
+                ViewTreeObserver observer = decor.getViewTreeObserver();
+                if (observer.isAlive()) observer.removeOnGlobalFocusChangeListener(this);
+            }
             installed = false;
             guardedCall = false;
+            callArmPending = false;
         }
 
         @Override public void onGlobalFocusChanged(View oldFocus, View newFocus) {
-            if (isHomeComposer(oldFocus) && isCallOverlayFocus(newFocus)) {
-                guardedCall = true;
-                hideIme(oldFocus);
-                Celine3DDiagnostics.record(activity, "V70-151", "CALL uebernimmt HOME Eingabefokus",
-                        "composerRetainedFocus=true · imeHideAfterOverlayFocus=true");
-                return;
+            if (isHomeComposer(oldFocus) && !guardedCall && !callArmPending) {
+                callArmPending = true;
+                final View composer = oldFocus;
+                decor.postDelayed(() -> {
+                    callArmPending = false;
+                    if (!installed || activity.isFinishing() || activity.isDestroyed()) return;
+                    if (!containsText(decor, CALL_TITLE)) return;
+                    guardedCall = true;
+                    hideIme(composer);
+                    Celine3DDiagnostics.record(activity, "V70-151", "CALL uebernimmt HOME Eingabefokus",
+                            "composerRetainedFocus=true · delayedDecorConfirmation=true · imeHideRequested=true");
+                }, 60L);
             }
 
             if (guardedCall && isHomeComposer(newFocus) && !containsText(decor, CALL_TITLE)) {
@@ -111,10 +120,6 @@ final class CelineCallImeGuardV70 {
         if (!(view instanceof EditText)) return false;
         CharSequence description = view.getContentDescription();
         return description != null && HOME_COMPOSER_DESC.contentEquals(description);
-    }
-
-    private static boolean isCallOverlayFocus(View view) {
-        return view != null && containsText(view, CALL_TITLE);
     }
 
     private static boolean containsText(View root, String needle) {

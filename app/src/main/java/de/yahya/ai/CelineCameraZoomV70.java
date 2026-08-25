@@ -21,8 +21,10 @@ import java.util.WeakHashMap;
  *
  * Celine3DView has always implemented the user's bounded pinch camera. v44 also owns a HOME
  * camera-follow callback at zoom=1, however, so the two writers can race while a pinch is active.
- * This guard pauses only v44 HOME motion while zoom differs from 1.0, leaving Celine3DView as the
- * sole camera writer. CALL remains owned by the existing v47 call lock and is never unlocked here.
+ * This guard pauses only v44 HOME camera-follow writes while zoom differs from 1.0; v44 motion,
+ * room presentation and transparent Filament surface stay alive. Celine3DView is therefore the
+ * sole camera writer during HOME pinch zoom without abusing the destructive CALL lifecycle lock.
+ * CALL remains owned by the existing v47 call lock and is never unlocked here.
  *
  * The production glTF is both skinned and morphed after a large normalization scale. Filament's
  * renderable AABB is therefore not trusted for close-camera frustum decisions: culling is disabled
@@ -169,7 +171,10 @@ final class CelineCameraZoomV70 {
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
 
             if (callNow) {
-                if (homeZoomLocked) homeZoomLocked = false;
+                if (homeZoomLocked) {
+                    homeZoomLocked = false;
+                    CelineVideoChatV44.resumeCameraAfterZoom(view);
+                }
                 logZoomIfChanged(zoom, "CALL v47 camera lock");
                 return;
             }
@@ -177,15 +182,15 @@ final class CelineCameraZoomV70 {
             if (Math.abs(zoom - 1.0f) > 0.002f) {
                 if (!homeZoomLocked) {
                     homeZoomLocked = true;
-                    boolean stopped = CelineVideoChatV44.pauseForCall(view);
+                    boolean cameraPaused = CelineVideoChatV44.pauseCameraForZoom(view);
                     Celine3DDiagnostics.record(activity, "V70-140", "HOME Zoom Einzelbesitzer aktiv",
-                            "Celine3DView camera-only · v44Paused=" + stopped);
+                            "Celine3DView camera-only · v44CameraPaused=" + cameraPaused);
                 }
             } else if (homeZoomLocked) {
                 homeZoomLocked = false;
-                CelineVideoChatV44.resumeAfterCall(activity, decor);
+                CelineVideoChatV44.resumeCameraAfterZoom(view);
                 Celine3DDiagnostics.record(activity, "V70-142", "HOME Defaultkamera wiederhergestellt",
-                        "zoom=1 · v44 room motion may resume");
+                        "zoom=1 · v44 camera-follow may resume");
             }
             logZoomIfChanged(zoom, homeZoomLocked ? "HOME Celine3DView-only" : "HOME default v44");
         }
@@ -194,7 +199,7 @@ final class CelineCameraZoomV70 {
             if (!homeZoomLocked) return;
             homeZoomLocked = false;
             try { zoomField.setFloat(view, 1.0f); } catch (Throwable ignored) {}
-            try { CelineVideoChatV44.resumeAfterCall(activity, decor); } catch (Throwable ignored) {}
+            try { CelineVideoChatV44.resumeCameraAfterZoom(view); } catch (Throwable ignored) {}
         }
 
         private void disableCelineFrustumCulling() throws Exception {
