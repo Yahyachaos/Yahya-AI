@@ -27,13 +27,13 @@
   },
   "active": {
     "id": "remove-a-pose",
-    "status": "v69_a_pose_diagnosis_started",
+    "status": "v69_four_joint_implementation_pending_exact_head",
     "current_branch": "auto/celine/v69-remove-a-pose",
-    "current_pr": null,
+    "current_pr": 96,
     "target_version": 69,
     "goal": "Remove Celine's visible A-pose safely as strict roadmap order 2: relaxed shoulders and arms in HOME, credible seated CALL pose, clean HOME/CALL/HOME transitions, with face identity and all v68 chat/videochat geometry protected.",
     "risk": "skinned_arm_shoulder_deformation_and_runtime_writer_conflict",
-    "progress": "v68 is fully released and testable. PR #95 exact head 470c94d69e77513f990b23f237f4da97bdbfcfff passed Android Build #388 and dedicated real-candidate run #20. It merged to main 97d22d3f093ab47d7b8660c806b6521f4078355d; exact-main Android Build #389 passed build, HOME/CALL/HOME avatar visibility, settled-IME focus, complete input marker, exact pre/post avatar/composer/videochat geometry and publication. v68 APK digest is sha256:127679e0d1cc686e0c23a25cc129dbcb1e61910717aaa57af14650c2d8f20a54. Roadmap order 2 remove-a-pose is now the single active step; implementation begins with diagnosis of existing guarded joint ownership and previously quarantined broad pose writers.",
+    "progress": "v68 is fully released and testable. PR #95 exact head 470c94d69e77513f990b23f237f4da97bdbfcfff passed Android Build #388 and dedicated real-candidate run #20. It merged to main 97d22d3f093ab47d7b8660c806b6521f4078355d; exact-main Android Build #389 passed build, HOME/CALL/HOME avatar visibility, settled-IME focus, complete input marker, exact pre/post avatar/composer/videochat geometry and publication. v68 APK digest is sha256:127679e0d1cc686e0c23a25cc129dbcb1e61910717aaa57af14650c2d8f20a54. Roadmap order 2 remove-a-pose is the single active step. Diagnosis proved the v58 production deformation began when shoulder ownership was added, so v69 leaves shoulders, hips, root and legs quarantined and introduces only a fail-closed LeftArm/RightArm/LeftForeArm/RightForeArm owner. Exact-head build, real-avatar HOME/CALL/HOME images and lifecycle diagnostics are pending before merge.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -282,7 +282,7 @@
   "next": [
     {
       "id": "v69-remove-a-pose",
-      "status": "diagnosis_in_progress",
+      "status": "implementation_in_progress_pr96",
       "target_version": 69,
       "goal": "Move both arms out of the A-pose with restrained shoulder/arm rotations, preserve face/identity and create natural HOME plus credible seated CALL bases without reviving quarantined broad pose instability.",
       "constraints": [
@@ -351,7 +351,7 @@
           {
             "order": 2,
             "id": "remove-a-pose",
-            "status": "in_progress_v69_diagnosis",
+            "status": "in_progress_v69_four_joint_implementation",
             "deliverables": [
               "arms leave A-pose",
               "shoulders relax safely",
