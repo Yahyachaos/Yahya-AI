@@ -66,10 +66,11 @@ for forbidden_joint in (
     if forbidden_joint in bound_joints:
         raise SystemExit(f"v70 unexpectedly owns protected joint: {forbidden_joint}")
 
-# The chair is a child inside the existing avatar stage. The owner may never reposition or resize
-# the HOME/CALL stage, composer, videochat button or any ancestor.
+# The seated owner may never add views or reposition/resize the HOME/CALL stage, composer,
+# videochat button or any ancestor.
 for forbidden_geometry in (
-    "setLayoutParams(", "setTranslation", "requestLayout(", "scrollTo(",
+    "addView(", "removeView(", "setLayoutParams(", "setTranslation",
+    "requestLayout(", "scrollTo(",
 ):
     if forbidden_geometry in source:
         raise SystemExit(f"v70 unexpectedly changes external UI geometry: {forbidden_geometry}")

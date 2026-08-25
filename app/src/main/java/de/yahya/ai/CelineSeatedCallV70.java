@@ -1,15 +1,10 @@
 package de.yahya.ai;
 
 import android.app.Activity;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.RectF;
 import android.opengl.Matrix;
 import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 
 import com.google.android.filament.Camera;
 import com.google.android.filament.TransformManager;
@@ -164,7 +159,6 @@ final class CelineSeatedCallV70 {
         boolean disabled;
         boolean inCall;
         boolean loggedFrame;
-        SeatView seatView;
 
         Driver(Activity activity, View decor, Celine3DView view) throws Exception {
             this.activity = activity;
@@ -221,7 +215,6 @@ final class CelineSeatedCallV70 {
             if (!inCall) {
                 inCall = true;
                 loggedFrame = false;
-                installSeat();
                 Celine3DDiagnostics.record(activity, "V70-110", "Sitzender CALL aktiviert",
                         "Unterkörper CALL-only · v55 Kopf + v69 Arme bleiben getrennte Besitzer");
             }
@@ -263,7 +256,6 @@ final class CelineSeatedCallV70 {
 
         void restoreForHome(boolean logReturn) {
             if (!supported) return;
-            removeSeat();
             if (!inCall && !logReturn) return;
             try {
                 transforms.openLocalTransformTransaction();
@@ -312,31 +304,6 @@ final class CelineSeatedCallV70 {
             transforms.setTransform(bone.instance, out);
         }
 
-        private void installSeat() {
-            if (!(view.getParent() instanceof FrameLayout)) return;
-            FrameLayout stage = (FrameLayout) view.getParent();
-            for (int i = 0; i < stage.getChildCount(); i++) {
-                View child = stage.getChildAt(i);
-                if (child instanceof SeatView) {
-                    seatView = (SeatView) child;
-                    seatView.setVisibility(View.VISIBLE);
-                    return;
-                }
-            }
-            seatView = new SeatView(activity);
-            int index = Math.max(0, stage.indexOfChild(view));
-            stage.addView(seatView, index, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        }
-
-        private void removeSeat() {
-            if (seatView == null) return;
-            seatView.setVisibility(View.GONE);
-            if (seatView.getParent() instanceof ViewGroup) {
-                ((ViewGroup) seatView.getParent()).removeView(seatView);
-            }
-            seatView = null;
-        }
     }
 
     private static Bone seatedBone(Celine3DView view, FilamentAsset asset,
@@ -371,34 +338,6 @@ final class CelineSeatedCallV70 {
             }
         } catch (Throwable ignored) {}
         return null;
-    }
-
-    private static final class SeatView extends View {
-        final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        SeatView(Activity activity) {
-            super(activity);
-            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-        }
-
-        @Override protected void onDraw(Canvas canvas) {
-            float width = getWidth();
-            float height = getHeight();
-            if (width <= 0f || height <= 0f) return;
-            float center = width * 0.50f;
-
-            paint.setColor(Color.rgb(49, 44, 53));
-            canvas.drawRoundRect(new RectF(center - width * 0.18f, height * 0.43f,
-                    center + width * 0.18f, height * 0.72f), 30f, 30f, paint);
-            paint.setColor(Color.rgb(61, 54, 64));
-            canvas.drawRoundRect(new RectF(center - width * 0.21f, height * 0.64f,
-                    center + width * 0.21f, height * 0.74f), 26f, 26f, paint);
-            paint.setColor(Color.rgb(38, 34, 41));
-            canvas.drawRoundRect(new RectF(center - width * 0.18f, height * 0.72f,
-                    center - width * 0.145f, height * 0.92f), 12f, 12f, paint);
-            canvas.drawRoundRect(new RectF(center + width * 0.145f, height * 0.72f,
-                    center + width * 0.18f, height * 0.92f), 12f, 12f, paint);
-        }
     }
 
     private static Object field(Object target, String name) throws Exception {
