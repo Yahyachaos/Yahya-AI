@@ -2,6 +2,7 @@ package de.yahya.ai;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 import java.io.File;
 import java.io.InputStream;
@@ -12,6 +13,7 @@ import java.util.Locale;
 /** Persistent device-side trace for Celine's import and Filament pipeline. */
 public final class Celine3DDiagnostics {
     private static final String PREFS = "celine_3d_diagnostics";
+    private static final String TAG = "Celine3D";
     private static final String K_CODE = "code";
     private static final String K_STAGE = "stage";
     private static final String K_DETAIL = "detail";
@@ -41,6 +43,7 @@ public final class Celine3DDiagnostics {
                     .putString(K_TIME, time)
                     .putString(K_LOG, next)
                     .commit();
+            Log.i(TAG, safeCode + "  " + safeStage + "  |  " + safeDetail);
         } catch (Throwable ignored) {}
     }
 
@@ -66,7 +69,7 @@ public final class Celine3DDiagnostics {
         Context app = context.getApplicationContext();
         SharedPreferences p = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         StringBuilder out = new StringBuilder();
-        out.append("CELINE 3D DIAGNOSE v36\n\n");
+        out.append("CELINE 3D DIAGNOSE v60\n\n");
         out.append("Letzter Code: ").append(p.getString(K_CODE, "D3D-000")).append('\n');
         out.append("Schritt: ").append(p.getString(K_STAGE, "Noch keine Diagnose")).append('\n');
         out.append("Detail: ").append(p.getString(K_DETAIL, "-")).append('\n');
