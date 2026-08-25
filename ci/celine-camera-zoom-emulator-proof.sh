@@ -13,7 +13,9 @@ fail() {
 set_zoom() {
   local requested="$1"
   local expected="${2:-$1}"
-  adb shell "run-as $PACKAGE sh -c 'printf %s $requested > files/$MARKER'" || fail "could not write private zoom marker $requested"
+  # Publish the private marker atomically. A direct shell redirection briefly exposes a zero-byte
+  # marker to the per-frame watcher, which can consume/delete it before printf writes the payload.
+  adb shell "run-as $PACKAGE sh -c 'printf %s $requested > files/$MARKER.tmp && mv files/$MARKER.tmp files/$MARKER'" || fail "could not write private zoom marker $requested"
   for _ in $(seq 1 30); do
     if adb logcat -d | grep -F 'V70-141' | grep -F "requested=$requested" | grep -Fq "zoom=$expected"; then
       sleep 2

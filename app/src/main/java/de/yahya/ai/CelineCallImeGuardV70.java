@@ -105,7 +105,7 @@ final class CelineCallImeGuardV70 {
             decor.postDelayed(() -> cleanupReturn(generation), 80L);
             decor.postDelayed(() -> cleanupReturn(generation), 180L);
             Celine3DDiagnostics.record(activity, "V70-152", "HOME Fokus nach CALL bereinigt",
-                    "focusedAtOverlayRemoval=" + focused + " · imeKeptHidden=true");
+                    "focusedAtOverlayRemoval=" + focused + " · focusAnchoredAwayFromComposer=true · imeKeptHidden=true");
         }
 
         void cleanupReturn(int generation) {
@@ -119,6 +119,11 @@ final class CelineCallImeGuardV70 {
             boolean focused = composer.isFocused();
             hideIme(composer);
             if (focused) composer.clearFocus();
+            // clearFocus() alone lets Android restore the only focusable editor after the CALL
+            // overlay disappears. Give the window a neutral focus owner so HOME stays unedited and
+            // the keyboard remains hidden until the user explicitly taps the composer again.
+            decor.setFocusableInTouchMode(true);
+            decor.requestFocus();
             return focused;
         }
 
