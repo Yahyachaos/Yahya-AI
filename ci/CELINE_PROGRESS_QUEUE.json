@@ -26,13 +26,13 @@
   },
   "active": {
     "id": "true-face-blink-viseme",
-    "status": "in_progress_real_candidate_render_identity_lifecycle_proof",
+    "status": "in_progress_v64_real_candidate_visual_repair_and_media_coexistence",
     "current_branch": "auto/celine-real-candidate-render-proof",
     "current_pr": 90,
-    "target_version": 63,
-    "goal": "Prove the reproducibly generated real Celine six-target morph candidate renders with preserved identity and framing across HOME, CALL and CALL->HOME lifecycle while guarded v63 morph playback activates. Only after those gates pass may a production integration/version increment be considered.",
-    "risk": "real_candidate_visual_identity_and_lifecycle_before_production_activation",
-    "progress": "PR #89 merged canonical Celine source persistence to main at 0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23. Git LFS checkout, canonical SHA verification, copy-only six-target candidate generation and strict structural validation passed in Celine Canonical Morph Candidate run 32831139319. PR #90 now performs real-candidate HOME/CALL/HOME-return emulator render, morph-activation, identity-evidence and lifecycle proof without replacing the production baseline.",
+    "target_version": 64,
+    "goal": "Complete real Celine six-target morph rendering with preserved identity and stable HOME/CALL/HOME-return framing, while shipping the user-reported media-coexistence repair so the next app version does not hold SpeechRecognizer/microphone resources over Deezer or WhatsApp voice-note playback.",
+    "risk": "real_candidate_visual_identity_lifecycle_and_audio_resource_coexistence",
+    "progress": "PR #89 merged canonical Celine source persistence to main at 0ba3dd592843a64ea2c94ac87a12e24c8eb2aa23. PR #90 real-candidate run 32831971703 proved the real six-target candidate renders and activates v63 morph playback across HOME/CALL/HOME-return, but manual evidence review exposed a HOME-return zoom regression: the established 38mm HOME presentation was later overwritten by the renderer's 32mm viewport reset, making Celine about 16% smaller. v64 now keeps late HOME viewport projection at 38mm while CALL retains its 50mm lens, and adds an image-scale gate. The same v64 also changes WakeWordService to suspend/cancel SpeechRecognizer while external media is active and resume only after playback ends, addressing Deezer/WhatsApp interference without disabling the wake-word feature.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -50,7 +50,7 @@
       "structural_validation": "PASS",
       "topology_preserved": true,
       "source_modified": false,
-      "remaining_gate": "real render + visual identity + HOME/CALL framing + CALL->HOME lifecycle evidence"
+      "remaining_gate": "exact v64 head: Android build + real render + visual identity + HOME/CALL + HOME-return zoom consistency + lifecycle + wake-word media coexistence"
     }
   },
   "completed": [
