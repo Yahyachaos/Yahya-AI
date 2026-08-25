@@ -1,7 +1,8 @@
-# Yahya AI v67
+# Yahya AI v68
 
-- Der Chat-Eingabebereich bleibt sichtbar, wenn die Android-Tastatur geöffnet ist.
-- Während des Tippens macht die große HOME-Präsentation vorübergehend Platz für Gesprächsverlauf, Textfeld und Senden-Schaltfläche.
-- Nach dem Schließen der Tastatur wird die vollständige HOME-Ansicht automatisch wiederhergestellt.
-- Ein echter Android-Emulatortest fokussiert das Textfeld, tippt einen Prüftext und kontrolliert die sichtbaren Grenzen oberhalb der Tastatur.
-- Celins in v66 geprüfter 3D-Avatar, Gesichtsbewegungs-Laufzeit, HOME/CALL/HOME-Rückkehr und automatische Sicherheitsrückfälle bleiben unverändert.
+- Der Chat-Eingabebereich bleibt sichtbar, sobald die Android-Tastatur geöffnet ist.
+- Der Gesprächsverlauf scrollt beim kompakten Tastaturlayout nur noch seine Position; er übernimmt nicht mehr den Eingabefokus.
+- Das Textfeld bleibt nach vollständigem Öffnen der Tastatur fokussiert, sodass auch längere Eingaben vollständig ankommen.
+- Nach dem Schließen der Tastatur werden Avatar, Eingabe und Videochat-Schaltfläche exakt an ihren vorherigen HOME-Positionen wiederhergestellt.
+- Ein echter Android-Emulatortest wartet auf den stabilen Tastaturzustand, tippt einen vollständigen Prüftext und kontrolliert Fokus, Sichtbarkeit und exakte HOME-Geometrie.
+- Celins in v66 geprüfter 3D-Avatar, Gesichtsbewegungs-Laufzeit und HOME/CALL/HOME-Rückkehr bleiben unverändert.

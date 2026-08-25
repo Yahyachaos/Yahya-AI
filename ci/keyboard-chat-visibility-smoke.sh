@@ -61,13 +61,34 @@ PY
 [[ -n "${EDIT_X:-}" && -n "${EDIT_Y:-}" ]] || fail "composer coordinates missing"
 
 adb shell input tap "$EDIT_X" "$EDIT_Y"
-sleep 1
+KEYBOARD_READY=false
+for _ in $(seq 1 8); do
+  sleep 1
+  adb shell dumpsys input_method > emulator-ime.txt
+  dump_ui emulator-keyboard-ready.xml
+  if grep -Eq 'mInputShown=true|mIsInputViewShown=true|isInputViewShown=true|inputShown=true' emulator-ime.txt &&
+     python3 - <<'PY'
+import xml.etree.ElementTree as ET
+nodes=list(ET.parse("emulator-keyboard-ready.xml").getroot().iter("node"))
+edit=next((n for n in nodes if n.attrib.get("class")=="android.widget.EditText" and n.attrib.get("content-desc")=="Celin Nachricht schreiben"),None)
+stage=next((n for n in nodes if n.attrib.get("content-desc")=="Celin 3D Ansicht"),None)
+raise SystemExit(0 if edit is not None and edit.attrib.get("focused")=="true" and stage is None else 1)
+PY
+  then
+    KEYBOARD_READY=true
+    break
+  fi
+done
+if [[ "$KEYBOARD_READY" != "true" ]]; then
+  fail "composer did not remain focused after keyboard layout settled"
+fi
+
 adb shell input text "$MARKER"
 sleep 2
 adb shell dumpsys input_method > emulator-ime.txt
 adb shell dumpsys window > emulator-window-state.txt
 if ! grep -Eq 'mInputShown=true|mIsInputViewShown=true|isInputViewShown=true|inputShown=true' emulator-ime.txt; then
-  fail "software keyboard was not confirmed as visible"
+  fail "software keyboard was not confirmed as visible after typing"
 fi
 
 dump_ui emulator-keyboard.xml
@@ -91,7 +112,7 @@ def bounds(node):
     return tuple(map(int,m.groups())) if m else None
 
 nodes=list(root.iter("node"))
-edit=next((n for n in nodes if n.attrib.get("class")=="android.widget.EditText" and marker in n.attrib.get("text","")),None)
+edit=next((n for n in nodes if n.attrib.get("class")=="android.widget.EditText" and marker in n.attrib.get("text","") and n.attrib.get("focused")=="true"),None)
 if edit is None or bounds(edit) is None:
     raise SystemExit("typed marker is not visible in the real chat composer")
 eb=bounds(edit)

@@ -288,6 +288,7 @@ jobs:
             emulator-call.xml
             emulator-home-return.xml
             emulator-keyboard-before.xml
+            emulator-keyboard-ready.xml
             emulator-keyboard.png
             emulator-keyboard.xml
             emulator-keyboard-restored.png
