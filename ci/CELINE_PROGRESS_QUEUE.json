@@ -26,14 +26,14 @@
     ]
   },
   "active": {
-    "id": "keyboard-chat-focus-preservation-recovery",
-    "status": "v68_keyboard_focus_recovery_implemented_pending_exact_head",
-    "current_branch": "auto/celine/v68-keyboard-focus-preservation",
-    "current_pr": 95,
-    "target_version": 68,
-    "goal": "Repair only the proven v67 focus loss: keep the real composer focused through IME-driven layout compaction, exact-head validate, merge and publish from exact main; then resume remove-a-pose.",
-    "risk": "composer_focus_stolen_by_fullScroll",
-    "progress": "v66 is fully validated and testable. PR #93 exact head 91b4389d797695681b0b1ba3ce34f24dd4c5d8ee passed Android Build #381 and dedicated real-candidate run #15 with real textured 3D Celine visible in HOME/CALL/HOME-return, V61-110 rig scaling, V39-150 texture binding, V62-210 six-target morph activation and CTL-350 visible-3D confirmation. It merged to accc72653451a107bac2a4737fe551e8bd1a8c94; exact-main Android Build #382 passed build, emulator and publish jobs, and v66 was published with the matching APK. The user then reported that the chat composer is covered by the software keyboard. MainActivity is confirmed to use adjustPan. v67 is an isolated corrective gate before A-pose work; it must not alter Celine face/body runtime. PR #94 now contains the narrow adjustResize plus keyboard-aware HOME layout change and a real IME emulator regression proof. Exact-head validation is pending. Android Build #383 proved the runtime issue rather than a CI-only mismatch: the IME was shown and adjustResize reduced content to y=1019, but the API-30 WindowInsets listener on the inner content view did not receive visible IME insets, so the avatar stayed visible and clipped the composer. The narrow repair now uses the measured visible window frame on every supported Android version; the existing real IME proof remains unchanged. On repaired head bb1fa2f4fef9690b52320e2a06b49c81e68f5bd9 the unchanged IME gate passed the real requirement: composer=(42,844)-(876,981) and send=(897,842)-(1038,983) were visible above the keyboard, then the full avatar HOME returned. The only remaining failure was a stale assertion expecting the obsolete label 'Mit Celin sprechen'; the actual protected HOME action is the existing 'Mit Celin videochatten' button. Only that test label is reconciled. At the user's request the proof is strengthened again: after keyboard close it now requires exact equality of the real avatar-stage, composer and videochat-button bounds against the pre-keyboard HOME dump, so a shifted videochat layout cannot pass. PR #94 exact head a600d98e1d52f73a7158b57c43a7b84850a6059c passed every gate, including exact pre/post HOME geometry and a full typed marker. It merged to main 2e48a97b359f823b755609f49912c50d48e3fa6a. Exact-main run #387 reproduced a timing-dependent real runtime fault: only 'k' entered, then ScrollView became focused because updateKeyboardMode called fullScroll(FOCUS_DOWN). Publication was skipped, so v67 is quarantined/not testable. v68 is the single active recovery and will replace focus-moving scroll with position-only scroll while requiring post-IME EditText focus before typing. PR #95 now replaces only updateKeyboardMode's focus-moving fullScroll with position-only scrollTo. The unchanged real IME proof now waits for settled compact layout plus EditText focused=true before entering the marker and requires focus to remain true afterward.",
+    "id": "remove-a-pose",
+    "status": "v69_four_joint_implementation_pending_exact_head",
+    "current_branch": "auto/celine/v69-remove-a-pose",
+    "current_pr": 96,
+    "target_version": 69,
+    "goal": "Remove Celine's visible A-pose safely as strict roadmap order 2: relaxed shoulders and arms in HOME, credible seated CALL pose, clean HOME/CALL/HOME transitions, with face identity and all v68 chat/videochat geometry protected.",
+    "risk": "skinned_arm_shoulder_deformation_and_runtime_writer_conflict",
+    "progress": "v68 is fully released and testable. PR #95 exact head 470c94d69e77513f990b23f237f4da97bdbfcfff passed Android Build #388 and dedicated real-candidate run #20. It merged to main 97d22d3f093ab47d7b8660c806b6521f4078355d; exact-main Android Build #389 passed build, HOME/CALL/HOME avatar visibility, settled-IME focus, complete input marker, exact pre/post avatar/composer/videochat geometry and publication. v68 APK digest is sha256:127679e0d1cc686e0c23a25cc129dbcb1e61910717aaa57af14650c2d8f20a54. Roadmap order 2 remove-a-pose is the single active step. Diagnosis proved the v58 production deformation began when shoulder ownership was added, so v69 leaves shoulders, hips, root and legs quarantined and introduces only a fail-closed LeftArm/RightArm/LeftForeArm/RightForeArm owner. Exact-head build, real-avatar HOME/CALL/HOME images and lifecycle diagnostics are pending before merge.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -263,20 +263,35 @@
       "pr_real_candidate_run": 32842969307,
       "failed_main_run": 32843487815,
       "result": "PR exact-head passed IME visibility and exact HOME/videochat geometry restoration, but exact-main evidence exposed timing-dependent focus theft by ScrollView.fullScroll: only the first input character survived. Release was correctly skipped; v67 is not testable."
+    },
+    {
+      "id": "v68-keyboard-focus-preservation",
+      "status": "merged_released_testable",
+      "pr": 95,
+      "tested_head_sha": "470c94d69e77513f990b23f237f4da97bdbfcfff",
+      "merge_sha": "97d22d3f093ab47d7b8660c806b6521f4078355d",
+      "pr_android_run": 32844245807,
+      "pr_real_candidate_run": 32844245772,
+      "main_validation_release_run": 32844764778,
+      "release_tag": "v68",
+      "release_asset": "Yahya-AI-v68.apk",
+      "release_digest": "sha256:127679e0d1cc686e0c23a25cc129dbcb1e61910717aaa57af14650c2d8f20a54",
+      "result": "Composer remains focused after settled IME resize; full marker input, visible composer/send bounds, exact HOME avatar/composer/videochat geometry restoration and Celine HOME/CALL/HOME lifecycle passed exact-head and exact-main before v68 publication."
     }
   ],
   "next": [
     {
-      "id": "v68-keyboard-focus-preservation",
-      "status": "implemented_pending_exact_head",
-      "target_version": 68,
-      "goal": "Replace focus-moving keyboard-open scrolling with position-only scrolling and prove the real EditText stays focused after full IME/layout settlement before entering the complete marker.",
+      "id": "v69-remove-a-pose",
+      "status": "implementation_in_progress_pr96",
+      "target_version": 69,
+      "goal": "Move both arms out of the A-pose with restrained shoulder/arm rotations, preserve face/identity and create natural HOME plus credible seated CALL bases without reviving quarantined broad pose instability.",
       "constraints": [
-        "no Celine face/body/posture/camera/videochat runtime changes",
-        "retain adjustResize and measured visible-frame compaction",
-        "require EditText focused=true after IME is confirmed visible and layout is compacted",
-        "require complete typed marker, composer/send bounds above keyboard, exact HOME/avatar/videochat geometry restoration",
-        "no testable release claim before exact-head and exact-main success"
+        "single active pose step; no feminine styling, broad natural-motion or intelligence work yet",
+        "preserve v66 packaged real-avatar face runtime and rollback",
+        "preserve v68 keyboard focus and exact HOME/videochat geometry proof",
+        "respect v59 safe joint ownership and do not revive quarantined v56-v58 broad production writers without new evidence",
+        "require real production-avatar HOME/CALL/HOME images and joint/runtime diagnostics on exact head",
+        "no release before exact-head and exact-main proof"
       ]
     }
   ],
@@ -336,7 +351,7 @@
           {
             "order": 2,
             "id": "remove-a-pose",
-            "status": "pending",
+            "status": "in_progress_v69_four_joint_implementation",
             "deliverables": [
               "arms leave A-pose",
               "shoulders relax safely",
@@ -434,18 +449,18 @@
     ],
     "corrective_gate": {
       "id": "v68-keyboard-focus-preservation",
-      "status": "implemented_pending_exact_head",
-      "reason": "v67 main release blocked after exact-main exposed composer focus theft; v68 is the narrow recovery.",
+      "status": "completed_released",
+      "release_sha": "97d22d3f093ab47d7b8660c806b6521f4078355d",
       "resumes_with": "remove-a-pose"
     }
   },
   "latest_release": {
-    "version": 66,
+    "version": 68,
     "status": "published_testable",
-    "sha": "accc72653451a107bac2a4737fe551e8bd1a8c94",
-    "run": 32840277568,
-    "tag": "v66",
-    "asset": "Yahya-AI-v66.apk",
-    "digest": "sha256:19c69a4168bcba88ad01e5592c4ffdda7b0bf67801924324bf367c291a3cc199"
+    "sha": "97d22d3f093ab47d7b8660c806b6521f4078355d",
+    "run": 32844764778,
+    "tag": "v68",
+    "asset": "Yahya-AI-v68.apk",
+    "digest": "sha256:127679e0d1cc686e0c23a25cc129dbcb1e61910717aaa57af14650c2d8f20a54"
   }
 }

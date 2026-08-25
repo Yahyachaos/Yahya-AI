@@ -1,8 +1,10 @@
-# Yahya AI v68
+# Yahya AI v69
 
-- Der Chat-Eingabebereich bleibt sichtbar, sobald die Android-Tastatur geöffnet ist.
-- Der Gesprächsverlauf scrollt beim kompakten Tastaturlayout nur noch seine Position; er übernimmt nicht mehr den Eingabefokus.
-- Das Textfeld bleibt nach vollständigem Öffnen der Tastatur fokussiert, sodass auch längere Eingaben vollständig ankommen.
-- Nach dem Schließen der Tastatur werden Avatar, Eingabe und Videochat-Schaltfläche exakt an ihren vorherigen HOME-Positionen wiederhergestellt.
-- Ein echter Android-Emulatortest wartet auf den stabilen Tastaturzustand, tippt einen vollständigen Prüftext und kontrolliert Fokus, Sichtbarkeit und exakte HOME-Geometrie.
-- Celins in v66 geprüfter 3D-Avatar, Gesichtsbewegungs-Laufzeit und HOME/CALL/HOME-Rückkehr bleiben unverändert.
+- Celins sichtbare A-Pose wird in HOME und CALL durch eine eng begrenzte Vier-Gelenk-Pose gelöst.
+- Nur LeftArm, RightArm, LeftForeArm und RightForeArm werden bewegt; Schultern, Hüfte, Root, Beine, Gesicht und Kamera bleiben unverändert.
+- HOME senkt beide Arme körpernah ab, CALL hält die Arme entspannt und winkelt die Unterarme leicht an.
+- Beim Wechsel HOME → CALL → HOME wird die jeweils passende Arm-Pose sauber übernommen.
+- Bei einem Laufzeitfehler werden die exakten Ausgangstransformen automatisch wiederhergestellt und der neue Arm-Regler deaktiviert.
+- Der echte Produktionsavatar muss HOME, CALL und HOME-Rückkehr auf dem exakten Build sichtbar bestehen; Deformationen blockieren den Merge.
+- Die in v68 geprüfte Tastatur-Fokussierung und exakte Avatar-/Eingabe-/Videochat-Geometrie bleiben unverändert.
+- Die glaubwürdige sitzende CALL-Ganzkörperpose bleibt der nächste sichere Teil desselben A-Pose-/Grundhaltungs-Schritts.

@@ -8,7 +8,7 @@ FIXTURE="ci/celine-skinned-probe.glb"
 fail_skin() {
   echo "SKINNING ERROR: $*"
   adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" 2>/dev/null || true
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|UiAutomation|V54-|V55-|V56-|V57-|V58-|V59-|V60-|V61-|REN-' | tail -320 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|UiAutomation|V54-|V55-|V56-|V57-|V58-|V59-|V60-|V61-|V69-|REN-' | tail -320 || true
   exit 1
 }
 
@@ -96,7 +96,7 @@ if grep -q 'V56-110\|V57-120\|V58-120' emulator-celine-diagnostics.xml; then
   cat emulator-celine-diagnostics.xml
   fail_skin "Quarantined v56-v58 CALL skinning owner became active in v61"
 fi
-if grep -q 'V61-198\|V61-199\|V59-198\|V59-199\|V55-198\|V55-199\|V54-198\|V54-199' emulator-celine-diagnostics.xml; then
+if grep -q 'V69-198\|V69-199\|V61-198\|V61-199\|V59-198\|V59-199\|V55-198\|V55-199\|V54-198\|V54-199' emulator-celine-diagnostics.xml; then
   cat emulator-celine-diagnostics.xml
   fail_skin "Guarded v61/v59/v55/v54 skinning path recorded a runtime error"
 fi

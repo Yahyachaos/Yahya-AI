@@ -56,6 +56,8 @@ adb shell am start -W -n "$ACTIVITY"
 wait_for_log 'V61-110' 'packaged production rig-scale correction'
 wait_for_log 'V39-150' 'packaged production texture binding'
 wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
+wait_for_log 'V69-100' 'production four-joint arm rig binding'
+wait_for_log 'V69-110' 'HOME A-pose removal'
 
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail "process died before HOME proof"
@@ -88,7 +90,7 @@ fi
 if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
   fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
 fi
-if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V69-198|V69-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
   fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
@@ -106,6 +108,7 @@ PY
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL tap coordinates missing"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 7
+wait_for_log 'V69-120' 'CALL relaxed arm pose'
 
 PID_CALL="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_CALL" ]] || fail "process died opening CALL"
@@ -119,6 +122,7 @@ python3 ci/check-real-celine-render.py real-candidate-call.png CALL
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
 adb shell input keyevent 4
 sleep 5
+wait_for_log 'V69-130' 'HOME-return arm pose restoration'
 PID_RETURN="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_RETURN" ]] || fail "process died returning HOME"
 adb shell uiautomator dump /sdcard/celine-real-return.xml >/dev/null || fail "HOME-return UI dump failed"
@@ -130,11 +134,14 @@ python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETUR
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V69-198|V69-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
 if ! grep -q 'V62-210' real-candidate-logcat-final.txt; then
   fail "morph runtime activation evidence missing after lifecycle"
 fi
+for marker in V69-100 V69-110 V69-120 V69-130; do
+  grep -q "$marker" real-candidate-logcat-final.txt || fail "v69 arm lifecycle marker missing: $marker"
+done
 
-printf 'PASS packaged v66 recovery Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v69 four-joint A-pose removal Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
