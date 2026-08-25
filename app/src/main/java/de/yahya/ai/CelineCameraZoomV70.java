@@ -27,11 +27,12 @@ import java.util.WeakHashMap;
  * The production glTF is both skinned and morphed after a large normalization scale. Filament's
  * renderable AABB is therefore not trusted for close-camera frustum decisions: culling is disabled
  * only on entities belonging to Celine's FilamentAsset. Depth testing and material back-face
- * culling are untouched.
+ * culling are untouched. Real emulator evidence showed that the legacy 2.20 zoom is visibly
+ * clipped even after culling is fixed, so v70 also owns the narrower proven-safe effective range.
  */
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
-    static final float ZOOM_MAX = 2.20f;
+    static final float ZOOM_MAX = 1.25f;
     static final float TARGET_DISTANCE = 5.0f;
     static final float PRODUCTION_HALF_DEPTH = 0.314f;
     static final float NEAR_PLANE = 0.05f;
@@ -136,6 +137,7 @@ final class CelineCameraZoomV70 {
         boolean homeZoomLocked;
         boolean cullingConfigured;
         float lastLoggedZoom = Float.NaN;
+        float lastClampedRequest = Float.NaN;
 
         Driver(Activity activity, View decor, Celine3DView view) throws Exception {
             this.activity = activity;
@@ -148,10 +150,18 @@ final class CelineCameraZoomV70 {
 
         void apply() throws Exception {
             applyPrivateCiZoomIfPresent();
-            float zoom = clamp(zoomField.getFloat(view), ZOOM_MIN, ZOOM_MAX);
+            float requestedZoom = zoomField.getFloat(view);
+            float zoom = clamp(requestedZoom, ZOOM_MIN, ZOOM_MAX);
+            if (Math.abs(requestedZoom - zoom) > 0.001f) {
+                zoomField.setFloat(view, zoom);
+                if (Float.isNaN(lastClampedRequest) || Math.abs(lastClampedRequest - requestedZoom) > 0.002f) {
+                    lastClampedRequest = requestedZoom;
+                    Celine3DDiagnostics.record(activity, "V70-144", "Unsicheren Kamera-Zoom begrenzt",
+                            "requested=" + requestedZoom + " applied=" + zoom + " safeBounds=" + ZOOM_MIN + ".." + ZOOM_MAX);
+                }
+            }
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
 
-            // v47 already owns the v44 lock throughout CALL. Never release its shared lock here.
             if (callNow) {
                 if (homeZoomLocked) homeZoomLocked = false;
                 logZoomIfChanged(zoom, "CALL v47 camera lock");
@@ -213,8 +223,6 @@ final class CelineCameraZoomV70 {
             try (FileInputStream in = new FileInputStream(marker)) {
                 count = in.read(data);
             }
-            // Consume first so a malformed marker cannot loop on every rendered frame.
-            //noinspection ResultOfMethodCallIgnored
             marker.delete();
             if (count <= 0) return;
             float requested = Float.parseFloat(new String(data, 0, count, StandardCharsets.UTF_8).trim());
