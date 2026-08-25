@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "source": {
-    "geometry_scan": "ci/CELINE_FACE_GEOMETRY_SCAN.json",
+    "geometry_scan": "ci/evidence/CELINE_FACE_LANDMARK_MAP.json",
     "reference_research": "ci/CELINE_FACIAL_MOTION_REFERENCE_RESEARCH.md",
     "production_glb_policy": "read_only"
   },

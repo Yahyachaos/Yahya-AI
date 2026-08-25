@@ -3,7 +3,7 @@
   "source_of_truth": "Yahyachaos/Yahya-AI",
   "baseline": {
     "version": 61,
-    "main_sha": "2a59bd994ada8c807754ecb13ce4da549439800c",
+    "main_sha": "cec7f191f3e838509fcd4b65eee0cd92b001f25f",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -22,10 +22,10 @@
     ]
   },
   "active": {
-    "id": "celine-face-region-model",
+    "id": "facial-morph-prototype",
     "status": "in_progress",
-    "goal": "Combine the measured mesh geometry and reference research into a Celine-specific facial region/deformation model. Define influence masks and safe movement directions for each eyelid, brow, cheek, lip segment, mouth corner, chin and jaw region. Account for Celine's actual eye and lip shapes rather than generic coordinates. Produce diagnostics/visual overlays or machine-readable region maps for review and automated validation.",
-    "risk": "identity_preserving_region_mapping"
+    "goal": "On a COPY of the production avatar only, generate a minimal facial morph prototype from the Celine-specific region model. Start with neutral, BlinkLeft, BlinkRight, BlinkBoth, JawOpen/MouthOpen and a small phoneme/viseme proof. Never replace app/src/main/assets/models/celine.glb until geometry, render, identity and lifecycle tests pass. If reliable automatic generation is not possible, record the exact technical blocker and the smallest external asset/tool requirement rather than damaging the production model.",
+    "risk": "experimental_copy_only"
   },
   "completed": [
     {"id":"ci-call-return-avatar-proof","status":"merged","pr":69,"merge_sha":"9c9492f50a09c8a2647ff495f0c40599845eb2a3"},
@@ -41,10 +41,10 @@
     {"id":"v60-production-avatar-presence","status":"merged_released","pr":80,"merge_sha":"d9327761eefa57f0c40b2b05b40f76debd5a303f"},
     {"id":"v61-meshy-rig-scale-framing-fix","status":"merged_released_pending_real_device_confirmation","pr":81,"merge_sha":"4cc50ac768b527398afd54aa71221ced5f4b1f99"},
     {"id":"deep-face-geometry-scan","status":"merged","pr":82,"tested_head_sha":"e3dd5257343b477fb812f336384feda04bacb212","merge_sha":"86a44ccfdd19cace01a5cc11f18a910331b989e0","pr_validation_run":32798138367},
-    {"id":"facial-motion-reference-research","status":"merged","pr":83,"tested_head_sha":"757a7ba47aa886562e350892c43b19bb78c61e9c","merge_sha":"2a59bd994ada8c807754ecb13ce4da549439800c","pr_validation_run":32802033629,"result":"Authoritative MediaPipe, ARKit and FACS/OpenFace semantics mapped to Celine-specific measured geometry; production celine.glb unchanged."}
+    {"id":"facial-motion-reference-research","status":"merged","pr":83,"tested_head_sha":"757a7ba47aa886562e350892c43b19bb78c61e9c","merge_sha":"2a59bd994ada8c807754ecb13ce4da549439800c","pr_validation_run":32802033629},
+    {"id":"celine-face-region-model","status":"merged","pr":84,"tested_head_sha":"d512ea77dc286d8eaf4f150c29f23d127b6534d2","merge_sha":"cec7f191f3e838509fcd4b65eee0cd92b001f25f","pr_validation_run":32805823681,"result":"Machine-readable identity-preserving Celine facial region/deformation model passed build and emulator avatar visibility gates; production celine.glb unchanged."}
   ],
   "next": [
-    {"id":"facial-morph-prototype","goal":"On a COPY of the production avatar only, generate a minimal facial morph prototype from the Celine-specific region model. Start with neutral, BlinkLeft, BlinkRight, BlinkBoth, JawOpen/MouthOpen and a small phoneme/viseme proof. Never replace app/src/main/assets/models/celine.glb until geometry, render, identity and lifecycle tests pass. If reliable automatic generation is not possible, record the exact technical blocker and the smallest external asset/tool requirement rather than damaging the production model.","status":"queued","risk":"experimental_copy_only"},
     {"id":"facial-morph-validation","goal":"Validate candidate morphs with automated renders and structural checks: no torn geometry, no inverted/exploding regions, eyes close over the actual eye shape, mouth opens around the measured lip contour, neutral identity remains unchanged, HOME/CALL framing remains correct, and transition back HOME survives. Compare blink and speech timing qualitatively to human reference behavior and reject exaggerated or puppet-like motion.","status":"queued","risk":"strict_candidate_gate"},
     {"id":"true-face-blink-viseme","goal":"Only after the candidate face rig passes validation, integrate natural asynchronous blinking, microexpressions and speech-driven viseme blending through the existing setViseme integration path. Use smooth coarticulation, restrained amplitudes and state-aware behavior for IDLE/LISTENING/THINKING/SPEAKING. Keep a rollback path to the proven non-facial baseline.","status":"queued","risk":"facial_runtime_integration_after_proof"}
   ],
