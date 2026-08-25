@@ -6,10 +6,10 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v59 safety rollback after the real-avatar framing regression seen on v58.
- * HOME keeps the proven v54 Head-only owner. CALL is deliberately handed back to the proven v55
- * neck + Head owner while the v56-v58 Hips/shoulder path is quarantined for production models.
- * TRUE-UNLIT/FORCE-C, layout and updater placement remain unchanged.
+ * v61 keeps the v59 safe skinning ownership and adds the production Meshy rig-scale correction
+ * proven necessary by the user's v60 device video. HOME stays Head-only and CALL stays neck+Head;
+ * the v56-v58 Hips/shoulder path remains quarantined.
+ * TRUE-UNLIT/FORCE-C, layout, camera controls and updater placement remain unchanged.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -30,6 +30,8 @@ public final class YahyaApplication extends Application implements Application.A
         if (!(activity instanceof MainActivity)) return;
         Celine3DDiagnostics.record(activity, "V59-003", "CALL Skinning Sicherheitsmodus aktiv",
                 "HOME Head-only · CALL neck+Head · v56-v58 Hips/Shoulder Produktion quarantiniert");
+        Celine3DDiagnostics.record(activity, "V61-003", "Meshy Rig-Scale Guard aktiv",
+                "0.01 Armature / inverse-bind x100 Korrektur · v60 Kamera-Steuerung beibehalten");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -38,6 +40,7 @@ public final class YahyaApplication extends Application implements Application.A
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 80L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 260L);
         decor.postDelayed(() -> CelineEmulatorRenderGuardV49.apply(decor), 620L);
+        CelineMeshyRigScaleV61.install(activity, decor);
         CelineSingleBonePresenceV54.install(activity, decor);
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
@@ -65,12 +68,14 @@ public final class YahyaApplication extends Application implements Application.A
         CelineCallMotionLockV47.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
         CelineUpdaterSettingsV50.install(activity, decor);
+        CelineMeshyRigScaleV61.install(activity, decor);
         CelineSingleBonePresenceV54.install(activity, decor);
         CelineCallUpperBodyPresenceV55.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
+            CelineMeshyRigScaleV61.onPaused(activity);
             CelineCallUpperBodyPresenceV55.onPaused(activity);
             CelineSingleBonePresenceV54.onPaused(activity);
             CelineCallMotionLockV47.onPaused(activity);
@@ -80,6 +85,7 @@ public final class YahyaApplication extends Application implements Application.A
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
+            CelineMeshyRigScaleV61.onDestroyed(activity);
             CelineCallUpperBodyPresenceV55.onDestroyed(activity);
             CelineSingleBonePresenceV54.onDestroyed(activity);
             CelineCallMotionLockV47.onDestroyed(activity);
