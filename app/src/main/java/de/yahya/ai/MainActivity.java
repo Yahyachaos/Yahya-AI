@@ -62,20 +62,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void installKeyboardVisibilityGuard(View root, View profile){
-        if(Build.VERSION.SDK_INT>=30){
-            root.setOnApplyWindowInsetsListener((v,insets)->{
-                updateKeyboardMode(profile,insets.isVisible(WindowInsets.Type.ime()));
-                return insets;
-            });
-        }else{
-            Rect visibleFrame=new Rect();
-            root.getViewTreeObserver().addOnGlobalLayoutListener(()->{
-                root.getWindowVisibleDisplayFrame(visibleFrame);
-                int fullHeight=root.getRootView().getHeight();
-                boolean keyboardVisible=fullHeight>0&&fullHeight-visibleFrame.height()>fullHeight*.15f;
-                updateKeyboardMode(profile,keyboardVisible);
-            });
-        }
+        Rect visibleFrame=new Rect();
+        root.getViewTreeObserver().addOnGlobalLayoutListener(()->{
+            root.getWindowVisibleDisplayFrame(visibleFrame);
+            int fullHeight=root.getRootView().getHeight();
+            boolean keyboardVisible=fullHeight>0&&fullHeight-visibleFrame.height()>fullHeight*.15f;
+            updateKeyboardMode(profile,keyboardVisible);
+        });
     }
 
     private void updateKeyboardMode(View profile,boolean keyboardVisible){
