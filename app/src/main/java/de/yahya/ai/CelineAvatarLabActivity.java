@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 public final class CelineAvatarLabActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Celine3DView celineView;
+    private CelineAvatarLabPoseDriverV79 poseDriver;
     private TextView status;
     private int faceSequence;
 
@@ -39,6 +40,11 @@ public final class CelineAvatarLabActivity extends Activity {
             root.addView(celineView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
+            try {
+                poseDriver = new CelineAvatarLabPoseDriverV79(celineView);
+            } catch (Throwable poseError) {
+                Celine3DDiagnostics.error(this, "V79-198", "Avatar Lab Pose-Driver nicht verfügbar", poseError);
+            }
         } catch (Throwable error) {
             TextView failed = new TextView(this);
             failed.setTextColor(Color.WHITE);
@@ -76,6 +82,27 @@ public final class CelineAvatarLabActivity extends Activity {
         ));
 
         panel.addView(row(
+                button("Live-Körper", v -> pose(CelineAvatarLabPoseDriverV79.Mode.LIVE, "Körper: Live")),
+                button("Stehen", v -> pose(CelineAvatarLabPoseDriverV79.Mode.STAND, "Körper: Stehen")),
+                button("Gewicht links", v -> pose(CelineAvatarLabPoseDriverV79.Mode.WEIGHT_LEFT, "Körper: Gewicht links")),
+                button("Gewicht rechts", v -> pose(CelineAvatarLabPoseDriverV79.Mode.WEIGHT_RIGHT, "Körper: Gewicht rechts")),
+                button("Sitzen", v -> pose(CelineAvatarLabPoseDriverV79.Mode.SEATED, "Körper: Sitzen")),
+                button("Vorbeugen", v -> pose(CelineAvatarLabPoseDriverV79.Mode.BEND, "Körper: Vorbeugen")),
+                button("Laufen", v -> pose(CelineAvatarLabPoseDriverV79.Mode.WALK, "Körper: Lauf-in-place")),
+                button("Arme/Hände", v -> pose(CelineAvatarLabPoseDriverV79.Mode.ARMS, "Körper: Arm/Hand-Diagnose"))
+        ));
+
+        panel.addView(row(
+                button("Kopf ←", v -> head(0f, -26f, 0f, "Kopf links")),
+                button("Kopf →", v -> head(0f, 26f, 0f, "Kopf rechts")),
+                button("Kopf ↑", v -> head(-16f, 0f, 0f, "Kopf hoch")),
+                button("Kopf ↓", v -> head(16f, 0f, 0f, "Kopf runter")),
+                button("Neigung ←", v -> head(0f, 0f, -14f, "Kopfneigung links")),
+                button("Neigung →", v -> head(0f, 0f, 14f, "Kopfneigung rechts")),
+                button("Kopf neutral", v -> clearHead())
+        ));
+
+        panel.addView(row(
                 button("Blick ←", v -> look(-1f, 0f, "Blick links")),
                 button("Blick ↑", v -> look(0f, -1f, "Blick hoch")),
                 button("Blick •", v -> { if (celineView != null) celineView.releaseLook(); setStatus("Blick automatisch / Mitte"); }),
@@ -104,7 +131,7 @@ public final class CelineAvatarLabActivity extends Activity {
                 button("Ganzkörper", v -> camera(0f, -0.15f, 0.68f, "Kamera: Ganzkörper")),
                 button("Oberkörper", v -> camera(0f, 0.05f, 1.05f, "Kamera: Oberkörper")),
                 button("Gesicht nah", v -> camera(0f, 0.22f, 1.75f, "Kamera: Gesicht-Nahaufnahme")),
-                button("Reset", v -> resetCamera())
+                button("Kamera Reset", v -> resetCamera())
         ));
 
         panel.addView(row(
@@ -120,11 +147,13 @@ public final class CelineAvatarLabActivity extends Activity {
                 button("Sprechenergie 0", v -> speech(0f)),
                 button("Sprechenergie 50", v -> speech(0.5f)),
                 button("Sprechenergie 100", v -> speech(1f)),
+                button("Alles neutral", v -> resetAll()),
                 button("HOME", v -> finish())
         ));
 
         TextView hint = new TextView(this);
-        hint.setText("Direkter Test des aktuellen Branch-Renderers. Blink/Mimik/Viseme laufen über den echten v76 Final-Geometry-Morphpfad. Orbit dreht die Kamera um den festen Avatar; Dolly verändert die echte Kameradistanz, nicht die Modellskalierung. Als Nächstes kommen Sitz-/Steh-/Lauf-/Vorbeuge-/Arm-/Hand-Presets.");
+        String rig = poseDriver == null ? "Pose-Rig nicht gebunden" : poseDriver.capabilitySummary();
+        hint.setText("Branch-live Test des echten Renderers/Rigs. Blink/Mimik/Viseme laufen über den v76 Final-Geometry-Morphpfad. Körpermodi schreiben ausschließlich im Lab deterministische Rig-Posen. Orbit bewegt die Kamera um den festen Avatar; Dolly verändert die echte Kameradistanz, nie die Modellskalierung. Rig: " + rig);
         hint.setTextColor(0xFF8F9CAF);
         hint.setTextSize(11f);
         hint.setPadding(0, dp(5), 0, 0);
@@ -170,6 +199,29 @@ public final class CelineAvatarLabActivity extends Activity {
         clearFace(null);
         if (celineView != null) celineView.setAvatarState(state);
         setStatus(label);
+    }
+
+    private void pose(CelineAvatarLabPoseDriverV79.Mode mode, String label) {
+        if (poseDriver == null) {
+            setStatus("Pose-Driver nicht verfügbar");
+            return;
+        }
+        poseDriver.setMode(mode);
+        setStatus(label);
+    }
+
+    private void head(float pitch, float yaw, float roll, String label) {
+        if (poseDriver == null) {
+            setStatus("Kopf-Driver nicht verfügbar");
+            return;
+        }
+        poseDriver.setHead(pitch, yaw, roll);
+        setStatus(label);
+    }
+
+    private void clearHead() {
+        if (poseDriver != null) poseDriver.clearHead();
+        setStatus("Kopf neutral");
     }
 
     private void look(float x, float y, String label) {
@@ -298,14 +350,33 @@ public final class CelineAvatarLabActivity extends Activity {
             reset.setAccessible(true);
             reset.invoke(celineView);
             celineView.v75SetReferenceYaw(0f);
-            celineView.releaseLook();
-            celineView.setSpeechEnergy(0f);
-            celineView.setAvatarState(CelineAvatarController.State.IDLE);
-            clearFace(null);
-            setStatus("Neutral / Kamera reset");
+            setStatus("Kamera reset");
         } catch (Throwable error) {
             setStatus("Reset fehlgeschlagen: " + safe(error));
         }
+    }
+
+    private void resetAll() {
+        faceSequence++;
+        if (celineView != null) {
+            CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
+            celineView.v75SetReferenceYaw(0f);
+            celineView.releaseLook();
+            celineView.setSpeechEnergy(0f);
+            celineView.setAvatarState(CelineAvatarController.State.IDLE);
+        }
+        if (poseDriver != null) {
+            poseDriver.clearHead();
+            poseDriver.setMode(CelineAvatarLabPoseDriverV79.Mode.LIVE);
+        }
+        try {
+            if (celineView != null) {
+                Method reset = Celine3DView.class.getDeclaredMethod("resetCameraSearch");
+                reset.setAccessible(true);
+                reset.invoke(celineView);
+            }
+        } catch (Throwable ignored) {}
+        setStatus("Alles neutral / Live");
     }
 
     private void setFloat(String name, float value) throws Exception {
@@ -331,6 +402,7 @@ public final class CelineAvatarLabActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (celineView != null) celineView.startRendering();
+        if (poseDriver != null) poseDriver.start();
     }
 
     @Override protected void onPause() {
@@ -338,6 +410,11 @@ public final class CelineAvatarLabActivity extends Activity {
         if (celineView != null) {
             CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
             celineView.stopRendering();
+        }
+        if (poseDriver != null) {
+            poseDriver.clearHead();
+            poseDriver.setMode(CelineAvatarLabPoseDriverV79.Mode.LIVE);
+            poseDriver.stop();
         }
         super.onPause();
     }
