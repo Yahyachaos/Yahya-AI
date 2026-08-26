@@ -40,49 +40,64 @@
     "work_order": "ci/work-orders/V79_CELINE_AVATAR_LAB_VISUAL_REALISM.md",
     "goal": "Create a branch-live Avatar Lab and use it to fix the user-observed visual realism defects before any further roadmap expansion: cheek/under-eye blink deformation, crooked seated posture, stiff arms/hands, fake model-scale zoom, toy-like drag and weak HOME/CALL scene anchoring.",
     "progress": [
-      "Branch-live Celine Avatar Lab activity exists on PR #107 and renders the same current-branch Celine3DView/canonical asset path as production.",
-      "Deterministic lab controls exist for IDLE/LISTENING/THINKING/SPEAKING, gaze, speech energy, blink/slow blink, facial expressions, kiss/visemes, full/upper/face camera framing and front/3-4/profile/rear inspection.",
-      "Lab-only pose driver exists for standing, left/right weight shift, seated, forward bend, walk-in-place, arm/hand inspection and bounded head pitch/yaw/roll, restoring captured transforms when stopped.",
-      "versionCode is 79 and versionName is 1.0-celin-avatar-lab-visual-realism.",
-      "v79 blink-localization repair and validator are wired after the validated v76 facial-rig candidate; only the three blink morph payloads may change while non-blink channels remain byte-identical.",
-      "Product HOME/CALL one-finger toy-drag is locked by the v79 product interaction owner while diagnostic Avatar Lab camera control remains separate; pinch remains camera-distance behavior rather than model/root scaling.",
-      "CALL upper-body seated ownership was made coherent with the seated foundation, and v79 bounded arm/hand presence was added so HOME/CALL limbs are not intentionally frozen.",
-      "A lightweight Celine Avatar Lab Proof workflow exists and reuses the exact-head successful APK instead of running the full release/video suite for every draft iteration.",
-      "A panel-free deterministic capture Activity exists so automated evidence can set pose/face/camera states directly without tapping or scrolling through the manual Lab UI.",
-      "Release write-safety hardening is present on the v79 branch, including current-version metadata generation/validation and post-publish read-back checks intended to prevent the stale v75-body defect seen on release v78."
+      "Branch-live Celine Avatar Lab activity exists on PR #107 and renders the current-branch Celine3DView/canonical asset path.",
+      "Deterministic controls exist for conversation states, gaze, speech energy, blink, expressions, kiss/visemes, body poses and camera inspection.",
+      "v79 blink-localization repair/validator are wired after the validated v76 facial-rig candidate and preserve non-blink morph payloads.",
+      "Product HOME/CALL one-finger toy-drag is locked while diagnostic Lab camera control remains separate.",
+      "CALL seated upper-body ownership and bounded v79 arm/hand presence are implemented for later visual tuning.",
+      "Lightweight Avatar Lab Proof reuses an exact-head successful APK and captures 12 deterministic panel-free views.",
+      "Release write-safety hardening is present, including current-version metadata validation and post-publish read-back checks.",
+      "Proof #6 confirmed the Android fullscreen education overlay is removed from capture evidence.",
+      "Proof #6 also exposed the real framing cause: the standalone Lab path did not receive the production v61 Meshy 0.01-Armature rig-scale correction, so Celine remained roughly x100 oversized after v60 normalized tiny pre-skinning bounds.",
+      "Latest runtime fix reuses the exact production v61 repair synchronously before the Lab pose driver captures root/bone baselines; no duplicate scale math was added."
     ],
-    "last_runtime_validated_head": "8d2329878307881c8ec6a059870ec2eacd034f52",
+    "latest_runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
+    "latest_runtime_code_validation": "NOT_YET_BUILT_AFTER_SCALE_FIX",
+    "last_built_runtime_head": "6af211d749fbbeab3bfba552a3f9af7e8c8d42a3",
     "last_runtime_build": {
       "workflow": "Android Build",
-      "run_number": 518,
-      "run_id": 33017597664,
+      "run_number": 521,
+      "run_id": 33020503994,
       "conclusion": "success",
-      "note": "Draft exact-head build succeeded; expensive emulator and publish jobs were skipped as intended."
+      "head_sha": "6af211d749fbbeab3bfba552a3f9af7e8c8d42a3",
+      "note": "Draft build succeeded; expensive final gates were skipped as intended. This build predates the newest shared v61 Lab scale fix."
     },
     "last_avatar_lab_proof": {
-      "run_number": 3,
-      "run_id": 33017722748,
+      "run_number": 6,
+      "run_id": 33020766604,
+      "head_sha": "6af211d749fbbeab3bfba552a3f9af7e8c8d42a3",
       "workflow_conclusion": "success",
-      "artifact": 9625295157,
-      "artifact_digest": "sha256:a4c38785c7cae93f9d8723febce7ebd68c97a263a2acd4b26a98092c11cbbfa9",
+      "artifact": 9626485999,
+      "artifact_digest": "sha256:03fbb663c3f8629a775c958913c35f682c964d2679ba679f6934eb34e804235d",
+      "apk_sha256": "36fc8b053bc1dd790a7e0b3fd75c6a00e97dfcfea0a821645df96f8490192473",
       "visual_acceptance": "NOT_PASSED",
-      "reason": "All 12 deterministic captures were produced, but Android's one-time fullscreen education overlay ('Viewing full screen' / 'Got it') covered the CaptureActivity and several captures were black or wrongly framed. Do not treat workflow success as visual success.",
-      "renderer_evidence": "Logcat showed the canonical production GLB loaded, 15 facial morph targets bound, a valid 1080x1920 Surface/SwapChain and the first Filament frame rendered. The current blocker is the capture/camera harness, not evidence of an avatar-load failure."
+      "overlay_status": "FIXED",
+      "reason": "All 12 captures exist and the Android fullscreen education overlay is gone, but most views are dark/offscreen and walk/profile show only a huge light fragment of Celine. Do not treat workflow success as visual success.",
+      "root_cause_evidence": "Proof #6 logcat repeatedly records REN-314 raw maxExtent=0.017530838 with initial scale=179.68336 and contains no V61 repair entry. CelineMeshyRigScaleV61 is the production correction for exactly the Meshy tiny pre-skinning bounds / roughly 0.01 Armature scale case, but its normal controller installs only for MainActivity."
     },
-    "exact_next_action": "Fix only the Avatar Lab capture/camera harness first: avoid/remove the Android fullscreen education overlay in the capture path and correct deterministic reference orientation/framing by using the renderer's established reference-yaw/camera path rather than rotating/scaling/translating the avatar root. Then rerun only the lightweight 12-image Avatar Lab Proof and visually inspect the PNGs before changing avatar realism again.",
+    "latest_unvalidated_fix": {
+      "head_sha": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
+      "commits": [
+        "688a5fd5e0a22daadff58cc8cd44b76a66f28dfe",
+        "03ed3f8648a3a310bcb104d20ff97a3f77b06e81"
+      ],
+      "change": "CelineMeshyRigScaleV61 exposes repairImmediate(); CelineAvatarLabPoseDriverV79 invokes that exact guarded production repair synchronously before binding root/bone baselines. This covers both manual CelineAvatarLabActivity and CI CelineAvatarLabCaptureActivity through the shared pose driver.",
+      "validation": "No GitHub Android Build/Avatar Lab Proof has been created for this runtime head yet. Must be built before any visual claim."
+    },
+    "exact_next_action": "Fresh-reconcile PR #107. Build the exact runtime code containing 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. If it compiles, run exactly one lightweight 12-image Avatar Lab Proof. Inspect every PNG and require logcat V61-110 'Meshy Rig-Scale korrigiert' before accepting framing. Do not run the final/full suite.",
     "remaining_sequence": [
-      "1. Capture harness: remove fullscreen education overlay from evidence and correct front/3-4/profile/rear framing without model/root scaling or free translation.",
-      "2. Rerun only the lightweight 12-image Avatar Lab Proof on the new exact runtime head; visually inspect every capture. Workflow-green alone is insufficient.",
-      "3. Blink/face: use open/half/closed/reopen close-ups to prove cheeks, lower orbital area and mouth corners stay stable; repair the blink morph only if the images still show deformation.",
-      "4. Body: visually tune neutral standing and seated CALL so pelvis/spine/shoulders/head are coherent and the body reads as physically supported.",
-      "5. Arms/hands: tune bounded living motion in HOME/CALL using deterministic before/after Lab captures; no frozen limbs and no puppet waving.",
-      "6. Camera/interaction: prove real camera dolly/orbit semantics, stable subject anchoring and no toy-like free avatar translation in HOME/CALL.",
+      "1. Validate newest shared v61 Lab scale fix on the exact runtime head with one draft Android Build and one lightweight Avatar Lab Proof only.",
+      "2. Require visible correctly framed Celine plus V61-110 in proof logcat; workflow-green alone is insufficient.",
+      "3. Blink/face: compare neutral vs held/slow blink close-ups and prove cheeks/lower orbital area/mouth corners stay stable; tune only if visual evidence still fails.",
+      "4. Body: visually tune standing and seated CALL so pelvis/spine/shoulders/head and seat contact are coherent.",
+      "5. Arms/hands: tune bounded living motion with deterministic before/after captures; no frozen limbs and no puppet waving.",
+      "6. Camera/interaction: prove real camera dolly/orbit semantics, stable anchoring and no toy-like free avatar translation in HOME/CALL.",
       "7. Scene integration: improve HOME/CALL spatial framing so Celine reads as occupying the scene rather than being dropped over a 2D backdrop.",
-      "8. User access: add/verify a clear Settings entry for Celine Avatar Lab in the normal installed build and prove safe return to HOME without breaking avatar/lifecycle state.",
-      "9. Final candidate only: mark Ready for Review and run the full exact-head Android/emulator/render/lifecycle gates once on the actual final head.",
-      "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read the release back, then reconcile this queue with merge SHA/run/artifact/digest/tag."
+      "8. User access: expose/verify Celine Avatar Lab in normal Settings and prove safe return to HOME without breaking avatar/lifecycle state.",
+      "9. Final candidate only: mark Ready for Review and run full exact-head Android/emulator/render/lifecycle gates once on the actual final head.",
+      "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read release back, then reconcile queue with merge SHA/run/artifact/digest/tag."
     ],
-    "remaining_gate": "Do not mark PR #107 ready, merge, release, or run the expensive final suite yet. First obtain genuinely visible, correctly framed Avatar Lab evidence, then complete the remaining visual sequence on this same single-flight branch."
+    "remaining_gate": "Do not mark PR #107 ready, merge, release, or run the expensive final suite yet. First validate the newest shared v61 Lab scale correction and obtain genuinely visible correctly framed Avatar Lab evidence."
   },
   "completed": [
     {
@@ -185,7 +200,7 @@
     "policy": "strict_sequential_single_active_step",
     "validation_policy": "draft-fast/final-head-full",
     "focus_rule": "Exactly one runtime step may be active. During draft iteration use the branch-live Avatar Lab plus fast targeted checks. Run expensive final gates only on the actual final exact-head, then exact-main validation and publication before completion.",
-    "handoff_policy": "Before any agent stops, hands work to another agent, or leaves the active step for later: fresh-reconcile main, PR state, branch head, runs and artifacts; write the last runtime-validated head (not a self-referential documentation head), visual acceptance state, current blocker and one exact next action into this queue; distinguish documentation-only checkpoint commits from the last runtime-validated head. The next agent must read this queue and fresh-reconcile GitHub before changing code.",
+    "handoff_policy": "Before any agent stops, hands work to another agent, or leaves the active step for later: fresh-reconcile main, PR state, branch head, runs and artifacts; write the last built/runtime head, newest unvalidated runtime head if any, visual acceptance state, current blocker and one exact next action into this queue; distinguish queue-only documentation commits from runtime validation. The next agent must read this queue and fresh-reconcile GitHub before changing code.",
     "current_phase": "visual_presence_and_videochat_realism",
     "current_step": "v79-avatar-lab-visual-realism",
     "current_step_status": "draft_branch_live_visual_iteration_handoff_ready"
@@ -215,6 +230,6 @@
   },
   "reconcile": {
     "status": "v78_published_v79_single_flight_handoff_ready",
-    "note": "v78 is the exact released baseline. PR #107 is the only active Celine development strand. Runtime evidence is bound to head 8d2329878307881c8ec6a059870ec2eacd034f52; a later queue-only handoff commit may advance the PR head without changing runtime code. The next agent must fresh-read PR #107, continue the exact_next_action on this same branch, and must not start another Celine branch/PR."
+    "note": "v78 is the exact released baseline. PR #107 is the only active Celine development strand. Last built/visually inspected runtime head is 6af211d749fbbeab3bfba552a3f9af7e8c8d42a3; newest runtime code head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81 contains the shared v61 Lab scale fix but is not yet built. A later queue-only handoff commit may advance the PR head without changing runtime code. Continue exact_next_action on this same branch only."
   }
 }
