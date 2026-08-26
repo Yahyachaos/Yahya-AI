@@ -6,8 +6,9 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v75 keeps the proven v74 motion/lifecycle owners and adds narrowly scoped semantic-material and
- * private exact-head reference-view owners. Normal HOME/CALL camera behavior remains unchanged.
+ * v79 keeps the proven motion/lifecycle owners and adds narrowly scoped visual-realism owners.
+ * The Avatar Lab remains a separate branch-live diagnostic Activity; product HOME/CALL interaction
+ * is anchored and no longer exposes one-finger object-like dragging.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -34,6 +35,8 @@ public final class YahyaApplication extends Application implements Application.A
                 "v73 Hips+Schulter · v74 Arm+Hand HOME Loops · keine Fingerknochen · CALL v69/v70");
         Celine3DDiagnostics.record(activity, "V75-003", "v75 Semantikmaterial-Owner aktiv",
                 "V39 bleibt Haut/Gesicht-Owner · v75 übernimmt nur top/jeans/shoes/hair nach V39");
+        Celine3DDiagnostics.record(activity, "V79-003", "v79 Produkt-Interaktion verankert",
+                "oneFingerDrag=blocked · pinch=trueCameraDolly · Avatar Lab separat");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -49,6 +52,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineSeatedCallV70.install(activity, decor);
         CelineNaturalBodyMotionV73.install(activity, decor);
         CelineCameraZoomV70.install(activity, decor);
+        CelineProductInteractionLockV79.install(activity, decor);
         CelineReferenceViewV75.install(activity, decor);
         CelineCallImeGuardV70.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
@@ -76,6 +80,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineVideoCallV45.install(activity, decor);
         CelineCallMotionLockV47.install(activity, decor);
         CelineCameraZoomV70.install(activity, decor);
+        CelineProductInteractionLockV79.install(activity, decor);
         CelineReferenceViewV75.install(activity, decor);
         CelineCallImeGuardV70.install(activity, decor);
         CelineUpdaterV47.install(activity, decor);
@@ -91,6 +96,7 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineReferenceViewV75.onPaused(activity);
+            CelineProductInteractionLockV79.onPaused(activity);
             CelineMeshyRigScaleV61.onPaused(activity);
             CelineCameraZoomV70.onPaused(activity);
             CelineNaturalBodyMotionV73.onPaused(activity);
@@ -106,6 +112,7 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineReferenceViewV75.onDestroyed(activity);
+            CelineProductInteractionLockV79.onDestroyed(activity);
             CelineMeshyRigScaleV61.onDestroyed(activity);
             CelineCameraZoomV70.onDestroyed(activity);
             CelineCallImeGuardV70.onDestroyed(activity);
