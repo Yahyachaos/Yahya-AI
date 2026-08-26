@@ -22,12 +22,14 @@ capture() {
   adb pull /sdcard/window.xml "$OUT/${name}.xml" >/dev/null 2>&1 || true
 }
 
-tap_text() {
-  local wanted="$1"
+dump_lab_ui() {
   adb shell uiautomator dump /sdcard/lab.xml >/dev/null 2>&1
   adb pull /sdcard/lab.xml "$OUT/lab.xml" >/dev/null 2>&1
-  local coords
-  coords="$(python3 - "$OUT/lab.xml" "$wanted" <<'PY'
+}
+
+coords_for_text() {
+  local wanted="$1"
+  python3 - "$OUT/lab.xml" "$wanted" <<'PY'
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -42,15 +44,59 @@ for node in root.iter('node'):
     if not match:
         continue
     x1, y1, x2, y2 = map(int, match.groups())
+    if x2 <= x1 or y2 <= y1:
+        continue
     print((x1 + x2) // 2, (y1 + y2) // 2)
-    raise SystemExit(0)
-raise SystemExit(f'button not found: {wanted}')
+    break
 PY
-)"
-  local x y
-  read -r x y <<<"$coords"
-  adb shell input tap "$x" "$y"
-  sleep 0.25
+}
+
+reset_horizontal_row() {
+  local y="$1"
+  # Drive the row to its left edge deterministically before locating a target.
+  for _ in 1 2 3; do
+    adb shell input swipe 170 "$y" 920 "$y" 140 >/dev/null 2>&1 || true
+    sleep 0.08
+  done
+}
+
+tap_text() {
+  local wanted="$1"
+  local scroll_y=""
+  case "$wanted" in
+    "Stehen"|"Sitzen"|"Laufen"|"Arme/Hände") scroll_y="680" ;;
+    "Front"|"Profil links"|"3/4 rechts") scroll_y="1400" ;;
+  esac
+
+  if [ -n "$scroll_y" ]; then
+    reset_horizontal_row "$scroll_y"
+  fi
+
+  local coords=""
+  local attempt
+  for attempt in 1 2 3 4 5 6; do
+    dump_lab_ui
+    coords="$(coords_for_text "$wanted")"
+    if [ -n "$coords" ]; then
+      local x y
+      read -r x y <<<"$coords"
+      if [ "$x" -ge 1 ] && [ "$x" -le 1079 ] && [ "$y" -ge 1 ] && [ "$y" -le 1919 ]; then
+        adb shell input tap "$x" "$y"
+        sleep 0.25
+        return 0
+      fi
+    fi
+
+    if [ -z "$scroll_y" ]; then
+      break
+    fi
+    adb shell input swipe 920 "$scroll_y" 170 "$scroll_y" 180 >/dev/null 2>&1 || true
+    sleep 0.16
+  done
+
+  echo "Avatar Lab button not found/visible after deterministic scroll: $wanted" >&2
+  cp "$OUT/lab.xml" "$OUT/button-not-found.xml" 2>/dev/null || true
+  return 1
 }
 
 # Deterministic neutral close-up.
