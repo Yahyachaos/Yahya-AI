@@ -173,3 +173,4 @@ jobs:
 
 # Pull-request scheduling can occasionally leave a run without a job. The branch-scoped push
 # fallback above keeps exact-head validation available without widening CI to unrelated branches.
+# Exact-head retrigger requested from Chat after stale queued run 32984629025.
