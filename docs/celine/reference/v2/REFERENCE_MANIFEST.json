@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "identity_name": "Celine",
+  "reference_set": "v2",
+  "status": "canonical_visual_target_for_v75_and_later_until_explicitly_replaced",
+  "source": "User-approved generated Celine reference images supplied in ChatGPT on 2026-08-26",
+  "hierarchy_rule": "When references disagree: face_master wins for face/eyes/hair identity; body_front_master wins for frontal proportions/outfit; the two side profiles win for profile depth/silhouette; body_back_master wins for back/hair/hip/glute rear silhouette; character sheets are secondary only for expressions, styling intent and technical guidance.",
+  "identity_constraints": {
+    "eyes": "green, vivid but natural",
+    "hair": "long, blonde, softly wavy, fuller/more voluminous than current Celine",
+    "face": "match face_master as the primary identity reference; do not preserve old-face identity if it conflicts",
+    "body": "slim feminine overall, defined waist, fuller hips/glute silhouette than current Celine, natural rather than exaggerated; geometry/weights preferred over unsafe bone scaling",
+    "outfit": "beige off-shoulder long-sleeve ribbed top, fitted black jeans, white sneakers, small necklace",
+    "overall": "photorealistic, warm, friendly, feminine, natural; avoid plastic/cartoon drift"
+  },
+  "files": {
+    "face_master.png": {
+      "library_pack_member": "face_master.png",
+      "sha256": "5467e4db0ce3f76b5f5abc76d067c1691c23a3252c7e033f24dfe8c57cf86008",
+      "bytes": 334045,
+      "width": 1152,
+      "height": 1536,
+      "role": "PRIMARY: face identity, green eye appearance, skin, lips, nose, brows, hair color/texture",
+      "desired_repository_target": "docs/celine/reference/v2/face_master.png"
+    },
+    "body_front_master.png": {
+      "library_pack_member": "body_front_master.png",
+      "sha256": "b163a76ca610840078d62a06013c587af7799bfdef75904d4d1aca4afaa7b331",
+      "bytes": 129746,
+      "width": 864,
+      "height": 1536,
+      "role": "PRIMARY: frontal body proportions, outfit, stance/silhouette",
+      "desired_repository_target": "docs/celine/reference/v2/body_front_master.png"
+    },
+    "body_side_facing_right.png": {
+      "library_pack_member": "body_side_facing_right.png",
+      "sha256": "34e3f272770948a8ebcdbfff76cf30b11a96291264da7da88862e5335c692036",
+      "bytes": 98370,
+      "width": 864,
+      "height": 1536,
+      "role": "PRIMARY: one side-profile depth/silhouette; especially chest/waist/hip/glute/back relationship",
+      "desired_repository_target": "docs/celine/reference/v2/body_side_facing_right.png"
+    },
+    "body_side_facing_left.png": {
+      "library_pack_member": "body_side_facing_left.png",
+      "sha256": "afb66fb47b79a61063243810ea4a025708c8b4fb19867b7f10d4305a2e3b4baa",
+      "bytes": 90359,
+      "width": 864,
+      "height": 1536,
+      "role": "PRIMARY: opposite side-profile consistency/symmetry check",
+      "desired_repository_target": "docs/celine/reference/v2/body_side_facing_left.png"
+    },
+    "body_back_master.png": {
+      "library_pack_member": "body_back_master.png",
+      "sha256": "3464e04f381ccaf250a3fb86bb16bb358e2f2820e3a130b0be32abba1e2432e5",
+      "bytes": 118971,
+      "width": 864,
+      "height": 1536,
+      "role": "PRIMARY: back silhouette, rear hair, shoulders, hips/glute/legs and jeans fit",
+      "desired_repository_target": "docs/celine/reference/v2/body_back_master.png"
+    },
+    "character_sheet_technical.png": {
+      "library_pack_member": "character_sheet_technical.png",
+      "sha256": "dfd3699dbf552be2b1ebe0d02d40f171dc4b314e4ec1439c278f4e6cd642ff5f",
+      "bytes": 364700,
+      "width": 1024,
+      "height": 1536,
+      "role": "SECONDARY: expression/rig/technical intent only; never override a primary master view",
+      "desired_repository_target": "docs/celine/reference/v2/character_sheet_technical.png"
+    },
+    "character_sheet_expression_style.png": {
+      "library_pack_member": "character_sheet_expression_style.png",
+      "sha256": "30470b0230646a410aa420317fc1bdec3045ba1d36cded14f0c715c49a09d46f",
+      "bytes": 350201,
+      "width": 1024,
+      "height": 1536,
+      "role": "SECONDARY: mood, expression, styling and desired natural presence only; never override a primary master view",
+      "desired_repository_target": "docs/celine/reference/v2/character_sheet_expression_style.png"
+    }
+  },
+  "reference_pack": {
+    "persistent_library_path": "/Yahya-AI/Celine/reference/Celine_V2_Reference_Pack.zip",
+    "library_file_id": "file_00000000b8b881f9b8c61b21cbc488fe",
+    "library_file_id_stable": "libfile_431556a1c8908191b8a37910d8400eaa",
+    "sha256": "6f3402930ffd4d459d3812141ea670638ec392019769e54478ae6d3d2dffb519",
+    "note": "The binary PNG masters are persisted in this cross-chat Library ZIP. The GitHub manifest is the canonical index/hashes. A worker should materialize the ZIP from Library, verify the ZIP and member SHA-256 values, and use those exact masters. If the worker has a binary-capable GitHub write path, it may also place verified PNGs at the desired repository targets in the v75 branch."
+  }
+}
