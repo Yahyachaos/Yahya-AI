@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineArmPoseV69.java"
+SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineArmHandPresenceV74.java"
 APPLICATION = ROOT / "app/src/main/java/de/yahya/ai/YahyaApplication.java"
 BUILD = ROOT / "app/build.gradle"
+MANIFEST = ROOT / "ci/celine_v74_blender_arm_hand_manifest.json"
 
 source = SOURCE.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
+manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
-if "versionCode 73" not in build:
-    raise SystemExit("v73 versionCode gate missing while preserving v69 arm owner")
+if "versionCode 74" not in build:
+    raise SystemExit("v74 versionCode gate missing while preserving v69 arm owner")
 
-expected_joints = {"LeftArm", "RightArm", "LeftForeArm", "RightForeArm"}
+expected_joints = {
+    "LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftHand", "RightHand"
+}
 bound_joints = set(re.findall(r'armBone\(asset, transforms, "([^"]+)"\)', source))
 if bound_joints != expected_joints:
-    raise SystemExit(f"v69 joint ownership changed: expected={sorted(expected_joints)} actual={sorted(bound_joints)}")
+    raise SystemExit(f"v74 joint ownership changed: expected={sorted(expected_joints)} actual={sorted(bound_joints)}")
 
 required_source = {
     "HOME_LEFT_ARM_ROLL = 29.5f": "bounded HOME left-arm release",
@@ -26,28 +31,50 @@ required_source = {
     "CALL_LEFT_ARM_ROLL = 30.5f": "bounded CALL left-arm release",
     "CALL_RIGHT_ARM_ROLL = -30.5f": "bounded CALL right-arm release",
     "CALL_FOREARM_PITCH = -14.0f": "bounded CALL elbow ease",
+    "LOOP_DURATION_NANOS = 4_000_000_000L": "exact four-second loop",
+    "HOME_LEFT_ARM_PITCH_AMPLITUDE = 0.12f": "bounded left arm pitch motion",
+    "HOME_LEFT_ARM_ROLL_AMPLITUDE = 0.20f": "bounded left arm roll motion",
+    "HOME_RIGHT_ARM_PITCH_AMPLITUDE = -0.10f": "bounded right arm pitch motion",
+    "HOME_RIGHT_ARM_ROLL_AMPLITUDE = -0.17f": "bounded right arm roll motion",
+    "HOME_LEFT_HAND_PITCH_WAVE = 0.38f": "bounded left wrist wave",
+    "HOME_LEFT_HAND_PITCH_SECOND = 0.08f": "left wrist second harmonic",
+    "HOME_RIGHT_HAND_PITCH_WAVE = 0.34f": "bounded right wrist wave",
+    "HOME_RIGHT_HAND_PITCH_SECOND = -0.06f": "right wrist second harmonic",
+    "elapsed % LOOP_DURATION_NANOS": "continuous exact-period phase",
+    "loopStartNanos = 0L": "exact HOME/CALL seam restart",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "disabled = true": "automatic failure disable",
     "restoreAll()": "exact base-transform rollback",
     "animator.updateBoneMatrices()": "skinned-mesh matrix update",
-    "V69-100": "production four-joint bind evidence",
-    "V69-110": "HOME pose evidence",
-    "V69-120": "CALL pose evidence",
-    "V69-130": "HOME-return evidence",
-    "V69-198": "frame failure evidence",
-    "V69-199": "initialization failure evidence",
+    "V74-100": "production four-joint bind evidence",
+    "V74-110": "HOME pose evidence",
+    "V74-120": "CALL pose evidence",
+    "V74-130": "HOME-return evidence",
+    "V74-198": "frame failure evidence",
+    "V74-199": "initialization failure evidence",
 }
 for needle, purpose in required_source.items():
     if needle not in source:
         raise SystemExit(f"missing {purpose}: {needle}")
 
 for lifecycle in ("install", "onPaused", "onDestroyed"):
-    if f"CelineArmPoseV69.{lifecycle}(activity" not in application:
-        raise SystemExit(f"YahyaApplication missing CelineArmPoseV69.{lifecycle} lifecycle wiring")
+    if f"CelineArmHandPresenceV74.{lifecycle}(activity" not in application:
+        raise SystemExit(f"YahyaApplication missing CelineArmHandPresenceV74.{lifecycle} lifecycle wiring")
+    if f"CelineArmPoseV69.{lifecycle}(activity" in application:
+        raise SystemExit(f"v69 writer still installed beside v74: {lifecycle}")
 
 # This owner is posture-only. It must never write UI/videochat geometry or camera framing.
 for forbidden in ("LayoutParams", "setTranslation", "scrollTo(", "setLensProjection", "lookAt("):
     if forbidden in source:
-        raise SystemExit(f"v69 arm owner unexpectedly touches geometry/camera: {forbidden}")
+        raise SystemExit(f"v74 arm/hand owner unexpectedly touches geometry/camera: {forbidden}")
 
-print("v69 four-joint A-pose removal contract preserved in v73: PASS")
+if manifest["finger_bones"] != [] or manifest["finger_motion"] != "UNSUPPORTED_NO_FINGER_BONES":
+    raise SystemExit("v74 must not claim unsupported finger animation")
+if manifest["selected_candidate"] != "b-arm-wrist-presence":
+    raise SystemExit("unexpected v74 Blender candidate")
+if manifest["seam_proof"]["result"] != "PASS_EXACT_FRAME_1_FRAME_97_SEAM":
+    raise SystemExit("v74 exact Blender loop seam proof missing")
+if manifest["manual_review"] != "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION":
+    raise SystemExit("v74 Blender deformation review missing")
+
+print("v74 six-joint owner preserves v69 A-pose removal and adds bounded arm/wrist HOME motion: PASS")

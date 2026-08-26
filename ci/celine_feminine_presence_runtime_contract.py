@@ -14,8 +14,8 @@ application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
-if "versionCode 73" not in build:
-    raise SystemExit("v73 versionCode gate missing")
+if "versionCode 74" not in build:
+    raise SystemExit("v74 versionCode gate missing")
 
 bindings = set(re.findall(
     r'feminineBone\(view, asset, transforms, "([^"]+)", "([^"]+)"\)', source

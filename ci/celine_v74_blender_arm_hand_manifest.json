@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "purpose": "Reproducible v74 exact-rig and Blender design evidence for bounded HOME arm/hand presence",
+  "blender_version": "4.5.12 LTS",
+  "canonical_source_path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
+  "canonical_source_sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
+  "vertex_count": 66700,
+  "finger_bones": [],
+  "finger_motion": "UNSUPPORTED_NO_FINGER_BONES",
+  "weighted_joint_vertices": {
+    "LeftArm": {
+      "weighted": 6899,
+      "weight_ge_0_50": 1032,
+      "weight_ge_0_75": 480,
+      "max": 1
+    },
+    "LeftForeArm": {
+      "weighted": 1801,
+      "weight_ge_0_50": 989,
+      "weight_ge_0_75": 552,
+      "max": 1
+    },
+    "LeftHand": {
+      "weighted": 1572,
+      "weight_ge_0_50": 1248,
+      "weight_ge_0_75": 1189,
+      "max": 1
+    },
+    "RightArm": {
+      "weighted": 17395,
+      "weight_ge_0_50": 822,
+      "weight_ge_0_75": 353,
+      "max": 1
+    },
+    "RightForeArm": {
+      "weighted": 1523,
+      "weight_ge_0_50": 803,
+      "weight_ge_0_75": 480,
+      "max": 1
+    },
+    "RightHand": {
+      "weighted": 1343,
+      "weight_ge_0_50": 1192,
+      "weight_ge_0_75": 1039,
+      "max": 1
+    }
+  },
+  "selected_candidate": "b-arm-wrist-presence",
+  "duration_seconds": 4,
+  "runtime_owned_joints": [
+    "LeftArm",
+    "RightArm",
+    "LeftForeArm",
+    "RightForeArm",
+    "LeftHand",
+    "RightHand"
+  ],
+  "home_animated_joints": [
+    "LeftArm",
+    "RightArm",
+    "LeftHand",
+    "RightHand"
+  ],
+  "static_v69_forearms_degrees": {
+    "LeftForeArm": {
+      "pitch": -6
+    },
+    "RightForeArm": {
+      "pitch": -6
+    }
+  },
+  "maximum_motion_amplitude_degrees": {
+    "LeftArm": {
+      "pitch": 0.12,
+      "roll": 0.2
+    },
+    "RightArm": {
+      "pitch": 0.1,
+      "roll": 0.17
+    },
+    "LeftHand": {
+      "pitch": 0.46
+    },
+    "RightHand": {
+      "pitch": 0.4
+    }
+  },
+  "seam_proof": {
+    "matrix_max_absolute_error": {
+      "LeftArm": 0,
+      "RightArm": 0,
+      "LeftHand": 0,
+      "RightHand": 0
+    },
+    "result": "PASS_EXACT_FRAME_1_FRAME_97_SEAM"
+  },
+  "local_keyframe_evidence_sha256": {
+    "frame_25": {
+      "front": "d01e3f8fc12100f25f8ad0c4c863e2747ab8d67fabcf4a9ec9311374cfcca737",
+      "right": "4485e396c3e1ec48653f29cf7d61a4136cd616e51c928f2157e41ecaa4374930",
+      "back": "ba657e84920f61345fac1ecec6414f5dc32361961e7fd2ff6bc1a4da43d13768"
+    },
+    "frame_73": {
+      "front": "91e1d53360393916cd304ddf9c0fcc2a9d056330ec592e6651263595d31508e4",
+      "right": "da6ec41e6c151c5e5340b83ac5740f08ecc75b57c2859898549ffced7770abbe",
+      "back": "f7ae1a683d2fb80f78e9b3d8142e4356597c84dd4bf4f6402727aa2946158b3e"
+    }
+  },
+  "manual_review": "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION",
+  "call_contract": "exact v69 arms/forearms; hands restored to captured bases",
+  "android_gate": "PENDING_EXACT_PRODUCTION_RENDER"
+}
