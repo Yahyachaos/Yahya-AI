@@ -29,13 +29,13 @@
   },
   "active": {
     "id": "natural-body-motion-v73",
-    "status": "v73_blender_motion_design_in_progress",
+    "status": "v73_blender_motion_design_draft_pr_100",
     "current_branch": "auto/celine/v73-natural-body-motion",
-    "current_pr": null,
+    "current_pr": 100,
     "target_version": 73,
     "goal": "Begin roadmap order 4 with one bounded, Blender-designed natural HOME motion loop that coordinates the newly safe Hips/shoulders without frozen or robotic transitions.",
     "risk": "dynamic_joint_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
-    "progress": "v72 is fully released and testable from exact merge SHA 753b59b8b65d6803b962eaf9dd0c945978df015a. Feminine posture order 3 is complete: Hips and both shoulders use v44 renderer-captured bases, exact Blender and Android production images passed without deformation, and CALL rollback remains clean. v73 starts design only: create a short seamless Blender motion loop with restrained breathing/weight shift on the already proven Hips+shoulder owner, inspect keyframes and loop seam from multiple views, then translate only the smallest safe amplitudes into Android. Arms/hands, spine, legs and face remain pending unless separately proven.",
+    "progress": "v72 is fully released and testable from exact merge SHA 753b59b8b65d6803b962eaf9dd0c945978df015a. Feminine posture order 3 is complete: Hips and both shoulders use v44 renderer-captured bases, exact Blender and Android production images passed without deformation, and CALL rollback remains clean. v73 starts design only: create a short seamless Blender motion loop with restrained breathing/weight shift on the already proven Hips+shoulder owner, inspect keyframes and loop seam from multiple views, then translate only the smallest safe amplitudes into Android. Arms/hands, spine, legs and face remain pending unless separately proven. Draft PR #100 is open as the sole active queue step.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -341,7 +341,7 @@
   "next": [
     {
       "id": "v73-natural-body-motion-loop",
-      "status": "blender_design_in_progress",
+      "status": "draft_pr_100_blender_design_in_progress",
       "target_version": 73,
       "goal": "Design and prove one seamless restrained HOME breathing/weight-shift loop before adding any dynamic Android writer.",
       "constraints": [
