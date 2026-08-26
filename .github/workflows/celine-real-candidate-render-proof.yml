@@ -12,6 +12,9 @@ on:
       - 'ci/check-camera-zoom-range.py'
       - 'ci/celine-real-candidate-emulator-proof.sh'
       - 'ci/celine-camera-zoom-emulator-proof.sh'
+      - 'ci/celine-v75-multiview-emulator-proof.sh'
+      - 'ci/celine_multiview_variant_v75.py'
+      - 'ci/celine_png_crop_v75.py'
       - '.github/workflows/celine-real-candidate-render-proof.yml'
       - 'app/src/main/assets/models/celine-source/**'
       - 'ci/celine_facial_morph_prototype.py'
@@ -131,7 +134,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Boot emulator and prove real candidate across HOME CALL HOME plus zoom bounds
+      - name: Boot emulator and prove real candidate lifecycle, zoom and mandatory v75 views
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -140,7 +143,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh'
+          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh && bash ci/celine-v75-multiview-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb'
 
       - name: Upload real candidate visual/identity/lifecycle evidence
         if: always()
@@ -154,18 +157,26 @@ jobs:
             morph-proof/v75-validation-report.json
             morph-proof/v75-material-regions-report.json
             morph-proof/v75-material-validation-report.json
+            morph-proof/v75-multiview/*.json
             real-candidate-home.png
             real-candidate-call.png
             real-candidate-home-return.png
             real-candidate-zoom-far.png
             real-candidate-zoom-default.png
             real-candidate-zoom-near.png
+            real-candidate-front.png
+            real-candidate-profile-right.png
+            real-candidate-profile-left.png
+            real-candidate-back.png
+            real-candidate-face-source.png
+            real-candidate-face-close.png
             real-candidate-home.xml
             real-candidate-call.xml
             real-candidate-home-return.xml
             real-candidate-logcat-home.txt
             real-candidate-logcat-final.txt
             real-candidate-zoom-logcat.txt
+            real-candidate-multiview-logcat.txt
             real-candidate-logcat.txt
             real-candidate-prefs.xml
           if-no-files-found: ignore
