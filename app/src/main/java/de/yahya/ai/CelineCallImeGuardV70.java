@@ -2,6 +2,7 @@ package de.yahya.ai;
 
 import android.app.Activity;
 import android.content.Context;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -18,8 +19,8 @@ import java.util.WeakHashMap;
  * that focus again when the CALL overlay is removed. Focus-change callbacks proved unreliable for
  * this overlay lifecycle, so this guard observes the actual CALL layout instead: on CALL entry it
  * clears any inherited HOME composer focus and hides the IME; while CALL remains visible it keeps
- * that focus from being restored by later layout passes; on CALL exit it repeats that cleanup
- * immediately and on the next UI turns to catch Android's automatic focus restoration.
+ * that focus from being restored by later layout passes; after CALL exit it keeps a neutral focus
+ * owner until the user explicitly taps the HOME composer again.
  *
  * The helper owns no camera, pose or CALL layout state.
  */
@@ -54,6 +55,7 @@ final class CelineCallImeGuardV70 {
         final View decor;
         boolean installed;
         boolean callVisible;
+        boolean suppressReturnFocus;
         int returnGeneration;
 
         Controller(Activity activity, View decor) {
@@ -68,13 +70,18 @@ final class CelineCallImeGuardV70 {
             observer.addOnGlobalLayoutListener(this);
             installed = true;
             callVisible = containsText(decor, CALL_TITLE);
+            installExplicitComposerTapRestore();
             decor.post(this::evaluate);
         }
 
         void destroy() {
             returnGeneration++;
+            suppressReturnFocus = false;
             EditText composer = findHomeComposer(decor);
-            if (composer != null) composer.setFocusableInTouchMode(true);
+            if (composer != null) {
+                composer.setFocusableInTouchMode(true);
+                composer.setOnTouchListener(null);
+            }
             if (installed) {
                 ViewTreeObserver observer = decor.getViewTreeObserver();
                 if (observer.isAlive()) observer.removeOnGlobalLayoutListener(this);
@@ -92,11 +99,13 @@ final class CelineCallImeGuardV70 {
             boolean callNow = containsText(decor, CALL_TITLE);
             if (callNow == callVisible) {
                 if (callNow) suppressComposerDuringCall();
+                else if (suppressReturnFocus) holdNeutralHomeFocus();
                 return;
             }
 
             callVisible = callNow;
             if (callNow) {
+                suppressReturnFocus = false;
                 returnGeneration++;
                 boolean focused = suppressComposerDuringCall();
                 decor.postDelayed(this::suppressComposerDuringCall, 80L);
@@ -106,19 +115,18 @@ final class CelineCallImeGuardV70 {
             }
 
             final int generation = ++returnGeneration;
-            restoreComposerAfterCall();
-            boolean focused = clearComposerFocusAndHideIme();
+            suppressReturnFocus = true;
+            boolean focused = holdNeutralHomeFocus();
             decor.post(() -> cleanupReturn(generation));
             decor.postDelayed(() -> cleanupReturn(generation), 80L);
             decor.postDelayed(() -> cleanupReturn(generation), 180L);
             Celine3DDiagnostics.record(activity, "V70-152", "HOME Fokus nach CALL bereinigt",
-                    "focusedAtOverlayRemoval=" + focused + " · focusAnchoredAwayFromComposer=true · imeKeptHidden=true");
+                    "focusedAtOverlayRemoval=" + focused + " · neutralUntilExplicitTap=true · imeKeptHidden=true");
         }
 
         void cleanupReturn(int generation) {
-            if (!installed || generation != returnGeneration || callVisible) return;
-            restoreComposerAfterCall();
-            clearComposerFocusAndHideIme();
+            if (!installed || generation != returnGeneration || callVisible || !suppressReturnFocus) return;
+            holdNeutralHomeFocus();
         }
 
         boolean suppressComposerDuringCall() {
@@ -127,33 +135,39 @@ final class CelineCallImeGuardV70 {
             boolean focused = composer.isFocused();
             hideIme(composer);
             if (focused) composer.clearFocus();
-            // The HOME editor remains in the same hierarchy underneath the CALL overlay. On the
-            // emulator Android re-selected it on a later layout pass even after clearFocus(). While
-            // CALL is visible, temporarily make only that hidden editor ineligible for touch focus.
-            // This prevents it from owning CALL focus without changing HOME layout or editor state.
             composer.setFocusableInTouchMode(false);
             decor.setFocusableInTouchMode(true);
             decor.requestFocus();
             return focused;
         }
 
-        void restoreComposerAfterCall() {
-            EditText composer = findHomeComposer(decor);
-            if (composer != null) composer.setFocusableInTouchMode(true);
-        }
-
-        boolean clearComposerFocusAndHideIme() {
+        boolean holdNeutralHomeFocus() {
             EditText composer = findHomeComposer(decor);
             if (composer == null) return false;
             boolean focused = composer.isFocused();
             hideIme(composer);
             if (focused) composer.clearFocus();
-            // clearFocus() alone lets Android restore the only focusable editor after the CALL
-            // overlay disappears. Give the window a neutral focus owner so HOME stays unedited and
-            // the keyboard remains hidden until the user explicitly taps the composer again.
+            // Do not restore editor focusability immediately: Android 35 can select the HOME editor
+            // again several seconds after the CALL overlay has gone. Keep only this editor out of
+            // the focus chain until the user's next explicit touch, while leaving it clickable.
+            composer.setFocusableInTouchMode(false);
             decor.setFocusableInTouchMode(true);
             decor.requestFocus();
             return focused;
+        }
+
+        void installExplicitComposerTapRestore() {
+            EditText composer = findHomeComposer(decor);
+            if (composer == null) return;
+            composer.setOnTouchListener((view, event) -> {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN && suppressReturnFocus && !callVisible) {
+                    suppressReturnFocus = false;
+                    returnGeneration++;
+                    composer.setFocusableInTouchMode(true);
+                    composer.post(composer::requestFocus);
+                }
+                return false;
+            });
         }
 
         void hideIme(View tokenView) {
