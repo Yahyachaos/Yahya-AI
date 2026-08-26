@@ -2,16 +2,16 @@
 set -euo pipefail
 
 APK="${1:-app/build/outputs/apk/debug/app-debug.apk}"
-CANDIDATE="${2:-morph-proof/celine_v75_candidate.glb}"
+CANDIDATE="${2:-morph-proof/celine_v76_candidate.glb}"
 PACKAGE="de.yahya.ai"
 ACTIVITY="de.yahya.ai/.MainActivity"
 ZOOM_MARKER="celine-ci-camera-zoom-v70"
-OUTDIR="morph-proof/v75-multiview"
+OUTDIR="morph-proof/v76-multiview"
 mkdir -p "$OUTDIR"
 
 fail() {
-  echo "V75 MULTIVIEW ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|CTL-|REN-|VIS-|V39-|V60-|V61-|V70-|V74-|FATAL EXCEPTION|SIGABRT' | tail -260 || true
+  echo "V76 MULTIVIEW ERROR: $*"
+  adb logcat -d | grep -E 'de\.yahya\.ai|CTL-|REN-|VIS-|V39-|V60-|V61-|V70-|V74-|V76-|FATAL EXCEPTION|SIGABRT' | tail -260 || true
   exit 1
 }
 
@@ -29,10 +29,10 @@ wait_for_log() {
 
 install_private_variant() {
   local file="$1"
-  adb push "$file" /data/local/tmp/celine-v75-evidence.glb >/dev/null || fail "could not push evidence GLB"
+  adb push "$file" /data/local/tmp/celine-v76-evidence.glb >/dev/null || fail "could not push evidence GLB"
   adb shell "run-as $PACKAGE mkdir -p files/models" || fail "could not create private model dir"
-  adb shell "run-as $PACKAGE cp /data/local/tmp/celine-v75-evidence.glb files/models/celine.glb" || fail "could not install private evidence GLB"
-  adb shell rm -f /data/local/tmp/celine-v75-evidence.glb || true
+  adb shell "run-as $PACKAGE cp /data/local/tmp/celine-v76-evidence.glb files/models/celine.glb" || fail "could not install private evidence GLB"
+  adb shell rm -f /data/local/tmp/celine-v76-evidence.glb || true
 }
 
 start_private_view() {
@@ -58,7 +58,7 @@ capture_yaw() {
   install_private_variant "$glb"
   start_private_view
   adb exec-out screencap -p > "$png"
-  python3 ci/check-real-celine-render.py "$png" "V75_${label}"
+  python3 ci/check-real-celine-render.py "$png" "V76_${label}"
   echo "Captured yaw=$yaw -> $png"
 }
 
@@ -90,7 +90,7 @@ done
 adb logcat -d | grep -F 'V70-141' | grep -F 'requested=1.25' | grep -Fq 'zoom=1.25' || fail "face-evidence zoom was not applied"
 sleep 2
 adb exec-out screencap -p > real-candidate-face-source.png
-python3 ci/check-real-celine-render.py real-candidate-face-source.png V75_FACE_SOURCE
+python3 ci/check-real-celine-render.py real-candidate-face-source.png V76_FACE_SOURCE
 python3 ci/celine_png_crop_v75.py real-candidate-face-source.png real-candidate-face-close.png --left 0.23 --top 0.05 --right 0.77 --bottom 0.50
 
 # Fail closed: remove the temporary private variant and prove the app returns to the packaged exact
@@ -99,11 +99,11 @@ adb shell "run-as $PACKAGE rm -f files/models/celine.glb files/$ZOOM_MARKER file
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c || true
 adb shell am start -W -n "$ACTIVITY" >/dev/null || fail "packaged-source restore start failed"
-wait_for_log 'REN-306' 'packaged v75 source restored'
+wait_for_log 'REN-306' 'packaged v76 source restored'
 wait_for_log 'CTL-350' 'packaged v75 candidate visible after restore'
 adb logcat -d > real-candidate-multiview-logcat.txt
 if grep -Eq 'REN-305|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-multiview-logcat.txt; then
   fail "private source or runtime error remained after evidence restore"
 fi
 
-printf 'PASS v75 mandatory multiview evidence: exact_candidate_sha=%s front/right/left/back + runtime-pixel face close-up; packaged source restored\n' "$BASE_SHA"
+printf 'PASS v76 mandatory multiview evidence: exact_candidate_sha=%s front/right/left/back + runtime-pixel face close-up; packaged source restored\n' "$BASE_SHA"

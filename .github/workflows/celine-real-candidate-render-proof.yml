@@ -21,6 +21,8 @@ on:
       - 'ci/celine_character_refresh_validation_v75.py'
       - 'ci/celine_material_regions_v75.py'
       - 'ci/celine_material_regions_validation_v75.py'
+      - 'ci/celine_facial_rig_v76.py'
+      - 'ci/celine_facial_rig_validation_v76.py'
       - 'docs/celine/reference/v2/REFERENCE_MANIFEST.json'
       - 'ci/celine_true_face_runtime_contract.py'
       - 'ci/celine_a_pose_runtime_contract.py'
@@ -39,6 +41,7 @@ on:
       - 'app/src/main/java/de/yahya/ai/YahyaApplication.java'
       - 'ci/celine_facial_morph_validation.py'
       - 'app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java'
+      - 'app/src/main/java/de/yahya/ai/CelineFacialMotionPlanner.java'
       - 'app/src/main/java/de/yahya/ai/CelineTexturePipelineV39.java'
       - 'app/src/main/java/de/yahya/ai/CelineMeshyRigScaleV61.java'
       - 'app/build.gradle'
@@ -97,11 +100,16 @@ jobs:
             --report morph-proof/v75-material-regions-report.json
           python ci/celine_material_regions_validation_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
             --report morph-proof/v75-material-validation-report.json
+          python ci/celine_facial_rig_v76.py morph-proof/celine_v75_candidate.glb morph-proof/celine_v76_candidate.glb \
+            --report morph-proof/v76-facial-rig-report.json \
+            --expected-sha256 46828b88dc7917def64881c6bc348b790a2bab445401e0ba3fac240327253923
+          python ci/celine_facial_rig_validation_v76.py morph-proof/celine_v75_candidate.glb morph-proof/celine_v76_candidate.glb \
+            --report morph-proof/v76-facial-rig-validation-report.json
           python ci/celine_true_face_runtime_contract.py
           python ci/celine_a_pose_runtime_contract.py
           python ci/celine_seated_call_runtime_contract.py
           python ci/celine_feminine_presence_runtime_contract.py
-          echo "candidate_sha256=$(sha256sum morph-proof/celine_v75_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
+          echo "candidate_sha256=$(sha256sum morph-proof/celine_v76_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 17 for Android SDK
         uses: actions/setup-java@v4
@@ -126,7 +134,7 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Build guarded v75 character refresh APK
+      - name: Build guarded v76 facial rig APK
         shell: bash
         run: |
           set -euo pipefail
@@ -141,7 +149,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Boot emulator and prove real candidate lifecycle, zoom and mandatory v75 views
+      - name: Boot emulator and prove v76 facial runtime lifecycle, zoom and mandatory views
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -150,7 +158,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh && bash ci/celine-v75-multiview-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb'
+          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v76_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh && bash ci/celine-v75-multiview-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v76_candidate.glb'
 
       - name: Upload real candidate visual/identity/lifecycle evidence
         if: always()
@@ -164,7 +172,9 @@ jobs:
             morph-proof/v75-validation-report.json
             morph-proof/v75-material-regions-report.json
             morph-proof/v75-material-validation-report.json
-            morph-proof/v75-multiview/*.json
+            morph-proof/v76-facial-rig-report.json
+            morph-proof/v76-facial-rig-validation-report.json
+            morph-proof/v76-multiview/*.json
             real-candidate-home.png
             real-candidate-call.png
             real-candidate-home-return.png

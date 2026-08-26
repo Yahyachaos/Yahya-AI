@@ -14,7 +14,7 @@ trap collect EXIT
 
 fail() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V76-|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
   exit 1
 }
 
@@ -73,16 +73,16 @@ grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
 python3 ci/check-celine-person-presence.py real-candidate-home.png HOME
 
-# v75 must use the packaged production asset, never an injected private file.
+# v76 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
 if ! grep -q 'REN-306' real-candidate-logcat-home.txt; then
   fail "packaged APK production model source was not selected (REN-306 missing)"
 fi
 if grep -q 'REN-305' real-candidate-logcat-home.txt; then
-  fail "private model unexpectedly overrode the packaged v75 production candidate"
+  fail "private model unexpectedly overrode the packaged v76 production candidate"
 fi
-if ! grep -q 'V62-210' real-candidate-logcat-home.txt; then
-  fail "real candidate loaded but six-target morph runtime did not activate (V62-210 missing)"
+if ! grep -q 'V76-210' real-candidate-logcat-home.txt; then
+  fail "real candidate loaded but exact fifteen-target morph runtime did not activate (V76-210 missing)"
 fi
 if ! grep -q 'V61-110' real-candidate-logcat-home.txt; then
   fail "packaged production rig-scale correction did not activate (V61-110 missing)"
@@ -96,7 +96,7 @@ fi
 if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
   fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
 fi
-if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
   fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
@@ -145,11 +145,11 @@ python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_R
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
-if ! grep -q 'V62-210' real-candidate-logcat-final.txt; then
-  fail "morph runtime activation evidence missing after lifecycle"
+if ! grep -q 'V76-210' real-candidate-logcat-final.txt; then
+  fail "v76 morph runtime activation evidence missing after lifecycle"
 fi
 if ! grep -q 'V75-160' real-candidate-logcat-final.txt; then
   fail "v75 semantic material ownership evidence missing after lifecycle"
@@ -158,4 +158,4 @@ for marker in V74-100 V74-110 V74-120 V74-130 V70-100 V70-110 V70-120 V70-130; d
   grep -q "$marker" real-candidate-logcat-final.txt || fail "v74/v70 lifecycle marker missing: $marker"
 done
 
-printf 'PASS packaged v75 semantic-material + v70 seated CALL + v74 bounded arm/hand candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v76 facial-rig + v75 semantic-material + v70 seated CALL + v74 bounded arm/hand candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"

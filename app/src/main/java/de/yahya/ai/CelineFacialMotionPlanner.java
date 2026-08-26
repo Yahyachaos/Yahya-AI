@@ -1,12 +1,6 @@
 package de.yahya.ai;
 
-/**
- * Pure runtime planner for the validated six-target Celine facial candidate.
- *
- * This class intentionally does not touch Filament or the production GLB. It only computes
- * bounded target weights so the renderer hook can stay disabled until a morph-enabled Celine
- * candidate passes identity, HOME/CALL framing and lifecycle gates.
- */
+/** Pure, bounded planner for Celine's final-geometry v76 facial contract. */
 public final class CelineFacialMotionPlanner {
     public static final int BLINK_LEFT = 0;
     public static final int BLINK_RIGHT = 1;
@@ -14,12 +8,23 @@ public final class CelineFacialMotionPlanner {
     public static final int JAW_OPEN = 3;
     public static final int ROUNDED_VOWEL = 4;
     public static final int SPREAD_VOWEL = 5;
-    public static final int TARGET_COUNT = 6;
+    public static final int BILABIAL_PRESS = 6;
+    public static final int LABIODENTAL = 7;
+    public static final int SMILE = 8;
+    public static final int THOUGHTFUL = 9;
+    public static final int SURPRISED = 10;
+    public static final int GAZE_LEFT = 11;
+    public static final int GAZE_RIGHT = 12;
+    public static final int GAZE_UP = 13;
+    public static final int GAZE_DOWN = 14;
+    public static final int TARGET_COUNT = 15;
 
-    private static final float MAX_BLINK = 0.92f;
-    private static final float MAX_JAW = 0.56f;
-    private static final float MAX_VOWEL = 0.42f;
-    private static final float MAX_MICRO = 0.055f;
+    private static final float MAX_BLINK = 0.94f;
+    private static final float MAX_JAW = 0.66f;
+    private static final float MAX_VOWEL = 0.58f;
+    private static final float MAX_LIP_CONTACT = 0.72f;
+    private static final float MAX_EXPRESSION = 0.34f;
+    private static final float MAX_GAZE = 0.32f;
 
     private final float[] current = new float[TARGET_COUNT];
     private long nextBlinkAtMs;
@@ -45,6 +50,16 @@ public final class CelineFacialMotionPlanner {
                         CelineAvatarController.State state,
                         SpeechVisemeAnalyzer.Cue cue,
                         float speechEnergy) {
+        return update(nowMs, state, cue, speechEnergy, 0.0f, 0.0f, false);
+    }
+
+    public Frame update(long nowMs,
+                        CelineAvatarController.State state,
+                        SpeechVisemeAnalyzer.Cue cue,
+                        float speechEnergy,
+                        float lookX,
+                        float lookY,
+                        boolean lookActive) {
         CelineAvatarController.State safeState = state == null
                 ? CelineAvatarController.State.IDLE : state;
         SpeechVisemeAnalyzer.Cue safeCue = cue == null ? SpeechVisemeAnalyzer.silent() : cue;
@@ -53,15 +68,16 @@ public final class CelineFacialMotionPlanner {
         float[] target = new float[TARGET_COUNT];
         applyBlink(nowMs, safeState, target);
         applySpeech(safeState, safeCue, energy, target);
+        applyExpression(nowMs, safeState, safeCue, energy, target);
+        applyGaze(nowMs, lookX, lookY, lookActive, target);
 
-        float smoothing = safeState == CelineAvatarController.State.SPEAKING ? 0.30f : 0.22f;
+        float smoothing = safeState == CelineAvatarController.State.SPEAKING ? 0.34f : 0.26f;
         for (int i = 0; i < TARGET_COUNT; i++) {
-            current[i] = current[i] + (target[i] - current[i]) * smoothing;
+            current[i] += (target[i] - current[i]) * smoothing;
             current[i] = clamp01(current[i]);
+            if (current[i] < 0.0005f) current[i] = 0.0f;
         }
-
-        float micro = microExpression(nowMs, safeState, energy);
-        return new Frame(current.clone(), micro);
+        return new Frame(current.clone(), current[SMILE]);
     }
 
     public void reset(long nowMs) {
@@ -78,9 +94,9 @@ public final class CelineFacialMotionPlanner {
         if (blinkStartMs < 0L) return;
 
         long elapsed = nowMs - blinkStartMs;
-        final long closeMs = 72L;
-        final long holdMs = 34L;
-        final long openMs = 108L;
+        final long closeMs = 76L;
+        final long holdMs = 30L;
+        final long openMs = 116L;
         final long totalMs = closeMs + holdMs + openMs;
         if (elapsed >= totalMs) {
             blinkStartMs = -1L;
@@ -97,18 +113,11 @@ public final class CelineFacialMotionPlanner {
             phase = 1.0f - (elapsed - closeMs - holdMs) / (float) openMs;
         }
         phase = smoothstep(clamp01(phase));
-
-        float stateScale = state == CelineAvatarController.State.THINKING ? 0.88f : 1.0f;
-        float lead = MAX_BLINK * stateScale * phase;
-        float lag = MAX_BLINK * stateScale * clamp01((phase - 0.08f) / 0.92f);
-        if (blinkLeadLeft) {
-            target[BLINK_LEFT] = lead;
-            target[BLINK_RIGHT] = lag;
-        } else {
-            target[BLINK_LEFT] = lag;
-            target[BLINK_RIGHT] = lead;
-        }
-        target[BLINK_BOTH] = Math.min(MAX_BLINK, Math.min(target[BLINK_LEFT], target[BLINK_RIGHT]) * 0.32f);
+        float stateScale = state == CelineAvatarController.State.THINKING ? 0.90f : 1.0f;
+        target[BLINK_BOTH] = MAX_BLINK * stateScale * phase;
+        float asymmetry = 0.045f * phase;
+        target[blinkLeadLeft ? BLINK_LEFT : BLINK_RIGHT] = asymmetry;
+        target[blinkLeadLeft ? BLINK_RIGHT : BLINK_LEFT] = asymmetry * 0.45f;
     }
 
     private void applySpeech(CelineAvatarController.State state,
@@ -116,60 +125,97 @@ public final class CelineFacialMotionPlanner {
                              float energy,
                              float[] target) {
         if (state != CelineAvatarController.State.SPEAKING) return;
-
         float openness = clamp01(cue.openness);
         float width = clamp01(cue.width);
         float roundness = clamp01(cue.roundness);
-        float voiced = 0.35f + 0.65f * energy;
+        float voiced = 0.30f + 0.70f * energy;
 
-        target[JAW_OPEN] = Math.min(MAX_JAW, openness * MAX_JAW * voiced);
         switch (cue.shape) {
             case ROUND:
-            case LABIAL:
-                target[ROUNDED_VOWEL] = Math.min(MAX_VOWEL, (0.22f + 0.78f * roundness) * MAX_VOWEL * voiced);
-                target[SPREAD_VOWEL] = Math.min(MAX_VOWEL * 0.18f, width * 0.08f);
+                target[JAW_OPEN] = openness * MAX_JAW * 0.82f * voiced;
+                target[ROUNDED_VOWEL] = (0.20f + 0.80f * roundness) * MAX_VOWEL * voiced;
                 break;
             case WIDE:
+                target[JAW_OPEN] = openness * MAX_JAW * 0.78f * voiced;
+                target[SPREAD_VOWEL] = (0.18f + 0.82f * width) * MAX_VOWEL * voiced;
+                break;
+            case LABIAL:
+                target[JAW_OPEN] = openness * MAX_JAW * 0.16f * voiced;
+                target[BILABIAL_PRESS] = (0.42f + 0.58f * (1.0f - openness)) * MAX_LIP_CONTACT * voiced;
+                target[ROUNDED_VOWEL] = roundness * MAX_VOWEL * 0.24f;
+                break;
             case TEETH:
-                target[SPREAD_VOWEL] = Math.min(MAX_VOWEL, (0.20f + 0.80f * width) * MAX_VOWEL * voiced);
-                target[ROUNDED_VOWEL] = Math.min(MAX_VOWEL * 0.15f, roundness * 0.06f);
+                target[JAW_OPEN] = openness * MAX_JAW * 0.30f * voiced;
+                target[LABIODENTAL] = (0.34f + 0.66f * width) * MAX_LIP_CONTACT * voiced;
+                target[SPREAD_VOWEL] = width * MAX_VOWEL * 0.30f;
                 break;
             case OPEN:
-                target[ROUNDED_VOWEL] = Math.min(MAX_VOWEL * 0.36f, roundness * 0.15f);
-                target[SPREAD_VOWEL] = Math.min(MAX_VOWEL * 0.36f, width * 0.15f);
+                target[JAW_OPEN] = openness * MAX_JAW * voiced;
+                target[ROUNDED_VOWEL] = roundness * MAX_VOWEL * 0.18f;
+                target[SPREAD_VOWEL] = width * MAX_VOWEL * 0.18f;
                 break;
             case CLOSED:
             default:
-                target[JAW_OPEN] *= 0.18f;
+                target[BILABIAL_PRESS] = energy * MAX_LIP_CONTACT * 0.16f;
                 break;
         }
+        target[JAW_OPEN] = Math.min(MAX_JAW, target[JAW_OPEN]);
+        target[ROUNDED_VOWEL] = Math.min(MAX_VOWEL, target[ROUNDED_VOWEL]);
+        target[SPREAD_VOWEL] = Math.min(MAX_VOWEL, target[SPREAD_VOWEL]);
+        target[BILABIAL_PRESS] = Math.min(MAX_LIP_CONTACT, target[BILABIAL_PRESS]);
+        target[LABIODENTAL] = Math.min(MAX_LIP_CONTACT, target[LABIODENTAL]);
     }
 
-    private float microExpression(long nowMs, CelineAvatarController.State state, float energy) {
+    private void applyExpression(long nowMs,
+                                 CelineAvatarController.State state,
+                                 SpeechVisemeAnalyzer.Cue cue,
+                                 float energy,
+                                 float[] target) {
         double t = nowMs / 1000.0;
-        float base = (float) Math.sin(t * 0.41 + 0.9) * 0.5f + 0.5f;
-        float scale;
+        float pulse = 0.5f + 0.5f * (float) Math.sin(t * 0.37 + 0.8);
         switch (state) {
             case LISTENING:
-                scale = 0.80f;
+                target[SMILE] = 0.10f + pulse * 0.06f;
                 break;
             case THINKING:
-                scale = 0.45f;
+                target[THOUGHTFUL] = 0.18f + pulse * 0.09f;
                 break;
             case SPEAKING:
-                scale = 0.55f + 0.25f * energy;
+                target[SMILE] = (0.04f + pulse * 0.04f) * (1.0f - energy * 0.45f);
+                if (cue.shape != null && "OPEN".equals(cue.shape.name())
+                        && cue.openness > 0.82f && energy > 0.78f) {
+                    target[SURPRISED] = Math.min(MAX_EXPRESSION, (cue.openness - 0.82f) * 1.45f);
+                }
                 break;
             case IDLE:
             default:
-                scale = 0.65f;
+                target[SMILE] = 0.04f + pulse * 0.04f;
                 break;
         }
-        return Math.min(MAX_MICRO, base * MAX_MICRO * scale);
+        target[SMILE] = Math.min(MAX_EXPRESSION, target[SMILE]);
+        target[THOUGHTFUL] = Math.min(MAX_EXPRESSION, target[THOUGHTFUL]);
+        target[SURPRISED] = Math.min(MAX_EXPRESSION, target[SURPRISED]);
+    }
+
+    private void applyGaze(long nowMs, float lookX, float lookY, boolean lookActive, float[] target) {
+        float x;
+        float y;
+        if (lookActive) {
+            x = clampSigned(lookX);
+            y = clampSigned(lookY);
+        } else {
+            double t = nowMs / 1000.0;
+            x = 0.22f * (float) Math.sin(t * 0.29 + 0.6);
+            y = 0.12f * (float) Math.sin(t * 0.23 + 1.7);
+        }
+        if (x < 0.0f) target[GAZE_LEFT] = Math.min(MAX_GAZE, -x * MAX_GAZE);
+        else target[GAZE_RIGHT] = Math.min(MAX_GAZE, x * MAX_GAZE);
+        if (y < 0.0f) target[GAZE_UP] = Math.min(MAX_GAZE, -y * MAX_GAZE);
+        else target[GAZE_DOWN] = Math.min(MAX_GAZE, y * MAX_GAZE);
     }
 
     private void scheduleNextBlink(long nowMs) {
-        // Deterministic bounded cadence: 2.6-4.7 s, avoiding jittery rapid blinking.
-        long interval = 2600L + ((blinkSerial * 977L + 613L) % 2100L);
+        long interval = 2700L + ((blinkSerial * 977L + 613L) % 2200L);
         nextBlinkAtMs = nowMs + interval;
     }
 
@@ -180,4 +226,9 @@ public final class CelineFacialMotionPlanner {
     private static float clamp01(float value) {
         return Math.max(0.0f, Math.min(1.0f, value));
     }
+
+    private static float clampSigned(float value) {
+        return Math.max(-1.0f, Math.min(1.0f, value));
+    }
 }
+
