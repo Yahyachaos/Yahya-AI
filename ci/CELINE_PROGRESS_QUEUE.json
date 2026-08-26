@@ -24,18 +24,19 @@
       "v64 HOME 38mm lifecycle-stable framing and external-media wake-word coexistence",
       "canonical Celine source persisted via Git LFS and SHA-verified before candidate generation",
       "v71 guarded HOME Hips-only feminine presence, CALL-only behind-Filament chair context, stable zoom framing and shoulder-path quarantine",
-      "v72 Blender-verified HOME Hips+LeftShoulder+RightShoulder balance from v44 renderer-captured bases with fail-closed rollback"
+      "v72 Blender-verified HOME Hips+LeftShoulder+RightShoulder balance from v44 renderer-captured bases with fail-closed rollback",
+      "v73 seamless Blender-verified HOME Hips+shoulder breathing/weight-shift loop with exact v44-base CALL rollback"
     ]
   },
   "active": {
-    "id": "natural-body-motion-v73",
-    "status": "v73_runtime_implemented_exact_head_validation_pending",
-    "current_branch": "auto/celine/v73-natural-body-motion",
-    "current_pr": 100,
-    "target_version": 73,
-    "goal": "Begin roadmap order 4 with one bounded, Blender-designed natural HOME motion loop that coordinates the newly safe Hips/shoulders without frozen or robotic transitions.",
-    "risk": "dynamic_joint_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
-    "progress": "v72 is fully released and testable from exact merge SHA 753b59b8b65d6803b962eaf9dd0c945978df015a. Feminine posture order 3 is complete: Hips and both shoulders use v44 renderer-captured bases, exact Blender and Android production images passed without deformation, and CALL rollback remains clean. v73 starts design only: create a short seamless Blender motion loop with restrained breathing/weight shift on the already proven Hips+shoulder owner, inspect keyframes and loop seam from multiple views, then translate only the smallest safe amplitudes into Android. Arms/hands, spine, legs and face remain pending unless separately proven. Draft PR #100 is open as the sole active queue step. Blender 4.5.12 front/right/back keyframes passed without deformation; frame 1 and 97 have zero matrix error and exact decoded-pixel equality. The bounded 4.0 s HOME loop is now implemented in CelineNaturalBodyMotionV73 using only Hips+LeftShoulder+RightShoulder, with every HOME entry starting at the exact v72 base and CALL restoring exact v44 bases before v70 ownership. Exact-head contracts, build and production Android render remain pending.",
+    "id": "bounded-arm-hand-presence-v74",
+    "status": "v74_blender_design_in_progress",
+    "current_branch": "auto/celine/v74-bounded-arm-hand-presence",
+    "current_pr": null,
+    "target_version": 74,
+    "goal": "Continue roadmap order 4 with one bounded Blender-designed HOME arm/hand presence candidate that builds on v69 relaxed arms and v73 body motion without reintroducing A-pose or deformation.",
+    "risk": "arm_forearm_hand_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
+    "progress": "v73 is fully released and testable from exact merge SHA e197add3ffc7835345a6ecd6ee4572e87bedbfd6. The first natural-body-motion slice is complete: restrained Hips+shoulder breathing/weight shift is seamless and safe across HOME/CALL/HOME plus zoom. v74 begins Blender design only. First inspect the exact hand/finger bone availability and weights, then design the smallest seamless arm/hand presence candidate around v69's approved relaxed bases. No Android writer is permitted until front/right/back keyframes and the loop seam pass.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -62,7 +63,7 @@
       "source_modified": false,
       "real_render_validation": "PASS on PR #93 exact head and exact main v66",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v73 runtime implemented; exact-head contract/build plus Android HOME/CALL/HOME-return and zoom evidence pending"
+      "remaining_gate": "v74 exact rig/weight inspection and Blender-only bounded arm/hand loop design is the sole active gate"
     }
   },
   "completed": [
@@ -336,21 +337,38 @@
       "release_asset": "Yahya-AI-v72.apk",
       "release_digest": "sha256:27423565014b77a678cd3786fcdf934b1f27a360ec0b3fa5151e2ccee615ea08",
       "result": "Blender front/right/back previews selected a minimal feminine HOME Hips+LeftShoulder+RightShoulder candidate. Production uses only v44 renderer-captured bases, never the old v58 arbitrary shoulder snapshot, and fails closed if any base is absent. Exact Android images showed no mesh, clothing, hair, face or identity deformation across HOME/CALL/HOME-return and zoom; exact-main passed before publication."
+    },
+    {
+      "id": "v73-natural-home-body-motion-loop",
+      "status": "merged_released_testable",
+      "pr": 100,
+      "tested_head_sha": "93843c1aecc6b6e38c6fc0e6fb5e1a304993406d",
+      "merge_sha": "e197add3ffc7835345a6ecd6ee4572e87bedbfd6",
+      "pr_android_run": 32953135783,
+      "real_candidate_run": 32953135784,
+      "real_candidate_artifact": 9601066100,
+      "real_candidate_artifact_digest": "sha256:eb136c40493d5f78e9af24bbbe08f2f1a2d13cfc7e890c566e0fe9bfb425ca62",
+      "main_validation_release_run": 32953818789,
+      "release_tag": "v73",
+      "release_asset": "Yahya-AI-v73.apk",
+      "release_digest": "sha256:34b5f1b8a62efc5d13c4f62469f56bd4bd1248b38ea2af6ca8f7ed2f177cdc65",
+      "result": "A Blender-designed four-second HOME loop animates only the v72-proven Hips+LeftShoulder+RightShoulder around exact v44 bases. Frame 1/97 matched with zero matrix and decoded-pixel error. Exact production HOME/CALL/HOME-return plus far/default/near zoom images preserved identity, clothing, hair, seated CALL and full-person visibility; exact-head and exact-main gates passed before publication."
     }
   ],
   "next": [
     {
-      "id": "v73-natural-body-motion-loop",
-      "status": "runtime_implemented_exact_head_validation_pending_pr_100",
-      "target_version": 73,
-      "goal": "Design and prove one seamless restrained HOME breathing/weight-shift loop before adding any dynamic Android writer.",
+      "id": "v74-bounded-arm-hand-presence",
+      "status": "blender_rig_and_motion_design_in_progress",
+      "target_version": 74,
+      "goal": "Inspect and design one minimal seamless HOME arm/hand presence loop before adding any new Android ownership.",
       "constraints": [
         "remain inside roadmap order 4; appearance/styling and intelligence stay pending",
-        "animate only the v72-proven Hips+LeftShoulder+RightShoulder set in the first candidate",
-        "use exact canonical GLB and v44-base-relative rotations",
-        "prove front/right/back keyframes plus loop seam before Android changes",
-        "keep CALL owned by v70 and restore every HOME joint exactly on handoff",
-        "preserve v69 arms, v66 face, v68 keyboard/videochat geometry and safe zoom",
+        "preserve the v69 relaxed arm base and v73 Hips+shoulder loop",
+        "inspect exact arm, forearm, hand and finger bones plus weights before selecting joints",
+        "start with the smallest joint set; fingers remain excluded unless independently proven",
+        "prove front/right/back keyframes plus exact loop seam before Android changes",
+        "keep CALL owned by v69/v70/v55 and restore every HOME joint exactly on handoff",
+        "preserve v66 face, v68 keyboard/videochat geometry and safe zoom",
         "single active PR only; no release before exact-head and exact-main proof"
       ]
     }
@@ -434,7 +452,7 @@
           {
             "order": 4,
             "id": "natural-body-motion",
-            "status": "in_progress_v73_blender_motion_design",
+            "status": "in_progress_v74_blender_arm_hand_design",
             "deliverables": [
               "bounded arm and hand presence",
               "subtle breathing and weight shifts",
@@ -515,12 +533,12 @@
     }
   },
   "latest_release": {
-    "version": 72,
+    "version": 73,
     "status": "published_testable",
-    "sha": "753b59b8b65d6803b962eaf9dd0c945978df015a",
-    "run": 32951000709,
-    "tag": "v72",
-    "asset": "Yahya-AI-v72.apk",
-    "digest": "sha256:27423565014b77a678cd3786fcdf934b1f27a360ec0b3fa5151e2ccee615ea08"
+    "sha": "e197add3ffc7835345a6ecd6ee4572e87bedbfd6",
+    "run": 32953818789,
+    "tag": "v73",
+    "asset": "Yahya-AI-v73.apk",
+    "digest": "sha256:34b5f1b8a62efc5d13c4f62469f56bd4bd1248b38ea2af6ca8f7ed2f177cdc65"
   }
 }
