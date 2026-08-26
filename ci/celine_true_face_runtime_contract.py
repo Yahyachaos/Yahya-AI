@@ -36,7 +36,7 @@ for needle, purpose in required.items():
 if not re.search(r"public\s+void\s+setViseme\s*\([^)]*\)\s*\{\s*\}", view):
     raise SystemExit("source setViseme hook no longer matches the guarded build transform")
 build_required = {
-    "versionCode 73": "v73 natural motion release version gate",
+    "versionCode 74": "v74 arm-hand motion release version gate",
     "generateCelineProductionMorphV65": "reproducible candidate generation",
     "validateCelineProductionMorphV65": "structural candidate validation",
     "assets.srcDir celineV65GeneratedAssetsDir": "generated production asset packaging",
@@ -70,4 +70,4 @@ for needle, purpose in runtime_required.items():
 if PROD.exists():
     raise SystemExit("opaque production celine.glb unexpectedly committed instead of generated")
 
-print("true-face v66 packaged-source recovery contract preserved in v73: PASS")
+print("true-face v66 packaged-source recovery contract preserved in v74: PASS")
