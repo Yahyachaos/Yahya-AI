@@ -236,9 +236,31 @@ fi
 adb exec-out screencap -p > emulator-call.png
 python3 ci/check-magenta-avatar.py emulator-call.png CALL || fail_with_log "CALL 3D avatar pixels missing"
 
-# Surface/Filament lifecycle regression gate: closing CALL must restore HOME and the avatar.
-echo "Closing videochat and verifying HOME recovery"
-adb shell input keyevent 4
+# Surface/Filament lifecycle regression gate: close CALL through its actual visible hang-up control.
+# System BACK exits MainActivity on this screen, so using BACK here tests Android navigation rather
+# than the intended CALL -> HOME lifecycle and can produce a false regression.
+read -r HANGUP_X HANGUP_Y <<< "$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root = ET.parse('emulator-call.xml').getroot()
+for node in root.iter('node'):
+    if 'Auflegen' not in node.attrib.get('text', '') or node.attrib.get('clickable', '') != 'true':
+        continue
+    m = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
+    if not m:
+        continue
+    x1, y1, x2, y2 = map(int, m.groups())
+    print((x1+x2)//2, (y1+y2)//2)
+    raise SystemExit(0)
+raise SystemExit('Could not resolve CALL hang-up button bounds')
+PY
+)"
+if [[ -z "${HANGUP_X:-}" || -z "${HANGUP_Y:-}" ]]; then
+  fail_with_log "Could not resolve CALL hang-up coordinates"
+fi
+
+echo "Closing videochat via Auflegen at $HANGUP_X,$HANGUP_Y and verifying HOME recovery"
+adb shell input tap "$HANGUP_X" "$HANGUP_Y"
 sleep 4
 PID_AFTER="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 if [[ -z "$PID_AFTER" ]]; then

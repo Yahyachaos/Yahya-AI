@@ -58,6 +58,7 @@ wait_for_log 'V39-150' 'packaged production texture binding'
 wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
 wait_for_log 'V69-100' 'production four-joint arm rig binding'
 wait_for_log 'V69-110' 'HOME A-pose removal'
+wait_for_log 'V70-100' 'production seated lower-body rig binding'
 
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail "process died before HOME proof"
@@ -69,6 +70,7 @@ adb exec-out screencap -p > real-candidate-home.png
 grep -q 'Celin 3D Ansicht' real-candidate-home.xml || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
+python3 ci/check-celine-person-presence.py real-candidate-home.png HOME
 
 # v65 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
@@ -90,7 +92,7 @@ fi
 if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
   fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
 fi
-if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V69-198|V69-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V69-198|V69-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
   fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
@@ -109,6 +111,8 @@ PY
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 7
 wait_for_log 'V69-120' 'CALL relaxed arm pose'
+wait_for_log 'V70-110' 'CALL seated foundation entry'
+wait_for_log 'V70-120' 'CALL seated lower-body matrices'
 
 PID_CALL="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_CALL" ]] || fail "process died opening CALL"
@@ -118,11 +122,13 @@ adb exec-out screencap -p > real-candidate-call.png
 grep -q 'Live mit Celin' real-candidate-call.xml || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' real-candidate-call.xml || fail "CALL 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-call.png CALL
+python3 ci/check-celine-person-presence.py real-candidate-call.png CALL
 
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
 adb shell input keyevent 4
 sleep 5
 wait_for_log 'V69-130' 'HOME-return arm pose restoration'
+wait_for_log 'V70-130' 'HOME-return lower-body restoration'
 PID_RETURN="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_RETURN" ]] || fail "process died returning HOME"
 adb shell uiautomator dump /sdcard/celine-real-return.xml >/dev/null || fail "HOME-return UI dump failed"
@@ -131,17 +137,18 @@ adb exec-out screencap -p > real-candidate-home-return.png
 grep -q 'Mit Celin' real-candidate-home-return.xml || fail "HOME did not recover"
 grep -q 'Celin 3D Ansicht' real-candidate-home-return.xml || fail "HOME-return 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETURN
+python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_RETURN
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V69-198|V69-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V69-198|V69-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
 if ! grep -q 'V62-210' real-candidate-logcat-final.txt; then
   fail "morph runtime activation evidence missing after lifecycle"
 fi
-for marker in V69-100 V69-110 V69-120 V69-130; do
+for marker in V69-100 V69-110 V69-120 V69-130 V70-100 V70-110 V70-120 V70-130; do
   grep -q "$marker" real-candidate-logcat-final.txt || fail "v69 arm lifecycle marker missing: $marker"
 done
 
-printf 'PASS packaged v69 four-joint A-pose removal Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v70 seated CALL plus v69 relaxed-arm Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
