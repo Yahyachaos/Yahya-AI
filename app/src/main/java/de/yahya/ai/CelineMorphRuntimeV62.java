@@ -20,6 +20,7 @@ final class CelineMorphRuntimeV62 {
                 new CelineFacialMotionPlanner(System.nanoTime() / 1_000_000L);
         int[] morphInstances;
         volatile SpeechVisemeAnalyzer.Cue cue = SpeechVisemeAnalyzer.silent();
+        volatile float[] diagnosticWeights;
         boolean probed;
         boolean enabled;
         boolean loggedMissing;
@@ -30,6 +31,36 @@ final class CelineMorphRuntimeV62 {
     static void onViseme(Celine3DView view, SpeechVisemeAnalyzer.Cue cue) {
         if (view == null) return;
         stateFor(view).cue = cue == null ? SpeechVisemeAnalyzer.silent() : cue;
+    }
+
+    /**
+     * v79 Avatar Lab-only diagnostic override. Uses the same guarded final-geometry morph runtime
+     * and therefore cannot silently switch to a fallback face. The supplied array is copied.
+     */
+    static void setDiagnosticWeights(Celine3DView view, float[] requested) {
+        if (view == null) return;
+        if (requested == null) {
+            clearDiagnosticWeights(view);
+            return;
+        }
+        float[] safe = new float[TARGET_COUNT];
+        int count = Math.min(TARGET_COUNT, requested.length);
+        for (int i = 0; i < count; i++) safe[i] = clamp01(requested[i]);
+        stateFor(view).diagnosticWeights = safe;
+    }
+
+    static void setDiagnosticTarget(Celine3DView view, int target, float value) {
+        if (view == null) return;
+        float[] weights = new float[TARGET_COUNT];
+        if (target >= 0 && target < TARGET_COUNT) weights[target] = clamp01(value);
+        setDiagnosticWeights(view, weights);
+    }
+
+    static void clearDiagnosticWeights(Celine3DView view) {
+        if (view == null) return;
+        RuntimeState state = stateFor(view);
+        state.diagnosticWeights = null;
+        state.planner.reset(System.nanoTime() / 1_000_000L);
     }
 
     static void onFrame(Celine3DView view, long frameTimeNanos) {
@@ -46,13 +77,16 @@ final class CelineMorphRuntimeV62 {
                 view.v76LookX(),
                 view.v76LookY(),
                 view.v76LookActive());
+        float[] diagnostic = state.diagnosticWeights;
+        float[] output = diagnostic == null ? frame.weights : diagnostic;
         try {
             RenderableManager manager = view.v62Engine().getRenderableManager();
             for (int instance : state.morphInstances) {
-                manager.setMorphWeights(instance, frame.weights, 0);
+                manager.setMorphWeights(instance, output, 0);
             }
         } catch (Throwable error) {
             state.enabled = false;
+            state.diagnosticWeights = null;
             state.planner.reset(frameTimeNanos / 1_000_000L);
             Celine3DDiagnostics.error(view.getContext(), "V76-299",
                     "Final-geometry Face-Morph Runtime deaktiviert", error);
@@ -108,5 +142,9 @@ final class CelineMorphRuntimeV62 {
             return state;
         }
     }
-}
 
+    private static float clamp01(float value) {
+        if (Float.isNaN(value) || Float.isInfinite(value)) return 0.0f;
+        return Math.max(0.0f, Math.min(1.0f, value));
+    }
+}
