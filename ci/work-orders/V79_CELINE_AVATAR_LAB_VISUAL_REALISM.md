@@ -3,6 +3,26 @@
 ## Purpose
 Create a repeatable in-app/developer viewer for Celine so pose, animation, facial-rig, camera and scene-integration problems can be inspected quickly without running a full video suite after every small iteration. This work order is intentionally before any further intelligence expansion.
 
+## User access — REQUIRED
+The Avatar Lab must be directly accessible to the user from the installed Yahya AI app, not only from CI or an internal debug build.
+
+Expose a clear entry under Settings named **Celine Avatar Lab** (or an equally obvious Celine/Avatar diagnostic entry) in normal user builds. It may be visually marked as a test/developer area, but it must not require ADB, Android Studio, hidden shell commands, a separate APK, or source-code changes to open.
+
+The user must be able to:
+- open the lab from the app and return safely to HOME without restarting the app;
+- select all pose/animation presets manually;
+- trigger a single blink and slow/repeated blink on demand;
+- inspect the face extremely close without changing production model scale;
+- view front, rear, left/right profile and both 3/4 angles;
+- inspect full body, upper body, seated pose and face close-up;
+- orbit around Celine and dolly the diagnostic camera closer/farther;
+- reset camera and pose instantly to a deterministic neutral state;
+- enable/disable idle motion to compare a static pose against live animation;
+- see which pose/expression/camera preset is currently active;
+- test speech/viseme motion where supported without needing a full conversation.
+
+The lab controls must be large enough for normal phone use and remain independent of production HOME/CALL gestures. No lab-only free-object translation or diagnostic camera control may leak into the normal HOME/CALL interaction model.
+
 ## User-observed regressions that MUST be reproduced and fixed
 - Blink appears to deform cheek/under-eye geometry instead of being isolated to eyelids/eyes.
 - CALL seated pose is visibly crooked/unbalanced and does not read as a person naturally sitting in the room.
@@ -79,6 +99,8 @@ During v79 iteration use Avatar Lab as the primary fast visual inspection tool p
 Before merge, the final exact-head must still receive the full required exact-head gates. The Avatar Lab does not replace final release evidence; it reduces expensive iteration loops.
 
 Required final visual evidence should include deterministic captured views from the lab for standing, seated, face close-up blink, profile, arms/hands, and camera dolly/orbit plus the real HOME -> CALL -> HOME lifecycle gate.
+
+The final v79 user-validation gate must also prove that **Celine Avatar Lab is reachable from the normal installed app Settings and that the user can return to HOME without breaking avatar state or lifecycle ownership.**
 
 ## Release/queue write-safety hardening
 The v78 release exposed a metadata defect: tag/asset/SHA were v78 while the release body still contained v75 text. Before v79 can be released, publication logic must be hardened so stale release metadata cannot silently pass.
