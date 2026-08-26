@@ -4,16 +4,22 @@
 The source mesh, vertex attributes, skin, bones, morph targets and triangle topology stay
 unchanged. Only triangle-to-material assignment changes. This avoids repainting the shared
 4096 atlas, which exact-head review proved cross-contaminates unrelated body regions.
+
+The Android renderer intentionally normalizes baseColorFactor to white at runtime for legacy
+Meshy material repair. Therefore the v75 semantic colors are stored as tiny embedded base-color
+textures as well as factors, so the visible reference palette survives that protected runtime path.
 """
 import argparse
 from collections import Counter
 from array import array
+import binascii
 import hashlib
 import json
 import math
 import os
 import struct
 import sys
+import zlib
 
 COMPONENT = {5121: "B", 5123: "H", 5125: "I", 5126: "f"}
 COMPONENTS = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
@@ -76,12 +82,39 @@ def append_indices(doc, binary_out, values, component_type):
     return accessor_index
 
 
-def material(name, rgb, roughness):
+def png_chunk(kind, payload):
+    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", binascii.crc32(kind + payload) & 0xFFFFFFFF)
+
+
+def solid_png(rgb):
+    pixel = bytes(max(0, min(255, int(round(c * 255.0)))) for c in rgb)
+    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", ihdr)
+            + png_chunk(b"IDAT", zlib.compress(b"\x00" + pixel, 9)) + png_chunk(b"IEND", b""))
+
+
+def append_solid_texture(doc, binary_out, rgb, name):
+    while len(binary_out) % 4:
+        binary_out.append(0)
+    png = solid_png(rgb)
+    offset = len(binary_out)
+    binary_out.extend(png)
+    view_index = len(doc.setdefault("bufferViews", []))
+    doc["bufferViews"].append({"buffer": 0, "byteOffset": offset, "byteLength": len(png)})
+    image_index = len(doc.setdefault("images", []))
+    doc["images"].append({"name": name + "_image", "bufferView": view_index, "mimeType": "image/png"})
+    texture_index = len(doc.setdefault("textures", []))
+    doc["textures"].append({"name": name + "_texture", "source": image_index})
+    return texture_index
+
+
+def material(name, rgb, roughness, texture_index):
     return {
         "name": name,
         "doubleSided": True,
         "pbrMetallicRoughness": {
             "baseColorFactor": [rgb[0], rgb[1], rgb[2], 1.0],
+            "baseColorTexture": {"index": texture_index},
             "metallicFactor": 0.0,
             "roughnessFactor": roughness,
         },
@@ -161,10 +194,8 @@ joint_names = [doc["nodes"][i].get("name", "") for i in doc["skins"][0]["joints"
 by_name = {name: i for i, name in enumerate(joint_names)}
 labels = [choose_vertex_label(p, js, ws, by_name) for p, js, ws in zip(positions, joints, weights)]
 groups = {name: [] for name in ("skin", "top", "jeans", "shoes", "hair")}
-original_triangles = []
 for i in range(0, len(indices), 3):
     tri = indices[i:i + 3]
-    original_triangles.append(tuple(tri))
     label = choose_triangle([labels[j] for j in tri])
     groups[label].extend(tri)
 
@@ -174,6 +205,17 @@ for required in ("skin", "top", "jeans", "shoes", "hair"):
     if len(groups[required]) < 60:
         raise SystemExit(f"material region too small: {required}={len(groups[required]) // 3} triangles")
 
+palette = {
+    "top": (0.76, 0.64, 0.51),
+    "jeans": (0.018, 0.020, 0.024),
+    "shoes": (0.98, 0.97, 0.94),
+    "hair": (0.88, 0.70, 0.46),
+}
+binary_out = bytearray(binary)
+texture_index = {
+    label: append_solid_texture(doc, binary_out, rgb, "CelineV75_" + label)
+    for label, rgb in palette.items()
+}
 materials = list(doc.get("materials", []))
 material_index = {
     "skin": primitive.get("material", 0),
@@ -182,17 +224,13 @@ material_index = {
     "shoes": len(materials) + 2,
     "hair": len(materials) + 3,
 }
-# The exact-head emulator is warmer/darker than the master-reference studio renders.
-# Keep the semantic split, but compensate at the PBR base color so the visible result
-# converges on the frozen v2 masters rather than merely naming the intended colors.
 materials.extend([
-    material("CelineV75_BeigeRibbedTop", (0.76, 0.64, 0.51), 0.78),
-    material("CelineV75_FittedBlackJeans", (0.018, 0.020, 0.024), 0.72),
-    material("CelineV75_WhiteSneakers", (0.98, 0.97, 0.94), 0.66),
-    material("CelineV75_GoldenBlondeHair", (0.88, 0.70, 0.46), 0.72),
+    material("CelineV75_BeigeRibbedTop", palette["top"], 0.78, texture_index["top"]),
+    material("CelineV75_FittedBlackJeans", palette["jeans"], 0.72, texture_index["jeans"]),
+    material("CelineV75_WhiteSneakers", palette["shoes"], 0.66, texture_index["shoes"]),
+    material("CelineV75_GoldenBlondeHair", palette["hair"], 0.72, texture_index["hair"]),
 ])
 doc["materials"] = materials
-binary_out = bytearray(binary)
 new_primitives = []
 for label in ("skin", "top", "jeans", "shoes", "hair"):
     values = groups[label]
@@ -208,16 +246,15 @@ open(args.output_glb, "wb").write(output)
 report = {
     "schema": 1,
     "status": "PASS",
-    "policy": "shared_uv_safe_triangle_material_split",
+    "policy": "shared_uv_safe_triangle_material_split_with_runtime_stable_solid_textures",
     "input_sha256": hashlib.sha256(raw).hexdigest(),
     "output_sha256": hashlib.sha256(output).hexdigest(),
     "triangle_count": len(indices) // 3,
     "region_triangles": {k: len(v) // 3 for k, v in groups.items()},
     "materials": ["canonical skin/face atlas", "beige ribbed top", "fitted black jeans", "white sneakers", "golden blonde hair"],
+    "runtime_color_guard": "semantic colors use embedded 1x1 baseColorTexture so legacy baseColorFactor normalization cannot erase them",
     "preserved": ["positions", "normals", "uvs", "joints", "weights", "morph targets", "skin", "bones", "animations", "triangle topology"],
 }
 os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
 open(args.report, "w", encoding="utf-8").write(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report, indent=2))
-
-# Exact-head CI trigger after atomic Git-data commit; no runtime behavior change below this line.
