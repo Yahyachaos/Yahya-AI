@@ -24,9 +24,9 @@ import java.util.WeakHashMap;
  * No shoulder, arm, root, leg, head, face, camera or layout geometry is touched here.
  */
 final class CelineFemininePresenceV71 {
-    private static final float HOME_HIPS_PITCH = -1.0f;
-    private static final float HOME_HIPS_YAW = -1.6f;
-    private static final float HOME_HIPS_ROLL = 2.2f;
+    private static final float HOME_HIPS_PITCH = -1.2f;
+    private static final float HOME_HIPS_YAW = -2.0f;
+    private static final float HOME_HIPS_ROLL = 4.0f;
 
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
 
@@ -192,7 +192,7 @@ final class CelineFemininePresenceV71 {
             if (!loggedFrame) {
                 loggedFrame = true;
                 Celine3DDiagnostics.record(activity, "V71-110", "Feminine HOME-Balance aktiv",
-                        "Hips pitch=-1.0° · yaw=-1.6° · roll=2.2° · statisch · keine Schulterproduktion");
+                        "Hips pitch=-1.2° · yaw=-2.0° · roll=4.0° · statisch · keine Schulterproduktion");
             }
         }
 
