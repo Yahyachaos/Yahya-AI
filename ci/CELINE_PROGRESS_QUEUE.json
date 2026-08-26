@@ -31,14 +31,14 @@
   },
   "active": {
     "id": "awaiting-next-celine-optics-instruction",
-    "status": "waiting_no_active_runtime_pr",
+    "status": "waiting_no_active_runtime_pr_v74_published",
     "current_branch": null,
     "current_pr": null,
     "target_version": null,
     "goal": "Hold after merged v74 so the next Celine optics task can be supplied and reconciled separately.",
     "risk": "none_no_parallel_development",
-    "progress": "v74 PR #101 was exact-head validated and merged at 6e5946f3b72eb99fddc38bf50ff1e097172dfb30. The exact main build succeeded and artifact 9602717601 is available for user testing. The automatic v74 release was not published because the user chose to stop repeated flaky synthetic emulator checks; latest published/testable release therefore remains v73. No v75 or later task has been started.",
-    "remaining_gate": "await explicit next optics task; v74 user test feedback may be added by another task"
+    "progress": "v74 PR #101 was exact-head validated and merged at 6e5946f3b72eb99fddc38bf50ff1e097172dfb30. The exact merge build was manually published at the user's explicit request as the latest v74 release with asset Yahya-AI-v74.apk and matching SHA-256. No v75 or later task has been started.",
+    "remaining_gate": "await user v74 test feedback or an explicit next Celine optics task"
   },
   "completed": [
     {
@@ -330,7 +330,7 @@
     },
     {
       "id": "v74-bounded-arm-hand-presence",
-      "status": "merged_exact_head_validated_build_artifact_available_release_not_published",
+      "status": "merged_released_latest_user_validation",
       "pr": 101,
       "tested_head_sha": "7502cdfca9986dffd6e4debcff43c4f621332530",
       "merge_sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
@@ -341,7 +341,13 @@
       "main_run": 32957880024,
       "main_build_artifact": 9602717601,
       "main_build_artifact_digest": "sha256:bb02e40c78a3543993b80db133522ee0aa358928f36b0ebff67aebed94255722",
-      "result": "Exact-head Android and real production HOME/CALL/HOME-return plus far/default/near zoom proof passed; manual original-image review found no disappearance or deformation. PR #101 merged exactly. Main build succeeded. User requested stopping repeated flaky synthetic emulator reruns and will test the build artifact, so no immutable v74 release was published."
+      "result": "Exact-head Android and real production HOME/CALL/HOME-return plus far/default/near zoom proof passed; manual original-image review found no disappearance or deformation. PR #101 merged exactly. Main build succeeded. User requested stopping repeated flaky synthetic emulator reruns and will test the build artifact, so no immutable v74 release was published.",
+      "release_tag": "v74",
+      "release_asset": "Yahya-AI-v74.apk",
+      "release_digest": "sha256:fc35f2ec8b6e8a3f380f8a58aa9fdced17beea31e89b9026f10add516a681c0a",
+      "release_url": "https://github.com/Yahyachaos/Yahya-AI/releases/tag/v74",
+      "release_target_sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
+      "release_mode": "manual_latest_release_after_user_explicitly_stopped_repeated_synthetic_main_emulator_retries"
     }
   ],
   "next": [],
@@ -505,21 +511,25 @@
     }
   },
   "latest_release": {
-    "version": 73,
-    "status": "published_testable",
-    "sha": "e197add3ffc7835345a6ecd6ee4572e87bedbfd6",
-    "run": 32953818789,
-    "tag": "v73",
-    "asset": "Yahya-AI-v73.apk",
-    "digest": "sha256:34b5f1b8a62efc5d13c4f62469f56bd4bd1248b38ea2af6ca8f7ed2f177cdc65"
+    "version": 74,
+    "status": "published_latest_user_validation",
+    "sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
+    "run": 32957880024,
+    "tag": "v74",
+    "asset": "Yahya-AI-v74.apk",
+    "digest": "sha256:fc35f2ec8b6e8a3f380f8a58aa9fdced17beea31e89b9026f10add516a681c0a",
+    "url": "https://github.com/Yahyachaos/Yahya-AI/releases/tag/v74"
   },
   "latest_merged_candidate": {
     "version": 74,
-    "status": "merged_build_artifact_available_user_test_pending_not_published",
+    "status": "released_latest_user_validation",
     "sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
     "pr": 101,
     "build_run": 32957880024,
     "artifact": 9602717601,
-    "artifact_digest": "sha256:bb02e40c78a3543993b80db133522ee0aa358928f36b0ebff67aebed94255722"
+    "artifact_digest": "sha256:bb02e40c78a3543993b80db133522ee0aa358928f36b0ebff67aebed94255722",
+    "release_tag": "v74",
+    "release_asset": "Yahya-AI-v74.apk",
+    "release_digest": "sha256:fc35f2ec8b6e8a3f380f8a58aa9fdced17beea31e89b9026f10add516a681c0a"
   }
 }
