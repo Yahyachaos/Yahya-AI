@@ -1,11 +1,10 @@
-# Yahya AI v70
+# Yahya AI v75
 
-- Celin erhält im Live-Videochat eine echte sitzende Unterkörperpose statt weiterhin zu stehen.
-- Die neue Sitzpose ist ausschließlich im CALL aktiv und besitzt nur Root, Hüfte, beide Oberschenkel, beide Unterschenkel und beide Füße.
-- Schultern bleiben vollständig gesperrt; die in v69 geprüften entspannten Arme und die getrennte Kopf-/Gesichtsbewegung bleiben unverändert.
-- Die bereits bewährte CALL-Kamera bleibt unverändert; v70 übernimmt weder Zoom noch Blickpunkt.
-- Beim Zurückkehren zu HOME werden Root, Hüfte, Beine und Füße exakt auf ihre vorherigen Basen zurückgesetzt.
-- Fehlen die erforderlichen Gelenke oder tritt ein Laufzeitfehler auf, wird die Sitzpose kontrolliert übersprungen beziehungsweise vollständig zurückgerollt.
-- v70 fügt keine neue UI-Schicht hinzu und verändert weder Eingabefeld noch Videochat-Schaltfläche oder deren Positionen.
-- Ein neues Produktionsbild-Gate verlangt Celinas echte zentrale Haut-/Haarpixel; ein leerer CALL-Raum kann nicht mehr als sichtbar gelten.
-- Vor dem Merge müssen echte Produktionsbilder HOME → sitzender CALL → HOME ohne Mesh-, Gesichts- oder Schulterdeformation geprüft werden.
+- Celine wurde anhand des SHA-verifizierten v2-Masterreferenzpakets visuell neu aufgebaut.
+- Gesicht, Körper-Silhouette, lange blonde Haare, grüne Augen, beigefarbenes schulterfreies Oberteil, schwarze Jeans, weiße Sneaker und die kleine Halskette entsprechen jetzt der festgelegten v75-Identität.
+- Das bewährte Skelett, Skinning, die Animationseigentümer, der Renderer sowie HOME/CALL/HOME-Lebenszyklus und Kamera-/Zoom-Verhalten bleiben erhalten.
+- Die finale Geometrie verwendet den geprüften Kandidaten-Hash `e47c7105b4bb7f698eafdc05126f610b2f5fb6261036e36a0aabccab146ba422`.
+- Die Textur-Pipeline fällt kontrolliert auf den kanonischen Atlas zurück und verhindert die zuvor verworfene Gesichts- und Kleidungs-Kontamination.
+- Der exakte PR-Head bestand Android-Build, Avatar-Sichtbarkeit, HOME → CALL → HOME, Zoom und Mehransicht-Renderprüfung.
+- Der exakte Main-Commit wurde erneut geprüft und als testbare v75-Version veröffentlicht.
+- Die einmalige Original-Sicherung bleibt unverändert auf `backup/celine-pre-v75-2026-08-26-1deccd9`.
