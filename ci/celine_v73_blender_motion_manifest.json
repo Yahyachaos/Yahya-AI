@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "purpose": "Reproducible Blender design evidence for the bounded v73 natural HOME motion loop",
+  "blender_version": "4.5.12 LTS",
+  "canonical_source_path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
+  "canonical_source_sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
+  "selected_candidate": "v73-bounded-four-second-home-loop",
+  "duration_seconds": 4,
+  "fps": 24,
+  "seam_frames": [
+    1,
+    97
+  ],
+  "animated_joints": [
+    "Hips",
+    "LeftShoulder",
+    "RightShoulder"
+  ],
+  "base_v72_degrees": {
+    "Hips": {
+      "pitch": -2,
+      "yaw": -3.5,
+      "roll": 6
+    },
+    "LeftShoulder": {
+      "pitch": -1.2,
+      "yaw": 0,
+      "roll": -0.7
+    },
+    "RightShoulder": {
+      "pitch": -0.6,
+      "yaw": 0,
+      "roll": 0.5
+    }
+  },
+  "maximum_motion_amplitude_degrees": {
+    "Hips": {
+      "pitch": 0.1,
+      "yaw": 0.12,
+      "roll": 0.18
+    },
+    "LeftShoulder": {
+      "pitch": 0.13,
+      "yaw": 0,
+      "roll": 0.05
+    },
+    "RightShoulder": {
+      "pitch": 0.1,
+      "yaw": 0,
+      "roll": 0.04
+    }
+  },
+  "seam_proof": {
+    "max_matrix_absolute_error": {
+      "Hips": 0,
+      "LeftShoulder": 0,
+      "RightShoulder": 0
+    },
+    "decoded_pixel_exact_match": {
+      "front": true,
+      "right": true,
+      "back": true
+    },
+    "result": "PASS_EXACT_FRAME_1_FRAME_97_SEAM"
+  },
+  "local_keyframe_evidence_sha256": {
+    "frame_25": {
+      "front": "e9248584a006a5ddbd79e8b8a2c1b1e169a697110ca9737ce536ba18c1d4768f",
+      "right": "6a80bd2dbdff124edc57e7e72c2f18869b84844631d643452c6783080e466127",
+      "back": "744ac3f8ed817d7bcaa07ff79493129f7a301bec5db0ce1ac75c3636db7daeb3"
+    },
+    "frame_73": {
+      "front": "0a175ac52707d0e195706b01aae49a58771ebb27d092eabe9bdf518c7899fc9a",
+      "right": "57b27c25eacab16ca1a2e0188b4a3ba5c98490df0932e4ce53df63133cc295d1",
+      "back": "df1d74b01aa4a2c098ecff4f67afbecffc9d24f286d80b5c3eb2a77d0130259a"
+    }
+  },
+  "manual_review": "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION",
+  "runtime_boundary": "HOME only; CALL restores exact v44 bases before v70 ownership",
+  "preserved_external_owners": {
+    "arms": "CelineArmPoseV69",
+    "call_lower_body": "CelineSeatedCallV70",
+    "call_head_neck": "CelineCallUpperBodyPresenceV55"
+  },
+  "android_gate": "PENDING_EXACT_PRODUCTION_RENDER",
+  "safety_note": "v73 animates only the three v72-proven joints and starts every HOME entry at the exact v72 base"
+}

@@ -20,6 +20,8 @@ on:
       - 'app/src/main/java/de/yahya/ai/CelineFemininePresenceV71.java'
       - 'app/src/main/java/de/yahya/ai/CelineFemininePresenceV72.java'
       - 'ci/celine_v72_blender_pose_manifest.json'
+      - 'app/src/main/java/de/yahya/ai/CelineNaturalBodyMotionV73.java'
+      - 'ci/celine_v73_blender_motion_manifest.json'
       - 'app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineCameraZoomV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineArmPoseV69.java'
@@ -93,7 +95,7 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Build guarded v72 Blender feminine pose APK
+      - name: Build guarded v73 Blender natural motion APK
         shell: bash
         run: |
           set -euo pipefail

@@ -23,18 +23,19 @@
       "v63 guarded Filament six-target face-morph runtime with automatic no-morph rollback",
       "v64 HOME 38mm lifecycle-stable framing and external-media wake-word coexistence",
       "canonical Celine source persisted via Git LFS and SHA-verified before candidate generation",
-      "v71 guarded HOME Hips-only feminine presence, CALL-only behind-Filament chair context, stable zoom framing and shoulder-path quarantine"
+      "v71 guarded HOME Hips-only feminine presence, CALL-only behind-Filament chair context, stable zoom framing and shoulder-path quarantine",
+      "v72 Blender-verified HOME Hips+LeftShoulder+RightShoulder balance from v44 renderer-captured bases with fail-closed rollback"
     ]
   },
   "active": {
-    "id": "blender-designed-feminine-base-pose-v72",
-    "status": "v72_implementation_in_progress_draft_pr99",
-    "current_branch": "auto/celine/v72-blender-feminine-pose",
-    "current_pr": 99,
-    "target_version": 72,
-    "goal": "Finish roadmap order 3 with a visibly natural, feminine and restrained HOME full-body base pose designed and inspected on the exact Meshy skeleton in Blender before any Android runtime ownership expands.",
-    "risk": "new_joint_skinning_deformation_and_runtime_writer_conflict",
-    "progress": "v71 is released and testable. Blender 4.5.12 LTS reproduced the exact canonical Meshy skeleton and rendered three feminine posture variants plus isolated shoulder diagnostics from front/right/back. Candidate f-minimal-runtime-candidate passed manual Blender deformation review and limits Android ownership to Hips + LeftShoulder + RightShoulder. Unlike v58, all three bases must resolve from CelineVideoChatV44 renderer-captured state or the owner fails closed; arms, spine, root, legs, head, face, camera and layout remain separately owned or untouched. Exact Android production-avatar validation is pending on PR #99.",
+    "id": "natural-body-motion-v73",
+    "status": "v73_runtime_implemented_exact_head_validation_pending",
+    "current_branch": "auto/celine/v73-natural-body-motion",
+    "current_pr": 100,
+    "target_version": 73,
+    "goal": "Begin roadmap order 4 with one bounded, Blender-designed natural HOME motion loop that coordinates the newly safe Hips/shoulders without frozen or robotic transitions.",
+    "risk": "dynamic_joint_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
+    "progress": "v72 is fully released and testable from exact merge SHA 753b59b8b65d6803b962eaf9dd0c945978df015a. Feminine posture order 3 is complete: Hips and both shoulders use v44 renderer-captured bases, exact Blender and Android production images passed without deformation, and CALL rollback remains clean. v73 starts design only: create a short seamless Blender motion loop with restrained breathing/weight shift on the already proven Hips+shoulder owner, inspect keyframes and loop seam from multiple views, then translate only the smallest safe amplitudes into Android. Arms/hands, spine, legs and face remain pending unless separately proven. Draft PR #100 is open as the sole active queue step. Blender 4.5.12 front/right/back keyframes passed without deformation; frame 1 and 97 have zero matrix error and exact decoded-pixel equality. The bounded 4.0 s HOME loop is now implemented in CelineNaturalBodyMotionV73 using only Hips+LeftShoulder+RightShoulder, with every HOME entry starting at the exact v72 base and CALL restoring exact v44 bases before v70 ownership. Exact-head contracts, build and production Android render remain pending.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -61,7 +62,7 @@
       "source_modified": false,
       "real_render_validation": "PASS on PR #93 exact head and exact main v66",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "Blender front/right/back selection passed for minimal Hips+shoulders candidate; exact Android production-avatar HOME/CALL/HOME-return and zoom evidence is now required before v72 can advance"
+      "remaining_gate": "v73 runtime implemented; exact-head contract/build plus Android HOME/CALL/HOME-return and zoom evidence pending"
     }
   },
   "completed": [
@@ -320,22 +321,37 @@
       "release_asset": "Yahya-AI-v71.apk",
       "release_digest": "sha256:b0bbdaceb87f5bda1dd3333c8b1a6196ead5774a6883886f70c8b4e0d7bc987e",
       "result": "A bounded HOME Hips-only balance began feminine presence without reactivating the proven v58 shoulder deformation path. CALL retained the v70 seated lower body and gained a chair drawn only behind the transparent Filament avatar. Exact HOME/CALL/HOME-return and far/default/near images preserved identity and never clipped or hid Celine; exact-head and exact-main gates passed before publication. Roadmap order 3 remains active because this is the safe foundation, not yet the final natural feminine full-body base pose."
+    },
+    {
+      "id": "v72-blender-feminine-shoulder-reenable",
+      "status": "merged_released_testable",
+      "pr": 99,
+      "tested_head_sha": "bc50722057141d8d77a6247254063f25448fe50d",
+      "merge_sha": "753b59b8b65d6803b962eaf9dd0c945978df015a",
+      "pr_android_run": 32949780434,
+      "pr_android_successful_attempt": 2,
+      "real_candidate_run": 32949780535,
+      "main_validation_release_run": 32951000709,
+      "release_tag": "v72",
+      "release_asset": "Yahya-AI-v72.apk",
+      "release_digest": "sha256:27423565014b77a678cd3786fcdf934b1f27a360ec0b3fa5151e2ccee615ea08",
+      "result": "Blender front/right/back previews selected a minimal feminine HOME Hips+LeftShoulder+RightShoulder candidate. Production uses only v44 renderer-captured bases, never the old v58 arbitrary shoulder snapshot, and fails closed if any base is absent. Exact Android images showed no mesh, clothing, hair, face or identity deformation across HOME/CALL/HOME-return and zoom; exact-main passed before publication."
     }
   ],
   "next": [
     {
-      "id": "v72-blender-feminine-base-pose",
-      "status": "implementation_in_progress_draft_pr99",
-      "target_version": 72,
-      "goal": "Design, render and select a natural feminine HOME base pose on Celine's exact production skeleton before translating the minimal safe joints into Android.",
+      "id": "v73-natural-body-motion-loop",
+      "status": "runtime_implemented_exact_head_validation_pending_pr_100",
+      "target_version": 73,
+      "goal": "Design and prove one seamless restrained HOME breathing/weight-shift loop before adding any dynamic Android writer.",
       "constraints": [
-        "remain inside roadmap order 3; natural body motion, styling and intelligence stay pending",
-        "start with Blender front/side/back renders from the exact canonical GLB and exact runtime base transforms",
-        "do not reactivate LeftShoulder or RightShoulder without new production-image evidence that proves safety",
-        "preserve v71 Hips rollback, v70 seated CALL, v69 arms, v66 face and v68 keyboard/videochat geometry",
-        "no runtime merge or release before exact production-avatar HOME/CALL/HOME-return and zoom proof",
-        "single active PR only",
-        "shoulder re-enable must use v44 renderer-captured LeftShoulder/RightShoulder bases; never the old v58 arbitrary direct transform snapshot"
+        "remain inside roadmap order 4; appearance/styling and intelligence stay pending",
+        "animate only the v72-proven Hips+LeftShoulder+RightShoulder set in the first candidate",
+        "use exact canonical GLB and v44-base-relative rotations",
+        "prove front/right/back keyframes plus loop seam before Android changes",
+        "keep CALL owned by v70 and restore every HOME joint exactly on handoff",
+        "preserve v69 arms, v66 face, v68 keyboard/videochat geometry and safe zoom",
+        "single active PR only; no release before exact-head and exact-main proof"
       ]
     }
   ],
@@ -407,7 +423,7 @@
           {
             "order": 3,
             "id": "feminine-presence",
-            "status": "in_progress_v72_blender_pose_design",
+            "status": "completed_released_v72",
             "deliverables": [
               "more feminine and attractive posture",
               "natural shoulder/hip balance without deformation",
@@ -418,7 +434,7 @@
           {
             "order": 4,
             "id": "natural-body-motion",
-            "status": "pending",
+            "status": "in_progress_v73_blender_motion_design",
             "deliverables": [
               "bounded arm and hand presence",
               "subtle breathing and weight shifts",
@@ -499,12 +515,12 @@
     }
   },
   "latest_release": {
-    "version": 71,
+    "version": 72,
     "status": "published_testable",
-    "sha": "4c2464d1b952d3ac07fa466fff97975e3fdde8a6",
-    "run": 32947671327,
-    "tag": "v71",
-    "asset": "Yahya-AI-v71.apk",
-    "digest": "sha256:b0bbdaceb87f5bda1dd3333c8b1a6196ead5774a6883886f70c8b4e0d7bc987e"
+    "sha": "753b59b8b65d6803b962eaf9dd0c945978df015a",
+    "run": 32951000709,
+    "tag": "v72",
+    "asset": "Yahya-AI-v72.apk",
+    "digest": "sha256:27423565014b77a678cd3786fcdf934b1f27a360ec0b3fa5151e2ccee615ea08"
   }
 }

@@ -6,9 +6,9 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v72 uses Blender-reviewed static HOME balance and cautiously re-enables only LeftShoulder and
- * RightShoulder from v44 renderer-captured bases. CALL remains owned by v70, arms by v69 and
- * neck+Head by v55. TRUE-UNLIT/FORCE-C, face, camera, keyboard and updater stay protected.
+ * v73 advances the Blender-reviewed v72 HOME balance with one seamless, restrained four-second
+ * Hips+shoulder breathing/weight-shift loop. CALL remains owned by v70, arms by v69 and neck+Head
+ * by v55. TRUE-UNLIT/FORCE-C, face, camera, keyboard and updater stay protected.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -31,8 +31,8 @@ public final class YahyaApplication extends Application implements Application.A
                 "HOME Head-only · CALL neck+Head · v56-v58 Hips/Shoulder Produktion quarantiniert");
         Celine3DDiagnostics.record(activity, "V61-003", "Meshy Rig-Scale Guard aktiv",
                 "0.01 Armature / inverse-bind x100 Korrektur · v60 Kamera-Steuerung beibehalten");
-        Celine3DDiagnostics.record(activity, "V72-003", "Blender Schulter-Sicherheitsmodus aktiv",
-                "HOME Hips+beide Schultern aus v44 Basis · alter v58 Direktpfad aus · CALL v70");
+        Celine3DDiagnostics.record(activity, "V73-003", "Blender Koerperbewegungs-Sicherheitsmodus aktiv",
+                "4.0 s HOME Hips+Schulter-Loop aus v44 Basen · alter v58 Direktpfad aus · CALL v70");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -46,7 +46,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
-        CelineFemininePresenceV72.install(activity, decor);
+        CelineNaturalBodyMotionV73.install(activity, decor);
         CelineCameraZoomV70.install(activity, decor);
         CelineCallImeGuardV70.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
@@ -81,14 +81,14 @@ public final class YahyaApplication extends Application implements Application.A
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
-        CelineFemininePresenceV72.install(activity, decor);
+        CelineNaturalBodyMotionV73.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineMeshyRigScaleV61.onPaused(activity);
             CelineCameraZoomV70.onPaused(activity);
-            CelineFemininePresenceV72.onPaused(activity);
+            CelineNaturalBodyMotionV73.onPaused(activity);
             CelineSeatedCallV70.onPaused(activity);
             CelineArmPoseV69.onPaused(activity);
             CelineCallUpperBodyPresenceV55.onPaused(activity);
@@ -103,7 +103,7 @@ public final class YahyaApplication extends Application implements Application.A
             CelineMeshyRigScaleV61.onDestroyed(activity);
             CelineCameraZoomV70.onDestroyed(activity);
             CelineCallImeGuardV70.onDestroyed(activity);
-            CelineFemininePresenceV72.onDestroyed(activity);
+            CelineNaturalBodyMotionV73.onDestroyed(activity);
             CelineSeatedCallV70.onDestroyed(activity);
             CelineArmPoseV69.onDestroyed(activity);
             CelineCallUpperBodyPresenceV55.onDestroyed(activity);
