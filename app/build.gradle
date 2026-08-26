@@ -219,8 +219,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 77
-        versionName '1.0-celin-voice-lipsync-presence'
+        versionCode 78
+        versionName '1.0-celin-conversation-intelligence'
     }
     signingConfigs {
         debug {
