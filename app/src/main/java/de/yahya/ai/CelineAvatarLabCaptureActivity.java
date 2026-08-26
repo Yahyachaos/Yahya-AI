@@ -3,16 +3,10 @@ package de.yahya.ai;
 import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
-import android.opengl.Matrix;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.View;
 import android.widget.FrameLayout;
-
-import com.google.android.filament.TransformManager;
-import com.google.android.filament.gltfio.Animator;
-import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
 
@@ -36,15 +30,11 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
             return;
         }
 
+        // Keep normal system bars for CI capture. Entering Android immersive/fullscreen mode causes
+        // the platform's one-time "Viewing full screen" education overlay, which can cover the
+        // avatar evidence even though Filament rendered correctly underneath it.
         getWindow().setStatusBarColor(Color.rgb(10, 12, 18));
         getWindow().setNavigationBarColor(Color.rgb(10, 12, 18));
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        | View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(10, 12, 18));
@@ -55,9 +45,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
                     FrameLayout.LayoutParams.MATCH_PARENT));
             setContentView(root);
 
-            // The canonical model's bind front points away from the v60 default camera. The capture
-            // coordinate system therefore defines 180 degrees as human-facing FRONT.
-            applyOrientation(orientationYaw(getIntent().getStringExtra("ci_orbit")));
+            // Reuse the renderer-owned reference camera that already produced v75 multi-view
+            // evidence. Never rotate/scale/translate the normalized avatar root for inspection:
+            // doing so can rotate the normalization translation and move Celine out of frame.
+            celineView.v75SetReferenceYaw(referenceYaw(getIntent().getStringExtra("ci_orbit")));
 
             poseDriver = new CelineAvatarLabPoseDriverV79(celineView);
             disableRendererLivePoseForDeterministicCapture();
@@ -142,33 +133,17 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         setFloat("cameraZoom", zoom);
     }
 
-    private float orientationYaw(String raw) {
+    private float referenceYaw(String raw) {
         String value = raw == null ? "front" : raw.trim().toLowerCase();
         switch (value) {
-            case "back": return 0f;
-            case "profile_left": return 90f;
-            case "three_left": return 138f;
-            case "profile_right": return -90f;
-            case "three_right": return -138f;
+            case "back": return 180f;
+            case "profile_left": return -90f;
+            case "three_left": return -45f;
+            case "profile_right": return 90f;
+            case "three_right": return 45f;
             case "front":
-            default: return 180f;
+            default: return 0f;
         }
-    }
-
-    private void applyOrientation(float yaw) throws Exception {
-        FilamentAsset asset = (FilamentAsset) field(celineView, "asset");
-        TransformManager transforms = (TransformManager) field(celineView, "transformManager");
-        int instance = transforms.getInstance(asset.getRoot());
-        if (instance == 0) throw new IllegalStateException("Celine Root-Transform fehlt");
-        float[] base = transforms.getTransform(instance, new float[16]);
-        float[] delta = new float[16];
-        float[] out = new float[16];
-        Matrix.setIdentityM(delta, 0);
-        Matrix.rotateM(delta, 0, yaw, 0f, 1f, 0f);
-        Matrix.multiplyMM(out, 0, base, 0, delta, 0);
-        transforms.setTransform(instance, out);
-        Animator animator = asset.getInstance().getAnimator();
-        if (animator != null) animator.updateBoneMatrices();
     }
 
     private void disableRendererLivePoseForDeterministicCapture() {
@@ -193,12 +168,6 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
             field.setAccessible(true);
             field.set(celineView, value);
         } catch (Throwable ignored) {}
-    }
-
-    private static Object field(Object target, String name) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
     }
 
     private String value(String key, String fallback) {
