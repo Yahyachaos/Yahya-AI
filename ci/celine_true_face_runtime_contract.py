@@ -49,7 +49,7 @@ build_required = {
     "assets.srcDir celineV75GeneratedAssetsDir": "v75 generated production asset packaging",
     "CelineMorphRuntimeV62.onViseme(this, cue)": "generated runtime viseme activation",
     "6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146": "exact validated candidate hash",
-    "7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929": "exact validated v75 candidate hash",
+    "39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d": "exact validated v75 candidate hash",
 }
 for needle, purpose in build_required.items():
     if needle not in build:

@@ -20,7 +20,7 @@ The source model has one skinned mesh, one material and one embedded 4096x4096 a
 it has no separately replaceable head, hair or clothing meshes. Replacing that mesh
 without a source DCC project would also discard the proven skinning and runtime.
 
-v75 therefore applies a deterministic, bounded neutral-mesh and texture refresh after
+v75 therefore applies a deterministic, bounded neutral-mesh refresh after
 the already validated v65 facial-morph stage:
 
 1. Verify the canonical source and v65 intermediate exact hashes.
@@ -29,8 +29,9 @@ the already validated v65 facial-morph stage:
 3. Narrow the waist, widen the hip silhouette and add bounded rear projection without
    scaling any bone.
 4. Add length and volume to the existing skinned hair surfaces.
-5. Recolor atlas regions toward golden-blonde hair, a beige top, fitted charcoal-black
-   jeans, warm-white sneakers and restrained green eye patches.
+5. Preserve the proven atlas byte-identically. An exact-head emulator iteration showed
+   that its UV space is shared across semantic regions: a shoe/jeans repaint also painted
+   face and top fragments. That candidate was rejected rather than accepted on green CI.
 6. Recompute unit vertex normals, append new POSITION/NORMAL accessors and keep the
    source, topology, UVs, joints, weights, skin, bones, animations and morph deltas.
 
@@ -40,7 +41,7 @@ references during a build and does not commit an opaque generated GLB.
 ## Exact candidate and measured gates
 
 - v65 intermediate SHA-256: `6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146`
-- v75 candidate SHA-256: `7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929`
+- v75 candidate SHA-256: `39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d`
 - Vertices: 66,700 (unchanged)
 - Triangles: 103,183 (unchanged)
 - Changed neutral vertices: 51,386

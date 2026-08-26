@@ -108,7 +108,7 @@ tasks.register('generateCelineCharacterRefreshV75', Exec) {
             celineV65Candidate.absolutePath,
             celineV75Candidate.absolutePath,
             '--report', celineV75Report.absolutePath,
-            '--expected-sha256', '7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929'
+            '--expected-sha256', '39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d'
 }
 
 tasks.register('validateCelineCharacterRefreshV75', Exec) {
@@ -124,7 +124,7 @@ tasks.register('validateCelineCharacterRefreshV75', Exec) {
             celineV75Candidate.absolutePath,
             celineV75ReferenceManifest.absolutePath,
             '--report', celineV75Validation.absolutePath,
-            '--expected-sha256', '7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929'
+            '--expected-sha256', '39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d'
 }
 
 android {

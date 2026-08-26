@@ -73,11 +73,11 @@ jobs:
           python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_v65_intermediate.glb --report morph-proof/v65-validation-report.json
           python ci/celine_character_refresh_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_candidate.glb \
             --report morph-proof/v75-character-refresh-report.json \
-            --expected-sha256 7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929
+            --expected-sha256 39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d
           python ci/celine_character_refresh_validation_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_candidate.glb \
             docs/celine/reference/v2/REFERENCE_MANIFEST.json \
             --report morph-proof/v75-validation-report.json \
-            --expected-sha256 7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929
+            --expected-sha256 39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d
           python ci/celine_true_face_runtime_contract.py
           python ci/celine_a_pose_runtime_contract.py
           python ci/celine_seated_call_runtime_contract.py

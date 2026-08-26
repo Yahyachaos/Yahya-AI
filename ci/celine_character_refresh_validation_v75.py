@@ -185,10 +185,11 @@ old_image = image_bytes(vdocument, vbinary)
 new_image = image_bytes(cdocument, cbinary)
 if png_size(old_image) != (4096, 4096) or png_size(new_image) != (4096, 4096):
     fail("texture dimensions changed")
-if hashlib.sha256(old_image).digest() == hashlib.sha256(new_image).digest():
-    fail("v75 texture atlas did not change")
-if cdocument["images"][0].get("name") != "celine_v75_master_reference_texture":
-    fail("v75 texture identity marker missing")
+if old_image != new_image or vdocument.get("images") != cdocument.get("images"):
+    fail("canonical texture atlas changed despite shared-UV fail-closed policy")
+for key in ("materials", "textures", "samplers"):
+    if vdocument.get(key) != cdocument.get(key):
+        fail(key + " changed")
 
 report = {
     "schema": 1,
@@ -209,6 +210,7 @@ report = {
     "normal_length_range": [min(normal_lengths), max(normal_lengths)],
     "texture_sha256_before": hashlib.sha256(old_image).hexdigest(),
     "texture_sha256_after": hashlib.sha256(new_image).hexdigest(),
+    "texture_policy": "byte-identical canonical atlas after exact-head emulator rejected semantic repaint",
     "remaining_gate": "real HOME/CALL/HOME-return and zoom emulator images on exact PR head",
 }
 os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)

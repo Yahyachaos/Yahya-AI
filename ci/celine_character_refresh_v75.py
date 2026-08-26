@@ -2,8 +2,12 @@
 """Generate Celine v75 from the validated v65 candidate without external packages.
 
 The canonical LFS source and the v65 intermediate stay immutable.  This stage appends
-new POSITION/NORMAL/texture payloads and redirects the glTF accessors to them.  Bones,
+new POSITION/NORMAL payloads and redirects the glTF accessors to them.  Bones,
 skin weights, indices, animations and facial morph deltas are intentionally untouched.
+
+The canonical atlas is also kept byte-identical.  Exact-head emulator review proved
+that its UV space is shared across semantic body regions, so region painting would
+cross-contaminate face and clothing.  v75 therefore fails closed to the proven atlas.
 """
 
 import argparse
@@ -405,28 +409,18 @@ attributes = primitive["attributes"]
 positions = read_accessor(document, binary, attributes["POSITION"])
 joints = read_accessor(document, binary, attributes["JOINTS_0"])
 weights = read_accessor(document, binary, attributes["WEIGHTS_0"])
-uvs = read_accessor(document, binary, attributes["TEXCOORD_0"])
 indices = read_accessor(document, binary, primitive["indices"])
 joint_names = [document["nodes"][index].get("name") for index in document["skins"][0]["joints"]]
 
 new_positions, categories = transform_positions(positions, joints, weights, joint_names)
 new_normals = normals_for(new_positions, indices)
-mask = texture_mask(positions, joints, weights, uvs, indices, joint_names)
 image = document["images"][0]
 old_view = document["bufferViews"][image["bufferView"]]
 old_image = binary[old_view.get("byteOffset", 0):old_view.get("byteOffset", 0) + old_view["byteLength"]]
-new_image, recolored = recolor_texture(old_image, mask)
 
 binary_out = bytearray(binary)
 attributes["POSITION"] = append_vec3(document, binary_out, new_positions)
 attributes["NORMAL"] = append_vec3(document, binary_out, new_normals)
-if len(new_image) > old_view["byteLength"]:
-    raise SystemExit("Refreshed texture no longer fits the guarded canonical image allocation")
-image_offset = old_view.get("byteOffset", 0)
-binary_out[image_offset:image_offset + len(new_image)] = new_image
-binary_out[image_offset + len(new_image):image_offset + old_view["byteLength"]] = b"\x00" * (old_view["byteLength"] - len(new_image))
-old_view["byteLength"] = len(new_image)
-image["name"] = "celine_v75_master_reference_texture"
 document.setdefault("asset", {})["generator"] = "Yahya-AI deterministic Celine v75 character refresh"
 document["buffers"][0]["byteLength"] = len(binary_out)
 
@@ -460,8 +454,8 @@ report = {
     "max_position_delta_m": max(deltas),
     "region_vertices": counts,
     "texture_sha256_before": hashlib.sha256(old_image).hexdigest(),
-    "texture_sha256_after": hashlib.sha256(new_image).hexdigest(),
-    "texture_recolored_pixels": {str(key): value for key, value in recolored.items()},
+    "texture_sha256_after": hashlib.sha256(old_image).hexdigest(),
+    "texture_policy": "byte-identical canonical atlas; shared UVs make semantic repaint unsafe",
     "preserved": ["indices", "JOINTS_0", "WEIGHTS_0", "skin", "bones", "animations", "morph target deltas"],
     "references": "docs/celine/reference/v2/REFERENCE_MANIFEST.json",
 }
