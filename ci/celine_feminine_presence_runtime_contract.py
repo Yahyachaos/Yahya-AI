@@ -69,7 +69,7 @@ for lifecycle in ("install", "onPaused", "onDestroyed"):
     if f"CelineNaturalBodyMotionV73.{lifecycle}(activity" not in application:
         raise SystemExit(f"YahyaApplication missing v73 {lifecycle} wiring")
     if f"CelineFemininePresenceV72.{lifecycle}(activity" in application:
-        raise SystemExit(f"v71 writer still installed beside v72: {lifecycle}")
+        raise SystemExit(f"v72 static writer still installed beside v73: {lifecycle}")
 
 for forbidden_joint in (
     "LeftArm", "RightArm", "LeftForeArm", "RightForeArm",
