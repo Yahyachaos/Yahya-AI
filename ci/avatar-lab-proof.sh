@@ -36,7 +36,7 @@ import sys
 import zlib
 
 data = open(sys.argv[1], "rb").read()
-if data[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+if data[:8] != b"\x89PNG\r\n\x1a\n":
     raise SystemExit("not a PNG")
 pos = 8
 idat = bytearray()
