@@ -4,18 +4,18 @@ import json
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineFemininePresenceV72.java"
+SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineNaturalBodyMotionV73.java"
 APPLICATION = ROOT / "app/src/main/java/de/yahya/ai/YahyaApplication.java"
 BUILD = ROOT / "app/build.gradle"
-MANIFEST = ROOT / "ci/celine_v72_blender_pose_manifest.json"
+MANIFEST = ROOT / "ci/celine_v73_blender_motion_manifest.json"
 
 source = SOURCE.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
-if "versionCode 72" not in build:
-    raise SystemExit("v72 versionCode gate missing")
+if "versionCode 73" not in build:
+    raise SystemExit("v73 versionCode gate missing")
 
 bindings = set(re.findall(
     r'feminineBone\(view, asset, transforms, "([^"]+)", "([^"]+)"\)', source
@@ -26,7 +26,7 @@ expected = {
     ("rightShoulder", "RightShoulder"),
 }
 if bindings != expected:
-    raise SystemExit(f"v72 ownership/base mapping mismatch: {sorted(bindings)}")
+    raise SystemExit(f"v73 ownership/base mapping mismatch: {sorted(bindings)}")
 
 required_source = {
     "HOME_HIPS_PITCH = -2.0f": "Blender-selected pelvis pitch",
@@ -36,6 +36,18 @@ required_source = {
     "HOME_LEFT_SHOULDER_ROLL = -0.7f": "left shoulder roll",
     "HOME_RIGHT_SHOULDER_PITCH = -0.6f": "right shoulder pitch",
     "HOME_RIGHT_SHOULDER_ROLL = 0.5f": "right shoulder roll",
+    "LOOP_DURATION_NANOS = 4_000_000_000L": "exact four-second loop",
+    "HIPS_PITCH_AMPLITUDE = 0.10f": "bounded pelvis breathing pitch",
+    "HIPS_YAW_AMPLITUDE = 0.12f": "bounded pelvis weight-shift yaw",
+    "HIPS_ROLL_AMPLITUDE = 0.18f": "bounded pelvis weight-shift roll",
+    "LEFT_SHOULDER_PITCH_WAVE = -0.10f": "bounded left shoulder breath",
+    "LEFT_SHOULDER_PITCH_SECOND = -0.03f": "asymmetric left second harmonic",
+    "LEFT_SHOULDER_ROLL_AMPLITUDE = -0.05f": "bounded left shoulder roll",
+    "RIGHT_SHOULDER_PITCH_WAVE = -0.08f": "bounded right shoulder breath",
+    "RIGHT_SHOULDER_PITCH_SECOND = 0.02f": "asymmetric right second harmonic",
+    "RIGHT_SHOULDER_ROLL_AMPLITUDE = 0.04f": "bounded right shoulder roll",
+    "elapsed % LOOP_DURATION_NANOS": "continuous exact-period phase",
+    "loopStartNanos = 0L": "HOME/CALL seam restart at exact base",
     "if (base == null) return null;": "fail-closed v44 base requirement",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "HOME-only/CALL handoff",
     "transforms.setTransform(leftShoulder.instance, leftShoulder.base)": "left shoulder rollback",
@@ -43,20 +55,20 @@ required_source = {
     "CelineSkinningProbe": "synthetic fixture capability check",
     "disabled = true": "automatic failure disable",
     "animator.updateBoneMatrices()": "skinned-mesh matrix update",
-    "V72-100": "production bind evidence",
-    "V72-110": "HOME posture evidence",
-    "V72-120": "CALL handoff evidence",
-    "V72-198": "frame failure evidence",
-    "V72-199": "initialization failure evidence",
+    "V73-100": "production bind evidence",
+    "V73-110": "HOME posture evidence",
+    "V73-120": "CALL handoff evidence",
+    "V73-198": "frame failure evidence",
+    "V73-199": "initialization failure evidence",
 }
 for needle, purpose in required_source.items():
     if needle not in source:
         raise SystemExit(f"missing {purpose}: {needle}")
 
 for lifecycle in ("install", "onPaused", "onDestroyed"):
-    if f"CelineFemininePresenceV72.{lifecycle}(activity" not in application:
-        raise SystemExit(f"YahyaApplication missing v72 {lifecycle} wiring")
-    if f"CelineFemininePresenceV71.{lifecycle}(activity" in application:
+    if f"CelineNaturalBodyMotionV73.{lifecycle}(activity" not in application:
+        raise SystemExit(f"YahyaApplication missing v73 {lifecycle} wiring")
+    if f"CelineFemininePresenceV72.{lifecycle}(activity" in application:
         raise SystemExit(f"v71 writer still installed beside v72: {lifecycle}")
 
 for forbidden_joint in (
@@ -65,20 +77,23 @@ for forbidden_joint in (
     "neck", "Head", "Spine", "Spine01", "Spine02",
 ):
     if any(entity == forbidden_joint for _, entity in bindings):
-        raise SystemExit(f"v72 unexpectedly owns protected joint: {forbidden_joint}")
+        raise SystemExit(f"v73 unexpectedly owns protected joint: {forbidden_joint}")
 
 for forbidden_geometry in (
     "addView(", "removeView(", "setLayoutParams(", "setTranslation",
     "requestLayout(", "scrollTo(", "setLensProjection(", "lookAt(",
 ):
     if forbidden_geometry in source:
-        raise SystemExit(f"v72 unexpectedly changes geometry/camera: {forbidden_geometry}")
+        raise SystemExit(f"v73 unexpectedly changes geometry/camera: {forbidden_geometry}")
 
-if manifest["selected_candidate"] != "f-minimal-runtime-candidate":
-    raise SystemExit("unexpected Blender candidate selection")
+if manifest["selected_candidate"] != "v73-bounded-four-second-home-loop":
+    raise SystemExit("unexpected Blender motion candidate selection")
+if manifest["seam_proof"]["result"] != "PASS_EXACT_FRAME_1_FRAME_97_SEAM":
+    raise SystemExit("v73 exact Blender loop seam proof missing")
+if manifest["manual_review"] != "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION":
+    raise SystemExit("v73 Blender deformation review gate missing")
+if manifest["animated_joints"] != ["Hips", "LeftShoulder", "RightShoulder"]:
+    raise SystemExit("v73 Blender manifest ownership mismatch")
 if manifest["canonical_source_sha256"] != "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55":
     raise SystemExit("Blender manifest canonical source mismatch")
-if manifest["manual_review"] != "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION":
-    raise SystemExit("Blender manual review gate missing")
-
-print("v72 Blender-selected HOME Hips + v44-base shoulders contract: PASS")
+print("v73 Blender-selected seamless HOME Hips + v44-base shoulder motion contract: PASS")
