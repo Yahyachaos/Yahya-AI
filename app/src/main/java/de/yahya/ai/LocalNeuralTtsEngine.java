@@ -152,16 +152,17 @@ public final class LocalNeuralTtsEngine {
         AudioFormat format = new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
         AudioTrack track = new AudioTrack(attrs, format, buffer, AudioTrack.MODE_STREAM, AudioManager.AUDIO_SESSION_ID_GENERATE);
         activeTrack = track;
-        float envelope = 0f;
+        SpeechLipSyncV77 lipSync = new SpeechLipSyncV77();
         try {
             track.play();
-            int pos = 0; final int visualChunk = Math.max(320, sampleRate / 36);
+            int pos = 0;
+            // ~50 Hz keeps the visual mouth close to the actual PCM without overloading the UI bus.
+            final int visualChunk = Math.max(240, sampleRate / 50);
             while (pos < samples.length) {
                 int count = Math.min(visualChunk, samples.length - pos);
-                float level = normalizedRms(samples, pos, count);
-                envelope = envelope * 0.18f + level * 0.82f;
-                SpeechAudioBus.publish(envelope);
-                SpeechAudioBus.publishViseme(SpeechVisemeAnalyzer.analyze(samples, pos, count, sampleRate));
+                SpeechLipSyncV77.Frame frame = lipSync.analyze(samples, pos, count, sampleRate);
+                SpeechAudioBus.publish(frame.level);
+                SpeechAudioBus.publishViseme(frame.cue);
                 int written = track.write(samples, pos, count, AudioTrack.WRITE_BLOCKING);
                 if (written < 0) throw new IllegalStateException("AudioTrack write failed: " + written);
                 if (written == 0) {
@@ -204,14 +205,6 @@ public final class LocalNeuralTtsEngine {
             }
             SystemClock.sleep(12L);
         }
-    }
-
-    private static float normalizedRms(float[] samples, int offset, int count) {
-        if (samples == null || count <= 0) return 0f;
-        double sum=0.0; int end=Math.min(samples.length,offset+count);
-        for(int i=offset;i<end;i++){float v=samples[i];sum+=v*v;}
-        double rms=Math.sqrt(sum/Math.max(1,end-offset));
-        return Math.max(0f,Math.min(1f,(float)((rms-0.003)/0.055)));
     }
 
     public synchronized void release() {
