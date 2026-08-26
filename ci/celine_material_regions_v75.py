@@ -118,8 +118,6 @@ def choose_vertex_label(position, js, ws, by_name):
 
 def choose_triangle(labels):
     counts = Counter(labels)
-    # Clothing/hair must win only with at least two vertices. This prevents isolated
-    # skin/face triangles from being recolored by a neighboring region.
     for label in ("shoes", "jeans", "top", "hair"):
         if counts[label] >= 2:
             return label
@@ -184,11 +182,14 @@ material_index = {
     "shoes": len(materials) + 2,
     "hair": len(materials) + 3,
 }
+# The exact-head emulator is warmer/darker than the master-reference studio renders.
+# Keep the semantic split, but compensate at the PBR base color so the visible result
+# converges on the frozen v2 masters rather than merely naming the intended colors.
 materials.extend([
-    material("CelineV75_BeigeRibbedTop", (0.72, 0.58, 0.43), 0.78),
-    material("CelineV75_FittedBlackJeans", (0.035, 0.040, 0.050), 0.72),
-    material("CelineV75_WhiteSneakers", (0.86, 0.86, 0.82), 0.66),
-    material("CelineV75_GoldenBlondeHair", (0.68, 0.45, 0.20), 0.72),
+    material("CelineV75_BeigeRibbedTop", (0.76, 0.64, 0.51), 0.78),
+    material("CelineV75_FittedBlackJeans", (0.018, 0.020, 0.024), 0.72),
+    material("CelineV75_WhiteSneakers", (0.98, 0.97, 0.94), 0.66),
+    material("CelineV75_GoldenBlondeHair", (0.88, 0.70, 0.46), 0.72),
 ])
 doc["materials"] = materials
 binary_out = bytearray(binary)
