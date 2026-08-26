@@ -93,6 +93,7 @@ for needle, purpose in v75_generator_required.items():
 
 v76_generator_required = {
     "final_v75_geometry_rebind_append_only_fail_closed": "v76 final-geometry rebind policy",
+    "5275eb5873a821b13a38d64d07be076feba98744d363cbcb9d5ed1895e7b366b": "exact final v75 material input",
     "Yahya-AI Celine v76 final-geometry facial rig": "v76 asset identity",
     "--expected-sha256": "v76 candidate hash fail-closed gate",
     "BilabialPress": "bilabial target generation",
