@@ -369,13 +369,19 @@ def transform_positions(positions, joints, weights, joint_names):
             or (hair_support_weight >= 0.45 and z < -0.045 and abs(x) < 0.18)
         )
         if hair:
+            # Exact-head front/profile/back review of the first v75 candidate showed a compact,
+            # shoulder-length cap. Keep the proven hair selection and topology, but stretch its
+            # lower silhouette toward the waist within the existing 0.18 m absolute safety bound.
+            # A tiny smooth phase offset adds soft wave/volume without touching bones or skinning.
             volume = smooth_band(y, 1.17, 1.43, 1.71)
             side = 1.0 if x >= center[0] else -1.0
-            x += side * 0.010 * volume
+            length = max(0.0, min(1.0, (1.50 - y) / 0.33))
+            wave = math.sin((y - 1.17) * 24.0 + z * 12.0)
+            x += side * (0.012 * volume + 0.0035 * wave * volume)
             if z < 0.03:
-                z -= 0.012 * volume
-            length = max(0.0, min(1.0, (1.46 - y) / 0.29))
-            y -= 0.120 * length * length
+                z -= 0.013 * volume
+            z += 0.0030 * math.cos((y - 1.17) * 20.0 + abs(x) * 10.0) * volume
+            y -= 0.170 * length * (0.65 + 0.35 * length)
             kinds.add("hair")
 
         result.append((x, y, z))
