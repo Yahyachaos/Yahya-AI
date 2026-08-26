@@ -3,6 +3,8 @@ package de.yahya.ai;
 import android.app.Activity;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -19,8 +21,10 @@ import java.lang.reflect.Method;
  * This is intentionally lightweight: it is useful during iteration and does not wait for a release.
  */
 public final class CelineAvatarLabActivity extends Activity {
+    private final Handler ui = new Handler(Looper.getMainLooper());
     private Celine3DView celineView;
     private TextView status;
+    private int faceSequence;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,10 +84,36 @@ public final class CelineAvatarLabActivity extends Activity {
         ));
 
         panel.addView(row(
+                button("Blink", v -> blink(false)),
+                button("Blink langsam", v -> blink(true)),
+                button("Gesicht neutral", v -> clearFace("Gesicht neutral")),
+                button("Lächeln", v -> morph(CelineFacialMotionPlanner.SMILE, 0.32f, "Lächeln")),
+                button("Nachdenklich", v -> morph(CelineFacialMotionPlanner.THOUGHTFUL, 0.30f, "Nachdenklich")),
+                button("Überrascht", v -> morph(CelineFacialMotionPlanner.SURPRISED, 0.32f, "Überrascht")),
+                button("Kuss", v -> kiss())
+        ));
+
+        panel.addView(row(
+                button("Viseme O", v -> faceCombo("Viseme O", new int[]{CelineFacialMotionPlanner.JAW_OPEN, CelineFacialMotionPlanner.ROUNDED_VOWEL}, new float[]{0.34f, 0.56f})),
+                button("Viseme breit", v -> faceCombo("Viseme breit", new int[]{CelineFacialMotionPlanner.JAW_OPEN, CelineFacialMotionPlanner.SPREAD_VOWEL}, new float[]{0.32f, 0.55f})),
+                button("B/P/M", v -> morph(CelineFacialMotionPlanner.BILABIAL_PRESS, 0.70f, "Viseme B/P/M")),
+                button("F/V", v -> faceCombo("Viseme F/V", new int[]{CelineFacialMotionPlanner.LABIODENTAL, CelineFacialMotionPlanner.JAW_OPEN}, new float[]{0.67f, 0.16f}))
+        ));
+
+        panel.addView(row(
                 button("Ganzkörper", v -> camera(0f, -0.15f, 0.68f, "Kamera: Ganzkörper")),
                 button("Oberkörper", v -> camera(0f, 0.05f, 1.05f, "Kamera: Oberkörper")),
                 button("Gesicht nah", v -> camera(0f, 0.22f, 1.75f, "Kamera: Gesicht-Nahaufnahme")),
                 button("Reset", v -> resetCamera())
+        ));
+
+        panel.addView(row(
+                button("Front", v -> orbit(0f, "Front")),
+                button("3/4 links", v -> orbit(-42f, "3/4 links")),
+                button("Profil links", v -> orbit(-90f, "Profil links")),
+                button("Rücken", v -> orbit(180f, "Rücken")),
+                button("Profil rechts", v -> orbit(90f, "Profil rechts")),
+                button("3/4 rechts", v -> orbit(42f, "3/4 rechts"))
         ));
 
         panel.addView(row(
@@ -94,7 +124,7 @@ public final class CelineAvatarLabActivity extends Activity {
         ));
 
         TextView hint = new TextView(this);
-        hint.setText("Direkter Test des aktuellen Branch-Renderers. Pinch verändert die echte Kameradistanz; Doppeltipp setzt zurück. Die nächsten v79-Schritte hängen Blink, Sitzen, Laufen, Arme/Hände und echte Orbit-/Profil-Presets direkt an diesen Harness.");
+        hint.setText("Direkter Test des aktuellen Branch-Renderers. Blink/Mimik/Viseme laufen über den echten v76 Final-Geometry-Morphpfad. Orbit dreht die Kamera um den festen Avatar; Dolly verändert die echte Kameradistanz, nicht die Modellskalierung. Als Nächstes kommen Sitz-/Steh-/Lauf-/Vorbeuge-/Arm-/Hand-Presets.");
         hint.setTextColor(0xFF8F9CAF);
         hint.setTextSize(11f);
         hint.setPadding(0, dp(5), 0, 0);
@@ -137,6 +167,7 @@ public final class CelineAvatarLabActivity extends Activity {
     }
 
     private void state(CelineAvatarController.State state, String label) {
+        clearFace(null);
         if (celineView != null) celineView.setAvatarState(state);
         setStatus(label);
     }
@@ -147,11 +178,89 @@ public final class CelineAvatarLabActivity extends Activity {
     }
 
     private void speech(float level) {
+        clearFace(null);
         if (celineView != null) {
             celineView.setAvatarState(CelineAvatarController.State.SPEAKING);
             celineView.setSpeechEnergy(level);
         }
         setStatus("SPEAKING · Energie " + Math.round(level * 100f) + "%");
+    }
+
+    private void blink(boolean slow) {
+        if (celineView == null) return;
+        final int sequence = ++faceSequence;
+        if (!slow) {
+            float[] weights = new float[CelineFacialMotionPlanner.TARGET_COUNT];
+            weights[CelineFacialMotionPlanner.BLINK_BOTH] = 0.94f;
+            weights[CelineFacialMotionPlanner.BLINK_LEFT] = 0.04f;
+            weights[CelineFacialMotionPlanner.BLINK_RIGHT] = 0.02f;
+            CelineMorphRuntimeV62.setDiagnosticWeights(celineView, weights);
+            setStatus("Blink · Augen geschlossen");
+            ui.postDelayed(() -> {
+                if (sequence != faceSequence || celineView == null) return;
+                CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
+                setStatus("Blink · wieder offen");
+            }, 190L);
+            return;
+        }
+
+        setStatus("Blink langsam · 0%");
+        slowBlinkStage(sequence, 0L, 0.22f, "20%");
+        slowBlinkStage(sequence, 180L, 0.48f, "50%");
+        slowBlinkStage(sequence, 360L, 0.76f, "80%");
+        slowBlinkStage(sequence, 540L, 0.94f, "100%");
+        slowBlinkStage(sequence, 760L, 0.70f, "75%");
+        slowBlinkStage(sequence, 940L, 0.38f, "40%");
+        ui.postDelayed(() -> {
+            if (sequence != faceSequence || celineView == null) return;
+            CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
+            setStatus("Blink langsam · offen");
+        }, 1140L);
+    }
+
+    private void slowBlinkStage(int sequence, long delay, float amount, String label) {
+        ui.postDelayed(() -> {
+            if (sequence != faceSequence || celineView == null) return;
+            float[] weights = new float[CelineFacialMotionPlanner.TARGET_COUNT];
+            weights[CelineFacialMotionPlanner.BLINK_BOTH] = amount;
+            weights[CelineFacialMotionPlanner.BLINK_LEFT] = amount * 0.045f;
+            weights[CelineFacialMotionPlanner.BLINK_RIGHT] = amount * 0.025f;
+            CelineMorphRuntimeV62.setDiagnosticWeights(celineView, weights);
+            setStatus("Blink langsam · " + label);
+        }, delay);
+    }
+
+    private void morph(int target, float value, String label) {
+        faceSequence++;
+        if (celineView != null) CelineMorphRuntimeV62.setDiagnosticTarget(celineView, target, value);
+        setStatus(label);
+    }
+
+    private void faceCombo(String label, int[] targets, float[] values) {
+        faceSequence++;
+        if (celineView == null) return;
+        float[] weights = new float[CelineFacialMotionPlanner.TARGET_COUNT];
+        int count = Math.min(targets.length, values.length);
+        for (int i = 0; i < count; i++) {
+            int target = targets[i];
+            if (target >= 0 && target < weights.length) weights[target] = values[i];
+        }
+        CelineMorphRuntimeV62.setDiagnosticWeights(celineView, weights);
+        setStatus(label);
+    }
+
+    private void kiss() {
+        faceCombo("Kuss / Pucker-Test", new int[]{
+                CelineFacialMotionPlanner.ROUNDED_VOWEL,
+                CelineFacialMotionPlanner.BILABIAL_PRESS,
+                CelineFacialMotionPlanner.JAW_OPEN
+        }, new float[]{0.58f, 0.34f, 0.08f});
+    }
+
+    private void clearFace(String label) {
+        faceSequence++;
+        if (celineView != null) CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
+        if (label != null) setStatus(label);
     }
 
     /**
@@ -170,15 +279,29 @@ public final class CelineAvatarLabActivity extends Activity {
         }
     }
 
+    private void orbit(float yaw, String label) {
+        if (celineView == null) return;
+        try {
+            celineView.v75SetReferenceYaw(yaw);
+            setFloat("cameraPanX", 0f);
+            setFloat("cameraPanY", 0f);
+            setStatus("Kamera-Orbit: " + label + " · " + Math.round(yaw) + "°");
+        } catch (Throwable error) {
+            setStatus("Orbit fehlgeschlagen: " + safe(error));
+        }
+    }
+
     private void resetCamera() {
         if (celineView == null) return;
         try {
             Method reset = Celine3DView.class.getDeclaredMethod("resetCameraSearch");
             reset.setAccessible(true);
             reset.invoke(celineView);
+            celineView.v75SetReferenceYaw(0f);
             celineView.releaseLook();
             celineView.setSpeechEnergy(0f);
             celineView.setAvatarState(CelineAvatarController.State.IDLE);
+            clearFace(null);
             setStatus("Neutral / Kamera reset");
         } catch (Throwable error) {
             setStatus("Reset fehlgeschlagen: " + safe(error));
@@ -211,7 +334,11 @@ public final class CelineAvatarLabActivity extends Activity {
     }
 
     @Override protected void onPause() {
-        if (celineView != null) celineView.stopRendering();
+        faceSequence++;
+        if (celineView != null) {
+            CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
+            celineView.stopRendering();
+        }
         super.onPause();
     }
 }
