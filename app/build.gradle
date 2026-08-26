@@ -30,6 +30,12 @@ def celineV75Validator = rootProject.file('ci/celine_character_refresh_validatio
 def celineV75Materializer = rootProject.file('ci/celine_material_regions_v75.py')
 def celineV75MaterialValidator = rootProject.file('ci/celine_material_regions_validation_v75.py')
 def celineV75ReferenceManifest = rootProject.file('docs/celine/reference/v2/REFERENCE_MANIFEST.json')
+def celineV76GeneratedAssetsDir = file("$buildDir/generated/celineV76/assets")
+def celineV76Candidate = file("$celineV76GeneratedAssetsDir/models/celine.glb")
+def celineV76Report = file("$buildDir/reports/celineV76/facial-rig.json")
+def celineV76Validation = file("$buildDir/reports/celineV76/validation.json")
+def celineV76Generator = rootProject.file('ci/celine_facial_rig_v76.py')
+def celineV76Validator = rootProject.file('ci/celine_facial_rig_validation_v76.py')
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -77,6 +83,10 @@ tasks.register('generateCeline3DViewV62') {
     Engine v62Engine() { return engine; }
     FilamentAsset v62Asset() { return asset; }
     CelineAvatarController.State v62AvatarState() { return avatarState; }
+    float v76SpeechEnergy() { return speechEnergy; }
+    float v76LookX() { return lookX; }
+    float v76LookY() { return lookY; }
+    boolean v76LookActive() { return lookActive; }
 '''
         text = text.substring(0, finalBrace) + accessors + text.substring(finalBrace)
 
@@ -173,6 +183,34 @@ tasks.register('validateCelineMaterialRegionsV75', Exec) {
             '--report', celineV75MaterialValidation.absolutePath
 }
 
+
+tasks.register('generateCelineFacialRigV76', Exec) {
+    dependsOn tasks.named('validateCelineMaterialRegionsV75')
+    inputs.files(celineV75Candidate, celineV76Generator)
+    outputs.files(celineV76Candidate, celineV76Report)
+    doFirst {
+        celineV76Candidate.parentFile.mkdirs()
+        celineV76Report.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV76Generator.absolutePath,
+            celineV75Candidate.absolutePath,
+            celineV76Candidate.absolutePath,
+            '--report', celineV76Report.absolutePath
+}
+
+tasks.register('validateCelineFacialRigV76', Exec) {
+    dependsOn tasks.named('generateCelineFacialRigV76')
+    inputs.files(celineV75Candidate, celineV76Candidate, celineV76Validator)
+    outputs.file(celineV76Validation)
+    doFirst { celineV76Validation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV76Validator.absolutePath,
+            celineV75Candidate.absolutePath,
+            celineV76Candidate.absolutePath,
+            '--report', celineV76Validation.absolutePath
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -180,8 +218,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 75
-        versionName '1.0-celin-character-refresh'
+        versionCode 76
+        versionName '1.0-celine-facial-rig-expression'
     }
     signingConfigs {
         debug {
@@ -200,7 +238,7 @@ android {
         main {
             java.srcDir celineV62GeneratedDir
             java.exclude 'de/yahya/ai/Celine3DView.java'
-            assets.srcDir celineV75GeneratedAssetsDir
+            assets.srcDir celineV76GeneratedAssetsDir
         }
     }
     compileOptions {
@@ -211,15 +249,15 @@ android {
 
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
-    dependsOn tasks.named('validateCelineMaterialRegionsV75')
+    dependsOn tasks.named('validateCelineFacialRigV76')
 }
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v75 refreshes neutral geometry and splits shared-UV semantic material regions while
-    // v74 motion, v70 CALL, v68 keyboard geometry and v66 face runtime stay protected.
+    // v76 rebinds facial motion to the final v75 geometry while neutral geometry, semantic
+    // materials, v74 motion, v70 CALL and v68 keyboard geometry stay protected.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
