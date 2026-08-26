@@ -219,8 +219,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 76
-        versionName '1.0-celin-facial-rig-expression'
+        versionCode 77
+        versionName '1.0-celin-voice-lipsync-presence'
     }
     signingConfigs {
         debug {
@@ -257,8 +257,7 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v76 rebinds facial motion to the final v75 geometry while neutral geometry, semantic
-    // materials, v74 motion, v70 CALL and v68 keyboard geometry stay protected.
+    // v77 preserves the v76 final facial rig and adds playback-synchronous voice presence.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
