@@ -36,6 +36,12 @@ def celineV76Report = file("$buildDir/reports/celineV76/facial-rig.json")
 def celineV76Validation = file("$buildDir/reports/celineV76/validation.json")
 def celineV76Generator = rootProject.file('ci/celine_facial_rig_v76.py')
 def celineV76Validator = rootProject.file('ci/celine_facial_rig_validation_v76.py')
+def celineV79GeneratedAssetsDir = file("$buildDir/generated/celineV79/assets")
+def celineV79Candidate = file("$celineV79GeneratedAssetsDir/models/celine.glb")
+def celineV79BlinkReport = file("$buildDir/reports/celineV79/blink-localization.json")
+def celineV79BlinkValidation = file("$buildDir/reports/celineV79/blink-localization-validation.json")
+def celineV79BlinkRepair = rootProject.file('ci/celine_blink_localization_v79.py')
+def celineV79BlinkValidator = rootProject.file('ci/celine_blink_localization_validation_v79.py')
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -183,7 +189,6 @@ tasks.register('validateCelineMaterialRegionsV75', Exec) {
             '--report', celineV75MaterialValidation.absolutePath
 }
 
-
 tasks.register('generateCelineFacialRigV76', Exec) {
     dependsOn tasks.named('validateCelineMaterialRegionsV75')
     inputs.files(celineV75Candidate, celineV76Generator)
@@ -210,6 +215,34 @@ tasks.register('validateCelineFacialRigV76', Exec) {
             celineV75Candidate.absolutePath,
             celineV76Candidate.absolutePath,
             '--report', celineV76Validation.absolutePath
+}
+
+tasks.register('generateCelineBlinkLocalizationV79', Exec) {
+    dependsOn tasks.named('validateCelineFacialRigV76')
+    inputs.files(celineV76Candidate, celineV79BlinkRepair)
+    outputs.files(celineV79Candidate, celineV79BlinkReport)
+    doFirst {
+        celineV79Candidate.parentFile.mkdirs()
+        celineV79BlinkReport.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV79BlinkRepair.absolutePath,
+            celineV76Candidate.absolutePath,
+            celineV79Candidate.absolutePath,
+            '--report', celineV79BlinkReport.absolutePath,
+            '--expected-input-sha256', '46828b88dc7917def64881c6bc348b790a2bab445401e0ba3fac240327253923'
+}
+
+tasks.register('validateCelineBlinkLocalizationV79', Exec) {
+    dependsOn tasks.named('generateCelineBlinkLocalizationV79')
+    inputs.files(celineV76Candidate, celineV79Candidate, celineV79BlinkValidator)
+    outputs.file(celineV79BlinkValidation)
+    doFirst { celineV79BlinkValidation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV79BlinkValidator.absolutePath,
+            celineV76Candidate.absolutePath,
+            celineV79Candidate.absolutePath,
+            '--report', celineV79BlinkValidation.absolutePath
 }
 
 android {
@@ -239,7 +272,7 @@ android {
         main {
             java.srcDir celineV62GeneratedDir
             java.exclude 'de/yahya/ai/Celine3DView.java'
-            assets.srcDir celineV76GeneratedAssetsDir
+            assets.srcDir celineV79GeneratedAssetsDir
         }
     }
     compileOptions {
@@ -250,14 +283,14 @@ android {
 
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
-    dependsOn tasks.named('validateCelineFacialRigV76')
+    dependsOn tasks.named('validateCelineBlinkLocalizationV79')
 }
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v77 preserves the v76 final facial rig and adds playback-synchronous voice presence.
+    // v79 preserves the v76/v77 face and voice contracts while localizing blink to eyelids.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
