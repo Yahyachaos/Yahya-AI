@@ -4,10 +4,12 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java"
+BACKDROP = ROOT / "app/src/main/java/de/yahya/ai/CelineRoomBackdropView.java"
 APPLICATION = ROOT / "app/src/main/java/de/yahya/ai/YahyaApplication.java"
 BUILD = ROOT / "app/build.gradle"
 
 source = SOURCE.read_text(encoding="utf-8")
+backdrop = BACKDROP.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 
@@ -38,6 +40,8 @@ required_source = {
     "FOOT_PITCH = -8.0f": "credible seated foot angle",
     "applyRotation(leftUpLeg, UPPER_LEG_PITCH, -2.0f, 0.5f)": "bounded narrow left thigh spread",
     "applyRotation(rightUpLeg, UPPER_LEG_PITCH, 2.0f, -0.5f)": "bounded narrow right thigh spread",
+    "setSeatedCallMode(true)": "CALL-only chair activation",
+    "setSeatedCallMode(false)": "HOME chair removal",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "CALL-only activation",
     "disabled = true": "automatic failure disable",
@@ -52,6 +56,16 @@ required_source = {
 }
 for needle, purpose in required_source.items():
     if needle not in source:
+        raise SystemExit(f"missing {purpose}: {needle}")
+
+required_backdrop = {
+    "void setSeatedCallMode(boolean seatedCallMode)": "stable CALL/HOME backdrop switch",
+    "drawSeatedCallChair(canvas, w, h)": "CALL chair draw invocation",
+    "private void drawSeatedCallChair(Canvas canvas, float w, float h)": "chair behind 3D renderer",
+    "The transparent Filament surface": "documented non-obscuring z-order",
+}
+for needle, purpose in required_backdrop.items():
+    if needle not in backdrop:
         raise SystemExit(f"missing {purpose}: {needle}")
 
 for lifecycle in ("install", "onPaused", "onDestroyed"):
@@ -73,7 +87,10 @@ for forbidden_geometry in (
     "addView(", "removeView(", "setLayoutParams(", "setTranslation",
     "requestLayout(", "scrollTo(", "setLensProjection(", "lookAt(",
 ):
-    if forbidden_geometry in source:
-        raise SystemExit(f"v70 unexpectedly changes external UI geometry: {forbidden_geometry}")
+    for owner, content in (("seated owner", source), ("room backdrop", backdrop)):
+        if forbidden_geometry in content:
+            raise SystemExit(
+                f"v70 {owner} unexpectedly changes external UI geometry: {forbidden_geometry}"
+            )
 
-print("v70 CALL-only seated lower-body contract preserved in v71: PASS")
+print("v70 CALL-only seated lower body + behind-Filament chair preserved in v71: PASS")

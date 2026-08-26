@@ -141,6 +141,7 @@ final class CelineSeatedCallV70 {
         final FilamentAsset asset;
         final TransformManager transforms;
         final Animator animator;
+        final CelineRoomBackdropView room;
         final int rootInstance;
         final float[] rootBase;
         final Bone hips;
@@ -165,6 +166,7 @@ final class CelineSeatedCallV70 {
             transforms = (TransformManager) field(view, "transformManager");
             animator = asset.getInstance().getAnimator();
             if (animator == null) throw new IllegalStateException("Filament Animator fehlt");
+            room = findRoom(decor);
 
             rootInstance = transforms.getInstance(asset.getRoot());
             if (rootInstance == 0) throw new IllegalStateException("Celine Root-Transform fehlt");
@@ -197,6 +199,7 @@ final class CelineSeatedCallV70 {
 
             Celine3DDiagnostics.record(activity, "V70-100", "Sitzendes Unterkörper-Rig gebunden",
                     "Root + Hips + Left/RightUpLeg + Left/RightLeg + Left/RightFoot · "
+                            + "CALL-Stuhl bleibt im Backdrop hinter Filament · "
                             + "Schultern/Arme/Kopf unangetastet · probe=" + probeModel);
         }
 
@@ -204,15 +207,18 @@ final class CelineSeatedCallV70 {
             if (disabled || !supported) return;
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
             if (!callNow) {
+                if (room != null) room.setSeatedCallMode(false);
                 if (inCall) restoreForHome(true);
                 return;
             }
+            if (room != null) room.setSeatedCallMode(true);
 
             if (!inCall) {
                 inCall = true;
                 loggedFrame = false;
                 Celine3DDiagnostics.record(activity, "V70-110", "Sitzender CALL aktiviert",
-                        "Unterkörper CALL-only · v55 Kopf + v69 Arme bleiben getrennte Besitzer");
+                        "Unterkörper CALL-only · Stuhl hinter transparenter 3D-Fläche · "
+                                + "v55 Kopf + v69 Arme bleiben getrennte Besitzer");
             }
 
             try {
@@ -233,7 +239,8 @@ final class CelineSeatedCallV70 {
             if (!loggedFrame) {
                 loggedFrame = true;
                 Celine3DDiagnostics.record(activity, "V70-120", "Sitzende CALL-Matrizen aktiv",
-                        "hips=-5° · upperLeg=-88°/yaw±2° · knees=92° · feet=-8° · rootDown=-0.30 · baseline CALL camera unchanged");
+                        "hips=-5° · upperLeg=-88°/yaw±2° · knees=92° · feet=-8° · rootDown=-0.30 · "
+                                + "CALL chair behind Filament · baseline CALL camera unchanged");
             }
         }
 
@@ -243,6 +250,7 @@ final class CelineSeatedCallV70 {
         }
 
         void restoreForHome(boolean logReturn) {
+            if (room != null) room.setSeatedCallMode(false);
             if (!supported) return;
             if (!inCall && !logReturn) return;
             try {
@@ -332,6 +340,18 @@ final class CelineSeatedCallV70 {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
+    }
+
+    private static CelineRoomBackdropView findRoom(View view) {
+        if (view instanceof CelineRoomBackdropView) return (CelineRoomBackdropView) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                CelineRoomBackdropView found = findRoom(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static Celine3DView find3D(View view) {

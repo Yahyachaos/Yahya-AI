@@ -14,10 +14,17 @@ import android.view.View;
 final class CelineRoomBackdropView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
+    private boolean seatedCallMode;
 
     CelineRoomBackdropView(Context context) {
         super(context);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+    }
+
+    void setSeatedCallMode(boolean seatedCallMode) {
+        if (this.seatedCallMode == seatedCallMode) return;
+        this.seatedCallMode = seatedCallMode;
+        invalidate();
     }
 
     @Override protected void onDraw(Canvas canvas) {
@@ -85,9 +92,46 @@ final class CelineRoomBackdropView extends View {
         paint.setColor(Color.rgb(91, 69, 58));
         canvas.drawRoundRect(new RectF(w * 0.84f, h * 0.56f, w * 0.93f, h * 0.70f), 10, 10, paint);
 
+        if (seatedCallMode) drawSeatedCallChair(canvas, w, h);
+
         paint.setShader(new LinearGradient(0, 0, w, 0,
                 Color.argb(65, 0, 0, 0), Color.argb(0, 0, 0, 0), Shader.TileMode.MIRROR));
         canvas.drawRect(0, 0, w, h, paint);
         paint.setShader(null);
+    }
+
+    /**
+     * CALL-only chair drawn inside the existing room canvas. The transparent Filament surface
+     * stays above this view, so the chair can establish a readable seated silhouette without ever
+     * covering, moving or clipping Celine.
+     */
+    private void drawSeatedCallChair(Canvas canvas, float w, float h) {
+        paint.setShader(null);
+
+        // Rear legs first, then the upholstered back and seat. Celine renders above every part.
+        paint.setColor(Color.rgb(45, 33, 37));
+        canvas.drawRoundRect(new RectF(w * 0.365f, h * 0.625f, w * 0.405f, h * 0.905f),
+                8, 8, paint);
+        canvas.drawRoundRect(new RectF(w * 0.595f, h * 0.625f, w * 0.635f, h * 0.905f),
+                8, 8, paint);
+
+        paint.setColor(Color.rgb(43, 31, 37));
+        canvas.drawRoundRect(new RectF(w * 0.335f, h * 0.305f, w * 0.665f, h * 0.665f),
+                26, 26, paint);
+        paint.setShader(new LinearGradient(w * 0.36f, h * 0.33f, w * 0.64f, h * 0.64f,
+                Color.rgb(103, 70, 76), Color.rgb(66, 47, 55), Shader.TileMode.CLAMP));
+        canvas.drawRoundRect(new RectF(w * 0.36f, h * 0.33f, w * 0.64f, h * 0.64f),
+                22, 22, paint);
+        paint.setShader(null);
+        paint.setColor(Color.argb(62, 235, 190, 173));
+        paint.setStrokeWidth(Math.max(2f, w * 0.003f));
+        canvas.drawLine(w * 0.50f, h * 0.345f, w * 0.50f, h * 0.625f, paint);
+
+        paint.setColor(Color.rgb(44, 31, 36));
+        canvas.drawRoundRect(new RectF(w * 0.325f, h * 0.60f, w * 0.675f, h * 0.69f),
+                18, 18, paint);
+        paint.setColor(Color.rgb(92, 61, 68));
+        canvas.drawRoundRect(new RectF(w * 0.35f, h * 0.61f, w * 0.65f, h * 0.675f),
+                16, 16, paint);
     }
 }
