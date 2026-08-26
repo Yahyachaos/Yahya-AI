@@ -6,10 +6,9 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v61 keeps the v59 safe skinning ownership and adds the production Meshy rig-scale correction
- * proven necessary by the user's v60 device video. HOME stays Head-only and CALL stays neck+Head;
- * the v56-v58 Hips/shoulder path remains quarantined.
- * TRUE-UNLIT/FORCE-C, layout, camera controls and updater placement remain unchanged.
+ * v71 begins feminine presence without reviving the v58 shoulder regression. HOME adds a narrow
+ * Hips-only balance owner; CALL remains owned by the proven v70 seated lower body, v69 relaxed arms
+ * and v55 neck+Head. TRUE-UNLIT/FORCE-C, face runtime, camera, keyboard and updater stay protected.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -32,6 +31,8 @@ public final class YahyaApplication extends Application implements Application.A
                 "HOME Head-only · CALL neck+Head · v56-v58 Hips/Shoulder Produktion quarantiniert");
         Celine3DDiagnostics.record(activity, "V61-003", "Meshy Rig-Scale Guard aktiv",
                 "0.01 Armature / inverse-bind x100 Korrektur · v60 Kamera-Steuerung beibehalten");
+        Celine3DDiagnostics.record(activity, "V71-003", "Feminine Praesenz Sicherheitsmodus aktiv",
+                "HOME Hips-only · v58 Schultern bleiben quarantiniert · CALL v70 unveraendert");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -45,6 +46,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
+        CelineFemininePresenceV71.install(activity, decor);
         CelineCameraZoomV70.install(activity, decor);
         CelineCallImeGuardV70.install(activity, decor);
         decor.postDelayed(() -> CelineFallbackAnimator.ensure(decor), 450L);
@@ -79,12 +81,14 @@ public final class YahyaApplication extends Application implements Application.A
         CelineCallUpperBodyPresenceV55.install(activity, decor);
         CelineArmPoseV69.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
+        CelineFemininePresenceV71.install(activity, decor);
     }
 
     @Override public void onActivityPaused(Activity activity) {
         if (activity instanceof MainActivity) {
             CelineMeshyRigScaleV61.onPaused(activity);
             CelineCameraZoomV70.onPaused(activity);
+            CelineFemininePresenceV71.onPaused(activity);
             CelineSeatedCallV70.onPaused(activity);
             CelineArmPoseV69.onPaused(activity);
             CelineCallUpperBodyPresenceV55.onPaused(activity);
@@ -99,6 +103,7 @@ public final class YahyaApplication extends Application implements Application.A
             CelineMeshyRigScaleV61.onDestroyed(activity);
             CelineCameraZoomV70.onDestroyed(activity);
             CelineCallImeGuardV70.onDestroyed(activity);
+            CelineFemininePresenceV71.onDestroyed(activity);
             CelineSeatedCallV70.onDestroyed(activity);
             CelineArmPoseV69.onDestroyed(activity);
             CelineCallUpperBodyPresenceV55.onDestroyed(activity);
