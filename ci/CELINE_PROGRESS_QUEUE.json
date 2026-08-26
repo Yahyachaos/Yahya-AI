@@ -30,13 +30,13 @@
   },
   "active": {
     "id": "bounded-arm-hand-presence-v74",
-    "status": "v74_blender_design_draft_pr_101",
+    "status": "v74_runtime_implemented_exact_head_validation_pending",
     "current_branch": "auto/celine/v74-bounded-arm-hand-presence",
     "current_pr": 101,
     "target_version": 74,
     "goal": "Continue roadmap order 4 with one bounded Blender-designed HOME arm/hand presence candidate that builds on v69 relaxed arms and v73 body motion without reintroducing A-pose or deformation.",
     "risk": "arm_forearm_hand_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
-    "progress": "v73 is fully released and testable from exact merge SHA e197add3ffc7835345a6ecd6ee4572e87bedbfd6. The first natural-body-motion slice is complete: restrained Hips+shoulder breathing/weight shift is seamless and safe across HOME/CALL/HOME plus zoom. v74 begins Blender design only. First inspect the exact hand/finger bone availability and weights, then design the smallest seamless arm/hand presence candidate around v69's approved relaxed bases. No Android writer is permitted until front/right/back keyframes and the loop seam pass. Draft PR #101 is open as the sole active queue step.",
+    "progress": "v73 is fully released and testable from exact merge SHA e197add3ffc7835345a6ecd6ee4572e87bedbfd6. The first natural-body-motion slice is complete: restrained Hips+shoulder breathing/weight shift is seamless and safe across HOME/CALL/HOME plus zoom. v74 begins Blender design only. First inspect the exact hand/finger bone availability and weights, then design the smallest seamless arm/hand presence candidate around v69's approved relaxed bases. No Android writer is permitted until front/right/back keyframes and the loop seam pass. Draft PR #101 is open as the sole active queue step. Exact canonical rig inspection found weighted Left/Right Arm, ForeArm and Hand joints but zero finger bones, so finger animation is explicitly unsupported. Blender candidate b-arm-wrist-presence was selected: v73 body context plus v69 arm/forearm bases, with a 4.0 s loop animating only both arms and both hands at maximum 0.20°/0.46°. Front/right/back extrema passed without deformation and frame 1/97 matrices match exactly. CelineArmHandPresenceV74 now replaces the v69 writer, owns the six proven joints, animates only four in HOME, preserves static v69 forearms, and restores exact v69 arms/forearms plus hand bases in CALL. Exact-head contracts, build and Android production render remain pending.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -63,7 +63,7 @@
       "source_modified": false,
       "real_render_validation": "PASS on PR #93 exact head and exact main v66",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v74 exact rig/weight inspection and Blender-only bounded arm/hand loop design is the sole active gate"
+      "remaining_gate": "v74 runtime implemented; exact-head contract/build plus Android HOME/CALL/HOME-return and zoom evidence pending"
     }
   },
   "completed": [
@@ -358,7 +358,7 @@
   "next": [
     {
       "id": "v74-bounded-arm-hand-presence",
-      "status": "draft_pr_101_blender_rig_and_motion_design_in_progress",
+      "status": "runtime_implemented_exact_head_validation_pending_pr_101",
       "target_version": 74,
       "goal": "Inspect and design one minimal seamless HOME arm/hand presence loop before adding any new Android ownership.",
       "constraints": [
