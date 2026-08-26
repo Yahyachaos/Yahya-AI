@@ -28,11 +28,11 @@ public final class YahyaApplication extends Application implements Application.A
     @Override public void onActivityCreated(Activity activity, Bundle state) {
         if (!(activity instanceof MainActivity)) return;
         Celine3DDiagnostics.record(activity, "V59-003", "CALL Skinning Sicherheitsmodus aktiv",
-                "HOME Head-only · CALL neck+Head · v56-v58 Hips/Shoulder Produktion quarantiniert");
+                "HOME Head-only · CALL neck+Head+seated spine · v56-v58 Hips/Shoulder Produktion quarantiniert");
         Celine3DDiagnostics.record(activity, "V61-003", "Meshy Rig-Scale Guard aktiv",
                 "0.01 Armature / inverse-bind x100 Korrektur · v60 Kamera-Steuerung beibehalten");
-        Celine3DDiagnostics.record(activity, "V74-003", "Blender Arm/Hand-Sicherheitsmodus aktiv",
-                "v73 Hips+Schulter · v74 Arm+Hand HOME Loops · keine Fingerknochen · CALL v69/v70");
+        Celine3DDiagnostics.record(activity, "V79-004", "v79 Arm/Hand-Sicherheitsmodus aktiv",
+                "sechs gewichtete Joints · sichtbare bounded HOME/CALL Loops · keine Fingerknochen");
         Celine3DDiagnostics.record(activity, "V75-003", "v75 Semantikmaterial-Owner aktiv",
                 "V39 bleibt Haut/Gesicht-Owner · v75 übernimmt nur top/jeans/shoes/hair nach V39");
         Celine3DDiagnostics.record(activity, "V79-003", "v79 Produkt-Interaktion verankert",
@@ -48,7 +48,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineMeshyRigScaleV61.install(activity, decor);
         CelineSingleBonePresenceV54.install(activity, decor);
         CelineCallUpperBodyPresenceV55.install(activity, decor);
-        CelineArmHandPresenceV74.install(activity, decor);
+        CelineArmHandPresenceV79.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
         CelineNaturalBodyMotionV73.install(activity, decor);
         CelineCameraZoomV70.install(activity, decor);
@@ -88,7 +88,7 @@ public final class YahyaApplication extends Application implements Application.A
         CelineMeshyRigScaleV61.install(activity, decor);
         CelineSingleBonePresenceV54.install(activity, decor);
         CelineCallUpperBodyPresenceV55.install(activity, decor);
-        CelineArmHandPresenceV74.install(activity, decor);
+        CelineArmHandPresenceV79.install(activity, decor);
         CelineSeatedCallV70.install(activity, decor);
         CelineNaturalBodyMotionV73.install(activity, decor);
     }
@@ -101,7 +101,7 @@ public final class YahyaApplication extends Application implements Application.A
             CelineCameraZoomV70.onPaused(activity);
             CelineNaturalBodyMotionV73.onPaused(activity);
             CelineSeatedCallV70.onPaused(activity);
-            CelineArmHandPresenceV74.onPaused(activity);
+            CelineArmHandPresenceV79.onPaused(activity);
             CelineCallUpperBodyPresenceV55.onPaused(activity);
             CelineSingleBonePresenceV54.onPaused(activity);
             CelineCallMotionLockV47.onPaused(activity);
@@ -118,7 +118,7 @@ public final class YahyaApplication extends Application implements Application.A
             CelineCallImeGuardV70.onDestroyed(activity);
             CelineNaturalBodyMotionV73.onDestroyed(activity);
             CelineSeatedCallV70.onDestroyed(activity);
-            CelineArmHandPresenceV74.onDestroyed(activity);
+            CelineArmHandPresenceV79.onDestroyed(activity);
             CelineCallUpperBodyPresenceV55.onDestroyed(activity);
             CelineSingleBonePresenceV54.onDestroyed(activity);
             CelineCallMotionLockV47.onDestroyed(activity);
