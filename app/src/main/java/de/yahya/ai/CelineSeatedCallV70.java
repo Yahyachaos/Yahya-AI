@@ -141,7 +141,6 @@ final class CelineSeatedCallV70 {
         final FilamentAsset asset;
         final TransformManager transforms;
         final Animator animator;
-        final CelineRoomBackdropView room;
         final int rootInstance;
         final float[] rootBase;
         final Bone hips;
@@ -157,6 +156,7 @@ final class CelineSeatedCallV70 {
         boolean disabled;
         boolean inCall;
         boolean loggedFrame;
+        boolean chairBoundLogged;
 
         Driver(Activity activity, View decor, Celine3DView view) throws Exception {
             this.activity = activity;
@@ -166,7 +166,6 @@ final class CelineSeatedCallV70 {
             transforms = (TransformManager) field(view, "transformManager");
             animator = asset.getInstance().getAnimator();
             if (animator == null) throw new IllegalStateException("Filament Animator fehlt");
-            room = findRoom(decor);
 
             rootInstance = transforms.getInstance(asset.getRoot());
             if (rootInstance == 0) throw new IllegalStateException("Celine Root-Transform fehlt");
@@ -199,7 +198,7 @@ final class CelineSeatedCallV70 {
 
             Celine3DDiagnostics.record(activity, "V70-100", "Sitzendes Unterkörper-Rig gebunden",
                     "Root + Hips + Left/RightUpLeg + Left/RightLeg + Left/RightFoot · "
-                            + "CALL-Stuhl bleibt im Backdrop hinter Filament · "
+                            + "CALL-Stuhl wird zustandsbezogen im Backdrop hinter Filament gebunden · "
                             + "Schultern/Arme/Kopf unangetastet · probe=" + probeModel);
         }
 
@@ -207,11 +206,11 @@ final class CelineSeatedCallV70 {
             if (disabled || !supported) return;
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
             if (!callNow) {
-                if (room != null) room.setSeatedCallMode(false);
+                setSeatedCallMode(false);
                 if (inCall) restoreForHome(true);
                 return;
             }
-            if (room != null) room.setSeatedCallMode(true);
+            setSeatedCallMode(true);
 
             if (!inCall) {
                 inCall = true;
@@ -250,7 +249,7 @@ final class CelineSeatedCallV70 {
         }
 
         void restoreForHome(boolean logReturn) {
-            if (room != null) room.setSeatedCallMode(false);
+            setSeatedCallMode(false);
             if (!supported) return;
             if (!inCall && !logReturn) return;
             try {
@@ -273,6 +272,20 @@ final class CelineSeatedCallV70 {
             if (logReturn) {
                 Celine3DDiagnostics.record(activity, "V70-130", "HOME Unterkörper wiederhergestellt",
                         "Root/Hüfte/Beine/Füße auf exakte HOME-Basen zurückgesetzt");
+            }
+        }
+
+        private void setSeatedCallMode(boolean enabled) {
+            // v70 may bind before v44 installs the room. Resolve at each state handoff instead of
+            // retaining a permanently null startup reference.
+            CelineRoomBackdropView currentRoom = findRoom(decor);
+            if (currentRoom == null) return;
+            currentRoom.setSeatedCallMode(enabled);
+            if (enabled && !chairBoundLogged) {
+                chairBoundLogged = true;
+                Celine3DDiagnostics.record(activity, "V70-105",
+                        "CALL-Stuhl hinter Celine gebunden",
+                        "Raum nach v44-Installation erneut aufgeloest · kein Overlay vor Filament");
             }
         }
 

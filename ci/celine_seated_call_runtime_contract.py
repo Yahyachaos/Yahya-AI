@@ -42,6 +42,8 @@ required_source = {
     "applyRotation(rightUpLeg, UPPER_LEG_PITCH, 2.0f, -0.5f)": "bounded narrow right thigh spread",
     "setSeatedCallMode(true)": "CALL-only chair activation",
     "setSeatedCallMode(false)": "HOME chair removal",
+    "CelineRoomBackdropView currentRoom = findRoom(decor)": "late room resolution after v44 install",
+    "V70-105": "runtime chair bind evidence",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "CALL-only activation",
     "disabled = true": "automatic failure disable",
