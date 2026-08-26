@@ -49,18 +49,19 @@
       "Release write-safety hardening is present, including current-version metadata validation and post-publish read-back checks.",
       "Proof #6 confirmed the Android fullscreen education overlay is removed from capture evidence.",
       "Proof #6 also exposed the real framing cause: the standalone Lab path did not receive the production v61 Meshy 0.01-Armature rig-scale correction, so Celine remained roughly x100 oversized after v60 normalized tiny pre-skinning bounds.",
-      "Latest runtime fix reuses the exact production v61 repair synchronously before the Lab pose driver captures root/bone baselines; no duplicate scale math was added."
+      "Latest runtime fix reuses the exact production v61 repair synchronously before the Lab pose driver captures root/bone baselines; no duplicate scale math was added.",
+      "The shared v61 Lab scale fix compiles successfully on Android Build #523 / run 33021419894 at runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81; visual proof for that head is intentionally still pending."
     ],
     "latest_runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-    "latest_runtime_code_validation": "NOT_YET_BUILT_AFTER_SCALE_FIX",
-    "last_built_runtime_head": "6af211d749fbbeab3bfba552a3f9af7e8c8d42a3",
+    "latest_runtime_code_validation": "BUILT_SUCCESS_NOT_YET_VISUALLY_PROVED",
+    "last_built_runtime_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
     "last_runtime_build": {
       "workflow": "Android Build",
-      "run_number": 521,
-      "run_id": 33020503994,
+      "run_number": 523,
+      "run_id": 33021419894,
       "conclusion": "success",
-      "head_sha": "6af211d749fbbeab3bfba552a3f9af7e8c8d42a3",
-      "note": "Draft build succeeded; expensive final gates were skipped as intended. This build predates the newest shared v61 Lab scale fix."
+      "head_sha": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
+      "note": "Draft exact-head build including the shared v61 Lab scale fix succeeded; expensive final render/emulator/publish gates were skipped as intended. Visual Avatar Lab proof for this head has not been run yet."
     },
     "last_avatar_lab_proof": {
       "run_number": 6,
@@ -82,11 +83,11 @@
         "03ed3f8648a3a310bcb104d20ff97a3f77b06e81"
       ],
       "change": "CelineMeshyRigScaleV61 exposes repairImmediate(); CelineAvatarLabPoseDriverV79 invokes that exact guarded production repair synchronously before binding root/bone baselines. This covers both manual CelineAvatarLabActivity and CI CelineAvatarLabCaptureActivity through the shared pose driver.",
-      "validation": "No GitHub Android Build/Avatar Lab Proof has been created for this runtime head yet. Must be built before any visual claim."
+      "validation": "Android Build #523 / run 33021419894 SUCCESS on the exact runtime head. Visual 12-image Avatar Lab Proof has not yet been run and remains the next gate."
     },
-    "exact_next_action": "Fresh-reconcile PR #107. Build the exact runtime code containing 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. If it compiles, run exactly one lightweight 12-image Avatar Lab Proof. Inspect every PNG and require logcat V61-110 'Meshy Rig-Scale korrigiert' before accepting framing. Do not run the final/full suite.",
+    "exact_next_action": "Run exactly one lightweight 12-image Avatar Lab Proof using the successful exact-head APK for runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. Inspect every PNG and require proof logcat to contain V61-110 'Meshy Rig-Scale korrigiert' before accepting framing. Do not run the final/full suite.",
     "remaining_sequence": [
-      "1. Validate newest shared v61 Lab scale fix on the exact runtime head with one draft Android Build and one lightweight Avatar Lab Proof only.",
+      "1. Run one lightweight Avatar Lab Proof on the already green Android Build #523 runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81; do not rebuild unless fresh reconcile shows the runtime head changed.",
       "2. Require visible correctly framed Celine plus V61-110 in proof logcat; workflow-green alone is insufficient.",
       "3. Blink/face: compare neutral vs held/slow blink close-ups and prove cheeks/lower orbital area/mouth corners stay stable; tune only if visual evidence still fails.",
       "4. Body: visually tune standing and seated CALL so pelvis/spine/shoulders/head and seat contact are coherent.",
@@ -97,7 +98,7 @@
       "9. Final candidate only: mark Ready for Review and run full exact-head Android/emulator/render/lifecycle gates once on the actual final head.",
       "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read release back, then reconcile queue with merge SHA/run/artifact/digest/tag."
     ],
-    "remaining_gate": "Do not mark PR #107 ready, merge, release, or run the expensive final suite yet. First validate the newest shared v61 Lab scale correction and obtain genuinely visible correctly framed Avatar Lab evidence."
+    "remaining_gate": "Do not mark PR #107 ready, merge, release, or run the expensive final suite yet. Next is exactly one lightweight visual proof on the already green shared-v61 runtime head, followed by image/log inspection."
   },
   "completed": [
     {
@@ -230,6 +231,6 @@
   },
   "reconcile": {
     "status": "v78_published_v79_single_flight_handoff_ready",
-    "note": "v78 is the exact released baseline. PR #107 is the only active Celine development strand. Last built/visually inspected runtime head is 6af211d749fbbeab3bfba552a3f9af7e8c8d42a3; newest runtime code head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81 contains the shared v61 Lab scale fix but is not yet built. A later queue-only handoff commit may advance the PR head without changing runtime code. Continue exact_next_action on this same branch only."
+    "note": "v78 is the exact released baseline. PR #107 is the only active Celine development strand. Runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81 is built green in Android Build #523 / run 33021419894; its visual proof is intentionally still pending. Last visually inspected proof remains #6 on 6af211d749fbbeab3bfba552a3f9af7e8c8d42a3. A later queue-only handoff commit may advance the PR head without changing runtime code. Continue exact_next_action on this same branch only."
   }
 }
