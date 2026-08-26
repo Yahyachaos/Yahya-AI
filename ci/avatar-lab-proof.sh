@@ -31,11 +31,32 @@ launch_state() {
 
 capture() {
   local name="$1"
-  adb exec-out screencap -p > "$OUT/${name}.png"
-  if [ ! -s "$OUT/${name}.png" ]; then
-    echo "Empty screenshot: $name" >&2
+  local target="$OUT/${name}.png"
+  local attempt
+  local colors
+
+  # A Filament frame callback can complete before the emulator compositor presents Celine.
+  # Retry only the screenshot (never the Activity/build) until the frame contains materially
+  # more than the known 291-297-color empty system-bars/background image. This keeps the proof
+  # lightweight while making a visually blank capture fail closed instead of passing green.
+  command -v identify >/dev/null 2>&1 || {
+    echo "ImageMagick identify is required for visual capture readiness" >&2
     return 1
-  fi
+  }
+  for attempt in $(seq 1 14); do
+    adb exec-out screencap -p > "$target"
+    if [ -s "$target" ]; then
+      colors="$(identify -format '%k' "$target" 2>/dev/null || echo 0)"
+      if [ "$colors" -ge 1000 ]; then
+        echo "Visible screenshot: $name colors=$colors attempt=$attempt"
+        return 0
+      fi
+    fi
+    sleep 0.50
+  done
+
+  echo "Visually blank screenshot after bounded retries: $name colors=${colors:-0}" >&2
+  return 1
 }
 
 # Close-up uses a held morph instead of a timed animation, so cheek/eyelid comparison is exact.
