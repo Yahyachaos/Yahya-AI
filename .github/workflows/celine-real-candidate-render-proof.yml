@@ -81,11 +81,11 @@ jobs:
           python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_v65_intermediate.glb --report morph-proof/v65-validation-report.json
           python ci/celine_character_refresh_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_geometry.glb \
             --report morph-proof/v75-character-refresh-report.json \
-            --expected-sha256 39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d
+            --expected-sha256 e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f
           python ci/celine_character_refresh_validation_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_geometry.glb \
             docs/celine/reference/v2/REFERENCE_MANIFEST.json \
             --report morph-proof/v75-validation-report.json \
-            --expected-sha256 39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d
+            --expected-sha256 e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f
           python ci/celine_material_regions_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
             --report morph-proof/v75-material-regions-report.json
           python ci/celine_material_regions_validation_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
