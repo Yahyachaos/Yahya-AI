@@ -60,9 +60,9 @@ final class ConversationIntelligenceV78 {
         String value = text.trim().toLowerCase(Locale.GERMANY);
         if (value.isEmpty()) return false;
 
-        // Short acknowledgement/question forms are strong continuation signals,
-        // but short length alone is not: "Erkläre Relativität" is a new intent.
-        if (value.matches("^(ok|okay|ja|nein|genau|klar|richtig|und|aber|also|warum|wieso|wie|was|welche|welcher|welches|nochmal|noch einmal|dann|jetzt)([ ?!,.].*)?$")) return true;
+        // Bare acknowledgements/interrogatives are strong continuation signals,
+        // but ordinary standalone questions must remain new intents.
+        if (value.matches("^(ok|okay|ja|nein|genau|klar|richtig|und|aber|also|warum|wieso|wie|was|welche|welcher|welches|nochmal|noch einmal|dann|jetzt)[ ?!,.]*$")) return true;
         if (value.matches("^(und|aber|also|warum|wieso|nochmal|noch einmal|dann)[ ?!,.].*")) return true;
 
         // Require demonstrative/reference language rather than ordinary German
