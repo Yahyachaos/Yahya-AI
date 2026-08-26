@@ -1,5 +1,6 @@
 package de.yahya.ai;
 
+import android.app.Activity;
 import android.opengl.Matrix;
 import android.view.Choreographer;
 
@@ -61,6 +62,15 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
 
     CelineAvatarLabPoseDriverV79(Celine3DView view) throws Exception {
         this.view = view;
+        if (!(view.getContext() instanceof Activity)) {
+            throw new IllegalStateException("Avatar Lab benötigt Activity-Kontext für Produktions-Rig-Skalierung");
+        }
+        // Celine3DView first sees Meshy's tiny pre-skinning bounds. HOME/CALL correct that known
+        // 0.01 Armature case through v61. Apply the exact same guarded correction synchronously
+        // before the Lab snapshots root/bone baselines, otherwise the skinned body appears ~100x
+        // oversized and every deterministic camera view is meaningless.
+        CelineMeshyRigScaleV61.repairImmediate((Activity) view.getContext(), view);
+
         asset = (FilamentAsset) field(view, "asset");
         transforms = (TransformManager) field(view, "transformManager");
         animator = asset.getInstance().getAnimator();
