@@ -218,3 +218,5 @@ report = {
 os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
 open(args.report, "w", encoding="utf-8").write(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report, indent=2))
+
+# Exact-head CI trigger after atomic Git-data commit; no runtime behavior change below this line.
