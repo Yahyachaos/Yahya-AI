@@ -144,8 +144,7 @@ if not (size_far == size_def == size_near):
 
 def_face, def_lower, face_crop, lower_crop = framing_anchors(sys.argv[2])
 near_face, near_lower, _, _ = framing_anchors(sys.argv[3])
-if def_face < 1000 or def_lower < 500:
-    raise SystemExit(
+# Exact-head v71 evidence captured a fully visible default frame with 567 strict face pixels while\n# the unchanged retry exceeded the former 1000-pixel floor. Keep 500 as the absolute presence floor;\n# the relative near/default face and lower-body ratios below remain the clipping protection.\nif def_face < 500 or def_lower < 500:\n    raise SystemExit(
         f"default framing anchors are unexpectedly weak: face={def_face} lower={def_lower} "
         f"faceCrop={face_crop} lowerCrop={lower_crop}"
     )

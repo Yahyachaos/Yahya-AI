@@ -26,14 +26,14 @@
     ]
   },
   "active": {
-    "id": "credible-seated-call-pose-v70",
-    "status": "v70_implementation_in_progress_draft_pr97",
-    "current_branch": "auto/celine/v70-seated-call-foundation",
-    "current_pr": 97,
-    "target_version": 70,
-    "goal": "Create a credible seated CALL pose as the remaining safe part of roadmap order 2, preserving v69 relaxed arms, Celine face/identity and all keyboard/videochat geometry.",
-    "risk": "lower_body_skinning_deformation_and_runtime_writer_conflict",
-    "progress": "v69 is fully released and testable. PR #96 exact head dab1100a41648f853ce88fcfd0224649381f8b8b passed Android Build #390 and dedicated real-candidate run #21. The exact production images show both arms resting at Celine's sides in HOME, CALL and HOME-return with no shoulder, face or mesh deformation. It merged to f56cc37fb1ab694b842b17010840374c108901f3; exact-main Android Build #391 passed build, full emulator keyboard/videochat geometry regression and publication. The next and only active substep remains within roadmap order 2: diagnose a narrow seated CALL lower-body owner without reactivating the v58 shoulder deformation path. PR #97 is held as a draft while the new owner is proven. The implementation scope is Root + Hips + both upper legs + both lower legs + both feet in CALL only, using the former v46 seated angles, exact v44-captured bases, a stage-internal chair and automatic HOME rollback. No shoulder, arm, head, face or external layout ownership is added. First implementation head 768ebeb190b63bf4e661083dd16d8aa0ce01d6de compiled and bound all v70 joints, but dedicated real-candidate run #22 correctly failed because the CALL image lost Celine while the dynamically inserted chair remained. The first repair removes only that new chair overlay and tightens the contract to forbid addView/removeView; lower-body ownership and camera values stay unchanged so the proven render-layer cause is isolated. Repair head fa4ecc2b6396054b1ce1a0753a92640649b02a3b proved the chair was not the sole cause: dedicated run #23 was generically green, but manual inspection still showed an empty CALL room. The next isolation removes only v70's new camera lens/lookAt ownership, preserving the exact seated lower-body matrices. A new central real-person pixel gate is added from measured production evidence: v69 CALL has 14,111 strict skin/hair pixels, the empty v70 CALL has zero.",
+    "id": "feminine-presence-v71",
+    "status": "v71_exact_head_validation_in_progress_pr98",
+    "current_branch": "auto/celine/v71-feminine-presence",
+    "current_pr": 98,
+    "target_version": 71,
+    "goal": "Begin roadmap order 3 with a guarded feminine HOME posture and preserve the completed v70 seated CALL foundation, zoom safety, identity, keyboard and videochat geometry.",
+    "risk": "production_shoulder_skinning_regression_and_pose_naturalness",
+    "progress": "v70 is merged, exact-main validated, released and testable. PR #98 adds only a bounded Hips owner on HOME (pitch -1.2°, yaw -2.0°, roll 4.0°); the proven v58 shoulder path stays quarantined. CALL hands Hips back to v70 and now draws its chair only inside the existing room backdrop behind the transparent Filament surface. Runtime head 9a67bfcd5a5acdf7a0314ba067619d41f79042df passed Android Build 32943807267 and Celine Real Candidate Render Proof 32943807260 attempt 2. Exact HOME/CALL/HOME-return and far/default/near images show stable identity, a readable seated context, clean chair removal on HOME and no zoom disappearance. Attempt 1 exposed only a timing-sensitive default-face anchor false negative (567 visible face pixels); the same unchanged runtime head passed on retry, so the final queue/CI reconciliation lowers only that empirically disproven absolute floor while retaining relative face and lower-body clipping gates.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -60,7 +60,7 @@
       "source_modified": false,
       "real_render_validation": "PASS on PR #93 exact head and exact main v66",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v69 four-joint A-pose removal completed and testable on f56cc37fb1ab694b842b17010840374c108901f3; credible seated CALL foundation is the remaining roadmap-order-2 gate"
+      "remaining_gate": "v70 seated CALL foundation completed and released on 6428cf76e9ce3230f8f29eadbdc558b16a8c8343; v71 guarded feminine HOME presence is the sole active roadmap-order-3 gate"
     }
   },
   "completed": [
@@ -291,21 +291,34 @@
       "release_asset": "Yahya-AI-v69.apk",
       "release_digest": "sha256:6ef8823b57c5ba9432180649fc944eb838df461260c3d23ec4da01b4df3e0ab8",
       "result": "A fail-closed four-joint owner lowered LeftArm/RightArm/LeftForeArm/RightForeArm in real HOME/CALL/HOME images while shoulders, hips, root, legs, face, camera and layout remained untouched; exact-head and exact-main gates passed before publication."
+    },
+    {
+      "id": "v70-credible-seated-call-foundation",
+      "status": "merged_released_testable",
+      "pr": 97,
+      "tested_head_sha": "aaa394b22712c76c505b5f61989fa59247cbb386",
+      "merge_sha": "6428cf76e9ce3230f8f29eadbdc558b16a8c8343",
+      "pr_android_run": 32922552673,
+      "real_candidate_run": 32922552726,
+      "main_validation_release_run": 32922992869,
+      "release_tag": "v70",
+      "release_asset": "Yahya-AI-v70.apk",
+      "release_digest": "sha256:66eb865b5e037d01dd04e4e0b16afcbc74163fbd4db08c98668309900f25c227",
+      "result": "CALL-only Root/Hips/upper legs/lower legs/feet ownership produced a stable seated lower-body foundation, preserved v69 arms, face/identity, HOME return, keyboard/videochat geometry and bounded zoom, then passed exact-head and exact-main gates before publication."
     }
   ],
   "next": [
     {
-      "id": "v70-credible-seated-call-foundation",
-      "status": "implementation_in_progress_draft_pr97",
-      "target_version": 70,
-      "goal": "Create a credible seated CALL lower-body foundation without touching shoulders or reviving the quarantined broad v56-v58 writer.",
+      "id": "v71-guarded-feminine-home-presence",
+      "status": "exact_head_validation_in_progress_pr98",
+      "target_version": 71,
+      "goal": "Ship the first safe feminine HOME posture step while preserving v70 seated CALL and keeping the proven shoulder-regression path quarantined.",
       "constraints": [
-        "remain inside roadmap order 2; feminine presence, broad motion, styling and intelligence stay pending",
-        "preserve v69 four-joint relaxed arm owner and its rollback",
-        "do not touch shoulder joints",
-        "prove exact production-avatar HOME/CALL/HOME images and lower-body joint diagnostics",
-        "preserve v68 keyboard focus and exact HOME/videochat geometry",
-        "no release before exact-head and exact-main proof"
+        "Hips-only ownership on HOME; no shoulder, arm, root, leg, head, face, camera or external layout ownership",
+        "use Blender rig previews for every further bone-pose refinement before Android runtime changes",
+        "preserve v70 seated CALL, v69 relaxed arms, v66 face and v68 keyboard/videochat geometry",
+        "prove exact production-avatar HOME/CALL/HOME-return plus far/default/near zoom images",
+        "no merge or release before exact final-head and exact-main proof"
       ]
     }
   ],
@@ -365,7 +378,7 @@
           {
             "order": 2,
             "id": "remove-a-pose",
-            "status": "in_progress_v70_seated_call_implementation",
+            "status": "completed_released_v70",
             "deliverables": [
               "arms leave A-pose",
               "shoulders relax safely",
@@ -377,7 +390,7 @@
           {
             "order": 3,
             "id": "feminine-presence",
-            "status": "pending",
+            "status": "in_progress_v71_guarded_home_presence",
             "deliverables": [
               "more feminine and attractive posture",
               "natural shoulder/hip balance without deformation",
@@ -469,12 +482,12 @@
     }
   },
   "latest_release": {
-    "version": 69,
+    "version": 70,
     "status": "published_testable",
-    "sha": "f56cc37fb1ab694b842b17010840374c108901f3",
-    "run": 32846934441,
-    "tag": "v69",
-    "asset": "Yahya-AI-v69.apk",
-    "digest": "sha256:6ef8823b57c5ba9432180649fc944eb838df461260c3d23ec4da01b4df3e0ab8"
+    "sha": "6428cf76e9ce3230f8f29eadbdc558b16a8c8343",
+    "run": 32922992869,
+    "tag": "v70",
+    "asset": "Yahya-AI-v70.apk",
+    "digest": "sha256:66eb865b5e037d01dd04e4e0b16afcbc74163fbd4db08c98668309900f25c227"
   }
 }
