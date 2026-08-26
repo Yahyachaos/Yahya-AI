@@ -6,7 +6,7 @@ import java.util.Locale;
 /**
  * Deterministic conversation-context policy for Celin.
  *
- * Keeps short follow-ups attached to more prior context without letting the
+ * Keeps real follow-ups attached to more prior context without letting the
  * request grow without bounds. This class is deliberately Android-free so the
  * policy can be tested independently from UI, voice and avatar lifecycle code.
  */
@@ -59,10 +59,15 @@ final class ConversationIntelligenceV78 {
         if (text == null) return false;
         String value = text.trim().toLowerCase(Locale.GERMANY);
         if (value.isEmpty()) return false;
-        if (value.length() <= 26) return true;
 
-        return value.matches("^(und|aber|also|warum|wieso|wie|was|welche|welcher|welches|nochmal|noch einmal|dann|jetzt|genau|okay|ok)[ ?!,.].*")
-                || value.matches(".*\\b(das|der|die|den|dem|davon|dazu|damit|deshalb|dann|dort|hier|so|vorher|eben|gerade)\\b.*")
+        // Short acknowledgement/question forms are strong continuation signals,
+        // but short length alone is not: "Erkläre Relativität" is a new intent.
+        if (value.matches("^(ok|okay|ja|nein|genau|klar|richtig|und|aber|also|warum|wieso|wie|was|welche|welcher|welches|nochmal|noch einmal|dann|jetzt)([ ?!,.].*)?$")) return true;
+        if (value.matches("^(und|aber|also|warum|wieso|nochmal|noch einmal|dann)[ ?!,.].*")) return true;
+
+        // Require demonstrative/reference language rather than ordinary German
+        // articles such as der/die/den, which caused false positives.
+        return value.matches(".*\\b(das|dies|dieser|diese|dieses|davon|dazu|damit|deshalb|dann|dort|hier|so|vorher|eben|gerade)\\b.*")
                 || value.contains("meinst du damit")
                 || value.contains("wie vorher")
                 || value.contains("was ist damit");
