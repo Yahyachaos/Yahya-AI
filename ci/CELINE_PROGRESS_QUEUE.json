@@ -30,13 +30,13 @@
   },
   "active": {
     "id": "bounded-arm-hand-presence-v74",
-    "status": "v74_blender_design_in_progress",
+    "status": "v74_blender_design_draft_pr_101",
     "current_branch": "auto/celine/v74-bounded-arm-hand-presence",
-    "current_pr": null,
+    "current_pr": 101,
     "target_version": 74,
     "goal": "Continue roadmap order 4 with one bounded Blender-designed HOME arm/hand presence candidate that builds on v69 relaxed arms and v73 body motion without reintroducing A-pose or deformation.",
     "risk": "arm_forearm_hand_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
-    "progress": "v73 is fully released and testable from exact merge SHA e197add3ffc7835345a6ecd6ee4572e87bedbfd6. The first natural-body-motion slice is complete: restrained Hips+shoulder breathing/weight shift is seamless and safe across HOME/CALL/HOME plus zoom. v74 begins Blender design only. First inspect the exact hand/finger bone availability and weights, then design the smallest seamless arm/hand presence candidate around v69's approved relaxed bases. No Android writer is permitted until front/right/back keyframes and the loop seam pass.",
+    "progress": "v73 is fully released and testable from exact merge SHA e197add3ffc7835345a6ecd6ee4572e87bedbfd6. The first natural-body-motion slice is complete: restrained Hips+shoulder breathing/weight shift is seamless and safe across HOME/CALL/HOME plus zoom. v74 begins Blender design only. First inspect the exact hand/finger bone availability and weights, then design the smallest seamless arm/hand presence candidate around v69's approved relaxed bases. No Android writer is permitted until front/right/back keyframes and the loop seam pass. Draft PR #101 is open as the sole active queue step.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -358,7 +358,7 @@
   "next": [
     {
       "id": "v74-bounded-arm-hand-presence",
-      "status": "blender_rig_and_motion_design_in_progress",
+      "status": "draft_pr_101_blender_rig_and_motion_design_in_progress",
       "target_version": 74,
       "goal": "Inspect and design one minimal seamless HOME arm/hand presence loop before adding any new Android ownership.",
       "constraints": [
