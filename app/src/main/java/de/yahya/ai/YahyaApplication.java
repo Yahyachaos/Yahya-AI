@@ -6,9 +6,8 @@ import android.os.Bundle;
 import android.view.View;
 
 /**
- * v74 keeps the seamless v73 Hips+shoulder loop and replaces the static v69 arm owner with one
- * Blender-reviewed four-second HOME Arm+Hand loop. CALL retains the exact v69 arm pose, v70 seated
- * lower body and v55 neck+Head. TRUE-UNLIT/FORCE-C, face, camera, keyboard and updater stay protected.
+ * v75 keeps the proven v74 motion/lifecycle owners and adds a narrowly scoped semantic-material
+ * owner after V39 so the new character palette cannot be erased by the legacy FORCE-C repair.
  */
 public final class YahyaApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
@@ -33,6 +32,8 @@ public final class YahyaApplication extends Application implements Application.A
                 "0.01 Armature / inverse-bind x100 Korrektur · v60 Kamera-Steuerung beibehalten");
         Celine3DDiagnostics.record(activity, "V74-003", "Blender Arm/Hand-Sicherheitsmodus aktiv",
                 "v73 Hips+Schulter · v74 Arm+Hand HOME Loops · keine Fingerknochen · CALL v69/v70");
+        Celine3DDiagnostics.record(activity, "V75-003", "v75 Semantikmaterial-Owner aktiv",
+                "V39 bleibt Haut/Gesicht-Owner · v75 übernimmt nur top/jeans/shoes/hair nach V39");
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -66,6 +67,7 @@ public final class YahyaApplication extends Application implements Application.A
     private void applyProduction(Activity activity, View decor) {
         CelineEmulatorRenderGuardV49.apply(decor);
         CelineTexturePipelineV39.applyRuntime(decor);
+        CelineSemanticMaterialsV75.apply(activity, decor);
         CelineTrueUnlitProbeV43.auditRuntime(decor);
         CelineVideoChatV44.ensure(activity, decor);
         CelineLayoutV50.install(activity, decor);
