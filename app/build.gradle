@@ -14,15 +14,21 @@ def celineV65GeneratedDir = file("$buildDir/generated/celineV65/intermediate")
 def celineV65Candidate = file("$celineV65GeneratedDir/models/celine.glb")
 def celineV65Report = file("$buildDir/reports/celineV65/production-morph.json")
 def celineV65Validation = file("$buildDir/reports/celineV65/validation.json")
+def celineV75GeometryDir = file("$buildDir/generated/celineV75/geometry")
+def celineV75GeometryCandidate = file("$celineV75GeometryDir/celine-geometry.glb")
 def celineV75GeneratedAssetsDir = file("$buildDir/generated/celineV75/assets")
 def celineV75Candidate = file("$celineV75GeneratedAssetsDir/models/celine.glb")
 def celineV75Report = file("$buildDir/reports/celineV75/character-refresh.json")
 def celineV75Validation = file("$buildDir/reports/celineV75/validation.json")
+def celineV75MaterialReport = file("$buildDir/reports/celineV75/material-regions.json")
+def celineV75MaterialValidation = file("$buildDir/reports/celineV75/material-validation.json")
 def celineCanonicalSource = file('src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb')
 def celineV65Generator = rootProject.file('ci/celine_production_morph_v65.py')
 def celineV65Validator = rootProject.file('ci/celine_facial_morph_validation.py')
 def celineV75Generator = rootProject.file('ci/celine_character_refresh_v75.py')
 def celineV75Validator = rootProject.file('ci/celine_character_refresh_validation_v75.py')
+def celineV75Materializer = rootProject.file('ci/celine_material_regions_v75.py')
+def celineV75MaterialValidator = rootProject.file('ci/celine_material_regions_validation_v75.py')
 def celineV75ReferenceManifest = rootProject.file('docs/celine/reference/v2/REFERENCE_MANIFEST.json')
 
 tasks.register('generateCeline3DViewV62') {
@@ -44,9 +50,6 @@ tasks.register('generateCeline3DViewV62') {
                 frameAnchor + '\n                CelineMorphRuntimeV62.onFrame(Celine3DView.this, frameTimeNanos);')
         text = text.replace(visemeAnchor,
                 '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
-        // HOME presentation is established at 38 mm by v44. Keep the renderer's late
-        // Surface/viewport resize on the same lens so CALL -> HOME cannot fall back to 32 mm
-        // and make Celine visibly smaller after the stage is reparented.
         text = text.replace(homeLensAnchor,
                 '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
 
@@ -65,7 +68,6 @@ tasks.register('generateCeline3DViewV62') {
         output.setText(text, 'UTF-8')
     }
 }
-
 
 tasks.register('generateCelineProductionMorphV65', Exec) {
     inputs.files(celineCanonicalSource, celineV65Generator)
@@ -97,23 +99,23 @@ tasks.register('validateCelineProductionMorphV65', Exec) {
 tasks.register('generateCelineCharacterRefreshV75', Exec) {
     dependsOn tasks.named('validateCelineProductionMorphV65')
     inputs.files(celineCanonicalSource, celineV65Candidate, celineV75Generator, celineV75ReferenceManifest)
-    outputs.files(celineV75Candidate, celineV75Report)
+    outputs.files(celineV75GeometryCandidate, celineV75Report)
     doFirst {
-        celineV75Candidate.parentFile.mkdirs()
+        celineV75GeometryCandidate.parentFile.mkdirs()
         celineV75Report.parentFile.mkdirs()
     }
     commandLine 'python3',
             celineV75Generator.absolutePath,
             celineCanonicalSource.absolutePath,
             celineV65Candidate.absolutePath,
-            celineV75Candidate.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
             '--report', celineV75Report.absolutePath,
             '--expected-sha256', '39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d'
 }
 
 tasks.register('validateCelineCharacterRefreshV75', Exec) {
     dependsOn tasks.named('generateCelineCharacterRefreshV75')
-    inputs.files(celineCanonicalSource, celineV65Candidate, celineV75Candidate,
+    inputs.files(celineCanonicalSource, celineV65Candidate, celineV75GeometryCandidate,
             celineV75Validator, celineV75ReferenceManifest)
     outputs.file(celineV75Validation)
     doFirst { celineV75Validation.parentFile.mkdirs() }
@@ -121,10 +123,37 @@ tasks.register('validateCelineCharacterRefreshV75', Exec) {
             celineV75Validator.absolutePath,
             celineCanonicalSource.absolutePath,
             celineV65Candidate.absolutePath,
-            celineV75Candidate.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
             celineV75ReferenceManifest.absolutePath,
             '--report', celineV75Validation.absolutePath,
             '--expected-sha256', '39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d'
+}
+
+tasks.register('generateCelineMaterialRegionsV75', Exec) {
+    dependsOn tasks.named('validateCelineCharacterRefreshV75')
+    inputs.files(celineV75GeometryCandidate, celineV75Materializer)
+    outputs.files(celineV75Candidate, celineV75MaterialReport)
+    doFirst {
+        celineV75Candidate.parentFile.mkdirs()
+        celineV75MaterialReport.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV75Materializer.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
+            celineV75Candidate.absolutePath,
+            '--report', celineV75MaterialReport.absolutePath
+}
+
+tasks.register('validateCelineMaterialRegionsV75', Exec) {
+    dependsOn tasks.named('generateCelineMaterialRegionsV75')
+    inputs.files(celineV75GeometryCandidate, celineV75Candidate, celineV75MaterialValidator)
+    outputs.file(celineV75MaterialValidation)
+    doFirst { celineV75MaterialValidation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV75MaterialValidator.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
+            celineV75Candidate.absolutePath,
+            '--report', celineV75MaterialValidation.absolutePath
 }
 
 android {
@@ -165,15 +194,15 @@ android {
 
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
-    dependsOn tasks.named('validateCelineCharacterRefreshV75')
+    dependsOn tasks.named('validateCelineMaterialRegionsV75')
 }
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v75 refreshes only neutral geometry and material appearance from the frozen master
-    // references; v74 motion, v70 CALL, v68 keyboard geometry and v66 face runtime stay protected.
+    // v75 refreshes neutral geometry and splits shared-UV semantic material regions while
+    // v74 motion, v70 CALL, v68 keyboard geometry and v66 face runtime stay protected.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }

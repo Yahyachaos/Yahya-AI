@@ -15,6 +15,8 @@ on:
       - 'ci/celine_production_morph_v65.py'
       - 'ci/celine_character_refresh_v75.py'
       - 'ci/celine_character_refresh_validation_v75.py'
+      - 'ci/celine_material_regions_v75.py'
+      - 'ci/celine_material_regions_validation_v75.py'
       - 'docs/celine/reference/v2/REFERENCE_MANIFEST.json'
       - 'ci/celine_true_face_runtime_contract.py'
       - 'ci/celine_a_pose_runtime_contract.py'
@@ -71,13 +73,17 @@ jobs:
             --report morph-proof/v65-production-report.json \
             --expected-sha256 6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146
           python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_v65_intermediate.glb --report morph-proof/v65-validation-report.json
-          python ci/celine_character_refresh_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_candidate.glb \
+          python ci/celine_character_refresh_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_geometry.glb \
             --report morph-proof/v75-character-refresh-report.json \
             --expected-sha256 39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d
-          python ci/celine_character_refresh_validation_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_candidate.glb \
+          python ci/celine_character_refresh_validation_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_geometry.glb \
             docs/celine/reference/v2/REFERENCE_MANIFEST.json \
             --report morph-proof/v75-validation-report.json \
             --expected-sha256 39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d
+          python ci/celine_material_regions_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
+            --report morph-proof/v75-material-regions-report.json
+          python ci/celine_material_regions_validation_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
+            --report morph-proof/v75-material-validation-report.json
           python ci/celine_true_face_runtime_contract.py
           python ci/celine_a_pose_runtime_contract.py
           python ci/celine_seated_call_runtime_contract.py
@@ -143,6 +149,8 @@ jobs:
             morph-proof/v65-validation-report.json
             morph-proof/v75-character-refresh-report.json
             morph-proof/v75-validation-report.json
+            morph-proof/v75-material-regions-report.json
+            morph-proof/v75-material-validation-report.json
             real-candidate-home.png
             real-candidate-call.png
             real-candidate-home-return.png
