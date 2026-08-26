@@ -25,46 +25,20 @@
       "canonical Celine source persisted via Git LFS and SHA-verified before candidate generation",
       "v71 guarded HOME Hips-only feminine presence, CALL-only behind-Filament chair context, stable zoom framing and shoulder-path quarantine",
       "v72 Blender-verified HOME Hips+LeftShoulder+RightShoulder balance from v44 renderer-captured bases with fail-closed rollback",
-      "v73 seamless Blender-verified HOME Hips+shoulder breathing/weight-shift loop with exact v44-base CALL rollback"
+      "v73 seamless Blender-verified HOME Hips+shoulder breathing/weight-shift loop with exact v44-base CALL rollback",
+      "v74 Blender-verified bounded HOME arm/hand presence with exact CALL rollback and no finger ownership"
     ]
   },
   "active": {
-    "id": "bounded-arm-hand-presence-v74",
-    "status": "v74_runtime_implemented_exact_head_validation_pending",
-    "current_branch": "auto/celine/v74-bounded-arm-hand-presence",
-    "current_pr": 101,
-    "target_version": 74,
-    "goal": "Continue roadmap order 4 with one bounded Blender-designed HOME arm/hand presence candidate that builds on v69 relaxed arms and v73 body motion without reintroducing A-pose or deformation.",
-    "risk": "arm_forearm_hand_writer_conflict_skinning_deformation_and_motion_loop_discontinuity",
-    "progress": "v73 is fully released and testable from exact merge SHA e197add3ffc7835345a6ecd6ee4572e87bedbfd6. The first natural-body-motion slice is complete: restrained Hips+shoulder breathing/weight shift is seamless and safe across HOME/CALL/HOME plus zoom. v74 begins Blender design only. First inspect the exact hand/finger bone availability and weights, then design the smallest seamless arm/hand presence candidate around v69's approved relaxed bases. No Android writer is permitted until front/right/back keyframes and the loop seam pass. Draft PR #101 is open as the sole active queue step. Exact canonical rig inspection found weighted Left/Right Arm, ForeArm and Hand joints but zero finger bones, so finger animation is explicitly unsupported. Blender candidate b-arm-wrist-presence was selected: v73 body context plus v69 arm/forearm bases, with a 4.0 s loop animating only both arms and both hands at maximum 0.20°/0.46°. Front/right/back extrema passed without deformation and frame 1/97 matrices match exactly. CelineArmHandPresenceV74 now replaces the v69 writer, owns the six proven joints, animates only four in HOME, preserves static v69 forearms, and restores exact v69 arms/forearms plus hand bases in CALL. Exact-head contracts, build and Android production render remain pending.",
-    "canonical_source": {
-      "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
-      "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
-      "size_bytes": 27381856,
-      "vertex_count": 66700,
-      "head_weight_ge_0_5_vertices": 17641,
-      "persisted_via_git_lfs": true,
-      "verification": "PASS"
-    },
-    "candidate": {
-      "generation_policy": "reproducible_generated_production_asset_from_canonical_source",
-      "sha256": "6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146",
-      "vertex_count": 66700,
-      "target_names": [
-        "BlinkLeft",
-        "BlinkRight",
-        "BlinkBoth",
-        "JawOpen",
-        "RoundedVowelProof",
-        "SpreadVowelProof"
-      ],
-      "structural_validation": "PASS",
-      "topology_preserved": true,
-      "source_modified": false,
-      "real_render_validation": "PASS on PR #93 exact head and exact main v66",
-      "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v74 runtime implemented; exact-head contract/build plus Android HOME/CALL/HOME-return and zoom evidence pending"
-    }
+    "id": "awaiting-next-celine-optics-instruction",
+    "status": "waiting_no_active_runtime_pr",
+    "current_branch": null,
+    "current_pr": null,
+    "target_version": null,
+    "goal": "Hold after merged v74 so the next Celine optics task can be supplied and reconciled separately.",
+    "risk": "none_no_parallel_development",
+    "progress": "v74 PR #101 was exact-head validated and merged at 6e5946f3b72eb99fddc38bf50ff1e097172dfb30. The exact main build succeeded and artifact 9602717601 is available for user testing. The automatic v74 release was not published because the user chose to stop repeated flaky synthetic emulator checks; latest published/testable release therefore remains v73. No v75 or later task has been started.",
+    "remaining_gate": "await explicit next optics task; v74 user test feedback may be added by another task"
   },
   "completed": [
     {
@@ -353,26 +327,24 @@
       "release_asset": "Yahya-AI-v73.apk",
       "release_digest": "sha256:34b5f1b8a62efc5d13c4f62469f56bd4bd1248b38ea2af6ca8f7ed2f177cdc65",
       "result": "A Blender-designed four-second HOME loop animates only the v72-proven Hips+LeftShoulder+RightShoulder around exact v44 bases. Frame 1/97 matched with zero matrix and decoded-pixel error. Exact production HOME/CALL/HOME-return plus far/default/near zoom images preserved identity, clothing, hair, seated CALL and full-person visibility; exact-head and exact-main gates passed before publication."
-    }
-  ],
-  "next": [
+    },
     {
       "id": "v74-bounded-arm-hand-presence",
-      "status": "runtime_implemented_exact_head_validation_pending_pr_101",
-      "target_version": 74,
-      "goal": "Inspect and design one minimal seamless HOME arm/hand presence loop before adding any new Android ownership.",
-      "constraints": [
-        "remain inside roadmap order 4; appearance/styling and intelligence stay pending",
-        "preserve the v69 relaxed arm base and v73 Hips+shoulder loop",
-        "inspect exact arm, forearm, hand and finger bones plus weights before selecting joints",
-        "start with the smallest joint set; fingers remain excluded unless independently proven",
-        "prove front/right/back keyframes plus exact loop seam before Android changes",
-        "keep CALL owned by v69/v70/v55 and restore every HOME joint exactly on handoff",
-        "preserve v66 face, v68 keyboard/videochat geometry and safe zoom",
-        "single active PR only; no release before exact-head and exact-main proof"
-      ]
+      "status": "merged_exact_head_validated_build_artifact_available_release_not_published",
+      "pr": 101,
+      "tested_head_sha": "7502cdfca9986dffd6e4debcff43c4f621332530",
+      "merge_sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
+      "pr_android_run": 32957119598,
+      "real_candidate_run": 32957119519,
+      "real_candidate_artifact": 9602569255,
+      "real_candidate_artifact_digest": "sha256:f16f66cffe523fc05fe31aae41a59a3b792347fc4f26c9e49fc30b3a23de155a",
+      "main_run": 32957880024,
+      "main_build_artifact": 9602717601,
+      "main_build_artifact_digest": "sha256:bb02e40c78a3543993b80db133522ee0aa358928f36b0ebff67aebed94255722",
+      "result": "Exact-head Android and real production HOME/CALL/HOME-return plus far/default/near zoom proof passed; manual original-image review found no disappearance or deformation. PR #101 merged exactly. Main build succeeded. User requested stopping repeated flaky synthetic emulator reruns and will test the build artifact, so no immutable v74 release was published."
     }
   ],
+  "next": [],
   "blocked": [
     {
       "id": "v65-release",
@@ -452,7 +424,7 @@
           {
             "order": 4,
             "id": "natural-body-motion",
-            "status": "in_progress_v74_blender_arm_hand_design",
+            "status": "paused_after_v74_merge_waiting_for_explicit_next_optics_task",
             "deliverables": [
               "bounded arm and hand presence",
               "subtle breathing and weight shifts",
@@ -540,5 +512,14 @@
     "tag": "v73",
     "asset": "Yahya-AI-v73.apk",
     "digest": "sha256:34b5f1b8a62efc5d13c4f62469f56bd4bd1248b38ea2af6ca8f7ed2f177cdc65"
+  },
+  "latest_merged_candidate": {
+    "version": 74,
+    "status": "merged_build_artifact_available_user_test_pending_not_published",
+    "sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
+    "pr": 101,
+    "build_run": 32957880024,
+    "artifact": 9602717601,
+    "artifact_digest": "sha256:bb02e40c78a3543993b80db133522ee0aa358928f36b0ebff67aebed94255722"
   }
 }
