@@ -196,7 +196,8 @@ tasks.register('generateCelineFacialRigV76', Exec) {
             celineV76Generator.absolutePath,
             celineV75Candidate.absolutePath,
             celineV76Candidate.absolutePath,
-            '--report', celineV76Report.absolutePath
+            '--report', celineV76Report.absolutePath,
+            '--expected-sha256', '46828b88dc7917def64881c6bc348b790a2bab445401e0ba3fac240327253923'
 }
 
 tasks.register('validateCelineFacialRigV76', Exec) {
