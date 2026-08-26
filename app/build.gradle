@@ -127,7 +127,7 @@ tasks.register('generateCelineCharacterRefreshV75', Exec) {
             celineV65Candidate.absolutePath,
             celineV75GeometryCandidate.absolutePath,
             '--report', celineV75Report.absolutePath,
-            '--expected-sha256', '39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d'
+            '--expected-sha256', 'e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f'
 }
 
 tasks.register('validateCelineCharacterRefreshV75', Exec) {
@@ -143,7 +143,7 @@ tasks.register('validateCelineCharacterRefreshV75', Exec) {
             celineV75GeometryCandidate.absolutePath,
             celineV75ReferenceManifest.absolutePath,
             '--report', celineV75Validation.absolutePath,
-            '--expected-sha256', '39cbe7f727dd2a63807cd8afece381f7d98599cce88a71151999d6340e65b21d'
+            '--expected-sha256', 'e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f'
 }
 
 tasks.register('generateCelineMaterialRegionsV75', Exec) {
