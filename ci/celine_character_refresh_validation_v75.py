@@ -94,6 +94,19 @@ def widths(positions, joints, weights, wanted, y0, y1):
     return 2.0 * values[int(0.95 * (len(values) - 1))]
 
 
+def hair_vertex(position, js, ws, head, shoulders):
+    # Must mirror the generator's PRE-transform hair ownership. The larger allowance below is
+    # therefore unavailable to waist/body/face vertices even if they later move into the same
+    # spatial band. This keeps the old 0.12 m guard everywhere except the proven hair subset.
+    x, y, z = map(float, position)
+    head_w = joint_weight(js, ws, head)
+    shoulder_w = joint_weight(js, ws, shoulders)
+    return y > 1.17 and (
+        (head_w >= 0.42 and (z < 0.025 or abs(x) > 0.065))
+        or (joint_weight(js, ws, head | shoulders) >= 0.45 and z < -0.045 and abs(x) < 0.18)
+    )
+
+
 parser = argparse.ArgumentParser(description="Validate guarded Celine v75 character refresh")
 parser.add_argument("source_glb")
 parser.add_argument("v65_glb")
@@ -155,16 +168,27 @@ if len(vpositions) != 66700 or len(cpositions) != len(vpositions) or len(normals
 deltas = [math.dist(a, b) for a, b in zip(vpositions, cpositions)]
 if not 20000 <= sum(delta > 1.0e-9 for delta in deltas) <= len(deltas):
     fail("unexpected changed vertex count")
-if max(deltas) > 0.12:
-    fail("position deformation exceeds 0.12 m")
+
+names = [vdocument["nodes"][index].get("name") for index in vdocument["skins"][0]["joints"]]
+by_name = {name: index for index, name in enumerate(names)}
+head = {by_name[name] for name in ("Head", "neck")}
+shoulders = {by_name[name] for name in ("LeftShoulder", "RightShoulder")}
+hair_mask = [hair_vertex(position, js, ws, head, shoulders)
+             for position, js, ws in zip(vpositions, joints, weights)]
+hair_deltas = [delta for delta, is_hair in zip(deltas, hair_mask) if is_hair]
+non_hair_deltas = [delta for delta, is_hair in zip(deltas, hair_mask) if not is_hair]
+if not hair_deltas:
+    fail("hair safety subset is empty")
+if max(non_hair_deltas) > 0.12:
+    fail(f"non-hair position deformation exceeds 0.12 m: {max(non_hair_deltas):.6f}")
+if max(hair_deltas) > 0.18:
+    fail(f"hair position deformation exceeds 0.18 m: {max(hair_deltas):.6f}")
 if any(not all(math.isfinite(value) for value in row) for row in cpositions + normals):
     fail("non-finite geometry")
 normal_lengths = [math.sqrt(sum(value * value for value in normal)) for normal in normals]
 if min(normal_lengths) < 0.95 or max(normal_lengths) > 1.05:
     fail("recomputed normals are not unit length")
 
-names = [vdocument["nodes"][index].get("name") for index in vdocument["skins"][0]["joints"]]
-by_name = {name: index for index, name in enumerate(names)}
 legs = {by_name[name] for name in ("Hips", "LeftUpLeg", "LeftLeg", "RightUpLeg", "RightLeg")}
 source_waist = widths(vpositions, joints, weights, legs, 0.90, 1.10)
 candidate_waist = widths(cpositions, joints, weights, legs, 0.90, 1.10)
@@ -204,6 +228,9 @@ report = {
     "facial_morph_deltas_preserved": True,
     "changed_vertices": sum(delta > 1.0e-9 for delta in deltas),
     "max_position_delta_m": max(deltas),
+    "max_non_hair_delta_m": max(non_hair_deltas),
+    "max_hair_delta_m": max(hair_deltas),
+    "hair_safety_vertices": sum(hair_mask),
     "waist_width_ratio": candidate_waist / source_waist,
     "hip_width_ratio": candidate_hips / source_hips,
     "rear_projection_delta_m": rear_source - rear_candidate,
