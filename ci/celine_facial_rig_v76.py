@@ -21,6 +21,7 @@ TARGET_NAMES = LEGACY_TARGET_NAMES + [
     "BilabialPress", "Labiodental", "Smile", "Thoughtful", "Surprised",
     "GazeLeft", "GazeRight", "GazeUp", "GazeDown",
 ]
+V75_INPUT_SHA256 = "5275eb5873a821b13a38d64d07be076feba98744d363cbcb9d5ed1895e7b366b"
 
 
 def load_glb(path):
@@ -135,6 +136,8 @@ if os.path.abspath(args.input_glb) == os.path.abspath(args.output_glb):
     raise SystemExit("Refusing in-place write")
 
 raw, document, binary = load_glb(args.input_glb)
+if hashlib.sha256(raw).hexdigest() != V75_INPUT_SHA256:
+    raise SystemExit("Exact final v75 input hash mismatch")
 if document.get("asset", {}).get("generator") != "Yahya-AI Celine v75 semantic material-region split":
     raise SystemExit("Input is not the guarded final v75 material candidate")
 if len(document.get("meshes", [])) != 1 or len(document["meshes"][0].get("primitives", [])) != 5:
