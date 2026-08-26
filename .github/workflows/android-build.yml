@@ -28,6 +28,12 @@ on:
 permissions:
   contents: write
 
+# PR iteration policy: a newer commit makes an older PR run stale, so cancel it.
+# Main/release runs are never cancelled by this rule.
+concurrency:
+  group: android-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   change-scope:
     name: Determine change scope
@@ -224,6 +230,9 @@ jobs:
   emulator-smoke:
     name: Android emulator avatar visibility
     needs: build
+    # Draft PRs are iteration mode: compile/build only. Full emulator proof runs once the
+    # PR is ready for review, on every later final-head update, on main, or by manual dispatch.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
