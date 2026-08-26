@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineArmHandPresenceV74.java"
 APPLICATION = ROOT / "app/src/main/java/de/yahya/ai/YahyaApplication.java"
 BUILD = ROOT / "app/build.gradle"
+MANIFEST = ROOT / "ci/celine_v74_blender_arm_hand_manifest.json"
 
 source = SOURCE.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
+manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
 if "versionCode 74" not in build:
     raise SystemExit("v74 versionCode gate missing while preserving v69 arm owner")
@@ -63,6 +66,15 @@ for lifecycle in ("install", "onPaused", "onDestroyed"):
 # This owner is posture-only. It must never write UI/videochat geometry or camera framing.
 for forbidden in ("LayoutParams", "setTranslation", "scrollTo(", "setLensProjection", "lookAt("):
     if forbidden in source:
-        raise SystemExit(f"v69 arm owner unexpectedly touches geometry/camera: {forbidden}")
+        raise SystemExit(f"v74 arm/hand owner unexpectedly touches geometry/camera: {forbidden}")
 
-print("v69 four-joint A-pose removal contract preserved in v73: PASS")
+if manifest["finger_bones"] != [] or manifest["finger_motion"] != "UNSUPPORTED_NO_FINGER_BONES":
+    raise SystemExit("v74 must not claim unsupported finger animation")
+if manifest["selected_candidate"] != "b-arm-wrist-presence":
+    raise SystemExit("unexpected v74 Blender candidate")
+if manifest["seam_proof"]["result"] != "PASS_EXACT_FRAME_1_FRAME_97_SEAM":
+    raise SystemExit("v74 exact Blender loop seam proof missing")
+if manifest["manual_review"] != "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION":
+    raise SystemExit("v74 Blender deformation review missing")
+
+print("v74 six-joint owner preserves v69 A-pose removal and adds bounded arm/wrist HOME motion: PASS")
