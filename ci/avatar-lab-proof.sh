@@ -35,7 +35,7 @@ import xml.etree.ElementTree as ET
 path, wanted = sys.argv[1:]
 root = ET.parse(path).getroot()
 for node in root.iter('node'):
-    if (node.attrib.get('text') != wanted:
+    if node.attrib.get('text') != wanted:
         continue
     bounds = node.attrib.get('bounds', '')
     match = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', bounds)
