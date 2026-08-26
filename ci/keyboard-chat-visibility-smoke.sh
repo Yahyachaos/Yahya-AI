@@ -248,7 +248,28 @@ PY
 
 python3 ci/check-magenta-avatar.py emulator-call.png CALL_KEYBOARD_TRANSITION || fail "CALL avatar pixels missing after HOME keyboard transition"
 
-adb shell input keyevent 4
+# Close CALL through the actual visible hang-up control. Android BACK navigates MainActivity itself
+# and does not exercise the intended CALL -> HOME cleanup path, so using BACK here can recreate
+# HOME focus independently of the CALL IME guard.
+read -r HANGUP_X HANGUP_Y <<< "$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root=ET.parse("emulator-call.xml").getroot()
+pat=re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+for node in root.iter("node"):
+    if node.attrib.get("class")!="android.widget.Button" or "Auflegen" not in node.attrib.get("text","") or node.attrib.get("clickable","")!="true":
+        continue
+    m=pat.fullmatch(node.attrib.get("bounds",""))
+    if not m:
+        continue
+    x1,y1,x2,y2=map(int,m.groups())
+    print((x1+x2)//2,(y1+y2)//2)
+    raise SystemExit(0)
+raise SystemExit("CALL hang-up button not found after keyboard transition")
+PY
+)"
+[[ -n "${HANGUP_X:-}" && -n "${HANGUP_Y:-}" ]] || fail "CALL hang-up coordinates missing after keyboard transition"
+adb shell input tap "$HANGUP_X" "$HANGUP_Y"
 sleep 3
 dump_ui emulator-home-return.xml
 adb exec-out screencap -p > emulator-home-return.png
