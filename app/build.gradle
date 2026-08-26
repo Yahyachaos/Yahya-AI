@@ -94,8 +94,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 74
-        versionName '1.0-celin-bounded-arm-hand-presence'
+        versionCode 75
+        versionName '1.0-celin-character-refresh'
     }
     signingConfigs {
         debug {

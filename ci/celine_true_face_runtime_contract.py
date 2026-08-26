@@ -16,6 +16,10 @@ runtime = RUNTIME.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 generator = GENERATOR.read_text(encoding="utf-8")
 
+version_match = re.search(r"versionCode\s+(\d+)", build)
+if not version_match or int(version_match.group(1)) < 74:
+    raise SystemExit("v74+ arm-hand motion release version gate missing")
+
 required = {
     "TARGET_COUNT = 6": "validated six-target mapping",
     "MAX_BLINK = 0.92f": "bounded blink amplitude",
@@ -36,7 +40,6 @@ for needle, purpose in required.items():
 if not re.search(r"public\s+void\s+setViseme\s*\([^)]*\)\s*\{\s*\}", view):
     raise SystemExit("source setViseme hook no longer matches the guarded build transform")
 build_required = {
-    "versionCode 74": "v74 arm-hand motion release version gate",
     "generateCelineProductionMorphV65": "reproducible candidate generation",
     "validateCelineProductionMorphV65": "structural candidate validation",
     "assets.srcDir celineV65GeneratedAssetsDir": "generated production asset packaging",

@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Yahya AI</string>
+    <string name="owner_name">Yahya Al-Jadouh</string>
+    <string name="about_title">Über Yahya AI</string>
+    <string name="about_owner">Eigentümer: Yahya Al-Jadouh</string>
     <string name="accessibility_desc">Erlaubt Yahya AI, nach deiner ausdrücklichen Freigabe Bildschirmaktionen auszuführen.</string>
 </resources>

@@ -90,8 +90,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         String wake=prefs.getBoolean("wake",false)?"an":"aus";String cloud=prefs.getString("api_key","").trim().isEmpty()?"nicht verbunden":"verbunden";
         String voiceMode=prefs.getBoolean("neural_voice",true)?"Celin Online-Stimme":"Celin Offline (Gerät)"; String voiceName=prefs.getString("openai_voice","marin");
         String localVoice=(supertonicModels!=null&&supertonicModels.isInstalled())?"installiert":"nicht installiert";
-        String[] items={"Celin-Aktivierungswort: "+wake,"KI/API: "+cloud,"Gedächtnis","Berechtigungen & Gerätezugriff","Gerätestatus","Sprachmodus: "+voiceMode,"Lokale Neural-Stimme: "+localVoice,"Online-Stimme: "+voiceName,"Stimme testen","Avatar ansehen","Datenschutz: Gedächtnis löschen"};
-        new AlertDialog.Builder(this).setTitle("Yahya AI · Einstellungen").setItems(items,(d,w)->{switch(w){case 0:toggleWake();break;case 1:showApiKeyDialog();break;case 2:showMemoryDialog();break;case 3:showAccess();break;case 4:addAssistant(device.status(),false);break;case 5:toggleVoiceMode();break;case 6:showLocalVoiceSetup();break;case 7:showOpenAiVoicePicker();break;case 8:speak("Hallo Yahya. Schön, dass du da bist. Was machen wir heute?");break;case 9:showAvatar();break;case 10:confirmDeleteMemory();break;}}).show();
+        String[] items={"Celin-Aktivierungswort: "+wake,"KI/API: "+cloud,"Gedächtnis","Berechtigungen & Gerätezugriff","Gerätestatus","Sprachmodus: "+voiceMode,"Lokale Neural-Stimme: "+localVoice,"Online-Stimme: "+voiceName,"Stimme testen","Avatar ansehen","Datenschutz: Gedächtnis löschen","Über Yahya AI"};
+        new AlertDialog.Builder(this).setTitle("Yahya AI · Einstellungen").setItems(items,(d,w)->{switch(w){case 0:toggleWake();break;case 1:showApiKeyDialog();break;case 2:showMemoryDialog();break;case 3:showAccess();break;case 4:addAssistant(device.status(),false);break;case 5:toggleVoiceMode();break;case 6:showLocalVoiceSetup();break;case 7:showOpenAiVoicePicker();break;case 8:speak("Hallo Yahya. Schön, dass du da bist. Was machen wir heute?");break;case 9:showAvatar();break;case 10:confirmDeleteMemory();break;case 11:showAbout();break;}}).show();
+    }
+    private void showAbout(){
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.about_title)
+                .setMessage(getString(R.string.about_owner))
+                .setPositiveButton("Schließen",null)
+                .show();
     }
     private void showLocalVoiceSetup(){
         if(supertonicModels==null)return;
