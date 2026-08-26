@@ -11,8 +11,8 @@ source = SOURCE.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 
-if "versionCode 70" not in build:
-    raise SystemExit("v70 versionCode gate missing")
+if "versionCode 71" not in build:
+    raise SystemExit("v71 versionCode gate missing while preserving v70 seated CALL")
 
 expected_joints = {
     "Hips",
@@ -74,4 +74,4 @@ for forbidden_geometry in (
     if forbidden_geometry in source:
         raise SystemExit(f"v70 unexpectedly changes external UI geometry: {forbidden_geometry}")
 
-print("v70 CALL-only seated lower-body contract: PASS")
+print("v70 CALL-only seated lower-body contract preserved in v71: PASS")
