@@ -343,60 +343,9 @@ jobs:
           name: yahya-ai-debug
           path: release-apk
 
-      - name: Publish immutable GitHub Release
+      - name: Publish and read-back verify exact-version GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
         shell: bash
-        run: |
-          set -euo pipefail
-          CHECKED_SHA="$(git rev-parse HEAD)"
-          if [ "$CHECKED_SHA" != "$TARGET_SHA" ]; then
-            echo "Release checkout does not match tested target."
-            echo "target=$TARGET_SHA checked=$CHECKED_SHA"
-            exit 1
-          fi
-
-          VERSION_CODE="$(grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' app/build.gradle | grep -oE '[0-9]+' | head -1)"
-          if [ -z "$VERSION_CODE" ]; then
-            echo "Could not determine versionCode"
-            exit 1
-          fi
-
-          TAG="v${VERSION_CODE}"
-          APK_NAME="Yahya-AI-v${VERSION_CODE}.apk"
-          cp release-apk/app-debug.apk "$APK_NAME"
-
-          NOTES_FILE="RELEASE_NOTES.md"
-          if [ ! -f "$NOTES_FILE" ]; then
-            printf 'Automatisch gebauter und im Android-Emulator mit sichtbarem 3D-Avatar geprüfter Yahya-AI-Build.\n' > "$NOTES_FILE"
-          fi
-
-          git fetch --tags --force
-          if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            EXISTING_SHA="$(git rev-list -n 1 "$TAG")"
-            if [ "$EXISTING_SHA" != "$TARGET_SHA" ]; then
-              echo "Refusing to overwrite existing release tag $TAG."
-              echo "existing=$EXISTING_SHA target=$TARGET_SHA"
-              exit 1
-            fi
-
-            if gh release view "$TAG" >/dev/null 2>&1; then
-              echo "$TAG already publishes this exact tested commit; nothing to replace."
-              exit 0
-            fi
-
-            gh release create "$TAG" "$APK_NAME" \
-              --verify-tag \
-              --title "Yahya AI v${VERSION_CODE}" \
-              --notes-file "$NOTES_FILE" \
-              --latest
-          else
-            gh release create "$TAG" "$APK_NAME" \
-              --title "Yahya AI v${VERSION_CODE}" \
-              --notes-file "$NOTES_FILE" \
-              --target "$TARGET_SHA" \
-              --latest
-          fi
-
-          echo "Published immutable $TAG for tested commit $TARGET_SHA after HOME + CALL avatar visibility proof" >> "$GITHUB_STEP_SUMMARY"
+        run: bash ci/publish_release_guard.sh
