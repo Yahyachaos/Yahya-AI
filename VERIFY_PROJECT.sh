@@ -26,7 +26,10 @@ for f in "${required_files[@]}"; do
 done
 
 grep -q "applicationId 'de.yahya.ai'" app/build.gradle || { echo "FEHLT: applicationId de.yahya.ai"; exit 1; }
-grep -q "versionName '1.0-celin-foundation'" app/build.gradle || { echo "FEHLT: erwartete versionName"; exit 1; }
+# Feature releases intentionally advance their descriptive suffix (foundation, feminine-presence,
+# natural-body-motion, ...). Keep this project-integrity check on the canonical Celine version
+# family; runtime PR CI separately enforces the numeric versionCode bump.
+grep -q "versionName '1.0-celin-[^']\+'" app/build.gradle || { echo "FEHLT: erwartete Celine versionName-Familie"; exit 1; }
 grep -q "gradle-7.5.1-" gradle/wrapper/gradle-wrapper.properties || { echo "FEHLT: Gradle 7.5.1 wrapper"; exit 1; }
 
 bash -n gradlew

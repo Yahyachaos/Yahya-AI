@@ -15,24 +15,22 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * v70 supplies only the missing seated CALL lower-body foundation.
+ * v71 begins roadmap order 3 with a deliberately narrow feminine HOME posture owner.
  *
- * The previously deforming v58 shoulder path remains quarantined. This owner writes the asset
- * root plus Hips, both upper legs, both lower legs and both feet only while CALL is active.
- * v55 continues to own neck+Head and v69 continues to own the four arm joints. HOME is never
- * continuously written; after CALL, every v70 transform is restored once and v44 resumes.
+ * The v58 shoulder path stays quarantined because real production evidence proved that adding
+ * shoulder transforms could pull a large textured mesh fragment into frame. Hips, however, were
+ * already production-proven before that regression. This owner therefore writes only Hips, only
+ * on HOME, from the renderer-captured base. CALL is left entirely to v70's seated lower-body owner.
+ * No shoulder, arm, root, leg, head, face, camera or layout geometry is touched here.
  */
-final class CelineSeatedCallV70 {
-    private static final float ROOT_DOWN = -0.30f;
-    private static final float ROOT_FORWARD = 0.12f;
-    private static final float HIPS_PITCH = -5.0f;
-    private static final float UPPER_LEG_PITCH = -88.0f;
-    private static final float LOWER_LEG_PITCH = 92.0f;
-    private static final float FOOT_PITCH = -8.0f;
+final class CelineFemininePresenceV71 {
+    private static final float HOME_HIPS_PITCH = -1.2f;
+    private static final float HOME_HIPS_YAW = -2.0f;
+    private static final float HOME_HIPS_ROLL = 4.0f;
 
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
 
-    private CelineSeatedCallV70() {}
+    private CelineFemininePresenceV71() {}
 
     static void install(Activity activity, View decor) {
         if (!(activity instanceof MainActivity) || decor == null) return;
@@ -82,14 +80,14 @@ final class CelineSeatedCallV70 {
 
         void pause() {
             paused = true;
-            if (driver != null) driver.restoreForHome(false);
+            if (driver != null) driver.restore(false);
         }
 
         void destroy() {
             running = false;
             paused = true;
             choreographer.removeFrameCallback(this);
-            if (driver != null) driver.restoreForHome(false);
+            if (driver != null) driver.restore(false);
             driver = null;
             boundView = null;
         }
@@ -103,12 +101,12 @@ final class CelineSeatedCallV70 {
             if (view == null || !view.isAttachedToWindow()) return;
             if (driver == null || boundView != view) {
                 try {
-                    if (driver != null) driver.restoreForHome(false);
+                    if (driver != null) driver.restore(false);
                     boundView = view;
-                    driver = new Driver(activity, decor, view);
+                    driver = new Driver(activity, view);
                 } catch (Throwable error) {
-                    Celine3DDiagnostics.error(activity, "V70-199",
-                            "Sitzende CALL-Pose Initialisierung FEHLER", error);
+                    Celine3DDiagnostics.error(activity, "V71-199",
+                            "Feminine HOME-Praesenz Initialisierung FEHLER", error);
                     driver = null;
                     return;
                 }
@@ -117,8 +115,8 @@ final class CelineSeatedCallV70 {
             try {
                 driver.apply();
             } catch (Throwable error) {
-                Celine3DDiagnostics.error(activity, "V70-198",
-                        "Sitzende CALL-Pose Frame FEHLER", error);
+                Celine3DDiagnostics.error(activity, "V71-198",
+                        "Feminine HOME-Praesenz Frame FEHLER", error);
                 driver.disableAfterFailure();
             }
         }
@@ -136,170 +134,89 @@ final class CelineSeatedCallV70 {
 
     private static final class Driver {
         final Activity activity;
-        final View decor;
         final Celine3DView view;
         final FilamentAsset asset;
         final TransformManager transforms;
         final Animator animator;
-        final int rootInstance;
-        final float[] rootBase;
         final Bone hips;
-        final Bone leftUpLeg;
-        final Bone rightUpLeg;
-        final Bone leftLeg;
-        final Bone rightLeg;
-        final Bone leftFoot;
-        final Bone rightFoot;
         final boolean probeModel;
         final boolean supported;
 
         boolean disabled;
-        boolean inCall;
+        boolean homeApplied;
         boolean loggedFrame;
-        boolean chairBoundLogged;
 
-        Driver(Activity activity, View decor, Celine3DView view) throws Exception {
+        Driver(Activity activity, Celine3DView view) throws Exception {
             this.activity = activity;
-            this.decor = decor;
             this.view = view;
             asset = (FilamentAsset) field(view, "asset");
             transforms = (TransformManager) field(view, "transformManager");
             animator = asset.getInstance().getAnimator();
             if (animator == null) throw new IllegalStateException("Filament Animator fehlt");
 
-            rootInstance = transforms.getInstance(asset.getRoot());
-            if (rootInstance == 0) throw new IllegalStateException("Celine Root-Transform fehlt");
-            float[] capturedRoot = extractV44Base(view, "rootBase");
-            rootBase = capturedRoot != null
-                    ? capturedRoot
-                    : transforms.getTransform(rootInstance, new float[16]);
-
-            hips = seatedBone(view, asset, transforms, "hips", "Hips");
-            leftUpLeg = seatedBone(view, asset, transforms, "leftUpLeg", "LeftUpLeg");
-            rightUpLeg = seatedBone(view, asset, transforms, "rightUpLeg", "RightUpLeg");
-            leftLeg = seatedBone(view, asset, transforms, "leftLeg", "LeftLeg");
-            rightLeg = seatedBone(view, asset, transforms, "rightLeg", "RightLeg");
-            leftFoot = seatedBone(view, asset, transforms, "leftFoot", "LeftFoot");
-            rightFoot = seatedBone(view, asset, transforms, "rightFoot", "RightFoot");
-
+            hips = feminineBone(view, asset, transforms, "hips", "Hips");
             probeModel = asset.getFirstEntityByName("CelineSkinningProbe") != 0;
-            supported = hips != null && leftUpLeg != null && rightUpLeg != null
-                    && leftLeg != null && rightLeg != null
-                    && leftFoot != null && rightFoot != null;
+            supported = hips != null;
             if (!supported && !probeModel) {
-                throw new IllegalStateException("Produktions-Rig hat nicht alle sieben Sitz-Joints");
+                throw new IllegalStateException("Produktions-Rig Hips fehlt");
             }
             if (!supported) {
-                Celine3DDiagnostics.record(activity, "V70-101",
-                        "Sitzpose auf synthetischem Probe-Rig kontrolliert übersprungen",
-                        "CelineSkinningProbe hat nicht alle sieben Sitz-Joints · kein Produktionsfehler");
+                Celine3DDiagnostics.record(activity, "V71-101",
+                        "Feminine Praesenz auf Probe-Rig kontrolliert uebersprungen",
+                        "CelineSkinningProbe ohne Hips · kein Produktionsfehler");
                 return;
             }
 
-            Celine3DDiagnostics.record(activity, "V70-100", "Sitzendes Unterkörper-Rig gebunden",
-                    "Root + Hips + Left/RightUpLeg + Left/RightLeg + Left/RightFoot · "
-                            + "CALL-Stuhl wird zustandsbezogen im Backdrop hinter Filament gebunden · "
-                            + "Schultern/Arme/Kopf unangetastet · probe=" + probeModel);
+            Celine3DDiagnostics.record(activity, "V71-100", "Feminine HOME-Huefte gebunden",
+                    "Hips-only · v58 Schultern weiter quarantiniert · Root/Arme/Beine/Kopf unangetastet · probe="
+                            + probeModel);
         }
 
         void apply() {
             if (disabled || !supported) return;
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
-            if (!callNow) {
-                setSeatedCallMode(false);
-                if (inCall) restoreForHome(true);
+            if (callNow) {
+                if (homeApplied) restore(true);
                 return;
-            }
-            setSeatedCallMode(true);
-
-            if (!inCall) {
-                inCall = true;
-                loggedFrame = false;
-                Celine3DDiagnostics.record(activity, "V70-110", "Sitzender CALL aktiviert",
-                        "Unterkörper CALL-only · Stuhl hinter transparenter 3D-Fläche · "
-                                + "v55 Kopf + v69 Arme bleiben getrennte Besitzer");
             }
 
             try {
                 transforms.openLocalTransformTransaction();
-                applyRoot(ROOT_DOWN, ROOT_FORWARD);
-                applyRotation(hips, HIPS_PITCH, 0f, 0f);
-                applyRotation(leftUpLeg, UPPER_LEG_PITCH, -2.0f, 0.5f);
-                applyRotation(rightUpLeg, UPPER_LEG_PITCH, 2.0f, -0.5f);
-                applyRotation(leftLeg, LOWER_LEG_PITCH, 0f, 0f);
-                applyRotation(rightLeg, LOWER_LEG_PITCH, 0f, 0f);
-                applyRotation(leftFoot, FOOT_PITCH, 0f, 0f);
-                applyRotation(rightFoot, FOOT_PITCH, 0f, 0f);
+                applyRotation(hips, HOME_HIPS_PITCH, HOME_HIPS_YAW, HOME_HIPS_ROLL);
             } finally {
                 transforms.commitLocalTransformTransaction();
             }
             animator.updateBoneMatrices();
+            homeApplied = true;
 
             if (!loggedFrame) {
                 loggedFrame = true;
-                Celine3DDiagnostics.record(activity, "V70-120", "Sitzende CALL-Matrizen aktiv",
-                        "hips=-5° · upperLeg=-88°/yaw±2° · knees=92° · feet=-8° · rootDown=-0.30 · "
-                                + "CALL chair behind Filament · baseline CALL camera unchanged");
+                Celine3DDiagnostics.record(activity, "V71-110", "Feminine HOME-Balance aktiv",
+                        "Hips pitch=-1.2° · yaw=-2.0° · roll=4.0° · statisch · keine Schulterproduktion");
             }
         }
 
         void disableAfterFailure() {
             disabled = true;
-            restoreForHome(false);
+            restore(false);
         }
 
-        void restoreForHome(boolean logReturn) {
-            setSeatedCallMode(false);
-            if (!supported) return;
-            if (!inCall && !logReturn) return;
+        void restore(boolean logCallHandoff) {
+            if (!supported || !homeApplied) return;
             try {
                 transforms.openLocalTransformTransaction();
-                transforms.setTransform(rootInstance, rootBase);
-                restore(hips);
-                restore(leftUpLeg);
-                restore(rightUpLeg);
-                restore(leftLeg);
-                restore(rightLeg);
-                restore(leftFoot);
-                restore(rightFoot);
+                transforms.setTransform(hips.instance, hips.base);
             } catch (Throwable ignored) {
             } finally {
                 try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
             }
             try { animator.updateBoneMatrices(); } catch (Throwable ignored) {}
-            inCall = false;
+            homeApplied = false;
             loggedFrame = false;
-            if (logReturn) {
-                Celine3DDiagnostics.record(activity, "V70-130", "HOME Unterkörper wiederhergestellt",
-                        "Root/Hüfte/Beine/Füße auf exakte HOME-Basen zurückgesetzt");
+            if (logCallHandoff) {
+                Celine3DDiagnostics.record(activity, "V71-120", "CALL Huefte freigegeben",
+                        "Hips exakt auf Basis restauriert · v70 uebernimmt sitzende CALL-Pose");
             }
-        }
-
-        private void setSeatedCallMode(boolean enabled) {
-            // v70 may bind before v44 installs the room. Resolve at each state handoff instead of
-            // retaining a permanently null startup reference.
-            CelineRoomBackdropView currentRoom = findRoom(decor);
-            if (currentRoom == null) return;
-            currentRoom.setSeatedCallMode(enabled);
-            if (enabled && !chairBoundLogged) {
-                chairBoundLogged = true;
-                Celine3DDiagnostics.record(activity, "V70-105",
-                        "CALL-Stuhl hinter Celine gebunden",
-                        "Raum nach v44-Installation erneut aufgeloest · kein Overlay vor Filament");
-            }
-        }
-
-        private void applyRoot(float down, float forward) {
-            float[] worldMove = new float[16];
-            float[] out = new float[16];
-            Matrix.setIdentityM(worldMove, 0);
-            Matrix.translateM(worldMove, 0, 0f, down, forward);
-            Matrix.multiplyMM(out, 0, worldMove, 0, rootBase, 0);
-            transforms.setTransform(rootInstance, out);
-        }
-
-        private void restore(Bone bone) {
-            if (bone != null) transforms.setTransform(bone.instance, bone.base);
         }
 
         private void applyRotation(Bone bone, float pitch, float yaw, float roll) {
@@ -312,11 +229,10 @@ final class CelineSeatedCallV70 {
             Matrix.multiplyMM(out, 0, bone.base, 0, delta, 0);
             transforms.setTransform(bone.instance, out);
         }
-
     }
 
-    private static Bone seatedBone(Celine3DView view, FilamentAsset asset,
-                                   TransformManager transforms, String v44Field, String entityName) {
+    private static Bone feminineBone(Celine3DView view, FilamentAsset asset,
+                                     TransformManager transforms, String v44Field, String entityName) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) return null;
         int instance = transforms.getInstance(entity);
@@ -353,18 +269,6 @@ final class CelineSeatedCallV70 {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
-    }
-
-    private static CelineRoomBackdropView findRoom(View view) {
-        if (view instanceof CelineRoomBackdropView) return (CelineRoomBackdropView) view;
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                CelineRoomBackdropView found = findRoom(group.getChildAt(i));
-                if (found != null) return found;
-            }
-        }
-        return null;
     }
 
     private static Celine3DView find3D(View view) {
