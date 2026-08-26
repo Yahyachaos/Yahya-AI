@@ -1,12 +1,37 @@
 # v79 — Celine Avatar Lab & Visual Realism
 
 ## Purpose
-Create a repeatable in-app/developer viewer for Celine so pose, animation, facial-rig, camera and scene-integration problems can be inspected quickly without running a full video suite after every small iteration. This work order is intentionally before any further intelligence expansion.
+Create a repeatable **branch-live development test harness** for Celine so pose, animation, facial-rig, camera and scene-integration problems can be inspected immediately after each avatar/runtime improvement without waiting for the normal app to be finished, merged, released or installed as a production update. This work order is intentionally before any further intelligence expansion.
 
-## User access — REQUIRED
-The Avatar Lab must be directly accessible to the user from the installed Yahya AI app, not only from CI or an internal debug build.
+## Core rule — the lab is a development harness, not a post-release app feature
+The Avatar Lab MUST be able to load and exercise the **current development-branch Celine asset/rig/renderer/runtime state** directly. It must not depend on a finished release APK, a merged main build, or a completed HOME/CALL product flow before it becomes useful.
 
-Expose a clear entry under Settings named **Celine Avatar Lab** (or an equally obvious Celine/Avatar diagnostic entry) in normal user builds. It may be visually marked as a test/developer area, but it must not require ADB, Android Studio, hidden shell commands, a separate APK, or source-code changes to open.
+The intended iteration loop is:
+1. make one bounded avatar/rig/pose/camera/scene change on the active Celine branch;
+2. build/run only the lightweight Avatar Lab path needed for that change;
+3. visually inspect the exact current branch state immediately;
+4. fix the observed defect on the same branch;
+5. repeat until the visual result is acceptable;
+6. only then run the expensive final exact-head Android/emulator/render/lifecycle release gates.
+
+The harness may be implemented as a dedicated debug/test Activity, dedicated debug build variant, standalone test entry point, or equivalent lightweight path, but it must reuse the same canonical Celine asset, rig, morph runtime, pose controllers and renderer code that the branch under test will ship. It must never silently fall back to a stale release asset, fallback photo or unrelated test model.
+
+## Developer/test access — REQUIRED
+The active branch must provide a fast way for the agent/developer to launch the Avatar Lab against the current branch head without first producing the final release APK.
+
+Required properties:
+- launchable independently of the normal HOME -> CALL flow;
+- uses the current branch's Celine asset and current branch runtime classes;
+- supports rapid rebuild/relaunch after small avatar changes;
+- can capture deterministic screenshots/frames from named presets for comparison;
+- exposes the current branch SHA/version/build identifier in the lab so evidence cannot be confused with an older build;
+- fails visibly if the canonical Celine asset/rig cannot be loaded; no silent fallback;
+- can be used repeatedly during draft iteration without triggering the full expensive release suite.
+
+## User access — ALSO REQUIRED
+In addition to the branch-live development harness, the finished v79 result must expose **Celine Avatar Lab** to the user from the installed Yahya AI app so the same diagnostic views remain available for manual inspection after installation.
+
+Expose a clear entry under Settings named **Celine Avatar Lab** (or an equally obvious Celine/Avatar diagnostic entry) in normal user builds. It may be visually marked as a test/developer area, but it must not require ADB, Android Studio, hidden shell commands, a separate production APK, or source-code changes to open.
 
 The user must be able to:
 - open the lab from the app and return safely to HOME without restarting the app;
@@ -21,7 +46,7 @@ The user must be able to:
 - see which pose/expression/camera preset is currently active;
 - test speech/viseme motion where supported without needing a full conversation.
 
-The lab controls must be large enough for normal phone use and remain independent of production HOME/CALL gestures. No lab-only free-object translation or diagnostic camera control may leak into the normal HOME/CALL interaction model.
+The lab controls must remain independent of production HOME/CALL gestures. No lab-only free-object translation or diagnostic camera control may leak into the normal HOME/CALL interaction model.
 
 ## User-observed regressions that MUST be reproduced and fixed
 - Blink appears to deform cheek/under-eye geometry instead of being isolated to eyelids/eyes.
@@ -33,7 +58,7 @@ The lab controls must be large enough for normal phone use and remain independen
 - These issues apply to both HOME and CALL, not only videochat.
 
 ## Avatar Lab — required diagnostic controls
-The lab must use the same canonical Celine asset/rig/runtime path as production unless a test explicitly says otherwise. It must not silently substitute a fallback image/model.
+The lab must use the same canonical Celine asset/rig/runtime path as the active branch unless a test explicitly says otherwise. It must not silently substitute a fallback image/model.
 
 ### Pose / animation presets
 Provide deterministic controls for at least:
@@ -74,6 +99,24 @@ Diagnostic camera interaction may support orbit and dolly, but must be clearly s
 - Do not implement production zoom by scaling the avatar root.
 - Do not expose unconstrained free avatar translation as the normal HOME/CALL gesture.
 
+## Visual comparison/evidence mode
+The development harness should support deterministic named captures so each small change can be compared against the immediately previous branch state without a full video suite.
+
+At minimum provide/capture:
+- front neutral standing;
+- left/right 3/4 standing;
+- profile;
+- rear;
+- face close-up neutral;
+- face close-up blink at open / half / closed / reopen phases;
+- neutral seated;
+- seated talking/listening idle;
+- arms/hands relaxed idle;
+- walking/weight-shift frame;
+- camera near/far dolly comparison.
+
+Whenever practical, store the capture name together with branch SHA so visual proof is SHA-bound.
+
 ## Facial-rig acceptance criteria
 - Blink deformation must be localized to eyelid/eye-region vertices appropriate for the canonical v75/v76 face.
 - Cheeks, lower orbital area, mouth corners and unrelated face regions must remain visually stable during blink unless a deliberately combined expression is selected.
@@ -94,11 +137,13 @@ Diagnostic camera interaction may support orbit and dolly, but must be clearly s
 - Background/scene integration should use stable spatial framing, believable scale and consistent subject anchoring. Do not add expensive decorative scene complexity before basic spatial realism is fixed.
 
 ## Validation strategy
-During v79 iteration use Avatar Lab as the primary fast visual inspection tool plus targeted contract/build checks. Do NOT run the full Android/emulator/render/video suite after every small change.
+During v79 iteration use the branch-live Avatar Lab as the **primary visual inspection tool** plus targeted contract/build checks. Do NOT run the full Android/emulator/render/video suite after every small change.
 
-Before merge, the final exact-head must still receive the full required exact-head gates. The Avatar Lab does not replace final release evidence; it reduces expensive iteration loops.
+A small avatar change should normally require only the minimum compile/build needed to launch or refresh the lab plus the relevant named visual presets. Expensive HOME/CALL lifecycle, full emulator, multi-view render and release checks are reserved for the actual final candidate head unless a specific defect cannot otherwise be diagnosed.
 
-Required final visual evidence should include deterministic captured views from the lab for standing, seated, face close-up blink, profile, arms/hands, and camera dolly/orbit plus the real HOME -> CALL -> HOME lifecycle gate.
+Before merge, the final exact-head must still receive the full required exact-head gates. The Avatar Lab does not replace final release evidence; it replaces wasteful full-suite iteration.
+
+Required final visual evidence should include deterministic captured views from the lab for standing, seated, face close-up blink, profile, arms/hands, walking/weight-shift and camera dolly/orbit plus the real HOME -> CALL -> HOME lifecycle gate.
 
 The final v79 user-validation gate must also prove that **Celine Avatar Lab is reachable from the normal installed app Settings and that the user can return to HOME without breaking avatar state or lifecycle ownership.**
 
