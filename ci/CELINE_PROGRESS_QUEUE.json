@@ -28,9 +28,9 @@
   },
   "active": {
     "id": "blender-designed-feminine-base-pose-v72",
-    "status": "v72_design_in_progress_branch_opening",
+    "status": "v72_design_in_progress_draft_pr99",
     "current_branch": "auto/celine/v72-blender-feminine-pose",
-    "current_pr": null,
+    "current_pr": 99,
     "target_version": 72,
     "goal": "Finish roadmap order 3 with a visibly natural, feminine and restrained HOME full-body base pose designed and inspected on the exact Meshy skeleton in Blender before any Android runtime ownership expands.",
     "risk": "new_joint_skinning_deformation_and_runtime_writer_conflict",
@@ -325,7 +325,7 @@
   "next": [
     {
       "id": "v72-blender-feminine-base-pose",
-      "status": "design_in_progress",
+      "status": "design_in_progress_draft_pr99",
       "target_version": 72,
       "goal": "Design, render and select a natural feminine HOME base pose on Celine's exact production skeleton before translating the minimal safe joints into Android.",
       "constraints": [
