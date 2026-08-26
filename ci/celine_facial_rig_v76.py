@@ -128,6 +128,7 @@ parser = argparse.ArgumentParser(description="Generate the guarded Celine v76 fa
 parser.add_argument("input_glb")
 parser.add_argument("output_glb")
 parser.add_argument("--report", default="CELINE_FACIAL_RIG_V76.json")
+parser.add_argument("--expected-sha256", default="")
 args = parser.parse_args()
 
 if os.path.abspath(args.input_glb) == os.path.abspath(args.output_glb):
@@ -326,6 +327,12 @@ mesh["weights"] = [0.0] * len(TARGET_NAMES)
 mesh.setdefault("extras", {})["targetNames"] = TARGET_NAMES
 document.setdefault("asset", {})["generator"] = "Yahya-AI Celine v76 final-geometry facial rig"
 output = write_glb(document, binary_out)
+output_sha = hashlib.sha256(output).hexdigest()
+if args.expected_sha256 and output_sha != args.expected_sha256:
+    raise SystemExit(
+        "Generated v76 candidate hash mismatch: expected="
+        + args.expected_sha256 + " actual=" + output_sha
+    )
 
 os.makedirs(os.path.dirname(os.path.abspath(args.output_glb)), exist_ok=True)
 open(args.output_glb, "wb").write(output)
@@ -341,7 +348,7 @@ report = {
     "status": "PASS",
     "policy": "final_v75_geometry_rebind_append_only_fail_closed",
     "input_sha256": hashlib.sha256(raw).hexdigest(),
-    "output_sha256": hashlib.sha256(output).hexdigest(),
+    "output_sha256": output_sha,
     "vertex_count": vertex_count,
     "target_names": TARGET_NAMES,
     "region_vertices": {name: len(values) for name, values in regions.items()},
