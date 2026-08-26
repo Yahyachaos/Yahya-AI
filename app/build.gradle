@@ -219,7 +219,7 @@ android {
         minSdkVersion 26
         targetSdkVersion 30
         versionCode 76
-        versionName '1.0-celine-facial-rig-expression'
+        versionName '1.0-celin-facial-rig-expression'
     }
     signingConfigs {
         debug {
