@@ -94,8 +94,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 71
-        versionName '1.0-celin-feminine-presence'
+        versionCode 72
+        versionName '1.0-celin-blender-feminine-pose'
     }
     signingConfigs {
         debug {
@@ -132,7 +132,7 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v71 adds only a guarded HOME Hips balance for feminine presence; v70 seated CALL,
+    // v72 adds a Blender-reviewed HOME Hips+shoulder balance from v44 bases; v70 seated CALL,
     // v69 relaxed arms, v68 keyboard/videochat geometry and v66 face/runtime stay protected.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'

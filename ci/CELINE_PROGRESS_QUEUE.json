@@ -28,13 +28,13 @@
   },
   "active": {
     "id": "blender-designed-feminine-base-pose-v72",
-    "status": "v72_design_in_progress_draft_pr99",
+    "status": "v72_implementation_in_progress_draft_pr99",
     "current_branch": "auto/celine/v72-blender-feminine-pose",
     "current_pr": 99,
     "target_version": 72,
     "goal": "Finish roadmap order 3 with a visibly natural, feminine and restrained HOME full-body base pose designed and inspected on the exact Meshy skeleton in Blender before any Android runtime ownership expands.",
     "risk": "new_joint_skinning_deformation_and_runtime_writer_conflict",
-    "progress": "v71 is fully released and testable from exact merge SHA 4c2464d1b952d3ac07fa466fff97975e3fdde8a6. It safely established Hips-only feminine balance and a readable CALL seat while preserving zoom, identity and keyboard/videochat geometry. v72 remains in roadmap order 3: reproduce the exact production rig in Blender, design front/side/back candidate poses, reject deformation or camera-dependent silhouettes before code, then add only the smallest production-proven joint set. The v58 shoulder path remains quarantined and no Android runtime change exists yet.",
+    "progress": "v71 is released and testable. Blender 4.5.12 LTS reproduced the exact canonical Meshy skeleton and rendered three feminine posture variants plus isolated shoulder diagnostics from front/right/back. Candidate f-minimal-runtime-candidate passed manual Blender deformation review and limits Android ownership to Hips + LeftShoulder + RightShoulder. Unlike v58, all three bases must resolve from CelineVideoChatV44 renderer-captured state or the owner fails closed; arms, spine, root, legs, head, face, camera and layout remain separately owned or untouched. Exact Android production-avatar validation is pending on PR #99.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -61,7 +61,7 @@
       "source_modified": false,
       "real_render_validation": "PASS on PR #93 exact head and exact main v66",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v71 feminine Hips-only foundation is released; roadmap-order-3 still requires a Blender-validated natural feminine full-body HOME pose before natural body motion or styling may begin"
+      "remaining_gate": "Blender front/right/back selection passed for minimal Hips+shoulders candidate; exact Android production-avatar HOME/CALL/HOME-return and zoom evidence is now required before v72 can advance"
     }
   },
   "completed": [
@@ -325,7 +325,7 @@
   "next": [
     {
       "id": "v72-blender-feminine-base-pose",
-      "status": "design_in_progress_draft_pr99",
+      "status": "implementation_in_progress_draft_pr99",
       "target_version": 72,
       "goal": "Design, render and select a natural feminine HOME base pose on Celine's exact production skeleton before translating the minimal safe joints into Android.",
       "constraints": [
@@ -334,7 +334,8 @@
         "do not reactivate LeftShoulder or RightShoulder without new production-image evidence that proves safety",
         "preserve v71 Hips rollback, v70 seated CALL, v69 arms, v66 face and v68 keyboard/videochat geometry",
         "no runtime merge or release before exact production-avatar HOME/CALL/HOME-return and zoom proof",
-        "single active PR only"
+        "single active PR only",
+        "shoulder re-enable must use v44 renderer-captured LeftShoulder/RightShoulder bases; never the old v58 arbitrary direct transform snapshot"
       ]
     }
   ],
