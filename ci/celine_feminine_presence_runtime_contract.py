@@ -21,9 +21,9 @@ if bound_joints != {"Hips"}:
     raise SystemExit(f"v71 ownership must remain Hips-only, actual={sorted(bound_joints)}")
 
 required_source = {
-    "HOME_HIPS_PITCH = -1.0f": "bounded feminine pelvis pitch",
-    "HOME_HIPS_YAW = -1.6f": "bounded feminine pelvis yaw",
-    "HOME_HIPS_ROLL = 2.2f": "bounded feminine pelvis roll",
+    "HOME_HIPS_PITCH = -1.2f": "bounded feminine pelvis pitch",
+    "HOME_HIPS_YAW = -2.0f": "bounded feminine pelvis yaw",
+    "HOME_HIPS_ROLL = 4.0f": "bounded feminine pelvis roll",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "HOME-only/CALL handoff detection",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "disabled = true": "automatic failure disable",
