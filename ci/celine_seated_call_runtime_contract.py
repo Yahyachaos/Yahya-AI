@@ -30,12 +30,12 @@ if bound_joints != expected_joints:
     )
 
 required_source = {
-    "ROOT_DOWN = -0.16f": "bounded seated root lowering",
-    "ROOT_FORWARD = 0.08f": "bounded seated root depth",
-    "HIPS_PITCH = -1.0f": "proven v56-scale pelvis adjustment",
-    "UPPER_LEG_PITCH = -70.0f": "seated thigh angle",
-    "LOWER_LEG_PITCH = 90.0f": "seated knee angle",
-    "FOOT_PITCH = -15.0f": "seated foot angle",
+    "ROOT_DOWN = -0.30f": "bounded seated root lowering",
+    "ROOT_FORWARD = 0.12f": "bounded seated root depth",
+    "HIPS_PITCH = -5.0f": "bounded pelvis adjustment",
+    "UPPER_LEG_PITCH = -88.0f": "credible seated thigh angle",
+    "LOWER_LEG_PITCH = 92.0f": "credible seated knee angle",
+    "FOOT_PITCH = -8.0f": "credible seated foot angle",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "CALL-only activation",
     "disabled = true": "automatic failure disable",
