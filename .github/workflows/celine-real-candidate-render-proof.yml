@@ -1,6 +1,9 @@
 name: Celine Real Candidate Render Proof
 
 on:
+  push:
+    branches:
+      - auto/celine/v75-character-refresh
   pull_request:
     branches: [ main ]
     paths:
@@ -168,4 +171,5 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-# Retrigger exact-head proof after the prior hosted-runner queue stalled without creating a job.
+# Pull-request scheduling can occasionally leave a run without a job. The branch-scoped push
+# fallback above keeps exact-head validation available without widening CI to unrelated branches.
