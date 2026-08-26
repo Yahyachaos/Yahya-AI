@@ -16,6 +16,8 @@ on:
       - 'ci/celine_true_face_runtime_contract.py'
       - 'ci/celine_a_pose_runtime_contract.py'
       - 'ci/celine_seated_call_runtime_contract.py'
+      - 'ci/celine_feminine_presence_runtime_contract.py'
+      - 'app/src/main/java/de/yahya/ai/CelineFemininePresenceV71.java'
       - 'app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineCameraZoomV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineArmPoseV69.java'
@@ -63,6 +65,7 @@ jobs:
           python ci/celine_true_face_runtime_contract.py
           python ci/celine_a_pose_runtime_contract.py
           python ci/celine_seated_call_runtime_contract.py
+          python ci/celine_feminine_presence_runtime_contract.py
           echo "candidate_sha256=$(sha256sum morph-proof/celine_morph_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 17 for Android SDK
@@ -88,7 +91,7 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Build guarded v70 seated CALL foundation APK
+      - name: Build guarded v71 feminine presence APK
         shell: bash
         run: |
           set -euo pipefail
