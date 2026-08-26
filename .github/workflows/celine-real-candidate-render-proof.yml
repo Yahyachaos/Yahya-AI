@@ -167,3 +167,5 @@ jobs:
             real-candidate-prefs.xml
           if-no-files-found: ignore
           retention-days: 30
+
+# Retrigger exact-head proof after the prior hosted-runner queue stalled without creating a job.
