@@ -13,8 +13,8 @@ backdrop = BACKDROP.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 
-if "versionCode 71" not in build:
-    raise SystemExit("v71 versionCode gate missing while preserving v70 seated CALL")
+if "versionCode 72" not in build:
+    raise SystemExit("v72 versionCode gate missing while preserving v70 seated CALL")
 
 expected_joints = {
     "Hips",
@@ -95,4 +95,4 @@ for forbidden_geometry in (
                 f"v70 {owner} unexpectedly changes external UI geometry: {forbidden_geometry}"
             )
 
-print("v70 CALL-only seated lower body + behind-Filament chair preserved in v71: PASS")
+print("v70 CALL-only seated lower body + behind-Filament chair preserved in v72: PASS")

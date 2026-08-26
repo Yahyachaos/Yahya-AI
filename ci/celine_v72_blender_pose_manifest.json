@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "purpose": "Reproducible design evidence for the smallest v72 HOME runtime candidate",
+  "blender_version": "4.5.12 LTS",
+  "canonical_source_path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
+  "canonical_source_sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
+  "selected_candidate": "f-minimal-runtime-candidate",
+  "rotations_degrees": {
+    "Hips": {
+      "pitch": -2,
+      "yaw": -3.5,
+      "roll": 6
+    },
+    "LeftShoulder": {
+      "pitch": -1.2,
+      "yaw": 0,
+      "roll": -0.7
+    },
+    "RightShoulder": {
+      "pitch": -0.6,
+      "yaw": 0,
+      "roll": 0.5
+    },
+    "LeftArm": {
+      "pitch": 0,
+      "yaw": 0,
+      "roll": 29.5
+    },
+    "RightArm": {
+      "pitch": 0,
+      "yaw": 0,
+      "roll": -29.5
+    },
+    "LeftForeArm": {
+      "pitch": -6,
+      "yaw": 0,
+      "roll": 0
+    },
+    "RightForeArm": {
+      "pitch": -6,
+      "yaw": 0,
+      "roll": 0
+    }
+  },
+  "runtime_owned_joints": [
+    "Hips",
+    "LeftShoulder",
+    "RightShoulder"
+  ],
+  "preserved_external_owners": {
+    "arms": "CelineArmPoseV69",
+    "call_lower_body": "CelineSeatedCallV70",
+    "call_head_neck": "CelineCallUpperBodyPresenceV55"
+  },
+  "local_evidence_sha256": {
+    "front": "c0bc25d8d698d08a71cb4b0d5690cfddd5f504f7bb2815f2645dfde096ec9262",
+    "right": "c81647d5ff4e234e18eb441e9381ce3d5f8d3d8d47f7840f2a483a4bba6faa93",
+    "back": "0df95452b2572fd59f81b6b9e8a85d26475b14810c20ccaf62f0febb2b41abee"
+  },
+  "manual_review": "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION",
+  "android_gate": "PENDING_EXACT_PRODUCTION_RENDER",
+  "safety_note": "v72 resolves all three owned joints from CelineVideoChatV44 renderer-captured bases; the old v58 arbitrary direct shoulder-base path remains disabled"
+}
