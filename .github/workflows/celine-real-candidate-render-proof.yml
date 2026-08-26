@@ -3,6 +3,7 @@ name: Celine Real Candidate Render Proof
 on:
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'ci/check-real-celine-render.py'
       - 'ci/check-celine-person-presence.py'
