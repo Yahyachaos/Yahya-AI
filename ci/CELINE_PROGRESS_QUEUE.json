@@ -22,18 +22,19 @@
       "v62 dormant bounded facial-motion scaffold with automatic v61/v59 no-morph fallback",
       "v63 guarded Filament six-target face-morph runtime with automatic no-morph rollback",
       "v64 HOME 38mm lifecycle-stable framing and external-media wake-word coexistence",
-      "canonical Celine source persisted via Git LFS and SHA-verified before candidate generation"
+      "canonical Celine source persisted via Git LFS and SHA-verified before candidate generation",
+      "v71 guarded HOME Hips-only feminine presence, CALL-only behind-Filament chair context, stable zoom framing and shoulder-path quarantine"
     ]
   },
   "active": {
-    "id": "feminine-presence-v71",
-    "status": "v71_exact_head_validation_in_progress_pr98",
-    "current_branch": "auto/celine/v71-feminine-presence",
-    "current_pr": 98,
-    "target_version": 71,
-    "goal": "Begin roadmap order 3 with a guarded feminine HOME posture and preserve the completed v70 seated CALL foundation, zoom safety, identity, keyboard and videochat geometry.",
-    "risk": "production_shoulder_skinning_regression_and_pose_naturalness",
-    "progress": "v70 is merged, exact-main validated, released and testable. PR #98 adds only a bounded Hips owner on HOME (pitch -1.2°, yaw -2.0°, roll 4.0°); the proven v58 shoulder path stays quarantined. CALL hands Hips back to v70 and now draws its chair only inside the existing room backdrop behind the transparent Filament surface. Runtime head 9a67bfcd5a5acdf7a0314ba067619d41f79042df passed Android Build 32943807267 and Celine Real Candidate Render Proof 32943807260 attempt 2. Exact HOME/CALL/HOME-return and far/default/near images show stable identity, a readable seated context, clean chair removal on HOME and no zoom disappearance. Attempt 1 exposed only a timing-sensitive default-face anchor false negative (567 visible face pixels); the same unchanged runtime head passed on retry, so the final queue/CI reconciliation lowers only that empirically disproven absolute floor while retaining relative face and lower-body clipping gates.",
+    "id": "blender-designed-feminine-base-pose-v72",
+    "status": "v72_design_in_progress_branch_opening",
+    "current_branch": "auto/celine/v72-blender-feminine-pose",
+    "current_pr": null,
+    "target_version": 72,
+    "goal": "Finish roadmap order 3 with a visibly natural, feminine and restrained HOME full-body base pose designed and inspected on the exact Meshy skeleton in Blender before any Android runtime ownership expands.",
+    "risk": "new_joint_skinning_deformation_and_runtime_writer_conflict",
+    "progress": "v71 is fully released and testable from exact merge SHA 4c2464d1b952d3ac07fa466fff97975e3fdde8a6. It safely established Hips-only feminine balance and a readable CALL seat while preserving zoom, identity and keyboard/videochat geometry. v72 remains in roadmap order 3: reproduce the exact production rig in Blender, design front/side/back candidate poses, reject deformation or camera-dependent silhouettes before code, then add only the smallest production-proven joint set. The v58 shoulder path remains quarantined and no Android runtime change exists yet.",
     "canonical_source": {
       "path": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
       "sha256": "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55",
@@ -60,7 +61,7 @@
       "source_modified": false,
       "real_render_validation": "PASS on PR #93 exact head and exact main v66",
       "home_return_zoom_ratio": 1.005,
-      "remaining_gate": "v70 seated CALL foundation completed and released on 6428cf76e9ce3230f8f29eadbdc558b16a8c8343; v71 guarded feminine HOME presence is the sole active roadmap-order-3 gate"
+      "remaining_gate": "v71 feminine Hips-only foundation is released; roadmap-order-3 still requires a Blender-validated natural feminine full-body HOME pose before natural body motion or styling may begin"
     }
   },
   "completed": [
@@ -305,20 +306,35 @@
       "release_asset": "Yahya-AI-v70.apk",
       "release_digest": "sha256:66eb865b5e037d01dd04e4e0b16afcbc74163fbd4db08c98668309900f25c227",
       "result": "CALL-only Root/Hips/upper legs/lower legs/feet ownership produced a stable seated lower-body foundation, preserved v69 arms, face/identity, HOME return, keyboard/videochat geometry and bounded zoom, then passed exact-head and exact-main gates before publication."
+    },
+    {
+      "id": "v71-guarded-feminine-home-presence",
+      "status": "merged_released_testable_foundation",
+      "pr": 98,
+      "tested_head_sha": "b1d3cced9bb6e315d4babe09cb7f59de1a263634",
+      "merge_sha": "4c2464d1b952d3ac07fa466fff97975e3fdde8a6",
+      "pr_android_run": 32946068956,
+      "real_candidate_run": 32946068928,
+      "main_validation_release_run": 32947671327,
+      "release_tag": "v71",
+      "release_asset": "Yahya-AI-v71.apk",
+      "release_digest": "sha256:b0bbdaceb87f5bda1dd3333c8b1a6196ead5774a6883886f70c8b4e0d7bc987e",
+      "result": "A bounded HOME Hips-only balance began feminine presence without reactivating the proven v58 shoulder deformation path. CALL retained the v70 seated lower body and gained a chair drawn only behind the transparent Filament avatar. Exact HOME/CALL/HOME-return and far/default/near images preserved identity and never clipped or hid Celine; exact-head and exact-main gates passed before publication. Roadmap order 3 remains active because this is the safe foundation, not yet the final natural feminine full-body base pose."
     }
   ],
   "next": [
     {
-      "id": "v71-guarded-feminine-home-presence",
-      "status": "exact_head_validation_in_progress_pr98",
-      "target_version": 71,
-      "goal": "Ship the first safe feminine HOME posture step while preserving v70 seated CALL and keeping the proven shoulder-regression path quarantined.",
+      "id": "v72-blender-feminine-base-pose",
+      "status": "design_in_progress",
+      "target_version": 72,
+      "goal": "Design, render and select a natural feminine HOME base pose on Celine's exact production skeleton before translating the minimal safe joints into Android.",
       "constraints": [
-        "Hips-only ownership on HOME; no shoulder, arm, root, leg, head, face, camera or external layout ownership",
-        "use Blender rig previews for every further bone-pose refinement before Android runtime changes",
-        "preserve v70 seated CALL, v69 relaxed arms, v66 face and v68 keyboard/videochat geometry",
-        "prove exact production-avatar HOME/CALL/HOME-return plus far/default/near zoom images",
-        "no merge or release before exact final-head and exact-main proof"
+        "remain inside roadmap order 3; natural body motion, styling and intelligence stay pending",
+        "start with Blender front/side/back renders from the exact canonical GLB and exact runtime base transforms",
+        "do not reactivate LeftShoulder or RightShoulder without new production-image evidence that proves safety",
+        "preserve v71 Hips rollback, v70 seated CALL, v69 arms, v66 face and v68 keyboard/videochat geometry",
+        "no runtime merge or release before exact production-avatar HOME/CALL/HOME-return and zoom proof",
+        "single active PR only"
       ]
     }
   ],
@@ -390,7 +406,7 @@
           {
             "order": 3,
             "id": "feminine-presence",
-            "status": "in_progress_v71_guarded_home_presence",
+            "status": "in_progress_v72_blender_pose_design",
             "deliverables": [
               "more feminine and attractive posture",
               "natural shoulder/hip balance without deformation",
@@ -482,12 +498,12 @@
     }
   },
   "latest_release": {
-    "version": 70,
+    "version": 71,
     "status": "published_testable",
-    "sha": "6428cf76e9ce3230f8f29eadbdc558b16a8c8343",
-    "run": 32922992869,
-    "tag": "v70",
-    "asset": "Yahya-AI-v70.apk",
-    "digest": "sha256:66eb865b5e037d01dd04e4e0b16afcbc74163fbd4db08c98668309900f25c227"
+    "sha": "4c2464d1b952d3ac07fa466fff97975e3fdde8a6",
+    "run": 32947671327,
+    "tag": "v71",
+    "asset": "Yahya-AI-v71.apk",
+    "digest": "sha256:b0bbdaceb87f5bda1dd3333c8b1a6196ead5774a6883886f70c8b4e0d7bc987e"
   }
 }
