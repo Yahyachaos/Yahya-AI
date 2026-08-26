@@ -10,13 +10,20 @@ stableDebugKeystore.bytes = java.util.Base64.getDecoder().decode(stableDebugKeys
 
 def celineV62GeneratedDir = file("$buildDir/generated/source/celineV62")
 def celineV62Source = file('src/main/java/de/yahya/ai/Celine3DView.java')
-def celineV65GeneratedAssetsDir = file("$buildDir/generated/celineV65/assets")
-def celineV65Candidate = file("$celineV65GeneratedAssetsDir/models/celine.glb")
+def celineV65GeneratedDir = file("$buildDir/generated/celineV65/intermediate")
+def celineV65Candidate = file("$celineV65GeneratedDir/models/celine.glb")
 def celineV65Report = file("$buildDir/reports/celineV65/production-morph.json")
 def celineV65Validation = file("$buildDir/reports/celineV65/validation.json")
+def celineV75GeneratedAssetsDir = file("$buildDir/generated/celineV75/assets")
+def celineV75Candidate = file("$celineV75GeneratedAssetsDir/models/celine.glb")
+def celineV75Report = file("$buildDir/reports/celineV75/character-refresh.json")
+def celineV75Validation = file("$buildDir/reports/celineV75/validation.json")
 def celineCanonicalSource = file('src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb')
 def celineV65Generator = rootProject.file('ci/celine_production_morph_v65.py')
 def celineV65Validator = rootProject.file('ci/celine_facial_morph_validation.py')
+def celineV75Generator = rootProject.file('ci/celine_character_refresh_v75.py')
+def celineV75Validator = rootProject.file('ci/celine_character_refresh_validation_v75.py')
+def celineV75ReferenceManifest = rootProject.file('docs/celine/reference/v2/REFERENCE_MANIFEST.json')
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -87,6 +94,39 @@ tasks.register('validateCelineProductionMorphV65', Exec) {
             '--report', celineV65Validation.absolutePath
 }
 
+tasks.register('generateCelineCharacterRefreshV75', Exec) {
+    dependsOn tasks.named('validateCelineProductionMorphV65')
+    inputs.files(celineCanonicalSource, celineV65Candidate, celineV75Generator, celineV75ReferenceManifest)
+    outputs.files(celineV75Candidate, celineV75Report)
+    doFirst {
+        celineV75Candidate.parentFile.mkdirs()
+        celineV75Report.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV75Generator.absolutePath,
+            celineCanonicalSource.absolutePath,
+            celineV65Candidate.absolutePath,
+            celineV75Candidate.absolutePath,
+            '--report', celineV75Report.absolutePath,
+            '--expected-sha256', '7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929'
+}
+
+tasks.register('validateCelineCharacterRefreshV75', Exec) {
+    dependsOn tasks.named('generateCelineCharacterRefreshV75')
+    inputs.files(celineCanonicalSource, celineV65Candidate, celineV75Candidate,
+            celineV75Validator, celineV75ReferenceManifest)
+    outputs.file(celineV75Validation)
+    doFirst { celineV75Validation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV75Validator.absolutePath,
+            celineCanonicalSource.absolutePath,
+            celineV65Candidate.absolutePath,
+            celineV75Candidate.absolutePath,
+            celineV75ReferenceManifest.absolutePath,
+            '--report', celineV75Validation.absolutePath,
+            '--expected-sha256', '7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929'
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -114,7 +154,7 @@ android {
         main {
             java.srcDir celineV62GeneratedDir
             java.exclude 'de/yahya/ai/Celine3DView.java'
-            assets.srcDir celineV65GeneratedAssetsDir
+            assets.srcDir celineV75GeneratedAssetsDir
         }
     }
     compileOptions {
@@ -125,15 +165,15 @@ android {
 
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
-    dependsOn tasks.named('validateCelineProductionMorphV65')
+    dependsOn tasks.named('validateCelineCharacterRefreshV75')
 }
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v74 adds a Blender-reviewed seamless HOME Arm+Hand loop while preserving v73 body motion;
-    // v70 seated CALL, v68 keyboard geometry and v66 face stay protected.
+    // v75 refreshes only neutral geometry and material appearance from the frozen master
+    // references; v74 motion, v70 CALL, v68 keyboard geometry and v66 face runtime stay protected.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }

@@ -9,16 +9,18 @@ RUNTIME = ROOT / "app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java"
 BUILD = ROOT / "app/build.gradle"
 PROD = ROOT / "app/src/main/assets/models/celine.glb"
 GENERATOR = ROOT / "ci/celine_production_morph_v65.py"
+V75_GENERATOR = ROOT / "ci/celine_character_refresh_v75.py"
 
 text = PLANNER.read_text(encoding="utf-8")
 view = VIEW.read_text(encoding="utf-8")
 runtime = RUNTIME.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 generator = GENERATOR.read_text(encoding="utf-8")
+v75_generator = V75_GENERATOR.read_text(encoding="utf-8")
 
 version_match = re.search(r"versionCode\s+(\d+)", build)
-if not version_match or int(version_match.group(1)) < 74:
-    raise SystemExit("v74+ arm-hand motion release version gate missing")
+if not version_match or int(version_match.group(1)) < 75:
+    raise SystemExit("v75+ character-refresh version gate missing")
 
 required = {
     "TARGET_COUNT = 6": "validated six-target mapping",
@@ -42,9 +44,12 @@ if not re.search(r"public\s+void\s+setViseme\s*\([^)]*\)\s*\{\s*\}", view):
 build_required = {
     "generateCelineProductionMorphV65": "reproducible candidate generation",
     "validateCelineProductionMorphV65": "structural candidate validation",
-    "assets.srcDir celineV65GeneratedAssetsDir": "generated production asset packaging",
+    "generateCelineCharacterRefreshV75": "deterministic v75 character refresh",
+    "validateCelineCharacterRefreshV75": "v75 structural and silhouette validation",
+    "assets.srcDir celineV75GeneratedAssetsDir": "v75 generated production asset packaging",
     "CelineMorphRuntimeV62.onViseme(this, cue)": "generated runtime viseme activation",
     "6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146": "exact validated candidate hash",
+    "7674ab52bdf06bf2e962e2d90474a587e08f2122a60cd8df91787713889b2929": "exact validated v75 candidate hash",
 }
 for needle, purpose in build_required.items():
     if needle not in build:
@@ -57,6 +62,16 @@ generator_required = {
 }
 for needle, purpose in generator_required.items():
     if needle not in generator:
+        raise SystemExit(f"missing {purpose}: {needle}")
+
+v75_generator_required = {
+    "deterministic_master_reference_refresh": "v75 deterministic visual policy",
+    "skin weights, indices, animations and facial morph deltas are intentionally untouched": "v75 protected runtime boundary",
+    "SOURCE_SHA256": "canonical source hash gate",
+    "V65_SHA256": "validated v65 intermediate gate",
+}
+for needle, purpose in v75_generator_required.items():
+    if needle not in v75_generator:
         raise SystemExit(f"missing {purpose}: {needle}")
 
 runtime_required = {
@@ -73,4 +88,4 @@ for needle, purpose in runtime_required.items():
 if PROD.exists():
     raise SystemExit("opaque production celine.glb unexpectedly committed instead of generated")
 
-print("true-face v66 packaged-source recovery contract preserved in v74: PASS")
+print("true-face v66 packaged-source recovery contract preserved through v75: PASS")
