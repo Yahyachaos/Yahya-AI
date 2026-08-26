@@ -80,6 +80,14 @@ def is_skin_detail(r, g, b):
     return r > 135 and 45 < g < 125 and b < 85 and r - g > 35
 
 
+def is_footwear_detail(r, g, b):
+    # v75 intentionally replaces the old warm lower-body palette with fitted black jeans and
+    # neutral white sneakers. Keep the legacy warm anchor, but also count bright near-neutral shoe
+    # pixels so the feet-clipping guard remains semantic instead of depending on the old outfit.
+    spread = max(r, g, b) - min(r, g, b)
+    return r >= 170 and g >= 170 and b >= 170 and spread <= 55
+
+
 def avatar_height(path):
     width, height, channels, rows = decode(path)
     # Same warm Celine-detail family used by the stable HOME-return gate. The crop is intentionally
@@ -111,13 +119,14 @@ def avatar_height(path):
 def framing_anchors(path):
     width, height, channels, rows = decode(path)
     # Empirical anchors from the exact v70 production avatar. At the old 2.20 checkpoint the head
-    # leaves the viewport and this face crop loses almost all strict skin pixels; simultaneously the
-    # feet leave the lower central crop. A usable close checkpoint must retain both relative to the
-    # fully framed default image, so torso-only zoom can no longer pass as "visible".
+    # leaves the viewport and the face crop loses almost all strict skin pixels; simultaneously the
+    # feet leave the lower central crop. v75 changed the lower-body palette to black jeans + white
+    # sneakers, so the lower anchor accepts either the legacy warm detail or bright neutral footwear.
+    # A usable close checkpoint must retain both ends relative to the fully framed default image.
     face = (int(width * 0.45), int(width * 0.56), int(height * 0.22), int(height * 0.29))
     lower = (int(width * 0.38), int(width * 0.62), int(height * 0.47), int(height * 0.62))
     face_skin = 0
-    lower_warm = 0
+    lower_presence = 0
     for y in range(face[2], face[3]):
         row = rows[y]
         for x in range(face[0], face[1]):
@@ -128,9 +137,10 @@ def framing_anchors(path):
         row = rows[y]
         for x in range(lower[0], lower[1]):
             i = x * channels
-            if is_warm_detail(row[i], row[i + 1], row[i + 2]):
-                lower_warm += 1
-    return face_skin, lower_warm, face, lower
+            r, g, b = row[i], row[i + 1], row[i + 2]
+            if is_warm_detail(r, g, b) or is_footwear_detail(r, g, b):
+                lower_presence += 1
+    return face_skin, lower_presence, face, lower
 
 
 if len(sys.argv) != 4:

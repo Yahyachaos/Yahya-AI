@@ -1,6 +1,9 @@
 name: Celine Real Candidate Render Proof
 
 on:
+  push:
+    branches:
+      - auto/celine/v75-character-refresh
   pull_request:
     branches: [ main ]
     paths:
@@ -9,10 +12,18 @@ on:
       - 'ci/check-camera-zoom-range.py'
       - 'ci/celine-real-candidate-emulator-proof.sh'
       - 'ci/celine-camera-zoom-emulator-proof.sh'
+      - 'ci/celine-v75-multiview-emulator-proof.sh'
+      - 'ci/celine_multiview_variant_v75.py'
+      - 'ci/celine_png_crop_v75.py'
       - '.github/workflows/celine-real-candidate-render-proof.yml'
       - 'app/src/main/assets/models/celine-source/**'
       - 'ci/celine_facial_morph_prototype.py'
       - 'ci/celine_production_morph_v65.py'
+      - 'ci/celine_character_refresh_v75.py'
+      - 'ci/celine_character_refresh_validation_v75.py'
+      - 'ci/celine_material_regions_v75.py'
+      - 'ci/celine_material_regions_validation_v75.py'
+      - 'docs/celine/reference/v2/REFERENCE_MANIFEST.json'
       - 'ci/celine_true_face_runtime_contract.py'
       - 'ci/celine_a_pose_runtime_contract.py'
       - 'ci/celine_seated_call_runtime_contract.py'
@@ -64,15 +75,26 @@ jobs:
           set -euo pipefail
           mkdir -p morph-proof
           SOURCE='app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb'
-          python ci/celine_production_morph_v65.py "$SOURCE" morph-proof/celine_morph_candidate.glb \
-            --report morph-proof/production-report.json \
+          python ci/celine_production_morph_v65.py "$SOURCE" morph-proof/celine_v65_intermediate.glb \
+            --report morph-proof/v65-production-report.json \
             --expected-sha256 6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146
-          python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_morph_candidate.glb --report morph-proof/validation-report.json
+          python ci/celine_facial_morph_validation.py "$SOURCE" morph-proof/celine_v65_intermediate.glb --report morph-proof/v65-validation-report.json
+          python ci/celine_character_refresh_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_geometry.glb \
+            --report morph-proof/v75-character-refresh-report.json \
+            --expected-sha256 e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f
+          python ci/celine_character_refresh_validation_v75.py "$SOURCE" morph-proof/celine_v65_intermediate.glb morph-proof/celine_v75_geometry.glb \
+            docs/celine/reference/v2/REFERENCE_MANIFEST.json \
+            --report morph-proof/v75-validation-report.json \
+            --expected-sha256 e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f
+          python ci/celine_material_regions_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
+            --report morph-proof/v75-material-regions-report.json
+          python ci/celine_material_regions_validation_v75.py morph-proof/celine_v75_geometry.glb morph-proof/celine_v75_candidate.glb \
+            --report morph-proof/v75-material-validation-report.json
           python ci/celine_true_face_runtime_contract.py
           python ci/celine_a_pose_runtime_contract.py
           python ci/celine_seated_call_runtime_contract.py
           python ci/celine_feminine_presence_runtime_contract.py
-          echo "candidate_sha256=$(sha256sum morph-proof/celine_morph_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
+          echo "candidate_sha256=$(sha256sum morph-proof/celine_v75_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 17 for Android SDK
         uses: actions/setup-java@v4
@@ -97,7 +119,7 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Build guarded v74 Blender arm-hand motion APK
+      - name: Build guarded v75 character refresh APK
         shell: bash
         run: |
           set -euo pipefail
@@ -112,7 +134,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Boot emulator and prove real candidate across HOME CALL HOME plus zoom bounds
+      - name: Boot emulator and prove real candidate lifecycle, zoom and mandatory v75 views
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -121,7 +143,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_morph_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh'
+          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh && bash ci/celine-v75-multiview-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v75_candidate.glb'
 
       - name: Upload real candidate visual/identity/lifecycle evidence
         if: always()
@@ -129,21 +151,37 @@ jobs:
         with:
           name: celine-real-candidate-render-evidence
           path: |
-            morph-proof/production-report.json
-            morph-proof/validation-report.json
+            morph-proof/v65-production-report.json
+            morph-proof/v65-validation-report.json
+            morph-proof/v75-character-refresh-report.json
+            morph-proof/v75-validation-report.json
+            morph-proof/v75-material-regions-report.json
+            morph-proof/v75-material-validation-report.json
+            morph-proof/v75-multiview/*.json
             real-candidate-home.png
             real-candidate-call.png
             real-candidate-home-return.png
             real-candidate-zoom-far.png
             real-candidate-zoom-default.png
             real-candidate-zoom-near.png
+            real-candidate-front.png
+            real-candidate-profile-right.png
+            real-candidate-profile-left.png
+            real-candidate-back.png
+            real-candidate-face-source.png
+            real-candidate-face-close.png
             real-candidate-home.xml
             real-candidate-call.xml
             real-candidate-home-return.xml
             real-candidate-logcat-home.txt
             real-candidate-logcat-final.txt
             real-candidate-zoom-logcat.txt
+            real-candidate-multiview-logcat.txt
             real-candidate-logcat.txt
             real-candidate-prefs.xml
           if-no-files-found: ignore
           retention-days: 30
+
+# Pull-request scheduling can occasionally leave a run without a job. The branch-scoped push
+# fallback above keeps exact-head validation available without widening CI to unrelated branches.
+# Exact-head retrigger requested from Chat after stale queued run 32984629025.

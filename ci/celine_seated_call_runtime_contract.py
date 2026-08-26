@@ -13,8 +13,9 @@ backdrop = BACKDROP.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 
-if "versionCode 74" not in build:
-    raise SystemExit("v74 versionCode gate missing while preserving v70 seated CALL")
+version_match = re.search(r"versionCode\s+(\d+)", build)
+if not version_match or int(version_match.group(1)) < 74:
+    raise SystemExit("v74+ versionCode gate missing while preserving v70 seated CALL")
 
 expected_joints = {
     "Hips",

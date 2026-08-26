@@ -10,13 +10,26 @@ stableDebugKeystore.bytes = java.util.Base64.getDecoder().decode(stableDebugKeys
 
 def celineV62GeneratedDir = file("$buildDir/generated/source/celineV62")
 def celineV62Source = file('src/main/java/de/yahya/ai/Celine3DView.java')
-def celineV65GeneratedAssetsDir = file("$buildDir/generated/celineV65/assets")
-def celineV65Candidate = file("$celineV65GeneratedAssetsDir/models/celine.glb")
+def celineV65GeneratedDir = file("$buildDir/generated/celineV65/intermediate")
+def celineV65Candidate = file("$celineV65GeneratedDir/models/celine.glb")
 def celineV65Report = file("$buildDir/reports/celineV65/production-morph.json")
 def celineV65Validation = file("$buildDir/reports/celineV65/validation.json")
+def celineV75GeometryDir = file("$buildDir/generated/celineV75/geometry")
+def celineV75GeometryCandidate = file("$celineV75GeometryDir/celine-geometry.glb")
+def celineV75GeneratedAssetsDir = file("$buildDir/generated/celineV75/assets")
+def celineV75Candidate = file("$celineV75GeneratedAssetsDir/models/celine.glb")
+def celineV75Report = file("$buildDir/reports/celineV75/character-refresh.json")
+def celineV75Validation = file("$buildDir/reports/celineV75/validation.json")
+def celineV75MaterialReport = file("$buildDir/reports/celineV75/material-regions.json")
+def celineV75MaterialValidation = file("$buildDir/reports/celineV75/material-validation.json")
 def celineCanonicalSource = file('src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb')
 def celineV65Generator = rootProject.file('ci/celine_production_morph_v65.py')
 def celineV65Validator = rootProject.file('ci/celine_facial_morph_validation.py')
+def celineV75Generator = rootProject.file('ci/celine_character_refresh_v75.py')
+def celineV75Validator = rootProject.file('ci/celine_character_refresh_validation_v75.py')
+def celineV75Materializer = rootProject.file('ci/celine_material_regions_v75.py')
+def celineV75MaterialValidator = rootProject.file('ci/celine_material_regions_validation_v75.py')
+def celineV75ReferenceManifest = rootProject.file('docs/celine/reference/v2/REFERENCE_MANIFEST.json')
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -27,25 +40,39 @@ tasks.register('generateCeline3DViewV62') {
         String frameAnchor = '                updateLivePose(frameTimeNanos);'
         String visemeAnchor = '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}'
         String homeLensAnchor = '        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);'
+        String cameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);'
         if (!text.contains(classAnchor)) throw new GradleException('v62 source transform: class anchor missing')
         if (!text.contains(frameAnchor)) throw new GradleException('v62 source transform: frame anchor missing')
         if (!text.contains(visemeAnchor)) throw new GradleException('v62 source transform: viseme anchor missing')
         if (!text.contains(homeLensAnchor)) throw new GradleException('v64 HOME lens transform: anchor missing')
+        if (!text.contains(cameraLookAtAnchor)) throw new GradleException('v75 reference camera transform: lookAt anchor missing')
 
         text = text.replace(classAnchor, 'final class Celine3DView extends FrameLayout {')
         text = text.replace(frameAnchor,
                 frameAnchor + '\n                CelineMorphRuntimeV62.onFrame(Celine3DView.this, frameTimeNanos);')
         text = text.replace(visemeAnchor,
                 '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
-        // HOME presentation is established at 38 mm by v44. Keep the renderer's late
-        // Surface/viewport resize on the same lens so CALL -> HOME cannot fall back to 32 mm
-        // and make Celine visibly smaller after the stage is reparented.
         text = text.replace(homeLensAnchor,
                 '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
+        text = text.replace(cameraLookAtAnchor, '''        if (Math.abs(v75ReferenceYawDeg) > 0.001f) {
+            double yaw = Math.toRadians(v75ReferenceYawDeg);
+            targetX = 0.0f;
+            targetY = 0.0f;
+            eyeX = (float) Math.sin(yaw) * distance;
+            eyeY = 0.0f;
+            eyeZ = CAMERA_TARGET_Z + (float) Math.cos(yaw) * distance;
+        }
+        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);''')
 
         int finalBrace = text.lastIndexOf('\n}')
         if (finalBrace <= 0) throw new GradleException('v62 source transform: final class brace missing')
         String accessors = '''
+
+    private float v75ReferenceYawDeg = 0.0f;
+    void v75SetReferenceYaw(float degrees) {
+        if (Float.isNaN(degrees) || Float.isInfinite(degrees)) degrees = 0.0f;
+        v75ReferenceYawDeg = Math.max(-180.0f, Math.min(180.0f, degrees));
+    }
 
     Engine v62Engine() { return engine; }
     FilamentAsset v62Asset() { return asset; }
@@ -58,7 +85,6 @@ tasks.register('generateCeline3DViewV62') {
         output.setText(text, 'UTF-8')
     }
 }
-
 
 tasks.register('generateCelineProductionMorphV65', Exec) {
     inputs.files(celineCanonicalSource, celineV65Generator)
@@ -87,6 +113,66 @@ tasks.register('validateCelineProductionMorphV65', Exec) {
             '--report', celineV65Validation.absolutePath
 }
 
+tasks.register('generateCelineCharacterRefreshV75', Exec) {
+    dependsOn tasks.named('validateCelineProductionMorphV65')
+    inputs.files(celineCanonicalSource, celineV65Candidate, celineV75Generator, celineV75ReferenceManifest)
+    outputs.files(celineV75GeometryCandidate, celineV75Report)
+    doFirst {
+        celineV75GeometryCandidate.parentFile.mkdirs()
+        celineV75Report.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV75Generator.absolutePath,
+            celineCanonicalSource.absolutePath,
+            celineV65Candidate.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
+            '--report', celineV75Report.absolutePath,
+            '--expected-sha256', 'e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f'
+}
+
+tasks.register('validateCelineCharacterRefreshV75', Exec) {
+    dependsOn tasks.named('generateCelineCharacterRefreshV75')
+    inputs.files(celineCanonicalSource, celineV65Candidate, celineV75GeometryCandidate,
+            celineV75Validator, celineV75ReferenceManifest)
+    outputs.file(celineV75Validation)
+    doFirst { celineV75Validation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV75Validator.absolutePath,
+            celineCanonicalSource.absolutePath,
+            celineV65Candidate.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
+            celineV75ReferenceManifest.absolutePath,
+            '--report', celineV75Validation.absolutePath,
+            '--expected-sha256', 'e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f'
+}
+
+tasks.register('generateCelineMaterialRegionsV75', Exec) {
+    dependsOn tasks.named('validateCelineCharacterRefreshV75')
+    inputs.files(celineV75GeometryCandidate, celineV75Materializer)
+    outputs.files(celineV75Candidate, celineV75MaterialReport)
+    doFirst {
+        celineV75Candidate.parentFile.mkdirs()
+        celineV75MaterialReport.parentFile.mkdirs()
+    }
+    commandLine 'python3',
+            celineV75Materializer.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
+            celineV75Candidate.absolutePath,
+            '--report', celineV75MaterialReport.absolutePath
+}
+
+tasks.register('validateCelineMaterialRegionsV75', Exec) {
+    dependsOn tasks.named('generateCelineMaterialRegionsV75')
+    inputs.files(celineV75GeometryCandidate, celineV75Candidate, celineV75MaterialValidator)
+    outputs.file(celineV75MaterialValidation)
+    doFirst { celineV75MaterialValidation.parentFile.mkdirs() }
+    commandLine 'python3',
+            celineV75MaterialValidator.absolutePath,
+            celineV75GeometryCandidate.absolutePath,
+            celineV75Candidate.absolutePath,
+            '--report', celineV75MaterialValidation.absolutePath
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -94,8 +180,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 74
-        versionName '1.0-celin-bounded-arm-hand-presence'
+        versionCode 75
+        versionName '1.0-celin-character-refresh'
     }
     signingConfigs {
         debug {
@@ -114,7 +200,7 @@ android {
         main {
             java.srcDir celineV62GeneratedDir
             java.exclude 'de/yahya/ai/Celine3DView.java'
-            assets.srcDir celineV65GeneratedAssetsDir
+            assets.srcDir celineV75GeneratedAssetsDir
         }
     }
     compileOptions {
@@ -125,15 +211,15 @@ android {
 
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
-    dependsOn tasks.named('validateCelineProductionMorphV65')
+    dependsOn tasks.named('validateCelineMaterialRegionsV75')
 }
 
 dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v74 adds a Blender-reviewed seamless HOME Arm+Hand loop while preserving v73 body motion;
-    // v70 seated CALL, v68 keyboard geometry and v66 face stay protected.
+    // v75 refreshes neutral geometry and splits shared-UV semantic material regions while
+    // v74 motion, v70 CALL, v68 keyboard geometry and v66 face runtime stay protected.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }

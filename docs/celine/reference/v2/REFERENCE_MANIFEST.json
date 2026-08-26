@@ -1,10 +1,11 @@
 {
-  "schema": 1,
+  "schema": 2,
   "identity_name": "Celine",
   "reference_set": "v2",
   "status": "canonical_visual_target_for_v75_and_later_until_explicitly_replaced",
   "source": "User-approved generated Celine reference images supplied in ChatGPT on 2026-08-26",
   "hierarchy_rule": "When references disagree: face_master wins for face/eyes/hair identity; body_front_master wins for frontal proportions/outfit; the two side profiles win for profile depth/silhouette; body_back_master wins for back/hair/hip/glute rear silhouette; character sheets are secondary only for expressions, styling intent and technical guidance.",
+  "geometry_input_policy": "For the v75 character rebuild, the five PRIMARY single-view masters are the authoritative geometry/identity inputs. The two character-sheet composites are SECONDARY only and must never override a primary master or block v75 geometry work if unavailable.",
   "identity_constraints": {
     "eyes": "green, vivid but natural",
     "hair": "long, blonde, softly wavy, fuller/more voluminous than current Celine",
@@ -21,6 +22,9 @@
       "width": 1152,
       "height": 1536,
       "role": "PRIMARY: face identity, green eye appearance, skin, lips, nose, brows, hair color/texture",
+      "individual_library_path": "/Yahya-AI/Celine/reference/v2-primary/face_master.png",
+      "individual_library_file_id": "file_000000002b3881f4b3e12f08dc9401c0",
+      "individual_library_file_id_stable": "libfile_170b6162488481918f0a38d73468360d",
       "desired_repository_target": "docs/celine/reference/v2/face_master.png"
     },
     "body_front_master.png": {
@@ -30,6 +34,9 @@
       "width": 864,
       "height": 1536,
       "role": "PRIMARY: frontal body proportions, outfit, stance/silhouette",
+      "individual_library_path": "/Yahya-AI/Celine/reference/v2-primary/body_front_master.png",
+      "individual_library_file_id": "file_00000000719481f98e1db5f07ff94d9f",
+      "individual_library_file_id_stable": "libfile_690f8a7f88b88191bb940556f0c3d9db",
       "desired_repository_target": "docs/celine/reference/v2/body_front_master.png"
     },
     "body_side_facing_right.png": {
@@ -39,6 +46,9 @@
       "width": 864,
       "height": 1536,
       "role": "PRIMARY: one side-profile depth/silhouette; especially chest/waist/hip/glute/back relationship",
+      "individual_library_path": "/Yahya-AI/Celine/reference/v2-primary/body_side_facing_right.png",
+      "individual_library_file_id": "file_00000000ddec82468da1827a066b77f2",
+      "individual_library_file_id_stable": "libfile_3135ae75545c8191942c2194ed19f613",
       "desired_repository_target": "docs/celine/reference/v2/body_side_facing_right.png"
     },
     "body_side_facing_left.png": {
@@ -48,6 +58,9 @@
       "width": 864,
       "height": 1536,
       "role": "PRIMARY: opposite side-profile consistency/symmetry check",
+      "individual_library_path": "/Yahya-AI/Celine/reference/v2-primary/body_side_facing_left.png",
+      "individual_library_file_id": "file_00000000479c81f48bb7bf781c190fdf",
+      "individual_library_file_id_stable": "libfile_33d6cb7638b48191adef6cba6b8ef1f9",
       "desired_repository_target": "docs/celine/reference/v2/body_side_facing_left.png"
     },
     "body_back_master.png": {
@@ -57,6 +70,9 @@
       "width": 864,
       "height": 1536,
       "role": "PRIMARY: back silhouette, rear hair, shoulders, hips/glute/legs and jeans fit",
+      "individual_library_path": "/Yahya-AI/Celine/reference/v2-primary/body_back_master.png",
+      "individual_library_file_id": "file_0000000031e481f48c46b20db226c768",
+      "individual_library_file_id_stable": "libfile_08352c7b7f408191a46abf0b331fa2ff",
       "desired_repository_target": "docs/celine/reference/v2/body_back_master.png"
     },
     "character_sheet_technical.png": {
@@ -83,6 +99,11 @@
     "library_file_id": "file_00000000b8b881f9b8c61b21cbc488fe",
     "library_file_id_stable": "libfile_431556a1c8908191b8a37910d8400eaa",
     "sha256": "6f3402930ffd4d459d3812141ea670638ec392019769e54478ae6d3d2dffb519",
-    "note": "The binary PNG masters are persisted in this cross-chat Library ZIP. The GitHub manifest is the canonical index/hashes. A worker should materialize the ZIP from Library, verify the ZIP and member SHA-256 values, and use those exact masters. If the worker has a binary-capable GitHub write path, it may also place verified PNGs at the desired repository targets in the v75 branch."
+    "note": "Full seven-image archive remains the canonical preservation pack. For v75 geometry, prefer the verified individual PRIMARY files below if archive materialization is unavailable."
+  },
+  "retrieval_fallback": {
+    "status": "verified_working_2026-08-26",
+    "instruction": "Attempt the five individual PRIMARY Library files directly before retrying the full ZIP. Verify each byte length and SHA-256 against this manifest. Do not wait for or use the two secondary character-sheet composites as geometry authority. If all five PRIMARY hashes match, the v75 visual rebuild is unblocked and may proceed.",
+    "materialization_probe": "All five individual PRIMARY files were successfully materialized together after the earlier ZIP HTTP 502 failure."
   }
 }

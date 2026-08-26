@@ -14,7 +14,7 @@ trap collect EXIT
 
 fail() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -260 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
   exit 1
 }
 
@@ -55,6 +55,7 @@ adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$ACTIVITY"
 wait_for_log 'V61-110' 'packaged production rig-scale correction'
 wait_for_log 'V39-150' 'packaged production texture binding'
+wait_for_log 'V75-160' 'v75 semantic material ownership after V39'
 wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
 wait_for_log 'V74-100' 'production six-joint arm/hand rig binding'
 wait_for_log 'V74-110' 'HOME A-pose removal'
@@ -72,13 +73,13 @@ grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
 python3 ci/check-celine-person-presence.py real-candidate-home.png HOME
 
-# v65 must use the packaged production asset, never an injected private file.
+# v75 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
 if ! grep -q 'REN-306' real-candidate-logcat-home.txt; then
   fail "packaged APK production model source was not selected (REN-306 missing)"
 fi
 if grep -q 'REN-305' real-candidate-logcat-home.txt; then
-  fail "private model unexpectedly overrode the packaged v65 production candidate"
+  fail "private model unexpectedly overrode the packaged v75 production candidate"
 fi
 if ! grep -q 'V62-210' real-candidate-logcat-home.txt; then
   fail "real candidate loaded but six-target morph runtime did not activate (V62-210 missing)"
@@ -89,10 +90,13 @@ fi
 if ! grep -q 'V39-150' real-candidate-logcat-home.txt; then
   fail "packaged production texture was not explicitly bound (V39-150 missing)"
 fi
+if ! grep -q 'V75-160' real-candidate-logcat-home.txt; then
+  fail "v75 semantic material owner did not restore top/jeans/shoes/hair after V39"
+fi
 if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
   fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
 fi
-if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
   fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
@@ -141,14 +145,17 @@ python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_R
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
 if ! grep -q 'V62-210' real-candidate-logcat-final.txt; then
   fail "morph runtime activation evidence missing after lifecycle"
 fi
+if ! grep -q 'V75-160' real-candidate-logcat-final.txt; then
+  fail "v75 semantic material ownership evidence missing after lifecycle"
+fi
 for marker in V74-100 V74-110 V74-120 V74-130 V70-100 V70-110 V70-120 V70-130; do
-  grep -q "$marker" real-candidate-logcat-final.txt || fail "v74 arm/hand lifecycle marker missing: $marker"
+  grep -q "$marker" real-candidate-logcat-final.txt || fail "v74/v70 lifecycle marker missing: $marker"
 done
 
-printf 'PASS packaged v70 seated CALL plus v74 bounded arm/hand Celine candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v75 semantic-material + v70 seated CALL + v74 bounded arm/hand candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
