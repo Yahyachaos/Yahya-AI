@@ -36,6 +36,8 @@ required_source = {
     "UPPER_LEG_PITCH = -88.0f": "credible seated thigh angle",
     "LOWER_LEG_PITCH = 92.0f": "credible seated knee angle",
     "FOOT_PITCH = -8.0f": "credible seated foot angle",
+    "applyRotation(leftUpLeg, UPPER_LEG_PITCH, -2.0f, 0.5f)": "bounded narrow left thigh spread",
+    "applyRotation(rightUpLeg, UPPER_LEG_PITCH, 2.0f, -0.5f)": "bounded narrow right thigh spread",
     "CelineSkinningProbe": "synthetic fixture capability check",
     "CelineCallUpperBodyPresenceV55.isCallStage(view)": "CALL-only activation",
     "disabled = true": "automatic failure disable",
