@@ -1,6 +1,11 @@
 {
   "schema": 2,
   "source_of_truth": "Yahyachaos/Yahya-AI",
+  "history_snapshot": {
+    "through_version": 79,
+    "full_queue_commit": "02b133a2f8b5f8fd793af09d7000e26834f6270e",
+    "note": "Detailed pre-v80 history remains in Git history. Live GitHub always wins over this snapshot."
+  },
   "baseline": {
     "version": 80,
     "main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
@@ -17,10 +22,23 @@
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
     "status": "active_block3_seated_thigh_convergence_correction_committed",
-    "queue_checkpoint_parent_head": "ca508f50d9d32116ee84a0cf9e249b35c4c046f0",
+    "queue_checkpoint_parent_head": "f0138dce0d82a902b47156aa22ee72532961a357",
     "latest_runtime_code_head": "fddd772d78491d2498a7af9c380b3b93ee5d769c",
     "latest_built_runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
     "runtime_fingerprint": "pending_recompute_after_block3_runtime_change",
+    "latest_pr_build": {
+      "workflow": "Android Build",
+      "run_number": 609,
+      "run_id": 33111321533,
+      "conclusion": "success",
+      "head_sha": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+      "runtime_fingerprint": "c7caaf32cbdaa204fdb34cb1cb65bb675461df08045a87a327ec2a86e0f25b46",
+      "apk_artifact": 9662699490,
+      "apk_artifact_digest": "sha256:171a8c4ef2b455088dd48e7da0c6c4d84f8e99b0e4de53b0e0748d4714b2fe50",
+      "apk_sha256_from_targeted_proof": "dac488d94f80645397f2c506ea7ce0d757486f722d4fcf8fb078511b39d90590",
+      "fingerprint_artifact": 9662699902,
+      "fingerprint_artifact_digest": "sha256:be1c0aac05436f7ac5d025014618b11eaa5d3c24ca55691107c7f6455887c598"
+    },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
       "run_number": 245,
@@ -33,9 +51,9 @@
       "criterion_result": "FAIL_BLOCK3_SEATED_THIGHS_OVER_CONVERGED_BULKY",
       "visual_acceptance": "FAIL_FOR_V80_BLOCK3",
       "evidence": [
-        "real-candidate-seated-call.png was produced and manually inspected before the later multiview failure.",
-        "The mirrored ±10 degree upper-leg inward roll visibly over-converges the seated thighs/knees and balloons the trouser silhouette around the pelvis.",
-        "The first bounded correction therefore changes only thigh convergence, preserving root, chair, camera and protected upper-body ownership."
+        "real-candidate-seated-call.png was produced before the later multiview failure and was manually inspected.",
+        "Celine remains visible and centered, but the mirrored ±10 degree upper-leg inward roll forces the knees/thighs toward the center and balloons the trouser silhouette around the pelvis, making the seated contact read anatomically mechanical instead of relaxed.",
+        "Feet and chair remain present, so the first bounded correction targets only thigh convergence rather than changing root height, camera, chair geometry or protected upper-body owners."
       ]
     },
     "block2_accepted_runtime": {
@@ -52,6 +70,10 @@
       "status": "runtime_correction_committed_build_pending"
     },
     "block3_diagnostic": {
+      "runtime_change": false,
+      "runtime_equivalent_to": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+      "ci_script_commit": "2cd80c44381a7d7fed7a0dc2220e60ac9dd1f14e",
+      "ci_workflow_commit": "cdc68a3a3bf6a21f4d85485ea9260da7607fe38d",
       "checkpoint_commit": "e19eec2303b944e4160009b08d0aabfe47474148",
       "proof_run_id": 33113305575,
       "artifact": 9663655165,
@@ -66,13 +88,13 @@
       "change": "Reduce UPPER_LEG_INWARD_ROLL from 10.0 to 4.0 degrees only; preserve root, pelvis pitch, thigh/knee/foot pitch, chair geometry, camera and upper-body ownership."
     },
     "current_blocker": "The bounded Block-3 thigh-convergence runtime correction has not yet been built or visually re-proved.",
-    "exact_next_action": "Wait only for the single Android Build on the current runtime-equivalent branch state. If successful, request exactly one targeted Real Candidate proof and manually inspect real-candidate-seated-call.png. Do not start Block 4 or later work.",
+    "exact_next_action": "Let the single Android Build for the current Block-3 runtime change complete. If successful, request exactly one targeted Real Candidate proof and manually inspect real-candidate-seated-call.png. Accept or reject only the seated-contact correction before any further Block-3 change. Do not start Block 4 or later work.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
-      "Block 2 is accepted.",
-      "Remain in Block 3 only.",
-      "Workflow SUCCESS is not visual acceptance.",
-      "Keep PR Draft."
+      "Block 2 is accepted from manually inspected exact-runtime normal/head/face frames.",
+      "Remain in ordered Block 3 only; do not touch arm-life, blink, launcher/icon or later temporal work yet.",
+      "Workflow SUCCESS is not visual acceptance; seated evidence must be manually inspected.",
+      "Keep PR Draft until the work-order implementation is genuinely complete."
     ],
     "completed_blocks": [
       {
@@ -95,20 +117,36 @@
       }
     ],
     "user_device_hard_blockers_remaining": [
-      "Arms and hands still read as fixed/frozen in production.",
-      "Seated CALL remains unresolved until Block 3 re-proof is manually accepted.",
-      "Blinking produces a visible wrong dark/deformed area around the eyes.",
-      "Controls-only or avatar-absent evidence remains a hard FAIL."
+      "Arms and hands still read as fixed/frozen in the real production experience.",
+      "Celine still sits crooked/anatomically incoherently in CALL relative to body, legs and chair until Block 3 is re-proved and accepted.",
+      "Blinking produces a visible wrong dark/deformed area above or around the eyes.",
+      "A video/avatar test can show controls while Celine is absent; such evidence must remain a hard FAIL."
     ],
     "published_release_under_repair": {
       "version": 80,
       "tag": "v80",
       "target_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
+      "release_id": 378022255,
+      "asset_id": 532677127,
       "asset": "Yahya-AI-v80.apk",
       "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58"
     }
   },
-  "completed": [],
+  "completed": [
+    {
+      "id": "v79-avatar-lab-visual-realism",
+      "status": "merged_released_testable_with_later_user_device_visual_defects_recorded_for_v80",
+      "pr": 107,
+      "merge_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
+      "release_tag": "v79"
+    },
+    {
+      "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
+      "status": "merged_exact_main_validated_release_unchanged",
+      "prs": [108, 109],
+      "runtime_change": false
+    }
+  ],
   "next": [],
   "roadmap": {
     "stage": 3,
@@ -122,6 +160,8 @@
     "sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
     "apk": "Yahya-AI-v80.apk",
     "sha256": "b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
+    "asset_id": 532677127,
+    "release_id": 378022255,
     "status": "published_testable_while_v80_ordered_postrelease_repairs_continue"
   }
 }
