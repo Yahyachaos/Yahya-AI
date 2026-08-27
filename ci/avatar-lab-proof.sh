@@ -127,6 +127,30 @@ capture() {
   return 1
 }
 
+warm_renderer_cache() {
+  local target="$OUT/.warmup.png"
+  local warmup
+  local colors=0
+
+  # The software Filament backend may need several complete process starts before its compiled
+  # pipeline cache produces a compositor-visible avatar. Warm only until the same fail-closed
+  # visibility predicate used by evidence capture succeeds; never publish these warm-up frames.
+  for warmup in $(seq 1 6); do
+    launch_state stand full front neutral
+    adb exec-out screencap -p > "$target"
+    colors="$(png_color_count "$target" 2>/dev/null || echo 0)"
+    echo "Renderer warm-up: attempt=$warmup colors=$colors"
+    if [ "$colors" -ge 1000 ]; then
+      return 0
+    fi
+  done
+
+  echo "Renderer never produced a visible Avatar Lab frame: colors=$colors" >&2
+  return 1
+}
+
+warm_renderer_cache
+
 # Close-up uses a held morph instead of a timed animation, so cheek/eyelid comparison is exact.
 launch_state stand face front neutral
 capture "01-face-neutral-close"
