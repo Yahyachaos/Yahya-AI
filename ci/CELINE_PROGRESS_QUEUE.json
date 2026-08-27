@@ -35,13 +35,13 @@
     "kind": "runtime_visual_upgrade",
     "target_version": 80,
     "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
-    "branch": null,
-    "pr": null,
-    "base_main_sha": "9f79379bd2f4757958fa3106efd884d6a01c7329",
-    "status": "active_block1_branch_not_created",
+    "branch": "auto/celine/v80-human-videochat-presence",
+    "pr": 110,
+    "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
+    "status": "active_block1_draft_pr_build_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
     "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-    "latest_runtime_code_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
+    "latest_runtime_code_head": "3dce12d783fdbc0d7b35ee89da8d744bc6ea837e",
     "latest_built_runtime_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
     "latest_runtime_equivalent_main_build": {
       "workflow": "Android Build",
@@ -96,16 +96,37 @@
     "active_block": {
       "number": 1,
       "name": "Production visibility and camera foundation",
-      "status": "not_started"
+      "status": "in_progress",
+      "bounded_change": {
+        "runtime_code_head": "3dce12d783fdbc0d7b35ee89da8d744bc6ea837e",
+        "scope": [
+          "v80 version bump",
+          "bounded scrollable lower Avatar Lab control panel that preserves a visible render viewport",
+          "fail-closed person-presence check on 19-avatar-lab-open.png"
+        ]
+      }
     },
-    "current_blocker": "No implementation blocker. The v80 user-observed defects are open. The user portrait required for block 10 is not yet a repository asset, but that later dependency does not block ordered block 1.",
-    "exact_next_action": "Create one draft branch auto/celine/v80-human-videochat-presence from current live main and start only ordered block 1 by auditing the production-equivalent proof path for any route that can pass with Celine absent; do not begin zoom or other runtime fixes before that failure path is identified.",
+    "current_blocker": "No implementation blocker. The one required Android build for runtime code head 3dce12d783fdbc0d7b35ee89da8d744bc6ea837e is pending on draft PR #110; v80 visual acceptance remains FAIL until real evidence is inspected.",
+    "exact_next_action": "Evaluate the single Android Build triggered for draft PR #110 at runtime code head 3dce12d783fdbc0d7b35ee89da8d744bc6ea837e; if it succeeds, trigger exactly one targeted Celine Avatar Lab Proof and manually inspect 19-avatar-lab-open.png before making any further runtime change.",
     "constraints": [
       "Strict single-flight: one v80 branch and one PR only.",
       "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
       "Workflow SUCCESS is not visual PASS; inspect actual evidence.",
       "The exact user portrait is unavailable as a repository asset and must not be replaced with a lookalike."
-    ]
+    ],
+    "block1_audit_evidence": {
+      "workflow": "Celine Avatar Lab Proof",
+      "run_number": 47,
+      "run_id": 33072113409,
+      "head_sha": "d26539c8ee91747358312177d445ab5342118138",
+      "artifact": 9646420703,
+      "artifact_digest": "sha256:fa2275029aa505bfc39e6e082627288fe07f9c30b3f117b5488806564c6bf93b",
+      "manually_inspected": true,
+      "frame": "19-avatar-lab-open.png",
+      "criterion_result": "FAIL_CONTROLS_ONLY_CELINE_ABSENT",
+      "checker_result": "FAIL skin_like=0",
+      "reason": "The unbounded WRAP_CONTENT control panel covers the full Avatar Lab render viewport. Workflow success therefore did not constitute visual pass."
+    }
   },
   "completed": [
     {
