@@ -36,8 +36,11 @@ final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 2.10f;
     static final float CALL_DEFAULT_ZOOM = 1.45f;
-    static final float CALL_BASE_FOCUS_Y = 0.45f;
-    static final float FACE_FOCUS_Y = 1.10f;
+    // Celine's normalized production rig uses the opposite screen-space sign from the old Lab
+    // label: positive panY pushed her downward in the actual CALL viewport. Exact #224 evidence
+    // measured that drift, so the product curve uses bounded negative framing bias.
+    static final float CALL_BASE_FOCUS_Y = -0.15f;
+    static final float FACE_FOCUS_Y = -0.75f;
     static final float TARGET_DISTANCE = 5.0f;
     static final float PRODUCTION_HALF_DEPTH = 0.314f;
     static final float NEAR_PLANE = 0.05f;
