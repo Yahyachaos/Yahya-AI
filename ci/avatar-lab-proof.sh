@@ -215,8 +215,10 @@ capture_state stand full front neutral "04-standing-front"
 capture_state seated full front neutral "05-seated-front"
 
 # Two frames from one continuous arm/hand mode prove visible motion instead of a frozen pose.
+# The Lab ARMS wave period is ~1.43 s, so sample near a quarter/third phase instead of the old
+# 1.45 s delay that accidentally landed almost exactly one full period later.
 capture_state arms full front neutral "06-arms-hands-a"
-sleep 1.45
+sleep 0.52
 capture "07-arms-hands-b"
 
 # Two frames from one continuous walk mode.
