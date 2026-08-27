@@ -190,8 +190,11 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
                 case SEATED:
                     translateRoot(0f, -0.30f, 0.12f);
                     rotate(hips, -5.0f, 0f, 0f);
-                    rotate(leftUpLeg, -88f, -2f, 0.5f);
-                    rotate(rightUpLeg, -88f, 2f, -0.5f);
+                    // Mirror the production CALL lower-body owner exactly: keep the seated hip/knee
+                    // flexion but guide both thighs inward instead of letting the Meshy local axes
+                    // fan the knees into the wide mannequin stance visible in the v78 baseline.
+                    rotate(leftUpLeg, -88f, 0f, 10.0f);
+                    rotate(rightUpLeg, -88f, 0f, -10.0f);
                     rotate(leftLeg, 92f, 0f, 0f);
                     rotate(rightLeg, 92f, 0f, 0f);
                     rotate(leftFoot, -8f, 0f, 0f);
