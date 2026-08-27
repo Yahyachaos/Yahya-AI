@@ -62,7 +62,7 @@ build_required = {
     "validateCelineCharacterRefreshV75": "v75 structural and silhouette validation",
     "generateCelineFacialRigV76": "final-geometry facial-rig generation",
     "validateCelineFacialRigV76": "append-only v76 facial-rig validation",
-    "assets.srcDir celineV76GeneratedAssetsDir": "v76 generated production asset packaging",
+    "assets.srcDir celineV79GeneratedAssetsDir": "v79 generated production asset packaging over the validated v76 facial rig",
     "CelineMorphRuntimeV62.onViseme(this, cue)": "generated runtime viseme activation",
     "6e507144afa22f0534be0419884932a0c6aaa16b8b2013580013ffe5056bb146": "exact validated v65 candidate hash",
     "e47c7105d14e740dfa89b26153bcb4e99ad40242583f210c4175dac4181ef14f": "exact validated v75 geometry hash",
