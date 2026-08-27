@@ -14,18 +14,46 @@ fi
 adb install -r "$APK" >/dev/null
 adb logcat -c || true
 
+finalize() {
+  local status=$?
+  local evidence_count=0
+  trap - EXIT
+  timeout 15s adb logcat -d -v threadtime > "$OUT/logcat.txt" 2>&1 || true
+  timeout 10s adb shell dumpsys window windows > "$OUT/window.txt" 2>&1 || true
+  evidence_count="$(find "$OUT" -maxdepth 1 -type f -name '[0-9][0-9]-*.png' ! -name '00-warmup-visible.png' | wc -l | tr -d ' ')"
+  {
+    echo "Avatar Lab lightweight proof finished."
+    echo "Status=$([ "$status" -eq 0 ] && echo PASS || echo FAIL)"
+    echo "APK=$APK"
+    echo "CaptureActivity=$CAPTURE_ACTIVITY"
+    echo "EvidenceScreenshots=$evidence_count"
+  } > "$OUT/summary.txt"
+  exit "$status"
+}
+trap finalize EXIT
+
 launch_state() {
   local pose="$1"
   local camera="$2"
   local orbit="$3"
   local face="$4"
-  adb shell am force-stop de.yahya.ai
-  adb shell am start -W -n "$CAPTURE_ACTIVITY" \
+  local process_mode="${5:-keep}"
+
+  # Cold Filament warm-up may require a complete process restart. Once one visible frame exists,
+  # keep the process alive: Proof #18 showed that killing the process after a successful warm-up
+  # discarded the useful renderer state and the first real evidence launch returned blank again.
+  if [ "$process_mode" = "restart" ]; then
+    adb shell am force-stop de.yahya.ai
+  fi
+
+  # CLEAR_TOP replaces the debug capture Activity state without killing the app process. The
+  # Activity uses standard launch mode, so its new intent extras are applied by a fresh instance
+  # while process-level Filament/shader caches remain available.
+  adb shell am start -W --activity-clear-top -n "$CAPTURE_ACTIVITY" \
     --es ci_pose "$pose" \
     --es ci_camera "$camera" \
     --es ci_orbit "$orbit" \
     --es ci_face "$face" >/dev/null
-  # Asset/Filament startup plus the held diagnostic face state settle well inside this window.
   sleep 1.65
 }
 
@@ -107,11 +135,10 @@ capture() {
   local attempt
   local colors=0
 
-  # A Filament frame callback can complete before the emulator compositor presents Celine.
-  # Retry only the screenshot (never the Activity/build) until the frame contains materially
-  # more than the known 291-297-color empty system-bars/background image. The parser uses only
-  # Python's standard library so readiness does not depend on mutable runner packages.
-  for attempt in $(seq 1 14); do
+  # Proof #18 spent almost the whole capture timeout repeating screenshots from one permanently
+  # blank Activity launch. Keep this retry window deliberately small; capture_state() will replace
+  # the Activity and retry the state instead of burning minutes on the same dead compositor frame.
+  for attempt in 1 2; do
     adb exec-out screencap -p > "$target"
     if [ -s "$target" ]; then
       colors="$(png_color_count "$target" 2>/dev/null || echo 0)"
@@ -120,10 +147,31 @@ capture() {
         return 0
       fi
     fi
-    sleep 0.50
+    sleep 0.55
   done
 
-  echo "Visually blank screenshot after bounded retries: $name colors=$colors" >&2
+  echo "Visually blank screenshot: $name colors=$colors" >&2
+  return 1
+}
+
+capture_state() {
+  local pose="$1"
+  local camera="$2"
+  local orbit="$3"
+  local face="$4"
+  local name="$5"
+  local state_attempt
+
+  # Retry the complete debug Activity state, but keep the already-warmed app process alive.
+  for state_attempt in 1 2 3; do
+    launch_state "$pose" "$camera" "$orbit" "$face" keep
+    if capture "$name"; then
+      return 0
+    fi
+    echo "Relaunching evidence state: $name state_attempt=$state_attempt" >&2
+  done
+
+  echo "Evidence state never became visible after bounded relaunches: $name" >&2
   return 1
 }
 
@@ -132,66 +180,62 @@ warm_renderer_cache() {
   local warmup
   local colors=0
 
-  # The software Filament backend may need several complete process starts before its compiled
-  # pipeline cache produces a compositor-visible avatar. Warm only until the same fail-closed
-  # visibility predicate used by evidence capture succeeds; never publish these warm-up frames.
-  for warmup in $(seq 1 6); do
-    launch_state stand full front neutral
+  # The software Filament backend can need more than one cold process start. Restart only during
+  # this warm-up stage. As soon as one compositor-visible avatar frame exists, preserve that process
+  # for all real evidence states and keep a diagnostic copy of the successful warm-up frame.
+  for warmup in 1 2 3 4; do
+    launch_state stand full front neutral restart
     adb exec-out screencap -p > "$target"
     colors="$(png_color_count "$target" 2>/dev/null || echo 0)"
     echo "Renderer warm-up: attempt=$warmup colors=$colors"
     if [ "$colors" -ge 1000 ]; then
+      cp "$target" "$OUT/00-warmup-visible.png"
       return 0
     fi
   done
 
-  echo "Renderer never produced a visible Avatar Lab frame: colors=$colors" >&2
+  echo "Renderer never produced a visible Avatar Lab warm-up frame: colors=$colors" >&2
   return 1
 }
 
 warm_renderer_cache
 
 # Close-up uses a held morph instead of a timed animation, so cheek/eyelid comparison is exact.
-launch_state stand face front neutral
-capture "01-face-neutral-close"
-launch_state stand face front blink85
-capture "02-face-blink-85-held"
-launch_state stand face front neutral
-capture "03-face-open-after"
+capture_state stand face front neutral "01-face-neutral-close"
+capture_state stand face front blink85 "02-face-blink-85-held"
+capture_state stand face front neutral "03-face-open-after"
 
 # Full-body grounding.
-launch_state stand full front neutral
-capture "04-standing-front"
-launch_state seated full front neutral
-capture "05-seated-front"
+capture_state stand full front neutral "04-standing-front"
+capture_state seated full front neutral "05-seated-front"
 
 # Two frames from one continuous arm/hand mode prove visible motion instead of a frozen pose.
-launch_state arms full front neutral
-sleep 0.20
-capture "06-arms-hands-a"
+capture_state arms full front neutral "06-arms-hands-a"
 sleep 1.45
 capture "07-arms-hands-b"
 
 # Two frames from one continuous walk mode.
-launch_state walk full front neutral
-sleep 0.15
-capture "08-walk-a"
+capture_state walk full front neutral "08-walk-a"
 sleep 0.72
 capture "09-walk-b"
 
 # Deterministic branch-avatar orientation checks.
-launch_state stand full profile_left neutral
-capture "10-profile-left"
-launch_state stand full three_right neutral
-capture "11-three-quarter-right"
-launch_state stand full front neutral
-capture "12-front-return"
+capture_state stand full profile_left neutral "10-profile-left"
+capture_state stand full three_right neutral "11-three-quarter-right"
+capture_state stand full front neutral "12-front-return"
 
-adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
-printf '%s\n' \
-  "Avatar Lab lightweight proof complete." \
-  "APK=$APK" \
-  "CaptureActivity=$CAPTURE_ACTIVITY" \
-  "Screenshots=$(find "$OUT" -maxdepth 1 -name '*.png' | wc -l)" \
-  > "$OUT/summary.txt"
-cat "$OUT/summary.txt"
+# Persist diagnostics before assertions so a failing assertion still has inspectable evidence.
+timeout 15s adb logcat -d -v threadtime > "$OUT/logcat.txt" 2>&1 || true
+
+evidence_count="$(find "$OUT" -maxdepth 1 -type f -name '[0-9][0-9]-*.png' ! -name '00-warmup-visible.png' | wc -l | tr -d ' ')"
+if [ "$evidence_count" -ne 12 ]; then
+  echo "Expected 12 evidence screenshots, found $evidence_count" >&2
+  exit 1
+fi
+
+if ! grep -Fq "V61-110" "$OUT/logcat.txt" || ! grep -Fq "Meshy Rig-Scale korrigiert" "$OUT/logcat.txt"; then
+  echo "Missing required V61-110 Meshy rig-scale correction evidence in logcat" >&2
+  exit 1
+fi
+
+echo "Avatar Lab evidence passed structural/visibility guards; manual visual acceptance is still required."

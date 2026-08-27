@@ -7,6 +7,7 @@ on:
       - 'ci/CELINE_PROGRESS_QUEUE.json'
       - 'docs/**'
       - '*.md'
+      - 'START_HERE.txt'
   pull_request:
     branches: [ main ]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -14,6 +15,7 @@ on:
       - 'ci/CELINE_PROGRESS_QUEUE.json'
       - 'docs/**'
       - '*.md'
+      - 'START_HERE.txt'
   workflow_dispatch:
     inputs:
       target_sha:
@@ -41,6 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       app_changed: ${{ steps.scope.outputs.app_changed }}
+      build_required: ${{ steps.scope.outputs.build_required }}
     steps:
       - name: Checkout dispatched target
         if: github.event_name == 'workflow_dispatch'
@@ -63,8 +66,10 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           TARGET_SHA: ${{ inputs.target_sha }}
           PUBLISH_RELEASE: ${{ inputs.publish_release }}
+          PR_ACTION: ${{ github.event.action }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BEFORE_SHA: ${{ github.event.before }}
         shell: bash
         run: |
           set -euo pipefail
@@ -86,16 +91,28 @@ jobs:
             fi
 
             echo "app_changed=true" >> "$GITHUB_OUTPUT"
+            echo "build_required=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            git fetch --no-tags origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
-            CHANGED="$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")"
+            # For synchronize events, scope only the newest commit delta. A long-lived PR may
+            # contain older app changes, but a later queue/docs/proof-CI-only commit must not spend
+            # another full Android build. Open/reopen/ready-for-review intentionally scope the whole
+            # PR so the final candidate still receives a real build.
+            if [ "$PR_ACTION" = "synchronize" ] && [ -n "${PR_BEFORE_SHA:-}" ] && [ "$PR_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              git fetch --no-tags origin "$PR_BEFORE_SHA" "$PR_HEAD_SHA"
+              CHANGED="$(git diff --name-only "$PR_BEFORE_SHA" "$PR_HEAD_SHA")"
+            else
+              git fetch --no-tags origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
+              CHANGED="$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")"
+            fi
           else
             BEFORE="$(git rev-parse HEAD^)"
             CHANGED="$(git diff --name-only "$BEFORE" HEAD)"
           fi
+
+          printf '%s\n' "$CHANGED"
 
           if grep -Eq '^app/' <<<"$CHANGED"; then
             echo "app_changed=true" >> "$GITHUB_OUTPUT"
@@ -103,7 +120,16 @@ jobs:
             echo "app_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+          if grep -Eq '^(app/|build\.gradle$|settings\.gradle$|gradle\.properties$|gradle/|gradlew$|gradlew\.bat$|VERIFY_PROJECT\.sh$)' <<<"$CHANGED"; then
+            echo "build_required=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build_required=false" >> "$GITHUB_OUTPUT"
+            echo "No build-sensitive files changed in this event delta; skipping full Android build."
+          fi
+
   build:
+    needs: change-scope
+    if: github.event_name == 'workflow_dispatch' || needs.change-scope.outputs.build_required == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dispatched target

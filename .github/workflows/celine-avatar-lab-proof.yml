@@ -42,7 +42,7 @@ jobs:
             forbidden=""
             while IFS= read -r changed_path; do
               case "$changed_path" in
-                ""|ci/CELINE_PROGRESS_QUEUE.json|ci/avatar-lab-proof.sh|.github/workflows/celine-avatar-lab-proof.yml) ;;
+                ""|ci/CELINE_PROGRESS_QUEUE.json|ci/avatar-lab-proof.sh|.github/workflows/celine-avatar-lab-proof.yml|.github/workflows/android-build.yml|START_HERE.txt|*.md) ;;
                 *) forbidden="$changed_path"; break ;;
               esac
             done < <(git diff --name-only "$candidate_sha" "$PR_HEAD")
@@ -60,7 +60,7 @@ jobs:
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           {
             echo "Using Android Build run $RUN_ID from runtime-equivalent ancestor $SOURCE_SHA."
-            echo "Current proof head is $PR_HEAD; only queue/proof-CI files differ."
+            echo "Current proof head is $PR_HEAD; only queue/docs/proof-CI files differ."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Download runtime-equivalent APK only
