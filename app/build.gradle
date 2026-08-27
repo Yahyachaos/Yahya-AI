@@ -252,8 +252,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 79
-        versionName '1.0-celin-avatar-lab-visual-realism'
+        versionCode 80
+        versionName '1.0-celin-human-videochat-presence'
     }
     signingConfigs {
         debug {
@@ -290,7 +290,7 @@ dependencies {
     implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.4'
     implementation 'org.apache.commons:commons-compress:1.21'
 
-    // v79 preserves the v76/v77 face and voice contracts while localizing blink to eyelids.
+    // v80 preserves the v76/v77 face and voice contracts while human videochat presence is repaired in ordered blocks.
     implementation 'com.google.android.filament:filament-android:1.72.0'
     implementation 'com.google.android.filament:gltfio-android:1.72.0'
 }
