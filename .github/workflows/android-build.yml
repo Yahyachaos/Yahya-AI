@@ -120,7 +120,7 @@ jobs:
             echo "app_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if grep -Eq '^(app/|build\.gradle$|settings\.gradle$|gradle\.properties$|gradle/|gradlew$|gradlew\.bat$|VERIFY_PROJECT\.sh$|ci/celine_blink_localization_v79\.py$|ci/celine_blink_localization_validation_v79\.py$)' <<<"$CHANGED"; then
+          if grep -Eq '^(app/|build\.gradle$|settings\.gradle$|gradle\.properties$|gradle/|gradlew$|gradlew\.bat$|VERIFY_PROJECT\.sh$|\.github/workflows/android-build\.yml$|ci/celine_blink_localization_v79\.py$|ci/celine_blink_localization_validation_v79\.py$)' <<<"$CHANGED"; then
             echo "build_required=true" >> "$GITHUB_OUTPUT"
           else
             echo "build_required=false" >> "$GITHUB_OUTPUT"
