@@ -3,7 +3,7 @@ name: Celine Real Candidate Render Proof
 on:
   pull_request:
     branches: [ main ]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
     paths:
       - 'ci/check-real-celine-render.py'
       - 'ci/check-celine-person-presence.py'
@@ -13,6 +13,7 @@ on:
       - 'ci/celine-v75-multiview-emulator-proof.sh'
       - 'ci/celine_multiview_variant_v75.py'
       - 'ci/celine_png_crop_v75.py'
+      - 'ci/celine-find-runtime-apk.sh'
       - '.github/workflows/celine-real-candidate-render-proof.yml'
       - 'app/src/main/assets/models/celine-source/**'
       - 'ci/celine_facial_morph_prototype.py'
@@ -48,28 +49,37 @@ on:
       - 'app/src/main/java/de/yahya/ai/CelineMeshyRigScaleV61.java'
       - 'app/build.gradle'
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: 'Exact PR branch head to prove'
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
-# Expensive visual evidence is SHA-bound. If a new PR commit arrives, the old run is stale
-# and should stop consuming runner time. Manual dispatch remains available for targeted diagnosis.
+# Expensive visual evidence is SHA-bound. Draft PRs stay cheap unless explicitly requested.
+# A PR-body token is the same bounded targeted-proof convention already used by Avatar Lab and
+# exists so connected agents without workflow-dispatch mutation access can still request one proof.
 concurrency:
-  group: celine-real-proof-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: celine-real-proof-${{ github.event.pull_request.number || inputs.target_sha || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   real-candidate-proof:
     name: Real Celine HOME CALL identity lifecycle proof
-    # Draft PRs are iteration mode. Run the complete visual/lifecycle/zoom suite only on
-    # ready-for-review/final PR heads, or when explicitly requested with workflow_dispatch.
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.body, '[run-real-candidate-proof]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout exact revision with Git LFS
+      - name: Checkout exact proof head with Git LFS
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
           fetch-depth: 0
           lfs: true
 
@@ -118,36 +128,31 @@ jobs:
           python ci/celine_feminine_presence_runtime_contract.py
           echo "candidate_sha256=$(sha256sum morph-proof/celine_v79_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Set up Java 17 for Android SDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+      - name: Locate exact runtime-fingerprint Android Build artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+        shell: bash
+        run: bash ci/celine-find-runtime-apk.sh
+
+      - name: Download runtime-equivalent APK only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+          sha256sum ci-apk/app-debug.apk | tee real-candidate-apk.sha256
+          echo "runtime_fingerprint=${{ steps.source.outputs.runtime_fingerprint }}" | tee real-candidate-runtime-fingerprint.txt
+          echo "android_build_run=${{ steps.source.outputs.run_id }}" | tee -a real-candidate-runtime-fingerprint.txt
+          echo "android_build_sha=${{ steps.source.outputs.source_sha }}" | tee -a real-candidate-runtime-fingerprint.txt
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android 30 SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDKMANAGER="$(command -v sdkmanager || true)"
-          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"; fi
-          test -x "$SDKMANAGER"
-          "$SDKMANAGER" "platforms;android-30" "build-tools;30.0.3"
-
-      - name: Set up Gradle 7.5.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '7.5.1'
-
-      - name: Build guarded v79 blink-localized APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash VERIFY_PROJECT.sh
-          gradle wrapper --gradle-version 7.5.1
-          ./gradlew assembleDebug --console=plain
 
       - name: Enable KVM permissions
         shell: bash
@@ -165,7 +170,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v79_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh && bash ci/celine-v75-multiview-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk morph-proof/celine_v79_candidate.glb'
+          script: timeout 300s bash -lc 'bash ci/celine-real-candidate-emulator-proof.sh ci-apk/app-debug.apk morph-proof/celine_v79_candidate.glb && bash ci/celine-camera-zoom-emulator-proof.sh && bash ci/celine-v75-multiview-emulator-proof.sh ci-apk/app-debug.apk morph-proof/celine_v79_candidate.glb'
 
       - name: Upload real candidate visual/identity/lifecycle evidence
         if: always()
@@ -184,6 +189,8 @@ jobs:
             morph-proof/v79-blink-localization-report.json
             morph-proof/v79-blink-localization-validation-report.json
             morph-proof/v76-multiview/*.json
+            real-candidate-apk.sha256
+            real-candidate-runtime-fingerprint.txt
             real-candidate-home.png
             real-candidate-call.png
             real-candidate-home-return.png
