@@ -2,7 +2,8 @@
 
 This file is the permanent entry point for Codex and any other development agent working on `Yahyachaos/Yahya-AI`.
 
-It defines **how to discover the current task safely**. It intentionally does **not** hardcode the current version, PR number, branch SHA, workflow run number, or temporary blocker.
+It defines **how to discover the current task safely**.  
+It intentionally does **not** hardcode the current version, PR number, branch SHA, workflow run number, or temporary blocker.
 
 ---
 
@@ -62,14 +63,19 @@ When information conflicts, use this precedence:
 6. Canonical manifests/reference documents for assets and protected inputs.
 7. Historical README/docs only as background.
 
-If queue and live GitHub disagree, do not blindly follow either: reconcile the difference first, then update the queue only when the true state is known.
+If queue and live GitHub disagree, do not blindly follow either:
+reconcile the difference first, then update the queue only when the true state is known.
 
 ---
 
 ## 4. Strict Single-Flight Development
 
 - Exactly one active Celine implementation strand may exist.
-- While the queue/live GitHub show an active Celine branch/PR, do not create a second Celine branch, a second Celine PR, a parallel version block, or a competing queue step.
+- While the queue/live GitHub show an active Celine branch/PR, do not create:
+  - a second Celine branch,
+  - a second Celine PR,
+  - a parallel version block,
+  - a competing queue step.
 - Waiting for GitHub Actions is not permission to start the next version.
 - Continue/fix the current active strand until it reaches its required completion state.
 - Do not advance a branch head unnecessarily while a useful exact-head validation is still running and needed as evidence.
@@ -94,7 +100,7 @@ Rules:
 - Evidence must be bound to the SHA it actually tested.
 - If a later docs/CI-only head contains the same runtime tree, preserve the distinction in the queue/handoff.
 - A SUCCESS workflow conclusion is not visual acceptance.
-- Visual tasks require actual inspection of produced images/video/frames.
+- Visual tasks require human/agent inspection of the produced images/video/frames.
 - Blank, black, off-screen, corrupt, stale, fallback, badly framed, or visibly wrong evidence is FAIL.
 
 ---
@@ -103,9 +109,13 @@ Rules:
 
 Before touching or replacing Celine source geometry, rig, morphs, materials, or model inputs:
 
-`READ ci/CELINE_SOURCE_ASSET.json`
+```text
+READ ci/CELINE_SOURCE_ASSET.json
+```
 
 The source declared by that manifest is canonical.
+
+Current repository structure includes the canonical Celine source under the model asset area, but agents must resolve the source through the manifest rather than guessing filenames.
 
 Rules:
 
@@ -117,11 +127,13 @@ Rules:
 
 Useful asset/reference entry points:
 
-- `ci/CELINE_SOURCE_ASSET.json`
-- `app/src/main/assets/models/CELINE_MESHY_RIG_AUDIT.txt`
-- `app/src/main/assets/models/README_CELINE_3D.txt`
-- `docs/celine/reference/v2/REFERENCE_MANIFEST.json`
-- `docs/celine/reference/v2/REFERENCE_RETRIEVAL.md`
+```text
+ci/CELINE_SOURCE_ASSET.json
+app/src/main/assets/models/CELINE_MESHY_RIG_AUDIT.txt
+app/src/main/assets/models/README_CELINE_3D.txt
+docs/celine/reference/v2/REFERENCE_MANIFEST.json
+docs/celine/reference/v2/REFERENCE_RETRIEVAL.md
+```
 
 ---
 
@@ -131,36 +143,46 @@ Use this as a map. Do **not** read every file on every task.
 
 Core orientation:
 
-- `app/src/main/java/de/yahya/ai/Celine3DView.java`
-- `app/src/main/java/de/yahya/ai/CelineAvatarController.java`
-- `app/src/main/java/de/yahya/ai/MainActivity.java`
+```text
+app/src/main/java/de/yahya/ai/Celine3DView.java
+app/src/main/java/de/yahya/ai/CelineAvatarController.java
+app/src/main/java/de/yahya/ai/MainActivity.java
+```
 
 Scale/rig/morph:
 
-- `app/src/main/java/de/yahya/ai/CelineMeshyRigScaleV61.java`
-- `app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java`
-- `app/src/main/java/de/yahya/ai/CelineGlbValidator.java`
+```text
+app/src/main/java/de/yahya/ai/CelineMeshyRigScaleV61.java
+app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java
+app/src/main/java/de/yahya/ai/CelineGlbValidator.java
+```
 
 Avatar Lab / visual diagnostics:
 
-- `app/src/main/java/de/yahya/ai/CelineAvatarLabActivity.java`
-- `app/src/main/java/de/yahya/ai/CelineAvatarLabCaptureActivity.java`
-- `app/src/main/java/de/yahya/ai/CelineAvatarLabPoseDriverV79.java`
+```text
+app/src/main/java/de/yahya/ai/CelineAvatarLabActivity.java
+app/src/main/java/de/yahya/ai/CelineAvatarLabCaptureActivity.java
+app/src/main/java/de/yahya/ai/CelineAvatarLabPoseDriverV79.java
+```
 
 Body/camera/presence examples:
 
-- `app/src/main/java/de/yahya/ai/CelineNaturalBodyMotionV73.java`
-- `app/src/main/java/de/yahya/ai/CelineArmHandPresenceV74.java`
-- `app/src/main/java/de/yahya/ai/CelineArmHandPresenceV79.java`
-- `app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java`
-- `app/src/main/java/de/yahya/ai/CelineCameraZoomV70.java`
-- `app/src/main/java/de/yahya/ai/CelineProductInteractionLockV79.java`
+```text
+app/src/main/java/de/yahya/ai/CelineNaturalBodyMotionV73.java
+app/src/main/java/de/yahya/ai/CelineArmHandPresenceV74.java
+app/src/main/java/de/yahya/ai/CelineArmHandPresenceV79.java
+app/src/main/java/de/yahya/ai/CelineSeatedCallV70.java
+app/src/main/java/de/yahya/ai/CelineCameraZoomV70.java
+app/src/main/java/de/yahya/ai/CelineProductInteractionLockV79.java
+```
 
 Voice/conversation examples:
 
-- `app/src/main/java/de/yahya/ai/SpeechAudioBus.java`
-- `app/src/main/java/de/yahya/ai/SpeechLipSyncV77.java`
-- `app/src/main/java/de/yahya/ai/ConversationIntelligenceV78.java`
+```text
+app/src/main/java/de/yahya/ai/SpeechAudioBus.java
+app/src/main/java/de/yahya/ai/SpeechLipSyncV77.java
+app/src/main/java/de/yahya/ai/ConversationIntelligenceV78.java
+```
 
 Read only the technical files relevant to the active work-order and the current defect/change.
 
@@ -168,24 +190,34 @@ Read only the technical files relevant to the active work-order and the current 
 
 ## 8. Validation Strategy — Efficient but Safe
 
-The canonical validation rules are in `ci/CELINE_VALIDATION_POLICY.md`.
+The canonical validation rules are in:
+
+```text
+ci/CELINE_VALIDATION_POLICY.md
+```
+
+General operating rule:
 
 ### Draft / iteration phase
 
 - Use the smallest relevant check first.
 - Runtime-code change: run the relevant compile/Android build.
 - Avatar/geometry/rig/morph/material/camera/pose visual change: run targeted Avatar Lab or other relevant visual proof.
-- Run keyboard/audio/video/lifecycle/multiview tests only when the changed surface can affect them or the active work-order explicitly requires them.
+- Run keyboard/audio/video/lifecycle/multiview tests only when:
+  - the changed surface can affect them, or
+  - the active work-order explicitly requires them.
 - Do not run the entire expensive suite after every small change.
 - Fix compile errors, targeted contract failures, and task-specific defects before final gates.
 
 Important entry points:
 
-- `.github/workflows/android-build.yml`
-- `.github/workflows/celine-avatar-lab-proof.yml`
-- `ci/avatar-lab-proof.sh`
-- `.github/workflows/celine-real-candidate-render-proof.yml`
-- `ci/celine-real-candidate-emulator-proof.sh`
+```text
+.github/workflows/android-build.yml
+.github/workflows/celine-avatar-lab-proof.yml
+ci/avatar-lab-proof.sh
+.github/workflows/celine-real-candidate-render-proof.yml
+ci/celine-real-candidate-emulator-proof.sh
+```
 
 Specialized checks exist under `ci/`, including camera, rig-scale, skinning, facial/morph, keyboard, wake-word and other guards. Use them only when relevant.
 
@@ -214,7 +246,18 @@ After merging the exact validated head:
 
 Use this lifecycle:
 
-`RECONCILE → DRAFT ITERATION → TARGETED VALIDATION / PROOF → WORK-ORDER ACCEPTANCE → FINAL EXACT-HEAD → MERGE EXACT VALIDATED HEAD → EXACT-MAIN VALIDATION → RELEASE / READBACK → QUEUE RECONCILIATION → NEXT WORK ORDER`
+```text
+RECONCILE
+→ DRAFT ITERATION
+→ TARGETED VALIDATION / PROOF
+→ WORK-ORDER ACCEPTANCE
+→ FINAL EXACT-HEAD
+→ MERGE EXACT VALIDATED HEAD
+→ EXACT-MAIN VALIDATION
+→ RELEASE / READBACK
+→ QUEUE RECONCILIATION
+→ NEXT WORK ORDER
+```
 
 Do not skip stages by assumption.
 
@@ -257,7 +300,10 @@ Before writing the queue:
 
 Preserve previously validated behavior unless the active work-order requires a minimal, evidence-backed change.
 
-Before modifying a mature subsystem, identify which earlier behavior it protects, which targeted regression requires touching it, and which focused validation proves the change did not break adjacent behavior.
+Before modifying a mature subsystem, identify:
+- which earlier behavior it protects,
+- which targeted regression requires touching it,
+- which focused validation proves the change did not break adjacent behavior.
 
 Do not rewrite working infrastructure merely because a cleaner implementation is possible.
 
@@ -265,7 +311,13 @@ Do not rewrite working infrastructure merely because a cleaner implementation is
 
 ## 12. If the User Only Says “Continue Yahya AI”
 
-Interpret a generic continuation request such as `Arbeite auf Yahya-AI weiter.` as:
+Interpret a generic continuation request such as:
+
+```text
+Arbeite auf Yahya-AI weiter.
+```
+
+as:
 
 1. Open/focus `Yahyachaos/Yahya-AI`.
 2. Read this `AGENTS.md`.
