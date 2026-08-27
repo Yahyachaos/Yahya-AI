@@ -34,11 +34,12 @@ import java.util.WeakHashMap;
  */
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
-    static final float ZOOM_MAX = 2.10f;
-    static final float CALL_DEFAULT_ZOOM = 1.45f;
+    static final float ZOOM_MAX = 4.60f;
+    static final float CALL_DEFAULT_ZOOM = 2.80f;
     // Real Candidate #224 moved the avatar too far down with 0.45 -> 1.10, while #227 moved her
-    // too far up with -0.15 -> -0.75. Keep the target near body center at normal CALL framing and
-    // add only a restrained upward target lift as the camera dollies toward the face.
+    // too far up with -0.15 -> -0.75. The later corrected direction kept her head on-screen at
+    // 1.45/1.75/2.10 but those ranges were manually rejected as too distant. Preserve that focus
+    // direction while widening only the geometric camera-dolly range.
     static final float CALL_BASE_FOCUS_Y = 0.00f;
     static final float FACE_FOCUS_Y = 0.25f;
     static final float TARGET_DISTANCE = 5.0f;
