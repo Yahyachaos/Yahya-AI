@@ -43,8 +43,8 @@
       "agents_file": "AGENTS.md",
       "agents_install_commit": "353adc54927991932e987f5873ab21777565ab49",
       "start_here_redirect_commit": "f1cefe204949385a4e78eb89003dd210336c20d9",
-      "branch_head_before_this_queue_checkpoint": "f1cefe204949385a4e78eb89003dd210336c20d9",
-      "note": "AGENTS.md is now the permanent repository entry point. START_HERE.txt only redirects to it. This queue update is itself documentation/control state and will advance the live branch head; agents must read the actual PR head from GitHub rather than treating this field as self-referential truth."
+      "last_known_live_branch_head_before_this_queue_commit": "970343e239d0097dd0b8fb139eb2216ba5c67e38",
+      "note": "AGENTS.md is now the permanent repository entry point. START_HERE.txt only redirects to it. This queue commit is documentation/control state and necessarily advances the live branch head beyond the value recorded here; agents must always read the actual PR head from GitHub and must not treat queue self-reference as possible."
     },
     "progress": [
       "Branch-live Celine Avatar Lab activity exists on PR #107 and renders the current-branch Celine3DView/canonical asset path.",
@@ -243,6 +243,6 @@
   },
   "reconcile": {
     "status": "v78_published_v79_single_flight_agent_entry_installed_proof18_failed_closed",
-    "note": "v78 remains the exact released baseline. PR #107 is the only active Celine development strand and remains Draft. Latest executable/runtime-code head is 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. Later proof-CI/queue commits through 09889eb53606f63263daca31d02b0efd7fe76718 and the AGENTS/START_HERE bootstrap commits are not new runtime heads. Build #531 is green on a runtime-equivalent branch head. Proof #18 failed closed because renderer visibility did not survive into the first real evidence launch. Root AGENTS.md is now the permanent starting point. Continue only the exact_next_action on this same PR/branch after fresh live reconciliation."
+    "note": "v78 remains the exact released baseline. PR #107 is the only active Celine development strand and remains Draft. Latest executable/runtime-code head is 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. Later proof-CI/queue commits through 09889eb53606f63263daca31d02b0efd7fe76718 and the AGENTS/START_HERE/queue bootstrap commits are not new runtime heads. Build #531 is green on a runtime-equivalent branch head. Proof #18 failed closed because renderer visibility did not survive into the first real evidence launch. Root AGENTS.md is now the permanent starting point. Continue only the exact_next_action on this same PR/branch after fresh live reconciliation."
   }
 }
