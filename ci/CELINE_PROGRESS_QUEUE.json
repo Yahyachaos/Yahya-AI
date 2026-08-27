@@ -7,10 +7,10 @@
     "note": "The detailed pre-compaction v79 Avatar Lab history is preserved in Git history at this docs-only branch commit. Live GitHub always wins over this snapshot."
   },
   "baseline": {
-    "version": 79,
-    "main_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-    "release_tag": "v79",
-    "release_status": "published_testable_but_user_device_visual_defects_seed_v80",
+    "version": 80,
+    "main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
+    "release_tag": "v80",
+    "release_status": "published_testable_but_block2_visual_acceptance_rejected_and_active_repair_required",
     "protected": [
       "TRUE-UNLIT/FORCE-C texture pipeline",
       "Updater in Settings > App & Updates",
@@ -27,53 +27,82 @@
       "v76 guarded facial rig/gaze/expression runtime",
       "v77 playback-PCM-driven lip sync and German voice continuity",
       "v78 bounded multi-turn conversation intelligence",
-      "v79 Avatar Lab and production camera/scene/settings validation infrastructure"
+      "v79 Avatar Lab and production camera/scene/settings validation infrastructure",
+      "v80 Block 1 production visibility foundation"
     ]
   },
   "active": {
     "id": "v80-human-videochat-presence",
-    "kind": "runtime_visual_upgrade",
+    "kind": "runtime_visual_upgrade_postrelease_repair",
     "target_version": 80,
     "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
     "branch": "auto/celine/v80-human-videochat-presence",
-    "pr": 110,
-    "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
-    "status": "active_block2_focus_direction_built_proof_rerun_pending",
+    "pr": 111,
+    "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
+    "status": "active_block2_postrelease_camera_repair_built_targeted_proof_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
-    "runtime_fingerprint": "32a94306f941777c1a9efca82d5afad5d6ad88a853e8012525f39664be81d58c",
-    "latest_runtime_code_head": "3eeef2bc56e60aae8f052b4c531e7796143df312",
-    "latest_built_runtime_head": "3eeef2bc56e60aae8f052b4c531e7796143df312",
-    "latest_runtime_equivalent_main_build": {
+    "queue_checkpoint_parent_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
+    "runtime_fingerprint": "ff28d94690607f29fde5b534094c1995f156170994f81d995b3c2882b11d4f82",
+    "latest_runtime_code_head": "25446c2372cb136c0aad520074603b7ebe935e8c",
+    "latest_built_runtime_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
+    "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 589,
-      "run_id": 33093350691,
+      "run_number": 603,
+      "run_id": 33103838542,
       "conclusion": "success",
-      "head_sha": "9f79379bd2f4757958fa3106efd884d6a01c7329",
-      "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-      "apk_artifact": 9655366433,
-      "apk_artifact_digest": "sha256:d89dd669f5892240b5baa4ad53e4a41bc406deb3c64a01e41bea8e43390ce1ac",
-      "emulator_artifact": 9655546709,
-      "emulator_artifact_digest": "sha256:5140192e2a17dfb17955760781f20a0d89376b291faac5a1437e40dc8d080244",
+      "head_sha": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
+      "runtime_fingerprint": "ff28d94690607f29fde5b534094c1995f156170994f81d995b3c2882b11d4f82",
+      "apk_artifact": 9659660030,
+      "apk_artifact_digest": "sha256:de14621ddffcbb91e1349b65c3dd00e16557fd2f8b5eb96fb59b99fbaec6b58b",
+      "fingerprint_artifact": 9659660760,
+      "fingerprint_artifact_digest": "sha256:428f158303c0c907df780e64873641705c97020cb6195fe30e0b4a6393c5ede5",
+      "emulator_job": "skipped_draft_iteration",
       "publish_job": "skipped"
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 224,
-      "run_id": 33098944133,
+      "run_number": 227,
+      "run_id": 33100242945,
       "conclusion": "failure",
-      "head_sha": "31a3d494d25f9b3f81c4442eb8a26a70126cda6c",
-      "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
-      "artifact": 9657784844,
-      "artifact_digest": "sha256:f423e7b44adef0e2fa3a1748336fc4ca3f9c17d0977af9fe1a16cc91a147102d",
+      "head_sha": "c77d5649cbe6fd55710c95981ead720c42716003",
+      "artifact": 9658315591,
+      "artifact_digest": "sha256:6b70dcc7b5c05408630d03d1130c669340fd4e127145bb83321b0527fb7b6d28",
       "manually_inspected": true,
-      "criterion_result": "FAIL_BLOCK2_VERTICAL_FRAMING_DRIFTS_DOWN",
-      "visual_acceptance": "FAIL_FOR_V80",
+      "criterion_result": "FAIL_BLOCK2_CALL_FRAMING_HEAD_CLIPPED_OR_LOST_AND_FACE_CLOSE_TARGETS_LOWER_BODY",
+      "visual_acceptance": "FAIL_FOR_V80_BLOCK2",
       "evidence": [
-        "The real camera scale grows at each checkpoint: peakRow 129 -> 158 -> 194.",
-        "The strict-skin top moves down 815 -> 946 -> 1054 and face center reaches y=1202, proving the focus curve uses the wrong screen-space direction.",
-        "real-candidate-call.png was manually inspected: default CALL is closer but Celine is too low and clipped at the stage bottom.",
-        "The three new checkpoint images were not included by the legacy artifact glob, so no unuploaded frame is claimed as manually accepted."
+        "At 1.45 CALL framing the head is clipped at the top.",
+        "At 1.75 the head is lost offscreen.",
+        "At 2.10 the framing centers hips/legs instead of producing a face close-up.",
+        "HOME, CALL and HOME return remained visibly present in the same process."
       ]
+    },
+    "latest_nonvisual_proof_attempt": {
+      "workflow": "Celine Real Candidate Render Proof",
+      "run_number": 230,
+      "run_id": 33102551887,
+      "head_sha": "c27346312eb4f401358a7f92ca6036eeb24390eb",
+      "conclusion": "failure_before_emulator",
+      "reason": "app/build.gradle resolved docs/celine/reference/v2/REFERENCE_MANIFEST.json relative to app/ instead of the repository root, so no new visual evidence was produced.",
+      "resolved_by_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb"
+    },
+    "latest_skipped_visual_run": {
+      "workflow": "Celine Real Candidate Render Proof",
+      "run_number": 231,
+      "run_id": 33103838489,
+      "head_sha": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
+      "conclusion": "skipped",
+      "reason": "Expected draft-PR synchronize behavior; not visual evidence."
+    },
+    "published_release_under_repair": {
+      "version": 80,
+      "tag": "v80",
+      "target_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
+      "release_id": 378022255,
+      "asset_id": 532677127,
+      "asset": "Yahya-AI-v80.apk",
+      "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
+      "status": "published_but_does_not_override_rejected_block2_visual_evidence"
     },
     "user_device_hard_blockers": [
       "Pinch/zoom cannot currently approach Celine naturally enough for a human face/upper-body videochat close-up.",
@@ -102,41 +131,23 @@
     "active_block": {
       "number": 2,
       "name": "Real human-style zoom and framing",
-      "status": "in_progress_corrected_curve_built_visual_rerun_pending"
+      "status": "in_progress_bounded_focus_candidate_built_visual_proof_pending"
     },
-    "current_blocker": "The corrected focus direction compiles, but no post-correction production CALL frames have been inspected. The #224 artifact glob also omitted the three new checkpoints.",
-    "exact_next_action": "Add the new production CALL normal/head/face images to the canonical Real Candidate artifact, keep peak-row growth/centering/clipping checks while removing the invalid total-skin-growth assumption, then run exactly one corrected Real Candidate proof and manually inspect all three frames.",
+    "block2_current_candidate": {
+      "camera_code_head": "25446c2372cb136c0aad520074603b7ebe935e8c",
+      "call_base_focus_y": 0.0,
+      "face_focus_y": 0.25,
+      "build_input_repair_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
+      "note": "This candidate interpolates between two rejected framing extremes. Zoom bounds, root/model scale, rig, pose, voice, lifecycle and interaction ownership are unchanged."
+    },
+    "current_blocker": "The bounded Block-2 camera candidate now builds successfully and owns a live APK artifact, but no post-repair production CALL normal/head/face frames have yet been generated and manually inspected. Real Candidate #230 failed before emulator evidence and #231 was correctly skipped because PR #111 is draft.",
+    "exact_next_action": "Run exactly one targeted Celine Real Candidate Render Proof via workflow_dispatch on the current PR #111 exact head/runtime fingerprint, then manually inspect real-candidate-zoom-call-normal.png, real-candidate-zoom-call-head.png and real-candidate-zoom-call-face.png. Keep the PR draft; do not mark Ready merely to trigger the proof. Do not merge, release or start Block 3 unless those frames genuinely pass.",
     "constraints": [
-      "Strict single-flight: one v80 branch and one PR only.",
-      "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
+      "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
+      "Remain in ordered Block 2; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
       "Workflow SUCCESS is not visual PASS; inspect actual evidence.",
       "The exact user portrait is unavailable as a repository asset and must not be replaced with a lookalike."
     ],
-    "block1_audit_evidence": {
-      "workflow": "Celine Avatar Lab Proof",
-      "run_number": 47,
-      "run_id": 33072113409,
-      "head_sha": "d26539c8ee91747358312177d445ab5342118138",
-      "artifact": 9646420703,
-      "artifact_digest": "sha256:fa2275029aa505bfc39e6e082627288fe07f9c30b3f117b5488806564c6bf93b",
-      "manually_inspected": true,
-      "frame": "19-avatar-lab-open.png",
-      "criterion_result": "FAIL_CONTROLS_ONLY_CELINE_ABSENT",
-      "checker_result": "FAIL skin_like=0",
-      "reason": "The unbounded WRAP_CONTENT control panel covers the full Avatar Lab render viewport. Workflow success therefore did not constitute visual pass."
-    },
-    "latest_pr_build": {
-      "workflow": "Android Build",
-      "run_number": 596,
-      "run_id": 33099901127,
-      "conclusion": "success",
-      "head_sha": "3eeef2bc56e60aae8f052b4c531e7796143df312",
-      "runtime_fingerprint": "32a94306f941777c1a9efca82d5afad5d6ad88a853e8012525f39664be81d58c",
-      "apk_artifact": 9658031708,
-      "apk_artifact_digest": "sha256:b1069c0eaa7b0cb860c35a9635f6c58fa13320db29a327e83113b806def38012",
-      "emulator_job": "skipped",
-      "publish_job": "skipped"
-    },
     "completed_blocks": [
       {
         "number": 1,
@@ -149,29 +160,13 @@
       }
     ],
     "block2_audit": {
-      "status": "completed_first_defect_identified",
-      "head_sha": "0ddaf9168b7347bec194905ec07bd42cb766f02c",
+      "status": "repair_in_progress_after_rejected_release_evidence",
       "findings": [
         "Production pinch is a real cameraZoom/dolly and one-finger avatar translation is blocked.",
-        "The legacy v70 production guard clamps zoom to 1.25 and its proof requires feet to remain visible, which contradicts v80 face-close acceptance.",
-        "Production cameraPanY remains at the body/room center while zooming; the historical 2.20 crop therefore lost/clipped the face instead of following it.",
-        "The previous real-candidate-face-close image is a derived crop, not proof of production camera zoom."
-      ],
-      "bounded_first_fix": "Replace only the legacy production max/focus behavior with a guarded v80 CALL default and a zoom-dependent face/upper-torso camera target; leave interpolation and temporal gesture proof as subsequent block-2 work."
-    },
-    "latest_pr_validation": {
-      "workflow": "Android Build",
-      "run_number": 595,
-      "run_id": 33098944078,
-      "conclusion": "success",
-      "head_sha": "31a3d494d25f9b3f81c4442eb8a26a70126cda6c",
-      "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
-      "apk_artifact": 9657634149,
-      "apk_artifact_digest": "sha256:ed833ac220499c255cf9cb90c90ae3fdf85c9e101595c5d7863a416bccc39801",
-      "emulator_artifact": 9657809148,
-      "emulator_artifact_digest": "sha256:267ba98140fd771e3afcf074a6aa179c3d726d68df2f524cba1f8b00da8e025c",
-      "emulator_job": "success",
-      "publish_job": "skipped"
+        "The legacy v70 production guard was too restrictive for a face-close videochat view.",
+        "Previously tested vertical focus curves overshot in opposite screen-space directions.",
+        "The current bounded focus candidate must be accepted only from new production-equivalent frames."
+      ]
     }
   },
   "completed": [
@@ -182,28 +177,18 @@
       "merge_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
       "release_tag": "v79",
       "release_target_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-      "note": "Historical release completion remains true. A later real-device user video exposed combined production-experience defects; those are hard blockers for the queued v80 acceptance and override any assumption that isolated v79 lab proofs proved full human-videochat realism."
+      "note": "Historical release completion remains true. Later real-device evidence seeded the still-active v80 human-videochat repair."
     },
     {
       "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
       "status": "merged_exact_main_validated_release_unchanged",
-      "prs": [
-        108,
-        109
-      ],
-      "pr_heads": [
-        "3640b61710c204fc43a5644cf07f429a7043aa58",
-        "a31eceedf428c5ce07887f18bc30d40272d510ad"
-      ],
+      "prs": [108, 109],
       "merge_shas": [
         "dfeb92667144475aec70c1ebe0a2a5d8c8525526",
         "9f79379bd2f4757958fa3106efd884d6a01c7329"
       ],
       "runtime_change": false,
-      "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-      "final_pr_validation": "Android Build #588 / run 33092118092 attempt 2 SUCCESS; publish skipped.",
-      "exact_main_validation": "Android Build #589 / run 33093350691 SUCCESS; build and emulator succeeded; publish skipped.",
-      "release_readback": "v79 remains target a0f33c2651a3dbecefef4fc27b34d61475f54988 with asset Yahya-AI-v79.apk sha256:8e39683e514bb2c83bd3a7194a4f61e39456fd53d2cda4f859d7c341fe03852c."
+      "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08"
     }
   ],
   "next": [],
@@ -214,14 +199,14 @@
     "next_step": null
   },
   "latest_release": {
-    "version": 79,
-    "tag": "v79",
-    "sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-    "apk": "Yahya-AI-v79.apk",
-    "sha256": "8e39683e514bb2c83bd3a7194a4f61e39456fd53d2cda4f859d7c341fe03852c",
-    "asset_id": 532328907,
-    "release_id": 377834179,
-    "url": "https://github.com/Yahyachaos/Yahya-AI/releases/tag/v79",
-    "status": "published_testable"
+    "version": 80,
+    "tag": "v80",
+    "sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
+    "apk": "Yahya-AI-v80.apk",
+    "sha256": "b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
+    "asset_id": 532677127,
+    "release_id": 378022255,
+    "url": "https://github.com/Yahyachaos/Yahya-AI/releases/tag/v80",
+    "status": "published_testable_but_visual_block2_repair_active"
   }
 }
