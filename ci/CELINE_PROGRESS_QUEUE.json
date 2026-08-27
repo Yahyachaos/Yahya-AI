@@ -31,40 +31,82 @@
     ]
   },
   "active": {
-    "id": "v79-postrelease-seated-contract-repair",
+    "id": "v79-postrelease-publish-scope-repair",
     "kind": "postrelease_ci_only_maintenance",
     "target_version": 79,
-    "branch": "ci/v79-postrelease-seated-contract-repair",
-    "pr": 108,
-    "base_main_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-    "ci_change_head": "73932316138490111ddb76b5adbdeb9a99075a9e",
-    "latest_docs_head_before_queue_reconcile": "02b133a2f8b5f8fd793af09d7000e26834f6270e",
+    "work_order": "ci/work-orders/V79_CELINE_AVATAR_LAB_VISUAL_REALISM.md",
+    "branch": "ci/v79-postrelease-publish-scope-repair",
+    "pr": 109,
+    "base_main_sha": "dfeb92667144475aec70c1ebe0a2a5d8c8525526",
+    "current_branch_head": "3e0f4141d9267c5049e14f789e346db8ad54dc7b",
     "runtime_change": false,
-    "status": "open_postrelease_ci_repair_real_candidate_214_failed_v80_queued_not_started",
-    "goal": "Finish the smallest v79 post-release CI/Real Candidate contract repair without changing runtime behavior, then reconcile and hand single-flight ownership to the queued v80 human-videochat work.",
+    "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
+    "latest_runtime_code_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
+    "latest_built_runtime_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
+    "status": "draft_pr109_scope_fix_focused_contract_pass_final_exact_head_pending",
+    "goal": "Finish the v79 post-release CI maintenance by preventing CI/proof-only main merges from republishing an unchanged version tag, then reconcile and hand single-flight ownership to queued v80.",
+    "completed_live_reconcile": [
+      "PR #108 merged exact CI-only head 3640b61710c204fc43a5644cf07f429a7043aa58 as main merge dfeb92667144475aec70c1ebe0a2a5d8c8525526.",
+      "PR-head Android Build #584 / run 33088931033 succeeded; Real Candidate #218 / run 33088931024 succeeded.",
+      "Exact-main Android Build #585 / run 33089950158 compiled and passed emulator visibility, then failed only because publish attempted to overwrite existing v79 tag.",
+      "Release v79 remains correctly bound to a0f33c2651a3dbecefef4fc27b34d61475f54988 with asset Yahya-AI-v79.apk and sha256 8e39683e514bb2c83bd3a7194a4f61e39456fd53d2cda4f859d7c341fe03852c.",
+      "No open competing PR or v80 branch existed before PR #109 was created."
+    ],
     "last_validation": {
-      "android_build": {
-        "run_number": 580,
-        "run_id": 33079629998,
+      "focused_push_scope_contract": {
         "conclusion": "success",
-        "head_sha": "73932316138490111ddb76b5adbdeb9a99075a9e",
-        "note": "Build and Android emulator avatar visibility completed successfully; publish was correctly skipped on the PR."
+        "head_sha": "3e0f4141d9267c5049e14f789e346db8ad54dc7b",
+        "checks": [
+          "CI-only diff emits app_changed=false and build_required=true.",
+          "app/ diff emits app_changed=true and build_required=true."
+        ]
       },
-      "real_candidate": {
-        "run_number": 214,
-        "run_id": 33079629975,
-        "job_id": 98542973131,
-        "conclusion": "failure",
-        "head_sha": "73932316138490111ddb76b5adbdeb9a99075a9e",
-        "note": "Do not infer the remaining failure from stale handoff text. Inspect the actual job logs before any corrective write."
+      "pr108_android_build": {
+        "run_number": 584,
+        "run_id": 33088931033,
+        "conclusion": "success",
+        "head_sha": "3640b61710c204fc43a5644cf07f429a7043aa58",
+        "apk_artifact": 9653506138,
+        "apk_artifact_digest": "sha256:21fb2d3afb20d82e06396466700a5a598c43420e02f567eec1e66aedd274c1dd"
+      },
+      "pr108_real_candidate": {
+        "run_number": 218,
+        "run_id": 33088931024,
+        "conclusion": "success",
+        "head_sha": "3640b61710c204fc43a5644cf07f429a7043aa58",
+        "artifact": 9653725257,
+        "artifact_digest": "sha256:f7aadfffbc58693b6b8c6c9b1f340ea749c8418bd9f91a0fd409c606c7926679"
+      },
+      "exact_main_android_build": {
+        "run_number": 585,
+        "run_id": 33089950158,
+        "workflow_conclusion": "failure",
+        "build_job_conclusion": "success",
+        "emulator_job_conclusion": "success",
+        "publish_job_conclusion": "failure",
+        "head_sha": "dfeb92667144475aec70c1ebe0a2a5d8c8525526",
+        "apk_artifact": 9653934794,
+        "apk_artifact_digest": "sha256:89b4f89a575e3efaff07b68081f82e161a91a666ebcbc9780d8e862cec75ad52c"
       }
     },
-    "current_blocker": "Real Candidate Render Proof #214 remains failed on the latest CI-change head. The exact remaining failure must be established from the actual job logs; no runtime defect is asserted by this queue reconcile.",
-    "exact_next_action": "Fresh-start from root AGENTS.md and reconcile live GitHub. Inspect Real Candidate #214 job 98542973131 logs, identify the exact remaining failing assertion/path, make only the smallest evidence-based CI/proof correction on this same PR if required, and rerun only the smallest relevant Real Candidate validation. If green and policy permits, merge/reconcile PR #108. Do not begin v80 in parallel.",
+    "latest_visual_proof": {
+      "workflow": "Celine Real Candidate Render Proof",
+      "run_number": 218,
+      "run_id": 33088931024,
+      "head_sha": "3640b61710c204fc43a5644cf07f429a7043aa58",
+      "artifact": 9653725257,
+      "artifact_digest": "sha256:f7aadfffbc58693b6b8c6c9b1f340ea749c8418bd9f91a0fd409c606c7926679",
+      "manually_inspected": true,
+      "criterion_result": "PASS_CELINE_PRESENT_IN_REQUIRED_STATIC_VIEWS_AND_NOT_CONTROLS_ONLY",
+      "overall_v80_visual_acceptance": "NOT_STARTED_NOT_PASSED",
+      "note": "HOME, CALL, HOME-return, profiles and zoom frames contain the packaged Celine. Still evidence does not prove natural temporal motion; face-close is not a natural human-videochat face close-up. User-device v80 blockers remain open."
+    },
+    "current_blocker": "PR #109 is draft and needs its one final relevant exact-head check. Root cause is proven: push scope previously forced app_changed=true for CI-only merges, causing #585 to attempt republishing existing v79; the release guard correctly refused.",
+    "exact_next_action": "Mark PR #109 ready for review and inspect its exact-head checks; do not start v80 in parallel.",
     "constraints": [
-      "No runtime, production asset, version, launcher or UI implementation belongs in PR #108.",
-      "The v80 work order and queue entry are documentation only and do not invalidate the v79 runtime fingerprint.",
-      "No new branch/PR while PR #108 is active."
+      "No runtime, app, production asset, version, launcher or UI change belongs in PR #109.",
+      "Do not overwrite or retarget release v79.",
+      "Do not start v80 until PR #109 is merged, its exact-main push proves publish skipped, and Queue is reconciled."
     ]
   },
   "completed": [
@@ -114,7 +156,7 @@
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
-    "current_step": "v79-postrelease-seated-contract-repair",
+    "current_step": "v79-postrelease-publish-scope-repair",
     "next_step": "v80-human-videochat-presence"
   },
   "latest_release": {
