@@ -190,6 +190,13 @@ jobs:
             real-candidate-zoom-far.png
             real-candidate-zoom-default.png
             real-candidate-zoom-near.png
+            real-candidate-zoom-call-normal.png
+            real-candidate-zoom-call-head.png
+            real-candidate-zoom-call-face.png
+            real-candidate-zoom-home-return.png
+            real-candidate-zoom-home.xml
+            real-candidate-zoom-call.xml
+            real-candidate-zoom-home-return.xml
             real-candidate-front.png
             real-candidate-profile-right.png
             real-candidate-profile-left.png
