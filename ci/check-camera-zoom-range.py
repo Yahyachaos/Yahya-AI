@@ -141,10 +141,12 @@ print(
 
 if head_ratio < 1.08:
     raise SystemExit(f"head-and-shoulders checkpoint is not closer than normal CALL: {head_ratio:.3f}")
-if face_ratio < 1.08 or skin_ratio < 1.25:
-    raise SystemExit(
-        f"face-close checkpoint is not materially closer: peak={face_ratio:.3f} skin={skin_ratio:.3f}"
-    )
+if face_ratio < 1.08:
+    raise SystemExit(f"face-close checkpoint is not materially closer: peak={face_ratio:.3f}")
+# Total skin count is not monotonic once a legitimate close-up intentionally removes hands/lower
+# body from the viewport. Keep a loss guard, but use peak face-row width for proximity.
+if skin_ratio < 0.75:
+    raise SystemExit(f"face-close lost too much person/face evidence: skin={skin_ratio:.3f}")
 if face_left <= int(width * 0.08) or face_right >= int(width * 0.92):
     raise SystemExit(f"face-close is horizontally clipped: bounds={face['bounds']}")
 if face_top <= int(height * 0.08) or face_bottom >= int(height * 0.74):
