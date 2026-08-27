@@ -38,11 +38,11 @@
     "branch": "auto/celine/v80-human-videochat-presence",
     "pr": 110,
     "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
-    "status": "active_block1_draft_pr_build_pending",
+    "status": "active_block2_zoom_audit_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
-    "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-    "latest_runtime_code_head": "3dce12d783fdbc0d7b35ee89da8d744bc6ea837e",
-    "latest_built_runtime_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
+    "runtime_fingerprint": "8e70ffb1a53f5ad5d0f43c6469705373150d241b4ffbfe0b5844572440a89ef5",
+    "latest_runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
+    "latest_built_runtime_head": "14120661354d4fdbcbb76d603b53346141bf0505",
     "latest_runtime_equivalent_main_build": {
       "workflow": "Android Build",
       "run_number": 589,
@@ -57,17 +57,27 @@
       "publish_job": "skipped"
     },
     "latest_visual_proof": {
-      "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 218,
-      "run_id": 33088931024,
-      "head_sha": "3640b61710c204fc43a5644cf07f429a7043aa58",
-      "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-      "artifact": 9653725257,
-      "artifact_digest": "sha256:f7aadfffbc58693b6b8c6c9b1f340ea749c8418bd9f91a0fd409c606c7926679",
+      "workflow": "Celine Avatar Lab Proof",
+      "run_number": 51,
+      "run_id": 33096137338,
+      "conclusion": "success",
+      "head_sha": "14120661354d4fdbcbb76d603b53346141bf0505",
+      "runtime_fingerprint": "8e70ffb1a53f5ad5d0f43c6469705373150d241b4ffbfe0b5844572440a89ef5",
+      "artifact": 9656659498,
+      "artifact_digest": "sha256:7dc8f4d283f68c7ea3b79cbc67ed24c62e183e6c3bf7e4f272c4090cb2e15353",
       "manually_inspected": true,
-      "criterion_result": "PASS_CELINE_PRESENT_IN_REQUIRED_STATIC_VIEWS_AND_NOT_CONTROLS_ONLY",
-      "visual_acceptance": "FAIL_FOR_V80_HUMAN_VIDEOCHAT_ACCEPTANCE",
-      "reason": "Still frames show Celine present, but do not prove temporal life; CALL remains visually stiff and face-close is not a natural human face close-up. Real-device user blockers remain authoritative."
+      "criterion_result": "PASS_BLOCK1_PRODUCTION_VISIBILITY_AND_NOT_CONTROLS_ONLY",
+      "visual_acceptance": "PASS_BLOCK1_ONLY_FAIL_FOR_OVERALL_V80_UNTIL_LATER_BLOCKS_AND_TEMPORAL_GATE",
+      "evidence": [
+        "19-avatar-lab-open.png visibly shows Celine in the user-facing Settings Lab above the bounded controls.",
+        "15-home-scene.png and 16-call-scene.png pass real-render and central-person checks on the same APK.",
+        "20-settings-home-return.png visibly shows Celine after same-process Lab back-stack return."
+      ],
+      "proof_guard_validation": {
+        "head_sha": "1004ce7e36f34ca7aa83230b38ba4eae9b756849",
+        "result": "PASS_REAL_ARTIFACT_AND_FAIL_PANEL_FREE_BLANK_FIXTURE",
+        "note": "The exact #51 artifact passes the strengthened panel-free preflight locally; a panel-free blank skybox fixture fails with no-central-subject ratio 0.00000. This CI-only guard does not change the runtime fingerprint."
+      }
     },
     "user_device_hard_blockers": [
       "Pinch/zoom cannot currently approach Celine naturally enough for a human face/upper-body videochat close-up.",
@@ -94,20 +104,12 @@
       "Final exact-head and exact-main acceptance includes manually inspected continuous production-equivalent video; still screenshots and green CI alone are insufficient."
     ],
     "active_block": {
-      "number": 1,
-      "name": "Production visibility and camera foundation",
-      "status": "in_progress",
-      "bounded_change": {
-        "runtime_code_head": "3dce12d783fdbc0d7b35ee89da8d744bc6ea837e",
-        "scope": [
-          "v80 version bump",
-          "bounded scrollable lower Avatar Lab control panel that preserves a visible render viewport",
-          "fail-closed person-presence check on 19-avatar-lab-open.png"
-        ]
-      }
+      "number": 2,
+      "name": "Real human-style zoom and framing",
+      "status": "not_started_audit_next"
     },
-    "current_blocker": "No implementation blocker. The one required Android build for runtime code head 3dce12d783fdbc0d7b35ee89da8d744bc6ea837e is pending on draft PR #110; v80 visual acceptance remains FAIL until real evidence is inspected.",
-    "exact_next_action": "Evaluate the single Android Build triggered for draft PR #110 at runtime code head 3dce12d783fdbc0d7b35ee89da8d744bc6ea837e; if it succeeds, trigger exactly one targeted Celine Avatar Lab Proof and manually inspect 19-avatar-lab-open.png before making any further runtime change.",
+    "current_blocker": "No block-2 implementation blocker has been identified yet. Overall v80 visual acceptance remains FAIL; the later exact user portrait dependency for block 10 remains unavailable but does not block ordered block 2.",
+    "exact_next_action": "Audit the production HOME/CALL pinch-dolly and reset implementation on the single active PR #110 against ordered block 2, identify exactly one smallest framing defect, and do not change seated pose, animation, blink, launcher/icon, release, or final temporal gates.",
     "constraints": [
       "Strict single-flight: one v80 branch and one PR only.",
       "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
@@ -126,7 +128,30 @@
       "criterion_result": "FAIL_CONTROLS_ONLY_CELINE_ABSENT",
       "checker_result": "FAIL skin_like=0",
       "reason": "The unbounded WRAP_CONTENT control panel covers the full Avatar Lab render viewport. Workflow success therefore did not constitute visual pass."
-    }
+    },
+    "latest_pr_build": {
+      "workflow": "Android Build",
+      "run_number": 592,
+      "run_id": 33095917439,
+      "conclusion": "success",
+      "head_sha": "14120661354d4fdbcbb76d603b53346141bf0505",
+      "runtime_fingerprint": "8e70ffb1a53f5ad5d0f43c6469705373150d241b4ffbfe0b5844572440a89ef5",
+      "apk_artifact": 9656418693,
+      "apk_artifact_digest": "sha256:fba8e4f771e089da511e9b4afa4c5548cb77645a540591547e8611959dc79518",
+      "emulator_job": "skipped",
+      "publish_job": "skipped"
+    },
+    "completed_blocks": [
+      {
+        "number": 1,
+        "name": "Production visibility and camera foundation",
+        "status": "completed_exact_runtime_artifact_manually_inspected",
+        "runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
+        "proof_run_id": 33096137338,
+        "artifact": 9656659498,
+        "note": "Celine visible in HOME, CALL, user-facing Avatar Lab and HOME return; controls-only and panel-free blank evidence fail closed. This is not overall v80 acceptance."
+      }
+    ]
   },
   "completed": [
     {
