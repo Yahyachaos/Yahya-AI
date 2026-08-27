@@ -72,19 +72,23 @@ wait_text "Live mit Celin" /sdcard/celine-v80-zoom-call.xml real-candidate-zoom-
 sleep 4
 grep -Fq 'V80-210' <(adb logcat -d) || fail "v80 default CALL framing did not activate"
 
-capture_zoom "1.45" real-candidate-zoom-call-normal.png
-capture_zoom "1.75" real-candidate-zoom-call-head.png
-capture_zoom "2.1" real-candidate-zoom-call-face.png
+# These are real camera/dolly checkpoints, not avatar/root scaling. The previous 1.45/1.75/2.10
+# sequence was manually rejected because it still showed full-body/torso framing. Keep the corrected
+# vertical focus curve and exercise a wider bounded range for normal video-call, head/shoulders and
+# true face-close inspection.
+capture_zoom "2.8" real-candidate-zoom-call-normal.png
+capture_zoom "3.5" real-candidate-zoom-call-head.png
+capture_zoom "4.6" real-candidate-zoom-call-face.png
 python3 ci/check-camera-zoom-range.py \
   real-candidate-zoom-call-normal.png \
   real-candidate-zoom-call-head.png \
   real-candidate-zoom-call-face.png
 
-# The former unsafe request must clamp to the new measured v80 bound, then a return to the normal
-# CALL checkpoint and Android back must restore a visible HOME camera in the same process.
-set_zoom "1.45"
-set_zoom "2.2" "2.1"
-set_zoom "1.45"
+# A clearly unsafe request must clamp to the measured v80 bound. Then return to normal CALL and
+# Android back must restore a visible HOME camera in the same process.
+set_zoom "2.8"
+set_zoom "9.0" "4.6"
+set_zoom "2.8"
 adb shell input keyevent 4
 wait_text "Mit Celin" /sdcard/celine-v80-zoom-return.xml real-candidate-zoom-home-return.xml
 sleep 2
@@ -99,7 +103,7 @@ adb logcat -d > real-candidate-zoom-logcat.txt
 for marker in V70-150 V80-210 V80-211; do
   grep -q "$marker" real-candidate-zoom-logcat.txt || fail "camera marker missing: $marker"
 done
-for checkpoint in 'requested=1.45 zoom=1.45' 'requested=1.75 zoom=1.75' 'requested=2.1 zoom=2.1' 'requested=2.2 zoom=2.1'; do
+for checkpoint in 'requested=2.8 zoom=2.8' 'requested=3.5 zoom=3.5' 'requested=4.6 zoom=4.6' 'requested=9.0 zoom=4.6'; do
   requested="${checkpoint%% *}"
   zoom="${checkpoint##* }"
   grep -F 'V70-141' real-candidate-zoom-logcat.txt | grep -F "$requested" | grep -Fq "$zoom" \
@@ -109,4 +113,4 @@ if grep -Eq 'V70-148|V70-149|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-zoo
   fail "runtime error detected during v80 CALL camera proof"
 fi
 
-printf 'PASS v80 production CALL camera checkpoints: normal 1.45 -> head 1.75 -> face 2.10 -> HOME reset, same pid=%s; manual visual acceptance still required\n' "$PID_HOME"
+printf 'PASS v80 production CALL camera checkpoints: normal 2.80 -> head 3.50 -> face 4.60 -> HOME reset, same pid=%s; manual visual acceptance still required\n' "$PID_HOME"
