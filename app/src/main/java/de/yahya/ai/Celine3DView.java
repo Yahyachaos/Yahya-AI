@@ -104,6 +104,8 @@ public final class Celine3DView extends FrameLayout {
     private volatile float cameraPanX;
     private volatile float cameraPanY;
     private volatile float cameraZoom = 1.0f;
+    private volatile boolean diagnosticCameraOrbitEnabled;
+    private volatile float diagnosticCameraOrbitYawDeg;
     private volatile CelineAvatarController.State avatarState = CelineAvatarController.State.IDLE;
 
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
@@ -379,6 +381,16 @@ public final class Celine3DView extends FrameLayout {
         float microTargetX = side * 0.22f;
         float microTargetY = lift * 0.18f + breathLift * 0.12f;
         float distance = CAMERA_BASE_DISTANCE / cameraZoom;
+
+        if (diagnosticCameraOrbitEnabled) {
+            float yawRad = (float) Math.toRadians(diagnosticCameraOrbitYawDeg);
+            float eyeX = (float) Math.sin(yawRad) * distance + side;
+            float eyeY = cameraPanY + lift + breathLift;
+            float eyeZ = CAMERA_TARGET_Z + (float) Math.cos(yawRad) * distance + depth;
+            camera.lookAt(eyeX, eyeY, eyeZ, 0.0, cameraPanY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
+            return;
+        }
+
         float eyeX = side + cameraPanX * 0.28f;
         float eyeY = lift + breathLift + cameraPanY * 0.28f;
         float eyeZ = CAMERA_TARGET_Z + distance + depth;
@@ -387,10 +399,25 @@ public final class Celine3DView extends FrameLayout {
         camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
     }
 
+    void v79SetDiagnosticCameraOrbit(float yawDeg) {
+        diagnosticCameraOrbitYawDeg = clamp(yawDeg, -180.0f, 180.0f);
+        diagnosticCameraOrbitEnabled = true;
+        cameraPanX = 0.0f;
+        Celine3DDiagnostics.record(appContext, "V79-540", "Avatar Lab echter Kamera-Orbit aktiv",
+                "yaw=" + diagnosticCameraOrbitYawDeg + " target=0," + cameraPanY + "," + CAMERA_TARGET_Z + " rootScaleChanged=false");
+    }
+
+    void v79ClearDiagnosticCameraOrbit() {
+        diagnosticCameraOrbitEnabled = false;
+        diagnosticCameraOrbitYawDeg = 0.0f;
+    }
+
     private void resetCameraSearch() {
         cameraPanX = 0.0f;
         cameraPanY = 0.0f;
         cameraZoom = 1.0f;
+        diagnosticCameraOrbitEnabled = false;
+        diagnosticCameraOrbitYawDeg = 0.0f;
         camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
         Celine3DDiagnostics.record(appContext, "V60-122", "Kamera auf sicheren Default zurückgesetzt",
                 "pan=0,0 zoom=1 targetZ=" + CAMERA_TARGET_Z);

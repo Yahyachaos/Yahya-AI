@@ -161,11 +161,8 @@ capture_state() {
   for state_attempt in 1 2; do
     launch_state "$pose" "$camera" "$orbit" "$face" keep
 
-    # The software-emulator SurfaceView compositor returns exactly one previously latched Filament
-    # buffer after an in-place intent update. Proof #38 made the offset explicit: the held blink was
-    # visible in the following reopen filename, the seated guide covered the previous standing body
-    # and profile appeared one filename late. Consume that stale buffer without treating it as
-    # evidence, then capture the newly latched requested state under its truthful filename.
+    # Software-emulator SurfaceView returns one previously latched Filament buffer after an
+    # in-place intent update. Consume that stale buffer, then save the truthful requested state.
     adb exec-out screencap -p >/dev/null
     sleep 0.45
 
@@ -207,8 +204,7 @@ capture_state stand face front blink100 "02-face-blink-closed-held"
 capture_state stand face front neutral "03-face-open-after"
 
 capture_state stand full front neutral "04-standing-front"
-# Seat-contact evidence deliberately switches to the real production room/chair and CALL 50 mm
-# framing. Celine remains fixed at the production-normalized scale; only camera projection changes.
+# Seat-contact evidence switches to the real production room/chair and CALL 50 mm framing.
 capture_state seated call front neutral "05-seated-call-contact"
 
 capture_state arms full front neutral "06-arms-hands-a"
@@ -219,15 +215,20 @@ capture_state walk full front neutral "08-walk-a"
 sleep 0.72
 capture "09-walk-b"
 
-capture_state stand full profile_left neutral "10-profile-left"
-capture_state stand full three_right neutral "11-three-quarter-right"
+# These are true camera orbits around a fixed target; Celine's model/reference yaw remains zero.
+capture_state stand full profile_left neutral "10-camera-orbit-profile-left"
+capture_state stand full three_right neutral "11-camera-orbit-three-quarter-right"
 capture_state stand full front neutral "12-front-return"
+
+# Same fixed target and model scale, different camera radius only.
+capture_state stand dolly_far front neutral "13-camera-dolly-far"
+capture_state stand dolly_near front neutral "14-camera-dolly-near"
 
 timeout 15s adb logcat -d -v threadtime > "$OUT/logcat.txt" 2>&1 || true
 
 evidence_count="$(find "$OUT" -maxdepth 1 -type f -name '[0-9][0-9]-*.png' ! -name '00-*.png' | wc -l | tr -d ' ')"
-if [ "$evidence_count" -ne 12 ]; then
-  echo "Expected 12 evidence screenshots, found $evidence_count" >&2
+if [ "$evidence_count" -ne 14 ]; then
+  echo "Expected 14 evidence screenshots, found $evidence_count" >&2
   exit 1
 fi
 
@@ -262,4 +263,19 @@ if ! grep -Fq "V79-531" "$OUT/logcat.txt"; then
   exit 1
 fi
 
-echo "Avatar Lab evidence passed structural/visibility guards; manual visual acceptance is still required."
+if ! grep -Fq "V79-540" "$OUT/logcat.txt" \
+    || ! grep -Fq "yaw=-90.0" "$OUT/logcat.txt" \
+    || ! grep -Fq "yaw=45.0" "$OUT/logcat.txt" \
+    || ! grep -Fq "rootScaleChanged=false" "$OUT/logcat.txt"; then
+  echo "Missing true fixed-target camera-orbit evidence V79-540" >&2
+  exit 1
+fi
+
+if ! grep -Fq "V79-541" "$OUT/logcat.txt" \
+    || ! grep -Fq "preset=dolly_far zoom=0.7" "$OUT/logcat.txt" \
+    || ! grep -Fq "preset=dolly_near zoom=1.2" "$OUT/logcat.txt"; then
+  echo "Missing fixed-target camera-dolly near/far evidence V79-541" >&2
+  exit 1
+fi
+
+echo "Avatar Lab evidence passed structural/visibility/camera guards; manual visual acceptance is still required."

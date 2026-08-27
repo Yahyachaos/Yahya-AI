@@ -61,9 +61,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
             sceneDriver = CelineAvatarLabSceneV79.install(this, root, celineView);
             setContentView(root);
 
-            // Preserve the already-proven reference-camera path. The pose driver immediately below
-            // also applies the production v61 Meshy rig-scale repair before it snapshots baselines.
-            celineView.v75SetReferenceYaw(referenceYaw(value(getIntent(), "ci_orbit", "front")));
+            // v79 orbit moves the actual Filament camera around a fixed subject target. The model
+            // root/reference yaw stays untouched so evidence cannot fake an orbit by rotating Celine.
+            celineView.v75SetReferenceYaw(0f);
+            celineView.v79SetDiagnosticCameraOrbit(referenceYaw(value(getIntent(), "ci_orbit", "front")));
             poseDriver = new CelineAvatarLabPoseDriverV79(celineView);
             disableRendererLivePoseForDeterministicCapture();
             applyRequestedState(getIntent(), true);
@@ -90,8 +91,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         String orbit = value(intent, "ci_orbit", "front");
         String face = value(intent, "ci_face", "neutral");
 
-        // Do not rebuild or translate the normalized model root when changing diagnostic views.
-        celineView.v75SetReferenceYaw(referenceYaw(orbit));
+        // Do not rebuild, translate or rotate the normalized model root when changing diagnostic
+        // views. Orbit belongs exclusively to the camera around the fixed Celine target.
+        celineView.v75SetReferenceYaw(0f);
+        celineView.v79SetDiagnosticCameraOrbit(referenceYaw(orbit));
         poseDriver.setMode(poseMode(pose));
         poseDriver.start();
         applyCamera(camera);
@@ -169,14 +172,22 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
                 break;
             case "face":
                 // The normalized avatar's eyes sit roughly 1.1 world units above its origin.
-                // Dolly toward that target instead of enlarging the model root. The previous
-                // 0.22 target left the head outside the near framing and produced a blank frame.
+                // Dolly toward that target instead of enlarging the model root.
                 panY = 1.10f;
                 zoom = 1.75f;
                 break;
             case "upper":
                 panY = 0.05f;
                 zoom = 1.05f;
+                break;
+            case "dolly_near":
+                // Same fixed target as dolly_far: only the camera radius changes.
+                panY = 0.0f;
+                zoom = 1.20f;
+                break;
+            case "dolly_far":
+                panY = 0.0f;
+                zoom = 0.70f;
                 break;
             case "full":
             default:
@@ -187,6 +198,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         setFloat("cameraPanX", 0f);
         setFloat("cameraPanY", panY);
         setFloat("cameraZoom", zoom);
+        if ("dolly_near".equals(value) || "dolly_far".equals(value)) {
+            Celine3DDiagnostics.record(this, "V79-541", "Avatar Lab echte Kamera-Dolly gesetzt",
+                    "preset=" + value + " zoom=" + zoom + " fixedTarget=0," + panY + ",-4 rootScaleChanged=false");
+        }
     }
 
     private float referenceYaw(String raw) {
