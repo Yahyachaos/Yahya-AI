@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v79: localize Celine blink to the canonical skin/face surface only."""
+"""v79: localize Celine blink to the canonical visible skin/eyelid surface only."""
 
 import argparse
 import hashlib
@@ -13,6 +13,25 @@ TARGET_NAMES = [
     "Smile", "Thoughtful", "Surprised", "GazeLeft", "GazeRight", "GazeUp", "GazeDown",
 ]
 EXPECTED_V76_SHA256 = "46828b88dc7917def64881c6bc348b790a2bab445401e0ba3fac240327253923"
+
+# Exact final-v75/v76 canonical face coordinates. Proof #30 showed that merely retaining
+# the old head-normalized v76 skin vertices leaves the visible eyes open because those
+# vertices sit too low on the final face. These bounds target only the actual front eyelid
+# shell on Material_1. They intentionally exclude cheek, brow, nose and hair surfaces.
+EYELID_Z_MIN = 0.075
+EYELID_CLOSURE_Y = 1.558
+EYELID_BOUNDS = {
+    "left": {
+        "x": (-0.068, -0.015),
+        "upper_y": (1.558, 1.579),
+        "lower_y": (1.538, 1.558),
+    },
+    "right": {
+        "x": (0.018, 0.071),
+        "upper_y": (1.558, 1.579),
+        "lower_y": (1.538, 1.558),
+    },
+}
 
 
 def load_glb(path):
@@ -40,7 +59,7 @@ def load_glb(path):
 def accessor_layout(document, accessor_index, binary_start):
     accessor = document["accessors"][accessor_index]
     if accessor.get("componentType") != 5126 or accessor.get("type") != "VEC3":
-        raise SystemExit("Blink morph accessor must be float32 VEC3")
+        raise SystemExit("Expected float32 VEC3 accessor")
     view = document["bufferViews"][accessor["bufferView"]]
     stride = view.get("byteStride", 12)
     start = binary_start + view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
@@ -71,7 +90,26 @@ def write_vec3(raw, start, stride, index, value):
     struct.pack_into("<fff", raw, start + index * stride, *value)
 
 
-parser = argparse.ArgumentParser(description="Localize v76 Celine blink to eyelids for v79")
+def in_range(value, bounds, upper_inclusive=True):
+    low, high = bounds
+    return low <= value <= high if upper_inclusive else low <= value < high
+
+
+def eyelid_delta(position, side, layer):
+    bounds = EYELID_BOUNDS[side]
+    x, y, z = position
+    if not in_range(x, bounds["x"]) or z < EYELID_Z_MIN:
+        return None
+    y_bounds = bounds[layer + "_y"]
+    if not in_range(y, y_bounds, upper_inclusive=(layer == "upper")):
+        return None
+    # Close toward one physically narrow seam. At diagnostic weight 0.96 this leaves a tiny
+    # natural residual rather than overshooting/crossing the lids. No X movement and no cheek
+    # pull are introduced; depth is left untouched to preserve the canonical face silhouette.
+    return (0.0, EYELID_CLOSURE_Y - y, 0.0)
+
+
+parser = argparse.ArgumentParser(description="Localize v76 Celine blink to visible eyelids for v79")
 parser.add_argument("input_glb")
 parser.add_argument("output_glb")
 parser.add_argument("--report", required=True)
@@ -96,6 +134,11 @@ if skin_material.get("name") != "Material_1" or "indices" not in skin_primitive:
     raise SystemExit("Deterministic v75 canonical skin/face primitive missing")
 skin_vertices = read_indices(raw, document, skin_primitive["indices"], binary_start)
 
+position_binding = skin_primitive.get("attributes", {}).get("POSITION")
+if position_binding is None:
+    raise SystemExit("Canonical neutral POSITION binding missing")
+position_start, position_stride, position_count = accessor_layout(document, position_binding, binary_start)
+
 bindings = primitives[0]["targets"]
 layouts = []
 for target_index in range(3):
@@ -107,64 +150,66 @@ for target_index in range(3):
 left_start, left_stride, count = layouts[0]
 right_start, right_stride, right_count = layouts[1]
 both_start, both_stride, both_count = layouts[2]
-if right_count != count or both_count != count:
-    raise SystemExit("Blink target vertex-count mismatch")
+if right_count != count or both_count != count or position_count != count:
+    raise SystemExit("Blink/neutral vertex-count mismatch")
 
-removed_left = 0
-removed_right = 0
-kept_left_upper = 0
-kept_right_upper = 0
-kept_left_lower = 0
-kept_right_lower = 0
+removed_old = {"left": 0, "right": 0}
+affected = {
+    "left": {"upper": 0, "lower": 0},
+    "right": {"upper": 0, "lower": 0},
+}
+max_abs_y_delta = 0.0
 for i in range(count):
-    left = read_vec3(raw, left_start, left_stride, i)
-    right = read_vec3(raw, right_start, right_stride, i)
+    old_left = read_vec3(raw, left_start, left_stride, i)
+    old_right = read_vec3(raw, right_start, right_stride, i)
+    if max(abs(v) for v in old_left) > 1.0e-9:
+        removed_old["left"] += 1
+    if max(abs(v) for v in old_right) > 1.0e-9:
+        removed_old["right"] += 1
 
-    # v76 selected a broad head-weighted box. On the final material-split mesh most of that
-    # box belongs to hair islands, while the actual textured eyelids belong to primitive 0's
-    # canonical skin/face atlas. Keep the original balanced upper/lower closure only on that
-    # face surface and remove every non-skin contribution.
-    if i not in skin_vertices and max(abs(v) for v in left) > 1.0e-9:
-        left = (0.0, 0.0, 0.0)
-        removed_left += 1
-    elif left[1] < -1.0e-9:
-        kept_left_upper += 1
-    elif left[1] > 1.0e-9:
-        kept_left_lower += 1
-    if i not in skin_vertices and max(abs(v) for v in right) > 1.0e-9:
-        right = (0.0, 0.0, 0.0)
-        removed_right += 1
-    elif right[1] < -1.0e-9:
-        kept_right_upper += 1
-    elif right[1] > 1.0e-9:
-        kept_right_lower += 1
+    left = (0.0, 0.0, 0.0)
+    right = (0.0, 0.0, 0.0)
+    if i in skin_vertices:
+        position = read_vec3(raw, position_start, position_stride, i)
+        for side in ("left", "right"):
+            for layer in ("upper", "lower"):
+                delta = eyelid_delta(position, side, layer)
+                if delta is None:
+                    continue
+                if side == "left":
+                    left = delta
+                else:
+                    right = delta
+                affected[side][layer] += 1
+                max_abs_y_delta = max(max_abs_y_delta, abs(delta[1]))
+                break
 
     write_vec3(raw, left_start, left_stride, i, left)
     write_vec3(raw, right_start, right_stride, i, right)
     write_vec3(raw, both_start, both_stride, i,
                (left[0] + right[0], left[1] + right[1], left[2] + right[2]))
 
-if removed_left == 0 or removed_right == 0:
-    raise SystemExit("No non-skin blink contribution found to remove")
-if min(kept_left_upper, kept_right_upper, kept_left_lower, kept_right_lower) == 0:
-    raise SystemExit("Repair must retain upper and lower eyelid closure on both sides")
+if min(affected["left"].values()) < 10 or min(affected["right"].values()) < 10:
+    raise SystemExit("Visible eyelid surface selection is unexpectedly sparse: " + json.dumps(affected))
+if max_abs_y_delta <= 0.0 or max_abs_y_delta > 0.025:
+    raise SystemExit("Visible eyelid closure displacement out of bounded range: %.6f" % max_abs_y_delta)
 
 output_sha = hashlib.sha256(raw).hexdigest()
 os.makedirs(os.path.dirname(os.path.abspath(args.output_glb)), exist_ok=True)
 open(args.output_glb, "wb").write(raw)
 report = {
-    "schema": 1,
+    "schema": 2,
     "status": "PASS",
-    "policy": "v79_canonical_skin_face_blink_localization",
+    "policy": "v79_visible_canonical_skin_eyelid_closure",
     "input_sha256": input_sha,
     "output_sha256": output_sha,
-    "removed_non_skin_vertices": {"left": removed_left, "right": removed_right},
-    "kept_skin_face_vertices": {
-        "left": {"upper": kept_left_upper, "lower": kept_left_lower},
-        "right": {"upper": kept_right_upper, "lower": kept_right_lower},
-    },
+    "removed_old_broad_blink_vertices": removed_old,
+    "visible_eyelid_vertices": affected,
+    "closure_y_m": EYELID_CLOSURE_Y,
+    "front_depth_min_m": EYELID_Z_MIN,
+    "max_abs_y_delta_m": max_abs_y_delta,
     "preserved": ["neutral geometry", "rig", "materials", "textures", "all non-blink morph targets"],
-    "reason": "v76 head-space eyelid boxes selected mostly hair-material vertices; v79 keeps balanced closure only on the canonical skin/face primitive and recomposes BlinkBoth",
+    "reason": "Proof #30 confirmed the old head-normalized v76 skin subset sits below the visible eyelid seam; v79 now rebuilds only the three blink POSITION payloads on the canonical front skin eyelid shell and recomposes BlinkBoth",
 }
 os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
 open(args.report, "w", encoding="utf-8").write(json.dumps(report, indent=2) + "\n")
