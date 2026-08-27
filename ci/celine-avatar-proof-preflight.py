@@ -5,14 +5,16 @@ from pathlib import Path
 EXPECTED = [
     "01-face-neutral-close.png", "02-face-blink-closed-held.png", "03-face-open-after.png",
     "04-standing-front.png", "05-seated-call-contact.png", "06-arms-hands-a.png",
-    "07-arms-hands-b.png", "08-walk-a.png", "09-walk-b.png", "10-profile-left.png",
-    "11-three-quarter-right.png", "12-front-return.png",
+    "07-arms-hands-b.png", "08-walk-a.png", "09-walk-b.png", "10-camera-orbit-profile-left.png",
+    "11-camera-orbit-three-quarter-right.png", "12-front-return.png", "13-camera-dolly-far.png",
+    "14-camera-dolly-near.png",
 ]
 MUST_DIFFER = [
     ("01-face-neutral-close.png", "02-face-blink-closed-held.png"),
     ("06-arms-hands-a.png", "07-arms-hands-b.png"),
     ("08-walk-a.png", "09-walk-b.png"),
-    ("10-profile-left.png", "11-three-quarter-right.png"),
+    ("10-camera-orbit-profile-left.png", "11-camera-orbit-three-quarter-right.png"),
+    ("13-camera-dolly-far.png", "14-camera-dolly-near.png"),
 ]
 
 def decode_png(path: Path):
