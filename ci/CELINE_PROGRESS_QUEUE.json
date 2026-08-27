@@ -21,8 +21,8 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "active_block3_room_world_anchoring_and_seated_contact",
-    "queue_checkpoint_parent_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+    "status": "active_block3_seated_contact_diagnostic_requested",
+    "queue_checkpoint_parent_head": "cdc68a3a3bf6a21f4d85485ea9260da7607fe38d",
     "latest_runtime_code_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
     "latest_built_runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
     "runtime_fingerprint": "c7caaf32cbdaa204fdb34cb1cb65bb675461df08045a87a327ec2a86e0f25b46",
@@ -37,9 +37,7 @@
       "apk_artifact_digest": "sha256:171a8c4ef2b455088dd48e7da0c6c4d84f8e99b0e4de53b0e0748d4714b2fe50",
       "apk_sha256_from_targeted_proof": "dac488d94f80645397f2c506ea7ce0d757486f722d4fcf8fb078511b39d90590",
       "fingerprint_artifact": 9662699902,
-      "fingerprint_artifact_digest": "sha256:be1c0aac05436f7ac5d025014618b11eaa5d3c24ca55691107c7f6455887c598",
-      "emulator_job": "skipped_draft_iteration",
-      "publish_job": "skipped"
+      "fingerprint_artifact_digest": "sha256:be1c0aac05436f7ac5d025014618b11eaa5d3c24ca55691107c7f6455887c598"
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
@@ -51,14 +49,7 @@
       "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8",
       "manually_inspected": true,
       "criterion_result": "PASS_BLOCK2_REAL_HUMAN_STYLE_ZOOM_AND_FRAMING",
-      "visual_acceptance": "PASS_FOR_V80_BLOCK2",
-      "evidence": [
-        "CALL normal 2.80 shows a stable human-style upper-body frame with Celine's full head visible.",
-        "CALL head 3.50 shows a centered head-and-shoulders view without clipping.",
-        "CALL face 4.60 shows a genuine face close-up with the full face visible and no head loss.",
-        "The camera uses real dolly movement; model/root scale is unchanged and no snapping or avatar scaling was introduced.",
-        "HOME -> CALL -> HOME return remained in the same process (pid 2104) and HOME camera reset passed."
-      ]
+      "visual_acceptance": "PASS_FOR_V80_BLOCK2"
     },
     "block2_accepted_runtime": {
       "runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
@@ -71,15 +62,25 @@
     "active_block": {
       "number": 3,
       "name": "Room/world anchoring and seated contact",
-      "status": "in_progress_audit_next"
+      "status": "diagnostic_proof_requested"
     },
-    "current_blocker": "Real-device CALL seating remains visibly crooked/anatomically incoherent. Root/room/seat ownership and the pelvis/torso/thigh/knee/foot/chair relationship must be audited before any Block-3 runtime change.",
-    "exact_next_action": "Audit the production seated CALL path and its competing root/pose owners (CelineSeatedCallV70, CALL upper-body/motion owners and room/root ownership) plus existing seated evidence. Identify one bounded cause of the crooked pelvis/torso/thigh/knee/foot/chair relationship, then make only the smallest Block-3 runtime correction, run one Android build, and generate targeted seated-contact evidence that actually shows the lower body and chair. Do not start Block 4 or later work in parallel.",
+    "block3_diagnostic": {
+      "runtime_change": false,
+      "runtime_equivalent_to": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+      "ci_script_commit": "2cd80c44381a7d7fed7a0dc2220e60ac9dd1f14e",
+      "ci_workflow_commit": "cdc68a3a3bf6a21f4d85485ea9260da7607fe38d",
+      "new_evidence_file": "real-candidate-seated-call.png",
+      "camera_zoom": 1.0,
+      "purpose": "Expose real CALL pelvis, thighs, knees, feet and behind-Filament chair before changing production seated pose constants."
+    },
+    "current_blocker": "Block 3 still lacks manually inspected lower-body + chair production evidence. User-device CALL seating was reported visibly crooked/anatomically incoherent, but the accepted Block-2 framing intentionally crops the seated contact region.",
+    "exact_next_action": "Wait only for the single targeted Real Candidate run requested on the current docs/CI-only head, then manually inspect real-candidate-seated-call.png. Remove the PR trigger marker before any runtime-head movement. Use the actual seated image to identify one bounded root/pelvis/leg/chair cause, make only that Block-3 runtime correction, build once and re-prove seated contact. Do not start Block 4 or later work.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
-      "Block 2 is explicitly accepted from manually inspected production-equivalent normal/head/face frames on runtime head 178b8437d139954f9ff68f958acc1b495ecc6ebe.",
-      "Remain in ordered Block 3 only; do not touch arm-life, blink, launcher/icon or later temporal acceptance work yet.",
-      "Workflow SUCCESS is not visual acceptance; Block-3 seated evidence must be manually inspected.",
+      "Block 2 is accepted from manually inspected exact-runtime normal/head/face frames.",
+      "The Block-3 diagnostic commits are CI/docs-only and must not replace runtime head 178b8437d139954f9ff68f958acc1b495ecc6ebe.",
+      "Remain in ordered Block 3 only; do not touch arm-life, blink, launcher/icon or later temporal work yet.",
+      "Workflow SUCCESS is not visual acceptance; seated evidence must be manually inspected.",
       "Keep PR Draft until the work-order implementation is genuinely complete."
     ],
     "completed_blocks": [
@@ -99,8 +100,7 @@
         "build_run_id": 33111321533,
         "proof_run_id": 33111985773,
         "artifact": 9663101106,
-        "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8",
-        "note": "Normal 2.80, head 3.50 and face 4.60 were manually inspected and accepted; same-process HOME reset also passed."
+        "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8"
       }
     ],
     "user_device_hard_blockers_remaining": [
@@ -116,8 +116,7 @@
       "release_id": 378022255,
       "asset_id": 532677127,
       "asset": "Yahya-AI-v80.apk",
-      "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
-      "status": "published_but_ordered_postrelease_v80_repair_still_active"
+      "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58"
     }
   },
   "completed": [
