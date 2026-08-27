@@ -24,6 +24,14 @@
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
 
+        <activity android:name=".CelineAvatarLabActivity" android:screenOrientation="portrait" android:exported="true" android:label="Celine Avatar Lab">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".CelineAvatarLabCaptureActivity" android:screenOrientation="portrait" android:exported="true" android:label="Celine Avatar Lab Capture" />
+
         <!-- v35 diagnostic launcher: gives the user a reliable in-app document picker instead of
              depending on Samsung's MIME/Open-with routing. It can be removed again after the
              device-side 3D path is confirmed. -->

@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "policy": "Accepted evidence is criterion-specific. Workflow SUCCESS never grants visual acceptance; each entry below records an explicit manual visual PASS.",
+  "criteria": {
+    "blink": {
+      "runtime_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "proof_head": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+      "proof_run": 39,
+      "artifact": 9642574836,
+      "artifact_digest": "sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36",
+      "images": ["01-face-neutral-close.png", "02-face-blink-closed-held.png", "03-face-open-after.png"],
+      "visual_acceptance": "PASS"
+    },
+    "seated_contact": {
+      "runtime_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "proof_head": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+      "proof_run": 39,
+      "artifact": 9642574836,
+      "artifact_digest": "sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36",
+      "images": ["05-seated-call-contact.png"],
+      "visual_acceptance": "PASS"
+    },
+    "arms_hands": {
+      "runtime_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "proof_head": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+      "proof_run": 39,
+      "artifact": 9642574836,
+      "artifact_digest": "sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36",
+      "images": ["06-arms-hands-a.png", "07-arms-hands-b.png"],
+      "visual_acceptance": "PASS"
+    },
+    "walk_orientation": {
+      "runtime_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "proof_head": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+      "proof_run": 39,
+      "artifact": 9642574836,
+      "artifact_digest": "sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36",
+      "images": ["08-walk-a.png", "09-walk-b.png", "10-profile-left.png", "11-three-quarter-right.png", "12-front-return.png"],
+      "visual_acceptance": "PASS"
+    }
+  }
+}

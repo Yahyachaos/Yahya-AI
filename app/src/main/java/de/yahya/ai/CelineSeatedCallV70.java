@@ -27,6 +27,7 @@ final class CelineSeatedCallV70 {
     private static final float ROOT_FORWARD = 0.12f;
     private static final float HIPS_PITCH = -5.0f;
     private static final float UPPER_LEG_PITCH = -88.0f;
+    private static final float UPPER_LEG_INWARD_ROLL = 10.0f;
     private static final float LOWER_LEG_PITCH = 92.0f;
     private static final float FOOT_PITCH = -8.0f;
 
@@ -224,8 +225,8 @@ final class CelineSeatedCallV70 {
                 transforms.openLocalTransformTransaction();
                 applyRoot(ROOT_DOWN, ROOT_FORWARD);
                 applyRotation(hips, HIPS_PITCH, 0f, 0f);
-                applyRotation(leftUpLeg, UPPER_LEG_PITCH, -2.0f, 0.5f);
-                applyRotation(rightUpLeg, UPPER_LEG_PITCH, 2.0f, -0.5f);
+                applyRotation(leftUpLeg, UPPER_LEG_PITCH, 0f, UPPER_LEG_INWARD_ROLL);
+                applyRotation(rightUpLeg, UPPER_LEG_PITCH, 0f, -UPPER_LEG_INWARD_ROLL);
                 applyRotation(leftLeg, LOWER_LEG_PITCH, 0f, 0f);
                 applyRotation(rightLeg, LOWER_LEG_PITCH, 0f, 0f);
                 applyRotation(leftFoot, FOOT_PITCH, 0f, 0f);
@@ -238,8 +239,8 @@ final class CelineSeatedCallV70 {
             if (!loggedFrame) {
                 loggedFrame = true;
                 Celine3DDiagnostics.record(activity, "V70-120", "Sitzende CALL-Matrizen aktiv",
-                        "hips=-5° · upperLeg=-88°/yaw±2° · knees=92° · feet=-8° · rootDown=-0.30 · "
-                                + "CALL chair behind Filament · baseline CALL camera unchanged");
+                        "hips=-5° · upperLeg=-88°/yaw0°/inwardRoll±10° · knees=92° · feet=-8° · "
+                                + "rootDown=-0.30 · CALL chair behind Filament · baseline CALL camera unchanged");
             }
         }
 

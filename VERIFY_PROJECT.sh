@@ -35,6 +35,10 @@ grep -q "gradle-7.5.1-" gradle/wrapper/gradle-wrapper.properties || { echo "FEHL
 bash -n gradlew
 bash -n SETUP_ANDROIDIDE.sh
 
+if [ -f ci/celine_camera_interaction_contract_v79.py ]; then
+  python3 ci/celine_camera_interaction_contract_v79.py
+fi
+
 # Checksums are useful for detecting unexpected changes, but legitimate active
 # development changes them frequently. Report differences without blocking CI.
 if ! sha256sum -c PROJECT_CHECKSUMS.txt; then

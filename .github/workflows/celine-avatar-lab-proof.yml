@@ -1,0 +1,89 @@
+name: Celine Avatar Lab Proof
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [edited]
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: 'Exact PR branch head to prove'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-avatar-lab-proof-${{ github.event.pull_request.number || inputs.target_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  avatar-lab-proof:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          lfs: false
+      - name: Locate exact runtime-fingerprint Android Build artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+        shell: bash
+        run: bash ci/celine-find-runtime-apk.sh
+      - name: Download runtime-equivalent APK only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+          sha256sum ci-apk/app-debug.apk | tee avatar-lab-apk.sha256
+          echo "runtime_fingerprint=${{ steps.source.outputs.runtime_fingerprint }}" | tee avatar-lab-runtime-fingerprint.txt
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Enable KVM permissions
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+      - name: Capture Avatar Lab, HOME CALL scene, and Settings navigation evidence
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 300s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'
+      - name: Fail-closed evidence preflight
+        if: success()
+        shell: bash
+        run: python3 ci/celine-avatar-proof-preflight.py avatar-lab-proof --report avatar-lab-proof/preflight.json
+      - name: Upload lightweight Avatar Lab evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: avatar-lab-proof-${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+          path: |
+            avatar-lab-proof/
+            avatar-lab-apk.sha256
+            avatar-lab-runtime-fingerprint.txt
+          if-no-files-found: warn

@@ -2,6 +2,7 @@ package de.yahya.ai;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.view.View;
@@ -13,9 +14,8 @@ import java.lang.reflect.Method;
 /**
  * Keeps the v47 updater logic intact while moving its entry point off the crowded HOME screen.
  * The original updater button is detached but retained as the tested action target, so download,
- * release checking and install behaviour stay unchanged. The gear now opens a compact settings
- * hub with the current app version and an obvious Update prüfen action; the existing full settings
- * dialog remains available via Weitere Einstellungen.
+ * release checking and install behaviour stay unchanged. The gear opens a compact settings hub
+ * with the current app version, Celine Avatar Lab, update checking and the original full settings.
  */
 final class CelineUpdaterSettingsV50 {
     private static final String UPDATE_TAG = "v47-update-button";
@@ -45,29 +45,42 @@ final class CelineUpdaterSettingsV50 {
 
     private static void showSettingsHub(Activity activity) {
         long version = currentVersion(activity);
-        String message = "App & Updates\nAktuelle Version: v" + version
-                + "\n\nUpdates werden nur angeboten, wenn Build und Avatar-Sichtbarkeitstest bestanden sind.";
-
+        final String[] actions = {
+                "Celine Avatar Lab",
+                "Update prüfen",
+                "Weitere Einstellungen"
+        };
         new AlertDialog.Builder(activity)
-                .setTitle("Yahya AI · Einstellungen")
-                .setMessage(message)
-                .setPositiveButton("Update prüfen", (d, w) -> {
-                    Button action = updaterAction;
-                    if (action != null) action.performClick();
-                    else {
-                        View decor = activity.getWindow().getDecorView();
-                        CelineUpdaterV47.install(activity, decor);
-                        View fresh = findTagged(decor, UPDATE_TAG);
-                        if (fresh instanceof Button) {
-                            updaterAction = (Button) fresh;
-                            if (fresh.getParent() instanceof ViewGroup) ((ViewGroup) fresh.getParent()).removeView(fresh);
-                            updaterAction.performClick();
-                        }
+                .setTitle("Yahya AI · Einstellungen · v" + version)
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        activity.startActivity(new Intent(activity, CelineAvatarLabActivity.class));
+                    } else if (which == 1) {
+                        performUpdateCheck(activity);
+                    } else if (which == 2) {
+                        openOriginalSettings(activity);
                     }
                 })
-                .setNeutralButton("Weitere Einstellungen", (d, w) -> openOriginalSettings(activity))
                 .setNegativeButton("Schließen", null)
                 .show();
+    }
+
+    private static void performUpdateCheck(Activity activity) {
+        Button action = updaterAction;
+        if (action != null) {
+            action.performClick();
+            return;
+        }
+        View decor = activity.getWindow().getDecorView();
+        CelineUpdaterV47.install(activity, decor);
+        View fresh = findTagged(decor, UPDATE_TAG);
+        if (fresh instanceof Button) {
+            updaterAction = (Button) fresh;
+            if (fresh.getParent() instanceof ViewGroup) {
+                ((ViewGroup) fresh.getParent()).removeView(fresh);
+            }
+            updaterAction.performClick();
+        }
     }
 
     private static void openOriginalSettings(Activity activity) {

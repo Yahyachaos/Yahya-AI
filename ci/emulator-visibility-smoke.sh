@@ -126,7 +126,7 @@ fi
 # Critical gate: the screenshot itself must contain pixels from the real Filament fixture.
 python3 ci/check-magenta-avatar.py emulator-home.png HOME || fail_with_log "HOME 3D avatar pixels missing"
 
-# Verify the gear opens settings and exposes App & Updates + Update prüfen.
+# Verify the gear opens the normal v79 Settings hub with both the user-accessible Avatar Lab and updater.
 read -r GEAR_X GEAR_Y <<< "$(python3 - <<'PY'
 import re
 import xml.etree.ElementTree as ET
@@ -153,9 +153,9 @@ sleep 1
 adb shell uiautomator dump /sdcard/yahya-settings.xml >/dev/null || fail_with_log "Settings UI dump failed"
 adb pull /sdcard/yahya-settings.xml emulator-settings.xml >/dev/null || fail_with_log "Settings UI pull failed"
 adb exec-out screencap -p > emulator-settings.png
-if ! grep -q 'App &amp; Updates\|App & Updates' emulator-settings.xml; then
+if ! grep -q 'Celine Avatar Lab' emulator-settings.xml; then
   cat emulator-settings.xml
-  fail_with_log "App & Updates section was not found behind the settings gear"
+  fail_with_log "Celine Avatar Lab was not found in the normal v79 settings hub"
 fi
 if ! grep -qi 'Update prüfen' emulator-settings.xml; then
   cat emulator-settings.xml
@@ -276,4 +276,4 @@ adb exec-out screencap -p > emulator-home-return.png
 python3 ci/check-magenta-avatar.py emulator-home-return.png HOME_RETURN || fail_with_log "HOME-return 3D avatar pixels missing"
 
 echo "Avatar visibility smoke test passed with PID=$PID_AFTER"
-echo "Verified: HOME composer space + HOME avatar + CALL stage/avatar + HOME-return avatar + updater only in settings"
+echo "Verified: HOME composer space + HOME avatar + CALL stage/avatar + HOME-return avatar + v79 Settings Avatar Lab/updater access"

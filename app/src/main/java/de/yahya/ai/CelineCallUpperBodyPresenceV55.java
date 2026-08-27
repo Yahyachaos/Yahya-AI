@@ -13,8 +13,16 @@ import com.google.android.filament.gltfio.FilamentAsset;
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
-/** v55: first guarded multi-joint step. Only neck + Head may deform skin, and only in CALL. */
+/**
+ * CALL upper-body owner. v79 keeps neck+Head motion but also gives the already-owned spine chain
+ * one small symmetric seated pitch so the upper body belongs to the seated pelvis instead of
+ * looking like a standing torso pasted onto bent legs.
+ */
 final class CelineCallUpperBodyPresenceV55 {
+    private static final float CALL_SPINE_PITCH = 1.20f;
+    private static final float CALL_SPINE01_PITCH = 1.60f;
+    private static final float CALL_SPINE02_PITCH = 1.20f;
+
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
     private CelineCallUpperBodyPresenceV55() {}
 
@@ -84,7 +92,7 @@ final class CelineCallUpperBodyPresenceV55 {
                     boundView = view;
                     driver = new Driver(activity, view);
                 } catch (Throwable e) {
-                    Celine3DDiagnostics.error(activity, "V55-199", "CALL Zwei-Knochen-Skinning Initialisierung FEHLER", e);
+                    Celine3DDiagnostics.error(activity, "V55-199", "CALL Oberkörper-Rig Initialisierung FEHLER", e);
                     driver = null;
                     return;
                 }
@@ -92,7 +100,7 @@ final class CelineCallUpperBodyPresenceV55 {
             try {
                 driver.apply(frameTimeNanos);
             } catch (Throwable e) {
-                Celine3DDiagnostics.error(activity, "V55-198", "CALL Zwei-Knochen-Skinning Frame FEHLER", e);
+                Celine3DDiagnostics.error(activity, "V55-198", "CALL Oberkörper-Rig Frame FEHLER", e);
                 driver.disableAfterFailure();
             }
         }
@@ -134,8 +142,9 @@ final class CelineCallUpperBodyPresenceV55 {
             spine02 = rendererBone(view, asset, transforms, "spine02Bone", "Spine02");
             if (head == null || neck == null) throw new IllegalStateException("Head/neck joints fehlen");
             probeModel = asset.getFirstEntityByName("CelineSkinningProbe") != 0;
-            Celine3DDiagnostics.record(activity, "V55-100", "CALL Zwei-Knochen-Rig gebunden",
-                    "Head=true · neck=true · probe=" + probeModel + " · Spine bleibt Basis");
+            Celine3DDiagnostics.record(activity, "V55-100", "CALL Oberkörper-Rig gebunden",
+                    "Head+neck=true · spineChain=" + (spine != null && spine01 != null && spine02 != null)
+                            + " · seatedPitch=v79 · probe=" + probeModel);
         }
 
         void apply(long frameTimeNanos) {
@@ -175,9 +184,15 @@ final class CelineCallUpperBodyPresenceV55 {
 
             try {
                 transforms.openLocalTransformTransaction();
-                restore(spine);
-                restore(spine01);
-                restore(spine02);
+                if (probeModel) {
+                    restore(spine);
+                    restore(spine01);
+                    restore(spine02);
+                } else {
+                    applyRotation(spine, CALL_SPINE_PITCH, 0f, 0f);
+                    applyRotation(spine01, CALL_SPINE01_PITCH, 0f, 0f);
+                    applyRotation(spine02, CALL_SPINE02_PITCH, 0f, 0f);
+                }
                 applyRotation(neck, neckPitch, neckYaw, neckRoll);
                 applyRotation(head, headPitch, headYaw, headRoll);
             } finally {
@@ -186,8 +201,8 @@ final class CelineCallUpperBodyPresenceV55 {
             animator.updateBoneMatrices();
             if (!logged) {
                 logged = true;
-                Celine3DDiagnostics.record(activity, "V55-110", "CALL Zwei-Knochen-Skinning aktiv",
-                        "Animator.updateBoneMatrices OK · neck+Head · CALL-only · probe=" + probeModel);
+                Celine3DDiagnostics.record(activity, "V55-110", "CALL Oberkörper-Skinning aktiv",
+                        "spine=1.2°/1.6°/1.2° seated · neck+Head live · CALL-only · probe=" + probeModel);
             }
         }
 
@@ -202,11 +217,13 @@ final class CelineCallUpperBodyPresenceV55 {
                 try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
             }
             try { animator.updateBoneMatrices(); } catch (Throwable ignored) {}
+            logged = false;
         }
 
         private void restore(Bone bone) { if (bone != null) transforms.setTransform(bone.instance, bone.base); }
 
         private void applyRotation(Bone bone, float pitch, float yaw, float roll) {
+            if (bone == null) return;
             float[] delta = new float[16];
             float[] out = new float[16];
             Matrix.setIdentityM(delta, 0);

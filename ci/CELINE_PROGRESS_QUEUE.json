@@ -1,1 +1,226 @@
-{"schema":2,"source_of_truth":"Yahyachaos/Yahya-AI","history_snapshot":{"through_version":76,"full_queue_commit":"a69c10448adfd61078af8ad86c73e6c574bfc623","note":"Pre-v77 validation history remains immutable in Git history. This queue is reconciled after the fully published v77 release and activates only the next explicitly queued conversation-intelligence step."},"baseline":{"version":77,"main_sha":"1840c110e4e5438f154330985297835fbdaa7e22","protected":["TRUE-UNLIT/FORCE-C texture pipeline","Updater in Settings > App & Updates","HOME composer layout","HOME/CALL avatar visibility and CALL -> HOME lifecycle","Pipeline V2 exact-head/exact-main validation and release discipline","v61 rig-scale/inverse-bind correction","v63+ guarded facial morph runtime with rollback","v68 keyboard focus preservation","v70 seated CALL foundation","v72 feminine shoulder/hip ownership safety","v73 breathing/weight-shift loop","v74 bounded arm/hand presence","canonical Celine source via Git LFS","v2 Celine reference manifest + SHA-verified master images","v75 final master-reference character refresh","v76 final-geometry 15-channel facial rig, gaze, expressions and fail-closed runtime","v77 playback-PCM-driven lip sync, German voice continuity and coordinated conversation presence"]},"active":{"id":"conversation-intelligence","status":"final_head_ready_for_full_validation","current_branch":"auto/celine/conversation-intelligence","current_pr":106,"target_version":78,"prepared_from_main_sha":"1840c110e4e5438f154330985297835fbdaa7e22","goal":"Improve intent understanding, multi-turn context continuity, answer reliability, repetition control and clear uncertainty recovery without disturbing the validated v77 voice/avatar/lifecycle stack.","progress":"Draft integration is complete. The deterministic bounded context policy is wired into MainActivity, follow-up detection was tightened after targeted false-positive tests, recovery messages preserve context, versionCode is 78, and Android Build run 33010271466 passed the integrated draft while expensive emulator/render/publish jobs were correctly skipped during draft iteration.","remaining_gate":"Treat this queue-binding commit as the final candidate head. Mark PR #106 ready and run the complete required exact-head Android/emulator/render/lifecycle gates once. Merge only that exact validated head, then exact-main validate and publish the v78 APK before final queue reconciliation."},"completed":[{"id":"v74-bounded-arm-hand-presence","status":"merged_released_testable","pr":101,"tested_head_sha":"7502cdfca9986dffd6e4debcff43c4f621332530","merge_sha":"6e5946f3b72eb99fddc38bf50ff1e097172dfb30","release_tag":"v74"},{"id":"v75-celine-character-refresh-from-master-references","status":"merged_released_testable","pr":102,"tested_head_sha":"2df609629cf5441aa9f2026ac692ac118ea57a1f","merge_sha":"57e143a153606923473718b87824fb12ca8f86d2","release_tag":"v75","release_target_sha":"57e143a153606923473718b87824fb12ca8f86d2"},{"id":"v76-facial-rig-rebind-and-expression","status":"merged_released_testable","pr":104,"tested_head_sha":"6507e175d279f573347ffba10dc14697d78483f8","merge_sha":"a69c10448adfd61078af8ad86c73e6c574bfc623","exact_head_android_run":33004135955,"exact_head_render_run":33004135892,"exact_main_run":33004755530,"release_tag":"v76","release_target_sha":"a69c10448adfd61078af8ad86c73e6c574bfc623","release_asset":"Yahya-AI-v76.apk","release_digest":"sha256:33d9663a9892d58066d212c520540e16a5eeaea8e39e4a6e5ef3c5c385b8f159"},{"id":"v77-voice-lipsync-and-conversation-presence","status":"merged_released_testable","pr":105,"tested_head_sha":"5eed65cf7dbde455ae5f87053f3cdfbbc5c354f7","merge_sha":"1840c110e4e5438f154330985297835fbdaa7e22","exact_head_android_run":33008145733,"exact_head_apk_artifact":9621429038,"exact_head_apk_artifact_digest":"sha256:3e1fb28afc4f6e0cd38fa096c7200ca25ff82b5c624a7bf3caa01ef03e53b7c6","exact_head_emulator_artifact":9621593643,"exact_head_emulator_artifact_digest":"sha256:fed919f8e5b25fdcc6c5460715efdc71bd9756b24124f56b895cf1caf28a364d","exact_head_render_run":33008145624,"exact_head_render_artifact":9621637318,"exact_head_render_artifact_digest":"sha256:a9699e4404d32da341a5fec5c9066f1599eeb4122204d17a4b45a2d0e5157f2f","exact_main_run":33008716735,"exact_main_apk_artifact":9621657753,"exact_main_apk_artifact_digest":"sha256:efb083d65046989bc52ed1b20cd117cf12f11858f2bbbe13b864488039b14de8","exact_main_emulator_artifact":9621820283,"exact_main_emulator_artifact_digest":"sha256:9a9691633cf9a143af15b981987f0e81a8c13132eddfef32c089cbfa49d78690","release_tag":"v77","release_target_sha":"1840c110e4e5438f154330985297835fbdaa7e22","release_asset":"Yahya-AI-v77.apk","release_digest":"sha256:294d4fe7f271702b96e67c19fa3f37713fe509786bf0d4219c82d2e203270643"}],"next":[],"blocked":[{"id":"v65-release","status":"quarantined_not_testable","sha":"edeb170ef9a4f9f4e12b12413533d53fd21494c3","reason":"dedicated real-candidate evidence contains fallback photo and empty room; superseded by validated v66"},{"id":"v67-release","status":"blocked_not_testable","sha":"2e48a97b359f823b755609f49912c50d48e3fa6a","reason":"exact-main run 32843487815 showed ScrollView focus theft after first typed character; superseded by v68"}],"roadmap":{"policy":"strict_sequential_single_active_step","validation_policy":"draft-fast/final-head-full","focus_rule":"Exactly one runtime step may be active. During draft iteration run fast targeted checks. Run expensive final gates only on the actual final exact-head, then exact-main validation and publication before completion.","current_phase":"intelligence_and_usefulness","current_step":"conversation-intelligence","current_step_status":"final_head_ready_for_full_validation"},"latest_release":{"version":77,"status":"published_latest_user_validation","sha":"1840c110e4e5438f154330985297835fbdaa7e22","run":33008716735,"tag":"v77","asset":"Yahya-AI-v77.apk","digest":"sha256:294d4fe7f271702b96e67c19fa3f37713fe509786bf0d4219c82d2e203270643","url":"https://github.com/Yahyachaos/Yahya-AI/releases/tag/v77"},"latest_merged_candidate":{"version":77,"status":"released_latest_user_validation","sha":"1840c110e4e5438f154330985297835fbdaa7e22","pr":105,"tested_head_sha":"5eed65cf7dbde455ae5f87053f3cdfbbc5c354f7","build_run":33008716735,"artifact":9621657753,"artifact_digest":"sha256:efb083d65046989bc52ed1b20cd117cf12f11858f2bbbe13b864488039b14de8","release_tag":"v77","release_asset":"Yahya-AI-v77.apk","release_digest":"sha256:294d4fe7f271702b96e67c19fa3f37713fe509786bf0d4219c82d2e203270643"},"reconcile":{"status":"conversation_intelligence_final_head_prepared","note":"v77 remains the released baseline. PR #106 is the only active branch and is prepared for one full exact-head validation pass."}}
+{
+  "schema": 2,
+  "source_of_truth": "Yahyachaos/Yahya-AI",
+  "history_snapshot": {
+    "through_version": 76,
+    "full_queue_commit": "a69c10448adfd61078af8ad86c73e6c574bfc623",
+    "note": "Pre-v77 validation history remains immutable in Git history. This compact live queue preserves the published v77/v78 release bindings and the single active v79 strand."
+  },
+  "baseline": {
+    "version": 78,
+    "main_sha": "19406194af4190492c442d3c09608242dd4d979b",
+    "protected": [
+      "TRUE-UNLIT/FORCE-C texture pipeline",
+      "Updater in Settings > App & Updates",
+      "HOME composer layout",
+      "HOME/CALL avatar visibility and CALL -> HOME lifecycle",
+      "Pipeline V2 exact-head/exact-main validation and release discipline",
+      "v61 rig-scale/inverse-bind correction",
+      "v63+ guarded facial morph runtime with rollback",
+      "v68 keyboard focus preservation",
+      "v70 seated CALL foundation",
+      "v72 feminine shoulder/hip ownership safety",
+      "v73 breathing/weight-shift loop",
+      "v74 bounded arm/hand presence",
+      "canonical Celine source via Git LFS",
+      "v2 Celine reference manifest + SHA-verified master images",
+      "v75 final master-reference character refresh",
+      "v76 final-geometry 15-channel facial rig, gaze, expressions and fail-closed runtime",
+      "v77 playback-PCM-driven lip sync, German voice continuity and coordinated conversation presence",
+      "v78 bounded multi-turn conversation intelligence and uncertainty recovery"
+    ]
+  },
+  "active": {
+    "id": "v79-avatar-lab-visual-realism",
+    "status": "draft_branch_handoff_camera_semantics_not_started",
+    "current_branch": "auto/celine/v79-avatar-lab-visual-realism",
+    "current_pr": 107,
+    "target_version": 79,
+    "prepared_from_main_sha": "19406194af4190492c442d3c09608242dd4d979b",
+    "work_order": "ci/work-orders/V79_CELINE_AVATAR_LAB_VISUAL_REALISM.md",
+    "goal": "Create a branch-live Avatar Lab and use it to fix the user-observed visual realism defects before any further roadmap expansion: cheek/under-eye blink deformation, crooked seated posture, stiff arms/hands, fake model-scale zoom, toy-like drag and weak HOME/CALL scene anchoring.",
+    "progress": [
+      "Branch-live Celine Avatar Lab exists on PR #107 and uses the current-branch canonical Celine asset/rig/renderer/runtime path.",
+      "Product HOME/CALL one-finger toy-drag is locked while diagnostic Lab camera control remains separate.",
+      "CALL seated narrowing from runtime a8dda598 passed the direct bounded Lab comparison in Proof #24; actual seat contact still requires scene evidence.",
+      "Proof #27 established that the original v76 blink boxes were contaminated by non-skin/hair vertices; f0f87536 removed non-skin motion but retained a too-low skin subset.",
+      "Proof #30 / run 33043908473 on runtime f0f87536 structurally succeeded but was manually rejected because blink100 still showed both eyes open despite V79-512 both=0.96.",
+      "Runtime commits 82d510f5 and 1de8c104 rebuild only BlinkLeft/BlinkRight/BlinkBoth POSITION payloads on the exact Material_1 visible front-eyelid shell and validate deterministic bounded closure while preserving neutral geometry, rig, materials, textures, GLB JSON and all non-blink morph targets.",
+      "Android Build #550 / run 33056907239 succeeded on exact runtime head 1de8c1044bee0ffefe47c063052240b506985a11; APK artifact 9640041424 digest sha256:f98f7e3003994198c7e0b162e0679efc2de13576dd4bfd85250d83168b8383f6.",
+      "Avatar Lab Proof #32 / run 33057114595 succeeded on exact runtime head 1de8c104; artifact 9640172670 digest sha256:5652cda59a6acf0cf20d6390e45ff21f0112b1548be326ec8bab94150cebe1ec; APK sha256:1060ffc6d42a3b5161fef5bb3cf216e23dd608ca0eaf2d2c3a0b3326fced2d5f.",
+      "All 12 Proof #32 evidence PNGs were manually inspected. Neutral eyes are open, blink100 is clearly closed on both sides, reopen returns to neutral, and no cheek/lower-orbital/mouth-corner/hair distortion is visible. Required V61-110, V79-511, V79-512 blink100 and V79-520 logs are present.",
+      "The face-close-up/blink diagnostic step is visually accepted.",
+      "Proof #34 corrected arm/hand sampling and showed distinct bounded arm/hand phases; production amplitudes were preserved.",
+      "Runtime head e9f04807431d8e6aba3c01378bb18fea8893af25 adds a Lab-only production CALL scene adapter and CALL 50 mm camera preset without root/model scaling. Android Build #554 / run 33058676274 succeeded with artifact 9640841350 digest sha256:8c2b5f3ae9663394551aa2218bbc17bb248ed5f841b2d371702e5613cfb873b0.",
+      "Proof-CI-only head ad5c0cfe93e666e513b19ac98fe61b843448339b changed the seated evidence state to 05-seated-call-contact and ran Avatar Lab Proof #35 / run 33059679009 using the runtime-equivalent #554 APK. The workflow structurally succeeded and uploaded artifact 9641221024 digest sha256:28bbfccdb9f5b31f2a9743f025e69a5fa8d4a22a0e5a4fafadf9af808398f424; APK sha256:aaf06d928a7bdca786032c5c7c15d226c3c1ef124df6431cb56368a591ed962e.",
+      "Manual inspection of Proof #35 05-seated-call-contact is FAIL: the capture shows Celine against a black background with no visible production room/chair/seat plane, so real seat contact/support cannot be established. The posture therefore does not satisfy the work-order's physical support/contact acceptance criterion. Structural SUCCESS is not visual acceptance.",
+      "No new development task, branch, PR, version, final gate, merge or release was started during handoff preparation.",
+      "Runtime a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8 isolates the Lab CALL scene adapter from every non-CALL camera/morph path. Android Build #558 / run 33062132472 succeeded with APK artifact 9642196897 digest sha256:398b72142557b0a2f89be6f011b95dfc0937a798baac458f9e800c5713ce6bd9.",
+      "Proof #38 / run 33062318152 exposed a deterministic one-buffer SurfaceView capture offset: blink appeared in the reopen filename, seated guide covered the previous standing body and profile appeared one filename late. All 12 PNGs were inspected; this was rejected as mislabeled evidence, not a runtime visual regression.",
+      "CI-only head cfbae802a725dbc0230f7a51cc1483e498545afe consumes one untrusted stale compositor screencap after each in-place state update before saving the named evidence frame. Android Build #559 / run 33062832683 completed scope-only with build/emulator/release correctly skipped because runtime was unchanged.",
+      "Avatar Lab Proof #39 / run 33062893185 succeeded on cfbae802 using the exact runtime-equivalent Build #558 APK; artifact 9642574836 digest sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36; APK sha256:269bbd998c837c4863cf40b8239da0383678c01063ded1ee57cd91c85bfe7115.",
+      "All 12 Proof #39 PNGs were manually inspected. Open -> held closed -> reopen blink is correctly localized; 05 contains the actually seated narrowed CALL pose aligned to the exact production cushion plane, with centered untwisted torso, coherent pelvis/thigh support and plausible symmetric knees/feet. Arms A/B, walk A/B, profile, 3/4 and front return are distinct and visible. Required V61-110, V79-511, V79-512, V79-530 and V79-531 logs are present.",
+      "The seated CALL pose/contact block is visually accepted. Standing/body coherence and bounded arms/hands remain accepted; the next single active block is production camera/interaction semantics.",
+      "Single-flight stop checkpoint: no production camera/runtime/scene/settings change was begun after Proof #39 acceptance, and no further workflow was manually triggered. Android Build #560 / run 33063447939 completed scope-only on queue checkpoint 43c7f877; Real Candidate #195 / run 33063448032 was skipped."
+    ],
+    "current_branch_head": "43c7f8770da40f457e7da2d03677304761073d0e",
+    "latest_runtime_code_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+    "latest_runtime_code_validation": "BUILD558_SUCCESS_PROOF39_STRUCTURAL_AND_VISUAL_SEAT_CONTACT_PASS_OVERALL_V79_NOT_ACCEPTED",
+    "last_built_runtime_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+    "last_runtime_build": {
+      "workflow": "Android Build",
+      "run_number": 558,
+      "run_id": 33062132472,
+      "conclusion": "success",
+      "head_sha": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "artifact": 9642196897,
+      "artifact_digest": "sha256:398b72142557b0a2f89be6f011b95dfc0937a798baac458f9e800c5713ce6bd9",
+      "note": "Exact runtime head for the isolated CALL-only scene adapter compiled successfully; draft emulator/release jobs remained skipped."
+    },
+    "latest_runtime_equivalent_branch_build": {
+      "workflow": "Android Build",
+      "run_number": 560,
+      "run_id": 33063447939,
+      "conclusion": "success",
+      "branch_head_sha": "43c7f8770da40f457e7da2d03677304761073d0e",
+      "runtime_code_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "note": "43c7f877 is queue-only over proof-CI head cfbae802 and runtime a9bb0a3a; Build #560 scope-check passed with build/emulator/release skipped. Proof #39 reused the successful #558 APK."
+    },
+    "last_avatar_lab_proof": {
+      "run_number": 39,
+      "run_id": 33062893185,
+      "head_sha": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+      "runtime_code_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+      "workflow_conclusion": "success",
+      "artifact": 9642574836,
+      "artifact_digest": "sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36",
+      "apk_sha256": "269bbd998c837c4863cf40b8239da0383678c01063ded1ee57cd91c85bfe7115",
+      "visual_acceptance": "PASS_BLINK_SEATED_CONTACT_ARMS_WALK_PROFILE_THREE_QUARTER_OVERALL_V79_NOT_PASSED",
+      "required_log_evidence": "STRUCTURAL_PASS_V61_110_V79_511_V79_512_BLINK100_V79_520_V79_530_V79_531",
+      "reason": "All 12 PNGs were manually inspected after consuming the stale compositor buffer. The face sequence is open/closed/reopen, 05 shows the actual narrowed seated body aligned to the production cushion-plane guide with coherent support and no twist, and all remaining named states are truthful and visible."
+    },
+    "current_blocker": "No camera implementation is in flight. The next unproven v79 requirement is production HOME/CALL camera and gesture semantics: dolly/orbit must move the camera coherently around an anchored subject, while one-finger toy-like avatar translation remains blocked.",
+    "exact_next_action": "Fresh-start from root AGENTS.md and reconcile PR #107. Resume only remaining_sequence item 6 on the same branch: prove or minimally correct genuine camera dolly/orbit around a fixed target while keeping HOME/CALL free avatar translation blocked, using only the smallest targeted draft checks; do not start scene/settings work or final gates.",
+    "remaining_sequence": [
+      "1. COMPLETE — genuine face-close-up/blink diagnostic path fixed minimally with camera semantics and guarded morph behavior preserved.",
+      "2. COMPLETE — Proof #32 shows visible open/closed/reopen close-ups, required logs and no unrelated face distortion.",
+      "3. COMPLETE — Proof #39 truthfully shows the actual narrowed seated CALL body aligned to the exact production cushion plane with coherent support and no twist.",
+      "4. COMPLETE — Proof #39 standing and seated views show coherent pelvis/spine/shoulders/head alignment within the current model/rig limits.",
+      "5. COMPLETE — Proof #34 and reconfirming Proof #39 show distinct bounded arm/hand phases with no puppet waving.",
+      "6. ACTIVE — prove real camera dolly/orbit semantics, stable anchoring and no toy-like free avatar translation in HOME/CALL.",
+      "7. Scene integration: improve HOME/CALL spatial framing so Celine reads as occupying the scene rather than being dropped over a 2D backdrop.",
+      "8. User access: expose/verify Celine Avatar Lab in normal Settings and prove safe return to HOME without breaking avatar/lifecycle state.",
+      "9. Final candidate only: mark Ready for Review and run the full exact-head Android/emulator/render/lifecycle gate set once on the actual final runtime head.",
+      "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read release back, then reconcile queue with merge SHA/run/artifact/digest/tag."
+    ],
+    "remaining_gate": "PR #107 remains Draft. Blink, seated contact/body coherence and bounded arm/hand motion are visually accepted through Proof #39. Next gate is the smallest targeted production camera/interaction proof; no final/full suite."
+  },
+  "completed": [
+    {
+      "id": "v74-bounded-arm-hand-presence",
+      "status": "merged_released_testable",
+      "pr": 101,
+      "tested_head_sha": "7502cdfca9986dffd6e4debcff43c4f621332530",
+      "merge_sha": "6e5946f3b72eb99fddc38bf50ff1e097172dfb30",
+      "release_tag": "v74"
+    },
+    {
+      "id": "v75-celine-character-refresh-from-master-references",
+      "status": "merged_released_testable",
+      "pr": 102,
+      "tested_head_sha": "2df609629cf5441aa9f2026ac692ac118ea57a1f",
+      "merge_sha": "57e143a153606923473718b87824fb12ca8f86d2",
+      "release_tag": "v75",
+      "release_target_sha": "57e143a153606923473718b87824fb12ca8f86d2"
+    },
+    {
+      "id": "v76-facial-rig-rebind-and-expression",
+      "status": "merged_released_testable",
+      "pr": 104,
+      "tested_head_sha": "6507e175d279f573347ffba10dc14697d78483f8",
+      "merge_sha": "a69c10448adfd61078af8ad86c73e6c574bfc623",
+      "exact_head_android_run": 33004135955,
+      "exact_head_render_run": 33004135892,
+      "exact_main_run": 33004755530,
+      "release_tag": "v76",
+      "release_target_sha": "a69c10448adfd61078af8ad86c73e6c574bfc623",
+      "release_asset": "Yahya-AI-v76.apk",
+      "release_digest": "sha256:33d9663a9892d58066d212c520540e16a5eeaea8e39e4a6e5ef3c5c385b8f159"
+    },
+    {
+      "id": "v77-voice-lipsync-and-conversation-presence",
+      "status": "merged_released_testable",
+      "pr": 105,
+      "tested_head_sha": "5eed65cf7dbde455ae5f87053f3cdfbbc5c354f7",
+      "merge_sha": "1840c110e4e5438f154330985297835fbdaa7e22",
+      "exact_head_android_run": 33008145733,
+      "release_tag": "v77",
+      "release_target_sha": "1840c110e4e5438f154330985297835fbdaa7e22",
+      "release_asset": "Yahya-AI-v77.apk",
+      "release_digest": "sha256:294d4fe7f271702b96e67c19fa3f37713fe509786bf0d4219c82d2e203270643"
+    },
+    {
+      "id": "v78-conversation-intelligence",
+      "status": "merged_released_testable",
+      "pr": 106,
+      "tested_head_sha": "e311653c8cea1aa21d0af1a00a4e1e312f19f573",
+      "merge_sha": "19406194af4190492c442d3c09608242dd4d979b",
+      "exact_head_android_run": 33010489381,
+      "exact_main_run": 33011114833,
+      "release_tag": "v78",
+      "release_target_sha": "19406194af4190492c442d3c09608242dd4d979b",
+      "release_asset": "Yahya-AI-v78.apk",
+      "release_digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f",
+      "metadata_warning": "Release asset/tag/SHA are correct, but the v78 release body incorrectly reused stale v75 text. v79 must harden publish/read-back checks before release."
+    }
+  ],
+  "next": [],
+  "blocked": [
+    {
+      "id": "v65-release",
+      "status": "quarantined_not_testable",
+      "sha": "edeb170ef9a4f9f4e12b12413533d53fd21494c3",
+      "reason": "dedicated real-candidate evidence contains fallback photo and empty room; superseded by validated v66"
+    },
+    {
+      "id": "v67-release",
+      "status": "blocked_not_testable",
+      "sha": "2e48a97b359f823b755609f49912c50d48e3fa6a",
+      "reason": "exact-main run 32843487815 showed ScrollView focus theft after first typed character; superseded by v68"
+    }
+  ],
+  "roadmap": {
+    "policy": "strict_sequential_single_active_step",
+    "validation_policy": "draft-fast/final-head-full",
+    "focus_rule": "Exactly one runtime step may be active. During draft iteration use the branch-live Avatar Lab plus fast targeted checks. Run expensive final gates only on the actual final exact-head, then exact-main validation and publication before completion.",
+    "handoff_policy": "Every agent must begin with root AGENTS.md, then read this queue, the active work-order and ci/CELINE_VALIDATION_POLICY.md, then fresh-reconcile live GitHub. Before stopping or handing off, record truthful runtime/build/visual state, current blocker and one exact next action. Always distinguish the live branch head and docs/CI-only checkpoints from the last executable/runtime-code head and the SHA actually tested by each piece of evidence.",
+    "current_phase": "visual_presence_and_videochat_realism",
+    "current_step": "v79-avatar-lab-visual-realism",
+    "current_step_status": "draft_branch_handoff_camera_semantics_not_started"
+  },
+  "latest_release": {
+    "version": 78,
+    "status": "published_latest_user_validation",
+    "sha": "19406194af4190492c442d3c09608242dd4d979b",
+    "run": 33011114833,
+    "tag": "v78",
+    "asset": "Yahya-AI-v78.apk",
+    "digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f",
+    "metadata_warning": "release body stale v75 text; asset/tag/SHA remain v78"
+  },
+  "latest_merged_candidate": {
+    "version": 78,
+    "status": "released_latest_user_validation",
+    "sha": "19406194af4190492c442d3c09608242dd4d979b",
+    "pr": 106,
+    "tested_head_sha": "e311653c8cea1aa21d0af1a00a4e1e312f19f573",
+    "build_run": 33011114833,
+    "release_tag": "v78",
+    "release_asset": "Yahya-AI-v78.apk",
+    "release_digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f"
+  },
+  "reconcile": {
+    "status": "v78_published_v79_single_flight_handoff_proof39_accepted_camera_not_started",
+    "note": "Live main remains published v78 at 19406194af4190492c442d3c09608242dd4d979b. PR #107 is open, Draft, mergeable and the only active Celine strand. Branch head 43c7f877 is queue-only over proof-CI head cfbae802 and runtime a9bb0a3a. Android Build #558 succeeded for exact runtime a9bb0a3a; Build #560 completed scope-only for 43c7f877. Avatar Lab Proof #39 / run 33062893185 completed SUCCESS and all 12 images were manually accepted for the blink/seated/body/arms/walk/orientation block. Real Candidate #195 was skipped; no workflows are active; no camera/scene/settings change is in flight; no final/release work has started."
+  }
+}

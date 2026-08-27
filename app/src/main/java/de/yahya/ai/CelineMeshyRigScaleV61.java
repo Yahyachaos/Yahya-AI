@@ -38,6 +38,15 @@ final class CelineMeshyRigScaleV61 {
 
     private CelineMeshyRigScaleV61() {}
 
+    /**
+     * Apply the exact production Meshy rig-scale correction synchronously to a branch-live Lab
+     * renderer before the Lab captures its root/bone baseline. This deliberately reuses the same
+     * guarded repair as MainActivity instead of duplicating scale math in diagnostic code.
+     */
+    static boolean repairImmediate(Activity activity, Celine3DView view) throws Exception {
+        return repair(activity, view);
+    }
+
     static void install(Activity activity, View decor) {
         if (!(activity instanceof MainActivity) || decor == null) return;
         Controller controller;
@@ -190,7 +199,7 @@ final class CelineMeshyRigScaleV61 {
         transforms.setTransform(rootInstance, transform);
 
         Celine3DDiagnostics.record(activity, "V61-110", "Meshy Rig-Scale korrigiert",
-                "rawExtent=" + maxExtent + " armatureScale=" + rigScale + " correction=" + correction +
+                "rawExtent=" + maxExtent + " armatureScale=" + rigScale + " correction=" + correction+
                         " correctedExtent=" + correctedExtent + " rootScale=" + rootScale +
                         " targetHeight=" + TARGET_HEIGHT + " center=" + correctedCenterX + "," + correctedCenterY + "," + correctedCenterZ);
         return true;

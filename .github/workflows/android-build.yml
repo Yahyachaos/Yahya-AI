@@ -2,35 +2,36 @@ name: Android Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       - 'ci/CELINE_PROGRESS_QUEUE.json'
-      - 'docs/**'
-      - '*.md'
+      - 'AGENTS.md'
+      - 'START_HERE.txt'
+      - 'ci/work-orders/**'
   pull_request:
-    branches: [ main ]
+    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
       - 'ci/CELINE_PROGRESS_QUEUE.json'
-      - 'docs/**'
-      - '*.md'
+      - 'AGENTS.md'
+      - 'START_HERE.txt'
+      - 'ci/work-orders/**'
   workflow_dispatch:
     inputs:
       target_sha:
-        description: 'Exact main commit SHA to build and optionally publish'
+        description: Exact main commit SHA to build and optionally publish
         required: true
         type: string
       publish_release:
-        description: 'Publish the tested APK as the in-app update after all gates pass'
+        description: Publish the tested APK after all gates pass
         required: true
         default: true
         type: boolean
 
 permissions:
   contents: write
+  actions: read
 
-# PR iteration policy: a newer commit makes an older PR run stale, so cancel it.
-# Main/release runs are never cancelled by this rule.
 concurrency:
   group: android-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -41,241 +42,118 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       app_changed: ${{ steps.scope.outputs.app_changed }}
+      build_required: ${{ steps.scope.outputs.build_required }}
+      runtime_fingerprint: ${{ steps.scope.outputs.runtime_fingerprint }}
+      reusable_run_id: ${{ steps.scope.outputs.reusable_run_id }}
+      reusable_source_sha: ${{ steps.scope.outputs.reusable_source_sha }}
     steps:
-      - name: Checkout dispatched target
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
           fetch-depth: 0
           lfs: true
-
-      - name: Checkout event revision
-        if: github.event_name != 'workflow_dispatch'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Validate dispatch target and determine scope
-        id: scope
+      - id: scope
         env:
+          GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           TARGET_SHA: ${{ inputs.target_sha }}
           PUBLISH_RELEASE: ${{ inputs.publish_release }}
+          PR_ACTION: ${{ github.event.action }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            CHECKED_SHA="$(git rev-parse HEAD)"
-            if [ -z "${TARGET_SHA:-}" ] || [ "$CHECKED_SHA" != "$TARGET_SHA" ]; then
-              echo "Dispatch checkout does not match requested target SHA."
-              echo "requested=${TARGET_SHA:-unset} checked=$CHECKED_SHA"
-              exit 1
-            fi
-
-            git fetch --no-tags origin main
-            MAIN_SHA="$(git rev-parse origin/main)"
-            if [ "$PUBLISH_RELEASE" = "true" ] && [ "$MAIN_SHA" != "$TARGET_SHA" ]; then
-              echo "Refusing to publish a dispatched commit that is not current main."
-              echo "target=$TARGET_SHA main=$MAIN_SHA"
-              exit 1
-            fi
-
-            echo "app_changed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            git fetch --no-tags origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
-            CHANGED="$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")"
-          else
-            BEFORE="$(git rev-parse HEAD^)"
-            CHANGED="$(git diff --name-only "$BEFORE" HEAD)"
-          fi
-
-          if grep -Eq '^app/' <<<"$CHANGED"; then
-            echo "app_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "app_changed=false" >> "$GITHUB_OUTPUT"
-          fi
+          PR_BEFORE_SHA: ${{ github.event.before }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: bash ci/android-build-scope.sh
 
   build:
+    needs: change-scope
+    if: github.event_name == 'workflow_dispatch' || needs.change-scope.outputs.build_required == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout dispatched target
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
           fetch-depth: 0
           lfs: true
-
-      - name: Checkout event revision
-        if: github.event_name != 'workflow_dispatch'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
+      - id: runtime
+        run: echo "fingerprint=$(bash ci/celine-runtime-fingerprint.sh HEAD)" >> "$GITHUB_OUTPUT"
       - name: Enforce versionCode bump for automatic runtime PRs
         if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'auto/celine/')
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
           CHANGED="$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")"
-
-          if ! grep -Eq '^app/src/' <<<"$CHANGED"; then
-            echo "No app/src runtime change; versionCode bump gate not required."
-            exit 0
-          fi
-
-          read_version_code() {
-            grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' | grep -oE '[0-9]+' | head -1
-          }
-
-          BASE_CODE="$(git show "$PR_BASE_SHA:app/build.gradle" | read_version_code)"
-          HEAD_CODE="$(git show "$PR_HEAD_SHA:app/build.gradle" | read_version_code)"
-
-          if [ -z "$BASE_CODE" ] || [ -z "$HEAD_CODE" ]; then
-            echo "Could not read versionCode for automatic runtime PR gate."
-            exit 1
-          fi
-          if [ "$HEAD_CODE" -le "$BASE_CODE" ]; then
-            echo "Automatic runtime PR must increase versionCode."
-            echo "base=$BASE_CODE head=$HEAD_CODE"
-            exit 1
-          fi
-          echo "versionCode gate passed: $BASE_CODE -> $HEAD_CODE"
-
-      - name: Set up Java 17 for Android SDK tools
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+          if ! grep -Eq '^app/src/' <<<"$CHANGED"; then exit 0; fi
+          read_code() { grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' | grep -oE '[0-9]+' | head -1; }
+          BASE="$(git show "$PR_BASE_SHA:app/build.gradle" | read_code)"
+          HEAD="$(git show "$PR_HEAD_SHA:app/build.gradle" | read_code)"
+          [ -n "$BASE" ] && [ -n "$HEAD" ] && [ "$HEAD" -gt "$BASE" ] || { echo "versionCode must increase: base=${BASE:-?} head=${HEAD:-?}"; exit 1; }
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
       - name: Install Android 30 SDK
-        shell: bash
         run: |
           set -euo pipefail
           SDKMANAGER="$(command -v sdkmanager || true)"
-          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then
-            SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          fi
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
-            find "${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}" -maxdepth 4 -type f -name sdkmanager -print || true
-            exit 1
-          fi
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"; fi
+          [ -x "$SDKMANAGER" ] || { echo "sdkmanager not found"; exit 1; }
           "$SDKMANAGER" "platforms;android-30" "build-tools;30.0.3"
-
-      - name: Set up Java 17 for Android build
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle 7.5.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '7.5.1'
-
-      - name: Verify project structure
-        run: bash VERIFY_PROJECT.sh
-
-      - name: Generate Gradle wrapper
-        run: gradle wrapper --gradle-version 7.5.1
-
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '7.5.1'}
+      - run: bash VERIFY_PROJECT.sh
+      - run: gradle wrapper --gradle-version 7.5.1
       - name: Build debug APK
-        id: build
-        shell: bash
-        run: |
-          set +e
-          ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee build.log
-          code=${PIPESTATUS[0]}
-          if [ "$code" -ne 0 ]; then
-            {
-              echo "### Compiler diagnostics"
-              echo '```text'
-              grep -E 'Celine3DView.java|CelineUpdaterV47.java|CelineVideoChatV44.java|YahyaApplication.java|error:|FAILURE:|What went wrong|Execution failed for task' build.log | tail -160 || true
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit "$code"
-          fi
-
-      - name: Upload Gradle build log
+        run: ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee build.log
+      - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
-        with:
-          name: gradle-build-log
-          path: build.log
-
+        with: {name: gradle-build-log, path: build.log}
+      - name: Write runtime build metadata
+        if: success()
+        env:
+          FP: ${{ steps.runtime.outputs.fingerprint }}
+        run: |
+          APK_SHA="$(sha256sum app/build/outputs/apk/debug/app-debug.apk | awk '{print $1}')"
+          printf '{"schema":1,"runtime_fingerprint":"%s","built_head":"%s","workflow_run_id":"%s","apk_sha256":"%s"}\n' "$FP" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$APK_SHA" > runtime-build.json
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: yahya-ai-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload runtime fingerprint metadata
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-fingerprint-${{ steps.runtime.outputs.fingerprint }}
+          path: runtime-build.json
 
   emulator-smoke:
     name: Android emulator avatar visibility
     needs: build
-    # Draft PRs are iteration mode: compile/build only. Full emulator proof runs once the
-    # PR is ready for review, on every later final-head update, on main, or by manual dispatch.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout dispatched target
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
           fetch-depth: 0
           lfs: true
-
-      - name: Checkout event revision
-        if: github.event_name != 'workflow_dispatch'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Download built APK
-        uses: actions/download-artifact@v4
-        with:
-          name: yahya-ai-debug
-          path: ci-apk
-
-      - name: Enable KVM permissions
-        shell: bash
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+      - uses: actions/download-artifact@v4
+        with: {name: yahya-ai-debug, path: ci-apk}
+      - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
-
-      - name: Boot emulator and prove Celine is rendered
-        uses: reactivecircus/android-emulator-runner@v2
+      - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           arch: x86_64
@@ -284,119 +162,35 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: timeout 240s bash ci/emulator-smoke.sh
-
-      - name: Upload emulator evidence
-        if: always()
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: emulator-avatar-visibility-evidence
           path: |
-            emulator-home.png
-            emulator-call.png
-            emulator-home-return.png
-            emulator-window.xml
-            emulator-call.xml
-            emulator-home-return.xml
-            emulator-keyboard-before.xml
-            emulator-keyboard-ready.xml
-            emulator-keyboard.png
-            emulator-keyboard.xml
-            emulator-keyboard-restored.png
-            emulator-keyboard-restored.xml
-            emulator-ime.txt
-            emulator-window-state.txt
-            emulator-logcat.txt
-            emulator-prefs.xml
+            emulator-*.png
+            emulator-*.xml
+            emulator-*.txt
           if-no-files-found: ignore
 
   publish-release:
     name: Publish in-app update
     needs: [change-scope, build, emulator-smoke]
     if: >-
-      always() &&
-      needs.build.result == 'success' &&
-      needs.emulator-smoke.result == 'success' &&
-      needs.change-scope.result == 'success' &&
-      needs.change-scope.outputs.app_changed == 'true' &&
+      always() && needs.build.result == 'success' && needs.emulator-smoke.result == 'success' &&
+      needs.change-scope.result == 'success' && needs.change-scope.outputs.app_changed == 'true' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
        (github.event_name == 'workflow_dispatch' && inputs.publish_release == true))
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout dispatched target
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
           fetch-depth: 0
           lfs: true
-
-      - name: Checkout event revision
-        if: github.event_name != 'workflow_dispatch'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Download tested APK
-        uses: actions/download-artifact@v4
-        with:
-          name: yahya-ai-debug
-          path: release-apk
-
-      - name: Publish immutable GitHub Release
+      - uses: actions/download-artifact@v4
+        with: {name: yahya-ai-debug, path: release-apk}
+      - name: Publish and read-back verify exact-version GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          CHECKED_SHA="$(git rev-parse HEAD)"
-          if [ "$CHECKED_SHA" != "$TARGET_SHA" ]; then
-            echo "Release checkout does not match tested target."
-            echo "target=$TARGET_SHA checked=$CHECKED_SHA"
-            exit 1
-          fi
-
-          VERSION_CODE="$(grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' app/build.gradle | grep -oE '[0-9]+' | head -1)"
-          if [ -z "$VERSION_CODE" ]; then
-            echo "Could not determine versionCode"
-            exit 1
-          fi
-
-          TAG="v${VERSION_CODE}"
-          APK_NAME="Yahya-AI-v${VERSION_CODE}.apk"
-          cp release-apk/app-debug.apk "$APK_NAME"
-
-          NOTES_FILE="RELEASE_NOTES.md"
-          if [ ! -f "$NOTES_FILE" ]; then
-            printf 'Automatisch gebauter und im Android-Emulator mit sichtbarem 3D-Avatar geprüfter Yahya-AI-Build.\n' > "$NOTES_FILE"
-          fi
-
-          git fetch --tags --force
-          if git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null; then
-            EXISTING_SHA="$(git rev-list -n 1 "$TAG")"
-            if [ "$EXISTING_SHA" != "$TARGET_SHA" ]; then
-              echo "Refusing to overwrite existing release tag $TAG."
-              echo "existing=$EXISTING_SHA target=$TARGET_SHA"
-              exit 1
-            fi
-
-            if gh release view "$TAG" >/dev/null 2>&1; then
-              echo "$TAG already publishes this exact tested commit; nothing to replace."
-              exit 0
-            fi
-
-            gh release create "$TAG" "$APK_NAME" \
-              --verify-tag \
-              --title "Yahya AI v${VERSION_CODE}" \
-              --notes-file "$NOTES_FILE" \
-              --latest
-          else
-            gh release create "$TAG" "$APK_NAME" \
-              --title "Yahya AI v${VERSION_CODE}" \
-              --notes-file "$NOTES_FILE" \
-              --target "$TARGET_SHA" \
-              --latest
-          fi
-
-          echo "Published immutable $TAG for tested commit $TARGET_SHA after HOME + CALL avatar visibility proof" >> "$GITHUB_STEP_SUMMARY"
+        run: bash ci/publish_release_guard.sh
