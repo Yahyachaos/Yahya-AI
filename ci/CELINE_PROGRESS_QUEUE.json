@@ -32,7 +32,7 @@
   },
   "active": {
     "id": "v79-avatar-lab-visual-realism",
-    "status": "draft_branch_live_visual_proof_capture_blocked",
+    "status": "draft_branch_live_seated_pose_visual_step_passed_face_blink_evidence_blocked",
     "current_branch": "auto/celine/v79-avatar-lab-visual-realism",
     "current_pr": 107,
     "target_version": 79,
@@ -43,7 +43,7 @@
       "agents_file": "AGENTS.md",
       "agents_install_commit": "353adc54927991932e987f5873ab21777565ab49",
       "start_here_redirect_commit": "f1cefe204949385a4e78eb89003dd210336c20d9",
-      "last_known_live_branch_head_before_this_queue_commit": "970343e239d0097dd0b8fb139eb2216ba5c67e38",
+      "last_known_live_branch_head_before_this_queue_commit": "698e47d5e879e8fbd933fc5e746f3f9b167f6d1b",
       "note": "AGENTS.md is now the permanent repository entry point. START_HERE.txt only redirects to it. This queue commit is documentation/control state and necessarily advances the live branch head beyond the value recorded here; agents must always read the actual PR head from GitHub and must not treat queue self-reference as possible."
     },
     "progress": [
@@ -60,48 +60,52 @@
       "Android Build #531 / run 33025341861 succeeded on branch head 09889eb53606f63263daca31d02b0efd7fe76718, which is runtime-equivalent to 03ed3f8648a3a310bcb104d20ff97a3f77b06e81.",
       "Avatar Lab Proof #18 / run 33025501813 correctly failed closed instead of accepting blank evidence: renderer warm-up reached colors=1000 on attempt 2, but the first real evidence capture 01-face-neutral-close remained visually blank at colors=298 after bounded retries.",
       "Proof #18 still uploaded diagnostic artifact 9628317936 with digest sha256:fb3402db3ebe95facb27d851b061c8ab766ce1ec11fd1d24d7dde696dbb6a969.",
-      "Permanent root AGENTS.md and redirect-only START_HERE.txt are installed on the same active PR branch; their commits are documentation-only and must never be reported as new runtime validation."
+      "Permanent root AGENTS.md and redirect-only START_HERE.txt are installed on the same active PR branch; their commits are documentation-only and must never be reported as new runtime validation.",
+      "Runtime commit 2785f789d88cfebc80278eedef176a2703a5dabb narrowed and grounded the productive CALL seated pose; a8dda598c7a0638c495720c40e8116ae28da1452 mirrors the exact seated bone targets in the Avatar Lab and is the latest runtime-code head.",
+      "Android Build #541 / run 33028799252 succeeded on exact runtime head a8dda598c7a0638c495720c40e8116ae28da1452; Android Build #542 / run 33041231596 succeeded on runtime-identical AGENTS.md-only branch head 698e47d5e879e8fbd933fc5e746f3f9b167f6d1b.",
+      "Avatar Lab Proof #24 / run 33041540689 succeeded structurally on branch head 698e47d5e879e8fbd933fc5e746f3f9b167f6d1b and runtime a8dda598c7a0638c495720c40e8116ae28da1452; all 12 PNGs were manually inspected and logcat contains V61-110 / Meshy Rig-Scale korrigiert plus V79-511.",
+      "Proof #24 05-seated-front passes the bounded direct comparison to Proof #23: legs/knees are substantially narrower and symmetric, feet sit more plausibly under the knees, pelvis is centered, and no new twist is visible. Final CALL seat-contact acceptance still requires scene evidence because the standalone Lab has no visible chair.",
+      "Proof #24 exposes the next blocker: 01/02/03 are still framed as upper/full-body rather than a genuine face close-up, and blink85 is not visibly closed enough to judge eyelid localization."
     ],
-    "latest_runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-    "latest_runtime_code_validation": "BUILT_SUCCESS_VISUAL_ACCEPTANCE_BLOCKED_BY_PROOF_CAPTURE_STABILITY",
-    "last_built_runtime_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
+    "latest_runtime_code_head": "a8dda598c7a0638c495720c40e8116ae28da1452",
+    "latest_runtime_code_validation": "BUILT_SUCCESS_SEATED_LAB_STEP_VISUALLY_PASSED_OVERALL_V79_NOT_ACCEPTED",
+    "last_built_runtime_head": "a8dda598c7a0638c495720c40e8116ae28da1452",
     "last_runtime_build": {
       "workflow": "Android Build",
-      "run_number": 523,
-      "run_id": 33021419894,
+      "run_number": 541,
+      "run_id": 33028799252,
       "conclusion": "success",
-      "head_sha": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-      "note": "Exact runtime-code head including the shared v61 Lab scale fix compiled successfully. Later branch changes through the agent bootstrap do not change executable/runtime files."
+      "head_sha": "a8dda598c7a0638c495720c40e8116ae28da1452",
+      "note": "Exact runtime-code head containing productive CALL seated narrowing and identical Avatar Lab pose mirror compiled successfully."
     },
     "latest_runtime_equivalent_branch_build": {
       "workflow": "Android Build",
-      "run_number": 531,
-      "run_id": 33025341861,
+      "run_number": 542,
+      "run_id": 33041231596,
       "conclusion": "success",
-      "branch_head_sha": "09889eb53606f63263daca31d02b0efd7fe76718",
-      "runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-      "note": "Build #531 ran after proof-CI/queue-only changes. Comparison from 03ed3f to 09889eb shows no app/runtime-file changes, so this confirms the same runtime tree while preserving the distinction between branch head and runtime-code head."
+      "branch_head_sha": "698e47d5e879e8fbd933fc5e746f3f9b167f6d1b",
+      "runtime_code_head": "a8dda598c7a0638c495720c40e8116ae28da1452",
+      "note": "AGENTS.md is the only file changed after a8dda598, so this docs head is runtime-identical while preserving SHA distinction."
     },
     "last_avatar_lab_proof": {
-      "run_number": 18,
-      "run_id": 33025501813,
-      "head_sha": "09889eb53606f63263daca31d02b0efd7fe76718",
-      "runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-      "workflow_conclusion": "failure",
-      "artifact": 9628317936,
-      "artifact_digest": "sha256:fb3402db3ebe95facb27d851b061c8ab766ce1ec11fd1d24d7dde696dbb6a969",
-      "apk_sha256": "65772e2f37fa79010bf0da0da96c91b49a6b3cd5a1dbe6a9f0bc3d404a7978da",
-      "visual_acceptance": "NOT_PASSED",
-      "proof_guard": "FAIL_CLOSED_WORKING",
-      "reason": "The warm-up guard reached the visibility threshold on attempt 2 (colors=1000), but after launching the first actual evidence state, 01-face-neutral-close remained visually blank at colors=298 after bounded retries. The proof therefore failed before producing an acceptable 12-image set instead of misreporting workflow success as visual success.",
-      "diagnostic_implication": "The immediate blocker is proof/render readiness across Avatar Lab process/state launches. The runtime v61 fix must not be declared visually failed or passed until the proof can reliably produce inspectable evidence."
+      "run_number": 24,
+      "run_id": 33041540689,
+      "head_sha": "698e47d5e879e8fbd933fc5e746f3f9b167f6d1b",
+      "runtime_code_head": "a8dda598c7a0638c495720c40e8116ae28da1452",
+      "workflow_conclusion": "success",
+      "artifact": 9634098392,
+      "artifact_digest": "sha256:300f0052f1d543f659357087b7d9e053b204b35e59c4a7490470c646910f4044",
+      "apk_sha256": "9f9b85afc0f4d751c0306301b676bf8ca7e448aea4102acbfceda2c1a31a0bcd",
+      "visual_acceptance": "PARTIAL_PASS_SEATED_STEP_ONLY_OVERALL_NOT_PASSED",
+      "required_log_evidence": "PASS_V61_110_AND_V79_511",
+      "reason": "All 12 PNGs were manually inspected. Seated-front is clearly narrower, centered and untwisted versus Proof #23, so the bounded seated-pose correction passes. Overall v79 remains unaccepted: the face set is not a true close-up and blink85 remains visually too open for localization acceptance; final CALL seat contact also needs scene evidence."
     },
-    "current_blocker": "Avatar Lab CI capture is not yet stable across launch/state transitions: a warm renderer can meet the visibility predicate, then the first real evidence launch returns a blank frame. This prevents truthful visual evaluation of the v61 runtime fix and all later v79 realism criteria.",
-    "exact_next_action": "Do not rerun the emulator proof blindly. First inspect Proof #18 logs/artifact and the Avatar Lab capture lifecycle in ci/avatar-lab-proof.sh / .github/workflows/celine-avatar-lab-proof.yml. Make the smallest proof-only change that preserves renderer readiness or waits for a genuinely compositor-visible frame for each evidence state without weakening the fail-closed predicate. Do not change Celine runtime code unless evidence proves a runtime defect. Then run exactly one lightweight Avatar Lab Proof using the runtime-equivalent already-green APK; inspect every produced image and require the v61 correction evidence before accepting framing. Do not run the final/full suite.",
+    "current_blocker": "Blink/face evidence is not acceptance-grade: the Lab proof uses upper/full framing instead of a true face close-up, and the held blink85 frame appears essentially open. This prevents truthful eyelid-versus-cheek localization acceptance.",
+    "exact_next_action": "Inspect the current Avatar Lab camera preset and guarded blink path at runtime head a8dda598. Make the smallest relevant change that provides a genuine compositor-visible face close-up using camera dolly/framing rather than model/root scale and makes the held blink state visibly diagnostic without weakening guarded morph behavior. Run only the relevant fast contract/build, then exactly one lightweight Avatar Lab proof using the resulting exact runtime APK; inspect all face phases before advancing. Do not run the final/full suite.",
     "remaining_sequence": [
-      "1. Stabilize the lightweight Avatar Lab proof capture path based on Proof #18 evidence; no blind repeat and no unnecessary runtime rebuild.",
-      "2. Run one lightweight proof only and require a complete inspectable image set plus the expected v61 rig-scale correction evidence before accepting framing.",
-      "3. Blink/face: compare neutral vs held/slow blink close-ups and prove cheeks/lower orbital area/mouth corners stay stable; tune only if visual evidence fails.",
+      "1. Fix the genuine face-close-up/blink diagnostic path minimally; preserve guarded morph behavior and use camera semantics rather than root scaling.",
+      "2. Run one lightweight proof only and require visible open/blink/reopen close-ups plus V61-110 and V79-511; visually verify cheeks/lower orbital area/mouth corners remain stable.",
+      "3. Preserve the Proof #24 bounded seated-pose improvement and later prove actual seat contact in CALL scene evidence.",
       "4. Body: visually tune standing and seated CALL so pelvis/spine/shoulders/head and seat contact are coherent.",
       "5. Arms/hands: tune bounded living motion with deterministic before/after captures; no frozen limbs and no puppet waving.",
       "6. Camera/interaction: prove real camera dolly/orbit semantics, stable anchoring and no toy-like free avatar translation in HOME/CALL.",
@@ -110,7 +114,7 @@
       "9. Final candidate only: mark Ready for Review and run the full exact-head Android/emulator/render/lifecycle gate set once on the actual final runtime head.",
       "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read release back, then reconcile queue with merge SHA/run/artifact/digest/tag."
     ],
-    "remaining_gate": "PR #107 remains Draft. Do not merge, release, mark Ready for Review, or run the expensive final suite. The immediate gate is a reliable fail-closed lightweight Avatar Lab evidence path followed by actual visual inspection."
+    "remaining_gate": "PR #107 remains Draft. The bounded seated Lab step passed on Proof #24, but overall v79 visual acceptance has not passed. Next gate is a genuine visible close-up with a clearly diagnostic held blink; no final/full suite."
   },
   "completed": [
     {
@@ -216,7 +220,7 @@
     "handoff_policy": "Every agent must begin with root AGENTS.md, then read this queue, the active work-order and ci/CELINE_VALIDATION_POLICY.md, then fresh-reconcile live GitHub. Before stopping or handing off, record truthful runtime/build/visual state, current blocker and one exact next action. Always distinguish the live branch head and docs/CI-only checkpoints from the last executable/runtime-code head and the SHA actually tested by each piece of evidence.",
     "current_phase": "visual_presence_and_videochat_realism",
     "current_step": "v79-avatar-lab-visual-realism",
-    "current_step_status": "draft_branch_live_visual_proof_capture_blocked"
+    "current_step_status": "draft_branch_live_seated_pose_visual_step_passed_face_blink_evidence_blocked"
   },
   "latest_release": {
     "version": 78,
@@ -242,7 +246,7 @@
     "release_digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f"
   },
   "reconcile": {
-    "status": "v78_published_v79_single_flight_agent_entry_installed_proof18_failed_closed",
-    "note": "v78 remains the exact released baseline. PR #107 is the only active Celine development strand and remains Draft. Latest executable/runtime-code head is 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. Later proof-CI/queue commits through 09889eb53606f63263daca31d02b0efd7fe76718 and the AGENTS/START_HERE/queue bootstrap commits are not new runtime heads. Build #531 is green on a runtime-equivalent branch head. Proof #18 failed closed because renderer visibility did not survive into the first real evidence launch. Root AGENTS.md is now the permanent starting point. Continue only the exact_next_action on this same PR/branch after fresh live reconciliation."
+    "status": "v78_published_v79_single_flight_proof24_seated_step_passed_face_blink_blocked",
+    "note": "Live main remains v78 at 19406194af4190492c442d3c09608242dd4d979b. PR #107 is the only active Draft strand. Latest runtime head a8dda598 is green in Android Build #541; docs head 698e47d is runtime-identical and green in #542. Proof #24 structurally succeeded with 12 manually inspected PNGs and required V61-110/V79-511 logs. The narrowed seated pose passes its direct Lab comparison, but overall visual acceptance remains blocked by non-close face framing and a blink85 frame that remains visibly too open. Continue only the exact_next_action after fresh live reconcile."
   }
 }
