@@ -37,10 +37,11 @@ required_source = {
     "ROOT_FORWARD = 0.12f": "bounded seated root depth",
     "HIPS_PITCH = -5.0f": "bounded pelvis adjustment",
     "UPPER_LEG_PITCH = -88.0f": "credible seated thigh angle",
+    "UPPER_LEG_INWARD_ROLL = 10.0f": "bounded narrow seated thigh roll",
     "LOWER_LEG_PITCH = 92.0f": "credible seated knee angle",
     "FOOT_PITCH = -8.0f": "credible seated foot angle",
-    "applyRotation(leftUpLeg, UPPER_LEG_PITCH, -2.0f, 0.5f)": "bounded narrow left thigh spread",
-    "applyRotation(rightUpLeg, UPPER_LEG_PITCH, 2.0f, -0.5f)": "bounded narrow right thigh spread",
+    "applyRotation(leftUpLeg, UPPER_LEG_PITCH, 0f, UPPER_LEG_INWARD_ROLL)": "bounded narrow left thigh spread",
+    "applyRotation(rightUpLeg, UPPER_LEG_PITCH, 0f, -UPPER_LEG_INWARD_ROLL)": "bounded narrow right thigh spread",
     "setSeatedCallMode(true)": "CALL-only chair activation",
     "setSeatedCallMode(false)": "HOME chair removal",
     "CelineRoomBackdropView currentRoom = findRoom(decor)": "late room resolution after v44 install",
@@ -96,4 +97,4 @@ for forbidden_geometry in (
                 f"v70 {owner} unexpectedly changes external UI geometry: {forbidden_geometry}"
             )
 
-print("v70 CALL-only seated lower body + behind-Filament chair preserved in v74: PASS")
+print("v70 CALL-only seated lower body + behind-Filament chair preserved in v79: PASS")

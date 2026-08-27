@@ -14,7 +14,7 @@ trap collect EXIT
 
 fail() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V76-|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V79-|V76-|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
   exit 1
 }
 
@@ -57,8 +57,8 @@ wait_for_log 'V61-110' 'packaged production rig-scale correction'
 wait_for_log 'V39-150' 'packaged production texture binding'
 wait_for_log 'V75-160' 'v75 semantic material ownership after V39'
 wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
-wait_for_log 'V74-100' 'production six-joint arm/hand rig binding'
-wait_for_log 'V74-110' 'HOME A-pose removal'
+wait_for_log 'V79-400' 'production v79 six-joint arm/hand rig binding'
+wait_for_log 'V79-410' 'HOME bounded arm/hand presence'
 wait_for_log 'V70-100' 'production seated lower-body rig binding'
 
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
@@ -96,7 +96,7 @@ fi
 if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
   fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
 fi
-if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V79-428|V79-429|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
   fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
@@ -114,7 +114,7 @@ PY
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL tap coordinates missing"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 7
-wait_for_log 'V74-120' 'CALL relaxed arm pose'
+wait_for_log 'V79-420' 'CALL bounded arm/hand presence'
 wait_for_log 'V70-110' 'CALL seated foundation entry'
 wait_for_log 'V70-120' 'CALL seated lower-body matrices'
 
@@ -131,7 +131,6 @@ python3 ci/check-celine-person-presence.py real-candidate-call.png CALL
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
 adb shell input keyevent 4
 sleep 5
-wait_for_log 'V74-130' 'HOME-return arm pose restoration'
 wait_for_log 'V70-130' 'HOME-return lower-body restoration'
 PID_RETURN="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_RETURN" ]] || fail "process died returning HOME"
@@ -145,7 +144,7 @@ python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_R
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V79-428|V79-429|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
 if ! grep -q 'V76-210' real-candidate-logcat-final.txt; then
@@ -154,8 +153,8 @@ fi
 if ! grep -q 'V75-160' real-candidate-logcat-final.txt; then
   fail "v75 semantic material ownership evidence missing after lifecycle"
 fi
-for marker in V74-100 V74-110 V74-120 V74-130 V70-100 V70-110 V70-120 V70-130; do
-  grep -q "$marker" real-candidate-logcat-final.txt || fail "v74/v70 lifecycle marker missing: $marker"
+for marker in V79-400 V79-410 V79-420 V70-100 V70-110 V70-120 V70-130; do
+  grep -q "$marker" real-candidate-logcat-final.txt || fail "v79/v70 lifecycle marker missing: $marker"
 done
 
-printf 'PASS packaged v76 facial-rig + v75 semantic-material + v70 seated CALL + v74 bounded arm/hand candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+printf 'PASS packaged v79 blink-localized facial rig + v75 semantic material + v70 seated CALL + v79 bounded arm/hand candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
