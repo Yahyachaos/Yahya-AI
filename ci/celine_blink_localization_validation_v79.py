@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that v79 changes only blink POSITION payloads and confines them to skin/face."""
+"""Validate that v79 changes only blink POSITION payloads on the canonical visible eyelids."""
 
 import argparse
 import hashlib
@@ -13,6 +13,20 @@ TARGET_NAMES = [
     "RoundedVowelProof", "SpreadVowelProof", "BilabialPress", "Labiodental",
     "Smile", "Thoughtful", "Surprised", "GazeLeft", "GazeRight", "GazeUp", "GazeDown",
 ]
+EYELID_Z_MIN = 0.075
+EYELID_CLOSURE_Y = 1.558
+EYELID_BOUNDS = {
+    "left": {
+        "x": (-0.068, -0.015),
+        "upper_y": (1.558, 1.579),
+        "lower_y": (1.538, 1.558),
+    },
+    "right": {
+        "x": (0.018, 0.071),
+        "upper_y": (1.558, 1.579),
+        "lower_y": (1.538, 1.558),
+    },
+}
 
 
 def fail(message):
@@ -42,7 +56,7 @@ def accessor_bytes(document, binary, accessor_index):
     accessor = document["accessors"][accessor_index]
     view = document["bufferViews"][accessor["bufferView"]]
     if accessor.get("componentType") != 5126 or accessor.get("type") != "VEC3":
-        fail("morph accessor must be float32 VEC3")
+        fail("morph/position accessor must be float32 VEC3")
     stride = view.get("byteStride", 12)
     start = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
     return b"".join(binary[start + i * stride:start + i * stride + 12] for i in range(accessor["count"]))
@@ -68,7 +82,26 @@ def indices(document, binary, accessor_index):
     }
 
 
-parser = argparse.ArgumentParser(description="Validate v79 blink localization")
+def in_range(value, bounds, upper_inclusive=True):
+    low, high = bounds
+    return low <= value <= high if upper_inclusive else low <= value < high
+
+
+def expected_delta(position, side, layer):
+    bounds = EYELID_BOUNDS[side]
+    x, y, z = position
+    if not in_range(x, bounds["x"]) or z < EYELID_Z_MIN:
+        return None
+    if not in_range(y, bounds[layer + "_y"], upper_inclusive=(layer == "upper")):
+        return None
+    return (0.0, EYELID_CLOSURE_Y - y, 0.0)
+
+
+def close_vec(a, b, tolerance=2.0e-6):
+    return all(abs(float(x) - float(y)) <= tolerance for x, y in zip(a, b))
+
+
+parser = argparse.ArgumentParser(description="Validate v79 visible-eyelid blink localization")
 parser.add_argument("v76_glb")
 parser.add_argument("v79_glb")
 parser.add_argument("--report", required=True)
@@ -89,6 +122,9 @@ skin_material = after_doc.get("materials", [])[primitives[0].get("material", -1)
 if skin_material.get("name") != "Material_1" or "indices" not in primitives[0]:
     fail("deterministic v75 canonical skin/face primitive missing")
 skin_vertices = indices(after_doc, after_bin, primitives[0]["indices"])
+position_binding = primitives[0].get("attributes", {}).get("POSITION")
+if position_binding is None: fail("canonical neutral POSITION binding missing")
+positions = vecs(after_doc, after_bin, position_binding)
 
 before_targets = []
 after_targets = []
@@ -98,34 +134,42 @@ for binding in bindings:
     before_targets.append(vecs(before_doc, before_bin, accessor))
     after_targets.append(vecs(after_doc, after_bin, accessor))
 
-# All non-blink channels must be byte-identical.
+# All non-blink channels and all neutral/JSON contracts must remain byte-identical.
 for index, name in enumerate(TARGET_NAMES[3:], start=3):
     if before_targets[index] != after_targets[index]:
         fail(name + " changed during blink-only repair")
 
-removed = {"left": 0, "right": 0}
-kept = {
+expected_counts = {
     "left": {"upper": 0, "lower": 0},
     "right": {"upper": 0, "lower": 0},
 }
-for side_index, side_name in ((0, "left"), (1, "right")):
-    for vertex_index, (old, new) in enumerate(zip(before_targets[side_index], after_targets[side_index])):
-        old_nonzero = math.sqrt(sum(value * value for value in old)) > 1.0e-9
-        if old_nonzero and vertex_index not in skin_vertices:
-            if any(abs(value) > 1.0e-9 for value in new):
-                fail(side_name + " still contains non-skin blink motion")
-            removed[side_name] += 1
-        elif old_nonzero:
-            if new != old:
-                fail(side_name + " skin/face blink delta changed")
-            if old[1] < -1.0e-9:
-                kept[side_name]["upper"] += 1
-            elif old[1] > 1.0e-9:
-                kept[side_name]["lower"] += 1
-        elif new != old:
-            fail(side_name + " introduced a new blink vertex")
-    if removed[side_name] == 0 or min(kept[side_name].values()) == 0:
-        fail(side_name + " repair did not remove non-skin motion and preserve both eyelids")
+max_abs_y_delta = 0.0
+for vertex_index, position in enumerate(positions):
+    expected = {"left": (0.0, 0.0, 0.0), "right": (0.0, 0.0, 0.0)}
+    if vertex_index in skin_vertices:
+        for side in ("left", "right"):
+            for layer in ("upper", "lower"):
+                delta = expected_delta(position, side, layer)
+                if delta is None:
+                    continue
+                expected[side] = delta
+                expected_counts[side][layer] += 1
+                max_abs_y_delta = max(max_abs_y_delta, abs(delta[1]))
+                break
+
+    for side_index, side_name in ((0, "left"), (1, "right")):
+        actual = after_targets[side_index][vertex_index]
+        if not close_vec(actual, expected[side_name]):
+            fail("%s blink vertex %d is outside deterministic visible-eyelid contract" %
+                 (side_name, vertex_index))
+        if vertex_index not in skin_vertices and any(abs(v) > 1.0e-9 for v in actual):
+            fail(side_name + " contains non-skin blink motion")
+
+for side in ("left", "right"):
+    if min(expected_counts[side].values()) < 10:
+        fail(side + " visible eyelid selection unexpectedly sparse")
+if max_abs_y_delta <= 0.0 or max_abs_y_delta > 0.025:
+    fail("visible eyelid displacement outside bounded range %.9f m" % max_abs_y_delta)
 
 max_comp_error = 0.0
 for left, right, both in zip(after_targets[0], after_targets[1], after_targets[2]):
@@ -137,16 +181,19 @@ if before_raw == after_raw:
     fail("candidate is unchanged")
 
 report = {
-    "schema": 1,
+    "schema": 2,
     "status": "PASS",
-    "policy": "v79_blink_payload_only_canonical_skin_face",
+    "policy": "v79_visible_canonical_skin_eyelid_closure",
     "v76_sha256": hashlib.sha256(before_raw).hexdigest(),
     "v79_sha256": hashlib.sha256(after_raw).hexdigest(),
-    "removed_non_skin_vertices": removed,
-    "preserved_skin_face_vertices": kept,
+    "visible_eyelid_vertices": expected_counts,
+    "closure_y_m": EYELID_CLOSURE_Y,
+    "front_depth_min_m": EYELID_Z_MIN,
+    "max_abs_y_delta_m": max_abs_y_delta,
     "blink_bilateral_composition_max_error_m": max_comp_error,
     "non_blink_targets_byte_identical": True,
     "json_contract_identical": True,
+    "non_skin_blink_motion": False,
 }
 os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
 open(args.report, "w", encoding="utf-8").write(json.dumps(report, indent=2) + "\n")
