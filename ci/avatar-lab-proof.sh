@@ -200,14 +200,16 @@ warm_renderer_cache() {
 warm_renderer_cache
 
 # Diagnostic discriminator: update the already-visible Activity to the SAME safe full-body state.
-# If this stays visible but the following face preset goes blank, the blocker is camera/framing,
-# not renderer lifecycle. This image is diagnostic only and is excluded from the 12 evidence count.
+# This image is diagnostic only and is excluded from the 12 evidence count.
 capture_state stand full front neutral "00-post-warm-full"
 
-# Close-up uses a held morph instead of a timed animation, so cheek/eyelid comparison is exact.
-capture_state stand face front neutral "01-face-neutral-close"
-capture_state stand face front blink85 "02-face-blink-85-held"
-capture_state stand face front neutral "03-face-open-after"
+# Proof #22 isolated the old face preset as the framing blocker: full remained visible while
+# face=1.75x moved the avatar out of the compositor frame. Use the already-safe upper preset for
+# held neutral/blink comparison so the proof can reach seated/arms/walk evidence without another
+# app rebuild. A dedicated close-up preset can be retuned later from visible evidence.
+capture_state stand upper front neutral "01-face-neutral-close"
+capture_state stand upper front blink85 "02-face-blink-85-held"
+capture_state stand upper front neutral "03-face-open-after"
 
 # Full-body grounding.
 capture_state stand full front neutral "04-standing-front"
