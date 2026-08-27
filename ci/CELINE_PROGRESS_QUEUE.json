@@ -32,28 +32,38 @@
   },
   "active": {
     "id": "v79-avatar-lab-visual-realism",
-    "status": "draft_branch_live_visual_iteration_handoff_ready",
+    "status": "draft_branch_live_visual_proof_capture_blocked",
     "current_branch": "auto/celine/v79-avatar-lab-visual-realism",
     "current_pr": 107,
     "target_version": 79,
     "prepared_from_main_sha": "19406194af4190492c442d3c09608242dd4d979b",
     "work_order": "ci/work-orders/V79_CELINE_AVATAR_LAB_VISUAL_REALISM.md",
     "goal": "Create a branch-live Avatar Lab and use it to fix the user-observed visual realism defects before any further roadmap expansion: cheek/under-eye blink deformation, crooked seated posture, stiff arms/hands, fake model-scale zoom, toy-like drag and weak HOME/CALL scene anchoring.",
+    "entry_system": {
+      "agents_file": "AGENTS.md",
+      "agents_install_commit": "353adc54927991932e987f5873ab21777565ab49",
+      "start_here_redirect_commit": "f1cefe204949385a4e78eb89003dd210336c20d9",
+      "branch_head_before_this_queue_checkpoint": "f1cefe204949385a4e78eb89003dd210336c20d9",
+      "note": "AGENTS.md is now the permanent repository entry point. START_HERE.txt only redirects to it. This queue update is itself documentation/control state and will advance the live branch head; agents must read the actual PR head from GitHub rather than treating this field as self-referential truth."
+    },
     "progress": [
       "Branch-live Celine Avatar Lab activity exists on PR #107 and renders the current-branch Celine3DView/canonical asset path.",
       "Deterministic controls exist for conversation states, gaze, speech energy, blink, expressions, kiss/visemes, body poses and camera inspection.",
       "v79 blink-localization repair/validator are wired after the validated v76 facial-rig candidate and preserve non-blink morph payloads.",
       "Product HOME/CALL one-finger toy-drag is locked while diagnostic Lab camera control remains separate.",
       "CALL seated upper-body ownership and bounded v79 arm/hand presence are implemented for later visual tuning.",
-      "Lightweight Avatar Lab Proof reuses an exact-head successful APK and captures 12 deterministic panel-free views.",
       "Release write-safety hardening is present, including current-version metadata validation and post-publish read-back checks.",
-      "Proof #6 confirmed the Android fullscreen education overlay is removed from capture evidence.",
-      "Proof #6 also exposed the real framing cause: the standalone Lab path did not receive the production v61 Meshy 0.01-Armature rig-scale correction, so Celine remained roughly x100 oversized after v60 normalized tiny pre-skinning bounds.",
-      "Latest runtime fix reuses the exact production v61 repair synchronously before the Lab pose driver captures root/bone baselines; no duplicate scale math was added.",
-      "The shared v61 Lab scale fix compiles successfully on Android Build #523 / run 33021419894 at runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81; visual proof for that head is intentionally still pending."
+      "Proof #6 removed the Android fullscreen education overlay and identified the missing standalone-Lab v61 Meshy rig-scale correction.",
+      "Runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81 reuses the exact production v61 repair synchronously before Lab pose baselines and is the latest executable/runtime code change.",
+      "Android Build #523 / run 33021419894 succeeded on exact runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81.",
+      "Eight later commits through 09889eb53606f63263daca31d02b0efd7fe76718 changed only ci/CELINE_PROGRESS_QUEUE.json, ci/avatar-lab-proof.sh and .github/workflows/celine-avatar-lab-proof.yml; no app/runtime file changed after 03ed3f8648a3a310bcb104d20ff97a3f77b06e81.",
+      "Android Build #531 / run 33025341861 succeeded on branch head 09889eb53606f63263daca31d02b0efd7fe76718, which is runtime-equivalent to 03ed3f8648a3a310bcb104d20ff97a3f77b06e81.",
+      "Avatar Lab Proof #18 / run 33025501813 correctly failed closed instead of accepting blank evidence: renderer warm-up reached colors=1000 on attempt 2, but the first real evidence capture 01-face-neutral-close remained visually blank at colors=298 after bounded retries.",
+      "Proof #18 still uploaded diagnostic artifact 9628317936 with digest sha256:fb3402db3ebe95facb27d851b061c8ab766ce1ec11fd1d24d7dde696dbb6a969.",
+      "Permanent root AGENTS.md and redirect-only START_HERE.txt are installed on the same active PR branch; their commits are documentation-only and must never be reported as new runtime validation."
     ],
     "latest_runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-    "latest_runtime_code_validation": "BUILT_SUCCESS_NOT_YET_VISUALLY_PROVED",
+    "latest_runtime_code_validation": "BUILT_SUCCESS_VISUAL_ACCEPTANCE_BLOCKED_BY_PROOF_CAPTURE_STABILITY",
     "last_built_runtime_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
     "last_runtime_build": {
       "workflow": "Android Build",
@@ -61,44 +71,46 @@
       "run_id": 33021419894,
       "conclusion": "success",
       "head_sha": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-      "note": "Draft exact-head build including the shared v61 Lab scale fix succeeded; expensive final render/emulator/publish gates were skipped as intended. Visual Avatar Lab proof for this head has not been run yet."
+      "note": "Exact runtime-code head including the shared v61 Lab scale fix compiled successfully. Later branch changes through the agent bootstrap do not change executable/runtime files."
+    },
+    "latest_runtime_equivalent_branch_build": {
+      "workflow": "Android Build",
+      "run_number": 531,
+      "run_id": 33025341861,
+      "conclusion": "success",
+      "branch_head_sha": "09889eb53606f63263daca31d02b0efd7fe76718",
+      "runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
+      "note": "Build #531 ran after proof-CI/queue-only changes. Comparison from 03ed3f to 09889eb shows no app/runtime-file changes, so this confirms the same runtime tree while preserving the distinction between branch head and runtime-code head."
     },
     "last_avatar_lab_proof": {
-      "run_number": 6,
-      "run_id": 33020766604,
-      "head_sha": "6af211d749fbbeab3bfba552a3f9af7e8c8d42a3",
-      "workflow_conclusion": "success",
-      "artifact": 9626485999,
-      "artifact_digest": "sha256:03fbb663c3f8629a775c958913c35f682c964d2679ba679f6934eb34e804235d",
-      "apk_sha256": "36fc8b053bc1dd790a7e0b3fd75c6a00e97dfcfea0a821645df96f8490192473",
+      "run_number": 18,
+      "run_id": 33025501813,
+      "head_sha": "09889eb53606f63263daca31d02b0efd7fe76718",
+      "runtime_code_head": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
+      "workflow_conclusion": "failure",
+      "artifact": 9628317936,
+      "artifact_digest": "sha256:fb3402db3ebe95facb27d851b061c8ab766ce1ec11fd1d24d7dde696dbb6a969",
+      "apk_sha256": "65772e2f37fa79010bf0da0da96c91b49a6b3cd5a1dbe6a9f0bc3d404a7978da",
       "visual_acceptance": "NOT_PASSED",
-      "overlay_status": "FIXED",
-      "reason": "All 12 captures exist and the Android fullscreen education overlay is gone, but most views are dark/offscreen and walk/profile show only a huge light fragment of Celine. Do not treat workflow success as visual success.",
-      "root_cause_evidence": "Proof #6 logcat repeatedly records REN-314 raw maxExtent=0.017530838 with initial scale=179.68336 and contains no V61 repair entry. CelineMeshyRigScaleV61 is the production correction for exactly the Meshy tiny pre-skinning bounds / roughly 0.01 Armature scale case, but its normal controller installs only for MainActivity."
+      "proof_guard": "FAIL_CLOSED_WORKING",
+      "reason": "The warm-up guard reached the visibility threshold on attempt 2 (colors=1000), but after launching the first actual evidence state, 01-face-neutral-close remained visually blank at colors=298 after bounded retries. The proof therefore failed before producing an acceptable 12-image set instead of misreporting workflow success as visual success.",
+      "diagnostic_implication": "The immediate blocker is proof/render readiness across Avatar Lab process/state launches. The runtime v61 fix must not be declared visually failed or passed until the proof can reliably produce inspectable evidence."
     },
-    "latest_unvalidated_fix": {
-      "head_sha": "03ed3f8648a3a310bcb104d20ff97a3f77b06e81",
-      "commits": [
-        "688a5fd5e0a22daadff58cc8cd44b76a66f28dfe",
-        "03ed3f8648a3a310bcb104d20ff97a3f77b06e81"
-      ],
-      "change": "CelineMeshyRigScaleV61 exposes repairImmediate(); CelineAvatarLabPoseDriverV79 invokes that exact guarded production repair synchronously before binding root/bone baselines. This covers both manual CelineAvatarLabActivity and CI CelineAvatarLabCaptureActivity through the shared pose driver.",
-      "validation": "Android Build #523 / run 33021419894 SUCCESS on the exact runtime head. Visual 12-image Avatar Lab Proof has not yet been run and remains the next gate."
-    },
-    "exact_next_action": "Run exactly one lightweight 12-image Avatar Lab Proof using the successful exact-head APK for runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. Inspect every PNG and require proof logcat to contain V61-110 'Meshy Rig-Scale korrigiert' before accepting framing. Do not run the final/full suite.",
+    "current_blocker": "Avatar Lab CI capture is not yet stable across launch/state transitions: a warm renderer can meet the visibility predicate, then the first real evidence launch returns a blank frame. This prevents truthful visual evaluation of the v61 runtime fix and all later v79 realism criteria.",
+    "exact_next_action": "Do not rerun the emulator proof blindly. First inspect Proof #18 logs/artifact and the Avatar Lab capture lifecycle in ci/avatar-lab-proof.sh / .github/workflows/celine-avatar-lab-proof.yml. Make the smallest proof-only change that preserves renderer readiness or waits for a genuinely compositor-visible frame for each evidence state without weakening the fail-closed predicate. Do not change Celine runtime code unless evidence proves a runtime defect. Then run exactly one lightweight Avatar Lab Proof using the runtime-equivalent already-green APK; inspect every produced image and require the v61 correction evidence before accepting framing. Do not run the final/full suite.",
     "remaining_sequence": [
-      "1. Run one lightweight Avatar Lab Proof on the already green Android Build #523 runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81; do not rebuild unless fresh reconcile shows the runtime head changed.",
-      "2. Require visible correctly framed Celine plus V61-110 in proof logcat; workflow-green alone is insufficient.",
-      "3. Blink/face: compare neutral vs held/slow blink close-ups and prove cheeks/lower orbital area/mouth corners stay stable; tune only if visual evidence still fails.",
+      "1. Stabilize the lightweight Avatar Lab proof capture path based on Proof #18 evidence; no blind repeat and no unnecessary runtime rebuild.",
+      "2. Run one lightweight proof only and require a complete inspectable image set plus the expected v61 rig-scale correction evidence before accepting framing.",
+      "3. Blink/face: compare neutral vs held/slow blink close-ups and prove cheeks/lower orbital area/mouth corners stay stable; tune only if visual evidence fails.",
       "4. Body: visually tune standing and seated CALL so pelvis/spine/shoulders/head and seat contact are coherent.",
       "5. Arms/hands: tune bounded living motion with deterministic before/after captures; no frozen limbs and no puppet waving.",
       "6. Camera/interaction: prove real camera dolly/orbit semantics, stable anchoring and no toy-like free avatar translation in HOME/CALL.",
       "7. Scene integration: improve HOME/CALL spatial framing so Celine reads as occupying the scene rather than being dropped over a 2D backdrop.",
       "8. User access: expose/verify Celine Avatar Lab in normal Settings and prove safe return to HOME without breaking avatar/lifecycle state.",
-      "9. Final candidate only: mark Ready for Review and run full exact-head Android/emulator/render/lifecycle gates once on the actual final head.",
+      "9. Final candidate only: mark Ready for Review and run the full exact-head Android/emulator/render/lifecycle gate set once on the actual final runtime head.",
       "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read release back, then reconcile queue with merge SHA/run/artifact/digest/tag."
     ],
-    "remaining_gate": "Do not mark PR #107 ready, merge, release, or run the expensive final suite yet. Next is exactly one lightweight visual proof on the already green shared-v61 runtime head, followed by image/log inspection."
+    "remaining_gate": "PR #107 remains Draft. Do not merge, release, mark Ready for Review, or run the expensive final suite. The immediate gate is a reliable fail-closed lightweight Avatar Lab evidence path followed by actual visual inspection."
   },
   "completed": [
     {
@@ -201,10 +213,10 @@
     "policy": "strict_sequential_single_active_step",
     "validation_policy": "draft-fast/final-head-full",
     "focus_rule": "Exactly one runtime step may be active. During draft iteration use the branch-live Avatar Lab plus fast targeted checks. Run expensive final gates only on the actual final exact-head, then exact-main validation and publication before completion.",
-    "handoff_policy": "Before any agent stops, hands work to another agent, or leaves the active step for later: fresh-reconcile main, PR state, branch head, runs and artifacts; write the last built/runtime head, newest unvalidated runtime head if any, visual acceptance state, current blocker and one exact next action into this queue; distinguish queue-only documentation commits from runtime validation. The next agent must read this queue and fresh-reconcile GitHub before changing code.",
+    "handoff_policy": "Every agent must begin with root AGENTS.md, then read this queue, the active work-order and ci/CELINE_VALIDATION_POLICY.md, then fresh-reconcile live GitHub. Before stopping or handing off, record truthful runtime/build/visual state, current blocker and one exact next action. Always distinguish the live branch head and docs/CI-only checkpoints from the last executable/runtime-code head and the SHA actually tested by each piece of evidence.",
     "current_phase": "visual_presence_and_videochat_realism",
     "current_step": "v79-avatar-lab-visual-realism",
-    "current_step_status": "draft_branch_live_visual_iteration_handoff_ready"
+    "current_step_status": "draft_branch_live_visual_proof_capture_blocked"
   },
   "latest_release": {
     "version": 78,
@@ -230,7 +242,7 @@
     "release_digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f"
   },
   "reconcile": {
-    "status": "v78_published_v79_single_flight_handoff_ready",
-    "note": "v78 is the exact released baseline. PR #107 is the only active Celine development strand. Runtime head 03ed3f8648a3a310bcb104d20ff97a3f77b06e81 is built green in Android Build #523 / run 33021419894; its visual proof is intentionally still pending. Last visually inspected proof remains #6 on 6af211d749fbbeab3bfba552a3f9af7e8c8d42a3. A later queue-only handoff commit may advance the PR head without changing runtime code. Continue exact_next_action on this same branch only."
+    "status": "v78_published_v79_single_flight_agent_entry_installed_proof18_failed_closed",
+    "note": "v78 remains the exact released baseline. PR #107 is the only active Celine development strand and remains Draft. Latest executable/runtime-code head is 03ed3f8648a3a310bcb104d20ff97a3f77b06e81. Later proof-CI/queue commits through 09889eb53606f63263daca31d02b0efd7fe76718 and the AGENTS/START_HERE bootstrap commits are not new runtime heads. Build #531 is green on a runtime-equivalent branch head. Proof #18 failed closed because renderer visibility did not survive into the first real evidence launch. Root AGENTS.md is now the permanent starting point. Continue only the exact_next_action on this same PR/branch after fresh live reconciliation."
   }
 }
