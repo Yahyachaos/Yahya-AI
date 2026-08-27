@@ -38,11 +38,11 @@
     "branch": "auto/celine/v80-human-videochat-presence",
     "pr": 110,
     "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
-    "status": "active_block2_first_camera_curve_change_pending",
+    "status": "active_block2_camera_curve_built_visual_proof_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
-    "runtime_fingerprint": "8e70ffb1a53f5ad5d0f43c6469705373150d241b4ffbfe0b5844572440a89ef5",
-    "latest_runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
-    "latest_built_runtime_head": "14120661354d4fdbcbb76d603b53346141bf0505",
+    "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
+    "latest_runtime_code_head": "c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8",
+    "latest_built_runtime_head": "c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8",
     "latest_runtime_equivalent_main_build": {
       "workflow": "Android Build",
       "run_number": 589,
@@ -106,10 +106,10 @@
     "active_block": {
       "number": 2,
       "name": "Real human-style zoom and framing",
-      "status": "in_progress"
+      "status": "in_progress_camera_curve_built_visual_proof_pending"
     },
-    "current_blocker": "No implementation blocker. Block 2 still requires a real production camera curve, interpolation, reset/lifecycle proof and manually inspected continuous pinch evidence.",
-    "exact_next_action": "In CelineCameraZoomV70 only, add a guarded v80 production framing curve that raises the real dolly limit and lifts the camera target from normal CALL framing toward Celine's face as zoom increases; compile once before changing interpolation or proof gates.",
+    "current_blocker": "The first block-2 runtime curve compiles, but no real production CALL normal/head/face sequence has been manually inspected yet. Interpolation is also still unimplemented.",
+    "exact_next_action": "Replace only the legacy full-body/feet-preserving zoom proof with a targeted production CALL proof for normal, head-and-shoulders, and face-close camera distances on runtime code head c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8; run it once and inspect the real frames before changing interpolation.",
     "constraints": [
       "Strict single-flight: one v80 branch and one PR only.",
       "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
@@ -131,13 +131,13 @@
     },
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 592,
-      "run_id": 33095917439,
+      "run_number": 593,
+      "run_id": 33098072622,
       "conclusion": "success",
-      "head_sha": "14120661354d4fdbcbb76d603b53346141bf0505",
-      "runtime_fingerprint": "8e70ffb1a53f5ad5d0f43c6469705373150d241b4ffbfe0b5844572440a89ef5",
-      "apk_artifact": 9656418693,
-      "apk_artifact_digest": "sha256:fba8e4f771e089da511e9b4afa4c5548cb77645a540591547e8611959dc79518",
+      "head_sha": "c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8",
+      "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
+      "apk_artifact": 9657290625,
+      "apk_artifact_digest": "sha256:16cf79052c10f5d22766d5f127667739500013dce1d2fa3e7e0c7ae8a17e43fb",
       "emulator_job": "skipped",
       "publish_job": "skipped"
     },
