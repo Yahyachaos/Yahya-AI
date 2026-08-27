@@ -38,11 +38,11 @@
     "branch": "auto/celine/v80-human-videochat-presence",
     "pr": 110,
     "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
-    "status": "active_block2_camera_curve_visual_fail_focus_direction",
+    "status": "active_block2_focus_direction_built_proof_rerun_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
-    "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
-    "latest_runtime_code_head": "c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8",
-    "latest_built_runtime_head": "c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8",
+    "runtime_fingerprint": "32a94306f941777c1a9efca82d5afad5d6ad88a853e8012525f39664be81d58c",
+    "latest_runtime_code_head": "3eeef2bc56e60aae8f052b4c531e7796143df312",
+    "latest_built_runtime_head": "3eeef2bc56e60aae8f052b4c531e7796143df312",
     "latest_runtime_equivalent_main_build": {
       "workflow": "Android Build",
       "run_number": 589,
@@ -102,10 +102,10 @@
     "active_block": {
       "number": 2,
       "name": "Real human-style zoom and framing",
-      "status": "in_progress_first_curve_rejected"
+      "status": "in_progress_corrected_curve_built_visual_rerun_pending"
     },
-    "current_blocker": "The first v80 camera curve compiles and scales the real camera, but its positive focus bias moves Celine downward in screen space. Block 2 remains visually rejected.",
-    "exact_next_action": "Change only CelineCameraZoomV70 CALL_BASE_FOCUS_Y and FACE_FOCUS_Y to the evidence-backed negative screen-space direction, rebuild once, and do not relax the framing checker before new real frames exist.",
+    "current_blocker": "The corrected focus direction compiles, but no post-correction production CALL frames have been inspected. The #224 artifact glob also omitted the three new checkpoints.",
+    "exact_next_action": "Add the new production CALL normal/head/face images to the canonical Real Candidate artifact, keep peak-row growth/centering/clipping checks while removing the invalid total-skin-growth assumption, then run exactly one corrected Real Candidate proof and manually inspect all three frames.",
     "constraints": [
       "Strict single-flight: one v80 branch and one PR only.",
       "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
@@ -127,13 +127,13 @@
     },
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 593,
-      "run_id": 33098072622,
+      "run_number": 596,
+      "run_id": 33099901127,
       "conclusion": "success",
-      "head_sha": "c5f5f9836bc46ac8818a4aca3f63f1bb670f3bb8",
-      "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
-      "apk_artifact": 9657290625,
-      "apk_artifact_digest": "sha256:16cf79052c10f5d22766d5f127667739500013dce1d2fa3e7e0c7ae8a17e43fb",
+      "head_sha": "3eeef2bc56e60aae8f052b4c531e7796143df312",
+      "runtime_fingerprint": "32a94306f941777c1a9efca82d5afad5d6ad88a853e8012525f39664be81d58c",
+      "apk_artifact": 9658031708,
+      "apk_artifact_digest": "sha256:b1069c0eaa7b0cb860c35a9635f6c58fa13320db29a327e83113b806def38012",
       "emulator_job": "skipped",
       "publish_job": "skipped"
     },
