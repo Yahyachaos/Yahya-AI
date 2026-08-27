@@ -1,76 +1,63 @@
 package de.yahya.ai;
 
 import android.app.Activity;
-import android.graphics.PixelFormat;
-import android.view.Surface;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.view.View;
 import android.widget.FrameLayout;
 
 import com.google.android.filament.Camera;
-import com.google.android.filament.Engine;
-import com.google.android.filament.Renderer;
-import com.google.android.filament.Scene;
-import com.google.android.filament.SwapChain;
 
 import java.lang.reflect.Field;
 
 /**
- * Lab-only scene adapter for deterministic CALL seat-contact evidence.
+ * Lab-only CALL scene adapter for deterministic seat-contact evidence.
  *
- * It deliberately reuses the production CelineRoomBackdropView and the same transparent Filament
- * presentation semantics used by CelineVideoChatV44. It never changes the avatar/root scale. The
- * `call` camera preset uses Celine3DView's normal camera position (zoom=1, pan=0) plus the exact
- * 50 mm projection selected by CelineVideoCallV45 for the real CALL stage.
+ * Production draws the CALL chair in CelineRoomBackdropView behind a transparent SurfaceView. ADB
+ * screencap on the software-emulator compositor cannot be trusted to preserve that sibling-surface
+ * composition: Proof #35 showed the avatar over black even though the transparent swap-chain logs
+ * were present, and the swap-chain replacement also made face-state screenshots one frame stale.
+ *
+ * The Lab therefore leaves Celine3DView's proven renderer/compositor path untouched and overlays a
+ * diagnostic guide for the exact production chair cushion plane (x=0.35..0.65, y=0.61..0.675 of
+ * the stage). The guide is CI/Lab-only, never installed in HOME/CALL, never translates/scales the
+ * avatar and makes floating/sinking relative to the intended production seat plane unambiguous.
+ * The `call` preset still uses the exact 50 mm projection selected by CelineVideoCallV45.
  */
 final class CelineAvatarLabSceneV79 {
-    private static final long TRANSPARENT_SWAP_CHAIN = 0x1L;
+    private static final float CALL_SEAT_LEFT = 0.35f;
+    private static final float CALL_SEAT_RIGHT = 0.65f;
+    private static final float CALL_SEAT_TOP = 0.61f;
+    private static final float CALL_SEAT_BOTTOM = 0.675f;
 
     private final Activity activity;
     private final Celine3DView view;
-    private final CelineRoomBackdropView room;
-    private final Engine engine;
-    private final Renderer renderer;
-    private final Scene scene;
-    private final com.google.android.filament.View filamentView;
     private final Camera camera;
-    private final SurfaceView surface;
-    private final Field swapChainField;
-    private boolean callbackInstalled;
+    private final SeatPlaneGuideView seatGuide;
 
     static CelineAvatarLabSceneV79 install(Activity activity, FrameLayout root,
                                            Celine3DView view) throws Exception {
-        CelineRoomBackdropView room = new CelineRoomBackdropView(activity);
-        room.setVisibility(View.GONE);
-        root.addView(room, 0, new FrameLayout.LayoutParams(
+        SeatPlaneGuideView guide = new SeatPlaneGuideView(activity);
+        root.addView(guide, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
-        CelineAvatarLabSceneV79 adapter = new CelineAvatarLabSceneV79(activity, view, room);
-        adapter.ensureTransparentPresentation();
-        return adapter;
+        return new CelineAvatarLabSceneV79(activity, view, guide);
     }
 
     private CelineAvatarLabSceneV79(Activity activity, Celine3DView view,
-                                    CelineRoomBackdropView room) throws Exception {
+                                    SeatPlaneGuideView seatGuide) throws Exception {
         this.activity = activity;
         this.view = view;
-        this.room = room;
-        engine = (Engine) field(view, "engine");
-        renderer = (Renderer) field(view, "renderer");
-        scene = (Scene) field(view, "scene");
-        filamentView = (com.google.android.filament.View) field(view, "filamentView");
+        this.seatGuide = seatGuide;
         camera = (Camera) field(view, "camera");
-        surface = (SurfaceView) field(view, "surfaceView");
-        swapChainField = Celine3DView.class.getDeclaredField("swapChain");
-        swapChainField.setAccessible(true);
     }
 
     void apply(String pose, String cameraPreset) {
         boolean call = "call".equalsIgnoreCase(cameraPreset);
         boolean seated = "seated".equalsIgnoreCase(pose);
-        room.setSeatedCallMode(call && seated);
-        room.setVisibility(call ? View.VISIBLE : View.GONE);
+        boolean showSeatGuide = call && seated;
+        seatGuide.setSeatPlaneVisible(showSeatGuide);
 
         int w = Math.max(1, view.getWidth());
         int h = Math.max(1, view.getHeight());
@@ -81,53 +68,10 @@ final class CelineAvatarLabSceneV79 {
                         + " seated=" + seated
                         + " lensMm=" + (call ? 50 : 32)
                         + " rootScaleChanged=false");
-    }
-
-    private void ensureTransparentPresentation() throws Exception {
-        surface.setZOrderOnTop(true);
-        surface.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-        filamentView.setBlendMode(com.google.android.filament.View.BlendMode.TRANSLUCENT);
-        scene.setSkybox(null);
-
-        Renderer.ClearOptions clear = renderer.getClearOptions();
-        clear.clear = true;
-        clear.discard = true;
-        clear.clearColor = new double[]{0.0, 0.0, 0.0, 0.0};
-        renderer.setClearOptions(clear);
-
-        if (!callbackInstalled) {
-            callbackInstalled = true;
-            surface.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override public void surfaceCreated(SurfaceHolder holder) {
-                    surface.post(() -> replaceTransparentSwapChain(holder));
-                }
-
-                @Override public void surfaceChanged(SurfaceHolder holder, int format,
-                                                     int width, int height) {
-                    surface.post(() -> replaceTransparentSwapChain(holder));
-                }
-
-                @Override public void surfaceDestroyed(SurfaceHolder holder) {}
-            });
-        }
-        replaceTransparentSwapChain(surface.getHolder());
-    }
-
-    private void replaceTransparentSwapChain(SurfaceHolder holder) {
-        try {
-            Surface currentSurface = holder == null ? null : holder.getSurface();
-            if (currentSurface == null || !currentSurface.isValid()) return;
-            SwapChain old = (SwapChain) swapChainField.get(view);
-            if (old != null) {
-                engine.destroySwapChain(old);
-                engine.flushAndWait();
-            }
-            swapChainField.set(view, engine.createSwapChain(currentSurface, TRANSPARENT_SWAP_CHAIN));
-            Celine3DDiagnostics.record(activity, "V79-531", "Avatar Lab transparenter SwapChain aktiv",
-                    "productionRoomBehindFilament=true");
-        } catch (Throwable error) {
-            Celine3DDiagnostics.error(activity, "V79-539",
-                    "Avatar Lab transparenter SwapChain FEHLER", error);
+        if (showSeatGuide) {
+            Celine3DDiagnostics.record(activity, "V79-531", "Avatar Lab CALL-Sitzebene markiert",
+                    "productionSeatTop=0.61 productionSeatBottom=0.675"
+                            + " · screenSpaceGuide=true · rendererCompositionUnchanged=true");
         }
     }
 
@@ -135,5 +79,55 @@ final class CelineAvatarLabSceneV79 {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
+    }
+
+    private static final class SeatPlaneGuideView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private boolean visible;
+
+        SeatPlaneGuideView(Activity activity) {
+            super(activity);
+            setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+            setClickable(false);
+            setFocusable(false);
+            setVisibility(INVISIBLE);
+        }
+
+        void setSeatPlaneVisible(boolean value) {
+            visible = value;
+            setVisibility(value ? VISIBLE : INVISIBLE);
+            invalidate();
+        }
+
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            if (!visible) return;
+            float w = getWidth();
+            float h = getHeight();
+            if (w <= 0f || h <= 0f) return;
+
+            float left = w * CALL_SEAT_LEFT;
+            float right = w * CALL_SEAT_RIGHT;
+            float top = h * CALL_SEAT_TOP;
+            float bottom = h * CALL_SEAT_BOTTOM;
+
+            // Very light cushion band plus a crisp top-plane line. The overlay is diagnostic only;
+            // it intentionally crosses Celine so penetration/floating is directly visible.
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.argb(28, 95, 215, 255));
+            canvas.drawRect(left, top, right, bottom, paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(3f, w * 0.004f));
+            paint.setColor(Color.argb(235, 110, 225, 255));
+            canvas.drawLine(left, top, right, top, paint);
+            canvas.drawLine(left, top - 12f, left, top + 12f, paint);
+            canvas.drawLine(right, top - 12f, right, top + 12f, paint);
+
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextSize(Math.max(18f, w * 0.024f));
+            paint.setColor(Color.argb(235, 210, 245, 255));
+            canvas.drawText("CALL SEAT PLANE", left + 8f, Math.max(24f, top - 14f), paint);
+        }
     }
 }
