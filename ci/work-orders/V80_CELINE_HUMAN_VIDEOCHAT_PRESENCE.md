@@ -144,11 +144,13 @@ The raw conversation attachment is not yet a repository asset; this work order r
 
 ### 11. Remove duplicate product launchers after dependency audit
 
-Current `app/src/main/AndroidManifest.xml` exposes three launcher entries:
+Current `app/src/main/AndroidManifest.xml` exposes three normal launcher entries:
 
-- `.MainActivity` — `Yahya AI`
-- `.AvatarPickerActivity` — `Celine 3D Import`
-- `.AvatarLabActivity` — `Celine Avatar Lab`
+- `.MainActivity` — the main `Yahya AI` app;
+- `.CelineAvatarLabActivity` — `Celine Avatar Lab`;
+- `.AvatarPickerActivity` — `Celine 3D importieren`.
+
+The manifest itself labels `AvatarPickerActivity` as a **v35 diagnostic launcher** and says it can be removed after the device-side 3D path is confirmed. That makes the separate `Celine 3D Import` launcher a legacy diagnostic surface unless a fresh dependency audit proves otherwise.
 
 Desired product outcome: **Yahya AI is the only normal launcher app icon.**
 
@@ -157,7 +159,7 @@ Before changing the manifest, audit dependencies and preserve useful development
 - `Celine Avatar Lab` should remain reachable through normal Yahya AI Settings/developer access, but should not need a separate launcher icon in the finished product.
 - `Celine 3D Import` / `AvatarPickerActivity` should be audited. If it is still useful for importing/replacing a development avatar, move that function behind Avatar Lab/Settings/debug-only access. If no production or development dependency needs it, remove the separate launcher exposure.
 - Do not delete import code blindly before verifying asset import/fallback/developer workflows.
-- `.AvatarLabCaptureActivity` remains internal/non-exported.
+- `.CelineAvatarLabCaptureActivity` is currently **not a launcher but is exported=true**. Audit whether any legitimate external workflow still requires that. If not, harden it to internal/non-exported access; if external invocation is genuinely required for proof tooling, keep it narrowly guarded and documented rather than assuming it is already internal.
 - Final install must be checked for duplicate launcher icons/entries.
 
 ### 12. Final temporal acceptance gate
