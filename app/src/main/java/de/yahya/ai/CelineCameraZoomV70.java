@@ -36,12 +36,11 @@ final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 4.60f;
     static final float CALL_DEFAULT_ZOOM = 2.80f;
-    // Real Candidate #224 moved the avatar too far down with 0.45 -> 1.10, while #227 moved her
-    // too far up with -0.15 -> -0.75. The later corrected direction kept her head on-screen at
-    // 1.45/1.75/2.10 but those ranges were manually rejected as too distant. Preserve that focus
-    // direction while widening only the geometric camera-dolly range.
+    // Real Candidate #238 proved that the widened 2.80/3.50/4.60 real dolly works but the prior
+    // 0.00 -> 0.25 target leaves the head above the CALL viewport at every close checkpoint.
+    // Preserve the body-center CALL base and let only the eased high-zoom target follow the face.
     static final float CALL_BASE_FOCUS_Y = 0.00f;
-    static final float FACE_FOCUS_Y = 0.25f;
+    static final float FACE_FOCUS_Y = 1.00f;
     static final float TARGET_DISTANCE = 5.0f;
     static final float PRODUCTION_HALF_DEPTH = 0.314f;
     static final float NEAR_PLANE = 0.05f;
