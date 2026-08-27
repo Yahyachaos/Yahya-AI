@@ -59,14 +59,19 @@ final class CelineAvatarLabSceneV79 {
         boolean showSeatGuide = call && seated;
         seatGuide.setSeatPlaneVisible(showSeatGuide);
 
+        // Keep every already-proven diagnostic camera/morph path completely untouched. Proof #37
+        // showed that applying even the default projection through this CALL-only adapter made the
+        // face sequence fall back to full framing and left the held blink visually stale. The
+        // adapter owns only the explicit CALL preset; Celine3DView remains sole camera owner for
+        // face/full/profile/three-quarter evidence.
+        if (!call) return;
+
         int w = Math.max(1, view.getWidth());
         int h = Math.max(1, view.getHeight());
-        camera.setLensProjection(call ? 50.0 : 32.0,
-                (double) w / (double) h, 0.05, 1000.0);
+        camera.setLensProjection(50.0, (double) w / (double) h, 0.05, 1000.0);
         Celine3DDiagnostics.record(activity, "V79-530", "Avatar Lab Produktionsszene gesetzt",
-                "scene=" + (call ? "CALL" : "diagnostic")
-                        + " seated=" + seated
-                        + " lensMm=" + (call ? 50 : 32)
+                "scene=CALL seated=" + seated
+                        + " lensMm=50"
                         + " rootScaleChanged=false");
         if (showSeatGuide) {
             Celine3DDiagnostics.record(activity, "V79-531", "Avatar Lab CALL-Sitzebene markiert",
