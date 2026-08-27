@@ -36,7 +36,7 @@ required_source = {
     "ROOT_DOWN = -0.30f": "bounded seated root lowering",
     "ROOT_FORWARD = 0.12f": "bounded seated root depth",
     "HIPS_PITCH = -5.0f": "bounded pelvis adjustment",
-    "UPPER_LEG_PITCH = -88.0f": "credible seated thigh angle",
+    "UPPER_LEG_PITCH = -82.0f": "relaxed seated thigh angle",
     "UPPER_LEG_INWARD_ROLL = 4.0f": "bounded relaxed seated thigh roll",
     "LOWER_LEG_PITCH = 92.0f": "credible seated knee angle",
     "FOOT_PITCH = -8.0f": "credible seated foot angle",
@@ -76,7 +76,6 @@ for lifecycle in ("install", "onPaused", "onDestroyed"):
     if f"CelineSeatedCallV70.{lifecycle}(activity" not in application:
         raise SystemExit(f"YahyaApplication missing CelineSeatedCallV70.{lifecycle} lifecycle wiring")
 
-# The quarantined deformation path must not return.
 for forbidden_joint in (
     "LeftShoulder", "RightShoulder",
     "LeftArm", "RightArm", "LeftForeArm", "RightForeArm",
@@ -85,8 +84,6 @@ for forbidden_joint in (
     if forbidden_joint in bound_joints:
         raise SystemExit(f"v70 unexpectedly owns protected joint: {forbidden_joint}")
 
-# The seated owner may never add views or reposition/resize the HOME/CALL stage, composer,
-# videochat button or any ancestor.
 for forbidden_geometry in (
     "addView(", "removeView(", "setLayoutParams(", "setTranslation",
     "requestLayout(", "scrollTo(", "setLensProjection(", "lookAt(",
@@ -97,4 +94,4 @@ for forbidden_geometry in (
                 f"v70 {owner} unexpectedly changes external UI geometry: {forbidden_geometry}"
             )
 
-print("v70 CALL-only seated lower body + behind-Filament chair preserved with v80 relaxed thigh convergence: PASS")
+print("v70 CALL-only seated lower body + behind-Filament chair preserved with v80 relaxed thigh pitch/convergence: PASS")
