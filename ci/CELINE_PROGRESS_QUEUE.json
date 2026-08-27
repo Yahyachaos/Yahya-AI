@@ -32,7 +32,7 @@
   },
   "active": {
     "id": "v79-avatar-lab-visual-realism",
-    "status": "draft_branch_live_blink_visual_step_passed_seat_contact_next",
+    "status": "draft_branch_live_handoff_seat_contact_visual_fail",
     "current_branch": "auto/celine/v79-avatar-lab-visual-realism",
     "current_pr": 107,
     "target_version": 79,
@@ -49,49 +49,55 @@
       "Android Build #550 / run 33056907239 succeeded on exact runtime head 1de8c1044bee0ffefe47c063052240b506985a11; APK artifact 9640041424 digest sha256:f98f7e3003994198c7e0b162e0679efc2de13576dd4bfd85250d83168b8383f6.",
       "Avatar Lab Proof #32 / run 33057114595 succeeded on exact runtime head 1de8c104; artifact 9640172670 digest sha256:5652cda59a6acf0cf20d6390e45ff21f0112b1548be326ec8bab94150cebe1ec; APK sha256:1060ffc6d42a3b5161fef5bb3cf216e23dd608ca0eaf2d2c3a0b3326fced2d5f.",
       "All 12 Proof #32 evidence PNGs were manually inspected. Neutral eyes are open, blink100 is clearly closed on both sides, reopen returns to neutral, and no cheek/lower-orbital/mouth-corner/hair distortion is visible. Required V61-110, V79-511, V79-512 blink100 and V79-520 logs are present.",
-      "The face-close-up/blink diagnostic step is therefore visually accepted. PR #107 remains Draft and no final/full gate has been run."
+      "The face-close-up/blink diagnostic step is visually accepted.",
+      "Proof #34 corrected arm/hand sampling and showed distinct bounded arm/hand phases; production amplitudes were preserved.",
+      "Runtime head e9f04807431d8e6aba3c01378bb18fea8893af25 adds a Lab-only production CALL scene adapter and CALL 50 mm camera preset without root/model scaling. Android Build #554 / run 33058676274 succeeded with artifact 9640841350 digest sha256:8c2b5f3ae9663394551aa2218bbc17bb248ed5f841b2d371702e5613cfb873b0.",
+      "Proof-CI-only head ad5c0cfe93e666e513b19ac98fe61b843448339b changed the seated evidence state to 05-seated-call-contact and ran Avatar Lab Proof #35 / run 33059679009 using the runtime-equivalent #554 APK. The workflow structurally succeeded and uploaded artifact 9641221024 digest sha256:28bbfccdb9f5b31f2a9743f025e69a5fa8d4a22a0e5a4fafadf9af808398f424; APK sha256:aaf06d928a7bdca786032c5c7c15d226c3c1ef124df6431cb56368a591ed962e.",
+      "Manual inspection of Proof #35 05-seated-call-contact is FAIL: the capture shows Celine against a black background with no visible production room/chair/seat plane, so real seat contact/support cannot be established. The posture therefore does not satisfy the work-order's physical support/contact acceptance criterion. Structural SUCCESS is not visual acceptance.",
+      "No new development task, branch, PR, version, final gate, merge or release was started during handoff preparation."
     ],
-    "latest_runtime_code_head": "1de8c1044bee0ffefe47c063052240b506985a11",
-    "latest_runtime_code_validation": "BUILD550_SUCCESS_PROOF32_BLINK_VISUAL_PASS_OVERALL_V79_NOT_ACCEPTED",
-    "last_built_runtime_head": "1de8c1044bee0ffefe47c063052240b506985a11",
+    "current_branch_head": "ad5c0cfe93e666e513b19ac98fe61b843448339b",
+    "latest_runtime_code_head": "e9f04807431d8e6aba3c01378bb18fea8893af25",
+    "latest_runtime_code_validation": "BUILD554_SUCCESS_PROOF35_STRUCTURAL_SUCCESS_SEAT_CONTACT_VISUAL_FAIL_OVERALL_V79_NOT_ACCEPTED",
+    "last_built_runtime_head": "e9f04807431d8e6aba3c01378bb18fea8893af25",
     "last_runtime_build": {
       "workflow": "Android Build",
-      "run_number": 550,
-      "run_id": 33056907239,
+      "run_number": 554,
+      "run_id": 33058676274,
       "conclusion": "success",
-      "head_sha": "1de8c1044bee0ffefe47c063052240b506985a11",
-      "artifact": 9640041424,
-      "artifact_digest": "sha256:f98f7e3003994198c7e0b162e0679efc2de13576dd4bfd85250d83168b8383f6",
-      "note": "Exact runtime head with visible-eyelid-only blink generator/validator compiled successfully; expensive emulator/release jobs remained skipped."
+      "head_sha": "e9f04807431d8e6aba3c01378bb18fea8893af25",
+      "artifact": 9640841350,
+      "artifact_digest": "sha256:8c2b5f3ae9663394551aa2218bbc17bb248ed5f841b2d371702e5613cfb873b0",
+      "note": "Exact runtime head for the CALL scene adapter compiled successfully; draft emulator/release jobs remained skipped."
     },
     "latest_runtime_equivalent_branch_build": {
       "workflow": "Android Build",
-      "run_number": 550,
-      "run_id": 33056907239,
+      "run_number": 554,
+      "run_id": 33058676274,
       "conclusion": "success",
-      "branch_head_sha": "1de8c1044bee0ffefe47c063052240b506985a11",
-      "runtime_code_head": "1de8c1044bee0ffefe47c063052240b506985a11",
-      "note": "This is an exact runtime-head build, not merely docs-equivalent."
+      "branch_head_sha": "ad5c0cfe93e666e513b19ac98fe61b843448339b",
+      "runtime_code_head": "e9f04807431d8e6aba3c01378bb18fea8893af25",
+      "note": "ad5c0cfe is proof-CI-only over runtime e9f04807; Proof #35 reused the successful runtime-equivalent APK."
     },
     "last_avatar_lab_proof": {
-      "run_number": 32,
-      "run_id": 33057114595,
-      "head_sha": "1de8c1044bee0ffefe47c063052240b506985a11",
-      "runtime_code_head": "1de8c1044bee0ffefe47c063052240b506985a11",
+      "run_number": 35,
+      "run_id": 33059679009,
+      "head_sha": "ad5c0cfe93e666e513b19ac98fe61b843448339b",
+      "runtime_code_head": "e9f04807431d8e6aba3c01378bb18fea8893af25",
       "workflow_conclusion": "success",
-      "artifact": 9640172670,
-      "artifact_digest": "sha256:5652cda59a6acf0cf20d6390e45ff21f0112b1548be326ec8bab94150cebe1ec",
-      "apk_sha256": "1060ffc6d42a3b5161fef5bb3cf216e23dd608ca0eaf2d2c3a0b3326fced2d5f",
-      "visual_acceptance": "PASS_FACE_CLOSEUP_BLINK_LOCALIZATION_OVERALL_V79_NOT_PASSED",
-      "required_log_evidence": "PASS_V61_110_V79_511_V79_512_BLINK100_V79_520",
-      "reason": "All 12 PNGs manually inspected. Neutral -> closed-held -> reopen is visually unambiguous; both eyes close at blink100 and reopen cleanly, with cheeks/lower orbital area/mouth corners/hair visually stable."
+      "artifact": 9641221024,
+      "artifact_digest": "sha256:28bbfccdb9f5b31f2a9743f025e69a5fa8d4a22a0e5a4fafadf9af808398f424",
+      "apk_sha256": "aaf06d928a7bdca786032c5c7c15d226c3c1ef124df6431cb56368a591ed962e",
+      "visual_acceptance": "FAIL_SEATED_CALL_CONTACT_SCENE_NOT_VISIBLE_OVERALL_V79_NOT_PASSED",
+      "required_log_evidence": "STRUCTURAL_PASS_V61_110_V79_511_V79_512_BLINK100_V79_520_V79_530_V79_531",
+      "reason": "05-seated-call-contact was manually inspected. Celine is visible, but the expected production room/chair/seat plane is not visible; the frame is effectively black behind her. Therefore physical seat support/contact cannot be truthfully judged or accepted despite workflow success."
     },
-    "current_blocker": "The next ordered v79 acceptance item is real seated CALL support/contact. Proof #24 preserved a substantially improved centered seated pose, but standalone Lab evidence has no visible chair/seat plane, so actual contact and scene support have not yet been truthfully proven.",
-    "exact_next_action": "Follow remaining_sequence item 3 only. Inspect the existing productive CALL seat/scene ownership and current Avatar Lab CALL/seated diagnostic path on runtime head 1de8c104. Make the smallest branch-local diagnostic/runtime change needed to expose the intended CALL seat plane and production CALL framing without disturbing the already-passed seated pose or blink. Use only fast relevant contract/build checks and exactly one lightweight seat-contact visual proof; do not run the final/full suite.",
+    "current_blocker": "Proof #35 demonstrates that the new Lab CALL scene adapter is not producing visible room/chair composition in the captured evidence. Until the production room and seat plane are visibly present behind the transparent Filament surface, seated CALL contact/support cannot be accepted.",
+    "exact_next_action": "Codex must resume only remaining_sequence item 3 on the existing PR #107: fresh-reconcile ad5c0cfe/e9f04807, inspect why CelineAvatarLabSceneV79 reports V79-530/V79-531 yet Proof #35 05-seated-call-contact shows no room/chair, then make the smallest bounded fix to the Lab composition/visibility path needed to render the production CALL room and chair behind Celine. Preserve the already-passed blink, seated narrowing, arm/hand amplitudes and no-root-scaling camera semantics. Run one relevant Android build only if runtime code changes, then exactly one lightweight seat-contact proof and manually inspect 05-seated-call-contact. Do not start another task or run final/release gates.",
     "remaining_sequence": [
       "1. COMPLETE — genuine face-close-up/blink diagnostic path fixed minimally with camera semantics and guarded morph behavior preserved.",
       "2. COMPLETE — Proof #32 shows visible open/closed/reopen close-ups, required logs and no unrelated face distortion.",
-      "3. ACTIVE NEXT — Preserve the Proof #24 bounded seated-pose improvement and prove actual seat contact in CALL scene evidence.",
+      "3. ACTIVE/BLOCKED — preserve the Proof #24 bounded seated-pose improvement and prove actual seat contact in CALL scene evidence; Proof #35 structurally passed but visually failed because room/chair/seat plane are not visible.",
       "4. Body: visually tune standing and seated CALL so pelvis/spine/shoulders/head and seat contact are coherent.",
       "5. Arms/hands: tune bounded living motion with deterministic before/after captures; no frozen limbs and no puppet waving.",
       "6. Camera/interaction: prove real camera dolly/orbit semantics, stable anchoring and no toy-like free avatar translation in HOME/CALL.",
@@ -100,7 +106,7 @@
       "9. Final candidate only: mark Ready for Review and run the full exact-head Android/emulator/render/lifecycle gate set once on the actual final runtime head.",
       "10. Merge only the exact validated head, run exact-main gates once, publish v79 through the hardened release path, read release back, then reconcile queue with merge SHA/run/artifact/digest/tag."
     ],
-    "remaining_gate": "PR #107 remains Draft. Blink localization is accepted at Proof #32. Next gate is the explicitly ordered real seated CALL support/contact step; no final/full suite."
+    "remaining_gate": "PR #107 remains Draft. Blink localization remains accepted from Proof #32 and bounded arm/hand motion from Proof #34. Proof #35 seat-contact evidence is a visual FAIL because the production room/chair is not visible. Next gate remains one corrected lightweight seat-contact proof only; no final/full suite."
   },
   "completed": [
     {
@@ -183,7 +189,7 @@
     "handoff_policy": "Every agent must begin with root AGENTS.md, then read this queue, the active work-order and ci/CELINE_VALIDATION_POLICY.md, then fresh-reconcile live GitHub. Before stopping or handing off, record truthful runtime/build/visual state, current blocker and one exact next action. Always distinguish the live branch head and docs/CI-only checkpoints from the last executable/runtime-code head and the SHA actually tested by each piece of evidence.",
     "current_phase": "visual_presence_and_videochat_realism",
     "current_step": "v79-avatar-lab-visual-realism",
-    "current_step_status": "draft_branch_live_blink_visual_step_passed_seat_contact_next"
+    "current_step_status": "draft_branch_live_handoff_seat_contact_visual_fail"
   },
   "latest_release": {
     "version": 78,
@@ -207,7 +213,7 @@
     "release_digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f"
   },
   "reconcile": {
-    "status": "v78_published_v79_single_flight_proof32_blink_pass_seat_contact_next",
-    "note": "Live main remains published v78 at 19406194af4190492c442d3c09608242dd4d979b. PR #107 is the only active Draft strand. Runtime head 1de8c104 is green in Android Build #550. Proof #32 succeeded on that exact runtime and all 12 PNGs were manually inspected: open/closed/reopen is correct and unrelated face regions remain stable. The next ordered item is actual seated CALL support/contact evidence; final/full gates remain intentionally deferred."
+    "status": "v78_published_v79_single_flight_handoff_proof35_seat_contact_visual_fail",
+    "note": "Live main remains published v78 at 19406194af4190492c442d3c09608242dd4d979b. PR #107 is open, Draft, mergeable and the only active Celine strand. Current branch head ad5c0cfe is proof-CI-only over runtime e9f04807. Android Build #554 succeeded for e9f04807. Avatar Lab Proof #35 / run 33059679009 completed SUCCESS structurally on ad5c0cfe using the runtime-equivalent #554 APK, but manual inspection of 05-seated-call-contact is FAIL because no production room/chair/seat plane is visible behind Celine. No workflows are still active on the current head, and no final/release work has been started. Codex should resume only the same seat-contact step."
   }
 }
