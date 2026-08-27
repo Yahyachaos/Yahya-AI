@@ -130,7 +130,7 @@ public final class CelineAvatarLabActivity extends Activity {
         panel.addView(row(
                 button("Ganzkörper", v -> camera(0f, -0.15f, 0.68f, "Kamera: Ganzkörper")),
                 button("Oberkörper", v -> camera(0f, 0.05f, 1.05f, "Kamera: Oberkörper")),
-                button("Gesicht nah", v -> camera(0f, 0.22f, 1.75f, "Kamera: Gesicht-Nahaufnahme")),
+                button("Gesicht nah", v -> camera(0f, 1.10f, 1.75f, "Kamera: Gesicht-Nahaufnahme")),
                 button("Kamera Reset", v -> resetCamera())
         ));
 

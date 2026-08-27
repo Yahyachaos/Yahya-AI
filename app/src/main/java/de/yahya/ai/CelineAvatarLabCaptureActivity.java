@@ -112,14 +112,20 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
             weights[CelineFacialMotionPlanner.BLINK_LEFT] = 0.035f;
             weights[CelineFacialMotionPlanner.BLINK_RIGHT] = 0.020f;
             CelineMorphRuntimeV62.setDiagnosticWeights(celineView, weights);
+            Celine3DDiagnostics.record(this, "V79-512", "Avatar Lab Diagnosegesicht gesetzt",
+                    "face=blink85 both=0.85");
         } else if ("blink100".equals(face)) {
             float[] weights = new float[CelineFacialMotionPlanner.TARGET_COUNT];
             weights[CelineFacialMotionPlanner.BLINK_BOTH] = 0.96f;
             weights[CelineFacialMotionPlanner.BLINK_LEFT] = 0.040f;
             weights[CelineFacialMotionPlanner.BLINK_RIGHT] = 0.025f;
             CelineMorphRuntimeV62.setDiagnosticWeights(celineView, weights);
+            Celine3DDiagnostics.record(this, "V79-512", "Avatar Lab Diagnosegesicht gesetzt",
+                    "face=blink100 both=0.96");
         } else {
             CelineMorphRuntimeV62.clearDiagnosticWeights(celineView);
+            Celine3DDiagnostics.record(this, "V79-512", "Avatar Lab Diagnosegesicht gesetzt",
+                    "face=neutral");
         }
     }
 
@@ -144,7 +150,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         float zoom;
         switch (value) {
             case "face":
-                panY = 0.22f;
+                // The normalized avatar's eyes sit roughly 1.1 world units above its origin.
+                // Dolly toward that target instead of enlarging the model root. The previous
+                // 0.22 target left the head outside the near framing and produced a blank frame.
+                panY = 1.10f;
                 zoom = 1.75f;
                 break;
             case "upper":

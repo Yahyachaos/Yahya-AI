@@ -203,13 +203,12 @@ warm_renderer_cache
 # This image is diagnostic only and is excluded from the 12 evidence count.
 capture_state stand full front neutral "00-post-warm-full"
 
-# Proof #22 isolated the old face preset as the framing blocker: full remained visible while
-# face=1.75x moved the avatar out of the compositor frame. Use the already-safe upper preset for
-# held neutral/blink comparison so the proof can reach seated/arms/walk evidence without another
-# app rebuild. A dedicated close-up preset can be retuned later from visible evidence.
-capture_state stand upper front neutral "01-face-neutral-close"
-capture_state stand upper front blink85 "02-face-blink-85-held"
-capture_state stand upper front neutral "03-face-open-after"
+# The face preset is a real camera dolly aimed at the normalized eye height; it never scales or
+# translates the avatar root. Hold the bounded maximum diagnostic blink so eyelid localization is
+# visually obvious, then reopen in the same Activity/renderer for a stable three-frame comparison.
+capture_state stand face front neutral "01-face-neutral-close"
+capture_state stand face front blink100 "02-face-blink-closed-held"
+capture_state stand face front neutral "03-face-open-after"
 
 # Full-body grounding.
 capture_state stand full front neutral "04-standing-front"
@@ -246,6 +245,11 @@ fi
 
 if ! grep -Fq "V79-511" "$OUT/logcat.txt"; then
   echo "Missing in-place Avatar Lab state-transition evidence V79-511" >&2
+  exit 1
+fi
+
+if ! grep -Fq "V79-512" "$OUT/logcat.txt" || ! grep -Fq "face=blink100 both=0.96" "$OUT/logcat.txt"; then
+  echo "Missing held diagnostic blink application evidence V79-512" >&2
   exit 1
 fi
 
