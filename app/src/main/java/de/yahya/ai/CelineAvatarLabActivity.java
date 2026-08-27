@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.lang.reflect.Field;
@@ -63,7 +64,7 @@ public final class CelineAvatarLabActivity extends Activity {
         panel.setBackgroundColor(0xD9121620);
 
         TextView title = new TextView(this);
-        title.setText("Celine Avatar Lab · v79 branch-live");
+        title.setText("Celine Avatar Lab · v80 branch-live");
         title.setTextColor(Color.WHITE);
         title.setTextSize(17f);
         panel.addView(title);
@@ -160,11 +161,23 @@ public final class CelineAvatarLabActivity extends Activity {
         hint.setPadding(0, dp(5), 0, 0);
         panel.addView(hint);
 
+        ScrollView panelScroll = new ScrollView(this);
+        panelScroll.setFillViewport(false);
+        panelScroll.setVerticalScrollBarEnabled(true);
+        panelScroll.addView(panel, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT));
+
+        // Keep a real, continuously rendered Celine visible while the user operates the Lab.
+        // The previous unbounded WRAP_CONTENT panel could cover the entire viewport and let a
+        // controls-only screenshot masquerade as Avatar Lab evidence.
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int panelHeight = Math.min(dp(360), Math.max(dp(220), Math.round(screenHeight * 0.42f)));
         FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
+                panelHeight,
                 Gravity.BOTTOM);
-        root.addView(panel, panelParams);
+        root.addView(panelScroll, panelParams);
         setContentView(root);
     }
 
