@@ -52,7 +52,7 @@ public final class Celine3DView extends FrameLayout {
     private static final float CAMERA_PAN_X_MAX = 2.50f;
     private static final float CAMERA_PAN_Y_MAX = 2.00f;
     private static final float CAMERA_ZOOM_MIN = 0.55f;
-    private static final float CAMERA_ZOOM_MAX = 2.20f;
+    private static final float CAMERA_ZOOM_MAX = 4.60f;
 
     static { Gltfio.init(); }
 
