@@ -38,7 +38,7 @@
     "branch": "auto/celine/v80-human-videochat-presence",
     "pr": 110,
     "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
-    "status": "active_block2_zoom_audit_pending",
+    "status": "active_block2_first_camera_curve_change_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
     "runtime_fingerprint": "8e70ffb1a53f5ad5d0f43c6469705373150d241b4ffbfe0b5844572440a89ef5",
     "latest_runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
@@ -106,10 +106,10 @@
     "active_block": {
       "number": 2,
       "name": "Real human-style zoom and framing",
-      "status": "not_started_audit_next"
+      "status": "in_progress"
     },
-    "current_blocker": "No block-2 implementation blocker has been identified yet. Overall v80 visual acceptance remains FAIL; the later exact user portrait dependency for block 10 remains unavailable but does not block ordered block 2.",
-    "exact_next_action": "Audit the production HOME/CALL pinch-dolly and reset implementation on the single active PR #110 against ordered block 2, identify exactly one smallest framing defect, and do not change seated pose, animation, blink, launcher/icon, release, or final temporal gates.",
+    "current_blocker": "No implementation blocker. Block 2 still requires a real production camera curve, interpolation, reset/lifecycle proof and manually inspected continuous pinch evidence.",
+    "exact_next_action": "In CelineCameraZoomV70 only, add a guarded v80 production framing curve that raises the real dolly limit and lifts the camera target from normal CALL framing toward Celine's face as zoom increases; compile once before changing interpolation or proof gates.",
     "constraints": [
       "Strict single-flight: one v80 branch and one PR only.",
       "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
@@ -151,7 +151,18 @@
         "artifact": 9656659498,
         "note": "Celine visible in HOME, CALL, user-facing Avatar Lab and HOME return; controls-only and panel-free blank evidence fail closed. This is not overall v80 acceptance."
       }
-    ]
+    ],
+    "block2_audit": {
+      "status": "completed_first_defect_identified",
+      "head_sha": "0ddaf9168b7347bec194905ec07bd42cb766f02c",
+      "findings": [
+        "Production pinch is a real cameraZoom/dolly and one-finger avatar translation is blocked.",
+        "The legacy v70 production guard clamps zoom to 1.25 and its proof requires feet to remain visible, which contradicts v80 face-close acceptance.",
+        "Production cameraPanY remains at the body/room center while zooming; the historical 2.20 crop therefore lost/clipped the face instead of following it.",
+        "The previous real-candidate-face-close image is a derived crop, not proof of production camera zoom."
+      ],
+      "bounded_first_fix": "Replace only the legacy production max/focus behavior with a guarded v80 CALL default and a zoom-dependent face/upper-torso camera target; leave interpolation and temporal gesture proof as subsequent block-2 work."
+    }
   },
   "completed": [
     {
