@@ -102,9 +102,21 @@ if [ "$EVENT_NAME" = "pull_request" ]; then
   exit 0
 fi
 
-# A push that reached this workflow is treated as production-sensitive and gets a real build.
+# A push that reached this workflow is production-sensitive and gets a real build.
+# Only an actual app/ change is release-eligible; CI/proof-only main merges must not
+# attempt to republish an existing version tag.
+CHECKED_SHA="$(git rev-parse HEAD)"
+APP_CHANGED=true
+if [ -n "$PR_BEFORE_SHA" ] && [ "$PR_BEFORE_SHA" != "0000000000000000000000000000000000000000" ] && ensure_commit "$PR_BEFORE_SHA"; then
+  CHANGED="$(git diff --name-only "$PR_BEFORE_SHA" "$CHECKED_SHA")"
+  printf '%s\n' "$CHANGED"
+  if grep -Eq '^app/' <<<"$CHANGED"; then APP_CHANGED=true; else APP_CHANGED=false; fi
+else
+  echo "Push base is unavailable; keeping release eligibility fail-safe." >&2
+fi
+
 FP="$(bash ci/celine-runtime-fingerprint.sh HEAD)"
-emit app_changed true
+emit app_changed "$APP_CHANGED"
 emit build_required true
 emit runtime_fingerprint "$FP"
 emit reusable_run_id ""
