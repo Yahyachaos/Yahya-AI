@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.View;
@@ -33,10 +34,38 @@ final class CelineRoomBackdropView extends View {
         float h = getHeight();
         if (w <= 0 || h <= 0) return;
 
+        final float horizonY = h * 0.72f;
+        final float vanishingX = w * 0.50f;
+
         paint.setShader(new LinearGradient(0, 0, 0, h * 0.72f,
                 Color.rgb(34, 37, 48), Color.rgb(21, 24, 32), Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h * 0.76f, paint);
         paint.setShader(null);
+
+        // v79 scene-integration: make the wall read as an actual room volume around Celine rather
+        // than a flat picture. Subtle side planes converge toward the same horizon/vanishing point
+        // used by the floor below; they do not move, scale or cover the Filament avatar surface.
+        path.reset();
+        path.moveTo(0f, 0f);
+        path.lineTo(w * 0.13f, 0f);
+        path.lineTo(vanishingX, horizonY);
+        path.lineTo(0f, horizonY);
+        path.close();
+        paint.setColor(Color.argb(34, 0, 0, 0));
+        canvas.drawPath(path, paint);
+
+        path.reset();
+        path.moveTo(w, 0f);
+        path.lineTo(w * 0.87f, 0f);
+        path.lineTo(vanishingX, horizonY);
+        path.lineTo(w, horizonY);
+        path.close();
+        paint.setColor(Color.argb(28, 0, 0, 0));
+        canvas.drawPath(path, paint);
+
+        paint.setColor(Color.argb(72, 188, 169, 151));
+        paint.setStrokeWidth(Math.max(1.5f, w * 0.002f));
+        canvas.drawLine(0f, horizonY, w, horizonY, paint);
 
         float wx0 = w * 0.08f, wy0 = h * 0.10f, wx1 = w * 0.37f, wy1 = h * 0.53f;
         paint.setColor(Color.rgb(14, 17, 24));
@@ -50,21 +79,38 @@ final class CelineRoomBackdropView extends View {
         canvas.drawLine((wx0 + wx1) * 0.5f, wy0, (wx0 + wx1) * 0.5f, wy1, paint);
         canvas.drawLine(wx0, (wy0 + wy1) * 0.54f, wx1, (wy0 + wy1) * 0.54f, paint);
 
-        paint.setShader(new LinearGradient(0, h * 0.72f, 0, h,
+        paint.setShader(new LinearGradient(0, horizonY, 0, h,
                 Color.rgb(40, 34, 33), Color.rgb(20, 18, 20), Shader.TileMode.CLAMP));
-        canvas.drawRect(0, h * 0.72f, w, h, paint);
+        canvas.drawRect(0, horizonY, w, h, paint);
         paint.setShader(null);
-        paint.setColor(Color.argb(48, 235, 216, 194));
-        paint.setStrokeWidth(1.5f);
-        for (int i = -3; i <= 5; i++) {
-            float topX = w * 0.5f + i * w * 0.085f;
-            float bottomX = w * 0.5f + i * w * 0.19f;
-            canvas.drawLine(topX, h * 0.72f, bottomX, h, paint);
+
+        // All floor seams share the same horizon vanishing point. This gives HOME/CALL a stable
+        // depth cue even while the existing bounded avatar motion changes Celine's pose slightly.
+        paint.setColor(Color.argb(58, 235, 216, 194));
+        paint.setStrokeWidth(Math.max(1.2f, w * 0.0018f));
+        for (int i = -5; i <= 5; i++) {
+            float bottomX = vanishingX + i * w * 0.17f;
+            canvas.drawLine(vanishingX, horizonY, bottomX, h, paint);
         }
-        for (int i = 1; i <= 4; i++) {
-            float y = h * (0.72f + i * i * 0.017f);
+        for (int i = 1; i <= 5; i++) {
+            float p = i / 5.0f;
+            float y = horizonY + (h - horizonY) * p * p;
             canvas.drawLine(0, y, w, y, paint);
         }
+
+        // A restrained pool of room light plus a soft floor contact ellipse grounds the centered
+        // person without pretending to be a physically rendered shadow. It remains behind the
+        // transparent Filament SurfaceView and therefore cannot cover or flatten Celine herself.
+        float poolCx = w * 0.50f;
+        float poolCy = h * 0.79f;
+        float poolRadius = Math.max(w, h) * 0.31f;
+        paint.setShader(new RadialGradient(poolCx, poolCy, poolRadius,
+                new int[]{Color.argb(26, 224, 196, 168), Color.argb(0, 224, 196, 168)},
+                new float[]{0f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawOval(new RectF(w * 0.16f, h * 0.70f, w * 0.84f, h * 0.99f), paint);
+        paint.setShader(null);
+        paint.setColor(Color.argb(seatedCallMode ? 54 : 44, 0, 0, 0));
+        canvas.drawOval(new RectF(w * 0.34f, h * 0.825f, w * 0.66f, h * 0.90f), paint);
 
         paint.setColor(Color.rgb(49, 46, 55));
         canvas.drawRoundRect(new RectF(w * 0.69f, h * 0.56f, w * 0.98f, h * 0.75f), 24, 24, paint);
