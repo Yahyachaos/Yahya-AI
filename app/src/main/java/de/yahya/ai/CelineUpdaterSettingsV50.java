@@ -45,18 +45,13 @@ final class CelineUpdaterSettingsV50 {
 
     private static void showSettingsHub(Activity activity) {
         long version = currentVersion(activity);
-        String message = "App & Updates\nAktuelle Version: v" + version
-                + "\n\nCeline Avatar Lab öffnet die branch-/buildgleiche Avatar-Diagnose."
-                + "\nUpdates werden nur angeboten, wenn Build und Avatar-Sichtbarkeitstest bestanden sind.";
-
         final String[] actions = {
                 "Celine Avatar Lab",
                 "Update prüfen",
                 "Weitere Einstellungen"
         };
         new AlertDialog.Builder(activity)
-                .setTitle("Yahya AI · Einstellungen")
-                .setMessage(message)
+                .setTitle("Yahya AI · Einstellungen · v" + version)
                 .setItems(actions, (dialog, which) -> {
                     if (which == 0) {
                         activity.startActivity(new Intent(activity, CelineAvatarLabActivity.class));
