@@ -253,4 +253,9 @@ if ! grep -Fq "V79-512" "$OUT/logcat.txt" || ! grep -Fq "face=blink100 both=0.96
   exit 1
 fi
 
+if ! grep -Fq "V79-520" "$OUT/logcat.txt"; then
+  echo "Missing Lab-only stale-bounds culling guard evidence V79-520" >&2
+  exit 1
+fi
+
 echo "Avatar Lab evidence passed structural/visibility guards; manual visual acceptance is still required."

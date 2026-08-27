@@ -37,6 +37,7 @@ public final class CelineAvatarLabActivity extends Activity {
 
         try {
             celineView = new Celine3DView(this, true);
+            CelineAvatarLabCameraGuardV79.disableStaleBoundsCulling(celineView);
             root.addView(celineView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));

@@ -46,6 +46,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         root.setBackgroundColor(Color.rgb(10, 12, 18));
         try {
             celineView = new Celine3DView(this, true);
+            // Meshy's pre-skinning bounds remain tiny after the production v61 root repair. A
+            // face-targeted dolly can therefore cull the actually visible skinned body. Disable
+            // culling only inside the diagnostic Lab; HOME/CALL renderer policy is untouched.
+            CelineAvatarLabCameraGuardV79.disableStaleBoundsCulling(celineView);
             root.addView(celineView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
