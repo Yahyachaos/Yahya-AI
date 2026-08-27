@@ -4,32 +4,13 @@
   "history_snapshot": {
     "through_version": 79,
     "full_queue_commit": "02b133a2f8b5f8fd793af09d7000e26834f6270e",
-    "note": "The detailed pre-compaction v79 Avatar Lab history is preserved in Git history at this docs-only branch commit. Live GitHub always wins over this snapshot."
+    "note": "Detailed pre-v80 history remains in Git history. Live GitHub always wins over this snapshot."
   },
   "baseline": {
     "version": 80,
     "main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
     "release_tag": "v80",
-    "release_status": "published_testable_but_block2_visual_acceptance_rejected_and_active_repair_required",
-    "protected": [
-      "TRUE-UNLIT/FORCE-C texture pipeline",
-      "Updater in Settings > App & Updates",
-      "HOME composer layout and HOME/CALL lifecycle",
-      "Pipeline V2 exact-head/exact-main validation and release discipline",
-      "v61 rig-scale/inverse-bind correction",
-      "v63+ guarded facial morph runtime with rollback",
-      "v68 keyboard focus preservation",
-      "v70 seated CALL foundation",
-      "v72 feminine shoulder/hip ownership safety",
-      "v73 breathing/weight-shift foundation",
-      "v74 bounded arm/hand presence foundation",
-      "canonical Celine source via Git LFS and master-reference identity",
-      "v76 guarded facial rig/gaze/expression runtime",
-      "v77 playback-PCM-driven lip sync and German voice continuity",
-      "v78 bounded multi-turn conversation intelligence",
-      "v79 Avatar Lab and production camera/scene/settings validation infrastructure",
-      "v80 Block 1 production visibility foundation"
-    ]
+    "release_status": "published_testable_while_ordered_v80_postrelease_repairs_continue"
   },
   "active": {
     "id": "v80-human-videochat-presence",
@@ -38,115 +19,68 @@
     "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
     "branch": "auto/celine/v80-human-videochat-presence",
     "pr": 111,
+    "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "active_block2_postrelease_camera_repair_built_targeted_proof_pending",
-    "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
-    "queue_checkpoint_parent_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
-    "runtime_fingerprint": "ff28d94690607f29fde5b534094c1995f156170994f81d995b3c2882b11d4f82",
-    "latest_runtime_code_head": "25446c2372cb136c0aad520074603b7ebe935e8c",
-    "latest_built_runtime_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
+    "status": "active_block3_room_world_anchoring_and_seated_contact",
+    "queue_checkpoint_parent_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+    "latest_runtime_code_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+    "latest_built_runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+    "runtime_fingerprint": "c7caaf32cbdaa204fdb34cb1cb65bb675461df08045a87a327ec2a86e0f25b46",
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 603,
-      "run_id": 33103838542,
+      "run_number": 609,
+      "run_id": 33111321533,
       "conclusion": "success",
-      "head_sha": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
-      "runtime_fingerprint": "ff28d94690607f29fde5b534094c1995f156170994f81d995b3c2882b11d4f82",
-      "apk_artifact": 9659660030,
-      "apk_artifact_digest": "sha256:de14621ddffcbb91e1349b65c3dd00e16557fd2f8b5eb96fb59b99fbaec6b58b",
-      "fingerprint_artifact": 9659660760,
-      "fingerprint_artifact_digest": "sha256:428f158303c0c907df780e64873641705c97020cb6195fe30e0b4a6393c5ede5",
+      "head_sha": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+      "runtime_fingerprint": "c7caaf32cbdaa204fdb34cb1cb65bb675461df08045a87a327ec2a86e0f25b46",
+      "apk_artifact": 9662699490,
+      "apk_artifact_digest": "sha256:171a8c4ef2b455088dd48e7da0c6c4d84f8e99b0e4de53b0e0748d4714b2fe50",
+      "apk_sha256_from_targeted_proof": "dac488d94f80645397f2c506ea7ce0d757486f722d4fcf8fb078511b39d90590",
+      "fingerprint_artifact": 9662699902,
+      "fingerprint_artifact_digest": "sha256:be1c0aac05436f7ac5d025014618b11eaa5d3c24ca55691107c7f6455887c598",
       "emulator_job": "skipped_draft_iteration",
       "publish_job": "skipped"
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 227,
-      "run_id": 33100242945,
-      "conclusion": "failure",
-      "head_sha": "c77d5649cbe6fd55710c95981ead720c42716003",
-      "artifact": 9658315591,
-      "artifact_digest": "sha256:6b70dcc7b5c05408630d03d1130c669340fd4e127145bb83321b0527fb7b6d28",
+      "run_number": 244,
+      "run_id": 33111985773,
+      "conclusion": "success",
+      "head_sha": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+      "artifact": 9663101106,
+      "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8",
       "manually_inspected": true,
-      "criterion_result": "FAIL_BLOCK2_CALL_FRAMING_HEAD_CLIPPED_OR_LOST_AND_FACE_CLOSE_TARGETS_LOWER_BODY",
-      "visual_acceptance": "FAIL_FOR_V80_BLOCK2",
+      "criterion_result": "PASS_BLOCK2_REAL_HUMAN_STYLE_ZOOM_AND_FRAMING",
+      "visual_acceptance": "PASS_FOR_V80_BLOCK2",
       "evidence": [
-        "At 1.45 CALL framing the head is clipped at the top.",
-        "At 1.75 the head is lost offscreen.",
-        "At 2.10 the framing centers hips/legs instead of producing a face close-up.",
-        "HOME, CALL and HOME return remained visibly present in the same process."
+        "CALL normal 2.80 shows a stable human-style upper-body frame with Celine's full head visible.",
+        "CALL head 3.50 shows a centered head-and-shoulders view without clipping.",
+        "CALL face 4.60 shows a genuine face close-up with the full face visible and no head loss.",
+        "The camera uses real dolly movement; model/root scale is unchanged and no snapping or avatar scaling was introduced.",
+        "HOME -> CALL -> HOME return remained in the same process (pid 2104) and HOME camera reset passed."
       ]
     },
-    "latest_nonvisual_proof_attempt": {
-      "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 230,
-      "run_id": 33102551887,
-      "head_sha": "c27346312eb4f401358a7f92ca6036eeb24390eb",
-      "conclusion": "failure_before_emulator",
-      "reason": "app/build.gradle resolved docs/celine/reference/v2/REFERENCE_MANIFEST.json relative to app/ instead of the repository root, so no new visual evidence was produced.",
-      "resolved_by_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb"
-    },
-    "latest_skipped_visual_run": {
-      "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 231,
-      "run_id": 33103838489,
-      "head_sha": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
-      "conclusion": "skipped",
-      "reason": "Expected draft-PR synchronize behavior; not visual evidence."
-    },
-    "published_release_under_repair": {
-      "version": 80,
-      "tag": "v80",
-      "target_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-      "release_id": 378022255,
-      "asset_id": 532677127,
-      "asset": "Yahya-AI-v80.apk",
-      "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
-      "status": "published_but_does_not_override_rejected_block2_visual_evidence"
-    },
-    "user_device_hard_blockers": [
-      "Pinch/zoom cannot currently approach Celine naturally enough for a human face/upper-body videochat close-up.",
-      "Arms and hands still read as fixed/frozen in the real production experience.",
-      "Celine still sits crooked/anatomically incoherently in CALL relative to body, legs and chair.",
-      "Blinking produces a visible wrong dark/deformed area above or around the eyes.",
-      "A video/avatar test can show controls while Celine is absent; such evidence must be a hard FAIL."
-    ],
-    "additional_product_tasks": [
-      "Use the exact user-provided 2026-08-27 portrait as the source for the Yahya AI adaptive launcher icon after adding an approved repository copy; do not substitute a generated lookalike.",
-      "Audit launcher entries. Yahya AI should be the sole normal launcher icon; keep Avatar Lab reachable from Settings/developer access and move Celine 3D Import/AvatarPicker behind internal/debug/Settings access if still needed rather than exposing it as a second app.",
-      "Preserve the useful import/debug functionality until dependency audit proves it can be removed safely."
-    ],
-    "acceptance_summary": [
-      "Continuous camera/dolly zoom from normal CALL framing to head-and-shoulders and real face close-up without avatar scaling, clipping or snapping.",
-      "Celine remains visibly present in HOME, CALL and production-equivalent proof/video paths; blank/offscreen/controls-only/synthetic evidence fails closed.",
-      "Stable room/root/seat anchoring with believable pelvis/torso/thigh/knee/foot/chair relationship and eased HOME/CALL transitions.",
-      "One central layered presence owner prevents pose, breathing, arm/hand, gaze/head and face/viseme systems from overwriting each other.",
-      "Visible bounded breathing, posture variation, asynchronous arm/hand life and restrained speech gestures; frozen arms fail.",
-      "Natural gaze, small eye saccades, gentle head/neck response and variable blink cadence.",
-      "Clean eyelid-only open/partial/closed/reopen behavior with no dark band or unrelated face/hair deformation.",
-      "Existing PCM-driven German lip sync remains synchronized and coexists with blink/gaze/body motion.",
-      "Lifecycle/keyboard/background/foreground/zoom/reset transitions do not lose, freeze or rescale Celine.",
-      "Final exact-head and exact-main acceptance includes manually inspected continuous production-equivalent video; still screenshots and green CI alone are insufficient."
-    ],
-    "active_block": {
-      "number": 2,
-      "name": "Real human-style zoom and framing",
-      "status": "in_progress_bounded_focus_candidate_built_visual_proof_pending"
-    },
-    "block2_current_candidate": {
-      "camera_code_head": "25446c2372cb136c0aad520074603b7ebe935e8c",
+    "block2_accepted_runtime": {
+      "runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
       "call_base_focus_y": 0.0,
-      "face_focus_y": 0.25,
-      "build_input_repair_head": "3d7b9e62f21d623bb2406b499f9f2c6f3f75e1bb",
-      "note": "This candidate interpolates between two rejected framing extremes. Zoom bounds, root/model scale, rig, pose, voice, lifecycle and interaction ownership are unchanged."
+      "face_focus_y": 0.85,
+      "call_default_zoom": 2.8,
+      "zoom_max": 4.6,
+      "proof_checkpoints": [2.8, 3.5, 4.6]
     },
-    "current_blocker": "The bounded Block-2 camera candidate now builds successfully and owns a live APK artifact, but no post-repair production CALL normal/head/face frames have yet been generated and manually inspected. Real Candidate #230 failed before emulator evidence and #231 was correctly skipped because PR #111 is draft.",
-    "exact_next_action": "Run exactly one targeted Celine Real Candidate Render Proof via workflow_dispatch on the current PR #111 exact head/runtime fingerprint, then manually inspect real-candidate-zoom-call-normal.png, real-candidate-zoom-call-head.png and real-candidate-zoom-call-face.png. Keep the PR draft; do not mark Ready merely to trigger the proof. Do not merge, release or start Block 3 unless those frames genuinely pass.",
+    "active_block": {
+      "number": 3,
+      "name": "Room/world anchoring and seated contact",
+      "status": "in_progress_audit_next"
+    },
+    "current_blocker": "Real-device CALL seating remains visibly crooked/anatomically incoherent. Root/room/seat ownership and the pelvis/torso/thigh/knee/foot/chair relationship must be audited before any Block-3 runtime change.",
+    "exact_next_action": "Audit the production seated CALL path and its competing root/pose owners (CelineSeatedCallV70, CALL upper-body/motion owners and room/root ownership) plus existing seated evidence. Identify one bounded cause of the crooked pelvis/torso/thigh/knee/foot/chair relationship, then make only the smallest Block-3 runtime correction, run one Android build, and generate targeted seated-contact evidence that actually shows the lower body and chair. Do not start Block 4 or later work in parallel.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
-      "Remain in ordered Block 2; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
-      "Workflow SUCCESS is not visual PASS; inspect actual evidence.",
-      "The exact user portrait is unavailable as a repository asset and must not be replaced with a lookalike."
+      "Block 2 is explicitly accepted from manually inspected production-equivalent normal/head/face frames on runtime head 178b8437d139954f9ff68f958acc1b495ecc6ebe.",
+      "Remain in ordered Block 3 only; do not touch arm-life, blink, launcher/icon or later temporal acceptance work yet.",
+      "Workflow SUCCESS is not visual acceptance; Block-3 seated evidence must be manually inspected.",
+      "Keep PR Draft until the work-order implementation is genuinely complete."
     ],
     "completed_blocks": [
       {
@@ -155,18 +89,35 @@
         "status": "completed_exact_runtime_artifact_manually_inspected",
         "runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
         "proof_run_id": 33096137338,
-        "artifact": 9656659498,
-        "note": "Celine visible in HOME, CALL, user-facing Avatar Lab and HOME return; controls-only and panel-free blank evidence fail closed. This is not overall v80 acceptance."
+        "artifact": 9656659498
+      },
+      {
+        "number": 2,
+        "name": "Real human-style zoom and framing",
+        "status": "completed_exact_runtime_artifact_manually_inspected",
+        "runtime_code_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
+        "build_run_id": 33111321533,
+        "proof_run_id": 33111985773,
+        "artifact": 9663101106,
+        "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8",
+        "note": "Normal 2.80, head 3.50 and face 4.60 were manually inspected and accepted; same-process HOME reset also passed."
       }
     ],
-    "block2_audit": {
-      "status": "repair_in_progress_after_rejected_release_evidence",
-      "findings": [
-        "Production pinch is a real cameraZoom/dolly and one-finger avatar translation is blocked.",
-        "The legacy v70 production guard was too restrictive for a face-close videochat view.",
-        "Previously tested vertical focus curves overshot in opposite screen-space directions.",
-        "The current bounded focus candidate must be accepted only from new production-equivalent frames."
-      ]
+    "user_device_hard_blockers_remaining": [
+      "Arms and hands still read as fixed/frozen in the real production experience.",
+      "Celine still sits crooked/anatomically incoherently in CALL relative to body, legs and chair.",
+      "Blinking produces a visible wrong dark/deformed area above or around the eyes.",
+      "A video/avatar test can show controls while Celine is absent; such evidence must remain a hard FAIL."
+    ],
+    "published_release_under_repair": {
+      "version": 80,
+      "tag": "v80",
+      "target_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
+      "release_id": 378022255,
+      "asset_id": 532677127,
+      "asset": "Yahya-AI-v80.apk",
+      "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
+      "status": "published_but_ordered_postrelease_v80_repair_still_active"
     }
   },
   "completed": [
@@ -175,20 +126,13 @@
       "status": "merged_released_testable_with_later_user_device_visual_defects_recorded_for_v80",
       "pr": 107,
       "merge_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-      "release_tag": "v79",
-      "release_target_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-      "note": "Historical release completion remains true. Later real-device evidence seeded the still-active v80 human-videochat repair."
+      "release_tag": "v79"
     },
     {
       "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
       "status": "merged_exact_main_validated_release_unchanged",
       "prs": [108, 109],
-      "merge_shas": [
-        "dfeb92667144475aec70c1ebe0a2a5d8c8525526",
-        "9f79379bd2f4757958fa3106efd884d6a01c7329"
-      ],
-      "runtime_change": false,
-      "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08"
+      "runtime_change": false
     }
   ],
   "next": [],
@@ -206,7 +150,6 @@
     "sha256": "b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
     "asset_id": 532677127,
     "release_id": 378022255,
-    "url": "https://github.com/Yahyachaos/Yahya-AI/releases/tag/v80",
-    "status": "published_testable_but_visual_block2_repair_active"
+    "status": "published_testable_while_v80_ordered_postrelease_repairs_continue"
   }
 }
