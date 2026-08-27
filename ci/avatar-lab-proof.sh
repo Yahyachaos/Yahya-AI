@@ -160,6 +160,15 @@ capture_state() {
 
   for state_attempt in 1 2; do
     launch_state "$pose" "$camera" "$orbit" "$face" keep
+
+    # The software-emulator SurfaceView compositor returns exactly one previously latched Filament
+    # buffer after an in-place intent update. Proof #38 made the offset explicit: the held blink was
+    # visible in the following reopen filename, the seated guide covered the previous standing body
+    # and profile appeared one filename late. Consume that stale buffer without treating it as
+    # evidence, then capture the newly latched requested state under its truthful filename.
+    adb exec-out screencap -p >/dev/null
+    sleep 0.45
+
     if capture "$name"; then
       return 0
     fi
