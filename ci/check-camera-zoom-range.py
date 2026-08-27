@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import struct
 import sys
 import zlib
@@ -10,7 +11,7 @@ def decode(path):
     if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
         raise SystemExit(f"{path}: not a PNG")
     pos = 8
-    width = height = bit_depth = color_type = None
+    width = height = color_type = None
     idat = bytearray()
     while pos + 8 <= len(raw):
         length = struct.unpack(">I", raw[pos:pos + 4])[0]
@@ -18,8 +19,10 @@ def decode(path):
         data = raw[pos + 8:pos + 8 + length]
         pos += 12 + length
         if kind == b"IHDR":
-            width, height, bit_depth, color_type, _, _, interlace = struct.unpack(">IIBBBBB", data)
-            if bit_depth != 8 or interlace != 0:
+            width, height, depth, color_type, _comp, _filter, interlace = struct.unpack(
+                ">IIBBBBB", data
+            )
+            if depth != 8 or interlace != 0:
                 raise SystemExit(f"{path}: unsupported PNG")
         elif kind == b"IDAT":
             idat.extend(data)
@@ -28,15 +31,16 @@ def decode(path):
     channels = {2: 3, 6: 4}.get(color_type)
     if not width or not height or not channels:
         raise SystemExit(f"{path}: missing PNG metadata")
+
     packed = zlib.decompress(bytes(idat))
     stride = width * channels
     rows = []
-    off = 0
-    prev = bytearray(stride)
+    offset = 0
+    previous = bytearray(stride)
 
     def paeth(a, b, c):
-        p = a + b - c
-        pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+        value = a + b - c
+        pa, pb, pc = abs(value - a), abs(value - b), abs(value - c)
         if pa <= pb and pa <= pc:
             return a
         if pb <= pc:
@@ -44,153 +48,110 @@ def decode(path):
         return c
 
     for _ in range(height):
-        filt = packed[off]
-        off += 1
-        scan = bytearray(packed[off:off + stride])
-        off += stride
-        recon = bytearray(stride)
-        for x in range(stride):
-            a = recon[x - channels] if x >= channels else 0
-            b = prev[x]
-            c = prev[x - channels] if x >= channels else 0
-            if filt == 0:
-                value = scan[x]
-            elif filt == 1:
-                value = (scan[x] + a) & 255
-            elif filt == 2:
-                value = (scan[x] + b) & 255
-            elif filt == 3:
-                value = (scan[x] + ((a + b) // 2)) & 255
-            elif filt == 4:
-                value = (scan[x] + paeth(a, b, c)) & 255
+        mode = packed[offset]
+        offset += 1
+        scan = bytearray(packed[offset:offset + stride])
+        offset += stride
+        reconstructed = bytearray(stride)
+        for index in range(stride):
+            left = reconstructed[index - channels] if index >= channels else 0
+            up = previous[index]
+            upper_left = previous[index - channels] if index >= channels else 0
+            if mode == 0:
+                value = scan[index]
+            elif mode == 1:
+                value = (scan[index] + left) & 255
+            elif mode == 2:
+                value = (scan[index] + up) & 255
+            elif mode == 3:
+                value = (scan[index] + ((left + up) // 2)) & 255
+            elif mode == 4:
+                value = (scan[index] + paeth(left, up, upper_left)) & 255
             else:
-                raise SystemExit(f"{path}: unsupported PNG filter {filt}")
-            recon[x] = value
-        rows.append(recon)
-        prev = recon
-    return width, height, channels, rows
+                raise SystemExit(f"{path}: unsupported PNG filter {mode}")
+            reconstructed[index] = value
+        rows.append(reconstructed)
+        previous = reconstructed
+    return raw, width, height, channels, rows
 
 
-def is_warm_detail(r, g, b):
-    spread = max(r, g, b) - min(r, g, b)
-    return r >= 65 and spread >= 18 and r - g >= 9 and r - b >= 18 and g <= int(r * 0.82)
+def is_face_skin(red, green, blue):
+    return red > 135 and 45 < green < 130 and blue < 90 and red - green > 32
 
 
-def is_skin_detail(r, g, b):
-    return r > 135 and 45 < g < 125 and b < 85 and r - g > 35
-
-
-def is_footwear_detail(r, g, b):
-    # v75 intentionally replaces the old warm lower-body palette with fitted black jeans and
-    # neutral white sneakers. Keep the legacy warm anchor, but also count bright near-neutral shoe
-    # pixels so the feet-clipping guard remains semantic instead of depending on the old outfit.
-    spread = max(r, g, b) - min(r, g, b)
-    return r >= 170 and g >= 170 and b >= 170 and spread <= 55
-
-
-def avatar_height(path):
-    width, height, channels, rows = decode(path)
-    # Same warm Celine-detail family used by the stable HOME-return gate. The crop is intentionally
-    # much taller than the room card so clipping cannot be hidden by the measurement window itself.
-    x0, x1 = int(width * 0.28), int(width * 0.68)
-    y0, y1 = int(height * 0.08), int(height * 0.76)
-    active = []
-    warm_pixels = 0
+def framing(path):
+    raw, width, height, channels, rows = decode(path)
+    x0, x1 = int(width * 0.20), int(width * 0.80)
+    y0, y1 = int(height * 0.12), int(height * 0.75)
+    skin = []
+    peak_row = 0
     for y in range(y0, y1):
         row = rows[y]
-        count = 0
+        row_count = 0
         for x in range(x0, x1):
-            i = x * channels
-            r, g, b = row[i], row[i + 1], row[i + 2]
-            if is_warm_detail(r, g, b):
-                count += 1
-        if count >= 5:
-            active.append(y)
-            warm_pixels += count
-    if len(active) < 18:
-        raise SystemExit(f"{path}: Celine warm-detail rows missing")
-    active.sort()
-    trim = max(1, len(active) // 50)
-    lo = active[trim]
-    hi = active[-trim - 1]
-    return hi - lo + 1, warm_pixels, (lo, hi), (width, height)
-
-
-def framing_anchors(path):
-    width, height, channels, rows = decode(path)
-    # Empirical anchors from the exact v70 production avatar. At the old 2.20 checkpoint the head
-    # leaves the viewport and the face crop loses almost all strict skin pixels; simultaneously the
-    # feet leave the lower central crop. v75 changed the lower-body palette to black jeans + white
-    # sneakers, so the lower anchor accepts either the legacy warm detail or bright neutral footwear.
-    # A usable close checkpoint must retain both ends relative to the fully framed default image.
-    face = (int(width * 0.45), int(width * 0.56), int(height * 0.22), int(height * 0.29))
-    lower = (int(width * 0.38), int(width * 0.62), int(height * 0.47), int(height * 0.62))
-    face_skin = 0
-    lower_presence = 0
-    for y in range(face[2], face[3]):
-        row = rows[y]
-        for x in range(face[0], face[1]):
-            i = x * channels
-            if is_skin_detail(row[i], row[i + 1], row[i + 2]):
-                face_skin += 1
-    for y in range(lower[2], lower[3]):
-        row = rows[y]
-        for x in range(lower[0], lower[1]):
-            i = x * channels
-            r, g, b = row[i], row[i + 1], row[i + 2]
-            if is_warm_detail(r, g, b) or is_footwear_detail(r, g, b):
-                lower_presence += 1
-    return face_skin, lower_presence, face, lower
+            index = x * channels
+            if is_face_skin(row[index], row[index + 1], row[index + 2]):
+                skin.append((x, y))
+                row_count += 1
+        peak_row = max(peak_row, row_count)
+    if len(skin) < 500:
+        raise SystemExit(f"{path}: production Celine face/skin presence is too weak: {len(skin)}")
+    xs = sorted(x for x, _ in skin)
+    ys = sorted(y for _, y in skin)
+    trim = max(1, len(skin) // 100)
+    left, right = xs[trim], xs[-trim - 1]
+    top, bottom = ys[trim], ys[-trim - 1]
+    center_x = sum(xs) / len(xs)
+    center_y = sum(ys) / len(ys)
+    return {
+        "path": path,
+        "size": (width, height),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "skin": len(skin),
+        "peak_row": peak_row,
+        "bounds": (left, top, right, bottom),
+        "center": (center_x, center_y),
+    }
 
 
 if len(sys.argv) != 4:
-    raise SystemExit("usage: check-camera-zoom-range.py FAR.png DEFAULT.png NEAR.png")
+    raise SystemExit("usage: check-camera-zoom-range.py CALL_NORMAL.png CALL_HEAD.png CALL_FACE.png")
 
-far_h, far_px, far_bounds, size_far = avatar_height(sys.argv[1])
-def_h, def_px, def_bounds, size_def = avatar_height(sys.argv[2])
-near_h, near_px, near_bounds, size_near = avatar_height(sys.argv[3])
-if not (size_far == size_def == size_near):
-    raise SystemExit(f"zoom image size mismatch: {size_far}, {size_def}, {size_near}")
+normal, head, face = [framing(path) for path in sys.argv[1:]]
+if not (normal["size"] == head["size"] == face["size"]):
+    raise SystemExit(f"zoom image size mismatch: {normal['size']}, {head['size']}, {face['size']}")
+if len({normal["sha256"], head["sha256"], face["sha256"]}) != 3:
+    raise SystemExit("camera framing checkpoints are stale-identical")
 
-def_face, def_lower, face_crop, lower_crop = framing_anchors(sys.argv[2])
-near_face, near_lower, _, _ = framing_anchors(sys.argv[3])
-# Exact-head v71 evidence captured a fully visible default frame with 567 strict face pixels while
-# the unchanged retry exceeded the former 1000-pixel floor. Keep 500 as the absolute presence floor;
-# the relative near/default face and lower-body ratios below remain the clipping protection.
-if def_face < 500 or def_lower < 500:
-    raise SystemExit(
-        f"default framing anchors are unexpectedly weak: face={def_face} lower={def_lower} "
-        f"faceCrop={face_crop} lowerCrop={lower_crop}"
-    )
+head_ratio = head["peak_row"] / float(normal["peak_row"])
+face_ratio = face["peak_row"] / float(head["peak_row"])
+skin_ratio = face["skin"] / float(normal["skin"])
+width, height = face["size"]
+face_left, face_top, face_right, face_bottom = face["bounds"]
+face_center_x, face_center_y = face["center"]
 
-far_ratio = def_h / float(far_h)
-near_ratio = near_h / float(def_h)
-face_ratio = near_face / float(def_face)
-lower_ratio = near_lower / float(def_lower)
 print(
-    "V70 zoom range proof: "
-    f"farHeight={far_h} defaultHeight={def_h} nearHeight={near_h} "
-    f"far->default={far_ratio:.3f} default->near={near_ratio:.3f} "
-    f"warm={far_px}/{def_px}/{near_px} bounds={far_bounds}/{def_bounds}/{near_bounds} "
-    f"face={def_face}->{near_face}({face_ratio:.3f}) lower={def_lower}->{near_lower}({lower_ratio:.3f})"
+    "V80 production CALL camera framing: "
+    f"peakRow={normal['peak_row']}->{head['peak_row']}->{face['peak_row']} "
+    f"ratios={head_ratio:.3f}/{face_ratio:.3f} skin={normal['skin']}->{head['skin']}->{face['skin']} "
+    f"skinRatio={skin_ratio:.3f} bounds={normal['bounds']}/{head['bounds']}/{face['bounds']} "
+    f"faceCenter=({face_center_x:.1f},{face_center_y:.1f}) "
+    "manualVisualAcceptanceRequired=true"
 )
 
-# The camera must actually move toward Celine. Keep margins generous for v44's small natural body
-# motion but reject the old failure where pinch changed state without a visible scale change.
-if far_ratio < 1.10:
-    raise SystemExit(f"default is not meaningfully closer than zoom 0.55: ratio={far_ratio:.3f}")
-if near_ratio < 1.10:
-    raise SystemExit(f"safe near zoom is not meaningfully closer than default: ratio={near_ratio:.3f}")
-
-# The old 2.20 image kept a large torso visible while losing the head and feet. Relative anchors
-# explicitly protect both ends of the person so a clipped close-up cannot satisfy the visual gate.
-if face_ratio < 0.50:
-    raise SystemExit(
-        f"safe near zoom clipped or lost Celine's face/head anchor: ratio={face_ratio:.3f} "
-        f"default={def_face} near={near_face}"
-    )
-if lower_ratio < 0.50:
-    raise SystemExit(
-        f"safe near zoom clipped or lost Celine's lower-body/feet anchor: ratio={lower_ratio:.3f} "
-        f"default={def_lower} near={near_lower}"
-    )
+if head_ratio < 1.08:
+    raise SystemExit(f"head-and-shoulders checkpoint is not closer than normal CALL: {head_ratio:.3f}")
+if face_ratio < 1.08:
+    raise SystemExit(f"face-close checkpoint is not materially closer: peak={face_ratio:.3f}")
+# Total skin count is not monotonic once a legitimate close-up intentionally removes hands/lower
+# body from the viewport. Keep a loss guard, but use peak face-row width for proximity.
+if skin_ratio < 0.75:
+    raise SystemExit(f"face-close lost too much person/face evidence: skin={skin_ratio:.3f}")
+if face_left <= int(width * 0.08) or face_right >= int(width * 0.92):
+    raise SystemExit(f"face-close is horizontally clipped: bounds={face['bounds']}")
+if face_top <= int(height * 0.08) or face_bottom >= int(height * 0.74):
+    raise SystemExit(f"face-close escaped the safe CALL viewport: bounds={face['bounds']}")
+if not (width * 0.30 <= face_center_x <= width * 0.70):
+    raise SystemExit(f"face-close drifted away from horizontal center: x={face_center_x:.1f}")
+if not (height * 0.18 <= face_center_y <= height * 0.62):
+    raise SystemExit(f"face-close drifted away from conversational vertical center: y={face_center_y:.1f}")

@@ -35,14 +35,14 @@
     "kind": "runtime_visual_upgrade",
     "target_version": 80,
     "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
-    "branch": null,
-    "pr": null,
-    "base_main_sha": "9f79379bd2f4757958fa3106efd884d6a01c7329",
-    "status": "active_block1_branch_not_created",
+    "branch": "auto/celine/v80-human-videochat-presence",
+    "pr": 110,
+    "base_main_sha": "f3770a2fe1d8aa44537a0f9e8c97c80013525ba2",
+    "status": "active_block2_focus_direction_built_proof_rerun_pending",
     "goal": "Turn Celine into a stable, room-anchored, naturally moving human-like videochat presence with real close zoom and temporal real-device acceptance.",
-    "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-    "latest_runtime_code_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-    "latest_built_runtime_head": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
+    "runtime_fingerprint": "32a94306f941777c1a9efca82d5afad5d6ad88a853e8012525f39664be81d58c",
+    "latest_runtime_code_head": "3eeef2bc56e60aae8f052b4c531e7796143df312",
+    "latest_built_runtime_head": "3eeef2bc56e60aae8f052b4c531e7796143df312",
     "latest_runtime_equivalent_main_build": {
       "workflow": "Android Build",
       "run_number": 589,
@@ -58,16 +58,22 @@
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 218,
-      "run_id": 33088931024,
-      "head_sha": "3640b61710c204fc43a5644cf07f429a7043aa58",
-      "runtime_fingerprint": "380612b22b8eff2cf3b9baf93e05421877c915877101703209b11431ebda9c08",
-      "artifact": 9653725257,
-      "artifact_digest": "sha256:f7aadfffbc58693b6b8c6c9b1f340ea749c8418bd9f91a0fd409c606c7926679",
+      "run_number": 224,
+      "run_id": 33098944133,
+      "conclusion": "failure",
+      "head_sha": "31a3d494d25f9b3f81c4442eb8a26a70126cda6c",
+      "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
+      "artifact": 9657784844,
+      "artifact_digest": "sha256:f423e7b44adef0e2fa3a1748336fc4ca3f9c17d0977af9fe1a16cc91a147102d",
       "manually_inspected": true,
-      "criterion_result": "PASS_CELINE_PRESENT_IN_REQUIRED_STATIC_VIEWS_AND_NOT_CONTROLS_ONLY",
-      "visual_acceptance": "FAIL_FOR_V80_HUMAN_VIDEOCHAT_ACCEPTANCE",
-      "reason": "Still frames show Celine present, but do not prove temporal life; CALL remains visually stiff and face-close is not a natural human face close-up. Real-device user blockers remain authoritative."
+      "criterion_result": "FAIL_BLOCK2_VERTICAL_FRAMING_DRIFTS_DOWN",
+      "visual_acceptance": "FAIL_FOR_V80",
+      "evidence": [
+        "The real camera scale grows at each checkpoint: peakRow 129 -> 158 -> 194.",
+        "The strict-skin top moves down 815 -> 946 -> 1054 and face center reaches y=1202, proving the focus curve uses the wrong screen-space direction.",
+        "real-candidate-call.png was manually inspected: default CALL is closer but Celine is too low and clipped at the stage bottom.",
+        "The three new checkpoint images were not included by the legacy artifact glob, so no unuploaded frame is claimed as manually accepted."
+      ]
     },
     "user_device_hard_blockers": [
       "Pinch/zoom cannot currently approach Celine naturally enough for a human face/upper-body videochat close-up.",
@@ -94,18 +100,79 @@
       "Final exact-head and exact-main acceptance includes manually inspected continuous production-equivalent video; still screenshots and green CI alone are insufficient."
     ],
     "active_block": {
-      "number": 1,
-      "name": "Production visibility and camera foundation",
-      "status": "not_started"
+      "number": 2,
+      "name": "Real human-style zoom and framing",
+      "status": "in_progress_corrected_curve_built_visual_rerun_pending"
     },
-    "current_blocker": "No implementation blocker. The v80 user-observed defects are open. The user portrait required for block 10 is not yet a repository asset, but that later dependency does not block ordered block 1.",
-    "exact_next_action": "Create one draft branch auto/celine/v80-human-videochat-presence from current live main and start only ordered block 1 by auditing the production-equivalent proof path for any route that can pass with Celine absent; do not begin zoom or other runtime fixes before that failure path is identified.",
+    "current_blocker": "The corrected focus direction compiles, but no post-correction production CALL frames have been inspected. The #224 artifact glob also omitted the three new checkpoints.",
+    "exact_next_action": "Add the new production CALL normal/head/face images to the canonical Real Candidate artifact, keep peak-row growth/centering/clipping checks while removing the invalid total-skin-growth assumption, then run exactly one corrected Real Candidate proof and manually inspect all three frames.",
     "constraints": [
       "Strict single-flight: one v80 branch and one PR only.",
       "Begin with ordered block 1; no launcher/icon, blink, seated-pose, arm-motion or final temporal work in parallel.",
       "Workflow SUCCESS is not visual PASS; inspect actual evidence.",
       "The exact user portrait is unavailable as a repository asset and must not be replaced with a lookalike."
-    ]
+    ],
+    "block1_audit_evidence": {
+      "workflow": "Celine Avatar Lab Proof",
+      "run_number": 47,
+      "run_id": 33072113409,
+      "head_sha": "d26539c8ee91747358312177d445ab5342118138",
+      "artifact": 9646420703,
+      "artifact_digest": "sha256:fa2275029aa505bfc39e6e082627288fe07f9c30b3f117b5488806564c6bf93b",
+      "manually_inspected": true,
+      "frame": "19-avatar-lab-open.png",
+      "criterion_result": "FAIL_CONTROLS_ONLY_CELINE_ABSENT",
+      "checker_result": "FAIL skin_like=0",
+      "reason": "The unbounded WRAP_CONTENT control panel covers the full Avatar Lab render viewport. Workflow success therefore did not constitute visual pass."
+    },
+    "latest_pr_build": {
+      "workflow": "Android Build",
+      "run_number": 596,
+      "run_id": 33099901127,
+      "conclusion": "success",
+      "head_sha": "3eeef2bc56e60aae8f052b4c531e7796143df312",
+      "runtime_fingerprint": "32a94306f941777c1a9efca82d5afad5d6ad88a853e8012525f39664be81d58c",
+      "apk_artifact": 9658031708,
+      "apk_artifact_digest": "sha256:b1069c0eaa7b0cb860c35a9635f6c58fa13320db29a327e83113b806def38012",
+      "emulator_job": "skipped",
+      "publish_job": "skipped"
+    },
+    "completed_blocks": [
+      {
+        "number": 1,
+        "name": "Production visibility and camera foundation",
+        "status": "completed_exact_runtime_artifact_manually_inspected",
+        "runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
+        "proof_run_id": 33096137338,
+        "artifact": 9656659498,
+        "note": "Celine visible in HOME, CALL, user-facing Avatar Lab and HOME return; controls-only and panel-free blank evidence fail closed. This is not overall v80 acceptance."
+      }
+    ],
+    "block2_audit": {
+      "status": "completed_first_defect_identified",
+      "head_sha": "0ddaf9168b7347bec194905ec07bd42cb766f02c",
+      "findings": [
+        "Production pinch is a real cameraZoom/dolly and one-finger avatar translation is blocked.",
+        "The legacy v70 production guard clamps zoom to 1.25 and its proof requires feet to remain visible, which contradicts v80 face-close acceptance.",
+        "Production cameraPanY remains at the body/room center while zooming; the historical 2.20 crop therefore lost/clipped the face instead of following it.",
+        "The previous real-candidate-face-close image is a derived crop, not proof of production camera zoom."
+      ],
+      "bounded_first_fix": "Replace only the legacy production max/focus behavior with a guarded v80 CALL default and a zoom-dependent face/upper-torso camera target; leave interpolation and temporal gesture proof as subsequent block-2 work."
+    },
+    "latest_pr_validation": {
+      "workflow": "Android Build",
+      "run_number": 595,
+      "run_id": 33098944078,
+      "conclusion": "success",
+      "head_sha": "31a3d494d25f9b3f81c4442eb8a26a70126cda6c",
+      "runtime_fingerprint": "c0f654e4e76bbcb531b7f71ffbc9ffb11c3a98756dacc9423e88bdf7e59c0009",
+      "apk_artifact": 9657634149,
+      "apk_artifact_digest": "sha256:ed833ac220499c255cf9cb90c90ae3fdf85c9e101595c5d7863a416bccc39801",
+      "emulator_artifact": 9657809148,
+      "emulator_artifact_digest": "sha256:267ba98140fd771e3afcf074a6aa179c3d726d68df2f524cba1f8b00da8e025c",
+      "emulator_job": "success",
+      "publish_job": "skipped"
+    }
   },
   "completed": [
     {

@@ -28,11 +28,19 @@ import java.util.WeakHashMap;
  * renderable AABB is therefore not trusted for close-camera frustum decisions: culling is disabled
  * only on entities belonging to Celine's FilamentAsset. Depth testing and material back-face
  * culling are untouched. Real emulator evidence showed that the legacy 2.20 zoom is visibly
- * clipped even after culling is fixed, so v70 also owns the narrower proven-safe effective range.
+ * clipped even after culling is fixed because its target stayed at body/room center. v80 keeps the
+ * real dolly, adds a bounded face-aware target curve, and raises the effective range only within
+ * the measured near-plane clearance. Model/root scale remains untouched.
  */
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
-    static final float ZOOM_MAX = 1.25f;
+    static final float ZOOM_MAX = 2.10f;
+    static final float CALL_DEFAULT_ZOOM = 1.45f;
+    // Celine's normalized production rig uses the opposite screen-space sign from the old Lab
+    // label: positive panY pushed her downward in the actual CALL viewport. Exact #224 evidence
+    // measured that drift, so the product curve uses bounded negative framing bias.
+    static final float CALL_BASE_FOCUS_Y = -0.15f;
+    static final float FACE_FOCUS_Y = -0.75f;
     static final float TARGET_DISTANCE = 5.0f;
     static final float PRODUCTION_HALF_DEPTH = 0.314f;
     static final float NEAR_PLANE = 0.05f;
@@ -140,7 +148,9 @@ final class CelineCameraZoomV70 {
         final View decor;
         final Celine3DView view;
         final Field zoomField;
+        final Field panYField;
         boolean homeZoomLocked;
+        boolean wasInCall;
         boolean cullingConfigured;
         float lastLoggedZoom = Float.NaN;
         float lastClampedRequest = Float.NaN;
@@ -151,6 +161,8 @@ final class CelineCameraZoomV70 {
             this.view = view;
             zoomField = Celine3DView.class.getDeclaredField("cameraZoom");
             zoomField.setAccessible(true);
+            panYField = Celine3DView.class.getDeclaredField("cameraPanY");
+            panYField.setAccessible(true);
             disableCelineFrustumCulling();
         }
 
@@ -167,10 +179,27 @@ final class CelineCameraZoomV70 {
                 }
             }
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
+            if (callNow && !wasInCall && Math.abs(zoom - 1.0f) < 0.05f) {
+                zoom = CALL_DEFAULT_ZOOM;
+                zoomField.setFloat(view, zoom);
+                Celine3DDiagnostics.record(activity, "V80-210",
+                        "CALL Standardkamera auf Videochat-Framing gesetzt",
+                        "zoom=" + zoom + " · real camera dolly · modelScaleUnchanged=true");
+            } else if (!callNow && wasInCall) {
+                zoom = 1.0f;
+                zoomField.setFloat(view, zoom);
+                Celine3DDiagnostics.record(activity, "V80-211",
+                        "HOME Kamera nach CALL sicher zurückgesetzt",
+                        "zoom=1.0 · focusY=0.0");
+            }
+            wasInCall = callNow;
+
+            float focusY = focusY(callNow, zoom);
+            panYField.setFloat(view, focusY);
 
             if (callNow) {
                 if (homeZoomLocked) homeZoomLocked = false;
-                logZoomIfChanged(zoom, "CALL v47 camera lock");
+                logZoomIfChanged(zoom, "CALL face-aware camera");
                 return;
             }
 
@@ -194,6 +223,8 @@ final class CelineCameraZoomV70 {
             if (!homeZoomLocked) return;
             homeZoomLocked = false;
             try { zoomField.setFloat(view, 1.0f); } catch (Throwable ignored) {}
+            try { panYField.setFloat(view, 0.0f); } catch (Throwable ignored) {}
+            wasInCall = false;
             try { CelineVideoChatV44.resumeAfterCall(activity, decor); } catch (Throwable ignored) {}
         }
 
@@ -237,6 +268,13 @@ final class CelineCameraZoomV70 {
             lastLoggedZoom = Float.NaN;
             Celine3DDiagnostics.record(activity, "V70-141", "Privater Emulator-Zoom gesetzt",
                     "zoom=" + zoom + " requested=" + requested + " bounds=" + ZOOM_MIN + ".." + ZOOM_MAX);
+        }
+
+        private float focusY(boolean callNow, float zoom) {
+            float progress = clamp((zoom - 1.0f) / (ZOOM_MAX - 1.0f), 0.0f, 1.0f);
+            float eased = progress * progress * (3.0f - 2.0f * progress);
+            float base = callNow ? CALL_BASE_FOCUS_Y : 0.0f;
+            return base + (FACE_FOCUS_Y - base) * eased;
         }
 
         private void logZoomIfChanged(float zoom, String owner) {
