@@ -10,8 +10,14 @@ import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.View;
+import android.view.ViewGroup;
 
-/** Lightweight drawn room behind the transparent Filament avatar surface. */
+/**
+ * Lightweight Canvas room fallback behind the transparent Filament avatar surface.
+ *
+ * v80 prefers CelineRoomEnvironmentV80 when it can be built. This class remains intact as the
+ * fail-closed runtime fallback and never draws in parallel with the active Filament room.
+ */
 final class CelineRoomBackdropView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
@@ -22,14 +28,33 @@ final class CelineRoomBackdropView extends View {
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     }
 
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null) {
+            CelineRoomEnvironmentV80.ensure(getContext(), threeD);
+        }
+    }
+
     void setSeatedCallMode(boolean seatedCallMode) {
         if (this.seatedCallMode == seatedCallMode) return;
         this.seatedCallMode = seatedCallMode;
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null) {
+            CelineRoomEnvironmentV80.ensure(getContext(), threeD);
+        }
         invalidate();
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null && CelineRoomEnvironmentV80.isActive(threeD)) {
+            // Mutual exclusion: the Canvas room is a fallback, never a second visible room.
+            return;
+        }
+
         float w = getWidth();
         float h = getHeight();
         if (w <= 0 || h <= 0) return;
@@ -179,5 +204,15 @@ final class CelineRoomBackdropView extends View {
         paint.setColor(Color.rgb(92, 61, 68));
         canvas.drawRoundRect(new RectF(w * 0.35f, h * 0.61f, w * 0.65f, h * 0.675f),
                 16, 16, paint);
+    }
+
+    private Celine3DView findSibling3D() {
+        if (!(getParent() instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) getParent();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof Celine3DView) return (Celine3DView) child;
+        }
+        return null;
     }
 }
