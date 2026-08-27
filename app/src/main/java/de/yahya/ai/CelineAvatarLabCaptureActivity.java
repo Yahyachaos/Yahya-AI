@@ -1,6 +1,7 @@
 package de.yahya.ai;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -17,6 +18,11 @@ import java.lang.reflect.Field;
  * only the real branch avatar and renderer: no button panel, no guessed taps, no hidden horizontal
  * controls. Every requested state comes from explicit intent extras and therefore remains
  * deterministic and cheap to repeat.
+ *
+ * CI state changes deliberately reuse this exact Activity instance through FLAG_ACTIVITY_SINGLE_TOP.
+ * Recreating the SurfaceView/Filament renderer between every screenshot made a compositor-visible
+ * warm frame disappear again before the first real evidence frame. onNewIntent therefore changes
+ * pose/camera/orbit/face in-place while preserving the renderer and its Surface/SwapChain.
  */
 public final class CelineAvatarLabCaptureActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -45,38 +51,61 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
                     FrameLayout.LayoutParams.MATCH_PARENT));
             setContentView(root);
 
-            // Reuse the renderer-owned reference camera that already produced v75 multi-view
-            // evidence. Never rotate/scale/translate the normalized avatar root for inspection:
-            // doing so can rotate the normalization translation and move Celine out of frame.
-            celineView.v75SetReferenceYaw(referenceYaw(getIntent().getStringExtra("ci_orbit")));
-
+            // Preserve the already-proven reference-camera path. The pose driver immediately below
+            // also applies the production v61 Meshy rig-scale repair before it snapshots baselines.
+            celineView.v75SetReferenceYaw(referenceYaw(value(getIntent(), "ci_orbit", "front")));
             poseDriver = new CelineAvatarLabPoseDriverV79(celineView);
             disableRendererLivePoseForDeterministicCapture();
-            poseDriver.setMode(poseMode(getIntent().getStringExtra("ci_pose")));
-            poseDriver.start();
-
-            applyCamera(getIntent().getStringExtra("ci_camera"));
-            celineView.setAvatarState(CelineAvatarController.State.LISTENING);
-            celineView.setSpeechEnergy(0f);
-            celineView.releaseLook();
-
-            // Morph runtime binds after the view/asset exists. Holding the requested diagnostic
-            // state removes timing races from blink screenshots.
-            ui.postDelayed(this::applyFace, 650L);
-            Celine3DDiagnostics.record(this, "V79-510", "Avatar Lab Capture bereit",
-                    "pose=" + value("ci_pose", "stand")
-                            + " camera=" + value("ci_camera", "full")
-                            + " orbit=" + value("ci_orbit", "front")
-                            + " face=" + value("ci_face", "neutral"));
+            applyRequestedState(getIntent(), true);
         } catch (Throwable error) {
             Celine3DDiagnostics.error(this, "V79-599", "Avatar Lab Capture Initialisierung FEHLER", error);
             finish();
         }
     }
 
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (celineView == null || poseDriver == null) return;
+        try {
+            applyRequestedState(intent, false);
+        } catch (Throwable error) {
+            Celine3DDiagnostics.error(this, "V79-598", "Avatar Lab In-Place-State FEHLER", error);
+        }
+    }
+
+    private void applyRequestedState(Intent intent, boolean initial) throws Exception {
+        String pose = value(intent, "ci_pose", "stand");
+        String camera = value(intent, "ci_camera", "full");
+        String orbit = value(intent, "ci_orbit", "front");
+        String face = value(intent, "ci_face", "neutral");
+
+        // Do not rebuild or translate the normalized model root when changing diagnostic views.
+        celineView.v75SetReferenceYaw(referenceYaw(orbit));
+        poseDriver.setMode(poseMode(pose));
+        poseDriver.start();
+        applyCamera(camera);
+        celineView.setAvatarState(CelineAvatarController.State.LISTENING);
+        celineView.setSpeechEnergy(0f);
+        celineView.releaseLook();
+
+        // Morph runtime is asynchronous on the first construction only. Later CI state changes are
+        // applied to the already-bound runtime after a short compositor settle interval.
+        ui.removeCallbacksAndMessages(null);
+        if (initial) {
+            ui.postDelayed(this::applyFace, 650L);
+        } else {
+            ui.postDelayed(this::applyFace, 120L);
+        }
+
+        Celine3DDiagnostics.record(this, initial ? "V79-510" : "V79-511",
+                initial ? "Avatar Lab Capture bereit" : "Avatar Lab Capture State in-place geändert",
+                "pose=" + pose + " camera=" + camera + " orbit=" + orbit + " face=" + face);
+    }
+
     private void applyFace() {
         if (celineView == null) return;
-        String face = value("ci_face", "neutral");
+        String face = value(getIntent(), "ci_face", "neutral");
         if ("blink85".equals(face)) {
             float[] weights = new float[CelineFacialMotionPlanner.TARGET_COUNT];
             weights[CelineFacialMotionPlanner.BLINK_BOTH] = 0.85f;
@@ -170,8 +199,8 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         } catch (Throwable ignored) {}
     }
 
-    private String value(String key, String fallback) {
-        String raw = getIntent() == null ? null : getIntent().getStringExtra(key);
+    private static String value(Intent intent, String key, String fallback) {
+        String raw = intent == null ? null : intent.getStringExtra(key);
         return raw == null || raw.trim().isEmpty() ? fallback : raw.trim();
     }
 
