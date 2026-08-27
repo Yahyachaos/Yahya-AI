@@ -33,10 +33,15 @@ def decode_png(path: Path):
     if depth != 8 or channels is None or comp or filt or interlace: raise ValueError("unsupported PNG")
     raw=zlib.decompress(bytes(idat)); stride=w*channels; prev=bytearray(stride); off=0
     colors=set(); dark=0; total=w*h
+    # These captures are deliberately panel-free and use the uniform dark Lab skybox. Require a
+    # central bright foreground in every semantic frame so a blank renderer cannot satisfy the
+    # generic color-count/hash guards with only the background gradient.
+    fx0,fx1=int(w*0.22),int(w*0.78); fy0,fy1=int(h*0.08),int(h*0.90)
+    foreground=0; foreground_samples=max(1,(fx1-fx0)*(fy1-fy0))
     def paeth(a,b,c):
         p=a+b-c; pa,pb,pc=abs(p-a),abs(p-b),abs(p-c)
         return a if pa<=pb and pa<=pc else b if pb<=pc else c
-    for _ in range(h):
+    for y in range(h):
         mode=raw[off]; scan=bytearray(raw[off+1:off+1+stride]); off += stride+1
         for i in range(stride):
             left=scan[i-channels] if i>=channels else 0; up=prev[i]; ul=prev[i-channels] if i>=channels else 0
@@ -50,8 +55,14 @@ def decode_png(path: Path):
             else: r,g,b=scan[x],scan[x+1],scan[x+2]
             if len(colors)<5000: colors.add((r,g,b))
             if r<8 and g<8 and b<8: dark += 1
+            pixel_x=x//channels
+            if fx0<=pixel_x<fx1 and fy0<=y<fy1 and max(r,g,b)>110: foreground += 1
         prev=scan
-    return {"width":w,"height":h,"colors":len(colors),"dark_ratio":dark/max(1,total),"sha256":hashlib.sha256(data).hexdigest()}
+    return {
+        "width":w,"height":h,"colors":len(colors),"dark_ratio":dark/max(1,total),
+        "foreground_ratio":foreground/foreground_samples,
+        "sha256":hashlib.sha256(data).hexdigest()
+    }
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("directory"); ap.add_argument("--report", required=True)
@@ -64,6 +75,8 @@ def main():
         if meta["width"]<320 or meta["height"]<320: errors.append(f"dimensions:{name}:{meta['width']}x{meta['height']}")
         if meta["colors"]<300: errors.append(f"low-color:{name}:{meta['colors']}")
         if meta["dark_ratio"]>0.995: errors.append(f"near-black:{name}:{meta['dark_ratio']:.5f}")
+        if meta["foreground_ratio"]<0.02:
+            errors.append(f"no-central-subject:{name}:{meta['foreground_ratio']:.5f}")
     dims={(m["width"],m["height"]) for m in info.values()}
     if len(dims)>1: errors.append("mixed-dimensions")
     for left,right in MUST_DIFFER:
