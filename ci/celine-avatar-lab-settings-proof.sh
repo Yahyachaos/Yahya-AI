@@ -62,10 +62,11 @@ grep -Fq "Weitere Einstellungen" "$OUT/18-settings-hub.xml" || fail "original Se
 read -r LAB_X LAB_Y <<< "$(center_for "$OUT/18-settings-hub.xml" "Celine Avatar Lab")"
 [[ -n "${LAB_X:-}" && -n "${LAB_Y:-}" ]] || fail "Avatar Lab Settings entry coordinates missing"
 adb shell input tap "$LAB_X" "$LAB_Y"
-wait_text "Celine Avatar Lab · v79 branch-live" "$OUT/19-avatar-lab-open.xml"
+wait_text "Celine Avatar Lab · v80 branch-live" "$OUT/19-avatar-lab-open.xml"
 sleep 1.2
 adb exec-out screencap -p > "$OUT/19-avatar-lab-open.png"
-grep -Fq "Ganzkörper" "$OUT/19-avatar-lab-open.xml" || fail "Avatar Lab controls missing"
+grep -Fq "Neutral" "$OUT/19-avatar-lab-open.xml" || fail "Avatar Lab controls missing"
+python3 ci/check-celine-person-presence.py "$OUT/19-avatar-lab-open.png" AVATAR_LAB_OPEN
 
 PID_LAB="$(adb shell pidof "$PACKAGE" | tr -d '\r ' || true)"
 [[ "$PID_LAB" = "$PID_HOME" ]] || fail "app process restarted entering Avatar Lab: home=$PID_HOME lab=$PID_LAB"
