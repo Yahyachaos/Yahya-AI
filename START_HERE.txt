@@ -1,16 +1,17 @@
-Yahya AI · Celin v1.0 Foundation
+Yahya AI – Development Entry Point
 
-1. Projektordner in AndroidIDE öffnen.
-2. Terminal öffnen.
-3. Eingeben:
+For all development, maintenance, testing, debugging and continuation work:
 
-   bash SETUP_ANDROIDIDE.sh
+READ AND FOLLOW ./AGENTS.md FIRST.
 
-4. Auf "BUILD READY" warten.
-5. Play drücken.
+AGENTS.md is the authoritative repository entry point for:
+- required reading order
+- source-of-truth rules
+- current-work discovery
+- single-flight development
+- validation strategy
+- handoff and continuation procedure
 
-Die technische App-Version wird ausschließlich in app/build.gradle über versionCode und versionName festgelegt.
-
-Für Online-KI bzw. Online-TTS muss ein OpenAI-API-Key in der App eingetragen sein.
-Ohne API-Key bleibt die lokale Android-TTS-Engine als Sprach-Fallback verfügbar.
-Eine eigene lokale neuronale Celin-Stimme ist in dieser Foundation noch nicht integriert.
+Do not begin development from this file.
+Do not infer the current task from historical README files.
+Continue through AGENTS.md.
