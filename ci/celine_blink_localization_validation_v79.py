@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that v79 changes only the three blink POSITION payloads and removes cheek-like lower-lid motion."""
+"""Validate that v79 changes only blink POSITION payloads and confines them to skin/face."""
 
 import argparse
 import hashlib
@@ -52,6 +52,22 @@ def vecs(document, binary, accessor_index):
     return list(struct.iter_unpack("<fff", accessor_bytes(document, binary, accessor_index)))
 
 
+def indices(document, binary, accessor_index):
+    accessor = document["accessors"][accessor_index]
+    if accessor.get("type") != "SCALAR" or accessor.get("componentType") not in (5121, 5123, 5125):
+        fail("skin primitive indices must be unsigned scalar values")
+    view = document["bufferViews"][accessor["bufferView"]]
+    formats = {5121: "B", 5123: "H", 5125: "I"}
+    fmt = formats[accessor["componentType"]]
+    size = struct.calcsize("<" + fmt)
+    stride = view.get("byteStride", size)
+    start = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+    return {
+        struct.unpack_from("<" + fmt, binary, start + index * stride)[0]
+        for index in range(accessor["count"])
+    }
+
+
 parser = argparse.ArgumentParser(description="Validate v79 blink localization")
 parser.add_argument("v76_glb")
 parser.add_argument("v79_glb")
@@ -69,6 +85,10 @@ primitives = mesh.get("primitives", [])
 if not primitives: fail("mesh primitives missing")
 bindings = primitives[0].get("targets", [])
 if len(bindings) != len(TARGET_NAMES): fail("target binding count changed")
+skin_material = after_doc.get("materials", [])[primitives[0].get("material", -1)]
+if skin_material.get("name") != "Material_1" or "indices" not in primitives[0]:
+    fail("deterministic v75 canonical skin/face primitive missing")
+skin_vertices = indices(after_doc, after_bin, primitives[0]["indices"])
 
 before_targets = []
 after_targets = []
@@ -84,28 +104,33 @@ for index, name in enumerate(TARGET_NAMES[3:], start=3):
         fail(name + " changed during blink-only repair")
 
 removed = {"left": 0, "right": 0}
-kept = {"left": 0, "right": 0}
+kept = {
+    "left": {"upper": 0, "lower": 0},
+    "right": {"upper": 0, "lower": 0},
+}
 for side_index, side_name in ((0, "left"), (1, "right")):
-    for old, new in zip(before_targets[side_index], after_targets[side_index]):
-        if old[1] > 1.0e-9:
+    for vertex_index, (old, new) in enumerate(zip(before_targets[side_index], after_targets[side_index])):
+        old_nonzero = math.sqrt(sum(value * value for value in old)) > 1.0e-9
+        if old_nonzero and vertex_index not in skin_vertices:
             if any(abs(value) > 1.0e-9 for value in new):
-                fail(side_name + " still contains positive-Y lower-lid/cheek blink motion")
+                fail(side_name + " still contains non-skin blink motion")
             removed[side_name] += 1
-        elif math.sqrt(sum(value * value for value in old)) > 1.0e-9:
+        elif old_nonzero:
             if new != old:
-                fail(side_name + " upper-lid blink delta changed")
-            kept[side_name] += 1
+                fail(side_name + " skin/face blink delta changed")
+            if old[1] < -1.0e-9:
+                kept[side_name]["upper"] += 1
+            elif old[1] > 1.0e-9:
+                kept[side_name]["lower"] += 1
         elif new != old:
             fail(side_name + " introduced a new blink vertex")
-    if removed[side_name] == 0 or kept[side_name] == 0:
-        fail(side_name + " repair did not both remove lower motion and preserve upper closure")
+    if removed[side_name] == 0 or min(kept[side_name].values()) == 0:
+        fail(side_name + " repair did not remove non-skin motion and preserve both eyelids")
 
 max_comp_error = 0.0
 for left, right, both in zip(after_targets[0], after_targets[1], after_targets[2]):
     error = math.sqrt(sum((both[c] - left[c] - right[c]) ** 2 for c in range(3)))
     max_comp_error = max(max_comp_error, error)
-    if both[1] > 1.0e-9:
-        fail("BlinkBoth still has positive-Y lower-lid/cheek motion")
 if max_comp_error > 2.0e-6:
     fail("BlinkBoth composition error %.9f m" % max_comp_error)
 if before_raw == after_raw:
@@ -114,11 +139,11 @@ if before_raw == after_raw:
 report = {
     "schema": 1,
     "status": "PASS",
-    "policy": "v79_blink_payload_only_no_positive_y_lower_motion",
+    "policy": "v79_blink_payload_only_canonical_skin_face",
     "v76_sha256": hashlib.sha256(before_raw).hexdigest(),
     "v79_sha256": hashlib.sha256(after_raw).hexdigest(),
-    "removed_positive_y_vertices": removed,
-    "preserved_upper_lid_vertices": kept,
+    "removed_non_skin_vertices": removed,
+    "preserved_skin_face_vertices": kept,
     "blink_bilateral_composition_max_error_m": max_comp_error,
     "non_blink_targets_byte_identical": True,
     "json_contract_identical": True,

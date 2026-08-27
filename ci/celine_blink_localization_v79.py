@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v79: localize Celine blink to upper eyelids without touching other morph channels."""
+"""v79: localize Celine blink to the canonical skin/face surface only."""
 
 import argparse
 import hashlib
@@ -47,6 +47,22 @@ def accessor_layout(document, accessor_index, binary_start):
     return start, stride, accessor["count"]
 
 
+def read_indices(raw, document, accessor_index, binary_start):
+    accessor = document["accessors"][accessor_index]
+    if accessor.get("type") != "SCALAR" or accessor.get("componentType") not in (5121, 5123, 5125):
+        raise SystemExit("Skin primitive indices must be unsigned scalar values")
+    view = document["bufferViews"][accessor["bufferView"]]
+    formats = {5121: "B", 5123: "H", 5125: "I"}
+    fmt = formats[accessor["componentType"]]
+    size = struct.calcsize("<" + fmt)
+    stride = view.get("byteStride", size)
+    start = binary_start + view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+    return {
+        struct.unpack_from("<" + fmt, raw, start + index * stride)[0]
+        for index in range(accessor["count"])
+    }
+
+
 def read_vec3(raw, start, stride, index):
     return struct.unpack_from("<fff", raw, start + index * stride)
 
@@ -74,6 +90,11 @@ if mesh is None or mesh.get("extras", {}).get("targetNames") != TARGET_NAMES:
 primitives = mesh.get("primitives", [])
 if not primitives or len(primitives[0].get("targets", [])) != len(TARGET_NAMES):
     raise SystemExit("Morph bindings missing")
+skin_primitive = primitives[0]
+skin_material = document.get("materials", [])[skin_primitive.get("material", -1)]
+if skin_material.get("name") != "Material_1" or "indices" not in skin_primitive:
+    raise SystemExit("Deterministic v75 canonical skin/face primitive missing")
+skin_vertices = read_indices(raw, document, skin_primitive["indices"], binary_start)
 
 bindings = primitives[0]["targets"]
 layouts = []
@@ -91,25 +112,32 @@ if right_count != count or both_count != count:
 
 removed_left = 0
 removed_right = 0
-kept_left = 0
-kept_right = 0
+kept_left_upper = 0
+kept_right_upper = 0
+kept_left_lower = 0
+kept_right_lower = 0
 for i in range(count):
     left = read_vec3(raw, left_start, left_stride, i)
     right = read_vec3(raw, right_start, right_stride, i)
 
-    # v76 lower-lid vertices move upward (positive Y). The generated lower-lid box overlaps
-    # the defined cheek band, producing the user-visible "cheek blink". v79 deliberately
-    # removes the lower-lid contribution and keeps the upper-lid downward closure untouched.
-    if left[1] > 1.0e-9:
+    # v76 selected a broad head-weighted box. On the final material-split mesh most of that
+    # box belongs to hair islands, while the actual textured eyelids belong to primitive 0's
+    # canonical skin/face atlas. Keep the original balanced upper/lower closure only on that
+    # face surface and remove every non-skin contribution.
+    if i not in skin_vertices and max(abs(v) for v in left) > 1.0e-9:
         left = (0.0, 0.0, 0.0)
         removed_left += 1
-    elif max(abs(v) for v in left) > 1.0e-9:
-        kept_left += 1
-    if right[1] > 1.0e-9:
+    elif left[1] < -1.0e-9:
+        kept_left_upper += 1
+    elif left[1] > 1.0e-9:
+        kept_left_lower += 1
+    if i not in skin_vertices and max(abs(v) for v in right) > 1.0e-9:
         right = (0.0, 0.0, 0.0)
         removed_right += 1
-    elif max(abs(v) for v in right) > 1.0e-9:
-        kept_right += 1
+    elif right[1] < -1.0e-9:
+        kept_right_upper += 1
+    elif right[1] > 1.0e-9:
+        kept_right_lower += 1
 
     write_vec3(raw, left_start, left_stride, i, left)
     write_vec3(raw, right_start, right_stride, i, right)
@@ -117,9 +145,9 @@ for i in range(count):
                (left[0] + right[0], left[1] + right[1], left[2] + right[2]))
 
 if removed_left == 0 or removed_right == 0:
-    raise SystemExit("No lower-lid contribution found to remove")
-if kept_left == 0 or kept_right == 0:
-    raise SystemExit("Repair would remove the entire blink")
+    raise SystemExit("No non-skin blink contribution found to remove")
+if min(kept_left_upper, kept_right_upper, kept_left_lower, kept_right_lower) == 0:
+    raise SystemExit("Repair must retain upper and lower eyelid closure on both sides")
 
 output_sha = hashlib.sha256(raw).hexdigest()
 os.makedirs(os.path.dirname(os.path.abspath(args.output_glb)), exist_ok=True)
@@ -127,13 +155,16 @@ open(args.output_glb, "wb").write(raw)
 report = {
     "schema": 1,
     "status": "PASS",
-    "policy": "v79_upper_eyelid_only_blink_localization",
+    "policy": "v79_canonical_skin_face_blink_localization",
     "input_sha256": input_sha,
     "output_sha256": output_sha,
-    "removed_positive_y_vertices": {"left": removed_left, "right": removed_right},
-    "kept_upper_lid_vertices": {"left": kept_left, "right": kept_right},
+    "removed_non_skin_vertices": {"left": removed_left, "right": removed_right},
+    "kept_skin_face_vertices": {
+        "left": {"upper": kept_left_upper, "lower": kept_left_lower},
+        "right": {"upper": kept_right_upper, "lower": kept_right_lower},
+    },
     "preserved": ["neutral geometry", "rig", "materials", "textures", "all non-blink morph targets"],
-    "reason": "v76 lower-eyelid selection overlapped the cheek band; v79 removes upward lower-lid motion and recomposes BlinkBoth",
+    "reason": "v76 head-space eyelid boxes selected mostly hair-material vertices; v79 keeps balanced closure only on the canonical skin/face primitive and recomposes BlinkBoth",
 }
 os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
 open(args.report, "w", encoding="utf-8").write(json.dumps(report, indent=2) + "\n")
