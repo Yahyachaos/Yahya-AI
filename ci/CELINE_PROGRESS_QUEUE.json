@@ -32,7 +32,7 @@
   },
   "active": {
     "id": "v79-avatar-lab-visual-realism",
-    "status": "draft_branch_live_camera_semantics_active",
+    "status": "draft_branch_handoff_camera_semantics_not_started",
     "current_branch": "auto/celine/v79-avatar-lab-visual-realism",
     "current_pr": 107,
     "target_version": 79,
@@ -60,9 +60,10 @@
       "CI-only head cfbae802a725dbc0230f7a51cc1483e498545afe consumes one untrusted stale compositor screencap after each in-place state update before saving the named evidence frame. Android Build #559 / run 33062832683 completed scope-only with build/emulator/release correctly skipped because runtime was unchanged.",
       "Avatar Lab Proof #39 / run 33062893185 succeeded on cfbae802 using the exact runtime-equivalent Build #558 APK; artifact 9642574836 digest sha256:0fb7b28ac483aa7aedc565067958b76ee4c853641d2a4223011d000ad7e0ff36; APK sha256:269bbd998c837c4863cf40b8239da0383678c01063ded1ee57cd91c85bfe7115.",
       "All 12 Proof #39 PNGs were manually inspected. Open -> held closed -> reopen blink is correctly localized; 05 contains the actually seated narrowed CALL pose aligned to the exact production cushion plane, with centered untwisted torso, coherent pelvis/thigh support and plausible symmetric knees/feet. Arms A/B, walk A/B, profile, 3/4 and front return are distinct and visible. Required V61-110, V79-511, V79-512, V79-530 and V79-531 logs are present.",
-      "The seated CALL pose/contact block is visually accepted. Standing/body coherence and bounded arms/hands remain accepted; the next single active block is production camera/interaction semantics."
+      "The seated CALL pose/contact block is visually accepted. Standing/body coherence and bounded arms/hands remain accepted; the next single active block is production camera/interaction semantics.",
+      "Single-flight stop checkpoint: no production camera/runtime/scene/settings change was begun after Proof #39 acceptance, and no further workflow was manually triggered. Android Build #560 / run 33063447939 completed scope-only on queue checkpoint 43c7f877; Real Candidate #195 / run 33063448032 was skipped."
     ],
-    "current_branch_head": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+    "current_branch_head": "43c7f8770da40f457e7da2d03677304761073d0e",
     "latest_runtime_code_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
     "latest_runtime_code_validation": "BUILD558_SUCCESS_PROOF39_STRUCTURAL_AND_VISUAL_SEAT_CONTACT_PASS_OVERALL_V79_NOT_ACCEPTED",
     "last_built_runtime_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
@@ -78,12 +79,12 @@
     },
     "latest_runtime_equivalent_branch_build": {
       "workflow": "Android Build",
-      "run_number": 559,
-      "run_id": 33062832683,
+      "run_number": 560,
+      "run_id": 33063447939,
       "conclusion": "success",
-      "branch_head_sha": "cfbae802a725dbc0230f7a51cc1483e498545afe",
+      "branch_head_sha": "43c7f8770da40f457e7da2d03677304761073d0e",
       "runtime_code_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
-      "note": "cfbae802 is proof-CI-only over runtime a9bb0a3a; Build #559 scope-check passed and Proof #39 reused the successful #558 APK."
+      "note": "43c7f877 is queue-only over proof-CI head cfbae802 and runtime a9bb0a3a; Build #560 scope-check passed with build/emulator/release skipped. Proof #39 reused the successful #558 APK."
     },
     "last_avatar_lab_proof": {
       "run_number": 39,
@@ -98,8 +99,8 @@
       "required_log_evidence": "STRUCTURAL_PASS_V61_110_V79_511_V79_512_BLINK100_V79_520_V79_530_V79_531",
       "reason": "All 12 PNGs were manually inspected after consuming the stale compositor buffer. The face sequence is open/closed/reopen, 05 shows the actual narrowed seated body aligned to the production cushion-plane guide with coherent support and no twist, and all remaining named states are truthful and visible."
     },
-    "current_blocker": "The seat-contact block is accepted. The next unproven v79 requirement is production HOME/CALL camera and gesture semantics: dolly/orbit must move the camera coherently around an anchored subject, while one-finger toy-like avatar translation remains blocked.",
-    "exact_next_action": "Continue only remaining_sequence item 6 on PR #107. Fresh-inspect the existing production camera owners and CelineProductInteractionLockV79 plus the Avatar Lab camera controls/contracts. Prove or minimally correct genuine camera dolly/orbit semantics without model/root scaling or free avatar translation in HOME/CALL. Use the smallest targeted contract/build/visual evidence; do not start scene/settings work or final gates until this block is accepted.",
+    "current_blocker": "No camera implementation is in flight. The next unproven v79 requirement is production HOME/CALL camera and gesture semantics: dolly/orbit must move the camera coherently around an anchored subject, while one-finger toy-like avatar translation remains blocked.",
+    "exact_next_action": "Fresh-start from root AGENTS.md and reconcile PR #107. Resume only remaining_sequence item 6 on the same branch: prove or minimally correct genuine camera dolly/orbit around a fixed target while keeping HOME/CALL free avatar translation blocked, using only the smallest targeted draft checks; do not start scene/settings work or final gates.",
     "remaining_sequence": [
       "1. COMPLETE — genuine face-close-up/blink diagnostic path fixed minimally with camera semantics and guarded morph behavior preserved.",
       "2. COMPLETE — Proof #32 shows visible open/closed/reopen close-ups, required logs and no unrelated face distortion.",
@@ -195,7 +196,7 @@
     "handoff_policy": "Every agent must begin with root AGENTS.md, then read this queue, the active work-order and ci/CELINE_VALIDATION_POLICY.md, then fresh-reconcile live GitHub. Before stopping or handing off, record truthful runtime/build/visual state, current blocker and one exact next action. Always distinguish the live branch head and docs/CI-only checkpoints from the last executable/runtime-code head and the SHA actually tested by each piece of evidence.",
     "current_phase": "visual_presence_and_videochat_realism",
     "current_step": "v79-avatar-lab-visual-realism",
-    "current_step_status": "draft_branch_live_camera_semantics_active"
+    "current_step_status": "draft_branch_handoff_camera_semantics_not_started"
   },
   "latest_release": {
     "version": 78,
@@ -219,7 +220,7 @@
     "release_digest": "sha256:be1137debd49d50badac4ae80ea4fe3984f138d0dc9d929053459c4e11189c1f"
   },
   "reconcile": {
-    "status": "v78_published_v79_single_flight_proof39_seated_contact_accepted_camera_active",
-    "note": "Live main remains published v78 at 19406194af4190492c442d3c09608242dd4d979b. PR #107 is open, Draft, mergeable and the only active Celine strand. Branch head cfbae802 is proof-CI-only over runtime a9bb0a3a. Android Build #558 succeeded for a9bb0a3a; Build #559 scope-only succeeded for cfbae802. Avatar Lab Proof #39 / run 33062893185 completed SUCCESS and all 12 images were manually accepted for the blink/seated/body/arms/walk/orientation block. No workflows are active and no final/release work has started. Continue only the camera/interaction block."
+    "status": "v78_published_v79_single_flight_handoff_proof39_accepted_camera_not_started",
+    "note": "Live main remains published v78 at 19406194af4190492c442d3c09608242dd4d979b. PR #107 is open, Draft, mergeable and the only active Celine strand. Branch head 43c7f877 is queue-only over proof-CI head cfbae802 and runtime a9bb0a3a. Android Build #558 succeeded for exact runtime a9bb0a3a; Build #560 completed scope-only for 43c7f877. Avatar Lab Proof #39 / run 33062893185 completed SUCCESS and all 12 images were manually accepted for the blink/seated/body/arms/walk/orientation block. Real Candidate #195 was skipped; no workflows are active; no camera/scene/settings change is in flight; no final/release work has started."
   }
 }
