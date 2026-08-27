@@ -44,6 +44,14 @@ public final class CelineAvatarLabActivity extends Activity {
                     FrameLayout.LayoutParams.MATCH_PARENT));
             try {
                 poseDriver = new CelineAvatarLabPoseDriverV79(celineView);
+                // Enter the user-facing Lab in the same known-visible, full-body stage used by
+                // the successful panel-free capture path. General renderer defaults are not a
+                // sufficient Lab contract: the Settings route must open with Celine on screen.
+                poseDriver.setMode(CelineAvatarLabPoseDriverV79.Mode.STAND);
+                celineView.v75SetReferenceYaw(0f);
+                celineView.v79SetDiagnosticCameraOrbit(0f);
+                setFloat("cameraPanY", -0.15f);
+                setFloat("cameraZoom", 0.68f);
             } catch (Throwable poseError) {
                 Celine3DDiagnostics.error(this, "V79-198", "Avatar Lab Pose-Driver nicht verfügbar", poseError);
             }
