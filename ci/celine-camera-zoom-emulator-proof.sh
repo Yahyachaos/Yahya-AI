@@ -72,6 +72,11 @@ wait_text "Live mit Celin" /sdcard/celine-v80-zoom-call.xml real-candidate-zoom-
 sleep 4
 grep -Fq 'V80-210' <(adb logcat -d) || fail "v80 default CALL framing did not activate"
 
+# Block 3 diagnostic only: temporarily pull the real camera back to 1.0 while CALL seating remains
+# active. This deliberately exposes pelvis, thighs, knees, feet and the behind-Filament chair so
+# seated-contact quality can be manually judged before changing any production pose constants.
+capture_zoom "1.0" real-candidate-seated-call.png
+
 # These are real camera/dolly checkpoints, not avatar/root scaling. The previous 1.45/1.75/2.10
 # sequence was manually rejected because it still showed full-body/torso framing. Keep the corrected
 # vertical focus curve and exercise a wider bounded range for normal video-call, head/shoulders and
@@ -103,7 +108,7 @@ adb logcat -d > real-candidate-zoom-logcat.txt
 for marker in V70-150 V80-210 V80-211; do
   grep -q "$marker" real-candidate-zoom-logcat.txt || fail "camera marker missing: $marker"
 done
-for checkpoint in 'requested=2.8 zoom=2.8' 'requested=3.5 zoom=3.5' 'requested=4.6 zoom=4.6' 'requested=9.0 zoom=4.6'; do
+for checkpoint in 'requested=1.0 zoom=1.0' 'requested=2.8 zoom=2.8' 'requested=3.5 zoom=3.5' 'requested=4.6 zoom=4.6' 'requested=9.0 zoom=4.6'; do
   requested="${checkpoint%% *}"
   zoom="${checkpoint##* }"
   grep -F 'V70-141' real-candidate-zoom-logcat.txt | grep -F "$requested" | grep -Fq "$zoom" \
@@ -113,4 +118,4 @@ if grep -Eq 'V70-148|V70-149|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-zoo
   fail "runtime error detected during v80 CALL camera proof"
 fi
 
-printf 'PASS v80 production CALL camera checkpoints: normal 2.80 -> head 3.50 -> face 4.60 -> HOME reset, same pid=%s; manual visual acceptance still required\n' "$PID_HOME"
+printf 'PASS v80 production CALL camera checkpoints: seated diagnostic 1.00 -> normal 2.80 -> head 3.50 -> face 4.60 -> HOME reset, same pid=%s; manual visual acceptance still required\n' "$PID_HOME"
