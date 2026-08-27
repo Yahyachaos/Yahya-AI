@@ -39,9 +39,6 @@ launch_state() {
   local face="$4"
   local process_mode="${5:-keep}"
 
-  # Cold Filament warm-up may require a complete process restart. Once one visible frame exists,
-  # preserve both process AND Activity/SurfaceView. The capture Activity handles later SINGLE_TOP
-  # intents in-place through onNewIntent instead of recreating Filament/Surface/SwapChain state.
   if [ "$process_mode" = "restart" ]; then
     adb shell am force-stop de.yahya.ai
   fi
@@ -161,8 +158,6 @@ capture_state() {
   local name="$5"
   local state_attempt
 
-  # State updates now remain inside one Activity instance. A failed frame gets one bounded repeat of
-  # the same in-place state update; it never destroys the already-visible renderer as a retry tactic.
   for state_attempt in 1 2; do
     launch_state "$pose" "$camera" "$orbit" "$face" keep
     if capture "$name"; then
@@ -180,8 +175,6 @@ warm_renderer_cache() {
   local warmup
   local colors=0
 
-  # Cold software Filament may need a process restart. Restart only here. Once visible, keep the
-  # successful Activity alive for every evidence state.
   for warmup in 1 2 3 4; do
     launch_state stand full front neutral restart
     adb exec-out screencap -p > "$target"
@@ -198,40 +191,29 @@ warm_renderer_cache() {
 }
 
 warm_renderer_cache
-
-# Diagnostic discriminator: update the already-visible Activity to the SAME safe full-body state.
-# This image is diagnostic only and is excluded from the 12 evidence count.
 capture_state stand full front neutral "00-post-warm-full"
 
-# The face preset is a real camera dolly aimed at the normalized eye height; it never scales or
-# translates the avatar root. Hold the bounded maximum diagnostic blink so eyelid localization is
-# visually obvious, then reopen in the same Activity/renderer for a stable three-frame comparison.
 capture_state stand face front neutral "01-face-neutral-close"
 capture_state stand face front blink100 "02-face-blink-closed-held"
 capture_state stand face front neutral "03-face-open-after"
 
-# Full-body grounding.
 capture_state stand full front neutral "04-standing-front"
-capture_state seated full front neutral "05-seated-front"
+# Seat-contact evidence deliberately switches to the real production room/chair and CALL 50 mm
+# framing. Celine remains fixed at the production-normalized scale; only camera projection changes.
+capture_state seated call front neutral "05-seated-call-contact"
 
-# Two frames from one continuous arm/hand mode prove visible motion instead of a frozen pose.
-# The Lab ARMS wave period is ~1.43 s, so sample near a quarter/third phase instead of the old
-# 1.45 s delay that accidentally landed almost exactly one full period later.
 capture_state arms full front neutral "06-arms-hands-a"
 sleep 0.52
 capture "07-arms-hands-b"
 
-# Two frames from one continuous walk mode.
 capture_state walk full front neutral "08-walk-a"
 sleep 0.72
 capture "09-walk-b"
 
-# Deterministic branch-avatar orientation checks.
 capture_state stand full profile_left neutral "10-profile-left"
 capture_state stand full three_right neutral "11-three-quarter-right"
 capture_state stand full front neutral "12-front-return"
 
-# Persist diagnostics before assertions so a failing assertion still has inspectable evidence.
 timeout 15s adb logcat -d -v threadtime > "$OUT/logcat.txt" 2>&1 || true
 
 evidence_count="$(find "$OUT" -maxdepth 1 -type f -name '[0-9][0-9]-*.png' ! -name '00-*.png' | wc -l | tr -d ' ')"
@@ -257,6 +239,17 @@ fi
 
 if ! grep -Fq "V79-520" "$OUT/logcat.txt"; then
   echo "Missing Lab-only stale-bounds culling guard evidence V79-520" >&2
+  exit 1
+fi
+
+if ! grep -Fq "V79-530" "$OUT/logcat.txt" \
+    || ! grep -Fq "scene=CALL seated=true lensMm=50 rootScaleChanged=false" "$OUT/logcat.txt"; then
+  echo "Missing production CALL scene/framing evidence V79-530" >&2
+  exit 1
+fi
+
+if ! grep -Fq "V79-531" "$OUT/logcat.txt"; then
+  echo "Missing transparent production-room composition evidence V79-531" >&2
   exit 1
 fi
 
