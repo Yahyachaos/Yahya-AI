@@ -28,6 +28,7 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private Celine3DView celineView;
     private CelineAvatarLabPoseDriverV79 poseDriver;
+    private CelineAvatarLabSceneV79 sceneDriver;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,6 +54,11 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
             root.addView(celineView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT));
+
+            // The scene adapter installs the production room behind the transparent Filament
+            // surface, but keeps it hidden for ordinary Lab captures. Only the explicit `call`
+            // preset reveals the exact production chair/backdrop and applies the 50 mm CALL lens.
+            sceneDriver = CelineAvatarLabSceneV79.install(this, root, celineView);
             setContentView(root);
 
             // Preserve the already-proven reference-camera path. The pose driver immediately below
@@ -89,6 +95,7 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         poseDriver.setMode(poseMode(pose));
         poseDriver.start();
         applyCamera(camera);
+        if (sceneDriver != null) sceneDriver.apply(pose, camera);
         celineView.setAvatarState(CelineAvatarController.State.LISTENING);
         celineView.setSpeechEnergy(0f);
         celineView.releaseLook();
@@ -153,6 +160,13 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         float panY;
         float zoom;
         switch (value) {
+            case "call":
+                // Mirror production CALL semantics: Celine3DView stays at its normal centered
+                // camera position while the scene adapter applies CelineVideoCallV45's 50 mm lens.
+                // No model/root scaling or free avatar translation is used.
+                panY = 0f;
+                zoom = 1.0f;
+                break;
             case "face":
                 // The normalized avatar's eyes sit roughly 1.1 world units above its origin.
                 // Dolly toward that target instead of enlarging the model root. The previous
