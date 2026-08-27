@@ -47,19 +47,29 @@ jobs:
               esac
             done < <(git diff --name-only "$candidate_sha" "$PR_HEAD")
             [ -z "$forbidden" ] || continue
+
+            # A scope-only Android Build workflow can conclude SUCCESS while its real build job is
+            # intentionally skipped and therefore has no APK. Only select runs that actually own a
+            # live yahya-ai-debug artifact; otherwise continue to the next runtime-equivalent run.
+            artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run}/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "yahya-ai-debug" and .expired == false)][0].id // empty')"
+            if [ -z "$artifact_id" ]; then
+              echo "Skipping Android Build run $candidate_run at $candidate_sha: no reusable yahya-ai-debug artifact."
+              continue
+            fi
+
             RUN_ID="$candidate_run"
             SOURCE_SHA="$candidate_sha"
             break
           done < <(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/android-build.yml/runs?event=pull_request&status=success&per_page=50" --jq '.workflow_runs[] | "\(.id) \(.head_sha)"')
 
           if [ -z "$RUN_ID" ] || [ -z "$SOURCE_SHA" ]; then
-            echo "No successful runtime-equivalent Android Build found for PR head $PR_HEAD"
+            echo "No successful runtime-equivalent Android Build with reusable APK found for PR head $PR_HEAD"
             exit 1
           fi
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           {
-            echo "Using Android Build run $RUN_ID from runtime-equivalent ancestor $SOURCE_SHA."
+            echo "Using Android Build run $RUN_ID from runtime-equivalent ancestor $SOURCE_SHA with a reusable yahya-ai-debug artifact."
             echo "Current proof head is $PR_HEAD; only queue/docs/proof-CI files differ."
           } >> "$GITHUB_STEP_SUMMARY"
 
