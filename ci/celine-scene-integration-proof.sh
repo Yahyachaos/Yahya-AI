@@ -67,10 +67,9 @@ python3 ci/check-celine-person-presence.py "$OUT/16-call-scene.png" CALL
 grep -q 'Live mit Celin' "$OUT/16-call-scene.xml" || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' "$OUT/16-call-scene.xml" || fail "CALL 3D stage missing"
 
-# Block 7 is already technically and manually accepted on this exact runtime lineage. Do not spend
-# another ~27 seconds replaying its held diagnostic open/partial/closed/reopen sequence inside the
-# Block-8 gate. Block 8 still protects eyelid correctness with the natural planner blink burst below,
-# while the guarded v76 final-geometry morph runtime remains the sole face writer.
+# Block 7 is already technically and manually accepted on this exact runtime lineage. Block 8
+# protects that result by recording a real natural planner blink while PCM-driven speech remains
+# active; no held diagnostic blink override is used here.
 
 # Block 8: the debug-only capture bridge feeds deterministic 20 ms PCM fixtures through the exact
 # SpeechLipSyncV77 stabilizer and SpeechAudioBus, while CelineProductionPresenceV80 remains the
@@ -104,18 +103,22 @@ block8_capture block8_pcm_start 22-block8-speech-start
 block8_capture block8_pcm_round 23-block8-speech-round
 block8_capture block8_pcm_wide 24-block8-speech-wide
 block8_capture block8_pcm_labial 25-block8-speech-labial
-block8_capture block8_pcm_round 26-block8-speech-sustain
 
-# The planner's first natural blink is deterministically scheduled ~3313 ms after its reset. The
-# sustained ROUND fixture above leaves the same SPEAKING state active; a short burst straddles that
-# blink without injecting a diagnostic blink override. Manual review must identify a real eyelid
-# close/reopen while the mouth remains in speech.
-sleep 1.90
-for suffix in a b c d e; do
-  adb exec-out screencap -p > "$OUT/27-block8-speech-natural-blink-$suffix.png"
-  [[ -s "$OUT/27-block8-speech-natural-blink-$suffix.png" ]] || fail "missing natural speech-blink burst $suffix"
-  sleep 0.045
-done
+# Start sustained ROUND speech without doing the software-emulator's slow double-screencap first.
+# The planner was just reset by this state and schedules its first natural blink at ~3313 ms. A
+# four-second real screen recording begins ~0.7 s after that reset, so the complete close/hold/reopen
+# necessarily falls inside the temporal evidence instead of relying on a lucky still-frame sample.
+block8_launch block8_pcm_round
+adb shell rm -f /sdcard/block8-speech-sustain-natural-blink.mp4 || true
+adb shell screenrecord --time-limit 4 --bit-rate 4000000 \
+  /sdcard/block8-speech-sustain-natural-blink.mp4 >/dev/null 2>&1 \
+  || fail "Block-8 natural speech-blink screenrecord failed"
+adb pull /sdcard/block8-speech-sustain-natural-blink.mp4 \
+  "$OUT/26-block8-speech-sustain-natural-blink.mp4" >/dev/null \
+  || fail "Block-8 natural speech-blink video pull failed"
+[[ -s "$OUT/26-block8-speech-sustain-natural-blink.mp4" ]] \
+  || fail "Block-8 natural speech-blink video is empty"
+echo "Block-8 temporal video captured: sustained PCM ROUND speech with natural planner blink"
 
 block8_capture block8_silent 28-block8-neutral-after
 
@@ -143,11 +146,10 @@ fi
 
 for frame in \
   21-block8-neutral-before 22-block8-speech-start 23-block8-speech-round \
-  24-block8-speech-wide 25-block8-speech-labial 26-block8-speech-sustain \
-  27-block8-speech-natural-blink-a 27-block8-speech-natural-blink-b \
-  27-block8-speech-natural-blink-c 27-block8-speech-natural-blink-d \
-  27-block8-speech-natural-blink-e 28-block8-neutral-after; do
+  24-block8-speech-wide 25-block8-speech-labial 28-block8-neutral-after; do
   [[ -s "$OUT/$frame.png" ]] || fail "missing targeted evidence $frame"
 done
+[[ -s "$OUT/26-block8-speech-sustain-natural-blink.mp4" ]] \
+  || fail "missing Block-8 sustained speech natural-blink video"
 
-echo "Targeted HOME/CALL and Block-8 PCM speech/face temporal evidence captured; accepted Block-7 eyelids remain guarded by the natural speech blink and manual visual review."
+echo "Targeted HOME/CALL plus Block-8 PCM speech/face evidence captured; sustained speech includes a real temporal natural-blink recording for mandatory manual review."
