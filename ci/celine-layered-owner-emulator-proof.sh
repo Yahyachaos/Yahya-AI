@@ -128,8 +128,23 @@ python3 ci/celine-block5-motion-compare.py "$OUT/call-motion-b.png" "$OUT/call-m
 adb shell input keyevent 4
 wait_log 'target=HOME eased=true snap=false' 'eased CALL-to-HOME handoff'
 sleep 1.2
-adb shell uiautomator dump /sdcard/celine-v80-owner-return.xml >/dev/null || fail "HOME-return UI dump failed"
-adb pull /sdcard/celine-v80-owner-return.xml "$OUT/home-return.xml" >/dev/null || fail "HOME-return UI pull failed"
+home_return_ui_ready=false
+for attempt in 1 2 3; do
+  adb shell rm -f /sdcard/celine-v80-owner-return.xml || true
+  rm -f "$OUT/home-return.xml"
+  if adb shell uiautomator dump /sdcard/celine-v80-owner-return.xml \
+      >"$OUT/home-return-uiautomator-attempt-$attempt.txt" 2>&1 \
+      && adb pull /sdcard/celine-v80-owner-return.xml "$OUT/home-return.xml" >/dev/null 2>&1 \
+      && grep -q '<hierarchy' "$OUT/home-return.xml"; then
+    echo "HOME-return UI ready on attempt $attempt"
+    home_return_ui_ready=true
+    break
+  fi
+  echo "HOME-return UI transient failure on attempt $attempt; retrying..."
+  sleep 0.75
+done
+[[ "$home_return_ui_ready" == true ]] \
+  || fail "HOME-return UI dump/pull stayed invalid after 3 attempts"
 capture_product home-return HOME_RETURN
 grep -q 'Mit Celin' "$OUT/home-return.xml" || fail "HOME did not recover"
 python3 ci/check-home-return-zoom.py "$OUT/home.png" "$OUT/home-return.png"
