@@ -21,8 +21,8 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "active_block3_functional_room_integration_accepted_textured_room_source_archive_ready_for_block4",
-    "queue_checkpoint_parent_head": "29700ae793704cea06987006ca500ed68dbb31cd",
+    "status": "active_block4_central_owner_next_interactive_room_execution_trunk_recorded",
+    "queue_checkpoint_parent_head": "b2df050f6effd4a62579be2fdfc46a6f4f8b9801",
     "latest_runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
     "latest_built_runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
     "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
@@ -34,7 +34,7 @@
       "head_sha": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
       "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
       "apk_artifact": 9668285621,
-      "note": "The later room-source archive/index/queue commits are docs-only and do not change this runtime fingerprint."
+      "note": "The later room-source archive, execution-trunk and queue commits are docs-only and do not change this runtime fingerprint."
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
@@ -64,9 +64,9 @@
       "proof_checkpoints": [2.8, 3.5, 4.6]
     },
     "active_block": {
-      "number": 3,
-      "name": "Room/world anchoring and seated contact",
-      "status": "functional_integration_gate_accepted_visual_room_art_polish_deferred"
+      "number": 4,
+      "name": "Central layered animation owner",
+      "status": "exact_next_action_not_started_execution_trunk_recorded"
     },
     "block3_current_truth": {
       "runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
@@ -79,6 +79,8 @@
     "room_source_archive": {
       "github_handoff_commit": "29700ae793704cea06987006ca500ed68dbb31cd",
       "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
+      "execution_trunk_commit": "b2df050f6effd4a62579be2fdfc46a6f4f8b9801",
+      "execution_trunk_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
       "persistent_library_root": "/Yahya-AI/Celine-v80-Room-Source-Backup/",
       "glb_directory": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
       "contains": [
@@ -87,7 +89,8 @@
         "Celine portrait reference for wall-picture texture",
         "Meshy source images",
         "room floorplan and machine-readable layout/anchors",
-        "room design/code/handoff notes"
+        "room design/code/handoff notes",
+        "durable interactive room execution trunk with action state machine, anchor contract, navigation, interaction catalog and acceptance route"
       ],
       "superseded_source_state": "The earlier six untextured GLBs were removed from the persistent meshy_glb backup and replaced by the twelve textured files below.",
       "source_glb_sha256": {
@@ -115,13 +118,38 @@
       ],
       "docs_only": true
     },
+    "interactive_room_execution": {
+      "canonical_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
+      "user_approved_order": ["4", "4R", "5", "6", "7", "8", "9", "9R", "10", "11", "12"],
+      "phase_4R": "After Block 4 acceptance, optimize/assemble the twelve textured GLBs into the final warm modular room; lock final layout, structured anchors, safe nav graph and furniture clearance metadata; replace/evolve the blocky room and run one targeted room proof before Block 5.",
+      "phase_9R": "After Blocks 5-9 acceptance, enable real walking and embodied room actions: near-camera/table approach and lean, bed sit/relax/lie/get-up chain, lounge-chair sit/get-up, window, dresser, mirror, shelf and lamp interactions, bounded German room-action commands, then conservative autonomy.",
+      "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state.",
+      "planned_capabilities": [
+        "real walking between named room anchors using the available Walking clip or a later better locomotion clip",
+        "turn-before-walk, stop/settle and safe return/recovery",
+        "come closer / step back / return to camera",
+        "foreground table approach, lean and optional safe hand contact",
+        "bed edge sit, relaxed bed posture, one stable lie/recline state, sit-up, stand and leave",
+        "lounge chair approach, sit, relaxed hold, stand and leave",
+        "window stand/look-out/glance-back behavior",
+        "dresser approach and optional safe hand-rest behavior",
+        "mirror approach and bounded grooming/check gesture without requiring real-time reflection",
+        "shelf approach/look/reach; physical book pickup only if a discrete prop is later proven safe",
+        "lamp approach/reach/toggle with restrained lighting state change",
+        "conversation-linked greeting, nod, small shake, shrug and bounded hand gestures",
+        "German natural-language room commands mapped to a bounded internal action enum/state request",
+        "low-frequency autonomous posture/place choices only after explicit-command interactions are accepted"
+      ]
+    },
     "current_blocker": null,
-    "exact_next_action": "Begin from root AGENTS.md and fresh Live-GitHub reconciliation. Read docs/celine/room-source/v80-2026-08-28/README.md before any room asset change. Do not redo Block-3 room proof merely because run 274 is red. Continue ordered v80 Block 4 by auditing transform/bone writers and establishing the central layered production presence owner while preserving the accepted seated pose, room/world integration, camera framing and PCM-driven German lip sync. When room visual polish resumes, use the twelve current textured source GLBs from the persistent Library backup, not the superseded six untextured files.",
+    "exact_next_action": "Begin from root AGENTS.md and fresh Live-GitHub reconciliation. Read docs/celine/room-source/v80-2026-08-28/README.md and INTERACTIVE_ROOM_EXECUTION_TRUNK.md. Do not redo Block-3 room proof merely because run 274 is red. Perform ordered v80 Block 4 only: audit every transform/bone writer and establish the central layered production presence owner while preserving the accepted seated pose, functional room/world integration, accepted camera framing and PCM-driven German lip sync. After Block 4 is accepted, execute phase 4R from the trunk before Block 5; do not skip directly to Block 5.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
       "Live GitHub wins over stale queue/chat text.",
       "The seated pose is accepted for this stage; do not resume pelvis/thigh/leg tuning without new exact evidence.",
       "The room's functional world integration is accepted for Block 3, but current blocky visual art is not final room-quality acceptance.",
+      "After Block 4, phase 4R is mandatory before Block 5 so later realism proofs use the intended final room/world contract.",
+      "After Blocks 5-9, phase 9R is mandatory before Blocks 10-12 so final acceptance covers real embodied room actions.",
       "Workflow SUCCESS is not visual acceptance; final temporal evidence remains required by the work order.",
       "Keep PR Draft until the work-order implementation is genuinely complete."
     ],
