@@ -1,0 +1,95 @@
+name: Celine Layered Owner Proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact PR branch runtime head to prove
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-layered-owner-proof-${{ inputs.target_sha }}
+  cancel-in-progress: true
+
+jobs:
+  layered-owner-proof:
+    name: Exact HOME CALL Avatar Lab production-owner proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Verify exact head and structural owner contract
+        shell: bash
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          python3 ci/celine_layered_owner_runtime_contract.py
+
+      - name: Locate exact runtime-fingerprint Android Build artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ inputs.target_sha }}
+        shell: bash
+        run: bash ci/celine-find-runtime-apk.sh
+
+      - name: Enforce and download the exact-head APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          RUNTIME_FP: ${{ steps.source.outputs.runtime_fingerprint }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$SOURCE_SHA" = "$TARGET_SHA"
+          mkdir -p ci-apk layered-owner-proof
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+          sha256sum ci-apk/app-debug.apk | tee layered-owner-proof/apk.sha256
+          printf 'target_sha=%s\nruntime_fingerprint=%s\nandroid_build_run=%s\n' \
+            "$TARGET_SHA" "$RUNTIME_FP" "$RUN_ID" | tee layered-owner-proof/runtime-source.txt
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Enable KVM permissions
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Prove central owner in product and Avatar Lab production modes
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 300s bash ci/celine-layered-owner-emulator-proof.sh ci-apk/app-debug.apk layered-owner-proof
+
+      - name: Upload exact layered-owner evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-layered-owner-evidence-${{ inputs.target_sha }}
+          path: layered-owner-proof/
+          if-no-files-found: warn
+          retention-days: 30

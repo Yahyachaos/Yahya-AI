@@ -60,8 +60,8 @@ tasks.register('generateCeline3DViewV62') {
         if (!text.contains(cameraLookAtAnchor)) throw new GradleException('v75 reference camera transform: lookAt anchor missing')
 
         text = text.replace(classAnchor, 'final class Celine3DView extends FrameLayout {')
-        text = text.replace(frameAnchor,
-                frameAnchor + '\n                CelineMorphRuntimeV62.onFrame(Celine3DView.this, frameTimeNanos);')
+        // v80's central production presence owner advances the guarded face runtime as its final
+        // renderer-frame layer. Do not inject a second independent face callback here.
         text = text.replace(visemeAnchor,
                 '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
         text = text.replace(homeLensAnchor,

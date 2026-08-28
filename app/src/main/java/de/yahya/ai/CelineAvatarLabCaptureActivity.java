@@ -66,7 +66,6 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
             celineView.v75SetReferenceYaw(0f);
             celineView.v79SetDiagnosticCameraOrbit(referenceYaw(value(getIntent(), "ci_orbit", "front")));
             poseDriver = new CelineAvatarLabPoseDriverV79(celineView);
-            disableRendererLivePoseForDeterministicCapture();
             applyRequestedState(getIntent(), true);
         } catch (Throwable error) {
             Celine3DDiagnostics.error(this, "V79-599", "Avatar Lab Capture Initialisierung FEHLER", error);
@@ -146,6 +145,12 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
     private CelineAvatarLabPoseDriverV79.Mode poseMode(String raw) {
         String value = raw == null ? "stand" : raw.trim().toLowerCase();
         switch (value) {
+            case "production_home": return CelineAvatarLabPoseDriverV79.Mode.PRODUCTION_HOME;
+            case "production_call": return CelineAvatarLabPoseDriverV79.Mode.PRODUCTION_CALL;
+            case "layer_base": return CelineAvatarLabPoseDriverV79.Mode.LAYER_BASE;
+            case "layer_breathing": return CelineAvatarLabPoseDriverV79.Mode.LAYER_BREATHING_POSTURE;
+            case "layer_conversation": return CelineAvatarLabPoseDriverV79.Mode.LAYER_CONVERSATION;
+            case "layer_gaze": return CelineAvatarLabPoseDriverV79.Mode.LAYER_GAZE_HEAD;
             case "seated": return CelineAvatarLabPoseDriverV79.Mode.SEATED;
             case "walk": return CelineAvatarLabPoseDriverV79.Mode.WALK;
             case "arms": return CelineAvatarLabPoseDriverV79.Mode.ARMS;
@@ -217,28 +222,10 @@ public final class CelineAvatarLabCaptureActivity extends Activity {
         }
     }
 
-    private void disableRendererLivePoseForDeterministicCapture() {
-        // The Lab pose driver owns these exact joints during capture. Nulling only this Activity's
-        // private renderer handles prevents two frame callbacks from racing on the same spine/head.
-        setObjectQuietly("headBone", null);
-        setObjectQuietly("neckBone", null);
-        setObjectQuietly("spineBone", null);
-        setObjectQuietly("spine01Bone", null);
-        setObjectQuietly("spine02Bone", null);
-    }
-
     private void setFloat(String name, float value) throws Exception {
         Field field = Celine3DView.class.getDeclaredField(name);
         field.setAccessible(true);
         field.setFloat(celineView, value);
-    }
-
-    private void setObjectQuietly(String name, Object value) {
-        try {
-            Field field = Celine3DView.class.getDeclaredField(name);
-            field.setAccessible(true);
-            field.set(celineView, value);
-        } catch (Throwable ignored) {}
     }
 
     private static String value(Intent intent, String key, String fallback) {

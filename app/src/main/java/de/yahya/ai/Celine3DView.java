@@ -424,49 +424,7 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private void updateLivePose(long frameTimeNanos) {
-        if (headBone == null && neckBone == null && spineBone == null && spine01Bone == null && spine02Bone == null) return;
-
-        double t = frameTimeNanos * 1.0e-9;
-        float breath = (float) Math.sin(t * 1.45);
-        float slowSway = (float) Math.sin(t * 0.58);
-        float micro = (float) Math.sin(t * 0.91 + 0.7);
-        float speech = clamp(speechEnergy, 0.0f, 1.0f);
-        float speakingNod = avatarState == CelineAvatarController.State.SPEAKING
-                ? (float) Math.sin(t * 5.7) * (0.8f + 1.8f * speech)
-                : 0.0f;
-        float listeningTilt = avatarState == CelineAvatarController.State.LISTENING ? 1.2f : 0.0f;
-
-        float targetYaw = lookActive ? clamp(lookX, -1.0f, 1.0f) * 7.0f : slowSway * 1.3f;
-        float targetPitch = lookActive ? clamp(-lookY, -1.0f, 1.0f) * 4.5f : breath * 0.65f;
-
-        try {
-            transformManager.openLocalTransformTransaction();
-            applyBone(spineBone, 0.25f * breath, 0.0f, 0.45f * slowSway);
-            applyBone(spine01Bone, 0.45f * breath, 0.0f, 0.65f * slowSway);
-            applyBone(spine02Bone, 0.55f * breath, 0.15f * micro, 0.75f * slowSway);
-            applyBone(neckBone,
-                    targetPitch * 0.35f + speakingNod * 0.20f,
-                    targetYaw * 0.45f,
-                    -0.45f * slowSway + listeningTilt * 0.35f);
-            applyBone(headBone,
-                    targetPitch + speakingNod,
-                    targetYaw,
-                    -0.85f * slowSway + listeningTilt);
-        } finally {
-            transformManager.commitLocalTransformTransaction();
-        }
-    }
-
-    private void applyBone(BonePose bone, float pitchDeg, float yawDeg, float rollDeg) {
-        if (bone == null) return;
-        float[] delta = new float[16];
-        float[] out = new float[16];
-        Matrix.setIdentityM(delta, 0);
-        if (yawDeg != 0.0f) Matrix.rotateM(delta, 0, yawDeg, 0.0f, 1.0f, 0.0f);
-        if (pitchDeg != 0.0f) Matrix.rotateM(delta, 0, pitchDeg, 1.0f, 0.0f, 0.0f);
-        if (rollDeg != 0.0f) Matrix.rotateM(delta, 0, rollDeg, 0.0f, 0.0f, 1.0f);
-        Matrix.multiplyMM(out, 0, bone.base, 0, delta, 0);
-        transformManager.setTransform(bone.instance, out);
+        CelineProductionPresenceV80.onFrame(this, frameTimeNanos);
     }
 
     private static float clamp(float value, float min, float max) {

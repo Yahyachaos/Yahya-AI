@@ -9,7 +9,7 @@ mkdir -p "$OUT"
 
 fail() {
   echo "Scene proof ERROR: $*" >&2
-  adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|REN-|V44-|V70-|V79-' | tail -220 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|REN-|V44-|V70-|V79-|V80-' | tail -220 || true
   exit 1
 }
 
@@ -54,7 +54,7 @@ PY
 )"
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL tap coordinates missing"
 adb shell input tap "$TAP_X" "$TAP_Y"
-wait_log 'V70-110' 'CALL seated scene entry'
+wait_log 'V80-420' 'central layered CALL seat entry'
 sleep 1.5
 
 adb shell uiautomator dump /sdcard/celine-scene-call.xml >/dev/null || fail "CALL UI dump failed"

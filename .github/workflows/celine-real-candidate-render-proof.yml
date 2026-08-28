@@ -31,6 +31,7 @@ on:
       - 'ci/celine_a_pose_runtime_contract.py'
       - 'ci/celine_seated_call_runtime_contract.py'
       - 'ci/celine_feminine_presence_runtime_contract.py'
+      - 'ci/celine_layered_owner_runtime_contract.py'
       - 'app/src/main/java/de/yahya/ai/CelineFemininePresenceV71.java'
       - 'app/src/main/java/de/yahya/ai/CelineFemininePresenceV72.java'
       - 'ci/celine_v72_blender_pose_manifest.json'
@@ -42,6 +43,7 @@ on:
       - 'app/src/main/java/de/yahya/ai/CelineCameraZoomV70.java'
       - 'app/src/main/java/de/yahya/ai/CelineArmPoseV69.java'
       - 'app/src/main/java/de/yahya/ai/YahyaApplication.java'
+      - 'app/src/main/java/de/yahya/ai/CelineProductionPresenceV80.java'
       - 'ci/celine_facial_morph_validation.py'
       - 'app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java'
       - 'app/src/main/java/de/yahya/ai/CelineFacialMotionPlanner.java'
@@ -126,6 +128,7 @@ jobs:
           python ci/celine_a_pose_runtime_contract.py
           python ci/celine_seated_call_runtime_contract.py
           python ci/celine_feminine_presence_runtime_contract.py
+          python ci/celine_layered_owner_runtime_contract.py
           echo "candidate_sha256=$(sha256sum morph-proof/celine_v79_candidate.glb | awk '{print $1}')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Locate exact runtime-fingerprint Android Build artifact

@@ -55,7 +55,8 @@ final class CelineAvatarLabSceneV79 {
 
     void apply(String pose, String cameraPreset) {
         boolean call = "call".equalsIgnoreCase(cameraPreset);
-        boolean seated = "seated".equalsIgnoreCase(pose);
+        boolean seated = "seated".equalsIgnoreCase(pose)
+                || "production_call".equalsIgnoreCase(pose);
         boolean showSeatGuide = call && seated;
         seatGuide.setSeatPlaneVisible(showSeatGuide);
 

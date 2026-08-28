@@ -5,11 +5,13 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineNaturalBodyMotionV73.java"
+OWNER = ROOT / "app/src/main/java/de/yahya/ai/CelineProductionPresenceV80.java"
 APPLICATION = ROOT / "app/src/main/java/de/yahya/ai/YahyaApplication.java"
 BUILD = ROOT / "app/build.gradle"
 MANIFEST = ROOT / "ci/celine_v73_blender_motion_manifest.json"
 
 source = SOURCE.read_text(encoding="utf-8")
+owner = OWNER.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -67,10 +69,22 @@ for needle, purpose in required_source.items():
         raise SystemExit(f"missing {purpose}: {needle}")
 
 for lifecycle in ("install", "onPaused", "onDestroyed"):
-    if f"CelineNaturalBodyMotionV73.{lifecycle}(activity" not in application:
-        raise SystemExit(f"YahyaApplication missing v73 {lifecycle} wiring")
+    if f"CelineNaturalBodyMotionV73.{lifecycle}(activity" in application:
+        raise SystemExit(f"v73 posture writer still competes with v80: {lifecycle}")
     if f"CelineFemininePresenceV72.{lifecycle}(activity" in application:
         raise SystemExit(f"v72 static writer still installed beside v73: {lifecycle}")
+
+for token in (
+    "home * (-2.0f + 0.10f * second)",
+    "home * (-3.5f + 0.12f * wave)",
+    "home * (6.0f + 0.18f * wave)",
+    "home * (-1.2f - 0.10f * wave - 0.03f * second)",
+    "home * (-0.6f - 0.08f * wave + 0.02f * second)",
+):
+    if token not in owner:
+        raise SystemExit(f"v80 central owner does not preserve accepted v73 posture: {token}")
+if "CelineProductionPresenceV80.install(activity, decor)" not in application:
+    raise SystemExit("v80 central posture owner is not installed")
 
 for forbidden_joint in (
     "LeftArm", "RightArm", "LeftForeArm", "RightForeArm",
@@ -97,4 +111,4 @@ if manifest["animated_joints"] != ["Hips", "LeftShoulder", "RightShoulder"]:
     raise SystemExit("v73 Blender manifest ownership mismatch")
 if manifest["canonical_source_sha256"] != "0c9fa09f898fbc8c0503be252c8fec1ee815a3a4990422e5c302e3113d7c1b55":
     raise SystemExit("Blender manifest canonical source mismatch")
-print("v73 Blender-selected seamless HOME Hips + v44-base shoulder motion contract: PASS")
+print("v73 Blender-selected HOME posture is preserved inside the sole v80 production owner: PASS")

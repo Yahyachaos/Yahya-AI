@@ -5,11 +5,13 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelineArmHandPresenceV79.java"
+OWNER = ROOT / "app/src/main/java/de/yahya/ai/CelineProductionPresenceV80.java"
 APPLICATION = ROOT / "app/src/main/java/de/yahya/ai/YahyaApplication.java"
 BUILD = ROOT / "app/build.gradle"
 MANIFEST = ROOT / "ci/celine_v74_blender_arm_hand_manifest.json"
 
 source = SOURCE.read_text(encoding="utf-8")
+owner = OWNER.read_text(encoding="utf-8")
 application = APPLICATION.read_text(encoding="utf-8")
 build = BUILD.read_text(encoding="utf-8")
 manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -51,11 +53,24 @@ for needle, purpose in required_source.items():
         raise SystemExit(f"missing {purpose}: {needle}")
 
 for lifecycle in ("install", "onPaused", "onDestroyed"):
-    if f"CelineArmHandPresenceV79.{lifecycle}(activity" not in application:
-        raise SystemExit(f"YahyaApplication missing CelineArmHandPresenceV79.{lifecycle} lifecycle wiring")
+    if f"CelineArmHandPresenceV79.{lifecycle}(activity" in application:
+        raise SystemExit(f"v79 arm writer still competes with the v80 owner: {lifecycle}")
     for stale in ("CelineArmPoseV69", "CelineArmHandPresenceV74"):
         if f"{stale}.{lifecycle}(activity" in application:
-            raise SystemExit(f"stale arm writer still installed beside v79: {stale}.{lifecycle}")
+            raise SystemExit(f"stale arm writer still installed beside v80: {stale}.{lifecycle}")
+
+for token in (
+    "HOME_ARM_LOOP_NANOS = 5_200_000_000L",
+    "CALL_ARM_LOOP_NANOS = 6_100_000_000L",
+    "home * (29.5f",
+    "home * (-29.5f",
+    "call * (30.5f",
+    "call * (-30.5f",
+    "CelineProductionPresenceV80.install(activity, decor)",
+):
+    content = application if token.startswith("CelineProduction") else owner
+    if token not in content:
+        raise SystemExit(f"v80 central owner does not preserve accepted arm/hand contract: {token}")
 
 # This owner is arm/forearm/hand motion only. It must never write UI/videochat geometry,
 # camera framing, root/hip/leg transforms, shoulder ownership, or unsupported finger bones.
@@ -79,4 +94,4 @@ if manifest["seam_proof"]["result"] != "PASS_EXACT_FRAME_1_FRAME_97_SEAM":
 if manifest["manual_review"] != "PASS_FRONT_RIGHT_BACK_NO_DEFORMATION":
     raise SystemExit("accepted Blender deformation review missing")
 
-print("v79 six-joint arm/hand owner preserves bounded safety, exact restore, and HOME/CALL presence: PASS")
+print("v79 accepted six-joint arm/hand motion is preserved inside the sole v80 production owner: PASS")
