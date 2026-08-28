@@ -22,45 +22,46 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "block5_completed_exact_runtime_build_and_targeted_temporal_evidence_manually_accepted_block6_next_not_started",
-    "queue_checkpoint_parent_head": "8c00ee009e2059a44ccc5ab97bd611ac1b00e280",
-    "latest_runtime_code_head": "9e28154749976503afad257a83a3a7757cc420ca",
-    "latest_built_runtime_head": "9e28154749976503afad257a83a3a7757cc420ca",
-    "latest_visually_accepted_runtime_head": "9e28154749976503afad257a83a3a7757cc420ca",
-    "runtime_fingerprint": "7605e59c5b505aa2996c816a68131735262e8d326de26f570626d0bb7060813a",
+    "status": "block6_completed_exact_runtime_build_and_targeted_temporal_evidence_manually_accepted_block7_next_not_started",
+    "queue_checkpoint_parent_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+    "latest_runtime_code_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+    "latest_built_runtime_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+    "latest_visually_accepted_runtime_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+    "runtime_fingerprint": "10db110c4cceed5b1f3b98d40006549a80b892decd230c42c9ca89a492f0abab",
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 651,
-      "run_id": 33180868361,
+      "run_number": 655,
+      "run_id": 33194282334,
       "conclusion": "success",
-      "head_sha": "9e28154749976503afad257a83a3a7757cc420ca",
-      "runtime_fingerprint": "7605e59c5b505aa2996c816a68131735262e8d326de26f570626d0bb7060813a",
-      "apk_artifact": 9689682605,
-      "apk_artifact_digest": "sha256:9c9927a29e0466380ad78c30421536e7553d811ff87592e816442566062d5645",
-      "fingerprint_artifact": 9689683116,
-      "apk_sha256": "4932d2a421b3afdf39525c43138b05cca51c5bdd4baf47f4e097b5ee44956376"
+      "head_sha": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+      "runtime_fingerprint": "10db110c4cceed5b1f3b98d40006549a80b892decd230c42c9ca89a492f0abab",
+      "apk_artifact": 9695121068,
+      "apk_artifact_digest": "sha256:a1af1bb74ff5390859f67c1d151d10df9dfff862bf57d8b7a93b929a4983d294",
+      "fingerprint_artifact": 9695121413,
+      "fingerprint_artifact_digest": "sha256:83bd607ffbb57276a408e73e59890d6ba231170b7e5b9b07be6241abbda2356e",
+      "apk_sha256": "3fb8a24fe6d7de2d1c90cc16c6c9c9c2e411ee74f60fd37066311ba8a0eb95ed"
     },
     "latest_visual_proof": {
       "workflow": "Celine Layered Owner Proof",
-      "run_number": 12,
-      "run_id": 33192673035,
+      "run_number": 14,
+      "run_id": 33194504774,
       "conclusion": "success",
-      "head_sha": "8c00ee009e2059a44ccc5ab97bd611ac1b00e280",
-      "runtime_source_sha": "9e28154749976503afad257a83a3a7757cc420ca",
-      "runtime_fingerprint": "7605e59c5b505aa2996c816a68131735262e8d326de26f570626d0bb7060813a",
-      "artifact": 9694576745,
-      "artifact_digest": "sha256:facf7bbcb9b07475042722ec34914d6a3ad605fa65d369a89b3ebd7131f66eee",
+      "head_sha": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+      "runtime_source_sha": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+      "runtime_fingerprint": "10db110c4cceed5b1f3b98d40006549a80b892decd230c42c9ca89a492f0abab",
+      "artifact": 9695324705,
+      "artifact_digest": "sha256:d45a3f5e865540de9e66036dc8b3f5956540b88f02073683d5c9449f8fe6920a",
       "manually_inspected": true,
-      "criterion_result": "PASS_BLOCK5_HUMAN_IDLE_BODY_ARMS_HANDS",
-      "visual_acceptance": "BLOCK5_ACCEPTED_FOR_BLOCK6_BASELINE",
+      "criterion_result": "PASS_BLOCK6_GAZE_HEAD_SOCIAL_PRESENCE",
+      "visual_acceptance": "BLOCK6_ACCEPTED_FOR_BLOCK7_BASELINE",
       "evidence": [
-        "Two actual HOME frames and three actual CALL frames were manually inspected; Celine remains visible and the arm/forearm/wrist changes are calm, continuous and visibly asynchronous rather than mirrored or metronomic.",
-        "CALL_A_TO_B and CALL_B_TO_C bilateral arm-region guards pass with large margins; manual inspection shows no puppet waving, exaggerated flailing or visible self-intersection.",
-        "The production owner logs the six-joint Arm/ForeArm/Hand contract in HOME and CALL and explicitly confirms fingerBones=false.",
-        "HOME -> CALL -> HOME is visible and eased. HOME-return framing, accepted CALL camera, accepted seated constants and the final 4R room remain unchanged.",
-        "Avatar Lab Production HOME/CALL uses the same CelineProductionPresenceV80 owner with one transform transaction and one skin update.",
-        "v61 rig protection, v76 guarded face runtime and v77 PCM route remain active; no guarded runtime/source failure was recorded.",
-        "9R locomotion/actions remain disabled."
+        "Three actual CALL product frames at separated times were manually inspected; gaze stays predominantly camera/user-oriented while small eye/head changes read as calm social presence rather than a dead stare or nervous scanning.",
+        "CALL_FACE_A_TO_B and CALL_FACE_B_TO_C pass the bounded face/head temporal guard with changed ratios 0.32589 and 0.37680, proving visible but non-extreme change.",
+        "Head and neck remain nearly level with only gentle follow and tiny independent drift; there is no constant bobbing, extreme rotation, puppet motion or camera chasing.",
+        "Actual HOME, HOME-motion and HOME-return frames remain visible/alive. HOME -> CALL -> HOME is eased, the accepted HOME/CALL framing is restored, and the final 4R room is unchanged.",
+        "Block-5 bilateral arm-region temporal guards pass again in both CALL comparisons; arms/hands remain calm and asynchronous, fingerBones=false and the accepted CALL seated constants are untouched.",
+        "CelineProductionPresenceV80 remains the only production body/head owner. The guarded v76 facial output and structurally preserved v77 PCM route coexist after the same one-transaction/one-skin-update frame.",
+        "v61 rig protection is active, no renderer/lifecycle/guard failure was recorded, and 9R locomotion/actions remain disabled."
       ]
     },
     "phase_4R_accepted_runtime": {
@@ -96,9 +97,9 @@
       "proof_checkpoints": [2.8, 3.5, 4.6]
     },
     "active_block": {
-      "number": 6,
-      "name": "Gaze, head and social presence",
-      "status": "not_started_ready_after_accepted_block5"
+      "number": 7,
+      "name": "Blink and eyelid correctness",
+      "status": "not_started_ready_after_accepted_block6"
     },
     "room_source_archive": {
       "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
@@ -137,13 +138,14 @@
       "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state."
     },
     "current_blocker": null,
-    "exact_next_action": "Begin only Block 6 — Gaze, head and social presence — on the existing PR #111 after a fresh live-GitHub reconciliation and re-read of this working Queue and the v80 work order. First inspect the existing head/neck/gaze/social-presence foundations and CelineProductionPresenceV80 gaze layer; do not reactivate an independent frame writer. Make the smallest bounded central-owner runtime change that gives calm camera-oriented gaze, occasional micro-saccades and gentle head/neck response in actual HOME/CALL while preserving accepted Block 5 arms/hands/body life, 4R room, camera/zoom, CALL seated constants, v61 rig protection, v76 face guard and v77 PCM German lip sync. One runtime change -> one Android build -> one smallest targeted temporal/visual proof -> manual evidence inspection. Do not begin Block 7 or 9R.",
+    "exact_next_action": "Begin only Block 7 — Blink and eyelid correctness — on the existing PR #111 after a fresh Mandatory Start Chronology, live-GitHub reconciliation and re-read of this working Queue and the v80 work order. Treat the reported dark/deformed blink region as a production defect and first inspect the current v76/v79 blink morph ownership, final-geometry vertex localization, production face path and existing close-range blink evidence. Preserve accepted Block 4 ownership, Block 5 body/arms/hands, Block 6 gaze/head/social presence, final 4R room, camera/zoom, CALL seated constants, v61 rig protection and v77 PCM German lip sync. Do not begin Block 8 or 9R before exact production open -> partial -> closed -> reopen blink evidence is manually accepted.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
       "Live GitHub wins over stale queue/chat text.",
       "4R is accepted at runtime head 3c8a7e4c; do not reopen or replace the room without new exact evidence.",
       "The accepted camera/zoom semantics and CALL seated constants remain protected.",
       "Block 4 central layered ownership is completed at runtime head d2ddd148 and must not be reopened without new exact evidence.",
+      "Block 5 body/arm/hand life and Block 6 gaze/head/social presence are accepted and protected from unrelated Block-7 changes.",
       "Canonical Celine, v61 rig-scale/inverse-bind protection, v76 facial guard/rollback and v77 PCM-driven German lip sync remain protected.",
       "9R remains disabled until Blocks 5-9 are accepted.",
       "Workflow SUCCESS alone is not visual acceptance; inspect actual temporal/visual evidence.",
@@ -218,6 +220,21 @@
         "artifact": 9694576745,
         "artifact_digest": "sha256:facf7bbcb9b07475042722ec34914d6a3ad605fa65d369a89b3ebd7131f66eee",
         "manual_acceptance": "PASS calm asynchronous six-joint arm/forearm/wrist life in actual HOME/CALL; no finger-bone writes, puppet motion, self-intersection or protected-surface regression"
+      },
+      {
+        "number": 6,
+        "name": "Gaze, head and social presence",
+        "status": "completed_exact_runtime_build_and_targeted_temporal_evidence_manually_inspected",
+        "runtime_code_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+        "proof_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
+        "runtime_fingerprint": "10db110c4cceed5b1f3b98d40006549a80b892decd230c42c9ca89a492f0abab",
+        "build_run_id": 33194282334,
+        "build_run_number": 655,
+        "proof_run_id": 33194504774,
+        "proof_run_number": 14,
+        "artifact": 9695324705,
+        "artifact_digest": "sha256:d45a3f5e865540de9e66036dc8b3f5956540b88f02073683d5c9449f8fe6920a",
+        "manual_acceptance": "PASS predominantly camera-oriented bounded eye shifts with gentle non-bobbing Head/neck follow in actual HOME/CALL; no nervous scan, extreme rotation, camera coupling or protected-surface regression"
       }
     ],
     "user_device_hard_blockers_remaining": [
@@ -254,8 +271,8 @@
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
-    "current_step": "v80-block6-gaze-head-social-presence_not_started",
-    "next_step": "v80-block7-blink-eyelid-correctness_after_block6_acceptance"
+    "current_step": "v80-block7-blink-eyelid-correctness_not_started",
+    "next_step": "v80-block8-speech-face-coordination_after_block7_acceptance"
   },
   "latest_release": {
     "version": 80,
