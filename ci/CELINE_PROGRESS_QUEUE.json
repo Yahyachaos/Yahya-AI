@@ -1,335 +1,74 @@
 {
-  "schema": 2,
-  "source_of_truth": "Yahyachaos/Yahya-AI",
-  "history_snapshot": {
-    "through_version": 79,
-    "full_queue_commit": "02b133a2f8b5f8fd793af09d7000e26834f6270e",
-    "note": "Detailed pre-v80 history remains in Git history. Live GitHub always wins over this snapshot."
+  "project": "Celine / Yahya AI",
+  "mode": "continuous",
+  "single_flight": true,
+  "source_of_truth": "Live GitHub is authoritative. The live-main Queue is bootstrap-only while a canonical unmerged Celine PR exists; reconcile that PR/branch, then use its newer Queue as the working Queue.",
+  "active_branch": "auto/celine/v80-human-videochat-presence",
+  "active_pr": 111,
+  "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
+  "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
+  "status": "block9_targeted_lifecycle_temporal_proof_in_progress_runtime_unchanged",
+  "latest_runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+  "latest_built_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+  "latest_visually_accepted_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+  "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
+  "android_build": {
+    "run_number": 667,
+    "run_id": 33206828543,
+    "conclusion": "success",
+    "apk_artifact_id": 9700026731,
+    "apk_artifact_digest": "sha256:880b15f8efc249b54565c0b18f84ec5fb4edfde2ab96e6f526d68e9a1ee80a14",
+    "fingerprint_artifact_id": 9700027114,
+    "apk_sha256": "16778b3d7ed688fda3cb53ad1977d9482e6974912e9fb6216f79abd3b507cb6d"
   },
-  "baseline": {
-    "version": 80,
-    "main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "release_tag": "v80",
-    "release_status": "published_testable_while_ordered_v80_postrelease_repairs_continue"
+  "latest_accepted_visual_proof": {
+    "name": "Celine Avatar Lab Proof",
+    "run_number": 99,
+    "run_id": 33207082098,
+    "proof_only_head": "566df5a0c8532e900eabf262422978b7d4f5e243",
+    "evidence_artifact_id": 9700273738,
+    "artifact_digest": "sha256:84ead2c89f8837fd51fff4637c3a202f4c4ac8593d75838c06259336725c403a",
+    "manual_inspection": "PASS Block 8 speech/face coordination"
   },
-  "active": {
-    "id": "v80-human-videochat-presence",
-    "kind": "runtime_visual_upgrade_postrelease_repair",
-    "target_version": 80,
-    "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
-    "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
-    "branch": "auto/celine/v80-human-videochat-presence",
-    "pr": 111,
-    "pr_state": "open_draft",
-    "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "block8_completed_exact_runtime_build_and_targeted_speech_face_evidence_manually_accepted_block9_next_not_started",
-    "queue_checkpoint_parent_head": "566df5a0c8532e900eabf262422978b7d4f5e243",
-    "latest_runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
-    "latest_built_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
-    "latest_visually_accepted_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
-    "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
-    "latest_pr_build": {
-      "workflow": "Android Build",
-      "run_number": 667,
-      "run_id": 33206828543,
-      "conclusion": "success",
-      "head_sha": "ba85c795e1897565857928e910b01d43bf634c1c",
-      "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
-      "apk_artifact": 9700026731,
-      "apk_artifact_digest": "sha256:880b15f8efc249b54565c0b18f84ec5fb4edfde2ab96e6f526d68e9a1ee80a14",
-      "fingerprint_artifact": 9700027114,
-      "fingerprint_artifact_digest": "sha256:23a49cbab092aefc89a49cb92d46311e8be5d4b810768dbf89338e48d50cc493",
-      "apk_sha256": "16778b3d7ed688fda3cb53ad1977d9482e6974912e9fb6216f79abd3b507cb6d"
-    },
-    "latest_visual_proof": {
-      "workflow": "Celine Avatar Lab Proof",
-      "run_number": 99,
-      "run_id": 33207082098,
-      "conclusion": "success",
-      "head_sha": "566df5a0c8532e900eabf262422978b7d4f5e243",
-      "runtime_source_sha": "ba85c795e1897565857928e910b01d43bf634c1c",
-      "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
-      "artifact": 9700273738,
-      "artifact_digest": "sha256:84ead2c89f8837fd51fff4637c3a202f4c4ac8593d75838c06259336725c403a",
-      "manually_inspected": true,
-      "criterion_result": "PASS_BLOCK8_SPEECH_FACE_COORDINATION",
-      "visual_acceptance": "BLOCK8_ACCEPTED_FOR_BLOCK9_BASELINE",
-      "evidence": [
-        "Manual inspection of Proof #99 close face frames confirmed neutral -> OPEN -> ROUND -> WIDE -> LABIAL -> neutral with visibly distinct bounded mouth articulation and clean neutral recovery.",
-        "Proof #99 logs bind OPEN/ROUND/WIDE/LABIAL cues to SpeechLipSyncV77 -> SpeechAudioBus while CelineProductionPresenceV80 remains the production owner.",
-        "Actual HOME, CALL, Settings, Avatar Lab and HOME-return frames were manually inspected; Celine remained visible and stable with no controls-only, blank-renderer, chair/camera/room regression.",
-        "The Proof #99 emulator screenrecord exposed only 9 native frames over about 4.28 seconds and did not itself catch the roughly 222 ms natural blink; this was not treated as a visual blink PASS.",
-        "Existing manually accepted Block-7 open->partial->closed->reopen evidence from Proof #94 artifact 9697458191 was re-inspected, and the later Block-8 runtime correction ba85c795 changes only speech jaw/vowel/lip-contact caps/factors; MAX_BLINK, blink timing, expression and gaze remain unchanged.",
-        "CelineFacialMotionPlanner composes blink, speech, expression and gaze into distinct target indices before one smoothing/write path, so the accepted localized eyelid behavior is preserved alongside the new speech articulation."
-      ]
-    },
-    "phase_4R_accepted_runtime": {
-      "runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
-      "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
-      "room_asset": "models/room/celine_room_v80_final_modular.glb",
-      "room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
-      "room_bytes": 46580788,
-      "source_assets": 12,
-      "furniture_instances": 13,
-      "anchor_nodes": 20,
-      "colliders": 9,
-      "nav_edges": 14,
-      "contact_edges": 6,
-      "bed_mattress_y_m": 0.461,
-      "chair_seat_y_m": 0.457,
-      "foreground_table_top_y_m": 0.756,
-      "visible_laptop": false,
-      "legacy_room_packaged": false,
-      "nine_r_actions_enabled": false,
-      "orientation_correction": {
-        "bed": "headboard toward right wall",
-        "nightstand_back": "drawer front corrected",
-        "nightstand_front": "drawer front corrected"
-      }
-    },
-    "block2_accepted_runtime": {
-      "runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
-      "call_base_focus_y": 0.0,
-      "face_focus_y": 0.85,
-      "call_default_zoom": 2.8,
-      "zoom_max": 4.6,
-      "proof_checkpoints": [
-        2.8,
-        3.5,
-        4.6
-      ]
-    },
-    "active_block": {
-      "number": 9,
-      "name": "Lifecycle and temporal stability",
-      "status": "not_started_ready_after_accepted_block8"
-    },
-    "room_source_archive": {
-      "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
-      "execution_trunk_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
-      "retrieval_contract": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json",
-      "persistent_library_root": "/Yahya-AI/Celine-v80-Room-Source-Backup/",
-      "glb_directory": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
-      "source_glb_sha256": {
-        "Bett.glb": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
-        "Fenstermitgardinen.glb": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
-        "GroßeKomode.glb": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
-        "Großepflanzemittopf.glb": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
-        "Hängeboardmitbücher.glb": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
-        "Kleinepflanzemittopf.glb": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
-        "Lampe.glb": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
-        "Nachttisch.glb": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
-        "Sessel.glb": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
-        "Teppisch.glb": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
-        "Wandspiegelrund.glb": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0",
-        "Tischfürlaptop.glb": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da"
-      },
-      "important_rules": [
-        "The final viewer is the laptop/webcam position; no laptop is rendered.",
-        "Tischfürlaptop.glb is the foreground physical table, not a visible laptop object.",
-        "Canonical Celine stays separate from the room.",
-        "Nachttisch.glb is instantiated twice from one source binary.",
-        "The wall portrait is a 2D texture/frame plane, not reconstructed Celine geometry.",
-        "Do not re-run source optimization unless new exact evidence requires it."
-      ]
-    },
-    "interactive_room_execution": {
-      "canonical_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
-      "user_approved_order": [
-        "4",
-        "4R",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-        "9R",
-        "10",
-        "11",
-        "12"
-      ],
-      "phase_4R": "accepted at runtime head 3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
-      "phase_9R": "deferred until Blocks 5-9 are accepted",
-      "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state."
-    },
-    "current_blocker": null,
-    "exact_next_action": "Block 8 is technically and manually accepted. Stop here per the current user request. Do not begin Block 9 or 9R until the user explicitly resumes. On resume, fresh-live reconcile PR #111, re-read Queue/work order, then begin only Block 9 — Lifecycle and temporal stability — with the smallest bounded runtime/evidence change and preserve Blocks 4-8 plus 4R.",
-    "constraints": [
-      "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
-      "Live GitHub wins over stale queue/chat text.",
-      "4R is accepted at runtime head 3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995; do not reopen or replace the room without new exact evidence.",
-      "The accepted camera/zoom semantics and CALL seated constants remain protected.",
-      "Block 4 central layered ownership is completed at runtime head d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3 and must not be reopened without new exact evidence.",
-      "Block 5 body/arm/hand life, Block 6 gaze/head/social presence, Block 7 blink/eyelid correctness and Block 8 speech/face coordination are accepted and protected from unrelated later changes.",
-      "Canonical Celine, v61 rig-scale/inverse-bind protection, v76 facial guard/rollback and v77 PCM-driven German lip sync remain protected.",
-      "9R remains disabled until Blocks 5-9 are accepted.",
-      "Workflow SUCCESS alone is not visual acceptance; inspect actual temporal/visual evidence.",
-      "Keep PR Draft until the full active v80 work order is genuinely complete."
-    ],
-    "completed_blocks": [
-      {
-        "number": 1,
-        "name": "Production visibility and camera foundation",
-        "status": "completed_exact_runtime_artifact_manually_inspected",
-        "runtime_code_head": "14120661354d4fdbcbb76d603b53346141bf0505",
-        "proof_run_id": 33096137338,
-        "artifact": 9656659498
-      },
-      {
-        "number": 2,
-        "name": "Real human-style zoom and framing",
-        "status": "completed_exact_runtime_artifact_manually_inspected",
-        "runtime_code_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
-        "build_run_id": 33111321533,
-        "proof_run_id": 33111985773,
-        "artifact": 9663101106,
-        "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8"
-      },
-      {
-        "number": 3,
-        "name": "Room/world anchoring and seated contact",
-        "status": "functional_integration_gate_completed_visual_room_art_superseded_by_accepted_4R",
-        "runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
-        "build_run_id": 33125690322,
-        "proof_run_id": 33126385895,
-        "artifact": 9668670380
-      },
-      {
-        "number": 4,
-        "name": "Central layered animation owner",
-        "status": "completed_exact_runtime_artifact_and_targeted_evidence_manually_inspected",
-        "runtime_code_head": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
-        "proof_head": "c0ea12cdf03d96e59bced974e71540a2e0db3a79",
-        "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
-        "build_run_id": 33164190451,
-        "proof_run_id": 33164630221,
-        "artifact": 9683137861,
-        "artifact_digest": "sha256:aa67ec476e3fdf7a865930af150ba9c819c1a2477adc03eb2355266d6ed3adfb",
-        "writer_audit": "ci/evidence/CELINE_V80_LAYERED_OWNER_AUDIT.md"
-      },
-      {
-        "number": "4R",
-        "name": "Final modular room/world contract",
-        "status": "completed_exact_runtime_build_and_targeted_evidence_manually_inspected",
-        "runtime_code_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
-        "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
-        "build_run_id": 33176535670,
-        "build_run_number": 646,
-        "proof_run_id": 33176713832,
-        "proof_run_number": 6,
-        "artifact": 9688003038,
-        "artifact_digest": "sha256:5b7684898fc49bf359bea6ddc431249a5b9e32295871aee8f9d53f6f5bea6d29",
-        "room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8"
-      },
-      {
-        "number": 5,
-        "name": "Human idle body, arms and hands",
-        "status": "completed_exact_runtime_build_and_targeted_temporal_evidence_manually_inspected",
-        "runtime_code_head": "9e28154749976503afad257a83a3a7757cc420ca",
-        "proof_head": "8c00ee009e2059a44ccc5ab97bd611ac1b00e280",
-        "runtime_fingerprint": "7605e59c5b505aa2996c816a68131735262e8d326de26f570626d0bb7060813a",
-        "build_run_id": 33180868361,
-        "build_run_number": 651,
-        "proof_run_id": 33192673035,
-        "proof_run_number": 12,
-        "artifact": 9694576745,
-        "artifact_digest": "sha256:facf7bbcb9b07475042722ec34914d6a3ad605fa65d369a89b3ebd7131f66eee",
-        "manual_acceptance": "PASS calm asynchronous six-joint arm/forearm/wrist life in actual HOME/CALL; no finger-bone writes, puppet motion, self-intersection or protected-surface regression"
-      },
-      {
-        "number": 6,
-        "name": "Gaze, head and social presence",
-        "status": "completed_exact_runtime_build_and_targeted_temporal_evidence_manually_inspected",
-        "runtime_code_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
-        "proof_head": "5c5ad011b42e829449a6a9ba2e813ba882642354",
-        "runtime_fingerprint": "10db110c4cceed5b1f3b98d40006549a80b892decd230c42c9ca89a492f0abab",
-        "build_run_id": 33194282334,
-        "build_run_number": 655,
-        "proof_run_id": 33194504774,
-        "proof_run_number": 14,
-        "artifact": 9695324705,
-        "artifact_digest": "sha256:d45a3f5e865540de9e66036dc8b3f5956540b88f02073683d5c9449f8fe6920a",
-        "manual_acceptance": "PASS predominantly camera-oriented bounded eye shifts with gentle non-bobbing Head/neck follow in actual HOME/CALL; no nervous scan, extreme rotation, camera coupling or protected-surface regression"
-      },
-      {
-        "number": 7,
-        "name": "Blink and eyelid correctness",
-        "status": "completed_exact_runtime_build_and_targeted_temporal_evidence_manually_inspected",
-        "runtime_code_head": "a357f6c0689d323b5b5c157a66b86627108d41ae",
-        "proof_head": "3c249cb0022f12905ddac68c25b750bd2ea16a4e",
-        "runtime_fingerprint": "2dead2a99e5e386c8a3585898c1297e60b6bc53958f9760b961da8ff41848997",
-        "build_run_id": 33199227302,
-        "build_run_number": 657,
-        "proof_run_id": 33199768361,
-        "proof_run_number": 94,
-        "artifact": 9697458191,
-        "artifact_digest": "sha256:cf9aa101065adddace3a011fdc5cdc3cd9244ad85535c75254f333a4e82eb718",
-        "manual_acceptance": "PASS exact close open->partial->closed->reopen sequence with topology-preserving eyelid closure; no dark/deformed band, duplicate surface, unrelated face/hair pull or reopen regression"
-      },
-      {
-        "number": 8,
-        "name": "Speech/face coordination",
-        "status": "completed_exact_runtime_build_and_targeted_temporal_evidence_manually_inspected",
-        "runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
-        "proof_head": "566df5a0c8532e900eabf262422978b7d4f5e243",
-        "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
-        "build_run_id": 33206828543,
-        "build_run_number": 667,
-        "proof_run_id": 33207082098,
-        "proof_run_number": 99,
-        "artifact": 9700273738,
-        "artifact_digest": "sha256:84ead2c89f8837fd51fff4637c3a202f4c4ac8593d75838c06259336725c403a",
-        "manual_acceptance": "PASS playback-PCM-driven OPEN/ROUND/WIDE/LABIAL articulation is visibly distinct and returns cleanly to neutral; accepted Block-7 localized blink is preserved because the only later runtime correction changes speech-only caps/factors, with HOME/CALL/lifecycle surfaces stable"
-      }
-    ],
-    "user_device_hard_blockers_remaining": [
-      "Block 5 emulator evidence accepts non-frozen arms/hands for ordered progress, but the original real-device frozen-arm report remains a final Block-12 device/continuous-video watch until reconfirmed there.",
-      "Block 7 emulator/production-owner close evidence accepts the repaired blink for ordered progress, but the original real-device blink defect remains a final Block-12 device/continuous-video watch until reconfirmed there.",
-      "A video/avatar test can show controls while Celine is absent; such evidence must remain a hard FAIL."
-    ],
-    "published_release_under_repair": {
-      "version": 80,
-      "tag": "v80",
-      "target_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-      "release_id": 378022255,
-      "asset_id": 532677127,
-      "asset": "Yahya-AI-v80.apk",
-      "asset_digest": "sha256:b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58"
-    }
+  "accepted_blocks": {
+    "4": "Central layered animation owner",
+    "4R": "Final modular room/world",
+    "5": "Human idle body, arms and hands",
+    "6": "Gaze, head and social presence",
+    "7": "Blink and eyelid correctness",
+    "8": "Speech/face coordination"
   },
-  "completed": [
-    {
-      "id": "v79-avatar-lab-visual-realism",
-      "status": "merged_released_testable_with_later_user_device_visual_defects_recorded_for_v80",
-      "pr": 107,
-      "merge_sha": "a0f33c2651a3dbecefef4fc27b34d61475f54988",
-      "release_tag": "v79"
-    },
-    {
-      "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
-      "status": "merged_exact_main_validated_release_unchanged",
-      "prs": [
-        108,
-        109
-      ],
-      "runtime_change": false
-    }
-  ],
-  "next": [],
-  "roadmap": {
-    "stage": 3,
-    "stage_name": "avatar_embodiment",
-    "current_step": "v80-block8-speech-face-coordination_accepted",
-    "next_step": "v80-block9-lifecycle-temporal-stability_not_started_waiting_for_user_resume"
+  "protected_room_baseline": {
+    "runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+    "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
+    "asset": "models/room/celine_room_v80_final_modular.glb",
+    "asset_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
+    "source_assets": 12,
+    "furniture_instances": 13,
+    "anchors": 20,
+    "colliders": 9,
+    "nav_edges": 14,
+    "contact_edges": 6,
+    "visible_laptop": false,
+    "legacy_room_packaged": false,
+    "nine_r_actions": false,
+    "orientation_acceptance": "bed headboard right wall; both nightstand fronts correct"
   },
-  "latest_release": {
-    "version": 80,
-    "tag": "v80",
-    "sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "apk": "Yahya-AI-v80.apk",
-    "sha256": "b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58",
-    "asset_id": 532677127,
-    "release_id": 378022255,
-    "status": "published_testable_while_v80_ordered_postrelease_repairs_continue"
-  }
+  "active_block": {
+    "number": 9,
+    "name": "Lifecycle and temporal stability",
+    "status": "proof_in_progress",
+    "runtime_change_required_so_far": false,
+    "proof_only_head": "fb2711e40a92a41c23e0a9d305aabaf3dafff5ed",
+    "proof_scope": [
+      "HOME -> CALL -> HOME same-process visibility",
+      "production CALL mute/unmute state transition",
+      "CALL background -> foreground same-process recovery plus post-resume body/social motion",
+      "CALL camera face-close zoom -> normal reset",
+      "HOME keyboard open/close focus and stage restoration",
+      "Settings -> Avatar Lab -> HOME same-process return via existing settings proof"
+    ]
+  },
+  "current_blocker": "Await one exact runtime-equivalent Avatar Lab proof on the Block-9 proof-only head, then manually inspect every lifecycle frame before acceptance.",
+  "exact_next_action": "Trigger exactly one Celine Avatar Lab Proof for the current proof-only head using the existing Build #667 runtime-equivalent APK. Do not rebuild because runtime fingerprint is unchanged. After completion, inspect the artifact manually: HOME baseline; CALL; muted/unmuted; CALL foreground A/B with temporal motion; zoomed/reset; HOME return; keyboard open/closed; Settings; Avatar Lab; final HOME return. Accept Block 9 only if Celine remains visible, alive, correctly framed and in the correct scene/state across all transitions with no renderer/process reset or protected-block regression. If a real runtime defect appears, make only the smallest bounded fix, one Android build, then one proof. Do not start 9R before Block 9 is accepted. Do not merge or release."
 }
