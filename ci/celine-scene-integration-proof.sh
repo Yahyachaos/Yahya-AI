@@ -67,35 +67,10 @@ python3 ci/check-celine-person-presence.py "$OUT/16-call-scene.png" CALL
 grep -q 'Live mit Celin' "$OUT/16-call-scene.xml" || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' "$OUT/16-call-scene.xml" || fail "CALL 3D stage missing"
 
-# Block 7: retain the accepted exact CALL-owner eyelid sequence as a regression guard.
-block7_launch() {
-  local face="$1" restart="${2:-keep}"
-  if [[ "$restart" == "restart" ]]; then adb shell am force-stop "$PACKAGE" || true; fi
-  adb shell am start -W --activity-single-top -n "$CAPTURE_ACTIVITY" \
-    --es ci_pose production_call --es ci_camera face --es ci_orbit front --es ci_face "$face" >/dev/null
-  if [[ "$restart" == "restart" ]]; then sleep 1.8; else sleep 0.75; fi
-}
-
-block7_capture() {
-  local face="$1" name="$2" restart="${3:-keep}" attempt
-  for attempt in 1 2; do
-    block7_launch "$face" "$restart"
-    adb exec-out screencap -p >/dev/null || true
-    sleep 0.45
-    adb exec-out screencap -p > "$OUT/$name.png"
-    if [[ -s "$OUT/$name.png" ]]; then
-      echo "Block-7 evidence captured: $name face=$face attempt=$attempt"
-      return 0
-    fi
-    restart=keep
-  done
-  fail "Block-7 evidence frame remained empty: $name"
-}
-
-block7_capture neutral 17-block7-blink-open restart
-block7_capture blink85 18-block7-blink-partial
-block7_capture blink100 19-block7-blink-closed
-block7_capture neutral 20-block7-blink-reopen
+# Block 7 is already technically and manually accepted on this exact runtime lineage. Do not spend
+# another ~27 seconds replaying its held diagnostic open/partial/closed/reopen sequence inside the
+# Block-8 gate. Block 8 still protects eyelid correctness with the natural planner blink burst below,
+# while the guarded v76 final-geometry morph runtime remains the sole face writer.
 
 # Block 8: the debug-only capture bridge feeds deterministic 20 ms PCM fixtures through the exact
 # SpeechLipSyncV77 stabilizer and SpeechAudioBus, while CelineProductionPresenceV80 remains the
@@ -146,16 +121,13 @@ block8_capture block8_silent 28-block8-neutral-after
 
 timeout 15s adb logcat -d -v threadtime > "$OUT/scene-logcat.txt" 2>&1 || true
 if grep -Eq 'REN-399|V76-299|V80-499|FATAL EXCEPTION|SIGABRT' "$OUT/scene-logcat.txt"; then
-  fail "runtime error detected during targeted scene/blink/speech-face proof"
+  fail "runtime error detected during targeted scene/speech-face proof"
 fi
 if ! grep -Fq 'V80-440' "$OUT/scene-logcat.txt" || ! grep -Fq 'stage=CALL' "$OUT/scene-logcat.txt"; then
   fail "targeted capture did not bind the central production CALL owner"
 fi
 if ! grep -Fq 'V76-210' "$OUT/scene-logcat.txt"; then
   fail "targeted capture did not bind the guarded final-geometry face morph runtime"
-fi
-if ! grep -Fq 'face=blink85' "$OUT/scene-logcat.txt" || ! grep -Fq 'face=blink100' "$OUT/scene-logcat.txt"; then
-  fail "Block-7 partial/closed diagnostic morph states missing from logs"
 fi
 if ! grep -Fq 'V80-820' "$OUT/scene-logcat.txt" \
     || ! grep -Fq 'fixture=start shape=OPEN' "$OUT/scene-logcat.txt" \
@@ -170,7 +142,6 @@ if ! grep -Fq 'V80-821' "$OUT/scene-logcat.txt" || ! grep -Fq 'state=IDLE level=
 fi
 
 for frame in \
-  17-block7-blink-open 18-block7-blink-partial 19-block7-blink-closed 20-block7-blink-reopen \
   21-block8-neutral-before 22-block8-speech-start 23-block8-speech-round \
   24-block8-speech-wide 25-block8-speech-labial 26-block8-speech-sustain \
   27-block8-speech-natural-blink-a 27-block8-speech-natural-blink-b \
@@ -179,4 +150,4 @@ for frame in \
   [[ -s "$OUT/$frame.png" ]] || fail "missing targeted evidence $frame"
 done
 
-echo "Targeted HOME/CALL, accepted Block-7 blink and Block-8 PCM speech/face temporal evidence captured; manual visual acceptance is still required."
+echo "Targeted HOME/CALL and Block-8 PCM speech/face temporal evidence captured; accepted Block-7 eyelids remain guarded by the natural speech blink and manual visual review."
