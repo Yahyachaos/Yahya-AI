@@ -7,7 +7,7 @@
   "active_pr": 111,
   "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
-  "status": "block9_targeted_lifecycle_temporal_proof_in_progress_runtime_unchanged",
+  "status": "block9_targeted_lifecycle_temporal_proof_ready_to_trigger_runtime_unchanged",
   "latest_runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
   "latest_built_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
   "latest_visually_accepted_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
@@ -57,10 +57,9 @@
   "active_block": {
     "number": 9,
     "name": "Lifecycle and temporal stability",
-    "status": "proof_in_progress",
+    "status": "proof_ready_to_trigger",
     "runtime_change_required_so_far": false,
     "proof_script_commit": "fb2711e40a92a41c23e0a9d305aabaf3dafff5ed",
-    "queue_checkpoint_parent": "6e3043d681e763a3e299d1592ec5bcc7d6bd9755",
     "proof_scope": [
       "HOME -> CALL -> HOME same-process visibility",
       "production CALL mute/unmute state transition",
