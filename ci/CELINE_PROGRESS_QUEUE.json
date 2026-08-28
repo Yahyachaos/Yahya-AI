@@ -23,7 +23,7 @@
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
     "status": "phase_4R_completed_exact_runtime_build_and_targeted_visual_evidence_manually_accepted_block5_next_not_started",
-    "queue_checkpoint_parent_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+    "queue_checkpoint_parent_head": "2d7e80249c8e007a09cb333c6d7dbaf44cc6de99",
     "latest_runtime_code_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
     "latest_built_runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
     "latest_visually_accepted_runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
@@ -92,11 +92,7 @@
       "face_focus_y": 0.85,
       "call_default_zoom": 2.8,
       "zoom_max": 4.6,
-      "proof_checkpoints": [
-        2.8,
-        3.5,
-        4.6
-      ]
+      "proof_checkpoints": [2.8, 3.5, 4.6]
     },
     "active_block": {
       "number": 5,
@@ -134,19 +130,7 @@
     },
     "interactive_room_execution": {
       "canonical_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
-      "user_approved_order": [
-        "4",
-        "4R",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-        "9R",
-        "10",
-        "11",
-        "12"
-      ],
+      "user_approved_order": ["4", "4R", "5", "6", "7", "8", "9", "9R", "10", "11", "12"],
       "phase_4R": "accepted at runtime head 3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
       "phase_9R": "deferred until Blocks 5-9 are accepted",
       "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state."
@@ -246,10 +230,7 @@
     {
       "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
       "status": "merged_exact_main_validated_release_unchanged",
-      "prs": [
-        108,
-        109
-      ],
+      "prs": [108, 109],
       "runtime_change": false
     }
   ],
