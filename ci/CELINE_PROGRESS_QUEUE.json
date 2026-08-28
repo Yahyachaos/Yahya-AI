@@ -23,7 +23,7 @@
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
     "status": "phase_4R_completed_exact_runtime_build_and_targeted_visual_evidence_manually_accepted_block5_next_not_started",
-    "queue_checkpoint_parent_head": "2d7e80249c8e007a09cb333c6d7dbaf44cc6de99",
+    "queue_checkpoint_parent_head": "cb38a864239da9fe927b94cd64bdaf71854d9055",
     "latest_runtime_code_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
     "latest_built_runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
     "latest_visually_accepted_runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
