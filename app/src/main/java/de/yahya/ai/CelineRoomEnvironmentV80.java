@@ -181,6 +181,7 @@ final class CelineRoomEnvironmentV80 {
                 }
 
                 alignRoomRoot(candidate);
+                applyUserApprovedFurnitureOrientation(candidate);
                 validateWorldEntities(candidate, contract);
 
                 scene.addEntities(candidate.getEntities());
@@ -203,6 +204,9 @@ final class CelineRoomEnvironmentV80 {
                         "4R Weltvertrag aktiv", contract.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-110",
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
+                Celine3DDiagnostics.record(context, "ROOM-115",
+                        "4R Möbelorientierung korrigiert",
+                        "bed=-90deg nightstands=+90deg; camera/Celine untouched");
                 failureLogged = false;
                 return true;
             } catch (Throwable error) {
@@ -245,6 +249,34 @@ final class CelineRoomEnvironmentV80 {
                     CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
             Matrix.multiplyMM(aligned, 0, translation, 0, base, 0);
             transforms.setTransform(root, aligned);
+        }
+
+        private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {
+            // The prepared 4R GLB baked the bed with its headboard toward the room center and left
+            // the two bedside drawer fronts sideways. Correct only those confirmed orientation
+            // defects at the furniture-node level; footprint, anchors, camera and Celine stay fixed.
+            applyLocalYaw(asset, "room_bed", -180.0f);
+            applyLocalYaw(asset, "room_nightstand_back", 90.0f);
+            applyLocalYaw(asset, "room_nightstand_front", 90.0f);
+        }
+
+        private void applyLocalYaw(FilamentAsset asset, String entityName, float deltaDegrees) {
+            int entity = asset.getFirstEntityByName(entityName);
+            if (entity == 0) {
+                throw new IllegalStateException("4R Raum-Entity fehlt: " + entityName);
+            }
+            int instance = transforms.getInstance(entity);
+            if (instance == 0) {
+                throw new IllegalStateException("4R Transform fehlt: " + entityName);
+            }
+            float[] base = transforms.getTransform(instance, new float[16]);
+            float[] yaw = new float[16];
+            float[] corrected = new float[16];
+            Matrix.setRotateM(yaw, 0, deltaDegrees, 0.0f, 1.0f, 0.0f);
+            // Post-multiply so the node keeps its world translation and rotates around its own
+            // origin. All three affected source nodes use uniform scale.
+            Matrix.multiplyMM(corrected, 0, base, 0, yaw, 0);
+            transforms.setTransform(instance, corrected);
         }
 
         private void validateWorldEntities(

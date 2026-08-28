@@ -34,7 +34,7 @@ EXPECTED_HASHES = {
     ROOM_PARTS[2]: "b776a110ed924e7a4776820afd7f757ef167d53401798c53d638c045be7d7c3e",
     ROOM_PARTS[3]: "dce480698cd3ac2482b08fb5e5b86a3f811660214a5f01195d03bc0deae22088",
     WORLD: "2ae02ec958c527e5d4cc9fce26dc9830180e91d333f47cce07e688b161038278",
-    ASSEMBLY: "2307336aeddfa76ed4f7ae49b03dfdd05caebf309fb83298dea6f455f4b1b98c",
+    ASSEMBLY: "f3219d9b556c75a44507f3dcd90353cf35b5084489d0cb97b600351da222774e",
     ANCHORS: "7e8991eef5e1935fe5bef9827538d7a092e17c1fe8ddc0feda8d9d0e57a6ae4c",
     NAV: "3803c9bc0b5e75cf111af778daab7e89356676dc992682acbec3010683407978",
 }
@@ -210,6 +210,13 @@ nightstand_sources = [item.get("source_glb") for item in assembly["objects"]
                       if item.get("id", "").startswith("room_nightstand_")]
 require(nightstand_sources == ["Nachttisch.glb", "Nachttisch.glb"],
         "one nightstand binary, two assembly instances")
+assembly_by_id = {item.get("id"): item for item in assembly["objects"]}
+require(assembly_by_id["room_bed"]["transform"].get("rotation_y_deg") == -90,
+        "bed headboard orientation locked toward right wall")
+require(assembly_by_id["room_nightstand_back"]["transform"].get("rotation_y_deg") == 90,
+        "back nightstand drawer front orientation")
+require(assembly_by_id["room_nightstand_front"]["transform"].get("rotation_y_deg") == 90,
+        "front nightstand drawer front orientation")
 
 require(len(nav.get("colliders", [])) == 9, "nine clearance colliders")
 require(len(nav.get("edges", [])) == 14, "fourteen safe nav edges")
@@ -224,6 +231,10 @@ for token in (
     '"models/room/celine_room_v80_final_modular.glb"',
     "CelineRoomWorldContractV80.load(context)",
     "alignRoomRoot(candidate)",
+    "applyUserApprovedFurnitureOrientation(candidate)",
+    'applyLocalYaw(asset, "room_bed", -180.0f)',
+    'applyLocalYaw(asset, "room_nightstand_back", 90.0f)',
+    'applyLocalYaw(asset, "room_nightstand_front", 90.0f)',
     "validateWorldEntities(candidate, contract)",
     "scene.addEntities(candidate.getEntities())",
     "assetLoader.destroyAsset(current)",
@@ -258,6 +269,6 @@ for token in (
 
 print(
     "PASS v80 4R room runtime contract: final modular GLB, one visible room, "
-    "12 sources/13 instances/20 anchors, contact metadata and nav/collision data locked; "
-    "9R actions remain disabled"
+    "12 sources/13 instances/20 anchors, corrected bed/nightstand orientation, "
+    "contact metadata and nav/collision data locked; 9R actions remain disabled"
 )

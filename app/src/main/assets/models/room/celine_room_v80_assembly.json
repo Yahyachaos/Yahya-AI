@@ -40,7 +40,7 @@
           0.495578,
           -0.75
         ],
-        "rotation_y_deg": 90,
+        "rotation_y_deg": -90,
         "uniform_scale": 1.18
       },
       "role": "contact_primary",
@@ -155,7 +155,7 @@
           0.609148,
           -1.94
         ],
-        "rotation_y_deg": 0,
+        "rotation_y_deg": 90,
         "uniform_scale": 0.64
       },
       "role": "contact_secondary",
@@ -178,7 +178,7 @@
           0.609148,
           0.5
         ],
-        "rotation_y_deg": 0,
+        "rotation_y_deg": 90,
         "uniform_scale": 0.64
       },
       "role": "contact_secondary",
