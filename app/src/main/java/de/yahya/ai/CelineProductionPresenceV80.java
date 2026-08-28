@@ -19,9 +19,9 @@ import java.util.WeakHashMap;
  * v80 production owner for Celine's root, body, head and facial animation layers.
  *
  * Block 4 established the single writer. Block 5 keeps that ownership and makes the existing
- * v73/v74/v79 body/arm/hand foundations visibly useful in the actual HOME/CALL product: calm,
- * asynchronous six-joint arm/forearm/wrist life plus small upper-body settling. The canonical rig
- * has no proven finger bones, so fingers remain deliberately untouched.
+ * v73/v74/v79 body/arm/hand foundations visibly useful in the actual HOME/CALL product. Block 6
+ * replaces separate periodic eye/head drift with one camera-oriented social-gaze plan: mostly
+ * centered attention, occasional bounded micro shifts, and gently eased Head/neck follow.
  *
  * One renderer-frame call composes every accepted procedural transform from immutable rig bases,
  * commits one local-transform transaction, updates skin matrices once, and then advances the
@@ -72,6 +72,8 @@ final class CelineProductionPresenceV80 {
     private static final float CALL_ROOT_FORWARD = 0.12f;
     private static final long HOME_ARM_LOOP_NANOS = 5_200_000_000L;
     private static final long CALL_ARM_LOOP_NANOS = 6_100_000_000L;
+    private static final float MAX_SOCIAL_GAZE_X = 0.12f;
+    private static final float MAX_SOCIAL_GAZE_Y = 0.08f;
 
     private static final WeakHashMap<Celine3DView, Mixer> MIXERS = new WeakHashMap<>();
 
@@ -142,6 +144,22 @@ final class CelineProductionPresenceV80 {
         return mixer == null ? new HomeFrame() : mixer.homeFrame;
     }
 
+    /** Default eye target consumed by the guarded face layer after this owner composes the frame. */
+    static float socialLookX(Celine3DView view) {
+        synchronized (MIXERS) {
+            Mixer mixer = MIXERS.get(view);
+            return mixer == null ? 0.0f : mixer.socialGazeX;
+        }
+    }
+
+    /** Default eye target consumed by the guarded face layer after this owner composes the frame. */
+    static float socialLookY(Celine3DView view) {
+        synchronized (MIXERS) {
+            Mixer mixer = MIXERS.get(view);
+            return mixer == null ? 0.0f : mixer.socialGazeY;
+        }
+    }
+
     static void onDestroyed(Activity activity) {
         if (activity == null) return;
         synchronized (MIXERS) {
@@ -200,12 +218,20 @@ final class CelineProductionPresenceV80 {
         boolean loggedCall;
         boolean loggedBlock5Home;
         boolean loggedBlock5Call;
+        boolean loggedBlock6Home;
+        boolean loggedBlock6Call;
         boolean targetCall;
         boolean targetInitialized;
         float callBlend;
+        float socialGazeX;
+        float socialGazeY;
+        float socialGazeTargetX;
+        float socialGazeTargetY;
         long lastFrameNanos;
         long motionStartNanos;
         long armPhaseStartNanos;
+        long nextGazeShiftNanos;
+        int gazeShiftSerial;
 
         Mixer(Celine3DView view) throws Exception {
             this.view = view;
@@ -233,6 +259,7 @@ final class CelineProductionPresenceV80 {
                             + " order=base>posture>conversation>gaze>face"
                             + " face=CelineMorphRuntimeV62 PCM=v77"
                             + " block5SixJointArms=true fingerBones=false"
+                            + " block6SocialGaze=true independentWriter=false"
                             + " probe=" + probeModel);
         }
 
@@ -272,7 +299,12 @@ final class CelineProductionPresenceV80 {
             if ((layerMask & LAYER_CONVERSATION) != 0) {
                 applyConversationLayer(frameTimeNanos, home, call);
             }
-            if ((layerMask & LAYER_GAZE) != 0) applyGazeLayer(t, home, call);
+            if ((layerMask & LAYER_GAZE) != 0) {
+                applyGazeLayer(frameTimeNanos, deltaSeconds, t, home, call);
+            } else {
+                socialGazeX = 0.0f;
+                socialGazeY = 0.0f;
+            }
 
             try {
                 transforms.openLocalTransformTransaction();
@@ -432,7 +464,8 @@ final class CelineProductionPresenceV80 {
             }
         }
 
-        private void applyGazeLayer(double t, float home, float call) {
+        private void applyGazeLayer(long frameTimeNanos, float deltaSeconds,
+                                    double t, float home, float call) {
             if (probeModel) {
                 // Preserve the CI-only visible skinning capability probe under the central owner.
                 // These large angles are unreachable for the canonical production model.
@@ -449,30 +482,155 @@ final class CelineProductionPresenceV80 {
                                 + call * (float) Math.sin(t * Math.PI * 0.75) * 3.0f);
                 return;
             }
-            float slowHome = (float) Math.sin(t * 0.55);
-            float breathHome = (float) Math.sin(t * 1.35 + 0.3);
-            float speech = speechEnergy(view);
             CelineAvatarController.State state = avatarState(view);
-            float homeNod = state == CelineAvatarController.State.SPEAKING
-                    ? (float) Math.sin(t * 4.4) * (0.25f + 0.45f * speech) : 0.0f;
-            float homeListen = state == CelineAvatarController.State.LISTENING ? 0.28f : 0.0f;
+            updateSocialGaze(frameTimeNanos, deltaSeconds, state);
 
-            float slowCall = (float) Math.sin(t * 0.48);
-            float breathCall = (float) Math.sin(t * 1.28 + 0.4);
-            float callNod = state == CelineAvatarController.State.SPEAKING
-                    ? (float) Math.sin(t * 4.0) * (0.18f + 0.32f * speech) : 0.0f;
+            // A deliberate external look target keeps priority; the central plan is the default.
+            float lookX = view.v76LookActive()
+                    ? clamp(view.v76LookX(), -MAX_SOCIAL_GAZE_X, MAX_SOCIAL_GAZE_X)
+                    : socialGazeX;
+            float lookY = view.v76LookActive()
+                    ? clamp(view.v76LookY(), -MAX_SOCIAL_GAZE_Y, MAX_SOCIAL_GAZE_Y)
+                    : socialGazeY;
+
+            // Two incommensurate, sub-degree drifts prevent a dead neck without creating a bobbing
+            // cadence. Speaking nods are brief envelope-gated responses, not a permanent oscillator.
+            float independentYaw = 0.14f * (float) Math.sin(t * 0.31 + 0.4)
+                    + 0.07f * (float) Math.sin(t * 0.17 + 1.3);
+            float independentPitch = 0.09f * (float) Math.sin(t * 0.27 + 0.8)
+                    + 0.04f * (float) Math.sin(t * 0.11 + 2.0);
+            float independentRoll = 0.06f * (float) Math.sin(t * 0.21 + 1.1);
+            float speech = speechEnergy(view);
+            float nodEnvelope = state == CelineAvatarController.State.SPEAKING
+                    ? pow4(Math.max(0.0f, (float) Math.sin(t * 0.61 + 0.5))) : 0.0f;
+            float homeNod = (float) Math.sin(t * 3.2 + 0.2)
+                    * (0.12f + 0.28f * speech) * nodEnvelope;
+            float callNod = (float) Math.sin(t * 3.0 + 0.6)
+                    * (0.10f + 0.22f * speech) * nodEnvelope;
+            float listenTilt = state == CelineAvatarController.State.LISTENING ? 0.20f : 0.0f;
 
             add(NECK,
-                    call * breathCall * 0.16f,
-                    call * slowCall * 0.32f,
-                    call * -slowCall * 0.10f);
+                    home * (independentPitch * 0.28f + lookY * 2.7f)
+                            + call * (independentPitch * 0.32f + lookY * 3.1f),
+                    home * (independentYaw * 0.30f + lookX * 4.0f)
+                            + call * (independentYaw * 0.34f + lookX * 4.5f),
+                    home * (independentRoll * 0.25f + listenTilt * 0.22f)
+                            + call * (independentRoll * 0.28f + listenTilt * 0.18f));
             add(HEAD,
-                    home * (breathHome * 0.32f + homeNod)
-                            + call * (breathCall * 0.24f + callNod),
-                    home * slowHome * 0.70f + call * slowCall * 0.58f,
-                    home * (-slowHome * 0.24f + homeListen)
-                            + call * (-slowCall * 0.16f
-                            + (state == CelineAvatarController.State.LISTENING ? 0.18f : 0.0f)));
+                    home * (independentPitch + lookY * 8.5f + homeNod)
+                            + call * (independentPitch * 0.90f + lookY * 7.5f + callNod),
+                    home * (independentYaw + lookX * 13.5f)
+                            + call * (independentYaw * 0.92f + lookX * 12.0f),
+                    home * (independentRoll + listenTilt)
+                            + call * (independentRoll * 0.86f + listenTilt * 0.82f));
+
+            if (home > 0.98f && !loggedBlock6Home) {
+                loggedBlock6Home = true;
+                Celine3DDiagnostics.record(view.getContext(), "V80-460",
+                        "Block 6 HOME Social Presence aktiv",
+                        "cameraAttention=true microSaccades=true headNeckFollow=true"
+                                + " stateAware=true constantBobbing=false independentWriter=false");
+            }
+            if (call > 0.98f && !loggedBlock6Call) {
+                loggedBlock6Call = true;
+                Celine3DDiagnostics.record(view.getContext(), "V80-461",
+                        "Block 6 CALL Social Presence aktiv",
+                        "cameraAttention=true microSaccades=true headNeckFollow=true"
+                                + " stateAware=true gazeX<=0.12 gazeY<=0.08 independentWriter=false");
+            }
+        }
+
+        private void updateSocialGaze(long frameTimeNanos, float deltaSeconds,
+                                      CelineAvatarController.State state) {
+            if (nextGazeShiftNanos == 0L) {
+                // Start with direct camera contact; the first micro shift arrives only after Celine
+                // has visibly settled into the current HOME/CALL surface.
+                nextGazeShiftNanos = frameTimeNanos + 1_800_000_000L;
+            }
+            if (frameTimeNanos >= nextGazeShiftNanos) {
+                gazeShiftSerial++;
+                int cadence;
+                float centerAmplitude;
+                float glanceAmplitude;
+                float verticalAmplitude;
+                float verticalCenter;
+                long baseDelayMs;
+                long delayRangeMs;
+                switch (state) {
+                    case LISTENING:
+                        cadence = 7;
+                        centerAmplitude = 0.018f;
+                        glanceAmplitude = 0.060f;
+                        verticalAmplitude = 0.014f;
+                        verticalCenter = -0.012f;
+                        baseDelayMs = 2900L;
+                        delayRangeMs = 1500L;
+                        break;
+                    case THINKING:
+                        cadence = 3;
+                        centerAmplitude = 0.040f;
+                        glanceAmplitude = 0.110f;
+                        verticalAmplitude = 0.032f;
+                        verticalCenter = -0.030f;
+                        baseDelayMs = 1750L;
+                        delayRangeMs = 1250L;
+                        break;
+                    case SPEAKING:
+                        cadence = 5;
+                        centerAmplitude = 0.030f;
+                        glanceAmplitude = 0.082f;
+                        verticalAmplitude = 0.022f;
+                        verticalCenter = -0.010f;
+                        baseDelayMs = 2200L;
+                        delayRangeMs = 1450L;
+                        break;
+                    case IDLE:
+                    default:
+                        cadence = 6;
+                        centerAmplitude = 0.034f;
+                        glanceAmplitude = 0.075f;
+                        verticalAmplitude = 0.024f;
+                        verticalCenter = -0.006f;
+                        baseDelayMs = 2750L;
+                        delayRangeMs = 1700L;
+                        break;
+                }
+                boolean briefGlance = gazeShiftSerial % cadence == 0;
+                float horizontalAmplitude = briefGlance ? glanceAmplitude : centerAmplitude;
+                socialGazeTargetX = clamp(
+                        deterministicSigned(gazeShiftSerial, 17) * horizontalAmplitude,
+                        -MAX_SOCIAL_GAZE_X, MAX_SOCIAL_GAZE_X);
+                socialGazeTargetY = clamp(
+                        verticalCenter
+                                + deterministicSigned(gazeShiftSerial, 53) * verticalAmplitude,
+                        -MAX_SOCIAL_GAZE_Y, MAX_SOCIAL_GAZE_Y);
+                long delayMs = briefGlance
+                        ? 1050L + (long) (deterministicUnit(gazeShiftSerial, 71) * 650.0f)
+                        : baseDelayMs
+                                + (long) (deterministicUnit(gazeShiftSerial, 89) * delayRangeMs);
+                nextGazeShiftNanos = frameTimeNanos + delayMs * 1_000_000L;
+            }
+
+            float ease = Math.min(1.0f, deltaSeconds * 5.2f);
+            socialGazeX += (socialGazeTargetX - socialGazeX) * ease;
+            socialGazeY += (socialGazeTargetY - socialGazeY) * ease;
+        }
+
+        private static float deterministicSigned(int serial, int salt) {
+            return deterministicUnit(serial, salt) * 2.0f - 1.0f;
+        }
+
+        private static float deterministicUnit(int serial, int salt) {
+            long value = serial * 1_103_515_245L + salt * 12_345L + 0x9E3779B9L;
+            value ^= value >>> 16;
+            value *= 0x45D9F3BL;
+            value ^= value >>> 16;
+            return (value & 0x7FFFFFFFL) / 2_147_483_647.0f;
+        }
+
+        private static float pow4(float value) {
+            float square = value * value;
+            return square * square;
         }
 
         private void applyRoot(float home, float call) {

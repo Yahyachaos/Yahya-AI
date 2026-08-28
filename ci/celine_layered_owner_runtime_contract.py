@@ -36,7 +36,7 @@ for token in (
     "applyBaseLayer(home, call)",
     "applyPostureLayer(t, home, call)",
     "applyConversationLayer(frameTimeNanos, home, call)",
-    "applyGazeLayer(t, home, call)",
+    "applyGazeLayer(frameTimeNanos, deltaSeconds, t, home, call)",
     "CelineMorphRuntimeV62.onFrame(view, frameTimeNanos)",
     "oneTransaction=true oneSkinUpdate=true",
     "CelineSkinningProbe",
@@ -118,6 +118,19 @@ for token in ("CALL_ROOT_DOWN = -0.30f", "CALL_ROOT_FORWARD = 0.12f",
               "call * -82.0f", "call * 92.0f", "call * -8.0f",
               "call * (30.5f", "call * (-30.5f"):
     require(token in owner, f"accepted CALL seat/arm constant missing: {token}")
+
+for token in (
+    "MAX_SOCIAL_GAZE_X = 0.12f",
+    "MAX_SOCIAL_GAZE_Y = 0.08f",
+    "updateSocialGaze(frameTimeNanos, deltaSeconds, state)",
+    "deterministicSigned(gazeShiftSerial",
+    "constantBobbing=false independentWriter=false",
+    "CelineProductionPresenceV80.socialLookX(view)",
+    "CelineProductionPresenceV80.socialLookY(view)",
+):
+    require(token in owner or token in morph, f"Block-6 social-presence token missing: {token}")
+require("CelineHumanPresenceV48.install" not in app,
+        "historical independent gaze scheduler was reactivated")
 
 require("never writes Celine's root" in room,
         "Block-3 room ownership boundary is no longer explicit")

@@ -69,14 +69,19 @@ final class CelineMorphRuntimeV62 {
         if (!state.probed) probeMorphRig(view, state);
         if (!state.enabled || state.morphInstances == null || state.morphInstances.length == 0) return;
 
+        // Explicit interaction look targets retain priority. Otherwise the eyes consume the same
+        // central Block-6 social target that already drives bounded Head/neck follow this frame.
+        boolean explicitLook = view.v76LookActive();
+        float lookX = explicitLook ? view.v76LookX() : CelineProductionPresenceV80.socialLookX(view);
+        float lookY = explicitLook ? view.v76LookY() : CelineProductionPresenceV80.socialLookY(view);
         CelineFacialMotionPlanner.Frame frame = state.planner.update(
                 frameTimeNanos / 1_000_000L,
                 view.v62AvatarState(),
                 state.cue,
                 view.v76SpeechEnergy(),
-                view.v76LookX(),
-                view.v76LookY(),
-                view.v76LookActive());
+                lookX,
+                lookY,
+                true);
         float[] diagnostic = state.diagnosticWeights;
         float[] output = diagnostic == null ? frame.weights : diagnostic;
         try {

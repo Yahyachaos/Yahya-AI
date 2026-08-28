@@ -69,6 +69,7 @@ wait_log 'V80-400' 'central production owner bind'
 wait_log 'block5SixJointArms=true fingerBones=false' 'Block 5 six-joint/no-finger contract'
 wait_log 'V80-410' 'central HOME layered frame'
 wait_log 'V80-450' 'Block 5 HOME asynchronous arm/hand layer'
+wait_log 'V80-460' 'Block 6 HOME camera-oriented social presence'
 wait_log 'V76-210' 'guarded v76 face/morph output'
 wait_log 'CTL-350' 'visible production Celine'
 sleep 1.2
@@ -105,6 +106,7 @@ adb shell input tap "$TAP_X" "$TAP_Y"
 wait_log 'target=CALL eased=true snap=false' 'eased HOME-to-CALL handoff'
 wait_log 'V80-420' 'central CALL layered frame'
 wait_log 'V80-451' 'Block 5 CALL asynchronous arm/hand layer'
+wait_log 'V80-461' 'Block 6 CALL camera-oriented social presence'
 sleep 1.3
 
 adb shell uiautomator dump /sdcard/celine-v80-owner-call.xml >/dev/null || fail "CALL UI dump failed"
@@ -124,6 +126,10 @@ python3 ci/celine-block5-motion-compare.py "$OUT/call.png" "$OUT/call-motion-b.p
   | tee "$OUT/call-motion-a-b.txt"
 python3 ci/celine-block5-motion-compare.py "$OUT/call-motion-b.png" "$OUT/call-motion-c.png" CALL_B_TO_C \
   | tee "$OUT/call-motion-b-c.txt"
+python3 ci/celine-block6-social-presence-compare.py "$OUT/call.png" "$OUT/call-motion-b.png" \
+  CALL_FACE_A_TO_B | tee "$OUT/call-social-presence-a-b.txt"
+python3 ci/celine-block6-social-presence-compare.py "$OUT/call-motion-b.png" "$OUT/call-motion-c.png" \
+  CALL_FACE_B_TO_C | tee "$OUT/call-social-presence-b-c.txt"
 
 adb shell input keyevent 4
 wait_log 'target=HOME eased=true snap=false' 'eased CALL-to-HOME handoff'
@@ -177,6 +183,10 @@ for required in \
   'V80-420' \
   'V80-450' \
   'V80-451' \
+  'V80-460' \
+  'V80-461' \
+  'cameraAttention=true microSaccades=true headNeckFollow=true' \
+  'constantBobbing=false independentWriter=false' \
   'async=true' \
   'oneTransaction=true oneSkinUpdate=true' \
   'target=CALL eased=true snap=false' \
@@ -192,11 +202,14 @@ if grep -Eq 'V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|FAT
 fi
 
 cat > "$OUT/summary.txt" <<EOF
-PASS central v80 layered owner + Block 5 temporal arm/hand gate
+PASS central v80 layered owner + Block 5 arm/hand + Block 6 social-presence temporal gates
 HOME_CALL_HOME=visible_and_eased
 BLOCK5_HOME=two_actual_product_frames_captured
 BLOCK5_CALL=three_actual_product_frames_bilateral_motion_guard_passed
 BLOCK5_ARM_HAND=asynchronous_six_joint_no_finger_bones
+BLOCK6_GAZE=mostly_camera_oriented_with_bounded_occasional_micro_shifts
+BLOCK6_HEAD_NECK=gentle_follow_plus_tiny_independent_non_bobbing_motion
+BLOCK6_CALL=three_actual_product_frames_face_region_temporal_bounds_passed
 AVATAR_LAB_PRODUCTION_HOME_CALL=same_CelineProductionPresenceV80
 TRANSFORM_FRAME=one_transaction_one_skin_update
 FACE_LAYER=v76_guarded_runtime_active_v77_PCM_route_structurally_preserved
@@ -204,4 +217,4 @@ CAMERA_SEAT_ROOM=visible_targeted_regression_guard_passed
 MANUAL_TEMPORAL_REVIEW=required
 EOF
 
-echo "PASS: exact APK uses central Block-5 asynchronous arm/hand motion in HOME/CALL; manual frame review remains required."
+echo "PASS: exact APK uses central Block-5 arm/hand life and Block-6 gaze/head social presence; manual frame review remains required."
