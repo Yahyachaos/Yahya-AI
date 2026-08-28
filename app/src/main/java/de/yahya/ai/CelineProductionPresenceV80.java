@@ -16,7 +16,12 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * v80 Block-4 production owner for Celine's root, body, head and facial animation layers.
+ * v80 production owner for Celine's root, body, head and facial animation layers.
+ *
+ * Block 4 established the single writer. Block 5 keeps that ownership and makes the existing
+ * v73/v74/v79 body/arm/hand foundations visibly useful in the actual HOME/CALL product: calm,
+ * asynchronous six-joint arm/forearm/wrist life plus small upper-body settling. The canonical rig
+ * has no proven finger bones, so fingers remain deliberately untouched.
  *
  * One renderer-frame call composes every accepted procedural transform from immutable rig bases,
  * commits one local-transform transaction, updates skin matrices once, and then advances the
@@ -193,6 +198,8 @@ final class CelineProductionPresenceV80 {
         boolean diagnosticDisabled;
         boolean loggedHome;
         boolean loggedCall;
+        boolean loggedBlock5Home;
+        boolean loggedBlock5Call;
         boolean targetCall;
         boolean targetInitialized;
         float callBlend;
@@ -225,6 +232,7 @@ final class CelineProductionPresenceV80 {
                             + " root=scene/seat base"
                             + " order=base>posture>conversation>gaze>face"
                             + " face=CelineMorphRuntimeV62 PCM=v77"
+                            + " block5SixJointArms=true fingerBones=false"
                             + " probe=" + probeModel);
         }
 
@@ -318,67 +326,110 @@ final class CelineProductionPresenceV80 {
             double theta = Math.PI * 2.0 * ((t % 4.0) / 4.0);
             float wave = (float) Math.sin(theta);
             float second = (float) Math.sin(theta * 2.0);
+            float callSlow = (float) Math.sin(t * 0.62 + 0.45);
+            float callDrift = (float) Math.sin(t * 0.37 + 1.10);
             add(HIPS,
                     home * (-2.0f + 0.10f * second),
                     home * (-3.5f + 0.12f * wave),
                     home * (6.0f + 0.18f * wave));
             add(LEFT_SHOULDER,
-                    home * (-1.2f - 0.10f * wave - 0.03f * second),
+                    home * (-1.2f - 0.10f * wave - 0.03f * second)
+                            + call * (-0.12f + 0.20f * callSlow),
                     0.0f,
-                    home * (-0.7f - 0.05f * wave));
+                    home * (-0.7f - 0.05f * wave) + call * -0.14f * callDrift);
             add(RIGHT_SHOULDER,
-                    home * (-0.6f - 0.08f * wave + 0.02f * second),
+                    home * (-0.6f - 0.08f * wave + 0.02f * second)
+                            + call * (-0.08f - 0.17f * callDrift),
                     0.0f,
-                    home * (0.5f + 0.04f * wave));
-            add(SPINE, call * 1.20f, 0.0f, 0.0f);
-            add(SPINE01, call * 1.60f, 0.0f, 0.0f);
-            add(SPINE02, call * 1.20f, 0.0f, 0.0f);
+                    home * (0.5f + 0.04f * wave) + call * 0.12f * callSlow);
+            add(SPINE, call * (1.20f + 0.18f * callDrift), 0.0f, 0.0f);
+            add(SPINE01, call * (1.60f + 0.24f * callSlow), 0.0f, 0.0f);
+            add(SPINE02, call * (1.20f + 0.16f * callDrift), 0.0f, 0.0f);
         }
 
         private void applyConversationLayer(long frameTimeNanos, float home, float call) {
             long duration = targetCall ? CALL_ARM_LOOP_NANOS : HOME_ARM_LOOP_NANOS;
             long elapsed = Math.max(0L, frameTimeNanos - armPhaseStartNanos);
             double theta = Math.PI * 2.0 * ((double) (elapsed % duration) / (double) duration);
-            float wave = (float) Math.sin(theta);
-            float second = (float) Math.sin(theta * 2.0 + 0.6);
-            float breath = (float) Math.sin(theta - 0.45);
+
+            // Different phases on left/right make the body read as one person settling naturally,
+            // not two mirrored metronomes. Integer harmonics keep both loops seamless.
+            float leftWave = (float) Math.sin(theta);
+            float rightWave = (float) Math.sin(theta + 1.17);
+            float leftSecond = (float) Math.sin(theta * 2.0 + 0.35);
+            float rightSecond = (float) Math.sin(theta * 2.0 + 1.72);
+            float leftThird = (float) Math.sin(theta * 3.0 + 0.20);
+            float rightThird = (float) Math.sin(theta * 3.0 + 1.31);
+            float leftBreath = (float) Math.sin(theta - 0.45);
+            float rightBreath = (float) Math.sin(theta + 0.78);
             float speech = targetCall && avatarState(view) == CelineAvatarController.State.SPEAKING
                     ? speechEnergy(view) : 0.0f;
 
-            add(LEFT_SHOULDER, home * -homeFrame.gait * 0.9f, 0.0f, 0.0f);
-            add(RIGHT_SHOULDER, home * homeFrame.gait * 0.9f, 0.0f, 0.0f);
+            add(LEFT_SHOULDER,
+                    home * (-homeFrame.gait * 0.9f + 0.18f * leftBreath), 0.0f, 0.0f);
+            add(RIGHT_SHOULDER,
+                    home * (homeFrame.gait * 0.9f + 0.16f * rightBreath), 0.0f, 0.0f);
 
-            float leftArmPitchHome = -homeFrame.gait * 2.2f + 1.18f * wave;
-            float rightArmPitchHome = homeFrame.gait * 2.2f - 1.05f * wave;
-            float leftArmPitchCall = 0.72f * wave + 0.22f * speech * second;
-            float rightArmPitchCall = -0.66f * wave - 0.20f * speech * second;
+            float leftArmPitchHome = -homeFrame.gait * 2.2f
+                    + 2.55f * leftWave + 0.40f * leftSecond;
+            float rightArmPitchHome = homeFrame.gait * 2.2f
+                    + 2.30f * rightWave + 0.36f * rightSecond;
+            float leftArmPitchCall = 2.05f * leftWave + 0.52f * leftSecond
+                    + speech * 1.05f * leftThird;
+            float rightArmPitchCall = 1.85f * rightWave + 0.48f * rightSecond
+                    + speech * 0.92f * rightThird;
             add(LEFT_ARM,
                     home * leftArmPitchHome + call * leftArmPitchCall,
                     0.0f,
-                    home * (29.5f + 0.68f * breath) + call * (30.5f + 0.42f * breath));
+                    home * (29.5f + 1.05f * leftBreath)
+                            + call * (30.5f + 0.84f * leftBreath
+                            + 0.30f * speech * leftSecond));
             add(RIGHT_ARM,
                     home * rightArmPitchHome + call * rightArmPitchCall,
                     0.0f,
-                    home * (-29.5f - 0.62f * breath) + call * (-30.5f - 0.40f * breath));
+                    home * (-29.5f - 0.96f * rightBreath)
+                            + call * (-30.5f - 0.78f * rightBreath
+                            - 0.28f * speech * rightSecond));
 
             add(LEFT_FOREARM,
-                    home * (-6.0f + 0.72f * second)
-                            + call * (-14.0f + 0.95f * second + 0.35f * speech * wave),
+                    home * (-6.0f + 1.80f * leftSecond + 0.30f * leftThird)
+                            + call * (-14.0f + 2.15f * leftSecond
+                            + speech * 0.90f * leftThird),
                     0.0f, 0.0f);
             add(RIGHT_FOREARM,
-                    home * (-6.0f - 0.68f * second)
-                            + call * (-14.0f - 0.88f * second - 0.32f * speech * wave),
+                    home * (-6.0f + 1.65f * rightSecond + 0.28f * rightThird)
+                            + call * (-14.0f + 1.95f * rightSecond
+                            + speech * 0.82f * rightThird),
                     0.0f, 0.0f);
             add(LEFT_HAND,
-                    home * (1.85f * wave + 0.32f * second)
-                            + call * (1.45f * wave + 0.45f * speech * second),
+                    home * (3.20f * leftWave + 0.82f * leftSecond)
+                            + call * (3.05f * leftWave + 0.76f * leftSecond
+                            + speech * 1.10f * leftThird),
                     0.0f,
-                    home * 0.82f * second + call * 0.70f * second);
+                    home * (1.45f * leftSecond + 0.32f * leftThird)
+                            + call * (1.38f * leftSecond + 0.28f * leftThird
+                            + speech * 0.45f * leftThird));
             add(RIGHT_HAND,
-                    home * (-1.72f * wave - 0.28f * second)
-                            + call * (-1.35f * wave - 0.42f * speech * second),
+                    home * (2.95f * rightWave + 0.76f * rightSecond)
+                            + call * (2.82f * rightWave + 0.70f * rightSecond
+                            + speech * 1.00f * rightThird),
                     0.0f,
-                    home * -0.76f * second + call * -0.65f * second);
+                    home * (1.34f * rightSecond + 0.30f * rightThird)
+                            + call * (1.28f * rightSecond + 0.26f * rightThird
+                            + speech * 0.40f * rightThird));
+
+            if (home > 0.98f && !loggedBlock5Home) {
+                loggedBlock5Home = true;
+                Celine3DDiagnostics.record(view.getContext(), "V80-450",
+                        "Block 5 HOME Arm/Hand-Leben aktiv",
+                        "async=true arm~3deg forearm~2deg wrist~4deg fingerBones=false calm=true");
+            }
+            if (call > 0.98f && !loggedBlock5Call) {
+                loggedBlock5Call = true;
+                Celine3DDiagnostics.record(view.getContext(), "V80-451",
+                        "Block 5 CALL Arm/Hand-Leben aktiv",
+                        "async=true arm~3deg forearm~3deg wrist~4deg speechBounded=true fingerBones=false");
+            }
         }
 
         private void applyGazeLayer(double t, float home, float call) {
