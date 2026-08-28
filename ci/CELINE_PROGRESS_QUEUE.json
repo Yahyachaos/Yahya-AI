@@ -59,7 +59,8 @@
     "name": "Lifecycle and temporal stability",
     "status": "proof_in_progress",
     "runtime_change_required_so_far": false,
-    "proof_only_head": "fb2711e40a92a41c23e0a9d305aabaf3dafff5ed",
+    "proof_script_commit": "fb2711e40a92a41c23e0a9d305aabaf3dafff5ed",
+    "queue_checkpoint_parent": "6e3043d681e763a3e299d1592ec5bcc7d6bd9755",
     "proof_scope": [
       "HOME -> CALL -> HOME same-process visibility",
       "production CALL mute/unmute state transition",
@@ -69,6 +70,6 @@
       "Settings -> Avatar Lab -> HOME same-process return via existing settings proof"
     ]
   },
-  "current_blocker": "Await one exact runtime-equivalent Avatar Lab proof on the Block-9 proof-only head, then manually inspect every lifecycle frame before acceptance.",
-  "exact_next_action": "Trigger exactly one Celine Avatar Lab Proof for the current proof-only head using the existing Build #667 runtime-equivalent APK. Do not rebuild because runtime fingerprint is unchanged. After completion, inspect the artifact manually: HOME baseline; CALL; muted/unmuted; CALL foreground A/B with temporal motion; zoomed/reset; HOME return; keyboard open/closed; Settings; Avatar Lab; final HOME return. Accept Block 9 only if Celine remains visible, alive, correctly framed and in the correct scene/state across all transitions with no renderer/process reset or protected-block regression. If a real runtime defect appears, make only the smallest bounded fix, one Android build, then one proof. Do not start 9R before Block 9 is accepted. Do not merge or release."
+  "current_blocker": "Await one exact runtime-equivalent Avatar Lab proof on the current docs/proof-only head, then manually inspect every lifecycle frame before acceptance.",
+  "exact_next_action": "Trigger exactly one Celine Avatar Lab Proof for the current proof-only branch head using the existing Build #667 runtime-equivalent APK. Do not rebuild because runtime fingerprint is unchanged. After completion, inspect the artifact manually: HOME baseline; CALL; muted/unmuted; CALL foreground A/B with temporal motion; zoomed/reset; HOME return; keyboard open/closed; Settings; Avatar Lab; final HOME return. Accept Block 9 only if Celine remains visible, alive, correctly framed and in the correct scene/state across all transitions with no renderer/process reset or protected-block regression. If a real runtime defect appears, make only the smallest bounded fix, one Android build, then one proof. Do not start 9R before Block 9 is accepted. Do not merge or release."
 }
