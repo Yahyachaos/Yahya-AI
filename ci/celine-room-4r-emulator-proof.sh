@@ -46,9 +46,10 @@ capture() {
 }
 
 [[ -s "$APK" ]] || fail "missing APK: $APK"
-PACKAGED_COUNT="$(unzip -Z1 "$APK" | grep -Fxc "$ROOM_ASSET" || true)"
+APK_LIST="$(unzip -Z1 "$APK")"
+PACKAGED_COUNT="$(grep -Fxc "$ROOM_ASSET" <<< "$APK_LIST" || true)"
 [[ "$PACKAGED_COUNT" = "1" ]] || fail "final room must be packaged exactly once (found $PACKAGED_COUNT)"
-if unzip -Z1 "$APK" | grep -Fxq 'assets/models/room/celine_room_v80.gltf'; then
+if grep -Fxq 'assets/models/room/celine_room_v80.gltf' <<< "$APK_LIST"; then
   fail "legacy block room is still packaged"
 fi
 PACKAGED_ROOM_BYTES="$(unzip -p "$APK" "$ROOM_ASSET" | wc -c | tr -d ' ')"
@@ -62,7 +63,7 @@ for metadata in \
   celine_room_v80_assembly.json \
   celine_room_v80_anchors.json \
   celine_room_v80_nav_collision.json; do
-  unzip -Z1 "$APK" | grep -Fxq "assets/models/room/$metadata" ||
+  grep -Fxq "assets/models/room/$metadata" <<< "$APK_LIST" ||
     fail "packaged world metadata missing: $metadata"
 done
 printf '%s  %s\n%s  bytes\n' "$PACKAGED_ROOM_SHA" "$ROOM_ASSET" "$PACKAGED_ROOM_BYTES" \
