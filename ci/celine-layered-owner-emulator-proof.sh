@@ -16,7 +16,7 @@ trap collect EXIT
 
 fail() {
   echo "Layered-owner proof ERROR: $*" >&2
-  adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|SIGABRT|V80-|V79-|V77-|V76-|V61-|REN-|CTL-' | tail -260 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|SIGABRT|V80-|V79-|V77-|V76-|V61-|REN-|CTL-' | tail -300 || true
   exit 1
 }
 
@@ -66,7 +66,9 @@ adb shell am start -W -n "$MAIN_ACTIVITY" >/dev/null
 
 wait_log 'V61-110' 'protected v61 rig-scale correction'
 wait_log 'V80-400' 'central production owner bind'
+wait_log 'block5SixJointArms=true fingerBones=false' 'Block 5 six-joint/no-finger contract'
 wait_log 'V80-410' 'central HOME layered frame'
+wait_log 'V80-450' 'Block 5 HOME asynchronous arm/hand layer'
 wait_log 'V76-210' 'guarded v76 face/morph output'
 wait_log 'CTL-350' 'visible production Celine'
 sleep 1.2
@@ -76,6 +78,9 @@ adb pull /sdcard/celine-v80-owner-home.xml "$OUT/home.xml" >/dev/null || fail "H
 capture_product home HOME
 grep -q 'Celin 3D Ansicht' "$OUT/home.xml" || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' "$OUT/home.xml" || fail "HOME CALL entry missing"
+# Keep a second actual-product HOME frame for human temporal inspection.
+sleep 1.35
+capture_product home-motion-b HOME_MOTION_B
 
 read -r TAP_X TAP_Y <<< "$(python3 - "$OUT/home.xml" <<'PY'
 import re
@@ -99,6 +104,7 @@ PY
 adb shell input tap "$TAP_X" "$TAP_Y"
 wait_log 'target=CALL eased=true snap=false' 'eased HOME-to-CALL handoff'
 wait_log 'V80-420' 'central CALL layered frame'
+wait_log 'V80-451' 'Block 5 CALL asynchronous arm/hand layer'
 sleep 1.3
 
 adb shell uiautomator dump /sdcard/celine-v80-owner-call.xml >/dev/null || fail "CALL UI dump failed"
@@ -106,6 +112,18 @@ adb pull /sdcard/celine-v80-owner-call.xml "$OUT/call.xml" >/dev/null || fail "C
 capture_product call CALL
 grep -q 'Live mit Celin' "$OUT/call.xml" || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' "$OUT/call.xml" || fail "CALL 3D stage missing"
+
+# Block 5 is temporal: one static screenshot cannot prove non-frozen arms/hands. Capture two more
+# actual-product CALL frames at deliberately different phases and fail closed if either lateral arm
+# region remains effectively unchanged. Human review of all three frames is still mandatory.
+sleep 1.45
+capture_product call-motion-b CALL_MOTION_B
+sleep 1.45
+capture_product call-motion-c CALL_MOTION_C
+python3 ci/celine-block5-motion-compare.py "$OUT/call.png" "$OUT/call-motion-b.png" CALL_A_TO_B \
+  | tee "$OUT/call-motion-a-b.txt"
+python3 ci/celine-block5-motion-compare.py "$OUT/call-motion-b.png" "$OUT/call-motion-c.png" CALL_B_TO_C \
+  | tee "$OUT/call-motion-b-c.txt"
 
 adb shell input keyevent 4
 wait_log 'target=HOME eased=true snap=false' 'eased CALL-to-HOME handoff'
@@ -139,8 +157,12 @@ trap - EXIT
 for required in \
   'V80-400' \
   'order=base>posture>conversation>gaze>face' \
+  'block5SixJointArms=true fingerBones=false' \
   'V80-410' \
   'V80-420' \
+  'V80-450' \
+  'V80-451' \
+  'async=true' \
   'oneTransaction=true oneSkinUpdate=true' \
   'target=CALL eased=true snap=false' \
   'target=HOME eased=true snap=false' \
@@ -155,12 +177,16 @@ if grep -Eq 'V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|FAT
 fi
 
 cat > "$OUT/summary.txt" <<EOF
-PASS central v80 layered owner
+PASS central v80 layered owner + Block 5 temporal arm/hand gate
 HOME_CALL_HOME=visible_and_eased
+BLOCK5_HOME=two_actual_product_frames_captured
+BLOCK5_CALL=three_actual_product_frames_bilateral_motion_guard_passed
+BLOCK5_ARM_HAND=asynchronous_six_joint_no_finger_bones
 AVATAR_LAB_PRODUCTION_HOME_CALL=same_CelineProductionPresenceV80
 TRANSFORM_FRAME=one_transaction_one_skin_update
 FACE_LAYER=v76_guarded_runtime_active_v77_PCM_route_structurally_preserved
 CAMERA_SEAT_ROOM=visible_targeted_regression_guard_passed
+MANUAL_TEMPORAL_REVIEW=required
 EOF
 
-echo "PASS: exact APK uses the central layered owner in HOME, CALL and Avatar Lab Production modes."
+echo "PASS: exact APK uses central Block-5 asynchronous arm/hand motion in HOME/CALL; manual frame review remains required."
