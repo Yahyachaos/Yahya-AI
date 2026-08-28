@@ -17,48 +17,74 @@
     "kind": "runtime_visual_upgrade_postrelease_repair",
     "target_version": 80,
     "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
+    "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
     "branch": "auto/celine/v80-human-videochat-presence",
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "block4_completed_documented_stopped_before_4R_for_user_review",
-    "queue_checkpoint_parent_head": "c0ea12cdf03d96e59bced974e71540a2e0db3a79",
-    "latest_runtime_code_head": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
-    "latest_built_runtime_head": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
-    "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
+    "status": "phase_4R_completed_exact_runtime_build_and_targeted_visual_evidence_manually_accepted_block5_next_not_started",
+    "queue_checkpoint_parent_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+    "latest_runtime_code_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+    "latest_built_runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+    "latest_visually_accepted_runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+    "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 638,
-      "run_id": 33164190451,
+      "run_number": 646,
+      "run_id": 33176535670,
       "conclusion": "success",
-      "head_sha": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
-      "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
-      "apk_artifact": 9682915739,
-      "fingerprint_artifact": 9682915999,
-      "apk_sha256": "8b9b19dff65791eebec272c04216a4f18bd175ec6fcffd2b98e8282e7440e78e",
-      "note": "Checkout and compile logs confirm exact HEAD d2ddd148. The PR metadata file records GitHub's synthetic merge SHA in built_head because it uses GITHUB_SHA, but the checkout log, workflow head, runtime fingerprint and APK all bind to d2ddd148. Later Android Build runs 639/640 were CI-only scope/reuse runs with the build job skipped."
+      "head_sha": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+      "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
+      "apk_artifact": 9687868029,
+      "fingerprint_artifact": 9687868416,
+      "apk_sha256": "179de574821f1ba7366e1225d6fc4fa88515c01aa5ed5679e2c248a7f7429b0c"
     },
     "latest_visual_proof": {
-      "workflow": "Celine Layered Owner Proof",
-      "run_number": 2,
-      "run_id": 33164630221,
+      "workflow": "Celine Room 4R Proof",
+      "run_number": 6,
+      "run_id": 33176713832,
       "conclusion": "success",
-      "head_sha": "c0ea12cdf03d96e59bced974e71540a2e0db3a79",
-      "runtime_source_sha": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
-      "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
-      "artifact": 9683137861,
-      "artifact_digest": "sha256:aa67ec476e3fdf7a865930af150ba9c819c1a2477adc03eb2355266d6ed3adfb",
+      "head_sha": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+      "runtime_source_sha": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+      "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
+      "artifact": 9688003038,
+      "artifact_digest": "sha256:5b7684898fc49bf359bea6ddc431249a5b9e32295871aee8f9d53f6f5bea6d29",
       "manually_inspected": true,
-      "criterion_result": "PASS_BLOCK4_CENTRAL_LAYERED_PRODUCTION_OWNER",
-      "visual_acceptance": "FUNCTIONAL_OWNER_AND_REGRESSION_GATE_ACCEPTED_NOT_FINAL_MOTION_REALISM_OR_ROOM_ART_ACCEPTANCE",
+      "criterion_result": "PASS_PHASE_4R_FINAL_MODULAR_ROOM_WORLD_CONTRACT",
+      "visual_acceptance": "FINAL_4R_ROOM_WORLD_ACCEPTED_FOR_BLOCK5_BASELINE",
       "evidence": [
-        "Runtime logs bind CelineProductionPresenceV80 once and confirm ordered base>posture>conversation>gaze>face composition with one transform transaction and one skin update per production frame.",
-        "HOME, eased HOME-to-CALL, CALL, eased CALL-to-HOME and HOME-return completed with Celine visibly present; no v80/v76/v61/renderer failure marker was present.",
-        "HOME-return camera/framing ratio was 1.002, preserving the accepted camera/zoom semantics.",
-        "Avatar Lab combined Production HOME and Production CALL both logged and visibly rendered through CelineProductionPresenceV80; the legacy Lab pose writer returned without per-frame production writes.",
-        "The guarded v76 face runtime activated and the unchanged v77 AudioTrack-PCM-to-viseme route remains the final morph-layer input.",
-        "The exact accepted CALL seat constants, Block-3 room owner boundary and canonical production model remained unchanged; the current procedural room is still intentionally blocky and is not final room-art acceptance."
+        "HOME, CALL and HOME-return all show canonical Celine in the same active final modular Filament room.",
+        "Manual inspection confirms the corrected bed/headboard orientation toward the right wall and both bedside-cabinet drawer fronts oriented correctly.",
+        "The legacy blocky room is not packaged; exactly one final modular room is active and no visible laptop node is present.",
+        "The runtime contract binds 12 optimized sources, 13 furniture instances, 20 anchors, 9 colliders, 14 navigation edges and 6 contact edges.",
+        "Contact calibration remains bed 0.461 m, chair 0.457 m and foreground-table top 0.756 m; HOME/CALL transitions remain eased without camera snap.",
+        "Proof summary reports room_load_seconds=13 in the software emulator. Keep performance as a later device/temporal watch; no fallback is justified by this accepted proof alone.",
+        "9R locomotion/actions remain disabled."
       ]
+    },
+    "phase_4R_accepted_runtime": {
+      "runtime_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+      "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
+      "room_asset": "models/room/celine_room_v80_final_modular.glb",
+      "room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
+      "room_bytes": 46580788,
+      "source_assets": 12,
+      "furniture_instances": 13,
+      "anchor_nodes": 20,
+      "colliders": 9,
+      "nav_edges": 14,
+      "contact_edges": 6,
+      "bed_mattress_y_m": 0.461,
+      "chair_seat_y_m": 0.457,
+      "foreground_table_top_y_m": 0.756,
+      "visible_laptop": false,
+      "legacy_room_packaged": false,
+      "nine_r_actions_enabled": false,
+      "orientation_correction": {
+        "bed": "headboard toward right wall",
+        "nightstand_back": "drawer front corrected",
+        "nightstand_front": "drawer front corrected"
+      }
     },
     "block2_accepted_runtime": {
       "runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
@@ -66,41 +92,23 @@
       "face_focus_y": 0.85,
       "call_default_zoom": 2.8,
       "zoom_max": 4.6,
-      "proof_checkpoints": [2.8, 3.5, 4.6]
+      "proof_checkpoints": [
+        2.8,
+        3.5,
+        4.6
+      ]
     },
     "active_block": {
-      "number": "4R",
-      "name": "Final modular room/world contract",
-      "status": "not_started_waiting_for_user_review_after_completed_block4"
-    },
-    "block3_current_truth": {
-      "runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
-      "room_asset": "app/src/main/assets/models/room/celine_room_v80.gltf",
-      "user_seated_pose_direction": "accepted_for_this_stage_do_not_resume_pelvis_thigh_leg_tuning_without_new_exact_evidence",
-      "room_visual_quality": "procedural_blocky_not_final_target",
-      "accepted_proof_run_id": 33126385895,
-      "accepted_proof_artifact": 9668670380,
-      "accepted_result": "PASS_BLOCK3_FUNCTIONAL_ROOM_WORLD_INTEGRATION_WITH_VISUAL_QUALITY_DEFERRED",
-      "pre_room_rollback_ref": "backup/celine-pre-filament-room-v80-2026-08-28-b74ad8c",
-      "pre_room_rollback_sha": "b74ad8c62fa21a9184477f917817961245e66847"
+      "number": 5,
+      "name": "Human idle body, arms and hands",
+      "status": "not_started_ready_after_accepted_4R"
     },
     "room_source_archive": {
-      "github_handoff_commit": "29700ae793704cea06987006ca500ed68dbb31cd",
       "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
-      "execution_trunk_commit": "b2df050f6effd4a62579be2fdfc46a6f4f8b9801",
       "execution_trunk_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
+      "retrieval_contract": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json",
       "persistent_library_root": "/Yahya-AI/Celine-v80-Room-Source-Backup/",
       "glb_directory": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
-      "contains": [
-        "twelve current textured Meshy GLBs with embedded 2K base-color, metallic-roughness and normal textures",
-        "full-resolution clean room and composition references",
-        "Celine portrait reference for wall-picture texture",
-        "Meshy source images",
-        "room floorplan and machine-readable layout/anchors",
-        "room design/code/handoff notes",
-        "durable interactive room execution trunk with action state machine, anchor contract, navigation, interaction catalog and acceptance route"
-      ],
-      "superseded_source_state": "The earlier six untextured GLBs were removed from the persistent meshy_glb backup and replaced by the twelve textured files below.",
       "source_glb_sha256": {
         "Bett.glb": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
         "Fenstermitgardinen.glb": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
@@ -116,51 +124,45 @@
         "Tischfürlaptop.glb": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da"
       },
       "important_rules": [
-        "Final viewer is the laptop/webcam position; no laptop should be visible in the final room.",
+        "The final viewer is the laptop/webcam position; no laptop is rendered.",
         "Tischfürlaptop.glb is the foreground physical table, not a visible laptop object.",
-        "The room is an interactive world, not a flat backdrop.",
-        "Keep modular assets and enough walkable floor for Celine.",
-        "Nachttisch.glb may be instantiated twice for left/right bedside tables; no duplicate binary is required.",
-        "Wall portrait must use Celine portrait as a 2D texture/material on a frame or plane; do not Meshy-reconstruct Celine as portrait geometry.",
-        "Do not bake canonical Celine into a room GLB or stack a second visible room."
-      ],
-      "docs_only": true
+        "Canonical Celine stays separate from the room.",
+        "Nachttisch.glb is instantiated twice from one source binary.",
+        "The wall portrait is a 2D texture/frame plane, not reconstructed Celine geometry.",
+        "Do not re-run source optimization unless new exact evidence requires it."
+      ]
     },
     "interactive_room_execution": {
       "canonical_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
-      "user_approved_order": ["4", "4R", "5", "6", "7", "8", "9", "9R", "10", "11", "12"],
-      "phase_4R": "After Block 4 acceptance, optimize/assemble the twelve textured GLBs into the final warm modular room; lock final layout, structured anchors, safe nav graph and furniture clearance metadata; replace/evolve the blocky room and run one targeted room proof before Block 5.",
-      "phase_9R": "After Blocks 5-9 acceptance, enable real walking and embodied room actions: near-camera/table approach and lean, bed sit/relax/lie/get-up chain, lounge-chair sit/get-up, window, dresser, mirror, shelf and lamp interactions, bounded German room-action commands, then conservative autonomy.",
-      "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state.",
-      "planned_capabilities": [
-        "real walking between named room anchors using the available Walking clip or a later better locomotion clip",
-        "turn-before-walk, stop/settle and safe return/recovery",
-        "come closer / step back / return to camera",
-        "foreground table approach, lean and optional safe hand contact",
-        "bed edge sit, relaxed bed posture, one stable lie/recline state, sit-up, stand and leave",
-        "lounge chair approach, sit, relaxed hold, stand and leave",
-        "window stand/look-out/glance-back behavior",
-        "dresser approach and optional safe hand-rest behavior",
-        "mirror approach and bounded grooming/check gesture without requiring real-time reflection",
-        "shelf approach/look/reach; physical book pickup only if a discrete prop is later proven safe",
-        "lamp approach/reach/toggle with restrained lighting state change",
-        "conversation-linked greeting, nod, small shake, shrug and bounded hand gestures",
-        "German natural-language room commands mapped to a bounded internal action enum/state request",
-        "low-frequency autonomous posture/place choices only after explicit-command interactions are accepted"
-      ]
+      "user_approved_order": [
+        "4",
+        "4R",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "9R",
+        "10",
+        "11",
+        "12"
+      ],
+      "phase_4R": "accepted at runtime head 3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+      "phase_9R": "deferred until Blocks 5-9 are accepted",
+      "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state."
     },
     "current_blocker": null,
-    "exact_next_action": "After explicit user review/continuation, begin only phase 4R — final modular room/world contract — from root AGENTS.md and a fresh Mandatory Start Chronology/Live-GitHub reconciliation; read the canonical room README, execution trunk and retrieval contract, materialize and SHA-256-verify exactly the twelve canonical textured GLBs through authorized Library retrieval, then optimize/assemble the warm modular room and run one targeted room proof. Hard-stop if Library materialization or any hash fails. Do not redo Block-3 proof, do not change the completed Block-4 owner, and do not start Block 5 before 4R acceptance.",
+    "exact_next_action": "Begin only Block 5 — Human idle body, arms and hands — on the existing PR #111 after a fresh Mandatory Start Chronology and live reconciliation. Preserve the accepted 4R room/world contract, accepted camera/zoom and CALL seated constants, Block-4 central owner, canonical Celine, v61 rig protection, v76 face guard and v77 PCM German lip sync. Inspect the existing v73/v74/v79 arm-hand foundations and central production owner first; make the smallest evidence-backed change that gives visibly non-frozen asynchronous arms/hands/body life in actual HOME/CALL production. One runtime change -> one Android build -> one smallest targeted temporal/visual proof -> manual evidence inspection. Do not begin Block 6 or 9R until Block 5 is accepted.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
       "Live GitHub wins over stale queue/chat text.",
-      "The seated pose is accepted for this stage; do not resume pelvis/thigh/leg tuning without new exact evidence.",
-      "The room's functional world integration is accepted for Block 3, but current blocky visual art is not final room-quality acceptance.",
-      "After Block 4, phase 4R is mandatory before Block 5 so later realism proofs use the intended final room/world contract.",
+      "4R is accepted at runtime head 3c8a7e4c; do not reopen or replace the room without new exact evidence.",
+      "The accepted camera/zoom semantics and CALL seated constants remain protected.",
       "Block 4 central layered ownership is completed at runtime head d2ddd148 and must not be reopened without new exact evidence.",
-      "After Blocks 5-9, phase 9R is mandatory before Blocks 10-12 so final acceptance covers real embodied room actions.",
-      "Workflow SUCCESS is not visual acceptance; final temporal evidence remains required by the work order.",
-      "Keep PR Draft until the work-order implementation is genuinely complete."
+      "Canonical Celine, v61 rig-scale/inverse-bind protection, v76 facial guard/rollback and v77 PCM-driven German lip sync remain protected.",
+      "9R remains disabled until Blocks 5-9 are accepted.",
+      "Workflow SUCCESS alone is not visual acceptance; inspect actual temporal/visual evidence.",
+      "Keep PR Draft until the full active v80 work order is genuinely complete."
     ],
     "completed_blocks": [
       {
@@ -184,7 +186,7 @@
       {
         "number": 3,
         "name": "Room/world anchoring and seated contact",
-        "status": "functional_integration_gate_completed_visual_room_art_polish_deferred",
+        "status": "functional_integration_gate_completed_visual_room_art_superseded_by_accepted_4R",
         "runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
         "build_run_id": 33125690322,
         "proof_run_id": 33126385895,
@@ -202,12 +204,25 @@
         "artifact": 9683137861,
         "artifact_digest": "sha256:aa67ec476e3fdf7a865930af150ba9c819c1a2477adc03eb2355266d6ed3adfb",
         "writer_audit": "ci/evidence/CELINE_V80_LAYERED_OWNER_AUDIT.md"
+      },
+      {
+        "number": "4R",
+        "name": "Final modular room/world contract",
+        "status": "completed_exact_runtime_build_and_targeted_evidence_manually_inspected",
+        "runtime_code_head": "3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
+        "runtime_fingerprint": "021cda1fa8751443f1213e73d502a0fd90f2610e51cc024fa045d7ec7def6145",
+        "build_run_id": 33176535670,
+        "build_run_number": 646,
+        "proof_run_id": 33176713832,
+        "proof_run_number": 6,
+        "artifact": 9688003038,
+        "artifact_digest": "sha256:5b7684898fc49bf359bea6ddc431249a5b9e32295871aee8f9d53f6f5bea6d29",
+        "room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8"
       }
     ],
     "user_device_hard_blockers_remaining": [
       "Arms and hands still read as fixed/frozen in the real production experience.",
       "Blinking produces a visible wrong dark/deformed area above or around the eyes.",
-      "Final room visual quality must be upgraded from the current blocky procedural environment before final product acceptance.",
       "A video/avatar test can show controls while Celine is absent; such evidence must remain a hard FAIL."
     ],
     "published_release_under_repair": {
@@ -231,7 +246,10 @@
     {
       "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
       "status": "merged_exact_main_validated_release_unchanged",
-      "prs": [108, 109],
+      "prs": [
+        108,
+        109
+      ],
       "runtime_change": false
     }
   ],
@@ -239,8 +257,8 @@
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
-    "current_step": "v80-4R-final-modular-room-world-contract_waiting_user_review",
-    "next_step": "v80-block5-body-arm-hand-realism_after_4R_acceptance"
+    "current_step": "v80-block5-human-idle-body-arms-hands_not_started",
+    "next_step": "v80-block6-gaze-head-social-presence_after_block5_acceptance"
   },
   "latest_release": {
     "version": 80,
