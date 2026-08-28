@@ -21,39 +21,38 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "active_block3_seated_thigh_convergence_correction_committed",
-    "queue_checkpoint_parent_head": "41b5ef0790a103bc19ee614b002340185c032e4b",
-    "latest_runtime_code_head": "fddd772d78491d2498a7af9c380b3b93ee5d769c",
-    "latest_built_runtime_head": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
-    "runtime_fingerprint": "pending_recompute_after_block3_runtime_change",
+    "status": "active_block3_functional_room_integration_accepted_source_archive_preserved_ready_for_block4",
+    "queue_checkpoint_parent_head": "6629fbcfb8ef84f39bca629a7fe49aac8e676e21",
+    "latest_runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
+    "latest_built_runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
+    "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 609,
-      "run_id": 33111321533,
+      "run_number": 623,
+      "run_id": 33125690322,
       "conclusion": "success",
-      "head_sha": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
-      "runtime_fingerprint": "c7caaf32cbdaa204fdb34cb1cb65bb675461df08045a87a327ec2a86e0f25b46",
-      "apk_artifact": 9662699490,
-      "apk_artifact_digest": "sha256:171a8c4ef2b455088dd48e7da0c6c4d84f8e99b0e4de53b0e0748d4714b2fe50",
-      "apk_sha256_from_targeted_proof": "dac488d94f80645397f2c506ea7ce0d757486f722d4fcf8fb078511b39d90590",
-      "fingerprint_artifact": 9662699902,
-      "fingerprint_artifact_digest": "sha256:be1c0aac05436f7ac5d025014618b11eaa5d3c24ca55691107c7f6455887c598"
+      "head_sha": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
+      "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
+      "apk_artifact": 9668285621,
+      "note": "The later source-archive and queue commits are docs-only and do not change this runtime fingerprint."
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 245,
-      "run_id": 33113305575,
-      "conclusion": "failure_after_seated_and_zoom_evidence",
-      "head_sha": "e19eec2303b944e4160009b08d0aabfe47474148",
-      "artifact": 9663655165,
-      "artifact_digest": "sha256:a28e9a645f6c57213252fa8156ab2c08a62d210bd1c333591937fd024bdfbb18",
+      "run_number": 274,
+      "run_id": 33126385895,
+      "conclusion": "failure_late_300s_multiview_timeout_after_relevant_room_evidence_completed",
+      "head_sha": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
+      "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
+      "artifact": 9668670380,
       "manually_inspected": true,
-      "criterion_result": "FAIL_BLOCK3_SEATED_THIGHS_OVER_CONVERGED_BULKY",
-      "visual_acceptance": "FAIL_FOR_V80_BLOCK3",
+      "criterion_result": "PASS_BLOCK3_FUNCTIONAL_ROOM_WORLD_INTEGRATION_WITH_VISUAL_QUALITY_DEFERRED",
+      "visual_acceptance": "FUNCTIONAL_BLOCK3_GATE_ACCEPTED_NOT_FINAL_ROOM_ART_ACCEPTANCE",
       "evidence": [
-        "real-candidate-seated-call.png was produced before the later multiview failure and was manually inspected.",
-        "Celine remains visible and centered, but the mirrored ±10 degree upper-leg inward roll forces the knees/thighs toward the center and balloons the trouser silhouette around the pelvis, making the seated contact read anatomically mechanical instead of relaxed.",
-        "Feet and chair remain present, so the first bounded correction targets only thigh convergence rather than changing root height, camera, chair geometry or protected upper-body owners."
+        "HOME/CALL/HOME-return production candidate sequence completed before the later timeout and Celine remained visible.",
+        "v80 CALL normal/head/face framing checkpoints completed and accepted camera framing remained intact.",
+        "The Filament room and 3D chair visibly rendered with no obvious new room occlusion/clipping regression in the inspected relevant frames.",
+        "The workflow became red only during the later v75 multiview sequence when the combined emulator command hit its hard 300-second timeout.",
+        "The current procedural room is intentionally blocky and is not final visual-quality acceptance."
       ]
     },
     "block2_accepted_runtime": {
@@ -67,33 +66,53 @@
     "active_block": {
       "number": 3,
       "name": "Room/world anchoring and seated contact",
-      "status": "runtime_correction_committed_build_pending"
+      "status": "functional_integration_gate_accepted_visual_room_art_polish_deferred"
     },
-    "block3_diagnostic": {
-      "runtime_change": false,
-      "runtime_equivalent_to": "178b8437d139954f9ff68f958acc1b495ecc6ebe",
-      "ci_script_commit": "2cd80c44381a7d7fed7a0dc2220e60ac9dd1f14e",
-      "ci_workflow_commit": "cdc68a3a3bf6a21f4d85485ea9260da7607fe38d",
-      "checkpoint_commit": "e19eec2303b944e4160009b08d0aabfe47474148",
-      "proof_run_id": 33113305575,
-      "artifact": 9663655165,
-      "new_evidence_file": "real-candidate-seated-call.png",
-      "camera_zoom": 1.0,
-      "manually_inspected": true,
-      "finding": "Mirrored ±10 degree upper-leg inward roll over-converges the seated thighs/knees and creates a bulky mechanical pelvis/thigh silhouette."
+    "block3_current_truth": {
+      "runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
+      "room_asset": "app/src/main/assets/models/room/celine_room_v80.gltf",
+      "user_seated_pose_direction": "accepted_for_this_stage_do_not_resume_pelvis_thigh_leg_tuning_without_new_exact_evidence",
+      "room_visual_quality": "procedural_blocky_not_final_target",
+      "pre_room_rollback_ref": "backup/celine-pre-filament-room-v80-2026-08-28-b74ad8c",
+      "pre_room_rollback_sha": "b74ad8c62fa21a9184477f917817961245e66847"
     },
-    "block3_first_correction": {
-      "runtime_head": "fddd772d78491d2498a7af9c380b3b93ee5d769c",
-      "contract_head": "97352cebeedbdb3bab20a719c1ac20265dea00cf",
-      "change": "Reduce UPPER_LEG_INWARD_ROLL from 10.0 to 4.0 degrees only; preserve root, pelvis pitch, thigh/knee/foot pitch, chair geometry, camera and upper-body ownership."
+    "room_source_archive": {
+      "github_handoff_commit": "6629fbcfb8ef84f39bca629a7fe49aac8e676e21",
+      "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
+      "persistent_library_root": "/Yahya-AI/Celine-v80-Room-Source-Backup/",
+      "contains": [
+        "six original Meshy GLBs",
+        "full-resolution clean room and composition references",
+        "Celine portrait reference for wall-picture texture",
+        "Meshy source images",
+        "room floorplan and machine-readable layout/anchors",
+        "room design/code/handoff notes"
+      ],
+      "source_glb_sha256": {
+        "bed_beige_serenity.glb": "ed05146a7892d26a4910dad373f73f60db00289b0248c795c3d86f1f5ebb2936",
+        "chair_ivory_haven.glb": "cc55ee01bc75d42c3604d08c2f13c1a5cc764a7e6c45961ab8872e47bf8078b9",
+        "plant_potted_indoor_tree.glb": "148ae5b0138efb5b420e2da49dceccc07c5554688a3c765f299312c1b0a719a3",
+        "rug_cream_shaggy.glb": "6c998baacdfe08ba909acaa031900de20d87613d763dd55cab3e98020a89bea2",
+        "sideboard_oak_serenade.glb": "81f81717156887527d51feb2161456459773f3a0b709566265998713e3cdb0be",
+        "window_soft_light_drapes.glb": "5a73123983fcc57afbee86ce79a09c02c24391f7b3fab2f8bb839c491af15e02"
+      },
+      "important_rules": [
+        "Final viewer is the laptop/webcam position; no laptop should be visible in the final room.",
+        "The room is an interactive world, not a flat backdrop.",
+        "Keep modular assets and enough walkable floor for Celine.",
+        "Wall portrait must use Celine portrait as a 2D texture/material on a frame or plane; do not Meshy-reconstruct Celine as portrait geometry.",
+        "Do not bake canonical Celine into a room GLB or stack a second visible room."
+      ],
+      "docs_only": true
     },
-    "current_blocker": "The bounded Block-3 thigh-convergence runtime correction has not yet been built or visually re-proved.",
-    "exact_next_action": "Let the single Android Build for the current Block-3 runtime change complete. If successful, request exactly one targeted Real Candidate proof and manually inspect real-candidate-seated-call.png. Accept or reject only the seated-contact correction before any further Block-3 change. Do not start Block 4 or later work.",
+    "current_blocker": null,
+    "exact_next_action": "In the next chat, begin from root AGENTS.md and fresh Live-GitHub reconciliation, then read docs/celine/room-source/v80-2026-08-28/README.md. Do not redo Block-3 room proof merely because run 274 is red. Unless the user gives a newer direction, continue ordered v80 Block 4 by auditing transform/bone writers and establishing the central layered production presence owner while preserving the accepted seated pose, room/world integration, camera framing and PCM-driven German lip sync.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
-      "Block 2 is accepted from manually inspected exact-runtime normal/head/face frames.",
-      "Remain in ordered Block 3 only; do not touch arm-life, blink, launcher/icon or later temporal work yet.",
-      "Workflow SUCCESS is not visual acceptance; seated evidence must be manually inspected.",
+      "Live GitHub wins over stale queue/chat text.",
+      "The seated pose is accepted for this stage; do not resume pelvis/thigh/leg tuning without new exact evidence.",
+      "The room's functional world integration is accepted for Block 3, but current blocky visual art is not final room-quality acceptance.",
+      "Workflow SUCCESS is not visual acceptance; final temporal evidence remains required by the work order.",
       "Keep PR Draft until the work-order implementation is genuinely complete."
     ],
     "completed_blocks": [
@@ -114,12 +133,21 @@
         "proof_run_id": 33111985773,
         "artifact": 9663101106,
         "artifact_digest": "sha256:2d1f62df35b0620e98f20ac46177f145d9ee9c1c2da3f37960197e275a0aece8"
+      },
+      {
+        "number": 3,
+        "name": "Room/world anchoring and seated contact",
+        "status": "functional_integration_gate_completed_visual_room_art_polish_deferred",
+        "runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
+        "build_run_id": 33125690322,
+        "proof_run_id": 33126385895,
+        "artifact": 9668670380
       }
     ],
     "user_device_hard_blockers_remaining": [
       "Arms and hands still read as fixed/frozen in the real production experience.",
-      "Celine still sits crooked/anatomically incoherently in CALL relative to body, legs and chair until Block 3 is re-proved and accepted.",
       "Blinking produces a visible wrong dark/deformed area above or around the eyes.",
+      "Final room visual quality must be upgraded from the current blocky procedural environment before final product acceptance.",
       "A video/avatar test can show controls while Celine is absent; such evidence must remain a hard FAIL."
     ],
     "published_release_under_repair": {
