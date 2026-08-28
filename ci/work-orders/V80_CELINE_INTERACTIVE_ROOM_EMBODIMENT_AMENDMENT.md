@@ -14,6 +14,20 @@ Room source inventory/hashes/reference rules live in:
 
 `docs/celine/room-source/v80-2026-08-28/README.md`
 
+The machine-readable source access/materialization contract lives in:
+
+`docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json`
+
+## Mandatory source retrieval gate
+
+Before **any 4R room asset optimization or assembly**, the worker must read `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and obey it literally.
+
+The canonical source directory `/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/` is a **ChatGPT persistent Library path**, not a GitHub repository path and not automatically a local worker filesystem path. A worker must use an authorized Files/Library retrieval or materialization capability and then use the real local paths returned by that materialization step.
+
+Before touching source geometry, the worker must verify exactly 12 unique GLBs and verify every SHA-256 against both `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and `SOURCE_SHA256SUMS.txt`. The persistent Library originals remain unchanged; optimization happens only on materialized/workspace copies.
+
+If the worker cannot access/materialize the Library sources, if any source is missing, or if any hash differs, **4R must hard-stop**. Do not guess a path, do not restore the superseded six untextured GLBs, do not use substitutes, and do not build a replacement room from stale sources. Record source access as the blocker first.
+
 ## Amended execution order
 
 From the current state, use this order unless newer live evidence or an explicit user direction supersedes it:
@@ -39,6 +53,7 @@ Purpose: replace/evolve the current visually blocky functional Filament room wit
 
 4R must:
 
+- pass the mandatory source retrieval/materialization/hash gate above before source processing;
 - reconcile the provisional floorplan with the newer approximately 6.4 m × 5.8 m × 2.8 m assembly candidate;
 - use the 12 current textured GLB sources from the persistent room-source backup, never the superseded untextured six;
 - optimize rather than copy the raw 120–189 MB source GLBs directly into the APK;
@@ -100,4 +115,4 @@ Do not expand the current trunk merely to add drawers, curtain cloth simulation,
 
 ## Efficiency rule
 
-This amendment and the execution trunk are docs-only and require no Android build. Runtime work remains bounded by the normal Efficiency Fast Path: one runtime change, one necessary build, one smallest relevant targeted proof, inspect actual evidence, then continue.
+This amendment, retrieval contract and execution trunk are docs-only and require no Android build. Runtime work remains bounded by the normal Efficiency Fast Path: one runtime change, one necessary build, one smallest relevant targeted proof, inspect actual evidence, then continue.
