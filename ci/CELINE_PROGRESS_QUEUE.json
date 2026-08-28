@@ -21,38 +21,43 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "active_block4_central_owner_next_interactive_room_execution_trunk_recorded",
-    "queue_checkpoint_parent_head": "b2df050f6effd4a62579be2fdfc46a6f4f8b9801",
-    "latest_runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
-    "latest_built_runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
-    "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
+    "status": "block4_completed_documented_stopped_before_4R_for_user_review",
+    "queue_checkpoint_parent_head": "c0ea12cdf03d96e59bced974e71540a2e0db3a79",
+    "latest_runtime_code_head": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
+    "latest_built_runtime_head": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
+    "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 623,
-      "run_id": 33125690322,
+      "run_number": 638,
+      "run_id": 33164190451,
       "conclusion": "success",
-      "head_sha": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
-      "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
-      "apk_artifact": 9668285621,
-      "note": "The later room-source archive, execution-trunk and queue commits are docs-only and do not change this runtime fingerprint."
+      "head_sha": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
+      "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
+      "apk_artifact": 9682915739,
+      "fingerprint_artifact": 9682915999,
+      "apk_sha256": "8b9b19dff65791eebec272c04216a4f18bd175ec6fcffd2b98e8282e7440e78e",
+      "note": "Checkout and compile logs confirm exact HEAD d2ddd148. The PR metadata file records GitHub's synthetic merge SHA in built_head because it uses GITHUB_SHA, but the checkout log, workflow head, runtime fingerprint and APK all bind to d2ddd148. Later Android Build runs 639/640 were CI-only scope/reuse runs with the build job skipped."
     },
     "latest_visual_proof": {
-      "workflow": "Celine Real Candidate Render Proof",
-      "run_number": 274,
-      "run_id": 33126385895,
-      "conclusion": "failure_late_300s_multiview_timeout_after_relevant_room_evidence_completed",
-      "head_sha": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
-      "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
-      "artifact": 9668670380,
+      "workflow": "Celine Layered Owner Proof",
+      "run_number": 2,
+      "run_id": 33164630221,
+      "conclusion": "success",
+      "head_sha": "c0ea12cdf03d96e59bced974e71540a2e0db3a79",
+      "runtime_source_sha": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
+      "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
+      "artifact": 9683137861,
+      "artifact_digest": "sha256:aa67ec476e3fdf7a865930af150ba9c819c1a2477adc03eb2355266d6ed3adfb",
       "manually_inspected": true,
-      "criterion_result": "PASS_BLOCK3_FUNCTIONAL_ROOM_WORLD_INTEGRATION_WITH_VISUAL_QUALITY_DEFERRED",
-      "visual_acceptance": "FUNCTIONAL_BLOCK3_GATE_ACCEPTED_NOT_FINAL_ROOM_ART_ACCEPTANCE",
+      "criterion_result": "PASS_BLOCK4_CENTRAL_LAYERED_PRODUCTION_OWNER",
+      "visual_acceptance": "FUNCTIONAL_OWNER_AND_REGRESSION_GATE_ACCEPTED_NOT_FINAL_MOTION_REALISM_OR_ROOM_ART_ACCEPTANCE",
       "evidence": [
-        "HOME/CALL/HOME-return production candidate sequence completed before the later timeout and Celine remained visible.",
-        "v80 CALL normal/head/face framing checkpoints completed and accepted camera framing remained intact.",
-        "The Filament room and 3D chair visibly rendered with no obvious new room occlusion/clipping regression in the inspected relevant frames.",
-        "The workflow became red only during the later v75 multiview sequence when the combined emulator command hit its hard 300-second timeout.",
-        "The current procedural room is intentionally blocky and is not final visual-quality acceptance."
+        "Runtime logs bind CelineProductionPresenceV80 once and confirm ordered base>posture>conversation>gaze>face composition with one transform transaction and one skin update per production frame.",
+        "HOME, eased HOME-to-CALL, CALL, eased CALL-to-HOME and HOME-return completed with Celine visibly present; no v80/v76/v61/renderer failure marker was present.",
+        "HOME-return camera/framing ratio was 1.002, preserving the accepted camera/zoom semantics.",
+        "Avatar Lab combined Production HOME and Production CALL both logged and visibly rendered through CelineProductionPresenceV80; the legacy Lab pose writer returned without per-frame production writes.",
+        "The guarded v76 face runtime activated and the unchanged v77 AudioTrack-PCM-to-viseme route remains the final morph-layer input.",
+        "The exact accepted CALL seat constants, Block-3 room owner boundary and canonical production model remained unchanged; the current procedural room is still intentionally blocky and is not final room-art acceptance."
       ]
     },
     "block2_accepted_runtime": {
@@ -64,15 +69,18 @@
       "proof_checkpoints": [2.8, 3.5, 4.6]
     },
     "active_block": {
-      "number": 4,
-      "name": "Central layered animation owner",
-      "status": "exact_next_action_not_started_execution_trunk_recorded"
+      "number": "4R",
+      "name": "Final modular room/world contract",
+      "status": "not_started_waiting_for_user_review_after_completed_block4"
     },
     "block3_current_truth": {
       "runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
       "room_asset": "app/src/main/assets/models/room/celine_room_v80.gltf",
       "user_seated_pose_direction": "accepted_for_this_stage_do_not_resume_pelvis_thigh_leg_tuning_without_new_exact_evidence",
       "room_visual_quality": "procedural_blocky_not_final_target",
+      "accepted_proof_run_id": 33126385895,
+      "accepted_proof_artifact": 9668670380,
+      "accepted_result": "PASS_BLOCK3_FUNCTIONAL_ROOM_WORLD_INTEGRATION_WITH_VISUAL_QUALITY_DEFERRED",
       "pre_room_rollback_ref": "backup/celine-pre-filament-room-v80-2026-08-28-b74ad8c",
       "pre_room_rollback_sha": "b74ad8c62fa21a9184477f917817961245e66847"
     },
@@ -142,13 +150,14 @@
       ]
     },
     "current_blocker": null,
-    "exact_next_action": "Begin from root AGENTS.md and fresh Live-GitHub reconciliation. Read docs/celine/room-source/v80-2026-08-28/README.md and INTERACTIVE_ROOM_EXECUTION_TRUNK.md. Do not redo Block-3 room proof merely because run 274 is red. Perform ordered v80 Block 4 only: audit every transform/bone writer and establish the central layered production presence owner while preserving the accepted seated pose, functional room/world integration, accepted camera framing and PCM-driven German lip sync. After Block 4 is accepted, execute phase 4R from the trunk before Block 5; do not skip directly to Block 5.",
+    "exact_next_action": "After explicit user review/continuation, begin only phase 4R — final modular room/world contract — from root AGENTS.md and a fresh Mandatory Start Chronology/Live-GitHub reconciliation; read the canonical room README, execution trunk and retrieval contract, materialize and SHA-256-verify exactly the twelve canonical textured GLBs through authorized Library retrieval, then optimize/assemble the warm modular room and run one targeted room proof. Hard-stop if Library materialization or any hash fails. Do not redo Block-3 proof, do not change the completed Block-4 owner, and do not start Block 5 before 4R acceptance.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
       "Live GitHub wins over stale queue/chat text.",
       "The seated pose is accepted for this stage; do not resume pelvis/thigh/leg tuning without new exact evidence.",
       "The room's functional world integration is accepted for Block 3, but current blocky visual art is not final room-quality acceptance.",
       "After Block 4, phase 4R is mandatory before Block 5 so later realism proofs use the intended final room/world contract.",
+      "Block 4 central layered ownership is completed at runtime head d2ddd148 and must not be reopened without new exact evidence.",
       "After Blocks 5-9, phase 9R is mandatory before Blocks 10-12 so final acceptance covers real embodied room actions.",
       "Workflow SUCCESS is not visual acceptance; final temporal evidence remains required by the work order.",
       "Keep PR Draft until the work-order implementation is genuinely complete."
@@ -180,6 +189,19 @@
         "build_run_id": 33125690322,
         "proof_run_id": 33126385895,
         "artifact": 9668670380
+      },
+      {
+        "number": 4,
+        "name": "Central layered animation owner",
+        "status": "completed_exact_runtime_artifact_and_targeted_evidence_manually_inspected",
+        "runtime_code_head": "d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3",
+        "proof_head": "c0ea12cdf03d96e59bced974e71540a2e0db3a79",
+        "runtime_fingerprint": "f6bcdbe15f5741999902cba9d4aa4f8a57dd7edd1d3fcf88200a39f87bcf8651",
+        "build_run_id": 33164190451,
+        "proof_run_id": 33164630221,
+        "artifact": 9683137861,
+        "artifact_digest": "sha256:aa67ec476e3fdf7a865930af150ba9c819c1a2477adc03eb2355266d6ed3adfb",
+        "writer_audit": "ci/evidence/CELINE_V80_LAYERED_OWNER_AUDIT.md"
       }
     ],
     "user_device_hard_blockers_remaining": [
@@ -217,8 +239,8 @@
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
-    "current_step": "v80-human-videochat-presence",
-    "next_step": null
+    "current_step": "v80-4R-final-modular-room-world-contract_waiting_user_review",
+    "next_step": "v80-block5-body-arm-hand-realism_after_4R_acceptance"
   },
   "latest_release": {
     "version": 80,
