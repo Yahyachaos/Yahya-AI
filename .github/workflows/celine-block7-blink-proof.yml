@@ -1,6 +1,9 @@
 name: Celine Block 7 Blink Proof
 
 on:
+  pull_request:
+    branches: [ main ]
+    types: [edited]
   workflow_dispatch:
     inputs:
       target_sha:
@@ -13,25 +16,26 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-block7-blink-proof-${{ inputs.target_sha }}
+  group: celine-block7-blink-proof-${{ github.event.pull_request.number || inputs.target_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
   block7-blink-proof:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-block7-blink-proof]')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - name: Checkout exact proof head
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
           fetch-depth: 0
           lfs: false
       - name: Locate exact runtime-fingerprint Android Build artifact
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_HEAD: ${{ inputs.target_sha }}
+          PR_HEAD: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
         shell: bash
         run: bash ci/celine-find-runtime-apk.sh
       - name: Download runtime-equivalent APK only
@@ -73,7 +77,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: celine-block7-blink-evidence-${{ inputs.target_sha }}
+          name: celine-block7-blink-evidence-${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
           path: |
             block7-blink-proof/
             block7-apk.sha256
