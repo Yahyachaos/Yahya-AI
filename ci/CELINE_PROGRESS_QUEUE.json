@@ -21,8 +21,8 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "active_block3_functional_room_integration_accepted_source_archive_preserved_ready_for_block4",
-    "queue_checkpoint_parent_head": "6629fbcfb8ef84f39bca629a7fe49aac8e676e21",
+    "status": "active_block3_functional_room_integration_accepted_textured_room_source_archive_ready_for_block4",
+    "queue_checkpoint_parent_head": "29700ae793704cea06987006ca500ed68dbb31cd",
     "latest_runtime_code_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
     "latest_built_runtime_head": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
     "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
@@ -34,7 +34,7 @@
       "head_sha": "3fa7f531dbd4cf581e471ee697deeac74a61e104",
       "runtime_fingerprint": "1013da0bc6a207f09a9266fcca5a87e3359b728804ab63b124c7b015e02084ee",
       "apk_artifact": 9668285621,
-      "note": "The later source-archive and queue commits are docs-only and do not change this runtime fingerprint."
+      "note": "The later room-source archive/index/queue commits are docs-only and do not change this runtime fingerprint."
     },
     "latest_visual_proof": {
       "workflow": "Celine Real Candidate Render Proof",
@@ -77,36 +77,46 @@
       "pre_room_rollback_sha": "b74ad8c62fa21a9184477f917817961245e66847"
     },
     "room_source_archive": {
-      "github_handoff_commit": "6629fbcfb8ef84f39bca629a7fe49aac8e676e21",
+      "github_handoff_commit": "29700ae793704cea06987006ca500ed68dbb31cd",
       "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
       "persistent_library_root": "/Yahya-AI/Celine-v80-Room-Source-Backup/",
+      "glb_directory": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
       "contains": [
-        "six original Meshy GLBs",
+        "twelve current textured Meshy GLBs with embedded 2K base-color, metallic-roughness and normal textures",
         "full-resolution clean room and composition references",
         "Celine portrait reference for wall-picture texture",
         "Meshy source images",
         "room floorplan and machine-readable layout/anchors",
         "room design/code/handoff notes"
       ],
+      "superseded_source_state": "The earlier six untextured GLBs were removed from the persistent meshy_glb backup and replaced by the twelve textured files below.",
       "source_glb_sha256": {
-        "bed_beige_serenity.glb": "ed05146a7892d26a4910dad373f73f60db00289b0248c795c3d86f1f5ebb2936",
-        "chair_ivory_haven.glb": "cc55ee01bc75d42c3604d08c2f13c1a5cc764a7e6c45961ab8872e47bf8078b9",
-        "plant_potted_indoor_tree.glb": "148ae5b0138efb5b420e2da49dceccc07c5554688a3c765f299312c1b0a719a3",
-        "rug_cream_shaggy.glb": "6c998baacdfe08ba909acaa031900de20d87613d763dd55cab3e98020a89bea2",
-        "sideboard_oak_serenade.glb": "81f81717156887527d51feb2161456459773f3a0b709566265998713e3cdb0be",
-        "window_soft_light_drapes.glb": "5a73123983fcc57afbee86ce79a09c02c24391f7b3fab2f8bb839c491af15e02"
+        "Bett.glb": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+        "Fenstermitgardinen.glb": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+        "GroßeKomode.glb": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+        "Großepflanzemittopf.glb": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+        "Hängeboardmitbücher.glb": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+        "Kleinepflanzemittopf.glb": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+        "Lampe.glb": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+        "Nachttisch.glb": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+        "Sessel.glb": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+        "Teppisch.glb": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+        "Wandspiegelrund.glb": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0",
+        "Tischfürlaptop.glb": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da"
       },
       "important_rules": [
         "Final viewer is the laptop/webcam position; no laptop should be visible in the final room.",
+        "Tischfürlaptop.glb is the foreground physical table, not a visible laptop object.",
         "The room is an interactive world, not a flat backdrop.",
         "Keep modular assets and enough walkable floor for Celine.",
+        "Nachttisch.glb may be instantiated twice for left/right bedside tables; no duplicate binary is required.",
         "Wall portrait must use Celine portrait as a 2D texture/material on a frame or plane; do not Meshy-reconstruct Celine as portrait geometry.",
         "Do not bake canonical Celine into a room GLB or stack a second visible room."
       ],
       "docs_only": true
     },
     "current_blocker": null,
-    "exact_next_action": "In the next chat, begin from root AGENTS.md and fresh Live-GitHub reconciliation, then read docs/celine/room-source/v80-2026-08-28/README.md. Do not redo Block-3 room proof merely because run 274 is red. Unless the user gives a newer direction, continue ordered v80 Block 4 by auditing transform/bone writers and establishing the central layered production presence owner while preserving the accepted seated pose, room/world integration, camera framing and PCM-driven German lip sync.",
+    "exact_next_action": "Begin from root AGENTS.md and fresh Live-GitHub reconciliation. Read docs/celine/room-source/v80-2026-08-28/README.md before any room asset change. Do not redo Block-3 room proof merely because run 274 is red. Continue ordered v80 Block 4 by auditing transform/bone writers and establishing the central layered production presence owner while preserving the accepted seated pose, room/world integration, camera framing and PCM-driven German lip sync. When room visual polish resumes, use the twelve current textured source GLBs from the persistent Library backup, not the superseded six untextured files.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
       "Live GitHub wins over stale queue/chat text.",
