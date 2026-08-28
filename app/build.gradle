@@ -42,6 +42,13 @@ def celineV79BlinkReport = file("$buildDir/reports/celineV79/blink-localization.
 def celineV79BlinkValidation = file("$buildDir/reports/celineV79/blink-localization-validation.json")
 def celineV79BlinkRepair = rootProject.file('ci/celine_blink_localization_v79.py')
 def celineV79BlinkValidator = rootProject.file('ci/celine_blink_localization_validation_v79.py')
+def celineRoomV80PartDir = file('src/main/room-source')
+def celineRoomV80Parts = (0..3).collect {
+    file("$celineRoomV80PartDir/celine_room_v80_final_modular.glb.part${String.format('%02d', it)}")
+}
+def celineRoomV80GeneratedAssetsDir = file("$buildDir/generated/celineRoomV80/assets")
+def celineRoomV80Candidate = file(
+        "$celineRoomV80GeneratedAssetsDir/models/room/celine_room_v80_final_modular.glb")
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -245,6 +252,39 @@ tasks.register('validateCelineBlinkLocalizationV79', Exec) {
             '--report', celineV79BlinkValidation.absolutePath
 }
 
+tasks.register('generateCelineRoomV80Final') {
+    inputs.files(celineRoomV80Parts)
+    outputs.file(celineRoomV80Candidate)
+    doLast {
+        celineRoomV80Candidate.parentFile.mkdirs()
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        celineRoomV80Candidate.withOutputStream { output ->
+            byte[] buffer = new byte[64 * 1024]
+            celineRoomV80Parts.each { part ->
+                if (!part.isFile() || part.length() != 11645197L) {
+                    throw new GradleException("Invalid v80 4R room part: ${part}")
+                }
+                part.withInputStream { input ->
+                    int read
+                    while ((read = input.read(buffer)) >= 0) {
+                        if (read > 0) {
+                            output.write(buffer, 0, read)
+                            digest.update(buffer, 0, read)
+                        }
+                    }
+                }
+            }
+        }
+        String actual = digest.digest().encodeHex().toString()
+        String expected = '25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8'
+        if (celineRoomV80Candidate.length() != 46580788L || actual != expected) {
+            celineRoomV80Candidate.delete()
+            throw new GradleException(
+                    "Invalid reconstructed v80 4R room: bytes=${celineRoomV80Candidate.length()} sha256=${actual}")
+        }
+    }
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -273,6 +313,7 @@ android {
             java.srcDir celineV62GeneratedDir
             java.exclude 'de/yahya/ai/Celine3DView.java'
             assets.srcDir celineV79GeneratedAssetsDir
+            assets.srcDir celineRoomV80GeneratedAssetsDir
         }
     }
     compileOptions {
@@ -284,6 +325,7 @@ android {
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
     dependsOn tasks.named('validateCelineBlinkLocalizationV79')
+    dependsOn tasks.named('generateCelineRoomV80Final')
 }
 
 dependencies {

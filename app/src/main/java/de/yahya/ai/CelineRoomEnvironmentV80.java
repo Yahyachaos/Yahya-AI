@@ -1,16 +1,17 @@
 package de.yahya.ai;
 
 import android.content.Context;
+import android.opengl.Matrix;
 import android.view.View;
 
 import com.google.android.filament.Engine;
 import com.google.android.filament.RenderableManager;
 import com.google.android.filament.Scene;
+import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.AssetLoader;
 import com.google.android.filament.gltfio.FilamentAsset;
 import com.google.android.filament.gltfio.ResourceLoader;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -25,7 +26,8 @@ import java.util.WeakHashMap;
  * a fail-closed runtime fallback when this environment cannot be built.
  */
 final class CelineRoomEnvironmentV80 {
-    private static final String ROOM_PATH = "models/room/celine_room_v80.gltf";
+    private static final String ROOM_PATH =
+            "models/room/celine_room_v80_final_modular.glb";
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     static final class SeatAnchor {
@@ -115,16 +117,32 @@ final class CelineRoomEnvironmentV80 {
         }
     }
 
+    static CelineRoomWorldContractV80 getWorldContract(Celine3DView view) {
+        if (view == null) return null;
+        synchronized (STATES) {
+            State state = STATES.get(view);
+            return state == null ? null : state.worldContract;
+        }
+    }
+
+    static CelineRoomWorldContractV80.Anchor getWorldAnchor(
+            Celine3DView view, String anchorId) {
+        CelineRoomWorldContractV80 contract = getWorldContract(view);
+        return contract == null ? null : contract.anchor(anchorId);
+    }
+
     private static final class State implements View.OnAttachStateChangeListener {
         final Context context;
         final Celine3DView view;
         final Engine engine;
         final Scene scene;
+        final TransformManager transforms;
         final AssetLoader assetLoader;
         final ResourceLoader resourceLoader;
 
         FilamentAsset roomAsset;
         SeatAnchor seatAnchor;
+        CelineRoomWorldContractV80 worldContract;
         boolean listenerInstalled;
         boolean failureLogged;
 
@@ -133,6 +151,7 @@ final class CelineRoomEnvironmentV80 {
             this.view = view;
             engine = (Engine) field(view, "engine");
             scene = (Scene) field(view, "scene");
+            transforms = engine.getTransformManager();
             assetLoader = (AssetLoader) field(view, "assetLoader");
             resourceLoader = (ResourceLoader) field(view, "resourceLoader");
             installListener();
@@ -146,6 +165,8 @@ final class CelineRoomEnvironmentV80 {
             if (roomAsset != null) return true;
             FilamentAsset candidate = null;
             try {
+                CelineRoomWorldContractV80 contract =
+                        CelineRoomWorldContractV80.load(context);
                 ByteBuffer source = readAsset(context, ROOM_PATH);
                 candidate = assetLoader.createAsset(source);
                 if (candidate == null) {
@@ -159,9 +180,13 @@ final class CelineRoomEnvironmentV80 {
                     throw new IllegalStateException("Filament-Raum enthält keine Renderables");
                 }
 
+                alignRoomRoot(candidate);
+                validateWorldEntities(candidate, contract);
+
                 scene.addEntities(candidate.getEntities());
                 roomAsset = candidate;
                 candidate = null;
+                worldContract = contract;
                 seatAnchor = new SeatAnchor(
                         0.0f, -0.72f, -4.12f,
                         0.0f, 1.0f, 0.0f,
@@ -171,8 +196,11 @@ final class CelineRoomEnvironmentV80 {
                         roomAsset.getRoot());
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
-                        "Echter Filament-Raum aktiv",
-                        "renderables=" + renderables + " path=" + ROOM_PATH);
+                        "Finaler modularer Filament-Raum aktiv",
+                        "renderables=" + renderables + " path=" + ROOM_PATH
+                                + " sha256=" + contract.roomSha256);
+                Celine3DDiagnostics.record(context, "ROOM-105",
+                        "4R Weltvertrag aktiv", contract.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-110",
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
                 failureLogged = false;
@@ -183,6 +211,7 @@ final class CelineRoomEnvironmentV80 {
                 }
                 roomAsset = null;
                 seatAnchor = null;
+                worldContract = null;
                 if (!failureLogged) {
                     failureLogged = true;
                     Celine3DDiagnostics.error(context, "ROOM-199",
@@ -199,6 +228,43 @@ final class CelineRoomEnvironmentV80 {
                 if (manager.hasComponent(entity)) count++;
             }
             return count;
+        }
+
+        private void alignRoomRoot(FilamentAsset asset) {
+            int root = transforms.getInstance(asset.getRoot());
+            if (root == 0) {
+                throw new IllegalStateException("4R Raum-Root-Transform fehlt");
+            }
+            float[] base = transforms.getTransform(root, new float[16]);
+            float[] translation = new float[16];
+            float[] aligned = new float[16];
+            Matrix.setIdentityM(translation, 0);
+            Matrix.translateM(translation, 0,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
+            Matrix.multiplyMM(aligned, 0, translation, 0, base, 0);
+            transforms.setTransform(root, aligned);
+        }
+
+        private void validateWorldEntities(
+                FilamentAsset asset, CelineRoomWorldContractV80 contract) {
+            requireEntity(asset, "room_world_root");
+            requireEntity(asset, "room_floor");
+            requireEntity(asset, "room_bed");
+            requireEntity(asset, "room_lounge_chair");
+            requireEntity(asset, "room_foreground_table");
+            requireEntity(asset, "room_nightstand_back");
+            requireEntity(asset, "room_nightstand_front");
+            for (String anchorId : contract.anchors.keySet()) {
+                requireEntity(asset, anchorId);
+            }
+        }
+
+        private void requireEntity(FilamentAsset asset, String name) {
+            if (asset.getFirstEntityByName(name) == 0) {
+                throw new IllegalStateException("4R Raum-Entity fehlt: " + name);
+            }
         }
 
         private void installListener() {
@@ -219,6 +285,7 @@ final class CelineRoomEnvironmentV80 {
             FilamentAsset current = roomAsset;
             roomAsset = null;
             seatAnchor = null;
+            worldContract = null;
             if (current == null) return;
             try {
                 for (int entity : current.getEntities()) {
@@ -235,17 +302,28 @@ final class CelineRoomEnvironmentV80 {
     }
 
     private static ByteBuffer readAsset(Context context, String path) throws Exception {
-        try (InputStream in = context.getAssets().open(path);
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] chunk = new byte[8192];
+        try (InputStream in = context.getAssets().open(path)) {
+            int expected = Math.max(8_192, in.available());
+            ByteBuffer buffer = ByteBuffer.allocateDirect(expected)
+                    .order(ByteOrder.nativeOrder());
+            byte[] chunk = new byte[64 * 1024];
             int read;
             while ((read = in.read(chunk)) >= 0) {
-                if (read > 0) out.write(chunk, 0, read);
+                if (read <= 0) continue;
+                if (buffer.remaining() < read) {
+                    int needed = buffer.position() + read;
+                    int capacity = buffer.capacity();
+                    while (capacity < needed) {
+                        capacity = Math.max(capacity + 8_192, capacity * 2);
+                    }
+                    ByteBuffer grown = ByteBuffer.allocateDirect(capacity)
+                            .order(ByteOrder.nativeOrder());
+                    buffer.flip();
+                    grown.put(buffer);
+                    buffer = grown;
+                }
+                buffer.put(chunk, 0, read);
             }
-            byte[] bytes = out.toByteArray();
-            ByteBuffer buffer = ByteBuffer.allocateDirect(bytes.length)
-                    .order(ByteOrder.nativeOrder());
-            buffer.put(bytes);
             buffer.flip();
             return buffer;
         }
