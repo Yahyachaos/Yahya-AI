@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: bash ci/celine-find-runtime-apk.sh
 
-      - name: Enforce and download the exact-head APK
+      - name: Download the exact runtime-fingerprint APK
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ steps.source.outputs.run_id }}
@@ -62,13 +62,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$SOURCE_SHA" = "$TARGET_SHA"
           mkdir -p ci-apk layered-owner-proof
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
           test -f ci-apk/app-debug.apk
           sha256sum ci-apk/app-debug.apk | tee layered-owner-proof/apk.sha256
-          printf 'target_sha=%s\nruntime_fingerprint=%s\nandroid_build_run=%s\n' \
-            "$TARGET_SHA" "$RUNTIME_FP" "$RUN_ID" | tee layered-owner-proof/runtime-source.txt
+          printf 'proof_head=%s\nruntime_source_sha=%s\nruntime_fingerprint=%s\nandroid_build_run=%s\n' \
+            "$TARGET_SHA" "$SOURCE_SHA" "$RUNTIME_FP" "$RUN_ID" \
+            | tee layered-owner-proof/runtime-source.txt
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
