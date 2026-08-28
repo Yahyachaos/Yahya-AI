@@ -1,6 +1,9 @@
 name: Celine Layered Owner Proof
 
 on:
+  pull_request:
+    branches: [ main ]
+    types: [ edited ]
   workflow_dispatch:
     inputs:
       target_sha:
@@ -13,26 +16,29 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-layered-owner-proof-${{ inputs.target_sha }}
+  group: celine-layered-owner-proof-${{ github.event.pull_request.number || inputs.target_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
   layered-owner-proof:
     name: Exact HOME CALL Avatar Lab production-owner proof
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.body, '[run-layered-owner-proof]')
     runs-on: ubuntu-latest
     timeout-minutes: 16
     steps:
       - name: Checkout exact proof head
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
           fetch-depth: 0
           lfs: false
 
       - name: Verify exact head and structural owner contract
         shell: bash
         env:
-          TARGET_SHA: ${{ inputs.target_sha }}
+          TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TARGET_SHA"
@@ -42,7 +48,7 @@ jobs:
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_HEAD: ${{ inputs.target_sha }}
+          PR_HEAD: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
         shell: bash
         run: bash ci/celine-find-runtime-apk.sh
 
@@ -51,7 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ steps.source.outputs.run_id }}
           SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
-          TARGET_SHA: ${{ inputs.target_sha }}
+          TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
           RUNTIME_FP: ${{ steps.source.outputs.runtime_fingerprint }}
         shell: bash
         run: |
@@ -89,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: celine-layered-owner-evidence-${{ inputs.target_sha }}
+          name: celine-layered-owner-evidence-${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
           path: layered-owner-proof/
           if-no-files-found: warn
           retention-days: 30
