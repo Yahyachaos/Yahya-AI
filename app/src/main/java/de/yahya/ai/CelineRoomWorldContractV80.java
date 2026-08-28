@@ -36,6 +36,8 @@ final class CelineRoomWorldContractV80 {
     private static final int SOURCE_ASSETS = 12;
     private static final int FURNITURE_INSTANCES = 13;
     private static final int ANCHOR_COUNT = 20;
+    private static final String ROOM_ACTION_PHASE =
+            "4R_WORLD_ONLY_NO_9R_LOCOMOTION_YET";
 
     static final class Anchor {
         final String id;
@@ -92,6 +94,7 @@ final class CelineRoomWorldContractV80 {
     final int colliderCount;
     final int navEdgeCount;
     final int contactEdgeCount;
+    final String roomActionPhase;
     final boolean noVisibleLaptop;
     final boolean foregroundTableVisible;
     final Map<String, Anchor> anchors;
@@ -115,6 +118,7 @@ final class CelineRoomWorldContractV80 {
         this.colliderCount = colliderCount;
         this.navEdgeCount = navEdgeCount;
         this.contactEdgeCount = contactEdgeCount;
+        this.roomActionPhase = ROOM_ACTION_PHASE;
         this.noVisibleLaptop = true;
         this.foregroundTableVisible = true;
         this.anchors = Collections.unmodifiableMap(anchors);
@@ -129,8 +133,6 @@ final class CelineRoomWorldContractV80 {
         require(world.optInt("schema") == 1, "world schema");
         require("4R".equals(world.optString("phase")), "world phase");
         require(ROOM_ID.equals(world.optString("room_id")), "world room id");
-        require("4R_WORLD_ONLY_NO_9R_LOCOMOTION_YET".equals(
-                world.optString("room_action_phase")), "9R remains disabled");
         require("PASS_STATIC_ASSET_CANDIDATE".equals(
                 world.getJSONObject("validation").optString("result")), "static acceptance");
 
@@ -142,6 +144,11 @@ final class CelineRoomWorldContractV80 {
         require(combined.optInt("anchor_nodes") == ANCHOR_COUNT, "anchor node count");
         require(combined.optInt("nightstand_instances") == 2, "two nightstand instances");
         require(!combined.optBoolean("has_visible_laptop_node", true), "no laptop node");
+        require(arrayContains(combined.getJSONArray("extras_keys"), "room_action_phase"),
+                "GLB room action phase is declared");
+        require(arrayContains(world.getJSONArray("runtime_integration_next"),
+                "wire structured anchors/nav metadata without enabling 9R locomotion yet"),
+                "9R remains disabled");
 
         JSONObject shell = world.getJSONObject("room_shell_m");
         float width = finitePositive(shell, "width");

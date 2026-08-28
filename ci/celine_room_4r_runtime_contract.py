@@ -237,6 +237,8 @@ for token in (
     "RUNTIME_OFFSET_Y = -1.55f",
     "RUNTIME_OFFSET_Z = -4.0f",
     "4R_WORLD_ONLY_NO_9R_LOCOMOTION_YET",
+    'combined.getJSONArray("extras_keys")',
+    'world.getJSONArray("runtime_integration_next")',
     "bed_mattress_y_m",
     "chair_seat_y_m",
     "foreground_table_top_y_m",
