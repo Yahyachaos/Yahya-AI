@@ -22,44 +22,45 @@
     "pr": 111,
     "pr_state": "open_draft",
     "base_main_sha": "1a8e69075b5bb20c3ef185fa0d09ba48cb83c322",
-    "status": "block7_completed_exact_runtime_build_and_targeted_blink_evidence_manually_accepted_block8_next_not_started",
-    "queue_checkpoint_parent_head": "3c249cb0022f12905ddac68c25b750bd2ea16a4e",
-    "latest_runtime_code_head": "a357f6c0689d323b5b5c157a66b86627108d41ae",
-    "latest_built_runtime_head": "a357f6c0689d323b5b5c157a66b86627108d41ae",
-    "latest_visually_accepted_runtime_head": "a357f6c0689d323b5b5c157a66b86627108d41ae",
-    "runtime_fingerprint": "2dead2a99e5e386c8a3585898c1297e60b6bc53958f9760b961da8ff41848997",
+    "status": "block8_completed_exact_runtime_build_and_targeted_speech_face_evidence_manually_accepted_block9_next_not_started",
+    "queue_checkpoint_parent_head": "566df5a0c8532e900eabf262422978b7d4f5e243",
+    "latest_runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+    "latest_built_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+    "latest_visually_accepted_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+    "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
     "latest_pr_build": {
       "workflow": "Android Build",
-      "run_number": 657,
-      "run_id": 33199227302,
+      "run_number": 667,
+      "run_id": 33206828543,
       "conclusion": "success",
-      "head_sha": "a357f6c0689d323b5b5c157a66b86627108d41ae",
-      "runtime_fingerprint": "2dead2a99e5e386c8a3585898c1297e60b6bc53958f9760b961da8ff41848997",
-      "apk_artifact": 9697102385,
-      "apk_artifact_digest": "sha256:5fda66e250b5aaeee3354d778275ea17a43220fbc28732e35019e159fc872cb5",
-      "fingerprint_artifact": 9697103021,
-      "fingerprint_artifact_digest": "sha256:7dd10c8b5107fd910e024f2c478828643c2baaeccec940648603ffad4db65615",
-      "apk_sha256": "3d5df6473f3b01edcf7a91ff25e6cb8bc32fd3cb1e01ef7a90d821565610e026"
+      "head_sha": "ba85c795e1897565857928e910b01d43bf634c1c",
+      "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
+      "apk_artifact": 9700026731,
+      "apk_artifact_digest": "sha256:880b15f8efc249b54565c0b18f84ec5fb4edfde2ab96e6f526d68e9a1ee80a14",
+      "fingerprint_artifact": 9700027114,
+      "fingerprint_artifact_digest": "sha256:23a49cbab092aefc89a49cb92d46311e8be5d4b810768dbf89338e48d50cc493",
+      "apk_sha256": "16778b3d7ed688fda3cb53ad1977d9482e6974912e9fb6216f79abd3b507cb6d"
     },
     "latest_visual_proof": {
       "workflow": "Celine Avatar Lab Proof",
-      "run_number": 94,
-      "run_id": 33199768361,
+      "run_number": 99,
+      "run_id": 33207082098,
       "conclusion": "success",
-      "head_sha": "3c249cb0022f12905ddac68c25b750bd2ea16a4e",
-      "runtime_source_sha": "a357f6c0689d323b5b5c157a66b86627108d41ae",
-      "runtime_fingerprint": "2dead2a99e5e386c8a3585898c1297e60b6bc53958f9760b961da8ff41848997",
-      "artifact": 9697458191,
-      "artifact_digest": "sha256:cf9aa101065adddace3a011fdc5cdc3cd9244ad85535c75254f333a4e82eb718",
+      "head_sha": "566df5a0c8532e900eabf262422978b7d4f5e243",
+      "runtime_source_sha": "ba85c795e1897565857928e910b01d43bf634c1c",
+      "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
+      "artifact": 9700273738,
+      "artifact_digest": "sha256:84ead2c89f8837fd51fff4637c3a202f4c4ac8593d75838c06259336725c403a",
       "manually_inspected": true,
-      "criterion_result": "PASS_BLOCK7_BLINK_EYELID_CORRECTNESS",
-      "visual_acceptance": "BLOCK7_ACCEPTED_FOR_BLOCK8_BASELINE",
+      "criterion_result": "PASS_BLOCK8_SPEECH_FACE_COORDINATION",
+      "visual_acceptance": "BLOCK8_ACCEPTED_FOR_BLOCK9_BASELINE",
       "evidence": [
-        "Exact close production-owner sequence open -> partial -> closed -> reopen was manually inspected from Avatar Lab Proof #94.",
-        "The former single-seam eyelid collapse is gone: no dark band, folded patch, duplicate surface, eye popping or unrelated forehead/cheek/hair pull is visible.",
-        "Partial closure is visibly distinct, the closed frame retains only a narrow natural residual lid seam rather than a black/deformed region, and reopen restores the accepted neutral eyes cleanly.",
-        "Central CelineProductionPresenceV80 ownership, Block-5 arms/hands, Block-6 social gaze/head, accepted camera/zoom and CALL seated constants remain intact in the same proof package.",
-        "v61 rig protection and the v77 PCM lip-sync route remain structurally active; 9R stays disabled."
+        "Manual inspection of Proof #99 close face frames confirmed neutral -> OPEN -> ROUND -> WIDE -> LABIAL -> neutral with visibly distinct bounded mouth articulation and clean neutral recovery.",
+        "Proof #99 logs bind OPEN/ROUND/WIDE/LABIAL cues to SpeechLipSyncV77 -> SpeechAudioBus while CelineProductionPresenceV80 remains the production owner.",
+        "Actual HOME, CALL, Settings, Avatar Lab and HOME-return frames were manually inspected; Celine remained visible and stable with no controls-only, blank-renderer, chair/camera/room regression.",
+        "The Proof #99 emulator screenrecord exposed only 9 native frames over about 4.28 seconds and did not itself catch the roughly 222 ms natural blink; this was not treated as a visual blink PASS.",
+        "Existing manually accepted Block-7 open->partial->closed->reopen evidence from Proof #94 artifact 9697458191 was re-inspected, and the later Block-8 runtime correction ba85c795 changes only speech jaw/vowel/lip-contact caps/factors; MAX_BLINK, blink timing, expression and gaze remain unchanged.",
+        "CelineFacialMotionPlanner composes blink, speech, expression and gaze into distinct target indices before one smoothing/write path, so the accepted localized eyelid behavior is preserved alongside the new speech articulation."
       ]
     },
     "phase_4R_accepted_runtime": {
@@ -92,12 +93,16 @@
       "face_focus_y": 0.85,
       "call_default_zoom": 2.8,
       "zoom_max": 4.6,
-      "proof_checkpoints": [2.8, 3.5, 4.6]
+      "proof_checkpoints": [
+        2.8,
+        3.5,
+        4.6
+      ]
     },
     "active_block": {
-      "number": 8,
-      "name": "Speech/face coordination",
-      "status": "not_started_ready_after_accepted_block7"
+      "number": 9,
+      "name": "Lifecycle and temporal stability",
+      "status": "not_started_ready_after_accepted_block8"
     },
     "room_source_archive": {
       "github_path": "docs/celine/room-source/v80-2026-08-28/README.md",
@@ -130,20 +135,32 @@
     },
     "interactive_room_execution": {
       "canonical_path": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
-      "user_approved_order": ["4", "4R", "5", "6", "7", "8", "9", "9R", "10", "11", "12"],
+      "user_approved_order": [
+        "4",
+        "4R",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "9R",
+        "10",
+        "11",
+        "12"
+      ],
       "phase_4R": "accepted at runtime head 3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995",
       "phase_9R": "deferred until Blocks 5-9 are accepted",
       "final_temporal_extension": "Block 12 must include a continuous production-equivalent room-action sequence and prove no teleport, foot skating, clipping, broken lip sync, camera chasing, visible laptop, blank renderer or unrecoverable state."
     },
     "current_blocker": null,
-    "exact_next_action": "Begin only Block 8 — Speech/face coordination — on the existing PR #111 after a fresh live-GitHub reconciliation and re-read of this working Queue and the v80 work order. Preserve the existing playback-PCM-driven v77 lip-sync foundation unless exact evidence proves a regression. Inspect the current viseme/jaw/lip path, v76 face guard/rollback, accepted Block-7 blink, Block-6 gaze/head and Block-5 body/arms/hands, then make only the smallest evidence-backed change needed for natural continuous speech/face coexistence. Require temporal production evidence covering neutral/still, speech start, multiple speech moments, speech end/return to neutral and blink near speech. Do not begin Block 9 or 9R until Block 8 is technically and manually accepted.",
+    "exact_next_action": "Block 8 is technically and manually accepted. Stop here per the current user request. Do not begin Block 9 or 9R until the user explicitly resumes. On resume, fresh-live reconcile PR #111, re-read Queue/work order, then begin only Block 9 — Lifecycle and temporal stability — with the smallest bounded runtime/evidence change and preserve Blocks 4-8 plus 4R.",
     "constraints": [
       "Strict single-flight: continue only PR #111 on auto/celine/v80-human-videochat-presence.",
       "Live GitHub wins over stale queue/chat text.",
-      "4R is accepted at runtime head 3c8a7e4c; do not reopen or replace the room without new exact evidence.",
+      "4R is accepted at runtime head 3c8a7e4cc04f37ae7ff814c9fcd3dbe1ca76c995; do not reopen or replace the room without new exact evidence.",
       "The accepted camera/zoom semantics and CALL seated constants remain protected.",
-      "Block 4 central layered ownership is completed at runtime head d2ddd148 and must not be reopened without new exact evidence.",
-      "Block 5 body/arm/hand life, Block 6 gaze/head/social presence and Block 7 blink/eyelid correctness are accepted and protected from unrelated Block-8 changes.",
+      "Block 4 central layered ownership is completed at runtime head d2ddd148ce1f7e3bf4f3414800c1b2ad037a75e3 and must not be reopened without new exact evidence.",
+      "Block 5 body/arm/hand life, Block 6 gaze/head/social presence, Block 7 blink/eyelid correctness and Block 8 speech/face coordination are accepted and protected from unrelated later changes.",
       "Canonical Celine, v61 rig-scale/inverse-bind protection, v76 facial guard/rollback and v77 PCM-driven German lip sync remain protected.",
       "9R remains disabled until Blocks 5-9 are accepted.",
       "Workflow SUCCESS alone is not visual acceptance; inspect actual temporal/visual evidence.",
@@ -248,6 +265,21 @@
         "artifact": 9697458191,
         "artifact_digest": "sha256:cf9aa101065adddace3a011fdc5cdc3cd9244ad85535c75254f333a4e82eb718",
         "manual_acceptance": "PASS exact close open->partial->closed->reopen sequence with topology-preserving eyelid closure; no dark/deformed band, duplicate surface, unrelated face/hair pull or reopen regression"
+      },
+      {
+        "number": 8,
+        "name": "Speech/face coordination",
+        "status": "completed_exact_runtime_build_and_targeted_temporal_evidence_manually_inspected",
+        "runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+        "proof_head": "566df5a0c8532e900eabf262422978b7d4f5e243",
+        "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
+        "build_run_id": 33206828543,
+        "build_run_number": 667,
+        "proof_run_id": 33207082098,
+        "proof_run_number": 99,
+        "artifact": 9700273738,
+        "artifact_digest": "sha256:84ead2c89f8837fd51fff4637c3a202f4c4ac8593d75838c06259336725c403a",
+        "manual_acceptance": "PASS playback-PCM-driven OPEN/ROUND/WIDE/LABIAL articulation is visibly distinct and returns cleanly to neutral; accepted Block-7 localized blink is preserved because the only later runtime correction changes speech-only caps/factors, with HOME/CALL/lifecycle surfaces stable"
       }
     ],
     "user_device_hard_blockers_remaining": [
@@ -276,7 +308,10 @@
     {
       "id": "v79-postrelease-ci-contract-and-publish-scope-repair",
       "status": "merged_exact_main_validated_release_unchanged",
-      "prs": [108, 109],
+      "prs": [
+        108,
+        109
+      ],
       "runtime_change": false
     }
   ],
@@ -284,8 +319,8 @@
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
-    "current_step": "v80-block8-speech-face-coordination_not_started",
-    "next_step": "v80-block9-lifecycle-temporal-stability_after_block8_acceptance"
+    "current_step": "v80-block8-speech-face-coordination_accepted",
+    "next_step": "v80-block9-lifecycle-temporal-stability_not_started_waiting_for_user_resume"
   },
   "latest_release": {
     "version": 80,
