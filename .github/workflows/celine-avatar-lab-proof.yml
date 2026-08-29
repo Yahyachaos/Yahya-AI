@@ -19,6 +19,7 @@ on:
           - full
           - 9r1
           - 9r2
+          - 9r3
 
 permissions:
   contents: read
@@ -30,7 +31,7 @@ concurrency:
 
 jobs:
   avatar-lab-proof:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]')
     runs-on: ubuntu-latest
     # Exact-head fallback can add a bounded debug build before the emulator evidence chain.
     timeout-minutes: 24
@@ -155,10 +156,10 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: bash ci/celine-avatar-proof-dispatch.sh "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" ci-apk/app-debug.apk avatar-lab-proof
+          script: bash ci/celine-avatar-proof-dispatch.sh "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') && '9r3' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" ci-apk/app-debug.apk avatar-lab-proof
 
       - name: Fail-closed evidence preflight
-        if: success() && !((github.event_name == 'workflow_dispatch' && (inputs.proof_scope == '9r1' || inputs.proof_scope == '9r2')) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]'))))
+        if: success() && !((github.event_name == 'workflow_dispatch' && (inputs.proof_scope == '9r1' || inputs.proof_scope == '9r2' || inputs.proof_scope == '9r3')) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]'))))
         shell: bash
         run: python3 ci/celine-avatar-proof-preflight.py avatar-lab-proof --report avatar-lab-proof/preflight.json
 
@@ -182,6 +183,29 @@ jobs:
           grep -Fq 'V80-480' avatar-lab-proof/9r2-runtime-log.txt
           grep -Fq 'handContact=false' avatar-lab-proof/9r2-runtime-log.txt
           grep -Fq 'V80-477' avatar-lab-proof/9r2-runtime-log.txt
+
+      - name: Fail-closed 9R.3 evidence preflight
+        if: success() && ((github.event_name == 'workflow_dispatch' && inputs.proof_scope == '9r3') || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]')))
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s avatar-lab-proof/60-9r3-camera-talk-start.png
+          test -s avatar-lab-proof/61-9r3-bed-approach-arrived.png
+          test -s avatar-lab-proof/64-9r3-edge-sit-stable.png
+          test -s avatar-lab-proof/68-9r3-relax-stable.png
+          test -s avatar-lab-proof/72-9r3-lie-stable.png
+          test -s avatar-lab-proof/76-9r3-sit-up-relax-stable.png
+          test -s avatar-lab-proof/80-9r3-edge-sit-return-stable.png
+          test -s avatar-lab-proof/84-9r3-stand-exit-stable.png
+          test -s avatar-lab-proof/90-9r3-walk-away-arrived.png
+          test -s avatar-lab-proof/96-9r3-camera-talk-final.png
+          grep -Fq 'PASS 9R.3 bed-chain technical gate' avatar-lab-proof/9r3-summary.txt
+          grep -Fq 'pose=BED_EDGE_SIT' avatar-lab-proof/9r3-runtime-log.txt
+          grep -Fq 'pose=BED_RELAX' avatar-lab-proof/9r3-runtime-log.txt
+          grep -Fq 'pose=BED_LIE' avatar-lab-proof/9r3-runtime-log.txt
+          grep -Fq 'pose=STAND_EXIT' avatar-lab-proof/9r3-runtime-log.txt
+          grep -Fq 'centralOwner=true' avatar-lab-proof/9r3-runtime-log.txt
+          grep -Fq 'V80-477' avatar-lab-proof/9r3-runtime-log.txt
 
       - name: Upload lightweight Avatar Lab evidence
         if: always()
