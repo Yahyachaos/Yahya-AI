@@ -18,6 +18,7 @@ on:
         options:
           - full
           - 9r1
+          - 9r2
 
 permissions:
   contents: read
@@ -29,10 +30,9 @@ concurrency:
 
 jobs:
   avatar-lab-proof:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]')
     runs-on: ubuntu-latest
-    # The exact-head fallback can add a bounded debug build before the existing
-    # emulator evidence chain. Keep a hard job guard without weakening proof steps.
+    # Exact-head fallback can add a bounded debug build before the emulator evidence chain.
     timeout-minutes: 24
     steps:
       - name: Checkout exact proof head
@@ -155,13 +155,18 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          # 9R.1 is independently fail-closed and must not be masked by unrelated Settings.
-          # The extra per-frame silhouette guard makes the isolated proof slower, so retain bounded
-          # headroom for the complete camera-return idle/final evidence instead of timing out late.
-          script: if [ "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" = "9r1" ]; then timeout 720s bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof; else timeout 600s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'; fi
+          script: |
+            SCOPE="${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}"
+            if [ "$SCOPE" = "9r2" ]; then
+              timeout 540s bash ci/celine-9r2-table-proof.sh ci-apk/app-debug.apk avatar-lab-proof
+            elif [ "$SCOPE" = "9r1" ]; then
+              timeout 720s bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof
+            else
+              timeout 600s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'
+            fi
 
       - name: Fail-closed evidence preflight
-        if: success() && !((github.event_name == 'workflow_dispatch' && inputs.proof_scope == '9r1') || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]')))
+        if: success() && !((github.event_name == 'workflow_dispatch' && (inputs.proof_scope == '9r1' || inputs.proof_scope == '9r2')) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]'))))
         shell: bash
         run: python3 ci/celine-avatar-proof-preflight.py avatar-lab-proof --report avatar-lab-proof/preflight.json
 
@@ -169,6 +174,22 @@ jobs:
         if: success() && ((github.event_name == 'workflow_dispatch' && inputs.proof_scope == '9r1') || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]')))
         shell: bash
         run: bash ci/celine-9r1-proof-preflight.sh avatar-lab-proof
+
+      - name: Fail-closed 9R.2 evidence preflight
+        if: success() && ((github.event_name == 'workflow_dispatch' && inputs.proof_scope == '9r2') || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]')))
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s avatar-lab-proof/40-9r2-camera-talk-start.png
+          test -s avatar-lab-proof/41-9r2-camera-near-idle.png
+          test -s avatar-lab-proof/46-9r2-table-approach-idle.png
+          test -s avatar-lab-proof/52-9r2-table-lean-stable.png
+          test -s avatar-lab-proof/53-9r2-table-lean-hold.png
+          test -s avatar-lab-proof/55-9r2-camera-talk-final.png
+          grep -Fq 'PASS 9R.2 camera/table technical gate' avatar-lab-proof/9r2-summary.txt
+          grep -Fq 'V80-480' avatar-lab-proof/9r2-runtime-log.txt
+          grep -Fq 'handContact=false' avatar-lab-proof/9r2-runtime-log.txt
+          grep -Fq 'V80-477' avatar-lab-proof/9r2-runtime-log.txt
 
       - name: Upload lightweight Avatar Lab evidence
         if: always()
