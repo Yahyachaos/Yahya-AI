@@ -7,15 +7,56 @@
   "active_pr": 111,
   "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
-  "status": "block9_targeted_lifecycle_temporal_proof_ready_to_trigger_runtime_unchanged",
+  "status": "block9_accepted_9R_ready_not_started",
   "latest_runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
   "latest_built_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
   "latest_visually_accepted_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
   "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
-  "android_build": {"run_number": 667,"run_id": 33206828543,"conclusion": "success","apk_artifact_id": 9700026731,"apk_artifact_digest": "sha256:880b15f8efc249b54565c0b18f84ec5fb4edfde2ab96e6f526d68e9a1ee80a14","fingerprint_artifact_id": 9700027114,"apk_sha256": "16778b3d7ed688fda3cb53ad1977d9482e6974912e9fb6216f79abd3b507cb6d"},
-  "latest_accepted_visual_proof": {"name": "Celine Avatar Lab Proof","run_number": 99,"run_id": 33207082098,"proof_only_head": "566df5a0c8532e900eabf262422978b7d4f5e243","evidence_artifact_id": 9700273738,"artifact_digest": "sha256:84ead2c89f8837fd51fff4637c3a202f4c4ac8593d75838c06259336725c403a","manual_inspection": "PASS Block 8 speech/face coordination"},
-  "accepted_blocks": {"4": "Central layered animation owner","4R": "Final modular room/world","5": "Human idle body, arms and hands","6": "Gaze, head and social presence","7": "Blink and eyelid correctness","8": "Speech/face coordination"},
-  "active_block": {"number": 9,"name": "Lifecycle and temporal stability","status": "proof_ready_to_trigger","runtime_change_required_so_far": false,"proof_script_commit": "fb2711e40a92a41c23e0a9d305aabaf3dafff5ed","queue_checkpoint_policy": "Queue commits are docs-only; do not chase the self-referential current branch head. Live GitHub supplies the exact proof head.","proof_scope": ["HOME -> CALL -> HOME same-process visibility","production CALL mute/unmute state transition","CALL background -> foreground same-process recovery plus post-resume body/social motion","CALL camera face-close zoom -> normal reset","HOME keyboard open/close focus and stage restoration","Settings -> Avatar Lab -> HOME same-process return via existing settings proof"]},
-  "current_blocker": "Await one exact runtime-equivalent Avatar Lab proof on the live current proof-only head, then manually inspect every lifecycle frame before acceptance.",
-  "exact_next_action": "Read the exact live branch head from GitHub and trigger exactly one Celine Avatar Lab Proof for it using the existing Build #667 runtime-equivalent APK. Do not rebuild because runtime fingerprint is unchanged. After completion, inspect the artifact manually. Do not start 9R before Block 9 is accepted. Do not merge or release."
+  "android_build": {
+    "run_number": 667,
+    "run_id": 33206828543,
+    "conclusion": "success",
+    "apk_artifact_id": 9700026731,
+    "apk_artifact_digest": "sha256:880b15f8efc249b54565c0b18f84ec5fb4edfde2ab96e6f526d68e9a1ee80a14",
+    "fingerprint_artifact_id": 9700027114,
+    "apk_sha256": "16778b3d7ed688fda3cb53ad1977d9482e6974912e9fb6216f79abd3b507cb6d"
+  },
+  "latest_accepted_visual_proof": {
+    "name": "Celine Avatar Lab Proof",
+    "run_number": 103,
+    "run_id": 33210824135,
+    "proof_only_head": "55e700078624d2e1d74b9e0f7934df5f9483e3e2",
+    "evidence_artifact_id": 9701781059,
+    "artifact_digest": "sha256:b471896b3b029eb12dc6c89358a2e734abebd2b19e11051c9ec765f7db627290",
+    "manual_inspection": "PASS Block 9 lifecycle and temporal stability"
+  },
+  "accepted_blocks": {
+    "4": "Central layered animation owner",
+    "4R": "Final modular room/world",
+    "5": "Human idle body, arms and hands",
+    "6": "Gaze, head and social presence",
+    "7": "Blink and eyelid correctness",
+    "8": "Speech/face coordination",
+    "9": "Lifecycle and temporal stability"
+  },
+  "active_block": {
+    "number": "9R",
+    "name": "Embodied room actions",
+    "status": "ready_not_started",
+    "runtime_change_required": true,
+    "queue_checkpoint_policy": "Queue commits are docs-only; do not chase the self-referential current branch head. Live GitHub supplies the exact working head.",
+    "prerequisites": "Blocks 4, 4R and 5-9 accepted; 9R must remain single-flight and must use the established 4R world contract and central owner/state machine."
+  },
+  "block9_acceptance": {
+    "runtime_changed": false,
+    "proof_script_head": "55e700078624d2e1d74b9e0f7934df5f9483e3e2",
+    "proof_run_number": 103,
+    "proof_run_id": 33210824135,
+    "evidence_artifact_id": 9701781059,
+    "artifact_digest": "sha256:b471896b3b029eb12dc6c89358a2e734abebd2b19e11051c9ec765f7db627290",
+    "technical_gate": "PASS HOME->CALL->HOME same process; production mute/unmute; CALL background->foreground same process; post-resume arm/social temporal guards; zoom close->normal reset; keyboard open/close with HOME restoration; Settings->Avatar Lab->HOME same process; fail-closed runtime/preflight guards.",
+    "manual_gate": "PASS actual evidence: Celine remains visible and stable in HOME/CALL, after foreground resume, through zoom/reset and HOME return; keyboard visibly occludes/compacts the 3D stage and closing it restores Celine; Avatar Lab contains Celine and returns to HOME; no blank renderer, wrong room, visible laptop, camera chase or lifecycle regression observed."
+  },
+  "current_blocker": null,
+  "exact_next_action": "STOP before 9R. On explicit resume, perform the mandatory fresh chronology and live reconcile, then begin only 9R — embodied room actions — incrementally through the central owner/state machine. Read the 9R amendment/execution trunk first. Do not start Block 10, merge or release."
 }
