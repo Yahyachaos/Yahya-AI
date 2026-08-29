@@ -74,12 +74,12 @@ append_runtime() {
 }
 
 request_and_wait_anchor() {
-  local target="$1" prefix="$2" label="$3" defer_runtime="${4:-false}"
+  local target="$1" prefix="$2" label="$3" defer_runtime="${4:-false}" transition_delay="${5:-0.28}"
   adb logcat -c || true
   write_target "$target"
   wait_log "V80-472"
   wait_log "target=$target"
-  sleep 0.28
+  sleep "$transition_delay"
   capture_product "${prefix}-${label}-transition" "9R5_DRESSER_${label}_TRANSITION"
   wait_log "V80-475" 320
   wait_log "anchor=$target" 320
@@ -123,7 +123,9 @@ append_runtime 152-9r5-dresser-runtime.txt
 append_runtime 156-9r5-dresser-inspect-runtime.txt
 append_runtime 157-9r5-dresser-reacquire-runtime.txt
 
-request_and_wait_anchor room_walk_anchor_left 162 9r5-dresser-walk-away
+# Sample the walk-away after the root has visibly entered locomotion; the previous 0.28 s sample
+# could still resemble the settled Dresser pose even though runtime noTeleport evidence was valid.
+request_and_wait_anchor room_walk_anchor_left 162 9r5-dresser-walk-away false 0.55
 request_and_wait_anchor camera_talk_anchor 166 9r5-dresser-camera-return
 wait_log "V80-477" 260
 sleep 1.0

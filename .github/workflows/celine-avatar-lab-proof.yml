@@ -253,14 +253,15 @@ jobs:
           test -s avatar-lab-proof/152-9r5-dresser-arrived.png
           test -s avatar-lab-proof/156-9r5-dresser-inspect-stable.png
           test -s avatar-lab-proof/157-9r5-dresser-user-reacquire.png
+          test -s avatar-lab-proof/162-9r5-dresser-walk-away-transition.png
           test -s avatar-lab-proof/162-9r5-dresser-walk-away-arrived.png
           test -s avatar-lab-proof/168-9r5-dresser-camera-talk-final.png
           grep -Fq 'PASS 9R.5 dresser technical gate' avatar-lab-proof/9r5-dresser-summary.txt
-          grep -Fq 'DRESSER_CLEARANCE_X_OFFSET_M=+0.08' avatar-lab-proof/9r5-dresser-summary.txt
+          grep -Fq 'DRESSER_CLEARANCE_X_OFFSET_M=+0.65' avatar-lab-proof/9r5-dresser-summary.txt
           grep -Fq 'HAND_CONTACT=false' avatar-lab-proof/9r5-dresser-summary.txt
           grep -Fq 'TELEPORT=false' avatar-lab-proof/9r5-dresser-summary.txt
           grep -Fq 'pose=DRESSER_STAND' avatar-lab-proof/9r5-dresser-runtime-log.txt
-          grep -Fq 'dresserSafetyX=+0.08' avatar-lab-proof/9r5-dresser-runtime-log.txt
+          grep -Fq 'dresserSafetyX=+0.65' avatar-lab-proof/9r5-dresser-runtime-log.txt
           grep -Fq 'centralOwner=true' avatar-lab-proof/9r5-dresser-runtime-log.txt
           grep -Fq 'V80-477' avatar-lab-proof/9r5-dresser-runtime-log.txt
 
