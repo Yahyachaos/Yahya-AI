@@ -1,13 +1,14 @@
 package de.yahya.ai;
 
 /**
- * 9R.3/9R.4 authored furniture-contact pose contribution for the central v80 production owner.
+ * 9R.3/9R.4 furniture contact plus bounded 9R.5 destination pose contribution for the central
+ * v80 production owner.
  *
  * This class never writes Filament transforms. It only owns bounded pose/root targets which
  * CelineProductionPresenceV80 mixes into its existing single transform transaction.
  *
- * The accepted 9R.3 bed path remains unchanged. 9R.4 adds exactly one lounge-chair sit/hold
- * contribution through the same owner without introducing another transform or animation writer.
+ * The accepted 9R.3 bed and 9R.4 chair paths remain unchanged. 9R.5 adds destinations one at a
+ * time; the first addition is a standing window orientation/brief user-reacquisition contribution.
  */
 final class CelineBedPoseV9R3 {
     private static final String BED_APPROACH = "bed_approach_anchor";
@@ -16,12 +17,14 @@ final class CelineBedPoseV9R3 {
     private static final String BED_LIE = "bed_lie_anchor";
     private static final String BED_EXIT = "bed_exit_anchor";
     private static final String CHAIR_SIT = "chair_sit_anchor";
+    private static final String WINDOW = "window_anchor";
 
     private static final int HIPS = 0;
     private static final int SPINE = 1;
     private static final int SPINE01 = 2;
     private static final int SPINE02 = 3;
     private static final int NECK = 4;
+    private static final int HEAD = 5;
     private static final int LEFT_SHOULDER = 6;
     private static final int RIGHT_SHOULDER = 7;
     private static final int LEFT_ARM = 8;
@@ -37,10 +40,11 @@ final class CelineBedPoseV9R3 {
 
     private static final float POSE_BLEND_PER_SECOND = 1.85f;
     private static final float ROOT_BLEND_PER_SECOND = 1.55f;
+    private static final float WINDOW_BLEND_PER_SECOND = 0.90f;
 
     // Production rig pelvis height above the calibrated standing sole plane.
     private static final float STANDING_PELVIS_HEIGHT_M = 0.88f;
-    // Accepted 9R.3 bed calibration. Keep these values unchanged while adding 9R.4.
+    // Accepted 9R.3 bed calibration. Keep these values unchanged while extending later blocks.
     private static final float EDGE_MATTRESS_INSET_X_M = 0.34f;
     private static final float RELAX_MATTRESS_INSET_X_M = 0.16f;
     private static final float LIE_MATTRESS_INSET_X_M = -0.10f;
@@ -49,11 +53,8 @@ final class CelineBedPoseV9R3 {
     private static final float RELAX_ROOT_PITCH_DEG = -34.0f;
     private static final float LIE_ROOT_PITCH_DEG = -82.0f;
 
-    // 9R.4 final-mesh contact calibration. The prepared 4R chair contact anchor intentionally
-    // carried contact_calibration_required=true. Exact Build #727 mesh/rig reconstruction after
-    // manual proof #135 showed the seated butt patch was ~0.45 m left and ~0.66 m behind the
-    // rear cushion support while the accepted bed-like vertical contact remained coherent. Keep Y
-    // and articulation unchanged; align only the chair-local X/Z contact through this one owner.
+    // Accepted 9R.4 final-mesh contact calibration. Keep immutable unless new independent evidence
+    // explicitly reopens the protected chair block.
     private static final float CHAIR_SUPPORT_RISE_M = 0.025f;
     private static final float CHAIR_FINAL_MESH_X_CALIBRATION_M = 0.00f;
     private static final float CHAIR_FINAL_MESH_FORWARD_Z_M = 1.14f;
@@ -80,6 +81,8 @@ final class CelineBedPoseV9R3 {
     private float lieBlend;
     private float chairTurnBlend;
     private float chairSitBlend;
+    private float windowBlend;
+    private float windowHoldSeconds;
     private float rootX;
     private float rootY;
     private float rootZ;
@@ -100,6 +103,7 @@ final class CelineBedPoseV9R3 {
         CelineRoomWorldContractV80.Anchor exit = require(world, BED_EXIT);
         CelineRoomWorldContractV80.Anchor chairApproach = require(world, "chair_approach_anchor");
         CelineRoomWorldContractV80.Anchor chairSit = require(world, CHAIR_SIT);
+        require(world, WINDOW);
 
         edgeSeatRootY = world.bedMattressY - STANDING_PELVIS_HEIGHT_M;
         edgeOffsetX = edge.localX - approach.localX;
@@ -121,15 +125,23 @@ final class CelineBedPoseV9R3 {
     void update(String anchorId, float deltaSeconds, boolean enabled) {
         requestedAnchor = enabled && anchorId != null ? anchorId : BED_APPROACH;
         boolean chairTarget = enabled && CHAIR_SIT.equals(anchorId);
+        boolean windowTarget = enabled && WINDOW.equals(anchorId);
         float edgeTarget = enabled && BED_EDGE.equals(anchorId) ? 1.0f : 0.0f;
         float relaxTarget = enabled && BED_RELAX.equals(anchorId) ? 1.0f : 0.0f;
         float lieTarget = enabled && BED_LIE.equals(anchorId) ? 1.0f : 0.0f;
-        float poseStep = Math.max(0.0f, deltaSeconds) * POSE_BLEND_PER_SECOND;
+        float dt = Math.max(0.0f, deltaSeconds);
+        float poseStep = dt * POSE_BLEND_PER_SECOND;
         edgeBlend = approach(edgeBlend, edgeTarget, poseStep);
         relaxBlend = approach(relaxBlend, relaxTarget, poseStep);
         lieBlend = approach(lieBlend, lieTarget, poseStep);
+        windowBlend = approach(windowBlend, windowTarget ? 1.0f : 0.0f,
+                dt * WINDOW_BLEND_PER_SECOND);
+        if (windowTarget) {
+            windowHoldSeconds += dt;
+        } else if (windowBlend <= 0.02f) {
+            windowHoldSeconds = 0.0f;
+        }
 
-        float dt = Math.max(0.0f, deltaSeconds);
         if (chairTarget) {
             chairTurnBlend = approach(
                     chairTurnBlend, 1.0f, dt * CHAIR_TURN_BLEND_PER_SECOND);
@@ -193,6 +205,7 @@ final class CelineBedPoseV9R3 {
         float relax = home * smooth(relaxBlend);
         float lie = home * smooth(lieBlend);
         float chair = home * smooth(chairSitBlend);
+        float window = home * smooth(windowBlend);
 
         // Accepted 9R.3 bed contribution.
         add(angles, HIPS, edge * -4.0f + relax * -2.0f, 0.0f, 0.0f);
@@ -205,8 +218,7 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOOT, edge * -9.0f + relax * -5.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOOT, edge * -8.0f + relax * -4.0f, 0.0f, 0.0f);
 
-        // 9R.4: orientation stays on the central scene/root path. Only the seated articulation is
-        // contributed here; there is no independent transform writer and no local 180° HIPS yaw.
+        // Accepted 9R.4 chair contribution.
         add(angles, HIPS, chair * -5.0f, 0.0f, chair * 1.5f);
         add(angles, LEFT_UP_LEG, chair * -76.0f, 0.0f, chair * 5.0f);
         add(angles, RIGHT_UP_LEG, chair * -73.0f, 0.0f, chair * -5.0f);
@@ -214,6 +226,9 @@ final class CelineBedPoseV9R3 {
         add(angles, RIGHT_LEG, chair * 83.0f, 0.0f, 0.0f);
         add(angles, LEFT_FOOT, chair * -7.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOOT, chair * -7.0f, 0.0f, 0.0f);
+
+        // 9R.5 window first: bounded partial body turn; never a second root/transform writer.
+        add(angles, HIPS, 0.0f, window * 28.0f, window * 0.8f);
     }
 
     void applyPosture(float[] angles, float home) {
@@ -221,6 +236,7 @@ final class CelineBedPoseV9R3 {
         float relax = home * smooth(relaxBlend);
         float lie = home * smooth(lieBlend);
         float chair = home * smooth(chairSitBlend);
+        float window = home * smooth(windowBlend);
 
         // Accepted 9R.3 bed contribution.
         add(angles, SPINE, edge * 3.0f + relax * 2.0f + lie * 1.0f, 0.0f, 0.0f);
@@ -236,7 +252,7 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOREARM, relax * -18.0f + lie * -5.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOREARM, relax * -16.0f + lie * -5.0f, 0.0f, 0.0f);
 
-        // 9R.4 relaxed hold: small supported recline and restrained arm opening toward armrests.
+        // Accepted 9R.4 relaxed chair hold.
         add(angles, SPINE, chair * 4.0f, 0.0f, chair * 1.0f);
         add(angles, SPINE01, chair * 6.0f, 0.0f, chair * 0.8f);
         add(angles, SPINE02, chair * 4.5f, 0.0f, chair * 0.5f);
@@ -247,12 +263,27 @@ final class CelineBedPoseV9R3 {
         add(angles, RIGHT_ARM, chair * -9.0f, 0.0f, chair * -18.0f);
         add(angles, LEFT_FOREARM, chair * -20.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOREARM, chair * -18.0f, 0.0f, 0.0f);
+
+        // 9R.5 window: distribute the turn through the torso rather than twisting Hips 180°.
+        // A slow bounded head/neck counter-turn periodically re-acquires the user while the body
+        // remains partially oriented toward the window.
+        float reacquireWave = Math.max(0.0f,
+                (float) Math.sin(windowHoldSeconds * 0.90f - 1.15f));
+        float reacquire = window * pow4(reacquireWave);
+        add(angles, SPINE, 0.0f, window * 10.0f, window * 0.6f);
+        add(angles, SPINE01, 0.0f, window * 9.0f, window * 0.4f);
+        add(angles, SPINE02, 0.0f, window * 7.0f, window * 0.3f);
+        add(angles, NECK, window * -1.2f,
+                window * 8.0f - reacquire * 10.0f, window * -0.4f);
+        add(angles, HEAD, window * 0.8f,
+                window * 10.0f - reacquire * 24.0f, window * 0.5f);
     }
 
     float activity() {
         return clamp(Math.max(
                 Math.max(edgeBlend, Math.max(relaxBlend, lieBlend)),
-                Math.max(chairSitBlend, chairTurnBlend * 0.45f)), 0.0f, 1.0f);
+                Math.max(Math.max(chairSitBlend, chairTurnBlend * 0.45f), windowBlend)),
+                0.0f, 1.0f);
     }
 
     float rootX() { return rootX; }
@@ -262,12 +293,12 @@ final class CelineBedPoseV9R3 {
     float rootRoll() { return rootRoll; }
 
     /**
-     * Compatibility name retained because the accepted central owner already calls it. 9R.4 adds
-     * only chair_sit as another bounded furniture-contact anchor through the same contribution.
+     * Compatibility name retained because the accepted central owner already calls it. It now
+     * means any bounded destination/contact pose contribution owned through this helper.
      */
     boolean isBedAnchor(String id) {
         return BED_EDGE.equals(id) || BED_RELAX.equals(id) || BED_LIE.equals(id)
-                || BED_EXIT.equals(id) || CHAIR_SIT.equals(id);
+                || BED_EXIT.equals(id) || CHAIR_SIT.equals(id) || WINDOW.equals(id);
     }
 
     boolean settled(String anchorId) {
@@ -277,11 +308,13 @@ final class CelineBedPoseV9R3 {
         float targetLie = BED_LIE.equals(anchorId) ? 1.0f : 0.0f;
         float targetChairTurn = CHAIR_SIT.equals(anchorId) ? 1.0f : 0.0f;
         float targetChairSit = CHAIR_SIT.equals(anchorId) ? 1.0f : 0.0f;
+        float targetWindow = WINDOW.equals(anchorId) ? 1.0f : 0.0f;
         return Math.abs(edgeBlend - targetEdge) < 0.025f
                 && Math.abs(relaxBlend - targetRelax) < 0.025f
                 && Math.abs(lieBlend - targetLie) < 0.025f
                 && Math.abs(chairTurnBlend - targetChairTurn) < 0.025f
                 && Math.abs(chairSitBlend - targetChairSit) < 0.025f
+                && Math.abs(windowBlend - targetWindow) < 0.025f
                 && Math.abs(rootX - targetRootX) < 0.020f
                 && Math.abs(rootY - targetRootY) < 0.020f
                 && Math.abs(rootZ - targetRootZ) < 0.020f
@@ -295,6 +328,7 @@ final class CelineBedPoseV9R3 {
         if (BED_LIE.equals(anchorId)) return "BED_LIE";
         if (BED_EXIT.equals(anchorId)) return "STAND_EXIT";
         if (CHAIR_SIT.equals(anchorId)) return "CHAIR_SIT";
+        if (WINDOW.equals(anchorId)) return "WINDOW_STAND";
         return "STAND_TALK";
     }
 
@@ -331,6 +365,11 @@ final class CelineBedPoseV9R3 {
     private static float smooth(float value) {
         float bounded = clamp(value, 0.0f, 1.0f);
         return bounded * bounded * (3.0f - 2.0f * bounded);
+    }
+
+    private static float pow4(float value) {
+        float square = value * value;
+        return square * square;
     }
 
     private static float clamp(float value, float min, float max) {
