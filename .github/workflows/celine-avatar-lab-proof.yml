@@ -155,15 +155,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: |
-            SCOPE="${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}"
-            if [ "$SCOPE" = "9r2" ]; then
-              timeout 540s bash ci/celine-9r2-table-proof.sh ci-apk/app-debug.apk avatar-lab-proof
-            elif [ "$SCOPE" = "9r1" ]; then
-              timeout 720s bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof
-            else
-              timeout 600s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'
-            fi
+          script: bash ci/celine-avatar-proof-dispatch.sh "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" ci-apk/app-debug.apk avatar-lab-proof
 
       - name: Fail-closed evidence preflight
         if: success() && !((github.event_name == 'workflow_dispatch' && (inputs.proof_scope == '9r1' || inputs.proof_scope == '9r2')) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]'))))
