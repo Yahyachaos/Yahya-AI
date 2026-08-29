@@ -24,6 +24,11 @@ final class CelineRoomNavigatorV9R {
     private static final String WINDOW_ANCHOR = "window_anchor";
     private static final String TABLE_APPROACH_ANCHOR = "foreground_table_approach_anchor";
     private static final String TABLE_LEAN_ANCHOR = "foreground_table_lean_anchor";
+    private static final String BED_APPROACH_ANCHOR = "bed_approach_anchor";
+    private static final String BED_EDGE_SIT_ANCHOR = "bed_edge_sit_anchor";
+    private static final String BED_RELAX_ANCHOR = "bed_relax_anchor";
+    private static final String BED_LIE_ANCHOR = "bed_lie_anchor";
+    private static final String BED_EXIT_ANCHOR = "bed_exit_anchor";
     // Manual 9R.1 evidence showed the accepted 4R back/window corridor can place Celine behind
     // the drape silhouette. Keep 4R immutable and move only the 9R runtime corridor toward the
     // fixed camera. The final window hold already proved this bounded offset is clear of drapes.
@@ -58,9 +63,10 @@ final class CelineRoomNavigatorV9R {
             if (edge.optBoolean("bidirectional", false)) mutable.get(to).add(from);
         }
 
-        // 9R.2 enables exactly one already-authored 4R contact edge: table approach <-> lean.
-        // Bed/chair contact edges remain deliberately locked for their later bounded phases.
+        // 9R.2 keeps its accepted table contact edge. 9R.3 now unlocks only the already-authored
+        // bed contact chain. The chair contact edge stays locked for 9R.4.
         boolean tableContactEnabled = false;
+        int bedContactEdgesEnabled = 0;
         JSONArray contactEdges = nav.getJSONArray("contact_edges");
         for (int i = 0; i < contactEdges.length(); i++) {
             JSONObject edge = contactEdges.getJSONObject(i);
@@ -72,10 +78,27 @@ final class CelineRoomNavigatorV9R {
                 mutable.get(from).add(to);
                 mutable.get(to).add(from);
                 tableContactEnabled = true;
-                break;
+                continue;
+            }
+            if (isAuthoredBedContact(from, to)) {
+                require(world.anchor(from) != null && world.anchor(to) != null,
+                        "bed contact anchors " + from + " -> " + to);
+                mutable.get(from).add(to);
+                mutable.get(to).add(from);
+                bedContactEdgesEnabled++;
             }
         }
         require(tableContactEnabled, "9R.2 table contact edge");
+        require(bedContactEdgesEnabled == 4, "9R.3 four authored bed contact edges");
+
+        // The 4R anchor contract explicitly allows bed_exit -> bed_approach as the standing exit
+        // handoff, while the contact-edge list only describes furniture-contact transitions.
+        // Enable this one bounded standing bridge so the accepted chain can stand and walk away
+        // instead of routing back through a seated state. No chair/environment edge is unlocked.
+        require(world.anchor(BED_EXIT_ANCHOR) != null && world.anchor(BED_APPROACH_ANCHOR) != null,
+                "9R.3 bed exit standing bridge anchors");
+        mutable.get(BED_EXIT_ANCHOR).add(BED_APPROACH_ANCHOR);
+        mutable.get(BED_APPROACH_ANCHOR).add(BED_EXIT_ANCHOR);
 
         Map<String, List<String>> frozen = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> entry : mutable.entrySet()) {
@@ -87,7 +110,8 @@ final class CelineRoomNavigatorV9R {
                         + " cameraChase=false teleport=false"
                         + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
                         + " corridor=back_center>shelf>window"
-                        + " tableContactEdge=true laterContacts=false");
+                        + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
+                        + " bedExitBridge=true chairContact=false");
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
@@ -153,6 +177,13 @@ final class CelineRoomNavigatorV9R {
             }
         }
         return Collections.emptyList();
+    }
+
+    private static boolean isAuthoredBedContact(String from, String to) {
+        return (BED_APPROACH_ANCHOR.equals(from) && BED_EDGE_SIT_ANCHOR.equals(to))
+                || (BED_EDGE_SIT_ANCHOR.equals(from) && BED_RELAX_ANCHOR.equals(to))
+                || (BED_RELAX_ANCHOR.equals(from) && BED_LIE_ANCHOR.equals(to))
+                || (BED_EDGE_SIT_ANCHOR.equals(from) && BED_EXIT_ANCHOR.equals(to));
     }
 
     private static JSONObject readJson(Context context, String path) throws Exception {
