@@ -74,7 +74,7 @@ final class CelineWalkingClipV9R {
         Map<String, float[]> channels = new LinkedHashMap<>();
         for (String name : REQUIRED_BONES) {
             JSONArray values = channelJson.optJSONArray(name);
-            require(values != null && values.length() == times.length(), "rotation channel " + name);
+            require(values != null && values.length() == times.length, "rotation channel " + name);
             float[] flat = new float[times.length * 4];
             for (int i = 0; i < values.length(); i++) {
                 JSONArray q = values.getJSONArray(i);
