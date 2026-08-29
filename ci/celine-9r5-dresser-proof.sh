@@ -132,7 +132,8 @@ python3 ci/check-home-return-zoom.py \
 for required in 'V80-471' 'V80-472' 'V80-475' 'V80-483' 'V80-477'; do
   grep -Fq "$required" "$OUT/9r5-dresser-runtime-log.txt" || fail "required dresser evidence missing: $required"
 done
-grep -Fq 'dresserSafetyX=+0.08' "$OUT/9r5-dresser-runtime-log.txt" || fail "dresser runtime clearance evidence missing"
+grep -Fq 'dresserSafetyX=+0.65' "$OUT/9r5-dresser-runtime-log.txt" || fail "dresser runtime X-clearance evidence missing"
+grep -Fq 'dresserSafetyZ=+0.60' "$OUT/9r5-dresser-runtime-log.txt" || fail "dresser runtime depth evidence missing"
 grep -Fq 'pose=DRESSER_STAND' "$OUT/9r5-dresser-runtime-log.txt" || fail "DRESSER_STAND evidence missing"
 grep -Fq 'centralOwner=true' "$OUT/9r5-dresser-runtime-log.txt" || fail "central owner evidence missing"
 grep -Fq 'cameraFixed=true' "$OUT/9r5-dresser-runtime-log.txt" || fail "fixed-camera evidence missing"
@@ -146,7 +147,8 @@ PASS 9R.5 dresser technical gate
 RUNTIME_HEAD=${GITHUB_SHA:-unknown}
 CHAIN=camera_talk_to_dresser_to_inspect_to_user_reacquire_to_walk_away_to_camera_talk
 DRESSER_STAND=central_owner_bounded_pose
-DRESSER_CLEARANCE_X_OFFSET_M=+0.08
+DRESSER_CLEARANCE_X_OFFSET_M=+0.65
+DRESSER_VISIBILITY_Z_OFFSET_M=+0.60
 HAND_CONTACT=false
 USER_REACQUIRE=bounded_upper_body_head_neck_counterturn
 CAMERA=physically_fixed_no_chase
