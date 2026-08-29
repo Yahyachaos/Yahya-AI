@@ -63,6 +63,17 @@ final class CelineBedPoseV9R3 {
     private static final float CHAIR_STAND_BLEND_PER_SECOND = 3.80f;
     private static final float CHAIR_UNTURN_BLEND_PER_SECOND = 0.72f;
 
+    // 9R.5 window Proof #137 showed two independent visual failures: articulated HIPS/Spine yaw
+    // swung the child skeleton into the drapes, and the sinusoidal reacquisition could be captured
+    // at nearly the same phase as the outward hold. Whole-body orientation now belongs exclusively
+    // to the navigator/central root yaw. This helper only contributes deterministic head/neck gaze.
+    private static final float WINDOW_REACQUIRE_DELAY_SECONDS = 2.40f;
+    private static final float WINDOW_REACQUIRE_RAMP_SECONDS = 0.80f;
+    private static final float WINDOW_OUTWARD_NECK_YAW_DEG = 15.0f;
+    private static final float WINDOW_OUTWARD_HEAD_YAW_DEG = 30.0f;
+    private static final float WINDOW_USER_NECK_YAW_DEG = -25.0f;
+    private static final float WINDOW_USER_HEAD_YAW_DEG = -50.0f;
+
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
     private final float edgeOffsetZ;
@@ -205,7 +216,6 @@ final class CelineBedPoseV9R3 {
         float relax = home * smooth(relaxBlend);
         float lie = home * smooth(lieBlend);
         float chair = home * smooth(chairSitBlend);
-        float window = home * smooth(windowBlend);
 
         // Accepted 9R.3 bed contribution.
         add(angles, HIPS, edge * -4.0f + relax * -2.0f, 0.0f, 0.0f);
@@ -227,8 +237,7 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOOT, chair * -7.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOOT, chair * -7.0f, 0.0f, 0.0f);
 
-        // 9R.5 window first: bounded partial body turn; never a second root/transform writer.
-        add(angles, HIPS, 0.0f, window * 28.0f, window * 0.8f);
+        // 9R.5 whole-body window turn is intentionally absent here. Root yaw owns it centrally.
     }
 
     void applyPosture(float[] angles, float home) {
@@ -264,19 +273,24 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOREARM, chair * -20.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOREARM, chair * -18.0f, 0.0f, 0.0f);
 
-        // 9R.5 window: distribute the turn through the torso rather than twisting Hips 180°.
-        // A slow bounded head/neck counter-turn periodically re-acquires the user while the body
-        // remains partially oriented toward the window.
-        float reacquireWave = Math.max(0.0f,
-                (float) Math.sin(windowHoldSeconds * 0.90f - 1.15f));
-        float reacquire = window * pow4(reacquireWave);
-        add(angles, SPINE, 0.0f, window * 10.0f, window * 0.6f);
-        add(angles, SPINE01, 0.0f, window * 9.0f, window * 0.4f);
-        add(angles, SPINE02, 0.0f, window * 7.0f, window * 0.3f);
-        add(angles, NECK, window * -1.2f,
-                window * 8.0f - reacquire * 10.0f, window * -0.4f);
-        add(angles, HEAD, window * 0.8f,
-                window * 10.0f - reacquire * 24.0f, window * 0.5f);
+        // 9R.5 window: deterministic rather than sinusoidal. The proof's outward frame occurs
+        // before the delay; the later user frame occurs after this bounded smooth ramp completes.
+        float reacquireProgress = clamp(
+                (windowHoldSeconds - WINDOW_REACQUIRE_DELAY_SECONDS)
+                        / WINDOW_REACQUIRE_RAMP_SECONDS,
+                0.0f, 1.0f);
+        float reacquire = window * smooth(reacquireProgress);
+        float outward = window * (1.0f - smooth(reacquireProgress));
+        add(angles, NECK,
+                outward * -1.0f + reacquire * 0.5f,
+                outward * WINDOW_OUTWARD_NECK_YAW_DEG
+                        + reacquire * WINDOW_USER_NECK_YAW_DEG,
+                0.0f);
+        add(angles, HEAD,
+                outward * -2.0f + reacquire * 1.5f,
+                outward * WINDOW_OUTWARD_HEAD_YAW_DEG
+                        + reacquire * WINDOW_USER_HEAD_YAW_DEG,
+                0.0f);
     }
 
     float activity() {
