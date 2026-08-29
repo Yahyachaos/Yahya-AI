@@ -56,7 +56,7 @@ final class CelineBedPoseV9R3 {
     // chair-only corrections inside the existing central pose contribution; do not alter 4R data.
     private static final float CHAIR_SUPPORT_RISE_M = 0.025f;
     private static final float CHAIR_FINAL_MESH_X_CALIBRATION_M = -0.45f;
-    private static final float CHAIR_FINAL_MESH_FORWARD_Z_M = 0.30f;
+    private static final float CHAIR_FINAL_MESH_FORWARD_Z_M = 0.48f;
     private static final float CHAIR_TURN_BLEND_PER_SECOND = 0.62f;
     private static final float CHAIR_SIT_BLEND_PER_SECOND = 1.35f;
     private static final float CHAIR_STAND_BLEND_PER_SECOND = 3.80f;
