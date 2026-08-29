@@ -7,28 +7,40 @@
   "active_pr": 111,
   "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
-  "status": "block9_accepted_9R_ready_not_started",
-  "latest_runtime_code_head": "ba85c795e1897565857928e910b01d43bf634c1c",
-  "latest_built_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
+  "status": "9R1_fail_closed_reproof_pending",
+  "latest_runtime_code_head": "751a82ab99fcc5fa7db1d89926e9260ea579f3f9",
+  "latest_built_runtime_head": "751a82ab99fcc5fa7db1d89926e9260ea579f3f9",
   "latest_visually_accepted_runtime_head": "ba85c795e1897565857928e910b01d43bf634c1c",
-  "runtime_fingerprint": "6c60a74663a8ea4875424da1d426f965e8cf37db9a2b9f29fb977bf6565d343a",
+  "runtime_fingerprint": "8998a43e31d6ef95bca1244f783255a36ac477e61aa6f2ac9748820294bfbfc2",
   "android_build": {
-    "run_number": 667,
-    "run_id": 33206828543,
+    "run_number": 688,
+    "run_id": 33248740758,
     "conclusion": "success",
-    "apk_artifact_id": 9700026731,
-    "apk_artifact_digest": "sha256:880b15f8efc249b54565c0b18f84ec5fb4edfde2ab96e6f526d68e9a1ee80a14",
-    "fingerprint_artifact_id": 9700027114,
-    "apk_sha256": "16778b3d7ed688fda3cb53ad1977d9482e6974912e9fb6216f79abd3b507cb6d"
+    "runtime_head": "751a82ab99fcc5fa7db1d89926e9260ea579f3f9",
+    "apk_sha256": "e05ee5fec2e5fa935df8fa99f2ea9936dc467d0c292a204ba789dcc1858c5d8d"
   },
-  "latest_accepted_visual_proof": {
+  "latest_visual_proof": {
     "name": "Celine Avatar Lab Proof",
-    "run_number": 103,
-    "run_id": 33210824135,
-    "proof_only_head": "55e700078624d2e1d74b9e0f7934df5f9483e3e2",
-    "evidence_artifact_id": 9701781059,
-    "artifact_digest": "sha256:b471896b3b029eb12dc6c89358a2e734abebd2b19e11051c9ec765f7db627290",
-    "manual_inspection": "PASS Block 9 lifecycle and temporal stability"
+    "run_number": 114,
+    "run_id": 33249693901,
+    "proof_head": "43d3717e28f299f4dd381b9dd41552f5d9ac170f",
+    "runtime_head": "751a82ab99fcc5fa7db1d89926e9260ea579f3f9",
+    "artifact_id": 9714068534,
+    "artifact_digest": "sha256:2948376b29c50a8e9b1d40d64114dbaff69d1a2407e2461d8ee3be1789845abe",
+    "workflow_conclusion": "success",
+    "manual_inspection": "FAIL_WINDOW_WALK_A_CELINE_ABSENT",
+    "note": "The original floating blocker is fixed: bed/chair/window STOP and IDLE now show floor contact and runtime logs report floorY=-1.55 soleY=-1.55 floorCalibrated=true. Manual inspection nevertheless found 26-9r1-window-walk-a.png with the room visible but Celine absent, so 9R.1 remains unaccepted despite green CI."
+  },
+  "current_proof_only_head": "77034a6d8428b1d355de28e17d80784ab0c7b133",
+  "proof_only_change": "ci/celine-scene-integration-proof.sh now delays WALK captures into real gait time and adds a 9R.1 dark-body silhouette fail-closed guard so an empty/offscreen Celine frame cannot pass on warm room pixels.",
+  "proof_only_scope_validation": {
+    "workflow": "Android Build",
+    "run_number": 693,
+    "run_id": 33250893795,
+    "conclusion": "success",
+    "build": "skipped",
+    "emulator": "skipped",
+    "publish": "skipped"
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -40,23 +52,26 @@
     "9": "Lifecycle and temporal stability"
   },
   "active_block": {
-    "number": "9R",
-    "name": "Embodied room actions",
-    "status": "ready_not_started",
-    "runtime_change_required": true,
-    "queue_checkpoint_policy": "Queue commits are docs-only; do not chase the self-referential current branch head. Live GitHub supplies the exact working head.",
-    "prerequisites": "Blocks 4, 4R and 5-9 accepted; 9R must remain single-flight and must use the established 4R world contract and central owner/state machine."
+    "number": "9R.1",
+    "name": "Locomotion foundation",
+    "status": "technical_runtime_fix_built_floor_contact_fixed_manual_reproof_pending"
   },
-  "block9_acceptance": {
-    "runtime_changed": false,
-    "proof_script_head": "55e700078624d2e1d74b9e0f7934df5f9483e3e2",
-    "proof_run_number": 103,
-    "proof_run_id": 33210824135,
-    "evidence_artifact_id": 9701781059,
-    "artifact_digest": "sha256:b471896b3b029eb12dc6c89358a2e734abebd2b19e11051c9ec765f7db627290",
-    "technical_gate": "PASS HOME->CALL->HOME same process; production mute/unmute; CALL background->foreground same process; post-resume arm/social temporal guards; zoom close->normal reset; keyboard open/close with HOME restoration; Settings->Avatar Lab->HOME same process; fail-closed runtime/preflight guards.",
-    "manual_gate": "PASS actual evidence: Celine remains visible and stable in HOME/CALL, after foreground resume, through zoom/reset and HOME return; keyboard visibly occludes/compacts the 3D stage and closing it restores Celine; Avatar Lab contains Celine and returns to HOME; no blank renderer, wrong room, visible laptop, camera chase or lifecycle regression observed."
-  },
-  "current_blocker": null,
-  "exact_next_action": "STOP before 9R. On explicit resume, perform the mandatory fresh chronology and live reconcile, then begin only 9R — embodied room actions — incrementally through the central owner/state machine. Read the 9R amendment/execution trunk first. Do not start Block 10, merge or release."
+  "current_blocker": "Proof #114 exposed one manually observed room-only window WALK_A frame that the previous warm-pixel person checker failed to reject. The proof harness is now fail-closed on this condition; one exact-head targeted reproof is required before manual acceptance.",
+  "exact_next_action": "Run exactly one targeted 9R.1 Avatar Lab proof on proof-only head 77034a6d8428b1d355de28e17d80784ab0c7b133 reusing the verified runtime-equivalent Build #688 APK, then manually inspect every bed/chair/window/camera-return TURN/WALK/STOP/IDLE frame. Accept 9R.1 only if Celine remains visibly present throughout, floor contact is correct, and there is no foot skating, penetration, teleport, snap or camera regression.",
+  "constraints": [
+    "No new branch or PR.",
+    "Do not merge PR #111.",
+    "Do not release.",
+    "Do not start 9R.2 until 9R.1 is technically and manually accepted and documented.",
+    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8 or 9 without new exact independent evidence.",
+    "Workflow SUCCESS is not visual acceptance."
+  ],
+  "roadmap": {
+    "stage": 3,
+    "stage_name": "avatar_embodiment",
+    "current_step": "v80-human-videochat-presence",
+    "current_substep": "9R.1-locomotion-foundation",
+    "next_substep_after_acceptance": "9R.2-camera-table-interactions",
+    "next_step": null
+  }
 }
