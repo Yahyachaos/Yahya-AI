@@ -50,13 +50,13 @@ final class CelineBedPoseV9R3 {
     private static final float LIE_ROOT_PITCH_DEG = -82.0f;
 
     // 9R.4 final-mesh contact calibration. The prepared 4R chair contact anchor intentionally
-    // carried contact_calibration_required=true. Manual proof #132 confirms the production rig
-    // root/pelvis projects right of the visible seat center when using the raw object-origin x,
-    // and the raw z keeps the pelvis behind the front half of the cushion. Apply these bounded
-    // chair-only corrections inside the existing central pose contribution; do not alter 4R data.
+    // carried contact_calibration_required=true. Exact Build #727 mesh/rig reconstruction after
+    // manual proof #135 showed the seated butt patch was ~0.45 m left and ~0.66 m behind the
+    // rear cushion support while the accepted bed-like vertical contact remained coherent. Keep Y
+    // and articulation unchanged; align only the chair-local X/Z contact through this one owner.
     private static final float CHAIR_SUPPORT_RISE_M = 0.025f;
-    private static final float CHAIR_FINAL_MESH_X_CALIBRATION_M = -0.45f;
-    private static final float CHAIR_FINAL_MESH_FORWARD_Z_M = 0.48f;
+    private static final float CHAIR_FINAL_MESH_X_CALIBRATION_M = 0.00f;
+    private static final float CHAIR_FINAL_MESH_FORWARD_Z_M = 1.14f;
     private static final float CHAIR_TURN_BLEND_PER_SECOND = 0.62f;
     private static final float CHAIR_SIT_BLEND_PER_SECOND = 1.35f;
     private static final float CHAIR_STAND_BLEND_PER_SECOND = 3.80f;
