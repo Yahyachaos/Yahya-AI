@@ -282,3 +282,20 @@ No prior chat transcript is required if the repository handoff is healthy.
 ## 15. START_HERE.txt
 
 `START_HERE.txt` is only a redirect for humans or agents that open it accidentally. Do not use it as a development-state document. The canonical development entry is this `AGENTS.md`.
+
+## 16. Permanent Human Celine product-direction trunk
+
+The durable long-range plan for Celine's intelligence, memory, bounded autonomy, local/offline speech, owned feminine voice identity, human turn-taking, coherent synthetic emotion, situational awareness, learning/personalization, embodied cognition and final human-quality acceptance lives at:
+
+```text
+ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md
+```
+
+Rules:
+
+- This trunk is **additive**. It never deletes or silently replaces existing accepted roadmap/work-order requirements.
+- Read it when deciding future Celine product direction, when an active Queue/work-order explicitly points to it, or when the current canonical work order has finished and the Queue must select the next long-range phase.
+- It is not authority to start parallel work while another Celine work order/substep is active.
+- Live GitHub, this `AGENTS.md`, the resolved working Queue and the active work-order retain their normal precedence.
+- When activated, execute exactly one earliest unfinished H-phase at a time under the same strict single-flight and validation policy.
+- Model/library names inside the trunk are benchmark candidates, not permanent dependencies; re-check current support, licensing and target-device performance before adoption.
