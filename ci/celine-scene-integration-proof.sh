@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 9R.1 proof trigger head: CI-only; runtime fingerprint must resolve to Build #682.
 set -euo pipefail
 APK="${1:-ci-apk/app-debug.apk}"; OUT="${2:-avatar-lab-proof}"; PACKAGE="de.yahya.ai"; ACTIVITY="de.yahya.ai/.MainActivity"; ROOM_MARKER="celine-ci-room-action-v9r"
 mkdir -p "$OUT"; : > "$OUT/9r1-runtime-log.txt"
