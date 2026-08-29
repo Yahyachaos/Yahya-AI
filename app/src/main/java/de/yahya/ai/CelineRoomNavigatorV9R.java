@@ -19,6 +19,10 @@ import java.util.Set;
 /** Immutable 9R navigator over the already accepted 4R anchor/nav graph. */
 final class CelineRoomNavigatorV9R {
     private static final String TALK_ANCHOR = "camera_talk_anchor";
+    private static final String WINDOW_ANCHOR = "window_anchor";
+    // Manual 9R.1 evidence showed the accepted 4R window marker puts Celine inside the drape
+    // silhouette. Keep 4R immutable and move only the 9R locomotion hold toward the camera.
+    private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
 
     private final CelineRoomWorldContractV80 world;
     private final Map<String, List<String>> graph;
@@ -56,23 +60,37 @@ final class CelineRoomNavigatorV9R {
         }
         Celine3DDiagnostics.record(context, "V80-471", "9R Nav-Graph geladen",
                 "anchors=" + world.anchors.size() + " edges=" + edges.length()
-                        + " cameraChase=false teleport=false");
+                        + " cameraChase=false teleport=false"
+                        + " windowSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M);
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
     CelineRoomWorldContractV80.Anchor anchor(String id) {
         CelineRoomWorldContractV80.Anchor source = world.anchor(id);
-        if (source == null || !Float.isNaN(source.facingYDeg)) return source;
+        if (source == null) return null;
 
-        // Some 4R transit/approach anchors deliberately left final facing unspecified. 9R must
-        // resolve that at runtime without mutating the accepted 4R contract. Default those holds
-        // to the existing camera-talk social facing; travel direction is still used while walking.
-        CelineRoomWorldContractV80.Anchor talk = world.anchor(TALK_ANCHOR);
-        float fallbackFacing = talk != null && !Float.isNaN(talk.facingYDeg)
-                ? talk.facingYDeg : 180.0f;
+        float resolvedFacing = source.facingYDeg;
+        if (Float.isNaN(resolvedFacing)) {
+            // Some 4R transit/approach anchors deliberately left final facing unspecified. 9R must
+            // resolve that at runtime without mutating the accepted 4R contract. Default those
+            // holds to the existing camera-talk social facing; travel direction is still used
+            // while walking.
+            CelineRoomWorldContractV80.Anchor talk = world.anchor(TALK_ANCHOR);
+            resolvedFacing = talk != null && !Float.isNaN(talk.facingYDeg)
+                    ? talk.facingYDeg : 180.0f;
+        }
+
+        if (WINDOW_ANCHOR.equals(source.id)) {
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    source.localX, source.localY, source.localZ + WINDOW_SAFETY_Z_OFFSET_M,
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (!Float.isNaN(source.facingYDeg)) return source;
         return new CelineRoomWorldContractV80.Anchor(
                 source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
-                source.localX, source.localY, source.localZ, fallbackFacing,
+                source.localX, source.localY, source.localZ, resolvedFacing,
                 source.clearanceRadius, source.contactCalibrationRequired);
     }
 
