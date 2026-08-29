@@ -26,7 +26,8 @@ import java.util.WeakHashMap;
  *
  * Blocks 4-9 remain protected. 9R.1 extends this same writer with bounded world-root travel over
  * the accepted 4R nav graph and a real Walking clip derived from the canonical Meshy companion.
- * No second frame writer is introduced; the fixed room/camera contracts remain independent.
+ * 9R.2 adds only a bounded table-contact lean inside this same owner; no second frame writer is
+ * introduced and the fixed room/camera contracts remain independent.
  */
 final class CelineProductionPresenceV80 {
     enum Stage { AUTO, HOME, CALL }
@@ -78,6 +79,7 @@ final class CelineProductionPresenceV80 {
     };
 
     private static final String TALK_ANCHOR = "camera_talk_anchor";
+    private static final String TABLE_LEAN_ANCHOR = "foreground_table_lean_anchor";
     private static final String CI_ROOM_ACTION_FILE = "celine-ci-room-action-v9r";
     private static final float CALL_ROOT_DOWN = -0.30f;
     private static final float CALL_ROOT_FORWARD = 0.12f;
@@ -90,6 +92,7 @@ final class CelineProductionPresenceV80 {
     private static final float TURN_SPEED_DPS = 165.0f;
     private static final float FINAL_TURN_SPEED_DPS = 120.0f;
     private static final float ROOM_FLOOR_BLEND_PER_SECOND = 2.4f;
+    private static final float TABLE_LEAN_BLEND_PER_SECOND = 2.2f;
     private static final float MAX_ROOM_FLOOR_CORRECTION_M = 0.65f;
 
     private static final WeakHashMap<Celine3DView, Mixer> MIXERS = new WeakHashMap<>();
@@ -257,6 +260,7 @@ final class CelineProductionPresenceV80 {
         boolean loggedBlock5Call;
         boolean loggedBlock6Home;
         boolean loggedBlock6Call;
+        boolean loggedTableLean;
         boolean targetCall;
         boolean targetInitialized;
         boolean inCallNow;
@@ -287,6 +291,7 @@ final class CelineProductionPresenceV80 {
         float walkBlend;
         float walkBob;
         float roomFloorBlend;
+        float tableLeanBlend;
         float legacyHomeGaitScale = 1.0f;
         double walkDistanceMeters;
 
@@ -326,7 +331,7 @@ final class CelineProductionPresenceV80 {
                             + " face=CelineMorphRuntimeV62 PCM=v77"
                             + " block5SixJointArms=true fingerBones=false"
                             + " block6SocialGaze=true independentWriter=false"
-                            + " 9RNav=true walking=MeshyCanonical"
+                            + " 9RNav=true walking=MeshyCanonical tableLean=true"
                             + " probe=" + probeModel);
             Celine3DDiagnostics.record(context, "V80-470", "9R Floor-Root kalibriert",
                     "floorY=" + talkAnchor.worldY
@@ -508,6 +513,22 @@ final class CelineProductionPresenceV80 {
                     && roomMotion != RoomMotion.AMBIENT_HANDOFF ? 1.0f : 0.0f;
             roomFloorBlend = approach(roomFloorBlend, floorBlendTarget,
                     deltaSeconds * ROOM_FLOOR_BLEND_PER_SECOND);
+
+            boolean tableLeanHold = !callNow
+                    && TABLE_LEAN_ANCHOR.equals(currentAnchorId)
+                    && roomMotion == RoomMotion.ANCHOR_IDLE;
+            tableLeanBlend = approach(tableLeanBlend, tableLeanHold ? 1.0f : 0.0f,
+                    deltaSeconds * TABLE_LEAN_BLEND_PER_SECOND);
+            if (tableLeanHold && tableLeanBlend >= 0.98f && !loggedTableLean) {
+                loggedTableLean = true;
+                Celine3DDiagnostics.record(view.getContext(), "V80-480",
+                        "9R.2 Table-Lean stabil",
+                        "anchor=" + TABLE_LEAN_ANCHOR
+                                + " blend=" + tableLeanBlend
+                                + " handContact=false centralOwner=true cameraFixed=true");
+            } else if (!tableLeanHold && tableLeanBlend <= 0.02f) {
+                loggedTableLean = false;
+            }
 
             if (callNow) {
                 walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
@@ -778,6 +799,13 @@ final class CelineProductionPresenceV80 {
             add(SPINE, call * (1.20f + 0.18f * callDrift), 0.0f, 0.0f);
             add(SPINE01, call * (1.60f + 0.24f * callSlow), 0.0f, 0.0f);
             add(SPINE02, call * (1.20f + 0.16f * callDrift), 0.0f, 0.0f);
+
+            float tableLean = home * smoothStep(tableLeanBlend) * (1.0f - walkBlend);
+            add(HIPS, tableLean * -3.0f, 0.0f, 0.0f);
+            add(SPINE, tableLean * 4.0f, 0.0f, 0.0f);
+            add(SPINE01, tableLean * 5.5f, 0.0f, 0.0f);
+            add(SPINE02, tableLean * 4.0f, 0.0f, 0.0f);
+            add(NECK, tableLean * -1.5f, 0.0f, 0.0f);
         }
 
         private void applyConversationLayer(long frameTimeNanos, float home, float call) {

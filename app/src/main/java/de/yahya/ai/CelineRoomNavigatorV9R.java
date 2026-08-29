@@ -22,6 +22,8 @@ final class CelineRoomNavigatorV9R {
     private static final String BACK_CENTER_ANCHOR = "back_center_nav_anchor";
     private static final String SHELF_ANCHOR = "shelf_anchor";
     private static final String WINDOW_ANCHOR = "window_anchor";
+    private static final String TABLE_APPROACH_ANCHOR = "foreground_table_approach_anchor";
+    private static final String TABLE_LEAN_ANCHOR = "foreground_table_lean_anchor";
     // Manual 9R.1 evidence showed the accepted 4R back/window corridor can place Celine behind
     // the drape silhouette. Keep 4R immutable and move only the 9R runtime corridor toward the
     // fixed camera. The final window hold already proved this bounded offset is clear of drapes.
@@ -56,6 +58,25 @@ final class CelineRoomNavigatorV9R {
             if (edge.optBoolean("bidirectional", false)) mutable.get(to).add(from);
         }
 
+        // 9R.2 enables exactly one already-authored 4R contact edge: table approach <-> lean.
+        // Bed/chair contact edges remain deliberately locked for their later bounded phases.
+        boolean tableContactEnabled = false;
+        JSONArray contactEdges = nav.getJSONArray("contact_edges");
+        for (int i = 0; i < contactEdges.length(); i++) {
+            JSONObject edge = contactEdges.getJSONObject(i);
+            String from = edge.getString("from");
+            String to = edge.getString("to");
+            if (TABLE_APPROACH_ANCHOR.equals(from) && TABLE_LEAN_ANCHOR.equals(to)) {
+                require(world.anchor(from) != null && world.anchor(to) != null,
+                        "table contact anchors");
+                mutable.get(from).add(to);
+                mutable.get(to).add(from);
+                tableContactEnabled = true;
+                break;
+            }
+        }
+        require(tableContactEnabled, "9R.2 table contact edge");
+
         Map<String, List<String>> frozen = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> entry : mutable.entrySet()) {
             frozen.put(entry.getKey(),
@@ -65,7 +86,8 @@ final class CelineRoomNavigatorV9R {
                 "anchors=" + world.anchors.size() + " edges=" + edges.length()
                         + " cameraChase=false teleport=false"
                         + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
-                        + " corridor=back_center>shelf>window");
+                        + " corridor=back_center>shelf>window"
+                        + " tableContactEdge=true laterContacts=false");
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
