@@ -29,6 +29,8 @@ final class CelineRoomNavigatorV9R {
     private static final String BED_RELAX_ANCHOR = "bed_relax_anchor";
     private static final String BED_LIE_ANCHOR = "bed_lie_anchor";
     private static final String BED_EXIT_ANCHOR = "bed_exit_anchor";
+    private static final String CHAIR_APPROACH_ANCHOR = "chair_approach_anchor";
+    private static final String CHAIR_SIT_ANCHOR = "chair_sit_anchor";
     // Manual 9R.1 evidence showed the accepted 4R back/window corridor can place Celine behind
     // the drape silhouette. Keep 4R immutable and move only the 9R runtime corridor toward the
     // fixed camera. The final window hold already proved this bounded offset is clear of drapes.
@@ -63,9 +65,11 @@ final class CelineRoomNavigatorV9R {
             if (edge.optBoolean("bidirectional", false)) mutable.get(to).add(from);
         }
 
-        // 9R.2 keeps its accepted table contact edge. 9R.3 now unlocks only the already-authored
-        // bed contact chain. The chair contact edge stays locked for 9R.4.
+        // 9R.2 table and accepted 9R.3 bed contact edges remain enabled. 9R.4 unlocks exactly the
+        // one already-authored lounge-chair contact edge; no later dresser/mirror/shelf/lamp
+        // interaction capability is introduced here.
         boolean tableContactEnabled = false;
+        boolean chairContactEnabled = false;
         int bedContactEdgesEnabled = 0;
         JSONArray contactEdges = nav.getJSONArray("contact_edges");
         for (int i = 0; i < contactEdges.length(); i++) {
@@ -86,15 +90,22 @@ final class CelineRoomNavigatorV9R {
                 mutable.get(from).add(to);
                 mutable.get(to).add(from);
                 bedContactEdgesEnabled++;
+                continue;
+            }
+            if (CHAIR_APPROACH_ANCHOR.equals(from) && CHAIR_SIT_ANCHOR.equals(to)) {
+                require(world.anchor(from) != null && world.anchor(to) != null,
+                        "chair contact anchors");
+                mutable.get(from).add(to);
+                mutable.get(to).add(from);
+                chairContactEnabled = true;
             }
         }
         require(tableContactEnabled, "9R.2 table contact edge");
         require(bedContactEdgesEnabled == 4, "9R.3 four authored bed contact edges");
+        require(chairContactEnabled, "9R.4 authored chair contact edge");
 
         // The 4R anchor contract explicitly allows bed_exit -> bed_approach as the standing exit
         // handoff, while the contact-edge list only describes furniture-contact transitions.
-        // Enable this one bounded standing bridge so the accepted chain can stand and walk away
-        // instead of routing back through a seated state. No chair/environment edge is unlocked.
         require(world.anchor(BED_EXIT_ANCHOR) != null && world.anchor(BED_APPROACH_ANCHOR) != null,
                 "9R.3 bed exit standing bridge anchors");
         mutable.get(BED_EXIT_ANCHOR).add(BED_APPROACH_ANCHOR);
@@ -112,7 +123,7 @@ final class CelineRoomNavigatorV9R {
                         + " corridor=back_center>shelf>window"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
                         + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
-                        + " chairContact=false");
+                        + " chairContact=true chairContactRootOwnedByCentralPose=true");
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
@@ -120,16 +131,7 @@ final class CelineRoomNavigatorV9R {
         CelineRoomWorldContractV80.Anchor source = world.anchor(id);
         if (source == null) return null;
 
-        float resolvedFacing = source.facingYDeg;
-        if (Float.isNaN(resolvedFacing)) {
-            // Some 4R transit/approach anchors deliberately left final facing unspecified. 9R must
-            // resolve that at runtime without mutating the accepted 4R contract. Default those
-            // holds to the existing camera-talk social facing; travel direction is still used
-            // while walking.
-            CelineRoomWorldContractV80.Anchor talk = world.anchor(TALK_ANCHOR);
-            resolvedFacing = talk != null && !Float.isNaN(talk.facingYDeg)
-                    ? talk.facingYDeg : 180.0f;
-        }
+        float resolvedFacing = resolvedFacing(source);
 
         if (BACK_CENTER_ANCHOR.equals(source.id)
                 || SHELF_ANCHOR.equals(source.id)
@@ -143,14 +145,27 @@ final class CelineRoomNavigatorV9R {
         if (isBedContactAnchor(source.id)) {
             // Contact movement inside the mattress/bed footprint is not locomotion. Keep the
             // navigator's root at the proven bed-approach point and let CelineBedPoseV9R3 ease the
-            // authored x/y/z + body orientation in the existing central transform owner. This
-            // prevents both walking through the mattress and double-applying the 4R contact x/z.
+            // authored x/y/z + body orientation in the existing central transform owner.
             CelineRoomWorldContractV80.Anchor approach = world.anchor(BED_APPROACH_ANCHOR);
             require(approach != null, "9R.3 bed approach anchor for virtual contact root");
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     approach.localX, source.localY, approach.localZ,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (CHAIR_SIT_ANCHOR.equals(source.id)) {
+            // The verified walking corridor ends outside the lounge-chair collider. Keep the scene
+            // root at chair_approach while the central contact-pose contribution turns the body,
+            // lowers the pelvis and eases x/z onto the prepared chair_sit support anchor. Use the
+            // approach facing here so the navigator does not simultaneously rotate the scene root.
+            CelineRoomWorldContractV80.Anchor approach = world.anchor(CHAIR_APPROACH_ANCHOR);
+            require(approach != null, "9R.4 chair approach anchor for virtual contact root");
+            float approachFacing = resolvedFacing(approach);
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    approach.localX, source.localY, approach.localZ,
+                    approachFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
         if (!Float.isNaN(source.facingYDeg)) return source;
@@ -191,6 +206,16 @@ final class CelineRoomNavigatorV9R {
             }
         }
         return Collections.emptyList();
+    }
+
+    private float resolvedFacing(CelineRoomWorldContractV80.Anchor source) {
+        float facing = source.facingYDeg;
+        if (!Float.isNaN(facing)) return facing;
+        // Some 4R transit/approach anchors deliberately left final facing unspecified. Default
+        // those holds to the existing camera-talk social facing; travel direction still owns yaw
+        // while walking.
+        CelineRoomWorldContractV80.Anchor talk = world.anchor(TALK_ANCHOR);
+        return talk != null && !Float.isNaN(talk.facingYDeg) ? talk.facingYDeg : 180.0f;
     }
 
     private static boolean isAuthoredBedContact(String from, String to) {
