@@ -38,10 +38,11 @@ final class CelineRoomNavigatorV9R {
     // visible feet; 9R.5 therefore keeps both intact and turns only the upper body/head.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
     // The prepared dresser anchor is 0.3339 m from the final dresser AABB while the accepted 9R
-    // navigation capsule radius is 0.35 m. Move only the runtime destination 8 cm toward room
-    // center so the standing hold clears the conservative capsule without changing 4R metadata,
-    // route topology, dresser facing, or any accepted earlier destination.
-    private static final float DRESSER_SAFETY_X_OFFSET_M = 0.08f;
+    // navigation capsule radius is 0.35 m. Manual Proof #145 then showed that the minimum 8 cm
+    // clearance correction leaves Celine occluded at the extreme left fixed-camera edge. Move only
+    // the runtime destination farther toward room center so the hold is both collision-safe and
+    // visibly reviewable without changing 4R metadata, route topology, dresser facing or pose.
+    private static final float DRESSER_SAFETY_X_OFFSET_M = 0.45f;
 
     private final CelineRoomWorldContractV80 world;
     private final Map<String, List<String>> graph;
