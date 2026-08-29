@@ -117,9 +117,12 @@ wait_log "noTeleport=true" 320
 sleep 0.25
 capture_product 176-9r5-mirror-check-stable 9R5_MIRROR_CHECK_STABLE
 
-# After the bounded hold/ramp Celine should clearly re-acquire the fixed-camera user while the
-# accepted Dresser/Mirror root remains unchanged.
-sleep 1.85
+# Runtime deltaSeconds is deliberately capped at 0.10 s per rendered frame. On the low-FPS CI
+# emulator, Proof #154 sampled reacquire only ~3.7 wall-seconds after V80-483 and caught the hold
+# before its simulated 1.50 + 0.55 s delay/ramp completed. The accepted Dresser proof needed about
+# 5.6 wall-seconds after V80-483 for the equivalent counterturn. Wait to the same conservative
+# envelope; this is proof timing only and does not change the already-built Mirror runtime.
+sleep 4.50
 capture_product 177-9r5-mirror-user-reacquire 9R5_MIRROR_USER_REACQUIRE
 [[ "$(pid)" = "$PID_HOME" ]] || fail "process changed during mirror hold"
 append_runtime 174-9r5-mirror-runtime.txt
