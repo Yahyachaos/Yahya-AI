@@ -147,11 +147,10 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          # Block 8 adds temporal speech/face captures to the existing scene proof. The prior 300s
-          # shell cap expired only after all Block-8 frames had been captured, before the final
-          # Settings navigation proof could finish. Keep a bounded 420s shell budget for this
-          # sequential evidence chain; the optional exact-head build is separately job-bounded.
-          script: timeout 420s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'
+          # The sequential Avatar Lab + 9R.1 route + Settings chain reached the window IDLE
+          # frame at the prior 420s shell cap. Keep the proof bounded while allowing the required
+          # camera-return, Settings and fail-closed evidence steps to finish on slower runners.
+          script: timeout 600s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'
 
       - name: Fail-closed evidence preflight
         if: success()
