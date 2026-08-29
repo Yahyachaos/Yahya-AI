@@ -33,12 +33,9 @@ final class CelineRoomNavigatorV9R {
     private static final String CHAIR_SIT_ANCHOR = "chair_sit_anchor";
     // Manual 9R.1 evidence showed the accepted 4R back/window corridor can place Celine behind
     // the drape silhouette. Keep 4R immutable and move only the 9R runtime corridor toward the
-    // fixed camera. The final window hold already proved this bounded offset is clear of drapes.
+    // fixed camera. Proof #117 accepted this exact window root position and facing with grounded
+    // visible feet; 9R.5 therefore keeps both intact and turns only the upper body/head.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
-    // 9R.5 Proof #137 showed that articulated HIPS/Spine yaw swings the child skeleton into the
-    // drapes even though the accepted 9R.1 window root position is clear. Keep that exact position
-    // and route; turn the whole avatar only through the existing central root-yaw destination.
-    private static final float WINDOW_DESTINATION_FACING_OFFSET_DEG = 100.0f;
 
     private final CelineRoomWorldContractV80 world;
     private final Map<String, List<String>> graph;
@@ -125,7 +122,7 @@ final class CelineRoomNavigatorV9R {
                         + " cameraChase=false teleport=false"
                         + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
                         + " corridor=back_center>shelf>window"
-                        + " windowRootFacingOffset=+" + WINDOW_DESTINATION_FACING_OFFSET_DEG
+                        + " windowRootFacing=accepted9R1"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
                         + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
                         + " chairContact=true chairContactRootOwnedByCentralPose=true"
@@ -142,13 +139,10 @@ final class CelineRoomNavigatorV9R {
         if (BACK_CENTER_ANCHOR.equals(source.id)
                 || SHELF_ANCHOR.equals(source.id)
                 || WINDOW_ANCHOR.equals(source.id)) {
-            float destinationFacing = WINDOW_ANCHOR.equals(source.id)
-                    ? resolvedFacing + WINDOW_DESTINATION_FACING_OFFSET_DEG
-                    : resolvedFacing;
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     source.localX, source.localY, source.localZ + WINDOW_SAFETY_Z_OFFSET_M,
-                    destinationFacing, source.clearanceRadius, source.contactCalibrationRequired);
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
         if (isBedContactAnchor(source.id)) {

@@ -63,16 +63,20 @@ final class CelineBedPoseV9R3 {
     private static final float CHAIR_STAND_BLEND_PER_SECOND = 3.80f;
     private static final float CHAIR_UNTURN_BLEND_PER_SECOND = 0.72f;
 
-    // 9R.5 window Proof #137 showed two independent visual failures: articulated HIPS/Spine yaw
-    // swung the child skeleton into the drapes, and the sinusoidal reacquisition could be captured
-    // at nearly the same phase as the outward hold. Whole-body orientation now belongs exclusively
-    // to the navigator/central root yaw. This helper only contributes deterministic head/neck gaze.
-    private static final float WINDOW_REACQUIRE_DELAY_SECONDS = 2.40f;
-    private static final float WINDOW_REACQUIRE_RAMP_SECONDS = 0.80f;
-    private static final float WINDOW_OUTWARD_NECK_YAW_DEG = 15.0f;
-    private static final float WINDOW_OUTWARD_HEAD_YAW_DEG = 30.0f;
-    private static final float WINDOW_USER_NECK_YAW_DEG = -25.0f;
-    private static final float WINDOW_USER_HEAD_YAW_DEG = -50.0f;
+    // 9R.5 Proofs #137/#139 proved that neither articulated HIPS yaw nor a large root yaw is safe
+    // beside the final drape. Preserve the accepted 9R.1 root/feet exactly; only the Spine chain
+    // turns modestly. Head/neck then supply the large outward look and a clearly distinct return.
+    // The gaze clock starts only after the window pose itself is settled, so proof captures cannot
+    // accidentally sample the same phase twice.
+    private static final float WINDOW_REACQUIRE_DELAY_SECONDS = 1.40f;
+    private static final float WINDOW_REACQUIRE_RAMP_SECONDS = 0.55f;
+    private static final float WINDOW_SPINE_YAW_DEG = -7.0f;
+    private static final float WINDOW_SPINE01_YAW_DEG = -6.0f;
+    private static final float WINDOW_SPINE02_YAW_DEG = -5.0f;
+    private static final float WINDOW_OUTWARD_NECK_YAW_DEG = -18.0f;
+    private static final float WINDOW_OUTWARD_HEAD_YAW_DEG = -52.0f;
+    private static final float WINDOW_USER_NECK_YAW_DEG = 8.0f;
+    private static final float WINDOW_USER_HEAD_YAW_DEG = 18.0f;
 
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
@@ -147,9 +151,9 @@ final class CelineBedPoseV9R3 {
         lieBlend = approach(lieBlend, lieTarget, poseStep);
         windowBlend = approach(windowBlend, windowTarget ? 1.0f : 0.0f,
                 dt * WINDOW_BLEND_PER_SECOND);
-        if (windowTarget) {
+        if (windowTarget && windowBlend >= 0.985f) {
             windowHoldSeconds += dt;
-        } else if (windowBlend <= 0.02f) {
+        } else {
             windowHoldSeconds = 0.0f;
         }
 
@@ -237,7 +241,7 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOOT, chair * -7.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOOT, chair * -7.0f, 0.0f, 0.0f);
 
-        // 9R.5 whole-body window turn is intentionally absent here. Root yaw owns it centrally.
+        // 9R.5 intentionally never yaws HIPS/legs. Accepted 9R.1 owns root and foot placement.
     }
 
     void applyPosture(float[] angles, float home) {
@@ -273,8 +277,12 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOREARM, chair * -20.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOREARM, chair * -18.0f, 0.0f, 0.0f);
 
-        // 9R.5 window: deterministic rather than sinusoidal. The proof's outward frame occurs
-        // before the delay; the later user frame occurs after this bounded smooth ramp completes.
+        // 9R.5 window: feet/root remain in the accepted 9R.1 hold. Only the Spine chain supplies
+        // a modest body turn, while neck/head create an approximately side-on outward look. Once
+        // settled, a deterministic ramp returns the face toward the user without moving the legs.
+        add(angles, SPINE, 0.0f, window * WINDOW_SPINE_YAW_DEG, 0.0f);
+        add(angles, SPINE01, 0.0f, window * WINDOW_SPINE01_YAW_DEG, 0.0f);
+        add(angles, SPINE02, 0.0f, window * WINDOW_SPINE02_YAW_DEG, 0.0f);
         float reacquireProgress = clamp(
                 (windowHoldSeconds - WINDOW_REACQUIRE_DELAY_SECONDS)
                         / WINDOW_REACQUIRE_RAMP_SECONDS,
