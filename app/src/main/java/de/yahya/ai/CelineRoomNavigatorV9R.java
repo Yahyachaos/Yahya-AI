@@ -155,17 +155,16 @@ final class CelineRoomNavigatorV9R {
         }
 
         if (CHAIR_SIT_ANCHOR.equals(source.id)) {
-            // The verified walking corridor ends outside the lounge-chair collider. Keep the scene
-            // root at chair_approach while the central contact-pose contribution turns the body,
-            // lowers the pelvis and eases x/z onto the prepared chair_sit support anchor. Use the
-            // approach facing here so the navigator does not simultaneously rotate the scene root.
+            // Walking still ends outside the lounge-chair collider. Keep x/z at chair_approach so
+            // locomotion never travels through furniture, but preserve the authored chair facing.
+            // The existing central root SETTLING turn now performs the 180° orientation change;
+            // the contact-pose helper only lowers/translates the already-upright skeleton.
             CelineRoomWorldContractV80.Anchor approach = world.anchor(CHAIR_APPROACH_ANCHOR);
             require(approach != null, "9R.4 chair approach anchor for virtual contact root");
-            float approachFacing = resolvedFacing(approach);
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     approach.localX, source.localY, approach.localZ,
-                    approachFacing, source.clearanceRadius, source.contactCalibrationRequired);
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
         if (!Float.isNaN(source.facingYDeg)) return source;

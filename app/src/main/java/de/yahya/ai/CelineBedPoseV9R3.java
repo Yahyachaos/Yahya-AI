@@ -49,14 +49,18 @@ final class CelineBedPoseV9R3 {
     private static final float RELAX_ROOT_PITCH_DEG = -34.0f;
     private static final float LIE_ROOT_PITCH_DEG = -82.0f;
 
-    // 9R.4 keeps locomotion outside the chair collider. The contact transition rotates the body
-    // first, then eases the pelvis into the prepared chair_sit anchor and final-mesh seat plane.
+    // 9R.4 keeps locomotion outside the chair collider. The contact transition waits for the
+    // navigator/central scene root to complete its physical turn before lowering the pelvis into
+    // the prepared chair_sit anchor. Proof #130 rejected rotating the articulated HIPS 180°:
+    // that inverted the child skeleton and put the legs above the chair.
     private static final float CHAIR_SUPPORT_RISE_M = 0.025f;
     private static final float CHAIR_BACK_SUPPORT_Z_M = -0.080f;
-    private static final float CHAIR_TURN_BLEND_PER_SECOND = 1.55f;
+    // FINAL_TURN_SPEED_DPS in the central owner needs about 1.5s for the authored 180° chair turn.
+    // Keep this sequencing blend aligned with that root turn so sitting only begins afterwards.
+    private static final float CHAIR_TURN_BLEND_PER_SECOND = 0.62f;
     private static final float CHAIR_SIT_BLEND_PER_SECOND = 1.35f;
     private static final float CHAIR_STAND_BLEND_PER_SECOND = 3.80f;
-    private static final float CHAIR_UNTURN_BLEND_PER_SECOND = 2.20f;
+    private static final float CHAIR_UNTURN_BLEND_PER_SECOND = 0.72f;
 
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
@@ -132,8 +136,7 @@ final class CelineBedPoseV9R3 {
                         chairSitBlend, 1.0f, dt * CHAIR_SIT_BLEND_PER_SECOND);
             }
         } else {
-            // Stand first, then turn back toward the approach orientation. This prevents a seated
-            // 180-degree swivel through the chair during the accepted stand/exit transition.
+            // Stand first, then let the central root turn back toward the approach orientation.
             chairSitBlend = approach(
                     chairSitBlend, 0.0f, dt * CHAIR_STAND_BLEND_PER_SECOND);
             if (chairSitBlend <= 0.035f) {
@@ -187,7 +190,6 @@ final class CelineBedPoseV9R3 {
         float edge = home * smooth(edgeBlend);
         float relax = home * smooth(relaxBlend);
         float lie = home * smooth(lieBlend);
-        float chairTurn = home * smooth(chairTurnBlend);
         float chair = home * smooth(chairSitBlend);
 
         // Accepted 9R.3 bed contribution.
@@ -201,9 +203,9 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOOT, edge * -9.0f + relax * -5.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOOT, edge * -8.0f + relax * -4.0f, 0.0f, 0.0f);
 
-        // 9R.4: rotate the articulated body around the pelvis before lowering into the lounge
-        // chair. The scene root remains owned by CelineProductionPresenceV80.
-        add(angles, HIPS, chair * -5.0f, chairTurn * 180.0f, chair * 1.5f);
+        // 9R.4: scene/root yaw is owned by the navigator + central owner. Never rotate HIPS 180°;
+        // doing so rotates all child bones in local skeleton space and inverted the pose in #130.
+        add(angles, HIPS, chair * -5.0f, 0.0f, chair * 1.5f);
         add(angles, LEFT_UP_LEG, chair * -76.0f, 0.0f, chair * 5.0f);
         add(angles, RIGHT_UP_LEG, chair * -73.0f, 0.0f, chair * -5.0f);
         add(angles, LEFT_LEG, chair * 86.0f, 0.0f, 0.0f);
