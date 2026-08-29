@@ -155,9 +155,6 @@ python3 ci/check-home-return-zoom.py \
   "$OUT/15-9r1-camera-talk-start.png" "$OUT/36-9r1-camera-final.png" \
   | tee "$OUT/9r1-camera-return-zoom.txt"
 
-# V80-470/471 are initialization records emitted before per-destination logcat resets, so verify
-# them once from a short fresh app restart only if they were not preserved in the accumulated route
-# logs. The route acceptance itself is proved by 472-475 for every destination above.
 for required in 'V80-472' 'V80-473' 'V80-474' 'V80-475'; do
   grep -Fq "$required" "$OUT/9r1-runtime-log.txt" || fail "required 9R.1 evidence missing: $required"
 done
