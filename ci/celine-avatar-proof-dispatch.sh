@@ -8,6 +8,9 @@ apk="${2:-ci-apk/app-debug.apk}"
 out="${3:-avatar-lab-proof}"
 
 case "$scope" in
+  9r3)
+    exec timeout 720s bash ci/celine-9r3-bed-proof.sh "$apk" "$out"
+    ;;
   9r2)
     exec timeout 540s bash ci/celine-9r2-table-proof.sh "$apk" "$out"
     ;;
