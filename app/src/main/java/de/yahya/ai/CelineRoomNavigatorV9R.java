@@ -23,6 +23,7 @@ final class CelineRoomNavigatorV9R {
     private static final String SHELF_ANCHOR = "shelf_anchor";
     private static final String WINDOW_ANCHOR = "window_anchor";
     private static final String DRESSER_ANCHOR = "dresser_anchor";
+    private static final String MIRROR_ANCHOR = "mirror_anchor";
     private static final String TABLE_APPROACH_ANCHOR = "foreground_table_approach_anchor";
     private static final String TABLE_LEAN_ANCHOR = "foreground_table_lean_anchor";
     private static final String BED_APPROACH_ANCHOR = "bed_approach_anchor";
@@ -75,8 +76,8 @@ final class CelineRoomNavigatorV9R {
         }
 
         // 9R.2 table and accepted 9R.3 bed contact edges remain enabled. 9R.4 unlocks exactly the
-        // one already-authored lounge-chair contact edge; no later dresser/mirror/shelf/lamp
-        // interaction capability is introduced here.
+        // one already-authored lounge-chair contact edge. 9R.5 environment destinations use the
+        // already-authored nav/interaction-step graph and do not add furniture contact edges.
         boolean tableContactEnabled = false;
         boolean chairContactEnabled = false;
         int bedContactEdgesEnabled = 0;
@@ -134,6 +135,8 @@ final class CelineRoomNavigatorV9R {
                         + " dresserSafetyX=+" + DRESSER_SAFETY_X_OFFSET_M
                         + " dresserSafetyZ=+" + DRESSER_SAFETY_Z_OFFSET_M
                         + " dresserContact=false"
+                        + " mirrorRoot=acceptedDresser mirrorContact=false"
+                        + " mirrorRealtimeReflection=false"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
                         + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
                         + " chairContact=true chairContactRootOwnedByCentralPose=true"
@@ -162,6 +165,18 @@ final class CelineRoomNavigatorV9R {
                     source.localX + DRESSER_SAFETY_X_OFFSET_M,
                     source.localY,
                     source.localZ + DRESSER_SAFETY_Z_OFFSET_M,
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (MIRROR_ANCHOR.equals(source.id)) {
+            // The 4R Mirror contract is an interaction_step from Dresser and its raw root is only
+            // centimetres from the sideboard. Reuse the already accepted Dresser runtime root so
+            // Mirror changes only pose/gaze, never clearance or world position.
+            CelineRoomWorldContractV80.Anchor dresser = anchor(DRESSER_ANCHOR);
+            require(dresser != null, "9R.5 accepted dresser root for mirror interaction");
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    dresser.localX, source.localY, dresser.localZ,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
