@@ -9,21 +9,20 @@
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
   "room_execution_trunk": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "status": "9R2_technically_and_manually_accepted_9R3_ready",
-  "reconciled_branch_head_before_queue_handoff_commit": "21f100a2f04ee28edc5cd6e85a4d9fc3ad258e60",
-  "latest_runtime_code_head": "2c19983bf4775b7d4842fdd55112e0f31ab21b3a",
-  "latest_built_runtime_head": "2c19983bf4775b7d4842fdd55112e0f31ab21b3a",
+  "status": "9R3_runtime_built_targeted_proof_ready",
+  "latest_runtime_code_head": "d6bee27bdddc3e353ec5c6e48277c2d05c0f6cf4",
+  "latest_built_runtime_head": "d6bee27bdddc3e353ec5c6e48277c2d05c0f6cf4",
   "latest_visually_accepted_runtime_head": "2c19983bf4775b7d4842fdd55112e0f31ab21b3a",
-  "runtime_fingerprint": "21a9e17f164a5d05908cb0f1cb2a6890e1a984674cf3c1dea7607338915a22ed",
+  "runtime_fingerprint": "7b0cef073d26587c7f1be5b61a14e61a52ef15e9f4e4997d3878aeb3b84095be",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 703,
-    "run_id": 33254027387,
+    "run_number": 711,
+    "run_id": 33257463837,
     "conclusion": "success",
-    "runtime_head": "2c19983bf4775b7d4842fdd55112e0f31ab21b3a",
-    "apk_artifact": 9715259918,
-    "runtime_fingerprint_artifact": 9715260057,
-    "apk_sha256": "0ec0094ae4e1c3cb1118f797ddd7e9c4abaec36fc1ad396b4a165d642e1d484d"
+    "runtime_head": "d6bee27bdddc3e353ec5c6e48277c2d05c0f6cf4",
+    "apk_artifact": 9716268482,
+    "runtime_fingerprint_artifact": 9716268738,
+    "apk_sha256": "pending_targeted_proof_provenance"
   },
   "latest_visual_proof": {
     "name": "Celine Avatar Lab Proof",
@@ -35,18 +34,8 @@
     "artifact_digest": "sha256:e1b30b43f316c372e28a83200b83bc00e69fa1fd98071aa6c568602bdd3b0ee7",
     "workflow_conclusion": "success",
     "manual_inspection": "PASS_9R2_CAMERA_TABLE",
-    "evidence": [
-      "Actual proof #121 artifact was downloaded and the full 9R.2 still sequence was manually inspected; workflow success alone did not grant acceptance.",
-      "The bounded chain camera_talk -> camera_near -> foreground_table_approach -> foreground_table_lean -> camera_talk completed on the Build #703 runtime-equivalent APK.",
-      "Celine remains visibly present throughout; camera-near/table approach remain bounded and the fixed webcam camera does not chase her.",
-      "The table lean is visibly distinct from the approach/stand posture, eases into a stable hold, and shows no obvious table penetration; optional hand contact remains intentionally omitted.",
-      "Runtime evidence records floorY=-1.55, soleY=-1.55, floorCalibrated=true, noTeleport=true and cameraFixed=true at the relevant anchors.",
-      "Return restores camera_talk ambient state with eased=true snap=false; final framing is essentially identical to start: person-height 604 px -> 603 px, ratio 0.998.",
-      "The 9R.2 implementation enabled only the existing table contact edge; later bed/chair contact phases remain locked."
-    ],
-    "note": "Proof #119 and #120 were harness-only failures. #121 passed after bounded proof dispatch/UI retry repairs with no runtime change after 2c19983b."
+    "note": "9R.2 remains the latest manually accepted visual runtime while 9R.3 awaits its targeted proof."
   },
-  "proof_only_head_for_9R2_acceptance": "21f100a2f04ee28edc5cd6e85a4d9fc3ad258e60",
   "accepted_blocks": {
     "4": "Central layered animation owner",
     "4R": "Final modular room/world",
@@ -61,14 +50,13 @@
   "active_block": {
     "number": "9R.3",
     "name": "Bed chain",
-    "status": "ready_not_started"
+    "status": "runtime_built_targeted_proof_ready"
   },
   "current_blocker": null,
-  "exact_next_action": "NEXT WORKER ONLY: begin 9R.3 Bed chain on the existing PR #111 / branch auto/celine/v80-human-videochat-presence after performing the root AGENTS.md Mandatory Start Chronology and fresh Live-GitHub reconciliation. Do not reopen accepted 9R.1/9R.2. Audit the existing bed_approach_anchor, bed_edge_sit_anchor, bed_relax_anchor, bed_lie_anchor, bed_exit_anchor and central production owner, then implement the smallest deterministic central-owner chain: walk -> bed approach -> bed edge sit -> bed relax -> bed lie -> sit up -> edge sit -> stand -> walk away. Preserve fixed camera, accepted locomotion/floor calibration, HOME/CALL, final room, gaze/blink/body layers and PCM-driven lip sync. No variants until this one chain is stable. Runtime change => one Android build, then exactly one targeted 9R.3 proof and mandatory manual visual inspection. Do not start 9R.4 until 9R.3 is technically and manually accepted/documented.",
+  "exact_next_action": "Run exactly one targeted 9R.3 Avatar Lab proof using a runtime-equivalent APK from Android Build #711. Exercise camera talk -> bed approach -> edge sit -> relax -> lie -> sit up through relax -> edge sit -> stand exit -> walk away -> camera talk. Inspect the actual rendered evidence manually for mattress/edge contact, floating, penetration, snap/teleport, visibility, fixed camera and natural transitions. Do not accept 9R.3 or start 9R.4 until the targeted proof is technically successful and manually PASS. If evidence fails, change only the confirmed 9R.3 cause and repeat the smallest relevant build/proof.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge PR #111 during bounded 9R implementation unless a later explicit canonical instruction authorizes final merge gates.",
-    "Do not release during bounded 9R implementation.",
+    "Do not merge or release during bounded 9R.3 implementation.",
     "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1 or 9R.2 without new exact independent evidence.",
     "Do not start 9R.4 until 9R.3 is technically and manually accepted and documented.",
     "Workflow SUCCESS is not visual acceptance."
