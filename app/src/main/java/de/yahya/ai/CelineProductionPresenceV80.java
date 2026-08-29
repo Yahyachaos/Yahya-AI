@@ -26,8 +26,9 @@ import java.util.WeakHashMap;
  *
  * Blocks 4-9 remain protected. 9R.1 extends this same writer with bounded world-root travel over
  * the accepted 4R nav graph and a real Walking clip derived from the canonical Meshy companion.
- * 9R.2 adds only a bounded table-contact lean inside this same owner; no second frame writer is
- * introduced and the fixed room/camera contracts remain independent.
+ * 9R.2 adds only a bounded table-contact lean inside this same owner. 9R.3 adds a bounded bed
+ * edge/relax/lie/stand chain through a pose-contribution helper that never writes transforms on its
+ * own; this class remains the only body/root transaction writer.
  */
 final class CelineProductionPresenceV80 {
     enum Stage { AUTO, HOME, CALL }
@@ -80,6 +81,11 @@ final class CelineProductionPresenceV80 {
 
     private static final String TALK_ANCHOR = "camera_talk_anchor";
     private static final String TABLE_LEAN_ANCHOR = "foreground_table_lean_anchor";
+    private static final String BED_APPROACH_ANCHOR = "bed_approach_anchor";
+    private static final String BED_EDGE_ANCHOR = "bed_edge_sit_anchor";
+    private static final String BED_RELAX_ANCHOR = "bed_relax_anchor";
+    private static final String BED_LIE_ANCHOR = "bed_lie_anchor";
+    private static final String BED_EXIT_ANCHOR = "bed_exit_anchor";
     private static final String CI_ROOM_ACTION_FILE = "celine-ci-room-action-v9r";
     private static final float CALL_ROOT_DOWN = -0.30f;
     private static final float CALL_ROOT_FORWARD = 0.12f;
@@ -249,6 +255,7 @@ final class CelineProductionPresenceV80 {
         final CelineWalkingClipV9R walkingClip;
         final CelineRoomNavigatorV9R roomNavigator;
         final CelineRoomWorldContractV80.Anchor talkAnchor;
+        final CelineBedPoseV9R3 bedPose;
         final float roomFloorCorrectionY;
 
         Stage stage = Stage.AUTO;
@@ -275,6 +282,7 @@ final class CelineProductionPresenceV80 {
         long nextGazeShiftNanos;
         long nextCiRoomMarkerCheckNanos;
         int gazeShiftSerial;
+        String loggedBedPoseAnchor;
 
         RoomMotion roomMotion = RoomMotion.AMBIENT;
         String currentAnchorId = TALK_ANCHOR;
@@ -320,6 +328,7 @@ final class CelineProductionPresenceV80 {
             roomNavigator = CelineRoomNavigatorV9R.load(context, world);
             talkAnchor = roomNavigator.anchor(TALK_ANCHOR);
             if (talkAnchor == null) throw new IllegalStateException("9R camera_talk_anchor fehlt");
+            bedPose = new CelineBedPoseV9R3(world);
             roomFloorCorrectionY = resolveRoomFloorCorrectionY();
             walkingClip = CelineWalkingClipV9R.load(context);
             resetLocomotionQuats();
@@ -331,7 +340,7 @@ final class CelineProductionPresenceV80 {
                             + " face=CelineMorphRuntimeV62 PCM=v77"
                             + " block5SixJointArms=true fingerBones=false"
                             + " block6SocialGaze=true independentWriter=false"
-                            + " 9RNav=true walking=MeshyCanonical tableLean=true"
+                            + " 9RNav=true walking=MeshyCanonical tableLean=true bedChain=true"
                             + " probe=" + probeModel);
             Celine3DDiagnostics.record(context, "V80-470", "9R Floor-Root kalibriert",
                     "floorY=" + talkAnchor.worldY
@@ -341,9 +350,6 @@ final class CelineProductionPresenceV80 {
         }
 
         private float resolveRoomFloorCorrectionY() {
-            // The canonical production POSITION floor is at local y=0, so the repaired root's
-            // translation is the nominal sole height. Align that live value to the immutable 4R
-            // floor instead of baking the diagnostic ~0.431 m estimate into global HOME/CALL.
             if (probeModel) return 0.0f;
             float correction = talkAnchor.worldY - rootBase[13];
             if (Float.isNaN(correction) || Float.isInfinite(correction)
@@ -528,6 +534,28 @@ final class CelineProductionPresenceV80 {
                                 + " handContact=false centralOwner=true cameraFixed=true");
             } else if (!tableLeanHold && tableLeanBlend <= 0.02f) {
                 loggedTableLean = false;
+            }
+
+            boolean bedEnabled = !callNow && (bedPose.isBedAnchor(currentAnchorId)
+                    || BED_APPROACH_ANCHOR.equals(currentAnchorId));
+            bedPose.update(currentAnchorId, deltaSeconds, bedEnabled);
+            if (bedPose.isBedAnchor(currentAnchorId)
+                    && roomMotion == RoomMotion.ANCHOR_IDLE
+                    && bedPose.settled(currentAnchorId)) {
+                if (!currentAnchorId.equals(loggedBedPoseAnchor)) {
+                    loggedBedPoseAnchor = currentAnchorId;
+                    Celine3DDiagnostics.record(view.getContext(), "V80-483",
+                            "9R.3 Bett-Pose stabil",
+                            "anchor=" + currentAnchorId
+                                    + " pose=" + bedPose.poseName(currentAnchorId)
+                                    + " centralOwner=true eased=true cameraFixed=true"
+                                    + " rootOffset=" + bedPose.rootX() + ","
+                                    + bedPose.rootY() + "," + bedPose.rootZ()
+                                    + " noTeleport=true");
+                }
+            } else if (loggedBedPoseAnchor != null
+                    && !loggedBedPoseAnchor.equals(currentAnchorId)) {
+                loggedBedPoseAnchor = null;
             }
 
             if (callNow) {
@@ -771,6 +799,7 @@ final class CelineProductionPresenceV80 {
             add(RIGHT_LEG, home * gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
             add(LEFT_FOOT, call * -8.0f, 0.0f, 0.0f);
             add(RIGHT_FOOT, call * -8.0f, 0.0f, 0.0f);
+            bedPose.applyBase(angles, home * (1.0f - walkBlend));
         }
 
         private void applyPostureLayer(double t, float home, float call) {
@@ -779,7 +808,7 @@ final class CelineProductionPresenceV80 {
             float second = (float) Math.sin(theta * 2.0);
             float callSlow = (float) Math.sin(t * 0.62 + 0.45);
             float callDrift = (float) Math.sin(t * 0.37 + 1.10);
-            float homeProcedural = home * (1.0f - walkBlend);
+            float homeProcedural = home * (1.0f - walkBlend) * (1.0f - 0.70f * bedPose.activity());
             add(HIPS,
                     homeProcedural * (-2.0f + 0.10f * second),
                     homeProcedural * (-3.5f + 0.12f * wave),
@@ -806,6 +835,7 @@ final class CelineProductionPresenceV80 {
             add(SPINE01, tableLean * 5.5f, 0.0f, 0.0f);
             add(SPINE02, tableLean * 4.0f, 0.0f, 0.0f);
             add(NECK, tableLean * -1.5f, 0.0f, 0.0f);
+            bedPose.applyPosture(angles, home * (1.0f - walkBlend));
         }
 
         private void applyConversationLayer(long frameTimeNanos, float home, float call) {
@@ -826,7 +856,8 @@ final class CelineProductionPresenceV80 {
                     targetCall && avatarState(view) == CelineAvatarController.State.SPEAKING
                             ? speechEnergy(view) : 0.0f;
 
-            float homePresence = home * (1.0f - walkBlend);
+            float homePresence = home * (1.0f - walkBlend)
+                    * (1.0f - 0.62f * bedPose.activity());
             float gait = homeFrame.gait * legacyHomeGaitScale;
             add(LEFT_SHOULDER,
                     homePresence * (-gait * 0.9f + 0.18f * leftBreath), 0.0f, 0.0f);
@@ -1022,14 +1053,12 @@ final class CelineProductionPresenceV80 {
                         break;
                 }
                 boolean briefGlance = gazeShiftSerial % cadence == 0;
-                float horizontalAmplitude =
-                        briefGlance ? glanceAmplitude : centerAmplitude;
+                float horizontalAmplitude = briefGlance ? glanceAmplitude : centerAmplitude;
                 socialGazeTargetX = clamp(
                         deterministicSigned(gazeShiftSerial, 17) * horizontalAmplitude,
                         -MAX_SOCIAL_GAZE_X, MAX_SOCIAL_GAZE_X);
                 socialGazeTargetY = clamp(
-                        verticalCenter
-                                + deterministicSigned(gazeShiftSerial, 53) * verticalAmplitude,
+                        verticalCenter + deterministicSigned(gazeShiftSerial, 53) * verticalAmplitude,
                         -MAX_SOCIAL_GAZE_Y, MAX_SOCIAL_GAZE_Y);
                 long delayMs = briefGlance
                         ? 1050L + (long) (deterministicUnit(gazeShiftSerial, 71) * 650.0f)
@@ -1063,14 +1092,16 @@ final class CelineProductionPresenceV80 {
         private void applyRoot(float home, float call) {
             boolean roomOwnsRoot = roomMotion != RoomMotion.AMBIENT;
             float floorMix = smoothStep(roomFloorBlend);
-            float homeX = roomOwnsRoot ? roomX : homeFrame.x;
-            float homeZ = roomOwnsRoot ? roomZ : homeFrame.z;
+            float bedActivity = bedPose.activity();
+            float homeX = roomOwnsRoot ? roomX + bedPose.rootX() : homeFrame.x;
+            float homeZ = roomOwnsRoot ? roomZ + bedPose.rootZ() : homeFrame.z;
             float homeYaw = roomOwnsRoot ? roomYaw : homeFrame.yaw;
             float homeBob = roomOwnsRoot
-                    ? homeFrame.bob + (walkBob - homeFrame.bob) * floorMix
+                    ? (homeFrame.bob + (walkBob - homeFrame.bob) * floorMix)
+                    * (1.0f - 0.92f * bedActivity)
                     : homeFrame.bob;
             float roomFloorY = roomOwnsRoot
-                    ? roomFloorCorrectionY * floorMix : 0.0f;
+                    ? roomFloorCorrectionY * floorMix + bedPose.rootY() : 0.0f;
 
             float x = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeX;
             float y = (layerMask & LAYER_BASE) == 0 ? 0.0f
@@ -1078,6 +1109,10 @@ final class CelineProductionPresenceV80 {
             float z = (layerMask & LAYER_BASE) == 0 ? 0.0f
                     : home * homeZ + call * CALL_ROOT_FORWARD;
             float yaw = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeYaw;
+            float bedPitch = (layerMask & LAYER_BASE) == 0 ? 0.0f
+                    : home * bedPose.rootPitch();
+            float bedRoll = (layerMask & LAYER_BASE) == 0 ? 0.0f
+                    : home * bedPose.rootRoll();
 
             float[] localRotation = new float[16];
             float[] rotated = new float[16];
@@ -1086,6 +1121,12 @@ final class CelineProductionPresenceV80 {
             Matrix.setIdentityM(localRotation, 0);
             if (yaw != 0.0f) {
                 Matrix.rotateM(localRotation, 0, yaw, 0.0f, 1.0f, 0.0f);
+            }
+            if (bedPitch != 0.0f) {
+                Matrix.rotateM(localRotation, 0, bedPitch, 1.0f, 0.0f, 0.0f);
+            }
+            if (bedRoll != 0.0f) {
+                Matrix.rotateM(localRotation, 0, bedRoll, 0.0f, 0.0f, 1.0f);
             }
             Matrix.multiplyMM(rotated, 0, rootBase, 0, localRotation, 0);
             Matrix.setIdentityM(worldMove, 0);
