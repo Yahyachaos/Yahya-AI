@@ -31,13 +31,16 @@ dump_ui() {
     [[ -n "$(pid)" ]] || fail "app process died while collecting $local_file"
     sleep 0.55
   done
-  fail "could not collect valid UI hierarchy: $local_file"
+  # A SurfaceView can transiently keep uiautomator busy while Filament settles. Do not abort the
+  # whole proof here: wait_text owns the bounded outer retry loop and remains fail-closed.
+  return 1
 }
 
 wait_text() {
   local text="$1" remote="$2" local_file="$3"
   for _ in $(seq 1 28); do
     if dump_ui "$remote" "$local_file" && grep -Fq "$text" "$local_file"; then return 0; fi
+    [[ -n "$(pid)" ]] || fail "app process died while waiting for UI text: $text"
     sleep 0.4
   done
   fail "timed out waiting for UI text: $text"
