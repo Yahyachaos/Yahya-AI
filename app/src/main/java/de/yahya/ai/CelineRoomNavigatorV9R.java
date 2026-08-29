@@ -123,7 +123,8 @@ final class CelineRoomNavigatorV9R {
                         + " corridor=back_center>shelf>window"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
                         + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
-                        + " chairContact=true chairContactRootOwnedByCentralPose=true");
+                        + " chairContact=true chairContactRootOwnedByCentralPose=true"
+                        + " chairFacingCalibratedToApproach=true");
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
@@ -156,15 +157,18 @@ final class CelineRoomNavigatorV9R {
 
         if (CHAIR_SIT_ANCHOR.equals(source.id)) {
             // Walking still ends outside the lounge-chair collider. Keep x/z at chair_approach so
-            // locomotion never travels through furniture, but preserve the authored chair facing.
-            // The existing central root SETTLING turn now performs the 180° orientation change;
-            // the contact-pose helper only lowers/translates the already-upright skeleton.
+            // locomotion never travels through furniture. Manual proof #131 showed the prepared
+            // draft chair facing=0 turns Celine behind the final visible seat/back geometry even
+            // though the contact pose itself remains anatomically coherent. Use the already proven
+            // approach/social facing for the contact hold; only the central pose helper lowers and
+            // translates into the seat.
             CelineRoomWorldContractV80.Anchor approach = world.anchor(CHAIR_APPROACH_ANCHOR);
             require(approach != null, "9R.4 chair approach anchor for virtual contact root");
+            float chairFacing = resolvedFacing(approach);
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     approach.localX, source.localY, approach.localZ,
-                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+                    chairFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
         if (!Float.isNaN(source.facingYDeg)) return source;
