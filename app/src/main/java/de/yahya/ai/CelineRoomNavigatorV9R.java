@@ -37,12 +37,13 @@ final class CelineRoomNavigatorV9R {
     // fixed camera. Proof #117 accepted this exact window root position and facing with grounded
     // visible feet; 9R.5 therefore keeps both intact and turns only the upper body/head.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
-    // The prepared dresser anchor is 0.3339 m from the final dresser AABB while the accepted 9R
-    // navigation capsule radius is 0.35 m. Manual Proof #145 then showed that the minimum 8 cm
-    // clearance correction leaves Celine occluded at the extreme left fixed-camera edge. Move only
-    // the runtime destination farther toward room center so the hold is both collision-safe and
-    // visibly reviewable without changing 4R metadata, route topology, dresser facing or pose.
-    private static final float DRESSER_SAFETY_X_OFFSET_M = 0.45f;
+    // Dresser Proof #145 showed the minimum side-clearance anchor is outside useful framing;
+    // Proof #147 showed an X-only move toward room center still projects Celine through the white
+    // lounge-chair silhouette. The final room contract places the camera on +Z, so use a bounded
+    // two-axis runtime vantage: slightly farther toward room center and materially camera-side of
+    // the chair. Locked 4R metadata/topology/facing stay immutable and no hand contact is enabled.
+    private static final float DRESSER_SAFETY_X_OFFSET_M = 0.65f;
+    private static final float DRESSER_SAFETY_Z_OFFSET_M = 0.60f;
 
     private final CelineRoomWorldContractV80 world;
     private final Map<String, List<String>> graph;
@@ -131,6 +132,7 @@ final class CelineRoomNavigatorV9R {
                         + " corridor=back_center>shelf>window"
                         + " windowRootFacing=accepted9R1"
                         + " dresserSafetyX=+" + DRESSER_SAFETY_X_OFFSET_M
+                        + " dresserSafetyZ=+" + DRESSER_SAFETY_Z_OFFSET_M
                         + " dresserContact=false"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
                         + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
@@ -157,7 +159,9 @@ final class CelineRoomNavigatorV9R {
         if (DRESSER_ANCHOR.equals(source.id)) {
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
-                    source.localX + DRESSER_SAFETY_X_OFFSET_M, source.localY, source.localZ,
+                    source.localX + DRESSER_SAFETY_X_OFFSET_M,
+                    source.localY,
+                    source.localZ + DRESSER_SAFETY_Z_OFFSET_M,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
