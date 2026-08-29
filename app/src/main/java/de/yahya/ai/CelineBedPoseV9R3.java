@@ -36,18 +36,21 @@ final class CelineBedPoseV9R3 {
 
     // Production rig pelvis height above the calibrated standing sole plane.
     private static final float STANDING_PELVIS_HEIGHT_M = 0.88f;
-    // The immutable 4R contact anchors deliberately request final-mesh calibration. Keep that
-    // calibration local to 9R.3 rather than moving the protected room or furniture.
-    private static final float EDGE_MATTRESS_INSET_X_M = 0.22f;
-    private static final float RELAX_MATTRESS_INSET_X_M = 0.10f;
-    private static final float LIE_MATTRESS_INSET_X_M = 0.05f;
-    private static final float RELAX_SUPPORT_DROP_M = 0.025f;
-    private static final float LIE_SUPPORT_DROP_M = 0.050f;
+    // The immutable 4R contact anchors deliberately request final-mesh calibration. Proof #127
+    // narrowed the remaining issue to placement rather than ownership/transition logic: edge sit
+    // needs a little more mattress inset, Relax only a small support correction, and Lie needs to
+    // sit slightly camera-left/deeper on the support plane so the complete body remains readable.
+    private static final float EDGE_MATTRESS_INSET_X_M = 0.34f;
+    private static final float RELAX_MATTRESS_INSET_X_M = 0.16f;
+    private static final float LIE_MATTRESS_INSET_X_M = -0.10f;
+    private static final float RELAX_SUPPORT_DROP_M = 0.055f;
+    private static final float LIE_SUPPORT_DROP_M = 0.110f;
     // All authored bed contact anchors face 90 degrees while camera_talk faces 180, so the
     // production room yaw at bed contact is -90 degrees. Negative local-X root pitch therefore
-    // reclines the body along the mattress.
+    // reclines the body along the mattress. Keep Lie near-horizontal but not so close to 90° that
+    // small support/camera errors hide the torso behind the mattress silhouette.
     private static final float RELAX_ROOT_PITCH_DEG = -34.0f;
-    private static final float LIE_ROOT_PITCH_DEG = -87.0f;
+    private static final float LIE_ROOT_PITCH_DEG = -82.0f;
 
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
