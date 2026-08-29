@@ -22,6 +22,7 @@ on:
           - 9r3
           - 9r4
           - 9r5-window
+          - 9r5-dresser
 
 permissions:
   contents: read
@@ -33,7 +34,7 @@ concurrency:
 
 jobs:
   avatar-lab-proof:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r4]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-window]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body, '[run-avatar-lab-proof]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r4]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-window]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-dresser]')
     runs-on: ubuntu-latest
     # Exact-head fallback can add a bounded debug build before the emulator evidence chain.
     timeout-minutes: 24
@@ -158,10 +159,10 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: bash ci/celine-avatar-proof-dispatch.sh "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-window]') && '9r5-window' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r4]') && '9r4' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') && '9r3' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" ci-apk/app-debug.apk avatar-lab-proof
+          script: bash ci/celine-avatar-proof-dispatch.sh "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-dresser]') && '9r5-dresser' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-window]') && '9r5-window' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r4]') && '9r4' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') && '9r3' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') && '9r2' || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" ci-apk/app-debug.apk avatar-lab-proof
 
       - name: Fail-closed evidence preflight
-        if: success() && !((github.event_name == 'workflow_dispatch' && (inputs.proof_scope == '9r1' || inputs.proof_scope == '9r2' || inputs.proof_scope == '9r3' || inputs.proof_scope == '9r4' || inputs.proof_scope == '9r5-window')) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r4]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-window]'))))
+        if: success() && !((github.event_name == 'workflow_dispatch' && (inputs.proof_scope == '9r1' || inputs.proof_scope == '9r2' || inputs.proof_scope == '9r3' || inputs.proof_scope == '9r4' || inputs.proof_scope == '9r5-window' || inputs.proof_scope == '9r5-dresser')) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r2]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r3]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r4]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-window]') || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-dresser]'))))
         shell: bash
         run: python3 ci/celine-avatar-proof-preflight.py avatar-lab-proof --report avatar-lab-proof/preflight.json
 
@@ -242,6 +243,26 @@ jobs:
           grep -Fq 'pose=WINDOW_STAND' avatar-lab-proof/9r5-window-runtime-log.txt
           grep -Fq 'centralOwner=true' avatar-lab-proof/9r5-window-runtime-log.txt
           grep -Fq 'V80-477' avatar-lab-proof/9r5-window-runtime-log.txt
+
+      - name: Fail-closed 9R.5 dresser evidence preflight
+        if: success() && ((github.event_name == 'workflow_dispatch' && inputs.proof_scope == '9r5-dresser') || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r5-dresser]')))
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s avatar-lab-proof/150-9r5-dresser-camera-talk-start.png
+          test -s avatar-lab-proof/152-9r5-dresser-arrived.png
+          test -s avatar-lab-proof/156-9r5-dresser-inspect-stable.png
+          test -s avatar-lab-proof/157-9r5-dresser-user-reacquire.png
+          test -s avatar-lab-proof/162-9r5-dresser-walk-away-arrived.png
+          test -s avatar-lab-proof/168-9r5-dresser-camera-talk-final.png
+          grep -Fq 'PASS 9R.5 dresser technical gate' avatar-lab-proof/9r5-dresser-summary.txt
+          grep -Fq 'DRESSER_CLEARANCE_X_OFFSET_M=+0.08' avatar-lab-proof/9r5-dresser-summary.txt
+          grep -Fq 'HAND_CONTACT=false' avatar-lab-proof/9r5-dresser-summary.txt
+          grep -Fq 'TELEPORT=false' avatar-lab-proof/9r5-dresser-summary.txt
+          grep -Fq 'pose=DRESSER_STAND' avatar-lab-proof/9r5-dresser-runtime-log.txt
+          grep -Fq 'dresserSafetyX=+0.08' avatar-lab-proof/9r5-dresser-runtime-log.txt
+          grep -Fq 'centralOwner=true' avatar-lab-proof/9r5-dresser-runtime-log.txt
+          grep -Fq 'V80-477' avatar-lab-proof/9r5-dresser-runtime-log.txt
 
       - name: Upload lightweight Avatar Lab evidence
         if: always()
