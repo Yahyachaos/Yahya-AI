@@ -34,11 +34,17 @@ final class CelineBedPoseV9R3 {
     private static final float POSE_BLEND_PER_SECOND = 1.85f;
     private static final float ROOT_BLEND_PER_SECOND = 1.55f;
 
-    // Proof #124 showed that keeping the standing root height while bending the legs makes Celine
-    // visibly hover above the mattress. The production rig's standing pelvis is approximately
-    // 0.88 m above the calibrated sole/floor plane, so derive the bounded contact drop from the
-    // immutable 4R mattress plane instead of applying a global avatar Y shift.
+    // The production rig's standing pelvis is approximately 0.88 m above the calibrated sole.
+    // Derive bed contact from the immutable 4R mattress plane; this remains a 9R-only correction.
     private static final float STANDING_PELVIS_HEIGHT_M = 0.88f;
+    // Proof #125 showed the pelvis was vertically close but still sat just outside the mattress
+    // silhouette. Move only the 9R contact pose slightly inward; the accepted room/anchors stay
+    // immutable.
+    private static final float EDGE_MATTRESS_INSET_X_M = 0.12f;
+    private static final float RELAX_MATTRESS_INSET_X_M = 0.06f;
+    // Lying skin/bone volume needs a small support-depth offset below the pelvis contact plane.
+    private static final float RELAX_SUPPORT_DROP_M = 0.025f;
+    private static final float LIE_SUPPORT_DROP_M = 0.09f;
 
     private final float edgeSeatRootY;
     private final float relaxRootY;
@@ -70,11 +76,11 @@ final class CelineBedPoseV9R3 {
         CelineRoomWorldContractV80.Anchor exit = require(world, BED_EXIT);
 
         edgeSeatRootY = world.bedMattressY - STANDING_PELVIS_HEIGHT_M;
-        relaxRootY = edgeSeatRootY + 0.02f;
-        lieRootY = edgeSeatRootY + 0.04f;
-        edgeOffsetX = edge.localX - approach.localX;
+        relaxRootY = edgeSeatRootY - RELAX_SUPPORT_DROP_M;
+        lieRootY = edgeSeatRootY - LIE_SUPPORT_DROP_M;
+        edgeOffsetX = edge.localX - approach.localX + EDGE_MATTRESS_INSET_X_M;
         edgeOffsetZ = edge.localZ - approach.localZ;
-        relaxOffsetX = relax.localX - approach.localX;
+        relaxOffsetX = relax.localX - approach.localX + RELAX_MATTRESS_INSET_X_M;
         relaxOffsetZ = relax.localZ - approach.localZ;
         lieOffsetX = lie.localX - approach.localX;
         lieOffsetZ = lie.localZ - approach.localZ;
@@ -105,12 +111,12 @@ final class CelineBedPoseV9R3 {
             targetX = relaxOffsetX;
             targetY = relaxRootY;
             targetZ = relaxOffsetZ;
-            targetRoll = 1.5f;
+            targetRoll = 1.0f;
         } else if (enabled && BED_LIE.equals(anchorId)) {
             targetX = lieOffsetX;
             targetY = lieRootY;
             targetZ = lieOffsetZ;
-            targetRoll = 2.0f;
+            targetRoll = 1.5f;
         } else if (enabled && BED_EXIT.equals(anchorId)) {
             targetX = exitOffsetX;
             targetZ = exitOffsetZ;
@@ -119,8 +125,7 @@ final class CelineBedPoseV9R3 {
         rootX = approach(rootX, targetX, rootStep * 0.65f);
         rootY = approach(rootY, targetY, rootStep * 0.55f);
         rootZ = approach(rootZ, targetZ, rootStep * 0.65f);
-        // Never recline around the scene/root pivot: that pivot is effectively at the sole and
-        // Proof #124 showed the body swinging away from the bed. Recline at the Hips bone below.
+        // Scene/root pitch remains zero. Recline is authored at the skeletal pelvis below.
         rootPitch = approach(rootPitch, targetPitch, rootStep * 70.0f);
         rootRoll = approach(rootRoll, targetRoll, rootStep * 18.0f);
     }
@@ -130,38 +135,39 @@ final class CelineBedPoseV9R3 {
         float relax = home * smooth(relaxBlend);
         float lie = home * smooth(lieBlend);
 
-        // Hips is the first skeletal/pelvis pivot. Rotating here keeps the mattress contact point
-        // stable while the whole articulated body reclines; rotating the Filament scene root does
-        // not, because that pivot is effectively at the feet.
+        // Proof #125 established that negative pelvis pitch folds Celine forward. Positive pitch
+        // reclines her toward the bed behind the seated pose, while the contact root stays fixed.
         add(angles, HIPS,
-                edge * -4.0f + relax * -22.0f + lie * -86.0f,
+                edge * -4.0f + relax * 24.0f + lie * 86.0f,
                 0.0f, 0.0f);
-        add(angles, LEFT_UP_LEG, edge * -78.0f + relax * -48.0f + lie * -6.0f,
-                0.0f, edge * 4.0f + relax * 5.0f);
-        add(angles, RIGHT_UP_LEG, edge * -74.0f + relax * -44.0f + lie * -4.0f,
-                0.0f, edge * -5.0f + relax * -4.0f);
-        add(angles, LEFT_LEG, edge * 88.0f + relax * 54.0f + lie * 8.0f, 0.0f, 0.0f);
-        add(angles, RIGHT_LEG, edge * 84.0f + relax * 50.0f + lie * 7.0f, 0.0f, 0.0f);
-        add(angles, LEFT_FOOT, edge * -9.0f + relax * -6.0f, 0.0f, 0.0f);
-        add(angles, RIGHT_FOOT, edge * -8.0f + relax * -5.0f, 0.0f, 0.0f);
+        add(angles, LEFT_UP_LEG, edge * -78.0f + relax * -50.0f + lie * -3.0f,
+                0.0f, edge * 4.0f + relax * 4.0f);
+        add(angles, RIGHT_UP_LEG, edge * -74.0f + relax * -47.0f + lie * -2.0f,
+                0.0f, edge * -5.0f + relax * -3.0f);
+        add(angles, LEFT_LEG, edge * 88.0f + relax * 57.0f + lie * 4.0f, 0.0f, 0.0f);
+        add(angles, RIGHT_LEG, edge * 84.0f + relax * 54.0f + lie * 3.0f, 0.0f, 0.0f);
+        add(angles, LEFT_FOOT, edge * -9.0f + relax * -5.0f, 0.0f, 0.0f);
+        add(angles, RIGHT_FOOT, edge * -8.0f + relax * -4.0f, 0.0f, 0.0f);
     }
 
     void applyPosture(float[] angles, float home) {
         float edge = home * smooth(edgeBlend);
         float relax = home * smooth(relaxBlend);
         float lie = home * smooth(lieBlend);
-        add(angles, SPINE, edge * 3.0f + relax * 7.0f + lie * 2.0f, 0.0f, 0.0f);
-        add(angles, SPINE01, edge * 4.0f + relax * 9.0f + lie * 3.0f, 0.0f, 0.0f);
-        add(angles, SPINE02, edge * 3.0f + relax * 7.0f + lie * 2.0f, 0.0f, 0.0f);
-        add(angles, NECK, relax * -3.0f + lie * 5.0f, lie * -4.0f, 0.0f);
-        add(angles, LEFT_SHOULDER, 0.0f, 0.0f, relax * -3.0f + lie * -7.0f);
-        add(angles, RIGHT_SHOULDER, 0.0f, 0.0f, relax * 3.0f + lie * 7.0f);
-        add(angles, LEFT_ARM, relax * -10.0f + lie * -12.0f, 0.0f,
-                relax * 12.0f + lie * 16.0f);
-        add(angles, RIGHT_ARM, relax * -8.0f + lie * -10.0f, 0.0f,
-                relax * -12.0f + lie * -16.0f);
-        add(angles, LEFT_FOREARM, relax * -18.0f + lie * -8.0f, 0.0f, 0.0f);
-        add(angles, RIGHT_FOREARM, relax * -16.0f + lie * -7.0f, 0.0f, 0.0f);
+        // Counter-flex the spine slightly so recline reads as supported/relaxed rather than as a
+        // rigid board or abdominal crunch.
+        add(angles, SPINE, edge * 3.0f + relax * -4.0f + lie * -2.0f, 0.0f, 0.0f);
+        add(angles, SPINE01, edge * 4.0f + relax * -5.0f + lie * -2.0f, 0.0f, 0.0f);
+        add(angles, SPINE02, edge * 3.0f + relax * -3.0f + lie * -1.0f, 0.0f, 0.0f);
+        add(angles, NECK, relax * 3.0f + lie * 5.0f, lie * -3.0f, 0.0f);
+        add(angles, LEFT_SHOULDER, 0.0f, 0.0f, relax * -4.0f + lie * -6.0f);
+        add(angles, RIGHT_SHOULDER, 0.0f, 0.0f, relax * 4.0f + lie * 6.0f);
+        add(angles, LEFT_ARM, relax * -16.0f + lie * -10.0f, 0.0f,
+                relax * 14.0f + lie * 14.0f);
+        add(angles, RIGHT_ARM, relax * -14.0f + lie * -9.0f, 0.0f,
+                relax * -14.0f + lie * -14.0f);
+        add(angles, LEFT_FOREARM, relax * -20.0f + lie * -7.0f, 0.0f, 0.0f);
+        add(angles, RIGHT_FOREARM, relax * -18.0f + lie * -6.0f, 0.0f, 0.0f);
     }
 
     float activity() {
