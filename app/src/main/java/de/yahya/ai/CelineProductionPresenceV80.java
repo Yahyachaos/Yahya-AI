@@ -89,6 +89,8 @@ final class CelineProductionPresenceV80 {
     private static final float WALK_SPEED_MPS = 0.72f;
     private static final float TURN_SPEED_DPS = 165.0f;
     private static final float FINAL_TURN_SPEED_DPS = 120.0f;
+    private static final float ROOM_FLOOR_BLEND_PER_SECOND = 2.4f;
+    private static final float MAX_ROOM_FLOOR_CORRECTION_M = 0.65f;
 
     private static final WeakHashMap<Celine3DView, Mixer> MIXERS = new WeakHashMap<>();
 
@@ -244,6 +246,7 @@ final class CelineProductionPresenceV80 {
         final CelineWalkingClipV9R walkingClip;
         final CelineRoomNavigatorV9R roomNavigator;
         final CelineRoomWorldContractV80.Anchor talkAnchor;
+        final float roomFloorCorrectionY;
 
         Stage stage = Stage.AUTO;
         int layerMask = LAYER_ALL;
@@ -283,6 +286,7 @@ final class CelineProductionPresenceV80 {
         float segmentFinalYaw;
         float walkBlend;
         float walkBob;
+        float roomFloorBlend;
         float legacyHomeGaitScale = 1.0f;
         double walkDistanceMeters;
 
@@ -311,6 +315,7 @@ final class CelineProductionPresenceV80 {
             roomNavigator = CelineRoomNavigatorV9R.load(context, world);
             talkAnchor = roomNavigator.anchor(TALK_ANCHOR);
             if (talkAnchor == null) throw new IllegalStateException("9R camera_talk_anchor fehlt");
+            roomFloorCorrectionY = resolveRoomFloorCorrectionY();
             walkingClip = CelineWalkingClipV9R.load(context);
             resetLocomotionQuats();
 
@@ -323,6 +328,27 @@ final class CelineProductionPresenceV80 {
                             + " block6SocialGaze=true independentWriter=false"
                             + " 9RNav=true walking=MeshyCanonical"
                             + " probe=" + probeModel);
+            Celine3DDiagnostics.record(context, "V80-470", "9R Floor-Root kalibriert",
+                    "floorY=" + talkAnchor.worldY
+                            + " nominalSoleY=" + rootBase[13]
+                            + " correctionY=" + roomFloorCorrectionY
+                            + " scope=9R_room_root_only eased=true CALL=false");
+        }
+
+        private float resolveRoomFloorCorrectionY() {
+            // The canonical production POSITION floor is at local y=0, so the repaired root's
+            // translation is the nominal sole height. Align that live value to the immutable 4R
+            // floor instead of baking the diagnostic ~0.431 m estimate into global HOME/CALL.
+            if (probeModel) return 0.0f;
+            float correction = talkAnchor.worldY - rootBase[13];
+            if (Float.isNaN(correction) || Float.isInfinite(correction)
+                    || correction > 0.0f
+                    || correction < -MAX_ROOM_FLOOR_CORRECTION_M) {
+                throw new IllegalStateException(
+                        "Ungültige 9R Floor-Kalibrierung: floor=" + talkAnchor.worldY
+                                + " sole=" + rootBase[13] + " correction=" + correction);
+            }
+            return correction;
         }
 
         void applyBody(long frameTimeNanos) {
@@ -477,6 +503,12 @@ final class CelineProductionPresenceV80 {
         }
 
         private void updateRoomLocomotion(float deltaSeconds, boolean callNow) {
+            float floorBlendTarget = !callNow
+                    && roomMotion != RoomMotion.AMBIENT
+                    && roomMotion != RoomMotion.AMBIENT_HANDOFF ? 1.0f : 0.0f;
+            roomFloorBlend = approach(roomFloorBlend, floorBlendTarget,
+                    deltaSeconds * ROOM_FLOOR_BLEND_PER_SECOND);
+
             if (callNow) {
                 walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
                 walkBob = 0.0f;
@@ -552,6 +584,11 @@ final class CelineProductionPresenceV80 {
                                 "9R Nav-Anker erreicht",
                                 "anchor=" + currentAnchorId + " x=" + roomX + " z=" + roomZ
                                         + " facing=" + roomYaw
+                                        + " floorY=" + talkAnchor.worldY
+                                        + " soleY=" + (rootBase[13]
+                                        + roomFloorCorrectionY * smoothStep(roomFloorBlend))
+                                        + " floorBlend=" + smoothStep(roomFloorBlend)
+                                        + " floorCalibrated=" + (roomFloorBlend > 0.98f)
                                         + " walkStopped=true noTeleport=true");
                     }
                     break;
@@ -575,6 +612,7 @@ final class CelineProductionPresenceV80 {
                     if (Math.abs(roomX - homeFrame.x) < 0.015f
                             && Math.abs(roomZ - homeFrame.z) < 0.015f
                             && angleDistance(roomYaw, homeFrame.yaw) < 1.0f
+                            && roomFloorBlend < 0.015f
                             && legacyHomeGaitScale > 0.97f) {
                         roomMotion = RoomMotion.AMBIENT;
                         legacyHomeGaitScale = 1.0f;
@@ -996,14 +1034,19 @@ final class CelineProductionPresenceV80 {
 
         private void applyRoot(float home, float call) {
             boolean roomOwnsRoot = roomMotion != RoomMotion.AMBIENT;
+            float floorMix = smoothStep(roomFloorBlend);
             float homeX = roomOwnsRoot ? roomX : homeFrame.x;
             float homeZ = roomOwnsRoot ? roomZ : homeFrame.z;
             float homeYaw = roomOwnsRoot ? roomYaw : homeFrame.yaw;
-            float homeBob = roomOwnsRoot ? walkBob : homeFrame.bob;
+            float homeBob = roomOwnsRoot
+                    ? homeFrame.bob + (walkBob - homeFrame.bob) * floorMix
+                    : homeFrame.bob;
+            float roomFloorY = roomOwnsRoot
+                    ? roomFloorCorrectionY * floorMix : 0.0f;
 
             float x = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeX;
             float y = (layerMask & LAYER_BASE) == 0 ? 0.0f
-                    : home * homeBob + call * CALL_ROOT_DOWN;
+                    : home * (homeBob + roomFloorY) + call * CALL_ROOT_DOWN;
             float z = (layerMask & LAYER_BASE) == 0 ? 0.0f
                     : home * homeZ + call * CALL_ROOT_FORWARD;
             float yaw = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeYaw;
@@ -1155,6 +1198,11 @@ final class CelineProductionPresenceV80 {
     private static float approach(float value, float target, float maxDelta) {
         if (value < target) return Math.min(target, value + Math.max(0.0f, maxDelta));
         return Math.max(target, value - Math.max(0.0f, maxDelta));
+    }
+
+    private static float smoothStep(float value) {
+        float bounded = clamp(value, 0.0f, 1.0f);
+        return bounded * bounded * (3.0f - 2.0f * bounded);
     }
 
     private static float approachAngle(float value, float target, float maxDelta) {
