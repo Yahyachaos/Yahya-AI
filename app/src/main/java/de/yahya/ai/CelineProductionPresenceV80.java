@@ -2,6 +2,7 @@ package de.yahya.ai;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.opengl.Matrix;
 import android.view.View;
 
@@ -9,35 +10,36 @@ import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.Animator;
 import com.google.android.filament.gltfio.FilamentAsset;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * v80 production owner for Celine's root, body, head and facial animation layers.
+ * v80 central production owner for Celine's root, body, room locomotion, head and face layers.
  *
- * Block 4 established the single writer. Block 5 keeps that ownership and makes the existing
- * v73/v74/v79 body/arm/hand foundations visibly useful in the actual HOME/CALL product. Block 6
- * replaces separate periodic eye/head drift with one camera-oriented social-gaze plan: mostly
- * centered attention, occasional bounded micro shifts, and gently eased Head/neck follow.
- *
- * One renderer-frame call composes every accepted procedural transform from immutable rig bases,
- * commits one local-transform transaction, updates skin matrices once, and then advances the
- * guarded v76 face planner (blink/expression/gaze/PCM viseme). HOME, CALL and Avatar Lab production
- * modes all enter through this class. Older versioned owners remain as historical rollback code but
- * are no longer installed in the production lifecycle.
+ * Blocks 4-9 remain protected. 9R.1 extends this same writer with bounded world-root travel over
+ * the accepted 4R nav graph and a real Walking clip derived from the canonical Meshy companion.
+ * No second frame writer is introduced; the fixed room/camera contracts remain independent.
  */
 final class CelineProductionPresenceV80 {
     enum Stage { AUTO, HOME, CALL }
     enum LayerView { COMBINED, BASE_ONLY, BREATHING_POSTURE, CONVERSATION, GAZE_HEAD }
 
+    private enum RoomMotion { AMBIENT, TURNING, WALKING, SETTLING, ANCHOR_IDLE, AMBIENT_HANDOFF }
+
     private static final int LAYER_BASE = 1;
     private static final int LAYER_POSTURE = 1 << 1;
     private static final int LAYER_CONVERSATION = 1 << 2;
     private static final int LAYER_GAZE = 1 << 3;
-    private static final int LAYER_ALL = LAYER_BASE | LAYER_POSTURE | LAYER_CONVERSATION | LAYER_GAZE;
+    private static final int LAYER_ALL =
+            LAYER_BASE | LAYER_POSTURE | LAYER_CONVERSATION | LAYER_GAZE;
 
     private static final int HIPS = 0;
     private static final int SPINE = 1;
@@ -68,12 +70,25 @@ final class CelineProductionPresenceV80 {
             "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg", "LeftFoot", "RightFoot"
     };
 
+    private static final String[] WALKING_BONE_NAMES = {
+            "Hips", "Spine", "Spine01", "Spine02",
+            "LeftShoulder", "RightShoulder", "LeftArm", "RightArm",
+            "LeftForeArm", "RightForeArm", "LeftHand", "RightHand",
+            "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg", "LeftFoot", "RightFoot"
+    };
+
+    private static final String TALK_ANCHOR = "camera_talk_anchor";
+    private static final String CI_ROOM_ACTION_FILE = "celine-ci-room-action-v9r";
     private static final float CALL_ROOT_DOWN = -0.30f;
     private static final float CALL_ROOT_FORWARD = 0.12f;
     private static final long HOME_ARM_LOOP_NANOS = 5_200_000_000L;
     private static final long CALL_ARM_LOOP_NANOS = 6_100_000_000L;
     private static final float MAX_SOCIAL_GAZE_X = 0.12f;
     private static final float MAX_SOCIAL_GAZE_Y = 0.08f;
+    private static final float WALK_CYCLE_DISTANCE_M = 0.74f;
+    private static final float WALK_SPEED_MPS = 0.72f;
+    private static final float TURN_SPEED_DPS = 165.0f;
+    private static final float FINAL_TURN_SPEED_DPS = 120.0f;
 
     private static final WeakHashMap<Celine3DView, Mixer> MIXERS = new WeakHashMap<>();
 
@@ -97,6 +112,10 @@ final class CelineProductionPresenceV80 {
 
     private CelineProductionPresenceV80() {}
 
+    static String[] walkingBoneNames() {
+        return WALKING_BONE_NAMES.clone();
+    }
+
     static void install(Activity activity, View decor) {
         if (activity == null || decor == null) return;
         Celine3DView view = find3D(decor);
@@ -108,8 +127,12 @@ final class CelineProductionPresenceV80 {
         if (view == null) return;
         Mixer mixer = mixerFor(view);
         if (mixer != null) mixer.applyBody(frameTimeNanos);
-        // Facial output is the final layer and retains the guarded v76 rollback plus v77 PCM cue.
         CelineMorphRuntimeV62.onFrame(view, frameTimeNanos);
+    }
+
+    static boolean requestRoomAnchor(Celine3DView view, String anchorId) {
+        Mixer mixer = mixerFor(view);
+        return mixer != null && mixer.requestRoomAnchor(anchorId);
     }
 
     static void setDiagnostic(Celine3DView view, Stage stage, LayerView layers) {
@@ -118,8 +141,10 @@ final class CelineProductionPresenceV80 {
         mixer.diagnosticDisabled = false;
         mixer.stage = stage == null || stage == Stage.AUTO ? Stage.HOME : stage;
         mixer.layerMask = maskFor(layers);
-        Celine3DDiagnostics.record(view.getContext(), "V80-440", "Avatar Lab Production-Owner gesetzt",
-                "stage=" + mixer.stage + " layers=" + (layers == null ? LayerView.COMBINED : layers)
+        Celine3DDiagnostics.record(view.getContext(), "V80-440",
+                "Avatar Lab Production-Owner gesetzt",
+                "stage=" + mixer.stage + " layers="
+                        + (layers == null ? LayerView.COMBINED : layers)
                         + " owner=CelineProductionPresenceV80");
     }
 
@@ -140,11 +165,12 @@ final class CelineProductionPresenceV80 {
 
     static HomeFrame homeFrame(Celine3DView view) {
         Mixer mixer;
-        synchronized (MIXERS) { mixer = MIXERS.get(view); }
+        synchronized (MIXERS) {
+            mixer = MIXERS.get(view);
+        }
         return mixer == null ? new HomeFrame() : mixer.homeFrame;
     }
 
-    /** Default eye target consumed by the guarded face layer after this owner composes the frame. */
     static float socialLookX(Celine3DView view) {
         synchronized (MIXERS) {
             Mixer mixer = MIXERS.get(view);
@@ -152,7 +178,6 @@ final class CelineProductionPresenceV80 {
         }
     }
 
-    /** Default eye target consumed by the guarded face layer after this owner composes the frame. */
     static float socialLookY(Celine3DView view) {
         synchronized (MIXERS) {
             Mixer mixer = MIXERS.get(view);
@@ -191,12 +216,17 @@ final class CelineProductionPresenceV80 {
     private static int maskFor(LayerView view) {
         if (view == null || view == LayerView.COMBINED) return LAYER_ALL;
         switch (view) {
-            case BASE_ONLY: return LAYER_BASE;
-            case BREATHING_POSTURE: return LAYER_BASE | LAYER_POSTURE;
-            case CONVERSATION: return LAYER_BASE | LAYER_CONVERSATION;
-            case GAZE_HEAD: return LAYER_BASE | LAYER_GAZE;
+            case BASE_ONLY:
+                return LAYER_BASE;
+            case BREATHING_POSTURE:
+                return LAYER_BASE | LAYER_POSTURE;
+            case CONVERSATION:
+                return LAYER_BASE | LAYER_CONVERSATION;
+            case GAZE_HEAD:
+                return LAYER_BASE | LAYER_GAZE;
             case COMBINED:
-            default: return LAYER_ALL;
+            default:
+                return LAYER_ALL;
         }
     }
 
@@ -209,7 +239,11 @@ final class CelineProductionPresenceV80 {
         final boolean probeModel;
         final Bone[] bones = new Bone[BONE_COUNT];
         final float[] angles = new float[BONE_COUNT * 3];
+        final float[] locomotionQuats = new float[BONE_COUNT * 4];
         final HomeFrame homeFrame = new HomeFrame();
+        final CelineWalkingClipV9R walkingClip;
+        final CelineRoomNavigatorV9R roomNavigator;
+        final CelineRoomWorldContractV80.Anchor talkAnchor;
 
         Stage stage = Stage.AUTO;
         int layerMask = LAYER_ALL;
@@ -222,6 +256,7 @@ final class CelineProductionPresenceV80 {
         boolean loggedBlock6Call;
         boolean targetCall;
         boolean targetInitialized;
+        boolean inCallNow;
         float callBlend;
         float socialGazeX;
         float socialGazeY;
@@ -231,13 +266,30 @@ final class CelineProductionPresenceV80 {
         long motionStartNanos;
         long armPhaseStartNanos;
         long nextGazeShiftNanos;
+        long nextCiRoomMarkerCheckNanos;
         int gazeShiftSerial;
+
+        RoomMotion roomMotion = RoomMotion.AMBIENT;
+        String currentAnchorId = TALK_ANCHOR;
+        String pendingTargetId;
+        List<String> roomRoute = Collections.emptyList();
+        int routeIndex;
+        float roomX;
+        float roomZ;
+        float roomYaw;
+        float segmentTargetX;
+        float segmentTargetZ;
+        float segmentTravelYaw;
+        float segmentFinalYaw;
+        float walkBlend;
+        float walkBob;
+        float legacyHomeGaitScale = 1.0f;
+        double walkDistanceMeters;
 
         Mixer(Celine3DView view) throws Exception {
             this.view = view;
             Context context = view.getContext();
             if (context instanceof Activity) {
-                // Reuse the exact protected v61 correction before immutable root/bone bases are read.
                 CelineMeshyRigScaleV61.repairImmediate((Activity) context, view);
             }
             FilamentAsset asset = (FilamentAsset) field(view, "asset");
@@ -248,11 +300,20 @@ final class CelineProductionPresenceV80 {
             if (rootInstance == 0) throw new IllegalStateException("Celine Root-Transform fehlt");
             rootBase = transforms.getTransform(rootInstance, new float[16]);
             probeModel = asset.getFirstEntityByName("CelineSkinningProbe") != 0;
+
             int resolved = 0;
             for (int i = 0; i < BONE_NAMES.length; i++) {
                 bones[i] = bone(asset, BONE_NAMES[i]);
                 if (bones[i] != null) resolved++;
             }
+
+            CelineRoomWorldContractV80 world = CelineRoomWorldContractV80.load(context);
+            roomNavigator = CelineRoomNavigatorV9R.load(context, world);
+            talkAnchor = roomNavigator.anchor(TALK_ANCHOR);
+            if (talkAnchor == null) throw new IllegalStateException("9R camera_talk_anchor fehlt");
+            walkingClip = CelineWalkingClipV9R.load(context);
+            resetLocomotionQuats();
+
             Celine3DDiagnostics.record(context, "V80-400", "Central Production Presence gebunden",
                     "owner=CelineProductionPresenceV80 bones=" + resolved + "/" + BONE_COUNT
                             + " root=scene/seat base"
@@ -260,12 +321,14 @@ final class CelineProductionPresenceV80 {
                             + " face=CelineMorphRuntimeV62 PCM=v77"
                             + " block5SixJointArms=true fingerBones=false"
                             + " block6SocialGaze=true independentWriter=false"
+                            + " 9RNav=true walking=MeshyCanonical"
                             + " probe=" + probeModel);
         }
 
         void applyBody(long frameTimeNanos) {
             if (diagnosticDisabled) return;
             boolean callNow = stage == Stage.CALL || (stage == Stage.AUTO && isCallStage(view));
+            inCallNow = callNow;
             if (!targetInitialized) {
                 targetInitialized = true;
                 targetCall = callNow;
@@ -281,7 +344,8 @@ final class CelineProductionPresenceV80 {
 
             if (motionStartNanos == 0L) motionStartNanos = frameTimeNanos;
             float deltaSeconds = lastFrameNanos == 0L ? 0.0f
-                    : Math.min(0.10f, Math.max(0.0f, (frameTimeNanos - lastFrameNanos) * 1.0e-9f));
+                    : Math.min(0.10f,
+                    Math.max(0.0f, (frameTimeNanos - lastFrameNanos) * 1.0e-9f));
             lastFrameNanos = frameTimeNanos;
             float targetBlend = callNow ? 1.0f : 0.0f;
             float ease = Math.min(1.0f, deltaSeconds * 4.5f);
@@ -290,8 +354,11 @@ final class CelineProductionPresenceV80 {
 
             double t = Math.max(0L, frameTimeNanos - motionStartNanos) * 1.0e-9;
             updateHomeFrame(t);
-            Arrays.fill(angles, 0.0f);
+            consumePrivateRoomMarker(frameTimeNanos);
+            updateRoomLocomotion(deltaSeconds, callNow);
+            updateLocomotionPose();
 
+            Arrays.fill(angles, 0.0f);
             float home = 1.0f - callBlend;
             float call = callBlend;
             if ((layerMask & LAYER_BASE) != 0) applyBaseLayer(home, call);
@@ -317,12 +384,303 @@ final class CelineProductionPresenceV80 {
 
             if (callNow && !loggedCall) {
                 loggedCall = true;
-                Celine3DDiagnostics.record(view.getContext(), "V80-420", "Central CALL Presence aktiv",
+                Celine3DDiagnostics.record(view.getContext(), "V80-420",
+                        "Central CALL Presence aktiv",
                         "root/seat+posture+conversation+gaze+face · oneTransaction=true oneSkinUpdate=true");
             } else if (!callNow && !loggedHome) {
                 loggedHome = true;
-                Celine3DDiagnostics.record(view.getContext(), "V80-410", "Central HOME Presence aktiv",
+                Celine3DDiagnostics.record(view.getContext(), "V80-410",
+                        "Central HOME Presence aktiv",
                         "root/world+posture+conversation+gaze+face · oneTransaction=true oneSkinUpdate=true");
+            }
+        }
+
+        boolean requestRoomAnchor(String anchorId) {
+            String target = anchorId == null ? "" : anchorId.trim();
+            if (target.isEmpty() || roomNavigator.anchor(target) == null) {
+                Celine3DDiagnostics.record(view.getContext(), "V80-476",
+                        "9R Room-Ziel abgelehnt", "target=" + target + " reason=unknown_anchor");
+                return false;
+            }
+            if (inCallNow || stage == Stage.CALL) {
+                Celine3DDiagnostics.record(view.getContext(), "V80-476",
+                        "9R Room-Ziel abgelehnt",
+                        "target=" + target + " reason=CALL_seated_contract_protected");
+                return false;
+            }
+
+            if (roomMotion == RoomMotion.TURNING
+                    || roomMotion == RoomMotion.WALKING
+                    || roomMotion == RoomMotion.SETTLING) {
+                pendingTargetId = target;
+                Celine3DDiagnostics.record(view.getContext(), "V80-478",
+                        "9R Room-Ziel sicher gepuffert",
+                        "target=" + target + " untilNextAnchor=true");
+                return true;
+            }
+
+            if (roomMotion == RoomMotion.AMBIENT) {
+                roomX = homeFrame.x;
+                roomZ = homeFrame.z;
+                roomYaw = homeFrame.yaw;
+            }
+
+            if (target.equals(currentAnchorId)) {
+                Celine3DDiagnostics.record(view.getContext(), "V80-475",
+                        "9R Nav-Anker bereits erreicht",
+                        "anchor=" + currentAnchorId + " noTeleport=true");
+                return true;
+            }
+            return startRoute(target);
+        }
+
+        private boolean startRoute(String target) {
+            List<String> route = roomNavigator.route(currentAnchorId, target);
+            if (route.size() < 2) {
+                Celine3DDiagnostics.record(view.getContext(), "V80-476",
+                        "9R Room-Ziel abgelehnt",
+                        "target=" + target + " from=" + currentAnchorId + " reason=no_nav_route");
+                return false;
+            }
+            roomRoute = route;
+            routeIndex = 1;
+            pendingTargetId = null;
+            prepareSegment(roomRoute.get(routeIndex));
+            Celine3DDiagnostics.record(view.getContext(), "V80-472",
+                    "9R Room-Ziel angenommen",
+                    "from=" + currentAnchorId + " target=" + target
+                            + " route=" + route + " cameraFixed=true");
+            return true;
+        }
+
+        private void prepareSegment(String anchorId) {
+            CelineRoomWorldContractV80.Anchor target = roomNavigator.anchor(anchorId);
+            if (target == null) {
+                failRoomMotion("missing segment anchor " + anchorId);
+                return;
+            }
+            segmentTargetX = target.localX - talkAnchor.localX;
+            segmentTargetZ = target.localZ - talkAnchor.localZ;
+            float dx = segmentTargetX - roomX;
+            float dz = segmentTargetZ - roomZ;
+            if (Math.abs(dx) + Math.abs(dz) <= 0.01f) {
+                segmentTravelYaw = roomYaw;
+            } else {
+                segmentTravelYaw = (float) Math.toDegrees(Math.atan2(dx, dz));
+            }
+            segmentFinalYaw = wrapDegrees(target.facingYDeg - talkAnchor.facingYDeg);
+            roomMotion = RoomMotion.TURNING;
+            Celine3DDiagnostics.record(view.getContext(), "V80-473",
+                    "9R Vor Laufweg ausgerichtet",
+                    "from=" + currentAnchorId + " to=" + anchorId
+                            + " travelYaw=" + segmentTravelYaw + " turnBeforeWalk=true");
+        }
+
+        private void updateRoomLocomotion(float deltaSeconds, boolean callNow) {
+            if (callNow) {
+                walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
+                walkBob = 0.0f;
+                legacyHomeGaitScale = 0.0f;
+                return;
+            }
+
+            switch (roomMotion) {
+                case AMBIENT:
+                    walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
+                    walkBob = 0.0f;
+                    legacyHomeGaitScale = 1.0f;
+                    break;
+
+                case TURNING:
+                    legacyHomeGaitScale = 0.0f;
+                    walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
+                    roomYaw = approachAngle(roomYaw, segmentTravelYaw, TURN_SPEED_DPS * deltaSeconds);
+                    if (angleDistance(roomYaw, segmentTravelYaw) <= 1.2f) {
+                        roomYaw = wrapDegrees(segmentTravelYaw);
+                        roomMotion = RoomMotion.WALKING;
+                        Celine3DDiagnostics.record(view.getContext(), "V80-474",
+                                "9R Walking aktiv",
+                                "from=" + currentAnchorId + " to=" + roomRoute.get(routeIndex)
+                                        + " speed=" + WALK_SPEED_MPS
+                                        + "mps clip=Walking sourceSha256="
+                                        + CelineWalkingClipV9R.SOURCE_SHA256);
+                    }
+                    break;
+
+                case WALKING:
+                    legacyHomeGaitScale = 0.0f;
+                    walkBlend = approach(walkBlend, 1.0f, deltaSeconds * 4.8f);
+                    float dx = segmentTargetX - roomX;
+                    float dz = segmentTargetZ - roomZ;
+                    float distance = (float) Math.sqrt(dx * dx + dz * dz);
+                    if (distance <= 0.012f) {
+                        roomX = segmentTargetX;
+                        roomZ = segmentTargetZ;
+                        arriveSegment();
+                        break;
+                    }
+                    float speed = Math.min(WALK_SPEED_MPS,
+                            Math.max(0.18f, distance * 2.25f));
+                    float step = Math.min(distance, speed * deltaSeconds);
+                    if (distance > 0.00001f) {
+                        roomX += dx / distance * step;
+                        roomZ += dz / distance * step;
+                        walkDistanceMeters += step;
+                    }
+                    if (step >= distance - 0.00001f) {
+                        roomX = segmentTargetX;
+                        roomZ = segmentTargetZ;
+                        arriveSegment();
+                    }
+                    break;
+
+                case SETTLING:
+                    legacyHomeGaitScale = 0.0f;
+                    walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 3.8f);
+                    roomYaw = approachAngle(
+                            roomYaw, segmentFinalYaw, FINAL_TURN_SPEED_DPS * deltaSeconds);
+                    if (walkBlend <= 0.015f
+                            && angleDistance(roomYaw, segmentFinalYaw) <= 1.0f) {
+                        walkBlend = 0.0f;
+                        roomYaw = wrapDegrees(segmentFinalYaw);
+                        if (TALK_ANCHOR.equals(currentAnchorId)) {
+                            roomMotion = RoomMotion.AMBIENT_HANDOFF;
+                        } else {
+                            roomMotion = RoomMotion.ANCHOR_IDLE;
+                        }
+                        Celine3DDiagnostics.record(view.getContext(), "V80-475",
+                                "9R Nav-Anker erreicht",
+                                "anchor=" + currentAnchorId + " x=" + roomX + " z=" + roomZ
+                                        + " facing=" + roomYaw
+                                        + " walkStopped=true noTeleport=true");
+                    }
+                    break;
+
+                case ANCHOR_IDLE:
+                    legacyHomeGaitScale = 0.0f;
+                    walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
+                    walkBob = 0.0f;
+                    break;
+
+                case AMBIENT_HANDOFF:
+                    float blend = Math.min(1.0f, deltaSeconds * 3.0f);
+                    roomX += (homeFrame.x - roomX) * blend;
+                    roomZ += (homeFrame.z - roomZ) * blend;
+                    roomYaw = approachAngle(
+                            roomYaw, homeFrame.yaw, FINAL_TURN_SPEED_DPS * deltaSeconds);
+                    legacyHomeGaitScale =
+                            approach(legacyHomeGaitScale, 1.0f, deltaSeconds * 2.4f);
+                    walkBlend = approach(walkBlend, 0.0f, deltaSeconds * 5.5f);
+                    walkBob = 0.0f;
+                    if (Math.abs(roomX - homeFrame.x) < 0.015f
+                            && Math.abs(roomZ - homeFrame.z) < 0.015f
+                            && angleDistance(roomYaw, homeFrame.yaw) < 1.0f
+                            && legacyHomeGaitScale > 0.97f) {
+                        roomMotion = RoomMotion.AMBIENT;
+                        legacyHomeGaitScale = 1.0f;
+                        Celine3DDiagnostics.record(view.getContext(), "V80-477",
+                                "9R Camera-Talk Ambient wiederhergestellt",
+                                "anchor=" + TALK_ANCHOR + " eased=true snap=false");
+                    }
+                    break;
+            }
+        }
+
+        private void arriveSegment() {
+            String arrived = roomRoute.get(routeIndex);
+            currentAnchorId = arrived;
+
+            if (pendingTargetId != null) {
+                String pending = pendingTargetId;
+                pendingTargetId = null;
+                List<String> next = roomNavigator.route(currentAnchorId, pending);
+                if (next.size() >= 2) {
+                    roomRoute = next;
+                    routeIndex = 1;
+                    prepareSegment(roomRoute.get(routeIndex));
+                    return;
+                }
+            }
+
+            if (routeIndex + 1 < roomRoute.size()) {
+                routeIndex++;
+                prepareSegment(roomRoute.get(routeIndex));
+                return;
+            }
+
+            CelineRoomWorldContractV80.Anchor anchor = roomNavigator.anchor(currentAnchorId);
+            segmentFinalYaw = anchor == null
+                    ? roomYaw : wrapDegrees(anchor.facingYDeg - talkAnchor.facingYDeg);
+            roomMotion = RoomMotion.SETTLING;
+        }
+
+        private void failRoomMotion(String reason) {
+            pendingTargetId = null;
+            roomRoute = Collections.emptyList();
+            routeIndex = 0;
+            roomMotion = TALK_ANCHOR.equals(currentAnchorId)
+                    ? RoomMotion.AMBIENT_HANDOFF : RoomMotion.ANCHOR_IDLE;
+            Celine3DDiagnostics.record(view.getContext(), "V80-479",
+                    "9R Room-Locomotion sicher gestoppt", "reason=" + reason);
+        }
+
+        private void consumePrivateRoomMarker(long frameTimeNanos) {
+            if (stage != Stage.AUTO) return;
+            if ((view.getContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+                return;
+            }
+            if (frameTimeNanos < nextCiRoomMarkerCheckNanos) return;
+            nextCiRoomMarkerCheckNanos = frameTimeNanos + 220_000_000L;
+
+            File marker = new File(view.getContext().getFilesDir(), CI_ROOM_ACTION_FILE);
+            if (!marker.isFile()) return;
+            try {
+                byte[] data = new byte[(int) Math.min(128L, marker.length())];
+                int count;
+                try (FileInputStream input = new FileInputStream(marker)) {
+                    count = input.read(data);
+                }
+                marker.delete();
+                if (count <= 0) return;
+                String target = new String(data, 0, count, StandardCharsets.UTF_8).trim();
+                if ("cancel".equalsIgnoreCase(target) || "home".equalsIgnoreCase(target)) {
+                    target = TALK_ANCHOR;
+                }
+                requestRoomAnchor(target);
+            } catch (Throwable error) {
+                marker.delete();
+                Celine3DDiagnostics.error(view.getContext(), "V80-479",
+                        "9R privater Proof-Marker FEHLER", error);
+            }
+        }
+
+        private void updateLocomotionPose() {
+            resetLocomotionQuats();
+            if (walkBlend <= 0.0001f) {
+                walkBob = 0.0f;
+                return;
+            }
+            double clipSeconds =
+                    (walkDistanceMeters / WALK_CYCLE_DISTANCE_M) * walkingClip.durationSeconds();
+            float[] q = new float[4];
+            for (int i = 0; i < BONE_NAMES.length; i++) {
+                if (!walkingClip.sampleRotation(BONE_NAMES[i], clipSeconds, walkBlend, q)) continue;
+                int o = i * 4;
+                locomotionQuats[o] = q[0];
+                locomotionQuats[o + 1] = q[1];
+                locomotionQuats[o + 2] = q[2];
+                locomotionQuats[o + 3] = q[3];
+            }
+            walkBob = walkingClip.sampleHipsBob(clipSeconds, walkBlend);
+        }
+
+        private void resetLocomotionQuats() {
+            for (int i = 0; i < BONE_COUNT; i++) {
+                int o = i * 4;
+                locomotionQuats[o] = 0.0f;
+                locomotionQuats[o + 1] = 0.0f;
+                locomotionQuats[o + 2] = 0.0f;
+                locomotionQuats[o + 3] = 1.0f;
             }
         }
 
@@ -337,19 +695,21 @@ final class CelineProductionPresenceV80 {
             homeFrame.x = x;
             homeFrame.z = z;
             homeFrame.gait = gait;
-            homeFrame.bob = Math.abs((float) Math.sin(t * 2.65)) * 0.018f * walkAmount;
+            homeFrame.bob =
+                    Math.abs((float) Math.sin(t * 2.65)) * 0.018f * walkAmount;
             homeFrame.yaw = clamp(dx * 42.0f, -3.0f, 3.0f);
         }
 
         private void applyBaseLayer(float home, float call) {
-            add(HIPS, 0.0f, 0.0f, home * homeFrame.gait * 0.55f);
+            float gait = homeFrame.gait * legacyHomeGaitScale;
+            add(HIPS, 0.0f, 0.0f, home * gait * 0.55f);
             add(HIPS, call * -5.0f, 0.0f, 0.0f);
-            add(LEFT_UP_LEG, home * homeFrame.gait * 5.0f + call * -82.0f,
+            add(LEFT_UP_LEG, home * gait * 5.0f + call * -82.0f,
                     0.0f, call * 4.0f);
-            add(RIGHT_UP_LEG, home * -homeFrame.gait * 5.0f + call * -82.0f,
+            add(RIGHT_UP_LEG, home * -gait * 5.0f + call * -82.0f,
                     0.0f, call * -4.0f);
-            add(LEFT_LEG, home * -homeFrame.gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
-            add(RIGHT_LEG, home * homeFrame.gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
+            add(LEFT_LEG, home * -gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
+            add(RIGHT_LEG, home * gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
             add(LEFT_FOOT, call * -8.0f, 0.0f, 0.0f);
             add(RIGHT_FOOT, call * -8.0f, 0.0f, 0.0f);
         }
@@ -360,20 +720,23 @@ final class CelineProductionPresenceV80 {
             float second = (float) Math.sin(theta * 2.0);
             float callSlow = (float) Math.sin(t * 0.62 + 0.45);
             float callDrift = (float) Math.sin(t * 0.37 + 1.10);
+            float homeProcedural = home * (1.0f - walkBlend);
             add(HIPS,
-                    home * (-2.0f + 0.10f * second),
-                    home * (-3.5f + 0.12f * wave),
-                    home * (6.0f + 0.18f * wave));
+                    homeProcedural * (-2.0f + 0.10f * second),
+                    homeProcedural * (-3.5f + 0.12f * wave),
+                    homeProcedural * (6.0f + 0.18f * wave));
             add(LEFT_SHOULDER,
-                    home * (-1.2f - 0.10f * wave - 0.03f * second)
+                    homeProcedural * (-1.2f - 0.10f * wave - 0.03f * second)
                             + call * (-0.12f + 0.20f * callSlow),
                     0.0f,
-                    home * (-0.7f - 0.05f * wave) + call * -0.14f * callDrift);
+                    homeProcedural * (-0.7f - 0.05f * wave)
+                            + call * -0.14f * callDrift);
             add(RIGHT_SHOULDER,
-                    home * (-0.6f - 0.08f * wave + 0.02f * second)
+                    homeProcedural * (-0.6f - 0.08f * wave + 0.02f * second)
                             + call * (-0.08f - 0.17f * callDrift),
                     0.0f,
-                    home * (0.5f + 0.04f * wave) + call * 0.12f * callSlow);
+                    homeProcedural * (0.5f + 0.04f * wave)
+                            + call * 0.12f * callSlow);
             add(SPINE, call * (1.20f + 0.18f * callDrift), 0.0f, 0.0f);
             add(SPINE01, call * (1.60f + 0.24f * callSlow), 0.0f, 0.0f);
             add(SPINE02, call * (1.20f + 0.16f * callDrift), 0.0f, 0.0f);
@@ -382,10 +745,9 @@ final class CelineProductionPresenceV80 {
         private void applyConversationLayer(long frameTimeNanos, float home, float call) {
             long duration = targetCall ? CALL_ARM_LOOP_NANOS : HOME_ARM_LOOP_NANOS;
             long elapsed = Math.max(0L, frameTimeNanos - armPhaseStartNanos);
-            double theta = Math.PI * 2.0 * ((double) (elapsed % duration) / (double) duration);
+            double theta = Math.PI * 2.0
+                    * ((double) (elapsed % duration) / (double) duration);
 
-            // Different phases on left/right make the body read as one person settling naturally,
-            // not two mirrored metronomes. Integer harmonics keep both loops seamless.
             float leftWave = (float) Math.sin(theta);
             float rightWave = (float) Math.sin(theta + 1.17);
             float leftSecond = (float) Math.sin(theta * 2.0 + 0.35);
@@ -394,59 +756,63 @@ final class CelineProductionPresenceV80 {
             float rightThird = (float) Math.sin(theta * 3.0 + 1.31);
             float leftBreath = (float) Math.sin(theta - 0.45);
             float rightBreath = (float) Math.sin(theta + 0.78);
-            float speech = targetCall && avatarState(view) == CelineAvatarController.State.SPEAKING
-                    ? speechEnergy(view) : 0.0f;
+            float speech =
+                    targetCall && avatarState(view) == CelineAvatarController.State.SPEAKING
+                            ? speechEnergy(view) : 0.0f;
 
+            float homePresence = home * (1.0f - walkBlend);
+            float gait = homeFrame.gait * legacyHomeGaitScale;
             add(LEFT_SHOULDER,
-                    home * (-homeFrame.gait * 0.9f + 0.18f * leftBreath), 0.0f, 0.0f);
+                    homePresence * (-gait * 0.9f + 0.18f * leftBreath), 0.0f, 0.0f);
             add(RIGHT_SHOULDER,
-                    home * (homeFrame.gait * 0.9f + 0.16f * rightBreath), 0.0f, 0.0f);
+                    homePresence * (gait * 0.9f + 0.16f * rightBreath), 0.0f, 0.0f);
 
-            float leftArmPitchHome = -homeFrame.gait * 2.2f
-                    + 2.55f * leftWave + 0.40f * leftSecond;
-            float rightArmPitchHome = homeFrame.gait * 2.2f
-                    + 2.30f * rightWave + 0.36f * rightSecond;
-            float leftArmPitchCall = 2.05f * leftWave + 0.52f * leftSecond
-                    + speech * 1.05f * leftThird;
-            float rightArmPitchCall = 1.85f * rightWave + 0.48f * rightSecond
-                    + speech * 0.92f * rightThird;
+            float leftArmPitchHome =
+                    -gait * 2.2f + 2.55f * leftWave + 0.40f * leftSecond;
+            float rightArmPitchHome =
+                    gait * 2.2f + 2.30f * rightWave + 0.36f * rightSecond;
+            float leftArmPitchCall =
+                    2.05f * leftWave + 0.52f * leftSecond + speech * 1.05f * leftThird;
+            float rightArmPitchCall =
+                    1.85f * rightWave + 0.48f * rightSecond + speech * 0.92f * rightThird;
+
             add(LEFT_ARM,
-                    home * leftArmPitchHome + call * leftArmPitchCall,
+                    homePresence * leftArmPitchHome + call * leftArmPitchCall,
                     0.0f,
-                    home * (29.5f + 1.05f * leftBreath)
+                    homePresence * (29.5f + 1.05f * leftBreath)
                             + call * (30.5f + 0.84f * leftBreath
                             + 0.30f * speech * leftSecond));
             add(RIGHT_ARM,
-                    home * rightArmPitchHome + call * rightArmPitchCall,
+                    homePresence * rightArmPitchHome + call * rightArmPitchCall,
                     0.0f,
-                    home * (-29.5f - 0.96f * rightBreath)
+                    homePresence * (-29.5f - 0.96f * rightBreath)
                             + call * (-30.5f - 0.78f * rightBreath
                             - 0.28f * speech * rightSecond));
 
             add(LEFT_FOREARM,
-                    home * (-6.0f + 1.80f * leftSecond + 0.30f * leftThird)
+                    homePresence * (-6.0f + 1.80f * leftSecond + 0.30f * leftThird)
                             + call * (-14.0f + 2.15f * leftSecond
                             + speech * 0.90f * leftThird),
                     0.0f, 0.0f);
             add(RIGHT_FOREARM,
-                    home * (-6.0f + 1.65f * rightSecond + 0.28f * rightThird)
+                    homePresence * (-6.0f + 1.65f * rightSecond + 0.28f * rightThird)
                             + call * (-14.0f + 1.95f * rightSecond
                             + speech * 0.82f * rightThird),
                     0.0f, 0.0f);
             add(LEFT_HAND,
-                    home * (3.20f * leftWave + 0.82f * leftSecond)
+                    homePresence * (3.20f * leftWave + 0.82f * leftSecond)
                             + call * (3.05f * leftWave + 0.76f * leftSecond
                             + speech * 1.10f * leftThird),
                     0.0f,
-                    home * (1.45f * leftSecond + 0.32f * leftThird)
+                    homePresence * (1.45f * leftSecond + 0.32f * leftThird)
                             + call * (1.38f * leftSecond + 0.28f * leftThird
                             + speech * 0.45f * leftThird));
             add(RIGHT_HAND,
-                    home * (2.95f * rightWave + 0.76f * rightSecond)
+                    homePresence * (2.95f * rightWave + 0.76f * rightSecond)
                             + call * (2.82f * rightWave + 0.70f * rightSecond
                             + speech * 1.00f * rightThird),
                     0.0f,
-                    home * (1.34f * rightSecond + 0.30f * rightThird)
+                    homePresence * (1.34f * rightSecond + 0.30f * rightThird)
                             + call * (1.28f * rightSecond + 0.26f * rightThird
                             + speech * 0.40f * rightThird));
 
@@ -467,8 +833,6 @@ final class CelineProductionPresenceV80 {
         private void applyGazeLayer(long frameTimeNanos, float deltaSeconds,
                                     double t, float home, float call) {
             if (probeModel) {
-                // Preserve the CI-only visible skinning capability probe under the central owner.
-                // These large angles are unreachable for the canonical production model.
                 add(NECK,
                         call * (float) Math.cos(t * Math.PI * 0.5) * 4.0f,
                         call * (float) Math.sin(t * Math.PI) * 11.0f,
@@ -482,10 +846,9 @@ final class CelineProductionPresenceV80 {
                                 + call * (float) Math.sin(t * Math.PI * 0.75) * 3.0f);
                 return;
             }
+
             CelineAvatarController.State state = avatarState(view);
             updateSocialGaze(frameTimeNanos, deltaSeconds, state);
-
-            // A deliberate external look target keeps priority; the central plan is the default.
             float lookX = view.v76LookActive()
                     ? clamp(view.v76LookX(), -MAX_SOCIAL_GAZE_X, MAX_SOCIAL_GAZE_X)
                     : socialGazeX;
@@ -493,8 +856,6 @@ final class CelineProductionPresenceV80 {
                     ? clamp(view.v76LookY(), -MAX_SOCIAL_GAZE_Y, MAX_SOCIAL_GAZE_Y)
                     : socialGazeY;
 
-            // Two incommensurate, sub-degree drifts prevent a dead neck without creating a bobbing
-            // cadence. Speaking nods are brief envelope-gated responses, not a permanent oscillator.
             float independentYaw = 0.14f * (float) Math.sin(t * 0.31 + 0.4)
                     + 0.07f * (float) Math.sin(t * 0.17 + 1.3);
             float independentPitch = 0.09f * (float) Math.sin(t * 0.27 + 0.8)
@@ -507,7 +868,8 @@ final class CelineProductionPresenceV80 {
                     * (0.12f + 0.28f * speech) * nodEnvelope;
             float callNod = (float) Math.sin(t * 3.0 + 0.6)
                     * (0.10f + 0.22f * speech) * nodEnvelope;
-            float listenTilt = state == CelineAvatarController.State.LISTENING ? 0.20f : 0.0f;
+            float listenTilt =
+                    state == CelineAvatarController.State.LISTENING ? 0.20f : 0.0f;
 
             add(NECK,
                     home * (independentPitch * 0.28f + lookY * 2.7f)
@@ -543,8 +905,6 @@ final class CelineProductionPresenceV80 {
         private void updateSocialGaze(long frameTimeNanos, float deltaSeconds,
                                       CelineAvatarController.State state) {
             if (nextGazeShiftNanos == 0L) {
-                // Start with direct camera contact; the first micro shift arrives only after Celine
-                // has visibly settled into the current HOME/CALL surface.
                 nextGazeShiftNanos = frameTimeNanos + 1_800_000_000L;
             }
             if (frameTimeNanos >= nextGazeShiftNanos) {
@@ -596,7 +956,8 @@ final class CelineProductionPresenceV80 {
                         break;
                 }
                 boolean briefGlance = gazeShiftSerial % cadence == 0;
-                float horizontalAmplitude = briefGlance ? glanceAmplitude : centerAmplitude;
+                float horizontalAmplitude =
+                        briefGlance ? glanceAmplitude : centerAmplitude;
                 socialGazeTargetX = clamp(
                         deterministicSigned(gazeShiftSerial, 17) * horizontalAmplitude,
                         -MAX_SOCIAL_GAZE_X, MAX_SOCIAL_GAZE_X);
@@ -607,7 +968,7 @@ final class CelineProductionPresenceV80 {
                 long delayMs = briefGlance
                         ? 1050L + (long) (deterministicUnit(gazeShiftSerial, 71) * 650.0f)
                         : baseDelayMs
-                                + (long) (deterministicUnit(gazeShiftSerial, 89) * delayRangeMs);
+                        + (long) (deterministicUnit(gazeShiftSerial, 89) * delayRangeMs);
                 nextGazeShiftNanos = frameTimeNanos + delayMs * 1_000_000L;
             }
 
@@ -634,18 +995,27 @@ final class CelineProductionPresenceV80 {
         }
 
         private void applyRoot(float home, float call) {
-            float x = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeFrame.x;
+            boolean roomOwnsRoot = roomMotion != RoomMotion.AMBIENT;
+            float homeX = roomOwnsRoot ? roomX : homeFrame.x;
+            float homeZ = roomOwnsRoot ? roomZ : homeFrame.z;
+            float homeYaw = roomOwnsRoot ? roomYaw : homeFrame.yaw;
+            float homeBob = roomOwnsRoot ? walkBob : homeFrame.bob;
+
+            float x = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeX;
             float y = (layerMask & LAYER_BASE) == 0 ? 0.0f
-                    : home * homeFrame.bob + call * CALL_ROOT_DOWN;
+                    : home * homeBob + call * CALL_ROOT_DOWN;
             float z = (layerMask & LAYER_BASE) == 0 ? 0.0f
-                    : home * homeFrame.z + call * CALL_ROOT_FORWARD;
-            float yaw = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeFrame.yaw;
+                    : home * homeZ + call * CALL_ROOT_FORWARD;
+            float yaw = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeYaw;
+
             float[] localRotation = new float[16];
             float[] rotated = new float[16];
             float[] worldMove = new float[16];
             float[] out = new float[16];
             Matrix.setIdentityM(localRotation, 0);
-            if (yaw != 0.0f) Matrix.rotateM(localRotation, 0, yaw, 0.0f, 1.0f, 0.0f);
+            if (yaw != 0.0f) {
+                Matrix.rotateM(localRotation, 0, yaw, 0.0f, 1.0f, 0.0f);
+            }
             Matrix.multiplyMM(rotated, 0, rootBase, 0, localRotation, 0);
             Matrix.setIdentityM(worldMove, 0);
             Matrix.translateM(worldMove, 0, x, y, z);
@@ -667,13 +1037,30 @@ final class CelineProductionPresenceV80 {
             float pitch = angles[offset];
             float yaw = angles[offset + 1];
             float roll = angles[offset + 2];
-            float[] delta = new float[16];
+
+            float[] procedural = new float[16];
+            Matrix.setIdentityM(procedural, 0);
+            if (yaw != 0.0f) {
+                Matrix.rotateM(procedural, 0, yaw, 0.0f, 1.0f, 0.0f);
+            }
+            if (pitch != 0.0f) {
+                Matrix.rotateM(procedural, 0, pitch, 1.0f, 0.0f, 0.0f);
+            }
+            if (roll != 0.0f) {
+                Matrix.rotateM(procedural, 0, roll, 0.0f, 0.0f, 1.0f);
+            }
+
+            int qo = index * 4;
+            float[] q = {
+                    locomotionQuats[qo], locomotionQuats[qo + 1],
+                    locomotionQuats[qo + 2], locomotionQuats[qo + 3]
+            };
+            float[] locomotion = new float[16];
+            float[] withLocomotion = new float[16];
             float[] out = new float[16];
-            Matrix.setIdentityM(delta, 0);
-            if (yaw != 0.0f) Matrix.rotateM(delta, 0, yaw, 0.0f, 1.0f, 0.0f);
-            if (pitch != 0.0f) Matrix.rotateM(delta, 0, pitch, 1.0f, 0.0f, 0.0f);
-            if (roll != 0.0f) Matrix.rotateM(delta, 0, roll, 0.0f, 0.0f, 1.0f);
-            Matrix.multiplyMM(out, 0, bone.base, 0, delta, 0);
+            CelineWalkingClipV9R.quaternionMatrix(q, locomotion);
+            Matrix.multiplyMM(withLocomotion, 0, bone.base, 0, locomotion, 0);
+            Matrix.multiplyMM(out, 0, withLocomotion, 0, procedural, 0);
             transforms.setTransform(bone.instance, out);
         }
 
@@ -686,19 +1073,28 @@ final class CelineProductionPresenceV80 {
                 }
             } catch (Throwable ignored) {
             } finally {
-                try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
+                try {
+                    transforms.commitLocalTransformTransaction();
+                } catch (Throwable ignored) {
+                }
             }
-            try { animator.updateBoneMatrices(); } catch (Throwable ignored) {}
+            try {
+                animator.updateBoneMatrices();
+            } catch (Throwable ignored) {
+            }
         }
 
         private Bone bone(FilamentAsset asset, String name) {
             try {
                 int entity = asset.getFirstEntityByName(name);
-                if (entity == 0 && "neck".equals(name)) entity = asset.getFirstEntityByName("Neck");
+                if (entity == 0 && "neck".equals(name)) {
+                    entity = asset.getFirstEntityByName("Neck");
+                }
                 if (entity == 0) return null;
                 int instance = transforms.getInstance(entity);
                 if (instance == 0) return null;
-                return new Bone(instance, transforms.getTransform(instance, new float[16]));
+                return new Bone(instance,
+                        transforms.getTransform(instance, new float[16]));
             } catch (Throwable ignored) {
                 return null;
             }
@@ -708,16 +1104,22 @@ final class CelineProductionPresenceV80 {
     private static CelineAvatarController.State avatarState(Celine3DView view) {
         try {
             Object value = field(view, "avatarState");
-            if (value instanceof CelineAvatarController.State) return (CelineAvatarController.State) value;
-        } catch (Throwable ignored) {}
+            if (value instanceof CelineAvatarController.State) {
+                return (CelineAvatarController.State) value;
+            }
+        } catch (Throwable ignored) {
+        }
         return CelineAvatarController.State.IDLE;
     }
 
     private static float speechEnergy(Celine3DView view) {
         try {
             Object value = field(view, "speechEnergy");
-            if (value instanceof Number) return clamp(((Number) value).floatValue(), 0.0f, 1.0f);
-        } catch (Throwable ignored) {}
+            if (value instanceof Number) {
+                return clamp(((Number) value).floatValue(), 0.0f, 1.0f);
+            }
+        } catch (Throwable ignored) {
+        }
         return 0.0f;
     }
 
@@ -748,6 +1150,28 @@ final class CelineProductionPresenceV80 {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
+    }
+
+    private static float approach(float value, float target, float maxDelta) {
+        if (value < target) return Math.min(target, value + Math.max(0.0f, maxDelta));
+        return Math.max(target, value - Math.max(0.0f, maxDelta));
+    }
+
+    private static float approachAngle(float value, float target, float maxDelta) {
+        float delta = wrapDegrees(target - value);
+        float bounded = clamp(delta, -Math.max(0.0f, maxDelta), Math.max(0.0f, maxDelta));
+        return wrapDegrees(value + bounded);
+    }
+
+    private static float angleDistance(float a, float b) {
+        return Math.abs(wrapDegrees(b - a));
+    }
+
+    private static float wrapDegrees(float degrees) {
+        float out = degrees % 360.0f;
+        if (out > 180.0f) out -= 360.0f;
+        if (out < -180.0f) out += 360.0f;
+        return out;
     }
 
     private static float clamp(float value, float min, float max) {
