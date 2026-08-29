@@ -111,7 +111,8 @@ final class CelineRoomNavigatorV9R {
                         + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
                         + " corridor=back_center>shelf>window"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
-                        + " bedExitBridge=true chairContact=false");
+                        + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
+                        + " chairContact=false");
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
@@ -136,6 +137,19 @@ final class CelineRoomNavigatorV9R {
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     source.localX, source.localY, source.localZ + WINDOW_SAFETY_Z_OFFSET_M,
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (isBedContactAnchor(source.id)) {
+            // Contact movement inside the mattress/bed footprint is not locomotion. Keep the
+            // navigator's root at the proven bed-approach point and let CelineBedPoseV9R3 ease the
+            // authored x/y/z + body orientation in the existing central transform owner. This
+            // prevents both walking through the mattress and double-applying the 4R contact x/z.
+            CelineRoomWorldContractV80.Anchor approach = world.anchor(BED_APPROACH_ANCHOR);
+            require(approach != null, "9R.3 bed approach anchor for virtual contact root");
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    approach.localX, source.localY, approach.localZ,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
@@ -184,6 +198,13 @@ final class CelineRoomNavigatorV9R {
                 || (BED_EDGE_SIT_ANCHOR.equals(from) && BED_RELAX_ANCHOR.equals(to))
                 || (BED_RELAX_ANCHOR.equals(from) && BED_LIE_ANCHOR.equals(to))
                 || (BED_EDGE_SIT_ANCHOR.equals(from) && BED_EXIT_ANCHOR.equals(to));
+    }
+
+    private static boolean isBedContactAnchor(String id) {
+        return BED_EDGE_SIT_ANCHOR.equals(id)
+                || BED_RELAX_ANCHOR.equals(id)
+                || BED_LIE_ANCHOR.equals(id)
+                || BED_EXIT_ANCHOR.equals(id);
     }
 
     private static JSONObject readJson(Context context, String path) throws Exception {
