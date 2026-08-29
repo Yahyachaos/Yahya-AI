@@ -38,11 +38,12 @@ final class CelineRoomNavigatorV9R {
     // fixed camera. Proof #117 accepted this exact window root position and facing with grounded
     // visible feet; 9R.5 therefore keeps both intact and turns only the upper body/head.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
-    // Shelf is wall-mounted and has no floor collider/contact target. Reusing the full Window
-    // depth offset would move the shelf hold into the protected lounge-chair AABB. Keep authored
-    // shelf depth and move only 0.20 m toward room center: the back-center -> shelf segment retains
-    // >0.43 m AABB clearance for the 0.35 m avatar capsule, while the hold stays >0.57 m from chair.
-    private static final float SHELF_SAFETY_X_OFFSET_M = 0.20f;
+    // Shelf Proof #158 showed that authored depth places Celine outside the fixed-camera reviewable
+    // room view. Reuse the already proven Window camera-side depth correction, but move Shelf farther
+    // toward room center so the Window -> Shelf and Shelf -> Back-Center segments stay at least
+    // 0.4545 m right of the lounge-chair AABB for the 0.35 m avatar capsule.
+    private static final float SHELF_SAFETY_X_OFFSET_M = 0.50f;
+    private static final float SHELF_SAFETY_Z_OFFSET_M = WINDOW_SAFETY_Z_OFFSET_M;
     // Dresser Proof #145 showed the minimum side-clearance anchor is outside useful framing;
     // Proof #147 showed an X-only move toward room center still projects Celine through the white
     // lounge-chair silhouette. The final room contract places the camera on +Z, so use a bounded
@@ -138,7 +139,8 @@ final class CelineRoomNavigatorV9R {
                         + " corridor=back_center>window"
                         + " windowRootFacing=accepted9R1"
                         + " shelfSafetyX=+" + SHELF_SAFETY_X_OFFSET_M
-                        + " shelfDepth=authored shelfReach=false shelfBookPickup=false"
+                        + " shelfSafetyZ=+" + SHELF_SAFETY_Z_OFFSET_M
+                        + " shelfDepth=cameraSide shelfReach=false shelfBookPickup=false"
                         + " dresserSafetyX=+" + DRESSER_SAFETY_X_OFFSET_M
                         + " dresserSafetyZ=+" + DRESSER_SAFETY_Z_OFFSET_M
                         + " dresserContact=false"
@@ -167,7 +169,9 @@ final class CelineRoomNavigatorV9R {
         if (SHELF_ANCHOR.equals(source.id)) {
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
-                    source.localX + SHELF_SAFETY_X_OFFSET_M, source.localY, source.localZ,
+                    source.localX + SHELF_SAFETY_X_OFFSET_M,
+                    source.localY,
+                    source.localZ + SHELF_SAFETY_Z_OFFSET_M,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
