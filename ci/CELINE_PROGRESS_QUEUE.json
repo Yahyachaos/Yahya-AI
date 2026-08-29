@@ -9,32 +9,32 @@
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
   "room_execution_trunk": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "status": "9R3_technically_and_manually_accepted_9R4_ready",
-  "latest_runtime_code_head": "ccda21ea8b671040f859debdd8def46831994f56",
-  "latest_built_runtime_head": "ccda21ea8b671040f859debdd8def46831994f56",
-  "latest_visually_accepted_runtime_head": "ccda21ea8b671040f859debdd8def46831994f56",
-  "runtime_fingerprint": "616af77c27ac7264e06fc4a00593e286457a93fc182fac5b92740e6f611a99a1",
+  "status": "9R4_technically_and_manually_accepted_9R5_window_ready",
+  "latest_runtime_code_head": "91f435d846e8635fa05d0af7966e1e792dbcaf22",
+  "latest_built_runtime_head": "91f435d846e8635fa05d0af7966e1e792dbcaf22",
+  "latest_visually_accepted_runtime_head": "91f435d846e8635fa05d0af7966e1e792dbcaf22",
+  "runtime_fingerprint": "13817a2edb21606fd85d77b15842a78f32b18beb60a3357c3c3fa33adc06625a",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 720,
-    "run_id": 33264583082,
+    "run_number": 728,
+    "run_id": 33271207673,
     "conclusion": "success",
-    "runtime_head": "ccda21ea8b671040f859debdd8def46831994f56",
-    "apk_artifact": 9718272504,
-    "runtime_fingerprint_artifact": 9718272774,
-    "apk_sha256": "7dc08e2040f6b8ff9319b0561c5453b3f639d94638f45185d087627566662623"
+    "runtime_head": "91f435d846e8635fa05d0af7966e1e792dbcaf22",
+    "apk_artifact": 9720171362,
+    "runtime_fingerprint_artifact": 9720171532,
+    "apk_sha256": "546ee6d4f634c11f3675cc06b158898f55f0b6537168256b6d343d159c27c156"
   },
   "latest_visual_proof": {
     "name": "Celine Avatar Lab Proof",
-    "run_number": 128,
-    "run_id": 33264728292,
-    "proof_head": "ccda21ea8b671040f859debdd8def46831994f56",
-    "runtime_head": "ccda21ea8b671040f859debdd8def46831994f56",
-    "artifact_id": 9718449037,
-    "artifact_digest": "sha256:02c9917036e20f9503b79697bc6b3263b6d64149139a715dadc20fcd07a49126",
+    "run_number": 136,
+    "run_id": 33271338517,
+    "proof_head": "91f435d846e8635fa05d0af7966e1e792dbcaf22",
+    "runtime_head": "91f435d846e8635fa05d0af7966e1e792dbcaf22",
+    "artifact_id": 9720262186,
+    "artifact_digest": "sha256:a23eb0f5042ffe9e2c319e7f321d38d9ac0ed694ccf4ea90a26315e6b5f8df9c",
     "workflow_conclusion": "success",
-    "manual_inspection": "PASS_9R3_BED_CHAIN",
-    "note": "9R.3 technically and manually accepted: supported edge sit, supported relaxed recline, stable mattress lie, coherent reverse sit-up/edge-sit/stand chain, controlled departure, no visible teleport/root snap/deep penetration, fixed camera, camera-talk return ratio 0.982, chair phase remained locked. Proof #124-#127 remain historical manual rejects and are not acceptance evidence."
+    "manual_inspection": "PASS_9R4_CHAIR_CHAIN",
+    "note": "9R.4 technically and manually accepted on exact PR head 91f435d8 via runtime-equivalent Android Build #728. Proof #136 visibly shows Celine supported on the white lounge-chair cushion with coherent pelvis/thigh placement, coherent legs/feet, stable relaxed hold, controlled stand/walk-away and restored fixed camera-talk framing. Technical summary reports TELEPORT=false; runtime logs report centralOwner=true and camera return snap=false. Proofs #130, #131, #132, #134 and #135 remain historical manual rejects and are not acceptance evidence. GitHub synthetic PR merge commit 353d32ae is build metadata only, not a branch writer."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -46,28 +46,29 @@
     "9": "Lifecycle and temporal stability",
     "9R.1": "Locomotion foundation",
     "9R.2": "Camera/table interactions",
-    "9R.3": "Bed chain"
+    "9R.3": "Bed chain",
+    "9R.4": "Chair chain"
   },
   "active_block": {
-    "number": "9R.4",
-    "name": "Chair chain",
+    "number": "9R.5",
+    "name": "Environment destinations — window first",
     "status": "ready_for_read_only_audit"
   },
   "current_blocker": null,
-  "exact_next_action": "Reconcile the new docs-only branch head, then read-only audit chair_approach_anchor, chair_sit_anchor, their prepared contact edge, chair seat contact plane and the existing CelineProductionPresenceV80 central owner. Implement only the smallest deterministic 9R.4 chain required by the canonical room trunk: walk -> chair approach -> sit -> relaxed hold -> stand -> walk away. Keep CelineProductionPresenceV80 as the single Filament root/body writer, protect accepted 9R.1 locomotion and 9R.2 table plus accepted 9R.3 bed chain, fixed camera, HOME/CALL, final room, gaze/blink/body layers and PCM lip sync. Runtime change gets exactly one Android build; then exactly one targeted 9R.4 proof and mandatory manual visual inspection. Do not start the next 9R substep until 9R.4 is technically and manually accepted and documented.",
+  "exact_next_action": "Reconcile the docs-only acceptance head, then begin 9R.5 strictly one destination at a time with window_anchor only. Read-only audit the prepared window anchor, its nav predecessors/successors, clearance/collider relationship and CelineProductionPresenceV80 central owner. Implement only the smallest deterministic window behavior required by the canonical room trunk: walk to window -> stable window stand/orientation -> brief outward-looking hold with a bounded glance/re-acquisition toward the user -> walk away/return. Do not modify accepted 9R.1 locomotion, 9R.2 table, 9R.3 bed, 9R.4 chair, fixed camera, HOME/CALL, final room, gaze/blink/body layers or PCM lip sync. After the single bounded window runtime change, run exactly one Android build, exactly one targeted window proof and mandatory manual visual inspection before dresser/mirror/shelf/lamp work.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge or release during bounded 9R.4 implementation.",
-    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2 or 9R.3 without new exact independent evidence.",
-    "Do not start the next 9R substep until 9R.4 is technically and manually accepted and documented.",
+    "Do not merge or release during bounded 9R.5 environment-destination implementation.",
+    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3 or 9R.4 without new exact independent evidence.",
+    "9R.5 destinations are strictly sequential: window first; do not start dresser, mirror, shelf or lamp until the preceding destination is technically and manually accepted and documented.",
     "Workflow SUCCESS is not visual acceptance."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "9R.4-chair-chain",
-    "next_substep_after_acceptance": "next canonical 9R substep from the room execution trunk",
+    "current_substep": "9R.5-window",
+    "next_substep_after_acceptance": "9R.5-dresser",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
   }
