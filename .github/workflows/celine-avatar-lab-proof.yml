@@ -155,9 +155,10 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          # 9R.1 is independently fail-closed and must not be masked by the unrelated Settings
-          # tail. Retain the complete composite as the default for later full-surface checks.
-          script: if [ "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" = "9r1" ]; then timeout 540s bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof; else timeout 600s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'; fi
+          # 9R.1 is independently fail-closed and must not be masked by unrelated Settings.
+          # The extra per-frame silhouette guard makes the isolated proof slower, so retain bounded
+          # headroom for the complete camera-return idle/final evidence instead of timing out late.
+          script: if [ "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" = "9r1" ]; then timeout 720s bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof; else timeout 600s bash -lc 'bash ci/avatar-lab-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof && bash ci/celine-avatar-lab-settings-proof.sh ci-apk/app-debug.apk avatar-lab-proof'; fi
 
       - name: Fail-closed evidence preflight
         if: success() && !((github.event_name == 'workflow_dispatch' && inputs.proof_scope == '9r1') || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]')))
