@@ -38,6 +38,11 @@ final class CelineRoomNavigatorV9R {
     // fixed camera. Proof #117 accepted this exact window root position and facing with grounded
     // visible feet; 9R.5 therefore keeps both intact and turns only the upper body/head.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
+    // Shelf is wall-mounted and has no floor collider/contact target. Reusing the full Window
+    // depth offset would move the shelf hold into the protected lounge-chair AABB. Keep authored
+    // shelf depth and move only 0.20 m toward room center: the back-center -> shelf segment retains
+    // >0.43 m AABB clearance for the 0.35 m avatar capsule, while the hold stays >0.57 m from chair.
+    private static final float SHELF_SAFETY_X_OFFSET_M = 0.20f;
     // Dresser Proof #145 showed the minimum side-clearance anchor is outside useful framing;
     // Proof #147 showed an X-only move toward room center still projects Celine through the white
     // lounge-chair silhouette. The final room contract places the camera on +Z, so use a bounded
@@ -130,8 +135,10 @@ final class CelineRoomNavigatorV9R {
                 "anchors=" + world.anchors.size() + " edges=" + edges.length()
                         + " cameraChase=false teleport=false"
                         + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
-                        + " corridor=back_center>shelf>window"
+                        + " corridor=back_center>window"
                         + " windowRootFacing=accepted9R1"
+                        + " shelfSafetyX=+" + SHELF_SAFETY_X_OFFSET_M
+                        + " shelfDepth=authored shelfReach=false shelfBookPickup=false"
                         + " dresserSafetyX=+" + DRESSER_SAFETY_X_OFFSET_M
                         + " dresserSafetyZ=+" + DRESSER_SAFETY_Z_OFFSET_M
                         + " dresserContact=false"
@@ -150,12 +157,17 @@ final class CelineRoomNavigatorV9R {
 
         float resolvedFacing = resolvedFacing(source);
 
-        if (BACK_CENTER_ANCHOR.equals(source.id)
-                || SHELF_ANCHOR.equals(source.id)
-                || WINDOW_ANCHOR.equals(source.id)) {
+        if (BACK_CENTER_ANCHOR.equals(source.id) || WINDOW_ANCHOR.equals(source.id)) {
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     source.localX, source.localY, source.localZ + WINDOW_SAFETY_Z_OFFSET_M,
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (SHELF_ANCHOR.equals(source.id)) {
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    source.localX + SHELF_SAFETY_X_OFFSET_M, source.localY, source.localZ,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
