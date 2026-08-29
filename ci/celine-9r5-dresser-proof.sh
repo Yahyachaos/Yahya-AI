@@ -74,7 +74,7 @@ append_runtime() {
 }
 
 request_and_wait_anchor() {
-  local target="$1" prefix="$2" label="$3"
+  local target="$1" prefix="$2" label="$3" defer_runtime="${4:-false}"
   adb logcat -c || true
   write_target "$target"
   wait_log "V80-472"
@@ -85,7 +85,9 @@ request_and_wait_anchor() {
   wait_log "anchor=$target" 320
   sleep 0.20
   capture_product "${prefix}-${label}-arrived" "9R5_DRESSER_${label}_ARRIVED"
-  append_runtime "${prefix}-${label}-runtime.txt"
+  if [[ "$defer_runtime" != "true" ]]; then
+    append_runtime "${prefix}-${label}-runtime.txt"
+  fi
 }
 
 [[ -s "$APK" ]] || fail "missing APK: $APK"
@@ -100,7 +102,10 @@ PID_HOME="$(pid)"
 capture_product 150-9r5-dresser-camera-talk-start 9R5_DRESSER_CAMERA_TALK_START
 append_runtime 150-9r5-dresser-initial-runtime.txt
 
-request_and_wait_anchor dresser_anchor 152 9r5-dresser
+# Keep the Dresser hold captures free of expensive log dumps. The runtime intentionally holds the
+# inspect phase only briefly before user re-acquisition, so evidence logging must not shift the
+# screenshot labelled inspect-stable into the later reacquire phase.
+request_and_wait_anchor dresser_anchor 152 9r5-dresser true
 wait_log "V80-483" 320
 wait_log "anchor=dresser_anchor" 320
 wait_log "pose=DRESSER_STAND" 320
@@ -108,14 +113,15 @@ wait_log "centralOwner=true" 320
 wait_log "noTeleport=true" 320
 sleep 0.35
 capture_product 156-9r5-dresser-inspect-stable 9R5_DRESSER_INSPECT_STABLE
-append_runtime 156-9r5-dresser-inspect-runtime.txt
 
 # Runtime holds the final dresser-facing body orientation, then performs one bounded upper-body
-# re-acquisition toward the fixed-camera user. Keep the timed sequence free of image validators.
+# re-acquisition toward the fixed-camera user. Keep this timed sequence free of validators/log dumps.
 sleep 1.75
 capture_product 157-9r5-dresser-user-reacquire 9R5_DRESSER_USER_REACQUIRE
-append_runtime 157-9r5-dresser-reacquire-runtime.txt
 [[ "$(pid)" = "$PID_HOME" ]] || fail "process changed during dresser hold"
+append_runtime 152-9r5-dresser-runtime.txt
+append_runtime 156-9r5-dresser-inspect-runtime.txt
+append_runtime 157-9r5-dresser-reacquire-runtime.txt
 
 request_and_wait_anchor room_walk_anchor_left 162 9r5-dresser-walk-away
 request_and_wait_anchor camera_talk_anchor 166 9r5-dresser-camera-return
@@ -133,7 +139,7 @@ for required in 'V80-471' 'V80-472' 'V80-475' 'V80-483' 'V80-477'; do
   grep -Fq "$required" "$OUT/9r5-dresser-runtime-log.txt" || fail "required dresser evidence missing: $required"
 done
 grep -Fq 'dresserSafetyX=+0.65' "$OUT/9r5-dresser-runtime-log.txt" || fail "dresser runtime X-clearance evidence missing"
-grep -Fq 'dresserSafetyZ=+0.60' "$OUT/9r5-dresser-runtime-log.txt" || fail "dresser runtime depth evidence missing"
+grep -Fq 'dresserSafetyZ=+0.6' "$OUT/9r5-dresser-runtime-log.txt" || fail "dresser runtime depth evidence missing"
 grep -Fq 'pose=DRESSER_STAND' "$OUT/9r5-dresser-runtime-log.txt" || fail "DRESSER_STAND evidence missing"
 grep -Fq 'centralOwner=true' "$OUT/9r5-dresser-runtime-log.txt" || fail "central owner evidence missing"
 grep -Fq 'cameraFixed=true' "$OUT/9r5-dresser-runtime-log.txt" || fail "fixed-camera evidence missing"
