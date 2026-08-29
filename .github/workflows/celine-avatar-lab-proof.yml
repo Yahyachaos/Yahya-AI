@@ -158,7 +158,6 @@ jobs:
           # 9R.1 is independently fail-closed and must not be masked by the unrelated Settings
           # tail. Retain the complete composite as the default for later full-surface checks.
           script: |
-            set -euo pipefail
             if [ "${{ github.event_name == 'workflow_dispatch' && inputs.proof_scope || contains(github.event.pull_request.body, '[run-avatar-lab-proof:9r1]') && '9r1' || 'full' }}" = "9r1" ]; then
               timeout 420s bash ci/celine-scene-integration-proof.sh ci-apk/app-debug.apk avatar-lab-proof
             else
