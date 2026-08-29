@@ -76,53 +76,34 @@ run_destination() {
   local target="$1" prefix="$2" label="$3"
   adb logcat -c || true
   write_target "$target"
-
   wait_log "V80-472"
   wait_log "target=$target"
   wait_log "V80-473"
   sleep 0.24
   capture_product "${prefix}-${label}-turn" "9R1_${label}_TURN"
-
   wait_log "V80-474"
   capture_product "${prefix}-${label}-walk-a" "9R1_${label}_WALK_A"
   sleep 0.40
   capture_product "${prefix}-${label}-walk-b" "9R1_${label}_WALK_B"
-
   wait_log "V80-475" 180
   wait_log "anchor=$target" 180
   capture_product "${prefix}-${label}-stop" "9R1_${label}_STOP"
   sleep 1.05
   capture_product "${prefix}-${label}-idle" "9R1_${label}_IDLE"
-
   adb logcat -d -v threadtime > "$OUT/${prefix}-${label}-runtime.txt" 2>&1 || true
   cat "$OUT/${prefix}-${label}-runtime.txt" >> "$OUT/9r1-runtime-log.txt"
-
-  grep -Fq "V80-472" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label missing accepted-route evidence"
-  grep -Fq "target=$target" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label missing exact target evidence"
-  grep -Fq "cameraFixed=true" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label did not preserve fixed webcam camera contract"
-  grep -Fq "V80-473" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label missing turn-before-walk evidence"
-  grep -Fq "V80-474" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label missing Walking activation evidence"
-  grep -Fq "clip=Walking" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label did not use canonical Walking clip"
-  grep -Fq "sourceSha256=95c68ce04d85bbffbb2fd3253dc211bb4047283744b0efa83717353b62d03b83" \
-    "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label canonical Walking source SHA mismatch"
-  grep -Fq "V80-475" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label missing final anchor evidence"
-  grep -Fq "anchor=$target" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label did not reach requested final anchor"
-  grep -Fq "walkStopped=true" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label did not stop the gait at arrival"
-  grep -Fq "noTeleport=true" "$OUT/${prefix}-${label}-runtime.txt" \
-    || fail "$label missing no-teleport arrival contract"
-
-  if grep -Eq 'V80-479|V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|FATAL EXCEPTION|SIGABRT' \
-      "$OUT/${prefix}-${label}-runtime.txt"; then
+  grep -Fq "V80-472" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label missing accepted-route evidence"
+  grep -Fq "target=$target" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label missing exact target evidence"
+  grep -Fq "cameraFixed=true" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label did not preserve fixed webcam camera contract"
+  grep -Fq "V80-473" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label missing turn-before-walk evidence"
+  grep -Fq "V80-474" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label missing Walking activation evidence"
+  grep -Fq "clip=Walking" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label did not use canonical Walking clip"
+  grep -Fq "sourceSha256=95c68ce04d85bbffbb2fd3253dc211bb4047283744b0efa83717353b62d03b83" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label canonical Walking source SHA mismatch"
+  grep -Fq "V80-475" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label missing final anchor evidence"
+  grep -Fq "anchor=$target" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label did not reach requested final anchor"
+  grep -Fq "walkStopped=true" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label did not stop the gait at arrival"
+  grep -Fq "noTeleport=true" "$OUT/${prefix}-${label}-runtime.txt" || fail "$label missing no-teleport arrival contract"
+  if grep -Eq 'V80-479|V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|FATAL EXCEPTION|SIGABRT' "$OUT/${prefix}-${label}-runtime.txt"; then
     fail "$label runtime/source failure detected"
   fi
 }
@@ -132,14 +113,12 @@ adb install -r "$APK" >/dev/null
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c || true
 adb shell am start -W -n "$ACTIVITY" >/dev/null
-
 wait_text "Mit Celin" /sdcard/9r1-home.xml "$OUT/15-9r1-home.xml"
 sleep 1.5
 PID_HOME="$(pid)"
 [[ -n "$PID_HOME" ]] || fail "HOME process missing"
 grep -Fq 'Celin 3D Ansicht' "$OUT/15-9r1-home.xml" || fail "HOME 3D stage missing"
 capture_product 15-9r1-camera-talk-start 9R1_CAMERA_TALK_START
-
 run_destination bed_approach_anchor 16 9r1-bed
 [[ "$(pid)" = "$PID_HOME" ]] || fail "process changed after bed route"
 run_destination chair_approach_anchor 21 9r1-chair
@@ -148,21 +127,15 @@ run_destination window_anchor 26 9r1-window
 [[ "$(pid)" = "$PID_HOME" ]] || fail "process changed after window route"
 run_destination camera_talk_anchor 31 9r1-camera-return
 [[ "$(pid)" = "$PID_HOME" ]] || fail "process changed after camera return route"
-
 sleep 1.1
 capture_product 36-9r1-camera-final 9R1_CAMERA_FINAL
-python3 ci/check-home-return-zoom.py \
-  "$OUT/15-9r1-camera-talk-start.png" "$OUT/36-9r1-camera-final.png" \
-  | tee "$OUT/9r1-camera-return-zoom.txt"
-
+python3 ci/check-home-return-zoom.py "$OUT/15-9r1-camera-talk-start.png" "$OUT/36-9r1-camera-final.png" | tee "$OUT/9r1-camera-return-zoom.txt"
 for required in 'V80-472' 'V80-473' 'V80-474' 'V80-475'; do
   grep -Fq "$required" "$OUT/9r1-runtime-log.txt" || fail "required 9R.1 evidence missing: $required"
 done
-if grep -Eq 'V80-479|V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|FATAL EXCEPTION|SIGABRT' \
-    "$OUT/9r1-runtime-log.txt"; then
+if grep -Eq 'V80-479|V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|FATAL EXCEPTION|SIGABRT' "$OUT/9r1-runtime-log.txt"; then
   fail "runtime/source failure detected during 9R.1 route chain"
 fi
-
 cat > "$OUT/9r1-summary.txt" <<EOF
 PASS 9R.1 locomotion technical gate
 RUNTIME_HEAD=${GITHUB_SHA:-unknown}
@@ -177,5 +150,4 @@ TELEPORT=false
 CALL_SEATED_CONTRACT=untouched
 MANUAL_GAIT_FOOTSKATE_CLEARANCE_REVIEW=required
 EOF
-
 echo "PASS: 9R.1 bounded room locomotion chain completed; mandatory manual visual review still required."
