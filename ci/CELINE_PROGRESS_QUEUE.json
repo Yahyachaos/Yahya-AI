@@ -2,7 +2,7 @@
   "project": "Celine / Yahya AI",
   "mode": "continuous",
   "single_flight": true,
-  "source_of_truth": "Live GitHub is authoritative. The live-main Queue is bootstrap-only while a canonical unmerged Celine PR exists; reconcile that PR/branch, then use its newer Queue as the working Queue.",
+  "source_of_truth": "Live GitHub is authoritative. The live-main Queue is bootstrap-only while a canonical unmerged Celine PR exists; reconcile that PR/branch, then use its newer Queue as the working Queue. Never trust a hard-coded proof-only head over the actual live PR head.",
   "active_branch": "auto/celine/v80-human-videochat-presence",
   "active_pr": 111,
   "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
@@ -29,11 +29,10 @@
     "artifact_digest": "sha256:2948376b29c50a8e9b1d40d64114dbaff69d1a2407e2461d8ee3be1789845abe",
     "workflow_conclusion": "success",
     "manual_inspection": "FAIL_WINDOW_WALK_A_CELINE_ABSENT",
-    "note": "The original floating blocker is fixed: bed/chair/window STOP and IDLE now show floor contact and runtime logs report floorY=-1.55 soleY=-1.55 floorCalibrated=true. Manual inspection nevertheless found 26-9r1-window-walk-a.png with the room visible but Celine absent, so 9R.1 remains unaccepted despite green CI."
+    "note": "The original floating blocker is fixed: bed/chair/window STOP and IDLE show floor contact and runtime logs report floorY=-1.55 soleY=-1.55 floorCalibrated=true. Manual inspection nevertheless found 26-9r1-window-walk-a.png with the room visible but Celine absent, so 9R.1 remains unaccepted despite green CI."
   },
-  "current_proof_only_head": "06b1d3b35bc9b85855489d07a0958ba3942fd44e",
   "proof_harness_commit": "77034a6d8428b1d355de28e17d80784ab0c7b133",
-  "proof_only_change": "ci/celine-scene-integration-proof.sh now delays WALK captures into real gait time and adds a 9R.1 dark-body silhouette fail-closed guard so an empty/offscreen Celine frame cannot pass on warm room pixels. The newer queue commit is docs-only and leaves the same runtime fingerprint.",
+  "proof_only_change": "The targeted 9R.1 proof now delays WALK captures into actual gait time and adds a dark-body silhouette fail-closed guard so empty/offscreen Celine frames cannot pass on warm room pixels. Queue/docs commits after this remain runtime-equivalent.",
   "proof_only_scope_validation": {
     "workflow": "Android Build",
     "run_number": 693,
@@ -57,8 +56,8 @@
     "name": "Locomotion foundation",
     "status": "technical_runtime_fix_built_floor_contact_fixed_manual_reproof_pending"
   },
-  "current_blocker": "Proof #114 exposed one manually observed room-only window WALK_A frame that the previous warm-pixel person checker failed to reject. The proof harness is now fail-closed on this condition; one exact-current-head targeted reproof is required before manual acceptance.",
-  "exact_next_action": "Run exactly one targeted 9R.1 Avatar Lab proof on the actual current PR head, reusing the verified runtime-equivalent Build #688 APK by runtime fingerprint, then manually inspect every bed/chair/window/camera-return TURN/WALK/STOP/IDLE frame. Accept 9R.1 only if Celine remains visibly present throughout, floor contact is correct, and there is no foot skating, penetration, teleport, snap or camera regression.",
+  "current_blocker": "Proof #114 exposed one manually observed room-only window WALK_A frame that the previous warm-pixel person checker failed to reject. The proof harness is now fail-closed on this condition; one exact-current-live-head targeted reproof is required before manual acceptance.",
+  "exact_next_action": "Resolve the actual live PR head, run exactly one targeted 9R.1 Avatar Lab proof on that live head while reusing verified runtime-equivalent Build #688 by fingerprint, then manually inspect every bed/chair/window/camera-return TURN/WALK/STOP/IDLE frame. Accept 9R.1 only if Celine remains visibly present throughout, floor contact is correct, and there is no foot skating, penetration, teleport, snap or camera regression.",
   "constraints": [
     "No new branch or PR.",
     "Do not merge PR #111.",
