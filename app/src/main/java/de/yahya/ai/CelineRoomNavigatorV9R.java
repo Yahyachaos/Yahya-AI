@@ -19,9 +19,12 @@ import java.util.Set;
 /** Immutable 9R navigator over the already accepted 4R anchor/nav graph. */
 final class CelineRoomNavigatorV9R {
     private static final String TALK_ANCHOR = "camera_talk_anchor";
+    private static final String BACK_CENTER_ANCHOR = "back_center_nav_anchor";
+    private static final String SHELF_ANCHOR = "shelf_anchor";
     private static final String WINDOW_ANCHOR = "window_anchor";
-    // Manual 9R.1 evidence showed the accepted 4R window marker puts Celine inside the drape
-    // silhouette. Keep 4R immutable and move only the 9R locomotion hold toward the camera.
+    // Manual 9R.1 evidence showed the accepted 4R back/window corridor can place Celine behind
+    // the drape silhouette. Keep 4R immutable and move only the 9R runtime corridor toward the
+    // fixed camera. The final window hold already proved this bounded offset is clear of drapes.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
 
     private final CelineRoomWorldContractV80 world;
@@ -61,7 +64,8 @@ final class CelineRoomNavigatorV9R {
         Celine3DDiagnostics.record(context, "V80-471", "9R Nav-Graph geladen",
                 "anchors=" + world.anchors.size() + " edges=" + edges.length()
                         + " cameraChase=false teleport=false"
-                        + " windowSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M);
+                        + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
+                        + " corridor=back_center>shelf>window");
         return new CelineRoomNavigatorV9R(world, frozen);
     }
 
@@ -80,7 +84,9 @@ final class CelineRoomNavigatorV9R {
                     ? talk.facingYDeg : 180.0f;
         }
 
-        if (WINDOW_ANCHOR.equals(source.id)) {
+        if (BACK_CENTER_ANCHOR.equals(source.id)
+                || SHELF_ANCHOR.equals(source.id)
+                || WINDOW_ANCHOR.equals(source.id)) {
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     source.localX, source.localY, source.localZ + WINDOW_SAFETY_Z_OFFSET_M,
