@@ -7,8 +7,8 @@ package de.yahya.ai;
  * This class never writes Filament transforms. It only owns bounded pose/root targets which
  * CelineProductionPresenceV80 mixes into its existing single transform transaction.
  *
- * The accepted 9R.3 bed, 9R.4 chair, 9R.5 window and 9R.5 dresser paths remain unchanged.
- * Later 9R.5 destinations are added one at a time; mirror is the current bounded interaction.
+ * The accepted 9R.3 bed, 9R.4 chair, 9R.5 window, dresser and mirror paths remain unchanged.
+ * Later 9R.5 destinations are added one at a time; shelf is the current bounded interaction.
  */
 final class CelineBedPoseV9R3 {
     private static final String BED_APPROACH = "bed_approach_anchor";
@@ -20,6 +20,7 @@ final class CelineBedPoseV9R3 {
     private static final String WINDOW = "window_anchor";
     private static final String DRESSER = "dresser_anchor";
     private static final String MIRROR = "mirror_anchor";
+    private static final String SHELF = "shelf_anchor";
 
     private static final int HIPS = 0;
     private static final int SPINE = 1;
@@ -45,6 +46,7 @@ final class CelineBedPoseV9R3 {
     private static final float WINDOW_BLEND_PER_SECOND = 0.90f;
     private static final float DRESSER_BLEND_PER_SECOND = 1.05f;
     private static final float MIRROR_BLEND_PER_SECOND = 1.05f;
+    private static final float SHELF_BLEND_PER_SECOND = 1.05f;
 
     // Production rig pelvis height above the calibrated standing sole plane.
     private static final float STANDING_PELVIS_HEIGHT_M = 0.88f;
@@ -78,7 +80,8 @@ final class CelineBedPoseV9R3 {
     private static final float WINDOW_USER_NECK_YAW_DEG = 8.0f;
     private static final float WINDOW_USER_HEAD_YAW_DEG = 18.0f;
 
-    // Accepted 9R.5 Dresser calibration from Proof #152. Keep immutable while Mirror is added.
+    // Accepted 9R.5 Dresser calibration from Proof #152. Keep immutable while later destinations
+    // are added.
     private static final float DRESSER_REACQUIRE_DELAY_SECONDS = 1.35f;
     private static final float DRESSER_REACQUIRE_RAMP_SECONDS = 0.55f;
     private static final float DRESSER_INSPECT_NECK_PITCH_DEG = 4.0f;
@@ -87,11 +90,7 @@ final class CelineBedPoseV9R3 {
     private static final float DRESSER_USER_NECK_YAW_DEG = -22.0f;
     private static final float DRESSER_USER_HEAD_YAW_DEG = -50.0f;
 
-    // 9R.5 Mirror is an interaction_step at the accepted Dresser root. No hand contact and no
-    // reflection pipeline are required by the locked room contract. Keep the whole body facing the
-    // round mirror, add one small face-height head-tilt/check gesture, then make the same bounded
-    // side-to-user re-acquisition that is already visually coherent at this root. HIPS/legs stay
-    // untouched so the accepted grounded stance cannot be disturbed.
+    // Accepted 9R.5 Mirror calibration from Proof #156. Keep immutable while Shelf is added.
     private static final float MIRROR_REACQUIRE_DELAY_SECONDS = 1.50f;
     private static final float MIRROR_REACQUIRE_RAMP_SECONDS = 0.55f;
     private static final float MIRROR_CHECK_NECK_PITCH_DEG = -1.5f;
@@ -100,6 +99,20 @@ final class CelineBedPoseV9R3 {
     private static final float MIRROR_USER_SPINE02_YAW_DEG = -8.0f;
     private static final float MIRROR_USER_NECK_YAW_DEG = -22.0f;
     private static final float MIRROR_USER_HEAD_YAW_DEG = -50.0f;
+
+    // 9R.5 Shelf is a no-contact look interaction. The wall-mounted board/books expose no exact
+    // calibrated hand target and are >1 m from the safe standing root, so do not fake a reach or
+    // pickup. Briefly turn the upper torso/head toward the elevated shelf, then ease completely
+    // back to the normal camera-facing social layer. HIPS/legs/arms/hands stay untouched.
+    private static final float SHELF_REACQUIRE_DELAY_SECONDS = 1.45f;
+    private static final float SHELF_REACQUIRE_RAMP_SECONDS = 0.55f;
+    private static final float SHELF_LOOK_SPINE_YAW_DEG = 7.0f;
+    private static final float SHELF_LOOK_SPINE01_YAW_DEG = 6.0f;
+    private static final float SHELF_LOOK_SPINE02_YAW_DEG = 5.0f;
+    private static final float SHELF_LOOK_NECK_PITCH_DEG = -2.5f;
+    private static final float SHELF_LOOK_HEAD_PITCH_DEG = -5.0f;
+    private static final float SHELF_LOOK_NECK_YAW_DEG = 18.0f;
+    private static final float SHELF_LOOK_HEAD_YAW_DEG = 52.0f;
 
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
@@ -125,6 +138,8 @@ final class CelineBedPoseV9R3 {
     private float dresserHoldSeconds;
     private float mirrorBlend;
     private float mirrorHoldSeconds;
+    private float shelfBlend;
+    private float shelfHoldSeconds;
     private float rootX;
     private float rootY;
     private float rootZ;
@@ -148,6 +163,7 @@ final class CelineBedPoseV9R3 {
         require(world, WINDOW);
         require(world, DRESSER);
         require(world, MIRROR);
+        require(world, SHELF);
 
         edgeSeatRootY = world.bedMattressY - STANDING_PELVIS_HEIGHT_M;
         edgeOffsetX = edge.localX - approach.localX;
@@ -172,6 +188,7 @@ final class CelineBedPoseV9R3 {
         boolean windowTarget = enabled && WINDOW.equals(anchorId);
         boolean dresserTarget = enabled && DRESSER.equals(anchorId);
         boolean mirrorTarget = enabled && MIRROR.equals(anchorId);
+        boolean shelfTarget = enabled && SHELF.equals(anchorId);
         float edgeTarget = enabled && BED_EDGE.equals(anchorId) ? 1.0f : 0.0f;
         float relaxTarget = enabled && BED_RELAX.equals(anchorId) ? 1.0f : 0.0f;
         float lieTarget = enabled && BED_LIE.equals(anchorId) ? 1.0f : 0.0f;
@@ -200,6 +217,13 @@ final class CelineBedPoseV9R3 {
             mirrorHoldSeconds += dt;
         } else {
             mirrorHoldSeconds = 0.0f;
+        }
+        shelfBlend = approach(shelfBlend, shelfTarget ? 1.0f : 0.0f,
+                dt * SHELF_BLEND_PER_SECOND);
+        if (shelfTarget && shelfBlend >= 0.985f) {
+            shelfHoldSeconds += dt;
+        } else {
+            shelfHoldSeconds = 0.0f;
         }
 
         if (chairTarget) {
@@ -298,6 +322,7 @@ final class CelineBedPoseV9R3 {
         float window = home * smooth(windowBlend);
         float dresser = home * smooth(dresserBlend);
         float mirror = home * smooth(mirrorBlend);
+        float shelf = home * smooth(shelfBlend);
 
         // Accepted 9R.3 bed contribution.
         add(angles, SPINE, edge * 3.0f + relax * 2.0f + lie * 1.0f, 0.0f, 0.0f);
@@ -346,8 +371,7 @@ final class CelineBedPoseV9R3 {
                         + windowReacquire * WINDOW_USER_HEAD_YAW_DEG,
                 0.0f);
 
-        // Accepted 9R.5 dresser: root facing already points toward the sideboard. Keep that stable
-        // for a brief decor/top inspection, then return only upper spine/head/neck toward the user.
+        // Accepted 9R.5 dresser behavior from Proof #152.
         float dresserReacquireProgress = clamp(
                 (dresserHoldSeconds - DRESSER_REACQUIRE_DELAY_SECONDS)
                         / DRESSER_REACQUIRE_RAMP_SECONDS,
@@ -365,9 +389,7 @@ final class CelineBedPoseV9R3 {
                 dresserReacquire * DRESSER_USER_HEAD_YAW_DEG,
                 0.0f);
 
-        // 9R.5 mirror: keep the accepted Dresser root/facing, look at face height with a restrained
-        // head tilt as the bounded mirror-check gesture, then clearly re-acquire the fixed-camera
-        // user. No shoulder/arm/hand contribution is added, avoiding self/furniture intersection.
+        // Accepted 9R.5 mirror behavior from Proof #156.
         float mirrorReacquireProgress = clamp(
                 (mirrorHoldSeconds - MIRROR_REACQUIRE_DELAY_SECONDS)
                         / MIRROR_REACQUIRE_RAMP_SECONDS,
@@ -384,13 +406,34 @@ final class CelineBedPoseV9R3 {
                 mirrorCheck * MIRROR_CHECK_HEAD_PITCH_DEG,
                 mirrorReacquire * MIRROR_USER_HEAD_YAW_DEG,
                 mirrorCheck * MIRROR_CHECK_HEAD_ROLL_DEG);
+
+        // 9R.5 Shelf: at the safe authored-depth root, briefly look up/left toward the wall shelf
+        // and books, then fade this contribution completely so the protected social gaze layer
+        // naturally re-acquires the user. No arm/hand contribution exists because no target is safe.
+        float shelfReacquireProgress = clamp(
+                (shelfHoldSeconds - SHELF_REACQUIRE_DELAY_SECONDS)
+                        / SHELF_REACQUIRE_RAMP_SECONDS,
+                0.0f, 1.0f);
+        float shelfLook = shelf * (1.0f - smooth(shelfReacquireProgress));
+        add(angles, SPINE, 0.0f, shelfLook * SHELF_LOOK_SPINE_YAW_DEG, 0.0f);
+        add(angles, SPINE01, 0.0f, shelfLook * SHELF_LOOK_SPINE01_YAW_DEG, 0.0f);
+        add(angles, SPINE02, 0.0f, shelfLook * SHELF_LOOK_SPINE02_YAW_DEG, 0.0f);
+        add(angles, NECK,
+                shelfLook * SHELF_LOOK_NECK_PITCH_DEG,
+                shelfLook * SHELF_LOOK_NECK_YAW_DEG,
+                0.0f);
+        add(angles, HEAD,
+                shelfLook * SHELF_LOOK_HEAD_PITCH_DEG,
+                shelfLook * SHELF_LOOK_HEAD_YAW_DEG,
+                0.0f);
     }
 
     float activity() {
         return clamp(Math.max(
                 Math.max(edgeBlend, Math.max(relaxBlend, lieBlend)),
                 Math.max(Math.max(chairSitBlend, chairTurnBlend * 0.45f),
-                        Math.max(Math.max(windowBlend, dresserBlend), mirrorBlend))),
+                        Math.max(Math.max(windowBlend, dresserBlend),
+                                Math.max(mirrorBlend, shelfBlend)))),
                 0.0f, 1.0f);
     }
 
@@ -407,7 +450,7 @@ final class CelineBedPoseV9R3 {
     boolean isBedAnchor(String id) {
         return BED_EDGE.equals(id) || BED_RELAX.equals(id) || BED_LIE.equals(id)
                 || BED_EXIT.equals(id) || CHAIR_SIT.equals(id) || WINDOW.equals(id)
-                || DRESSER.equals(id) || MIRROR.equals(id);
+                || DRESSER.equals(id) || MIRROR.equals(id) || SHELF.equals(id);
     }
 
     boolean settled(String anchorId) {
@@ -420,6 +463,7 @@ final class CelineBedPoseV9R3 {
         float targetWindow = WINDOW.equals(anchorId) ? 1.0f : 0.0f;
         float targetDresser = DRESSER.equals(anchorId) ? 1.0f : 0.0f;
         float targetMirror = MIRROR.equals(anchorId) ? 1.0f : 0.0f;
+        float targetShelf = SHELF.equals(anchorId) ? 1.0f : 0.0f;
         return Math.abs(edgeBlend - targetEdge) < 0.025f
                 && Math.abs(relaxBlend - targetRelax) < 0.025f
                 && Math.abs(lieBlend - targetLie) < 0.025f
@@ -428,6 +472,7 @@ final class CelineBedPoseV9R3 {
                 && Math.abs(windowBlend - targetWindow) < 0.025f
                 && Math.abs(dresserBlend - targetDresser) < 0.025f
                 && Math.abs(mirrorBlend - targetMirror) < 0.025f
+                && Math.abs(shelfBlend - targetShelf) < 0.025f
                 && Math.abs(rootX - targetRootX) < 0.020f
                 && Math.abs(rootY - targetRootY) < 0.020f
                 && Math.abs(rootZ - targetRootZ) < 0.020f
@@ -444,6 +489,7 @@ final class CelineBedPoseV9R3 {
         if (WINDOW.equals(anchorId)) return "WINDOW_STAND";
         if (DRESSER.equals(anchorId)) return "DRESSER_STAND";
         if (MIRROR.equals(anchorId)) return "MIRROR_STAND";
+        if (SHELF.equals(anchorId)) return "SHELF_STAND";
         return "STAND_TALK";
     }
 
