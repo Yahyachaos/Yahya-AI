@@ -7,8 +7,10 @@ OUT="${2:-avatar-lab-proof}"
 PACKAGE="de.yahya.ai"
 ACTIVITY="de.yahya.ai/.MainActivity"
 ROOM_MARKER="celine-ci-room-action-v9r"
+CAPTURE_MANIFEST="$OUT/9r5-window-capture-manifest.tsv"
 mkdir -p "$OUT"
 : > "$OUT/9r5-window-runtime-log.txt"
+: > "$CAPTURE_MANIFEST"
 
 fail() {
   echo "9R.5 window proof ERROR: $*" >&2
@@ -22,8 +24,18 @@ capture_product() {
   local name="$1" label="$2"
   adb exec-out screencap -p > "$OUT/$name.png"
   [[ -s "$OUT/$name.png" ]] || fail "empty screenshot: $name"
-  python3 ci/check-real-celine-render.py "$OUT/$name.png" "$label"
-  python3 ci/check-celine-person-presence.py "$OUT/$name.png" "$label"
+  # Keep the timed runtime sequence free of slow image-analysis work. Proof #142 showed that
+  # synchronous validators consumed the entire outward hold before the outward frame was sampled.
+  printf '%s\t%s\n' "$name" "$label" >> "$CAPTURE_MANIFEST"
+}
+
+validate_products() {
+  local name label
+  while IFS=$'\t' read -r name label; do
+    [[ -n "$name" && -n "$label" ]] || fail "invalid capture manifest entry"
+    python3 ci/check-real-celine-render.py "$OUT/$name.png" "$label"
+    python3 ci/check-celine-person-presence.py "$OUT/$name.png" "$label"
+  done < "$CAPTURE_MANIFEST"
 }
 
 wait_text() {
@@ -113,6 +125,9 @@ wait_log "V80-477" 260
 sleep 1.0
 capture_product 144-9r5-window-camera-talk-final 9R5_WINDOW_CAMERA_TALK_FINAL
 append_runtime 144-9r5-window-camera-final-runtime.txt
+
+# Validate only after the complete timed sequence so validation latency cannot alter pose phase.
+validate_products
 python3 ci/check-home-return-zoom.py \
   "$OUT/130-9r5-window-camera-talk-start.png" "$OUT/144-9r5-window-camera-talk-final.png" \
   | tee "$OUT/9r5-window-camera-return-zoom.txt"
