@@ -22,6 +22,7 @@ final class CelineRoomNavigatorV9R {
     private static final String BACK_CENTER_ANCHOR = "back_center_nav_anchor";
     private static final String SHELF_ANCHOR = "shelf_anchor";
     private static final String WINDOW_ANCHOR = "window_anchor";
+    private static final String DRESSER_ANCHOR = "dresser_anchor";
     private static final String TABLE_APPROACH_ANCHOR = "foreground_table_approach_anchor";
     private static final String TABLE_LEAN_ANCHOR = "foreground_table_lean_anchor";
     private static final String BED_APPROACH_ANCHOR = "bed_approach_anchor";
@@ -36,6 +37,11 @@ final class CelineRoomNavigatorV9R {
     // fixed camera. Proof #117 accepted this exact window root position and facing with grounded
     // visible feet; 9R.5 therefore keeps both intact and turns only the upper body/head.
     private static final float WINDOW_SAFETY_Z_OFFSET_M = 0.65f;
+    // The prepared dresser anchor is 0.3339 m from the final dresser AABB while the accepted 9R
+    // navigation capsule radius is 0.35 m. Move only the runtime destination 8 cm toward room
+    // center so the standing hold clears the conservative capsule without changing 4R metadata,
+    // route topology, dresser facing, or any accepted earlier destination.
+    private static final float DRESSER_SAFETY_X_OFFSET_M = 0.08f;
 
     private final CelineRoomWorldContractV80 world;
     private final Map<String, List<String>> graph;
@@ -123,6 +129,8 @@ final class CelineRoomNavigatorV9R {
                         + " drapeCorridorSafetyZ=+" + WINDOW_SAFETY_Z_OFFSET_M
                         + " corridor=back_center>shelf>window"
                         + " windowRootFacing=accepted9R1"
+                        + " dresserSafetyX=+" + DRESSER_SAFETY_X_OFFSET_M
+                        + " dresserContact=false"
                         + " tableContactEdge=true bedContactEdges=" + bedContactEdgesEnabled
                         + " bedExitBridge=true bedContactRootOwnedByCentralPose=true"
                         + " chairContact=true chairContactRootOwnedByCentralPose=true"
@@ -142,6 +150,13 @@ final class CelineRoomNavigatorV9R {
             return new CelineRoomWorldContractV80.Anchor(
                     source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
                     source.localX, source.localY, source.localZ + WINDOW_SAFETY_Z_OFFSET_M,
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (DRESSER_ANCHOR.equals(source.id)) {
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    source.localX + DRESSER_SAFETY_X_OFFSET_M, source.localY, source.localZ,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 

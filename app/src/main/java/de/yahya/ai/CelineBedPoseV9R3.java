@@ -7,8 +7,8 @@ package de.yahya.ai;
  * This class never writes Filament transforms. It only owns bounded pose/root targets which
  * CelineProductionPresenceV80 mixes into its existing single transform transaction.
  *
- * The accepted 9R.3 bed and 9R.4 chair paths remain unchanged. 9R.5 adds destinations one at a
- * time; the first addition is a standing window orientation/brief user-reacquisition contribution.
+ * The accepted 9R.3 bed, 9R.4 chair and 9R.5 window paths remain unchanged. Later 9R.5
+ * destinations are added one at a time; dresser is the current bounded standing destination.
  */
 final class CelineBedPoseV9R3 {
     private static final String BED_APPROACH = "bed_approach_anchor";
@@ -18,6 +18,7 @@ final class CelineBedPoseV9R3 {
     private static final String BED_EXIT = "bed_exit_anchor";
     private static final String CHAIR_SIT = "chair_sit_anchor";
     private static final String WINDOW = "window_anchor";
+    private static final String DRESSER = "dresser_anchor";
 
     private static final int HIPS = 0;
     private static final int SPINE = 1;
@@ -41,6 +42,7 @@ final class CelineBedPoseV9R3 {
     private static final float POSE_BLEND_PER_SECOND = 1.85f;
     private static final float ROOT_BLEND_PER_SECOND = 1.55f;
     private static final float WINDOW_BLEND_PER_SECOND = 0.90f;
+    private static final float DRESSER_BLEND_PER_SECOND = 1.05f;
 
     // Production rig pelvis height above the calibrated standing sole plane.
     private static final float STANDING_PELVIS_HEIGHT_M = 0.88f;
@@ -63,11 +65,7 @@ final class CelineBedPoseV9R3 {
     private static final float CHAIR_STAND_BLEND_PER_SECOND = 3.80f;
     private static final float CHAIR_UNTURN_BLEND_PER_SECOND = 0.72f;
 
-    // 9R.5 Proofs #137/#139 proved that neither articulated HIPS yaw nor a large root yaw is safe
-    // beside the final drape. Preserve the accepted 9R.1 root/feet exactly; only the Spine chain
-    // turns modestly. Head/neck then supply the large outward look and a clearly distinct return.
-    // The gaze clock starts only after the window pose itself is settled, so proof captures cannot
-    // accidentally sample the same phase twice.
+    // Accepted 9R.5 Window calibration. Proof #143 is the protected visual acceptance evidence.
     private static final float WINDOW_REACQUIRE_DELAY_SECONDS = 1.40f;
     private static final float WINDOW_REACQUIRE_RAMP_SECONDS = 0.55f;
     private static final float WINDOW_SPINE_YAW_DEG = -7.0f;
@@ -77,6 +75,19 @@ final class CelineBedPoseV9R3 {
     private static final float WINDOW_OUTWARD_HEAD_YAW_DEG = -52.0f;
     private static final float WINDOW_USER_NECK_YAW_DEG = 8.0f;
     private static final float WINDOW_USER_HEAD_YAW_DEG = 18.0f;
+
+    // 9R.5 Dresser is a standing/nav interaction only. The locked 4R contract has no calibrated
+    // dresser contact target, so no hand/arm contact is authored here. The accepted destination
+    // facing already points at the dresser. Hold that body/root orientation, briefly inspect the
+    // top/decor with a small downward head pitch, then make one clear bounded head/neck return to
+    // the fixed-camera user. Legs and HIPS remain untouched.
+    private static final float DRESSER_REACQUIRE_DELAY_SECONDS = 1.35f;
+    private static final float DRESSER_REACQUIRE_RAMP_SECONDS = 0.55f;
+    private static final float DRESSER_INSPECT_NECK_PITCH_DEG = 4.0f;
+    private static final float DRESSER_INSPECT_HEAD_PITCH_DEG = 8.0f;
+    private static final float DRESSER_USER_SPINE02_YAW_DEG = -8.0f;
+    private static final float DRESSER_USER_NECK_YAW_DEG = -22.0f;
+    private static final float DRESSER_USER_HEAD_YAW_DEG = -50.0f;
 
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
@@ -98,6 +109,8 @@ final class CelineBedPoseV9R3 {
     private float chairSitBlend;
     private float windowBlend;
     private float windowHoldSeconds;
+    private float dresserBlend;
+    private float dresserHoldSeconds;
     private float rootX;
     private float rootY;
     private float rootZ;
@@ -119,6 +132,7 @@ final class CelineBedPoseV9R3 {
         CelineRoomWorldContractV80.Anchor chairApproach = require(world, "chair_approach_anchor");
         CelineRoomWorldContractV80.Anchor chairSit = require(world, CHAIR_SIT);
         require(world, WINDOW);
+        require(world, DRESSER);
 
         edgeSeatRootY = world.bedMattressY - STANDING_PELVIS_HEIGHT_M;
         edgeOffsetX = edge.localX - approach.localX;
@@ -141,6 +155,7 @@ final class CelineBedPoseV9R3 {
         requestedAnchor = enabled && anchorId != null ? anchorId : BED_APPROACH;
         boolean chairTarget = enabled && CHAIR_SIT.equals(anchorId);
         boolean windowTarget = enabled && WINDOW.equals(anchorId);
+        boolean dresserTarget = enabled && DRESSER.equals(anchorId);
         float edgeTarget = enabled && BED_EDGE.equals(anchorId) ? 1.0f : 0.0f;
         float relaxTarget = enabled && BED_RELAX.equals(anchorId) ? 1.0f : 0.0f;
         float lieTarget = enabled && BED_LIE.equals(anchorId) ? 1.0f : 0.0f;
@@ -155,6 +170,13 @@ final class CelineBedPoseV9R3 {
             windowHoldSeconds += dt;
         } else {
             windowHoldSeconds = 0.0f;
+        }
+        dresserBlend = approach(dresserBlend, dresserTarget ? 1.0f : 0.0f,
+                dt * DRESSER_BLEND_PER_SECOND);
+        if (dresserTarget && dresserBlend >= 0.985f) {
+            dresserHoldSeconds += dt;
+        } else {
+            dresserHoldSeconds = 0.0f;
         }
 
         if (chairTarget) {
@@ -241,7 +263,8 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOOT, chair * -7.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOOT, chair * -7.0f, 0.0f, 0.0f);
 
-        // 9R.5 intentionally never yaws HIPS/legs. Accepted 9R.1 owns root and foot placement.
+        // 9R.5 standing destinations intentionally never alter HIPS/legs. Accepted locomotion owns
+        // foot placement while central room yaw owns whole-body destination facing.
     }
 
     void applyPosture(float[] angles, float home) {
@@ -250,6 +273,7 @@ final class CelineBedPoseV9R3 {
         float lie = home * smooth(lieBlend);
         float chair = home * smooth(chairSitBlend);
         float window = home * smooth(windowBlend);
+        float dresser = home * smooth(dresserBlend);
 
         // Accepted 9R.3 bed contribution.
         add(angles, SPINE, edge * 3.0f + relax * 2.0f + lie * 1.0f, 0.0f, 0.0f);
@@ -277,34 +301,52 @@ final class CelineBedPoseV9R3 {
         add(angles, LEFT_FOREARM, chair * -20.0f, 0.0f, 0.0f);
         add(angles, RIGHT_FOREARM, chair * -18.0f, 0.0f, 0.0f);
 
-        // 9R.5 window: feet/root remain in the accepted 9R.1 hold. Only the Spine chain supplies
-        // a modest body turn, while neck/head create an approximately side-on outward look. Once
-        // settled, a deterministic ramp returns the face toward the user without moving the legs.
+        // Accepted 9R.5 window behavior from Proof #143.
         add(angles, SPINE, 0.0f, window * WINDOW_SPINE_YAW_DEG, 0.0f);
         add(angles, SPINE01, 0.0f, window * WINDOW_SPINE01_YAW_DEG, 0.0f);
         add(angles, SPINE02, 0.0f, window * WINDOW_SPINE02_YAW_DEG, 0.0f);
-        float reacquireProgress = clamp(
+        float windowReacquireProgress = clamp(
                 (windowHoldSeconds - WINDOW_REACQUIRE_DELAY_SECONDS)
                         / WINDOW_REACQUIRE_RAMP_SECONDS,
                 0.0f, 1.0f);
-        float reacquire = window * smooth(reacquireProgress);
-        float outward = window * (1.0f - smooth(reacquireProgress));
+        float windowReacquire = window * smooth(windowReacquireProgress);
+        float windowOutward = window * (1.0f - smooth(windowReacquireProgress));
         add(angles, NECK,
-                outward * -1.0f + reacquire * 0.5f,
-                outward * WINDOW_OUTWARD_NECK_YAW_DEG
-                        + reacquire * WINDOW_USER_NECK_YAW_DEG,
+                windowOutward * -1.0f + windowReacquire * 0.5f,
+                windowOutward * WINDOW_OUTWARD_NECK_YAW_DEG
+                        + windowReacquire * WINDOW_USER_NECK_YAW_DEG,
                 0.0f);
         add(angles, HEAD,
-                outward * -2.0f + reacquire * 1.5f,
-                outward * WINDOW_OUTWARD_HEAD_YAW_DEG
-                        + reacquire * WINDOW_USER_HEAD_YAW_DEG,
+                windowOutward * -2.0f + windowReacquire * 1.5f,
+                windowOutward * WINDOW_OUTWARD_HEAD_YAW_DEG
+                        + windowReacquire * WINDOW_USER_HEAD_YAW_DEG,
+                0.0f);
+
+        // 9R.5 dresser: root facing already points toward the sideboard. Keep that stable for a
+        // brief decor/top inspection, then return only upper spine/head/neck toward the user.
+        float dresserReacquireProgress = clamp(
+                (dresserHoldSeconds - DRESSER_REACQUIRE_DELAY_SECONDS)
+                        / DRESSER_REACQUIRE_RAMP_SECONDS,
+                0.0f, 1.0f);
+        float dresserReacquire = dresser * smooth(dresserReacquireProgress);
+        float dresserInspect = dresser * (1.0f - smooth(dresserReacquireProgress));
+        add(angles, SPINE02, 0.0f,
+                dresserReacquire * DRESSER_USER_SPINE02_YAW_DEG, 0.0f);
+        add(angles, NECK,
+                dresserInspect * DRESSER_INSPECT_NECK_PITCH_DEG,
+                dresserReacquire * DRESSER_USER_NECK_YAW_DEG,
+                0.0f);
+        add(angles, HEAD,
+                dresserInspect * DRESSER_INSPECT_HEAD_PITCH_DEG,
+                dresserReacquire * DRESSER_USER_HEAD_YAW_DEG,
                 0.0f);
     }
 
     float activity() {
         return clamp(Math.max(
                 Math.max(edgeBlend, Math.max(relaxBlend, lieBlend)),
-                Math.max(Math.max(chairSitBlend, chairTurnBlend * 0.45f), windowBlend)),
+                Math.max(Math.max(chairSitBlend, chairTurnBlend * 0.45f),
+                        Math.max(windowBlend, dresserBlend))),
                 0.0f, 1.0f);
     }
 
@@ -320,7 +362,8 @@ final class CelineBedPoseV9R3 {
      */
     boolean isBedAnchor(String id) {
         return BED_EDGE.equals(id) || BED_RELAX.equals(id) || BED_LIE.equals(id)
-                || BED_EXIT.equals(id) || CHAIR_SIT.equals(id) || WINDOW.equals(id);
+                || BED_EXIT.equals(id) || CHAIR_SIT.equals(id) || WINDOW.equals(id)
+                || DRESSER.equals(id);
     }
 
     boolean settled(String anchorId) {
@@ -331,12 +374,14 @@ final class CelineBedPoseV9R3 {
         float targetChairTurn = CHAIR_SIT.equals(anchorId) ? 1.0f : 0.0f;
         float targetChairSit = CHAIR_SIT.equals(anchorId) ? 1.0f : 0.0f;
         float targetWindow = WINDOW.equals(anchorId) ? 1.0f : 0.0f;
+        float targetDresser = DRESSER.equals(anchorId) ? 1.0f : 0.0f;
         return Math.abs(edgeBlend - targetEdge) < 0.025f
                 && Math.abs(relaxBlend - targetRelax) < 0.025f
                 && Math.abs(lieBlend - targetLie) < 0.025f
                 && Math.abs(chairTurnBlend - targetChairTurn) < 0.025f
                 && Math.abs(chairSitBlend - targetChairSit) < 0.025f
                 && Math.abs(windowBlend - targetWindow) < 0.025f
+                && Math.abs(dresserBlend - targetDresser) < 0.025f
                 && Math.abs(rootX - targetRootX) < 0.020f
                 && Math.abs(rootY - targetRootY) < 0.020f
                 && Math.abs(rootZ - targetRootZ) < 0.020f
@@ -351,6 +396,7 @@ final class CelineBedPoseV9R3 {
         if (BED_EXIT.equals(anchorId)) return "STAND_EXIT";
         if (CHAIR_SIT.equals(anchorId)) return "CHAIR_SIT";
         if (WINDOW.equals(anchorId)) return "WINDOW_STAND";
+        if (DRESSER.equals(anchorId)) return "DRESSER_STAND";
         return "STAND_TALK";
     }
 
