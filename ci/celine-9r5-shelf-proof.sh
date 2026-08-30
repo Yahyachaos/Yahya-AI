@@ -102,8 +102,9 @@ PID_HOME="$(pid)"
 capture_product 190-9r5-shelf-camera-talk-start 9R5_SHELF_CAMERA_TALK_START
 append_runtime 190-9r5-shelf-initial-runtime.txt
 
-# Reach Shelf through normal authored navigation. The runtime resolves Shelf to x +0.20 m while
-# retaining authored depth, keeping the back-center -> shelf route clear of the lounge-chair AABB.
+# Proof #158 established that authored Shelf depth is outside the fixed-camera reviewable room view.
+# The runtime now reuses the accepted Window +0.65 m camera-side depth correction and moves Shelf
+# +0.50 m toward room center, keeping both adjacent Shelf segments >0.4545 m right of the chair AABB.
 request_and_wait_anchor shelf_anchor 192 9r5-shelf true 0.55
 
 wait_log "V80-483" 320
@@ -140,8 +141,9 @@ python3 ci/check-home-return-zoom.py \
 for required in 'V80-471' 'V80-472' 'V80-475' 'V80-483' 'V80-477'; do
   grep -Fq "$required" "$OUT/9r5-shelf-runtime-log.txt" || fail "required shelf evidence missing: $required"
 done
-grep -Fq 'shelfSafetyX=+0.2' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf X safety evidence missing"
-grep -Fq 'shelfDepth=authored' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf authored-depth evidence missing"
+grep -Fq 'shelfSafetyX=+0.5' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf X safety evidence missing"
+grep -Fq 'shelfSafetyZ=+0.65' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf Z safety evidence missing"
+grep -Fq 'shelfDepth=cameraSide' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf camera-side depth evidence missing"
 grep -Fq 'shelfReach=false' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf no-reach evidence missing"
 grep -Fq 'shelfBookPickup=false' "$OUT/9r5-shelf-runtime-log.txt" || fail "shelf no-book-pickup evidence missing"
 grep -Fq 'pose=SHELF_STAND' "$OUT/9r5-shelf-runtime-log.txt" || fail "SHELF_STAND evidence missing"
@@ -157,7 +159,7 @@ PASS 9R.5 shelf technical gate
 RUNTIME_HEAD=${GITHUB_SHA:-unknown}
 CHAIN=camera_talk_to_shelf_look_to_user_reacquire_to_walk_away_to_camera_talk
 SHELF_STAND=central_owner_bounded_pose
-SHELF_ROOT=x_plus_0_20_authored_depth
+SHELF_ROOT=x_plus_0_50_camera_side_depth
 SHELF_REACH=false
 BOOK_PICKUP=false
 HAND_CONTACT=false

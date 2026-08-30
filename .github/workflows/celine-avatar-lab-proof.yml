@@ -303,14 +303,15 @@ jobs:
           test -s avatar-lab-proof/200-9r5-shelf-walk-away-arrived.png
           test -s avatar-lab-proof/206-9r5-shelf-camera-talk-final.png
           grep -Fq 'PASS 9R.5 shelf technical gate' avatar-lab-proof/9r5-shelf-summary.txt
-          grep -Fq 'SHELF_ROOT=x_plus_0_20_authored_depth' avatar-lab-proof/9r5-shelf-summary.txt
+          grep -Fq 'SHELF_ROOT=x_plus_0_50_camera_side_depth' avatar-lab-proof/9r5-shelf-summary.txt
           grep -Fq 'SHELF_REACH=false' avatar-lab-proof/9r5-shelf-summary.txt
           grep -Fq 'BOOK_PICKUP=false' avatar-lab-proof/9r5-shelf-summary.txt
           grep -Fq 'HAND_CONTACT=false' avatar-lab-proof/9r5-shelf-summary.txt
           grep -Fq 'TELEPORT=false' avatar-lab-proof/9r5-shelf-summary.txt
           grep -Fq 'pose=SHELF_STAND' avatar-lab-proof/9r5-shelf-runtime-log.txt
-          grep -Fq 'shelfSafetyX=+0.2' avatar-lab-proof/9r5-shelf-runtime-log.txt
-          grep -Fq 'shelfDepth=authored' avatar-lab-proof/9r5-shelf-runtime-log.txt
+          grep -Fq 'shelfSafetyX=+0.5' avatar-lab-proof/9r5-shelf-runtime-log.txt
+          grep -Fq 'shelfSafetyZ=+0.65' avatar-lab-proof/9r5-shelf-runtime-log.txt
+          grep -Fq 'shelfDepth=cameraSide' avatar-lab-proof/9r5-shelf-runtime-log.txt
           grep -Fq 'centralOwner=true' avatar-lab-proof/9r5-shelf-runtime-log.txt
           grep -Fq 'V80-477' avatar-lab-proof/9r5-shelf-runtime-log.txt
 
