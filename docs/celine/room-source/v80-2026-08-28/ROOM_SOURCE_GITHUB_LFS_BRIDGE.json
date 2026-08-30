@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "purpose": "Durable worker bridge from the canonical 12 original textured furniture GLBs to the accepted v80 modular room/runtime contracts.",
   "verification_date": "2026-08-30",
   "verification_result": "PASS_12_OF_12_GIT_LFS_POINTER_OID_AND_SIZE_MATCH_CANONICAL",
@@ -29,6 +29,16 @@
     "role_of_runtime_room": "optimized modular derivative used by the active v80 room/world implementation; raw 120-189 MB sources must not be copied directly into the APK",
     "active_implementation_branch": "auto/celine/v80-human-videochat-presence",
     "active_pr": 111,
+    "committed_runtime_room_asset": {
+      "path": "app/src/main/assets/models/room/celine_room_v80_final_modular.glb",
+      "size_bytes": 46580788,
+      "sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
+      "git_storage": "normal_git_blob_not_lfs_required",
+      "materialized_from_parts": true,
+      "source_commit_introduced": "6c76b9bf2cf10825362f5d00c7cde267da020767",
+      "runtime_loader": "CelineRoomEnvironmentV80 ROOM_PATH=models/room/celine_room_v80_final_modular.glb",
+      "build_rule": "Android packaging now validates and uses this committed source-tree asset directly; the four part files remain canonical reconstruction/provenance inputs."
+    },
     "runtime_modular_source_parts": [
       "app/src/main/room-source/celine_room_v80_final_modular.glb.part00",
       "app/src/main/room-source/celine_room_v80_final_modular.glb.part01",
@@ -47,7 +57,8 @@
       "Position, rotation, scale, interaction anchors and navigation semantics belong to the room assembly/world contracts, not to mutations of the original GLBs.",
       "Nachttisch.glb is one original source binary instantiated twice in the room.",
       "Tischfürlaptop.glb is the physical foreground table; the laptop itself is the camera/viewer and must not be visible.",
-      "The lamp source is Lampe.glb; the reversible runtime light state is a separate floor_lamp_light entity and does not justify changing the original lamp GLB."
+      "The lamp source is Lampe.glb; the reversible runtime light state is a separate floor_lamp_light entity and does not justify changing the original lamp GLB.",
+      "Workers that need the actual accepted runtime room should use the committed runtime room asset path above; they no longer need to guess or manually concatenate the four parts merely to locate the runtime GLB."
     ]
   },
   "sources": [
