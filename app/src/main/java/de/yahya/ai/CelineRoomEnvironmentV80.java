@@ -5,6 +5,8 @@ import android.opengl.Matrix;
 import android.view.View;
 
 import com.google.android.filament.Engine;
+import com.google.android.filament.EntityManager;
+import com.google.android.filament.LightManager;
 import com.google.android.filament.RenderableManager;
 import com.google.android.filament.Scene;
 import com.google.android.filament.TransformManager;
@@ -28,6 +30,17 @@ import java.util.WeakHashMap;
 final class CelineRoomEnvironmentV80 {
     private static final String ROOM_PATH =
             "models/room/celine_room_v80_final_modular.glb";
+    private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
+    // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
+    // runtime light sits inside its shade, then applies the already locked room root offset.
+    private static final float FLOOR_LAMP_LIGHT_X = -1.55f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
+    private static final float FLOOR_LAMP_LIGHT_Y = 1.45f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
+    private static final float FLOOR_LAMP_LIGHT_Z = 1.55f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    private static final float FLOOR_LAMP_LIGHT_LUMENS = 450.0f;
+    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.25f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     static final class SeatAnchor {
@@ -131,6 +144,20 @@ final class CelineRoomEnvironmentV80 {
         return contract == null ? null : contract.anchor(anchorId);
     }
 
+    /**
+     * 9R.5 Lamp owns one real Filament point light, not an emissive-material fake. The app exposes
+     * only one active room, so a bounded Lamp interaction may toggle the currently built room state
+     * without taking transform ownership from CelineProductionPresenceV80.
+     */
+    static boolean toggleActiveFloorLamp() {
+        synchronized (STATES) {
+            for (State state : STATES.values()) {
+                if (state != null && state.isBuilt()) return state.toggleFloorLamp();
+            }
+        }
+        return false;
+    }
+
     private static final class State implements View.OnAttachStateChangeListener {
         final Context context;
         final Celine3DView view;
@@ -143,6 +170,8 @@ final class CelineRoomEnvironmentV80 {
         FilamentAsset roomAsset;
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
+        int floorLampLightEntity;
+        boolean floorLampLightEnabled;
         boolean listenerInstalled;
         boolean failureLogged;
 
@@ -195,6 +224,7 @@ final class CelineRoomEnvironmentV80 {
                         1.15f, 0.95f, -1.55f,
                         0.0f, 0.05f, -4.53f,
                         roomAsset.getRoot());
+                createFloorLampLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Finaler modularer Filament-Raum aktiv",
@@ -207,15 +237,24 @@ final class CelineRoomEnvironmentV80 {
                 Celine3DDiagnostics.record(context, "ROOM-115",
                         "4R Möbelorientierung korrigiert",
                         "bed=-90deg nightstands=+90deg; camera/Celine untouched");
+                Celine3DDiagnostics.record(context, "ROOM-120",
+                        "9R.5 Lampenlicht bereit",
+                        "entity=" + FLOOR_LAMP_LIGHT_ID + " enabled=false lumens="
+                                + FLOOR_LAMP_LIGHT_LUMENS + " falloff="
+                                + FLOOR_LAMP_LIGHT_FALLOFF_M + "m materialEmission=false");
                 failureLogged = false;
                 return true;
             } catch (Throwable error) {
                 if (candidate != null) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                roomAsset = null;
-                seatAnchor = null;
-                worldContract = null;
+                if (roomAsset != null || floorLampLightEntity != 0) {
+                    try { destroyRoom(); } catch (Throwable ignored) {}
+                } else {
+                    roomAsset = null;
+                    seatAnchor = null;
+                    worldContract = null;
+                }
                 if (!failureLogged) {
                     failureLogged = true;
                     Celine3DDiagnostics.error(context, "ROOM-199",
@@ -286,6 +325,7 @@ final class CelineRoomEnvironmentV80 {
             requireEntity(asset, "room_bed");
             requireEntity(asset, "room_lounge_chair");
             requireEntity(asset, "room_foreground_table");
+            requireEntity(asset, "room_floor_lamp");
             requireEntity(asset, "room_nightstand_back");
             requireEntity(asset, "room_nightstand_front");
             for (String anchorId : contract.anchors.keySet()) {
@@ -297,6 +337,43 @@ final class CelineRoomEnvironmentV80 {
             if (asset.getFirstEntityByName(name) == 0) {
                 throw new IllegalStateException("4R Raum-Entity fehlt: " + name);
             }
+        }
+
+        private void createFloorLampLight() {
+            int entity = EntityManager.get().create();
+            try {
+                new LightManager.Builder(LightManager.Type.POINT)
+                        .position(FLOOR_LAMP_LIGHT_X, FLOOR_LAMP_LIGHT_Y, FLOOR_LAMP_LIGHT_Z)
+                        .color(1.0f, 0.55f, 0.30f)
+                        .intensity(FLOOR_LAMP_LIGHT_LUMENS)
+                        .falloff(FLOOR_LAMP_LIGHT_FALLOFF_M)
+                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .build(engine, entity);
+                scene.addEntity(entity);
+                floorLampLightEntity = entity;
+                floorLampLightEnabled = false;
+            } catch (Throwable error) {
+                try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+                try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+                throw error;
+            }
+        }
+
+        synchronized boolean toggleFloorLamp() {
+            if (roomAsset == null || floorLampLightEntity == 0) return false;
+            LightManager lights = engine.getLightManager();
+            int instance = lights.getInstance(floorLampLightEntity);
+            if (instance == 0) return false;
+            boolean next = !floorLampLightEnabled;
+            lights.setLightChannel(instance, 0, next);
+            floorLampLightEnabled = next;
+            Celine3DDiagnostics.record(context, "V80-484",
+                    "9R.5 Lampenstatus gewechselt",
+                    "enabled=" + next + " lightEntity=" + FLOOR_LAMP_LIGHT_ID
+                            + " lumens=" + FLOOR_LAMP_LIGHT_LUMENS
+                            + " handContact=false switchTarget=false cameraFixed=true");
+            return true;
         }
 
         private void installListener() {
@@ -315,15 +392,25 @@ final class CelineRoomEnvironmentV80 {
 
         synchronized void destroyRoom() {
             FilamentAsset current = roomAsset;
+            int lampLight = floorLampLightEntity;
             roomAsset = null;
             seatAnchor = null;
             worldContract = null;
-            if (current == null) return;
+            floorLampLightEntity = 0;
+            floorLampLightEnabled = false;
+            if (current == null && lampLight == 0) return;
             try {
-                for (int entity : current.getEntities()) {
-                    try { scene.removeEntity(entity); } catch (Throwable ignored) {}
+                if (lampLight != 0) {
+                    try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
+                    try { engine.getLightManager().destroy(lampLight); } catch (Throwable ignored) {}
+                    try { EntityManager.get().destroy(lampLight); } catch (Throwable ignored) {}
                 }
-                assetLoader.destroyAsset(current);
+                if (current != null) {
+                    for (int entity : current.getEntities()) {
+                        try { scene.removeEntity(entity); } catch (Throwable ignored) {}
+                    }
+                    assetLoader.destroyAsset(current);
+                }
                 Celine3DDiagnostics.record(context, "ROOM-130",
                         "Filament-Raum freigegeben", "detach lifecycle cleanup");
             } catch (Throwable error) {
