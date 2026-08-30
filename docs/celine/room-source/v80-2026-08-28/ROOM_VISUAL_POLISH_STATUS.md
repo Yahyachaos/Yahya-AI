@@ -1,15 +1,14 @@
-# v80 Room Visual Polish Candidate #5 — manual verdict / Candidate #6 runtime checkpoint
+# v80 Room Visual Polish Candidate #6 — manual verdict / Candidate #7 next bounded step
 
-Live GitHub is authoritative. This file records the exact Candidate #5 build/proof/manual review and the currently active smallest bounded Candidate #6 correction. It does not reopen any accepted/protected runtime block.
+Live GitHub is authoritative. This file records the exact Candidate #6 build/proof/manual review and the next smallest bounded correction. It does not reopen any accepted/protected runtime block.
 
 ## Active strand
 - Repository: `Yahyachaos/Yahya-AI`
 - PR: #111 — **DRAFT**, open, not merged
 - Branch: `auto/celine/v80-human-videochat-presence`
-- Candidate #5 runtime commit: `4947e9b0ee2b16e55f0707b09124a7c8b41bdebd`
-- Candidate #5 proof/checkpoint head: `7dfffb38d5059f3e7573231cb93c980b7fd6e77f`
 - Candidate #6 runtime commit: `ff8a9d5d6419d3feb6e3fe3b28b9014e8e5a87fb`
-- Runtime file changed by Candidate #6: `app/src/main/java/de/yahya/ai/Celine3DView.java`
+- Candidate #6 proof/checkpoint head: `b564b7ee028883183e8821a6a70b84836e417591`
+- Runtime file: `app/src/main/java/de/yahya/ai/Celine3DView.java`
 
 ## Protected baseline
 Unchanged and protected:
@@ -23,30 +22,32 @@ Unchanged and protected:
 - camera/zoom, accepted poses, anchors/navigation and all accepted 9R actions
 - accepted 60,000 lm Lamp behavior
 
-The previously rejected combined daylight setup (`7000` indirect plus `32000` directional) was not restored.
+## Candidate #6 exact evidence
+Android Build **#814**, run `33325634994`: **SUCCESS** on runtime-equivalent checkpoint head `b564b7ee028883183e8821a6a70b84836e417591`.
 
-## Candidate #5 exact evidence and verdict
-Android Build **#810**, run `33319969079`: **SUCCESS** on proof/checkpoint head `7dfffb38d5059f3e7573231cb93c980b7fd6e77f`.
+Celine Room Visual Polish Proof **#9**, run `33333764359`: **SUCCESS**.
 
-Celine Room Visual Polish Proof **#8**, run `33322768977`: **SUCCESS**.
-
-- runtime-equivalent Candidate #5 state: `4947e9b0ee2b16e55f0707b09124a7c8b41bdebd` plus docs-only checkpoint
-- evidence artifact: `9735393106`
-- evidence digest: `sha256:9d55cbacad828e2327ea7f004683602797cbaaca24c84f320e501e7f475c9284`
+- proof head: `b564b7ee028883183e8821a6a70b84836e417591`
+- runtime-equivalent Candidate #6 state: `ff8a9d5d6419d3feb6e3fe3b28b9014e8e5a87fb` plus docs-only checkpoint
+- evidence artifact: `9738427755`
+- evidence digest: `sha256:99e84f3549b7bb571e8c6e9fbf55a0a1d658ae3f97023942b9925ef48efb2188`
+- captured evidence: `home.png`, `call.png`, `home-return.png`, diagnostics
 - structural result: PASS; Celine remained visible and HOME -> CALL -> HOME remained stable
-- manual verdict: **FAIL, but improved again**
+- workflow SUCCESS is not visual acceptance
 
-The ceiling is visibly lighter than Candidate #4, but the upper ceiling field still reads as a distinctly darker grey-taupe band than the warm-beige wall. The floor remains intentionally untouched and strongly red/orange-brown. No protected camera, navigation, furniture, transform or Lamp behavior was disturbed.
+## Candidate #6 manual visual verdict
+**FAIL, improved but no longer worth another intensity-only step.**
 
-## Candidate #6 bounded runtime correction
-Runtime commit `ff8a9d5d6419d3feb6e3fe3b28b9014e8e5a87fb` changes exactly one runtime value:
+The ceiling is lighter than Candidate #5 and the intensity-only diagnosis continued to move in the correct direction, but the large upper ceiling field still reads as a distinctly darker grey/taupe band than the warm-beige wall. At `8000` indirect intensity the remaining problem is now predominantly color balance rather than missing fill quantity. Continuing to raise intensity alone risks flattening Celine and the room without removing the grey/taupe separation.
 
-- indirect irradiance remains `(1.0, 0.94, 0.88)`
-- indirect intensity `6500` -> `8000`
+The floor remains strongly red/orange-brown and intentionally untouched. HOME, CALL and HOME-return remain stable; Celine stays visible. No protected camera, navigation, furniture, transform or Lamp behavior was disturbed.
 
-Everything protected above remains unchanged. Directional intensity remains `14000`. No floor-material, exposure or second lighting change is stacked into Candidate #6.
+## Exact next action — Candidate #7
+Make exactly one bounded Candidate #7 indirect-color correction in `Celine3DView.java`:
 
-The runtime change was applied by the bounded one-shot workflow and that workflow removed itself after the exact replacement. Because bot-authored runtime commits can make the direct PR Android run require approval, this user-authored docs-only checkpoint exists so the normal PR build can validate the exact same Candidate #6 runtime fingerprint without altering runtime behavior.
+- keep indirect intensity exactly `8000`;
+- change only indirect irradiance from `(1.0, 0.94, 0.88)` to neutral `(1.0, 1.0, 1.0)`;
+- keep directional intensity/color/direction unchanged at the accepted Candidate #6 values;
+- do not change floor material, exposure, skybox, GLB bytes, transforms, Celine, camera/zoom, anchors/navigation or Lamp parameters.
 
-## Exact next action
-Allow exactly one Android build on this runtime-equivalent checkpoint. If successful, run exactly one targeted HOME/CALL/HOME Room Visual Polish proof, manually inspect the actual images and record PASS/FAIL. Do not change the floor material, directional light, exposure or any protected behavior until Candidate #6 evidence is inspected. Do not begin continuous free/NavMesh navigation.
+Then obtain exactly one necessary Android build, run exactly one targeted HOME/CALL/HOME Room Visual Polish proof, manually inspect the actual images and record PASS/FAIL. Do not begin continuous free/NavMesh navigation.
