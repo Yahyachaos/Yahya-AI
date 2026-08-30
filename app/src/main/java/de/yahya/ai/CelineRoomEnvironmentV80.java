@@ -364,7 +364,7 @@ final class CelineRoomEnvironmentV80 {
                         .intensity(FLOOR_LAMP_LIGHT_LUMENS)
                         .falloff(FLOOR_LAMP_LIGHT_FALLOFF_M)
                         .castShadows(false)
-                        .lightChannel(0, false)
+                        .lightChannel(0, true)
                         .build(engine, entity);
                 scene.addEntity(entity);
                 floorLampLightEntity = entity;
