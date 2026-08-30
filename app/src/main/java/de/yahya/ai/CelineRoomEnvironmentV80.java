@@ -184,6 +184,7 @@ final class CelineRoomEnvironmentV80 {
         final ResourceLoader resourceLoader;
 
         FilamentAsset roomAsset;
+        MaterialInstance ceilingMaterialOverride;
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
         int floorLampLightEntity;
@@ -228,6 +229,7 @@ final class CelineRoomEnvironmentV80 {
                 alignRoomRoot(candidate);
                 applyUserApprovedFurnitureOrientation(candidate);
                 applyWarmRoomShellMaterials(candidate);
+                isolateCeilingMaterial(candidate);
                 validateWorldEntities(candidate, contract);
 
                 scene.addEntities(candidate.getEntities());
@@ -273,7 +275,8 @@ final class CelineRoomEnvironmentV80 {
                 if (candidate != null) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (roomAsset != null || floorLampLightEntity != 0) {
+                if (roomAsset != null || floorLampLightEntity != 0
+                        || ceilingMaterialOverride != null) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAsset = null;
@@ -340,6 +343,41 @@ final class CelineRoomEnvironmentV80 {
             // Keep a dielectric wood floor, but lower roughness enough for a restrained warm sheen.
             tuneShellMaterial(asset, "room_floor",
                     0.64f, 0.44f, 0.28f, 0.62f, 0.45f);
+        }
+
+        private void isolateCeilingMaterial(FilamentAsset asset) {
+            int entity = asset.getFirstEntityByName("room_ceiling");
+            if (entity == 0) {
+                throw new IllegalStateException("Room polish entity missing: room_ceiling");
+            }
+            RenderableManager manager = engine.getRenderableManager();
+            int renderable = manager.getInstance(entity);
+            if (renderable == 0) {
+                throw new IllegalStateException("Room polish renderable missing: room_ceiling");
+            }
+            int primitives = manager.getPrimitiveCount(renderable);
+            if (primitives != 1) {
+                throw new IllegalStateException(
+                        "Candidate #8 expects exactly one ceiling primitive, found " + primitives);
+            }
+            MaterialInstance source = manager.getMaterialInstanceAt(renderable, 0);
+            MaterialInstance duplicate = MaterialInstance.duplicate(
+                    source, "v80-room-ceiling-warm-beige");
+            boolean bound = false;
+            try {
+                duplicate.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                        1.0f, 0.92f, 0.82f, 1.0f);
+                duplicate.setParameter("metallicFactor", 0.0f);
+                duplicate.setParameter("roughnessFactor", 0.88f);
+                duplicate.setParameter("reflectance", 0.40f);
+                manager.setMaterialInstanceAt(renderable, 0, duplicate);
+                ceilingMaterialOverride = duplicate;
+                bound = true;
+            } finally {
+                if (!bound) {
+                    try { engine.destroyMaterialInstance(duplicate); } catch (Throwable ignored) {}
+                }
+            }
         }
 
         private void tuneShellMaterial(
@@ -465,12 +503,14 @@ final class CelineRoomEnvironmentV80 {
         synchronized void destroyRoom() {
             FilamentAsset current = roomAsset;
             int lampLight = floorLampLightEntity;
+            MaterialInstance ceilingOverride = ceilingMaterialOverride;
             roomAsset = null;
+            ceilingMaterialOverride = null;
             seatAnchor = null;
             worldContract = null;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            if (current == null && lampLight == 0) return;
+            if (current == null && lampLight == 0 && ceilingOverride == null) return;
             try {
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
@@ -482,6 +522,9 @@ final class CelineRoomEnvironmentV80 {
                         try { scene.removeEntity(entity); } catch (Throwable ignored) {}
                     }
                     assetLoader.destroyAsset(current);
+                }
+                if (ceilingOverride != null) {
+                    try { engine.destroyMaterialInstance(ceilingOverride); } catch (Throwable ignored) {}
                 }
                 Celine3DDiagnostics.record(context, "ROOM-130",
                         "Filament-Raum freigegeben", "detach lifecycle cleanup");
