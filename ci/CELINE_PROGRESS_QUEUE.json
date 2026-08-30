@@ -26,9 +26,9 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head": "a23a9a6ed713e272acf9ce265d39cfbe1c676097",
-  "status": "9R5_complete_room_visual_polish_ready",
-  "latest_runtime_code_head": "efd50772369e5af504fb830b04d76682786affa8",
+  "current_branch_head": "6362dabec3ddc3b8e3710b6ef2ecbc7544df43e6",
+  "status": "room_visual_polish_candidate1_warm_shell_materials_build_pending",
+  "latest_runtime_code_head": "6362dabec3ddc3b8e3710b6ef2ecbc7544df43e6",
   "latest_built_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
   "latest_visually_accepted_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
   "last_successful_runtime_fingerprint": "38392cf815ec925572e60085b219eab05054df5b72bfc4d4b6cffde1ec53ed1c",
@@ -42,7 +42,7 @@
     "apk_artifact": 9731274670,
     "runtime_fingerprint_artifact": 9731274913,
     "runtime_fingerprint": "38392cf815ec925572e60085b219eab05054df5b72bfc4d4b6cffde1ec53ed1c",
-    "note": "Build #786 validates the accepted Lamp candidate #11 runtime. It preserves the 60,000 lm Lamp and default light channel and changes only direction/falloff/cone toward the camera-visible lounge-chair/left-wall witness."
+    "note": "Last successful built runtime is the accepted 9R.5 Lamp candidate #11. Candidate #1 room visual polish is newer runtime code and still needs exactly one Android build."
   },
   "latest_visual_proof": {
     "name": "Celine 9R.5 Lamp Proof",
@@ -54,7 +54,7 @@
     "artifact_digest": "sha256:7612296d4b31d93001964be556f9789f406ed1620a0333a9e2c632fc88cb0e2c",
     "workflow_conclusion": "success",
     "manual_inspection": "PASS_9R5_LAMP_LOCALIZED_WARM_CHAIR_FLOOR_WITNESS_VISIBLE",
-    "note": "Proof #19 is technically SUCCESS and reuses the runtime-equivalent Build #786 APK. Runtime evidence proves the reversible floor_lamp_light enabled=true then enabled=false at 60,000 lm, fixed camera and no teleport. Manual stable ON 216 versus OFF 224 inspection now shows a localized warm contribution on the static screen-left lounge chair and adjacent floor/lamp region while Celine remains readable and the warmer room ambience is preserved. Lamp is manually accepted; workflow SUCCESS alone was not used as acceptance."
+    "note": "9R.5 Lamp is accepted and protected. Room visual polish must preserve this behavior."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -78,18 +78,34 @@
   "active_block": {
     "number": "room-visual-polish",
     "name": "Warm realistic room shell/material treatment",
-    "status": "ready_for_first_bounded_implementation"
+    "status": "candidate1_runtime_change_waiting_for_one_android_build"
   },
-  "current_blocker": "none_for_9R5; room visual polish must preserve every accepted/protected behavior and must not mutate the 12 original furniture GLBs or canonical Celine",
-  "exact_next_action": "Use the user-supplied Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md as the product brief, with live-state corrections: 4R and 9R.1-9R.5 are already accepted/protected and the runtime room GLB already exists. Make exactly one bounded shell/material polish change toward the warm beige-bedroom target without changing canonical Celine, camera/zoom, accepted poses, room root, furniture transforms, anchors/navigation, Lamp behavior or the 12 immutable furniture originals. Because the room runtime asset changes, run one Android build and then one targeted visual room proof; inspect the actual images before expanding scope. Do not begin free continuous/NavMesh navigation yet.",
+  "room_visual_polish_candidate": {
+    "number": 1,
+    "runtime_head": "6362dabec3ddc3b8e3710b6ef2ecbc7544df43e6",
+    "scope": "runtime material factors only; no GLB bytes or transforms changed",
+    "changed_file": "app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java",
+    "change": [
+      "apply warm beige sRGB baseColorFactor to the existing shared wall/ceiling shell material",
+      "apply warmer wood sRGB baseColorFactor to the existing floor material",
+      "reduce floor roughness for a restrained indoor sheen while keeping metallicFactor=0",
+      "do not move room geometry, furniture, Celine, camera, anchors or navigation"
+    ],
+    "wall_ceiling_srgb": [0.86, 0.78, 0.68],
+    "wall_ceiling_roughness": 0.88,
+    "floor_srgb": [0.64, 0.44, 0.28],
+    "floor_roughness": 0.62
+  },
+  "current_blocker": "Candidate #1 has been committed but has not yet received the one required Android build and targeted visual room proof.",
+  "exact_next_action": "Obtain exactly one successful Android build for runtime candidate #1 at 6362dabec3ddc3b8e3710b6ef2ecbc7544df43e6 (or a docs-only descendant with identical runtime fingerprint). Then run exactly one targeted room visual proof using that runtime-equivalent APK and manually inspect the actual HOME/CALL room frames for a warmer beige shell and warmer wood floor while Celine, camera/zoom, accepted poses, room root, furniture transforms, anchors/navigation, Lamp behavior, one-room/no-laptop rules and all accepted 9R actions remain intact. Workflow SUCCESS alone is not acceptance. If PASS, record candidate #1 and choose the next smallest shell-realism improvement; do not begin continuous free/NavMesh navigation yet.",
   "user_room_polish_request": {
     "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
     "accepted_as_new_product_direction": true,
     "live_state_corrections": [
       "The brief's statements that 4R is not runtime accepted and that 9R locomotion is not enabled are stale; live repository state has 4R and 9R.1-9R.5 accepted/protected.",
-      "The committed room GLB exists at the exact runtime path and Build #776 proved it is packaged correctly.",
+      "The committed room GLB already exists at the exact runtime path.",
       "Lamp/9R.5 is accepted on runtime efd50772369e5af504fb830b04d76682786affa8 after Proof #19 manual review.",
-      "Broader shell/material polish may now begin, but accepted camera/zoom, pose, room-root, furniture-transform and navigation behavior remains protected."
+      "Room visual polish may proceed only through bounded visual changes that preserve all accepted behavior."
     ],
     "future_scope_after_lamp": [
       "Improve wall/floor/ceiling material realism toward the warm beige bedroom direction while preserving immutable original furniture GLBs.",
