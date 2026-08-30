@@ -26,7 +26,7 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head": "689277d5a49e4c44938135e209bfee5dbcf8807c",
+  "current_branch_head": "a23a9a6ed713e272acf9ce265d39cfbe1c676097",
   "status": "9R5_complete_room_visual_polish_ready",
   "latest_runtime_code_head": "efd50772369e5af504fb830b04d76682786affa8",
   "latest_built_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
@@ -81,15 +81,15 @@
     "status": "ready_for_first_bounded_implementation"
   },
   "current_blocker": "none_for_9R5; room visual polish must preserve every accepted/protected behavior and must not mutate the 12 original furniture GLBs or canonical Celine",
-  "exact_next_action": "Re-read current root AGENTS.md from live main, reconcile live GitHub, then read the user-supplied Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md as the product brief. Select the smallest bounded room-shell/material/lighting polish change that improves the warm realistic beige-bedroom appearance without changing canonical Celine, camera/zoom, accepted poses, room root, furniture transforms, anchors/navigation, Lamp behavior or the 12 immutable original furniture GLBs. Validate the exact resulting head before expanding scope. Do not begin free continuous/NavMesh navigation yet.",
+  "exact_next_action": "Use the user-supplied Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md as the product brief, with live-state corrections: 4R and 9R.1-9R.5 are already accepted/protected and the runtime room GLB already exists. Make exactly one bounded shell/material polish change toward the warm beige-bedroom target without changing canonical Celine, camera/zoom, accepted poses, room root, furniture transforms, anchors/navigation, Lamp behavior or the 12 immutable furniture originals. Because the room runtime asset changes, run one Android build and then one targeted visual room proof; inspect the actual images before expanding scope. Do not begin free continuous/NavMesh navigation yet.",
   "user_room_polish_request": {
     "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
     "accepted_as_new_product_direction": true,
     "live_state_corrections": [
       "The brief's statements that 4R is not runtime accepted and that 9R locomotion is not enabled are stale; live repository state has 4R and 9R.1-9R.5 accepted/protected.",
       "The committed room GLB exists at the exact runtime path and Build #776 proved it is packaged correctly.",
-      "Lamp/9R.5 is now accepted on runtime efd50772369e5af504fb830b04d76682786affa8 after Proof #19 manual review.",
-      "Broader shell/material/camera polish may now begin, but protected camera/zoom and interaction behavior must remain unchanged unless new exact independent evidence requires a bounded correction."
+      "Lamp/9R.5 is accepted on runtime efd50772369e5af504fb830b04d76682786affa8 after Proof #19 manual review.",
+      "Broader shell/material polish may now begin, but accepted camera/zoom, pose, room-root, furniture-transform and navigation behavior remains protected."
     ],
     "future_scope_after_lamp": [
       "Improve wall/floor/ceiling material realism toward the warm beige bedroom direction while preserving immutable original furniture GLBs.",
