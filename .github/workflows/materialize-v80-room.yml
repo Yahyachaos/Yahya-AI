@@ -1,0 +1,126 @@
+name: Materialize v80 room asset
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - .github/workflows/materialize-v80-room.yml
+      - app/src/main/room-source/celine_room_v80_final_modular.glb.part00
+      - app/src/main/room-source/celine_room_v80_final_modular.glb.part01
+      - app/src/main/room-source/celine_room_v80_final_modular.glb.part02
+      - app/src/main/room-source/celine_room_v80_final_modular.glb.part03
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active branch
+        uses: actions/checkout@v4
+        with:
+          ref: auto/celine/v80-human-videochat-presence
+          fetch-depth: 0
+
+      - name: Reconstruct and verify canonical room GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='app/src/main/assets/models/room/celine_room_v80_final_modular.glb'
+          mkdir -p "$(dirname "$target")"
+          tmp="${target}.tmp"
+          cat \
+            app/src/main/room-source/celine_room_v80_final_modular.glb.part00 \
+            app/src/main/room-source/celine_room_v80_final_modular.glb.part01 \
+            app/src/main/room-source/celine_room_v80_final_modular.glb.part02 \
+            app/src/main/room-source/celine_room_v80_final_modular.glb.part03 \
+            > "$tmp"
+          bytes="$(wc -c < "$tmp" | tr -d ' ')"
+          sha="$(sha256sum "$tmp" | awk '{print $1}')"
+          test "$bytes" = '46580788'
+          test "$sha" = '25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8'
+          python3 - "$tmp" <<'PY'
+          import struct, sys
+          p = sys.argv[1]
+          data = open(p, 'rb').read(20)
+          if len(data) < 20 or data[:4] != b'glTF':
+              raise SystemExit('invalid GLB magic')
+          version, declared = struct.unpack('<II', data[4:12])
+          if version != 2 or declared != 46580788:
+              raise SystemExit(f'invalid GLB header version={version} length={declared}')
+          PY
+          mv "$tmp" "$target"
+
+      - name: Make source-tree room path canonical for Android packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('app/build.gradle')
+          text = path.read_text(encoding='utf-8')
+
+          old_defs = '''def celineRoomV80GeneratedAssetsDir = file("$buildDir/generated/celineRoomV80/assets")
+          def celineRoomV80Candidate = file(
+                  "$celineRoomV80GeneratedAssetsDir/models/room/celine_room_v80_final_modular.glb")
+          '''
+          new_defs = "def celineRoomV80Candidate = file('src/main/assets/models/room/celine_room_v80_final_modular.glb')\n"
+          if old_defs in text:
+              text = text.replace(old_defs, new_defs)
+          elif new_defs not in text:
+              raise SystemExit('v80 room candidate definition anchor missing')
+
+          start = text.find("tasks.register('generateCelineRoomV80Final') {")
+          end = text.find('\nandroid {', start)
+          if start < 0 or end < 0:
+              raise SystemExit('v80 room task anchor missing')
+          new_task = '''tasks.register('generateCelineRoomV80Final') {
+              inputs.files(celineRoomV80Parts)
+              inputs.file(celineRoomV80Candidate)
+              doLast {
+                  celineRoomV80Parts.each { part ->
+                      if (!part.isFile() || part.length() != 11645197L) {
+                          throw new GradleException("Invalid v80 4R room part: ${part}")
+                      }
+                  }
+                  if (!celineRoomV80Candidate.isFile()) {
+                      throw new GradleException("Missing committed v80 4R room: ${celineRoomV80Candidate}")
+                  }
+                  def digest = java.security.MessageDigest.getInstance('SHA-256')
+                  celineRoomV80Candidate.withInputStream { input ->
+                      byte[] buffer = new byte[64 * 1024]
+                      int read
+                      while ((read = input.read(buffer)) >= 0) {
+                          if (read > 0) digest.update(buffer, 0, read)
+                      }
+                  }
+                  String actual = digest.digest().encodeHex().toString()
+                  String expected = '25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8'
+                  if (celineRoomV80Candidate.length() != 46580788L || actual != expected) {
+                      throw new GradleException(
+                              "Invalid committed v80 4R room: bytes=${celineRoomV80Candidate.length()} sha256=${actual}")
+                  }
+              }
+          }
+          '''
+          text = text[:start] + new_task + text[end:]
+          text = text.replace('            assets.srcDir celineRoomV80GeneratedAssetsDir\n', '')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit materialized room path
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/assets/models/room/celine_room_v80_final_modular.glb app/build.gradle
+          if git diff --cached --quiet; then
+            echo 'Room asset already canonical; nothing to commit.'
+            exit 0
+          fi
+          git commit -m 'assets: materialize canonical v80 room GLB'
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
