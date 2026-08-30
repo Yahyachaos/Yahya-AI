@@ -27,13 +27,39 @@ This source archive remains outside the runtime asset path so preservation alone
 
 ## Current source package — 12 textured GLBs
 
-The earlier six untextured Meshy GLBs were superseded on 2026-08-28. The persistent source backup now contains **only the 12 newer textured GLBs** at:
+The earlier six untextured Meshy GLBs were superseded on 2026-08-28. The canonical source set is exactly the **12 newer textured GLBs** listed below.
+
+### Preferred worker-accessible source — verified Git LFS
+
+The original bytes are now persisted via Git LFS in the same repository on the sibling source branch:
+
+- branch: `assets/celine-source-persistence`
+- pinned source commit: `df50816187978cbf5faf818ad484c3f682be7588`
+- path: `app/src/main/assets/models/möbel/`
+- transport: Git LFS
+- verification: `PASS_12_OF_12_GIT_LFS_POINTER_OID_AND_SIZE_MATCH_CANONICAL`
+
+Every one of the 12 LFS pointers was checked against the canonical SHA-256 and byte size below. The small Git blob is only LFS pointer metadata; workers that need the original bytes must use Git LFS-aware checkout/fetch/materialization.
+
+The durable machine-readable relationship map is:
+
+`ROOM_SOURCE_GITHUB_LFS_BRIDGE.json`
+
+The canonical retrieval rules are:
+
+`ROOM_SOURCE_RETRIEVAL_CONTRACT.json`
+
+### Secondary immutable backup — ChatGPT Library
+
+The persistent backup remains available at:
 
 `/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/`
 
-The new GLBs were inspected before archival. Each contains an embedded material plus three 2048×2048 texture images: `base_color`, `metallic_roughness`, and `normal`.
+That path is a ChatGPT persistent Library path, not a normal Git/local filesystem path. It remains an independent archival/fallback source and must be materialized through an authorized Files/Library capability before programmatic use.
 
-The files are too large for ordinary GitHub blob storage (roughly 120–189 MB each). The actual GLB bytes therefore remain in the persistent Library backup; GitHub stores the canonical index, hashes, layout and continuation rules. Do not claim the binary GLBs are ordinary Git blobs unless a future Git LFS upload is explicitly completed and verified.
+Either source channel is valid only when all 12 identities match the canonical hashes. The original source bytes must never be edited in place.
+
+The GLBs were inspected before archival. Each contains an embedded material plus three 2048×2048 texture images: `base_color`, `metallic_roughness`, and `normal`.
 
 | Textured source | Bytes | SHA-256 |
 |---|---:|---|
@@ -51,6 +77,22 @@ The files are too large for ordinary GitHub blob storage (roughly 120–189 MB e
 | `Tischfürlaptop.glb` | 121105992 | `b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da` |
 
 `Nachttisch.glb` may be instantiated twice in the room for the left/right bedside tables; a duplicate binary is not required.
+
+## How the originals relate to the accepted runtime room
+
+The 12 GLBs above are **immutable source-of-origin assets**. They are not the APK-ready room and must not replace the accepted room simply because the originals are now easier for workers to retrieve.
+
+The accepted v80 room/world implementation uses optimized/derived room data plus separate machine-readable contracts:
+
+- modular source parts: `app/src/main/room-source/celine_room_v80_final_modular.glb.part00` through `part03`
+- assembly/object mapping: `app/src/main/assets/models/room/celine_room_v80_assembly.json`
+- world contract: `app/src/main/assets/models/room/celine_room_v80_world_contract.json`
+- interaction anchors: `app/src/main/assets/models/room/celine_room_v80_anchors.json`
+- navigation/collision: `app/src/main/assets/models/room/celine_room_v80_nav_collision.json`
+
+`ROOM_SOURCE_GITHUB_LFS_BRIDGE.json` explicitly maps each original filename to its logical runtime room object(s). Position, rotation, scale, interaction anchors and navigation semantics belong to those room/world contracts; they are **not** reasons to rewrite the original GLB bytes.
+
+Canonical Celine remains completely separate and is resolved through `ci/CELINE_SOURCE_ASSET.json`. The room/furniture source bridge never changes Celine's source path, rig, morphs, identity or animation source.
 
 ## Layout / interaction plan
 
@@ -86,9 +128,9 @@ Recommended modular scene objects now include:
 
 ## 3D assembly requirements
 
-These textured Meshy outputs are source meshes, not automatically mobile-ready. Before production use: normalize scale/orientation, fix origins/pivots, remove stray/hidden geometry, decimate where safe, optimize meshes and 2K textures for Android/Filament, verify normal and metallic/roughness interpretation, keep curtain transparency controlled if used, define named anchors, and export a clean modular GLB/glTF scene.
+These textured Meshy outputs are source meshes, not automatically mobile-ready. Before any future source-derived production rebuild: normalize scale/orientation, fix origins/pivots, remove stray/hidden geometry, decimate where safe, optimize meshes and 2K textures for Android/Filament, verify normal and metallic/roughness interpretation, keep curtain transparency controlled if used, define named anchors, and export a clean modular GLB/glTF scene.
 
-The source files are substantially larger than the earlier untextured models, so production integration must not simply copy all 12 raw GLBs into the APK. Build an optimized room asset from them.
+The source files are substantially larger than the earlier untextured models, so production integration must not simply copy all 12 raw GLBs into the APK. Build/use an optimized room asset derived from verified copies.
 
 Do not change Celine's canonical model, accepted camera semantics, accepted seated pose, PCM-driven German lip sync, or rig protections merely to fit the room. Adapt the room/world assembly to the protected avatar state first.
 
@@ -100,15 +142,16 @@ Do not change Celine's canonical model, accepted camera semantics, accepted seat
 - `room_floorplan_reference.jpg` — approximate top-down assembly/anchor guide.
 - `ROOM_LAYOUT_REFERENCE.json` — older machine-readable intent/constraints; reconcile with the newer 6.4 × 5.8 × 2.8 m assembly manifest before final room build.
 - `SOURCE_SHA256SUMS.txt` — exact hashes of the 12 current textured GLBs.
+- `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` — canonical dual-source retrieval/hash gate.
+- `ROOM_SOURCE_GITHUB_LFS_BRIDGE.json` — pinned Git LFS location plus original-to-runtime relationship mapping.
 
-The full-resolution references, planning notes and the 12 GLB binaries are preserved in `/Yahya-AI/Celine-v80-Room-Source-Backup/`.
-
-## New-chat continuation
+## New-chat / new-worker continuation
 
 1. Start with root `AGENTS.md` and fresh Live-GitHub reconciliation; live state wins over recorded SHAs.
 2. Stay on the one active v80 strand/PR; do not create a parallel Celine implementation branch.
-3. Read this file and the room-layout references before touching room assets.
-4. Retrieve the **12 textured source GLBs** from the Library path above only when actual 3D assembly/optimization begins.
-5. Evolve/replace the current blocky room implementation rather than stacking a second visible room.
-6. Preserve the no-visible-laptop camera rule and open movement paths.
-7. Use the Efficiency Fast Path. This archival docs/source update requires no Android build; an actual runtime room asset change later requires one appropriate build plus one targeted visual proof.
+3. Read the queue, amendment, this README, `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and `ROOM_SOURCE_GITHUB_LFS_BRIDGE.json` before touching room source assets.
+4. Prefer the pinned Git LFS originals on `assets/celine-source-persistence` at commit `df50816187978cbf5faf818ad484c3f682be7588`; use the Library backup only as fallback/independent provenance when needed.
+5. Verify all 12 source identities before any new geometry processing and never mutate originals in place.
+6. Treat the accepted optimized modular room and its assembly/world/anchor/nav contracts as the runtime derivative; do not replace it with 1.5 GB of raw source GLBs.
+7. Preserve the no-visible-laptop camera rule, open movement paths and canonical Celine separation.
+8. Use the Efficiency Fast Path. This source-provenance documentation update requires no Android build; a later runtime room asset change requires the appropriate build plus targeted proof.
