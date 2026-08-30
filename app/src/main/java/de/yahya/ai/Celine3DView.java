@@ -209,7 +209,7 @@ public final class Celine3DView extends FrameLayout {
         // hid the localized floor-lamp state. Keep Celine/camera geometry untouched and move only
         // the shared scene illumination toward a warm indoor evening baseline.
         indirectLight = new IndirectLight.Builder()
-                .irradiance(1, new float[]{1.0f, 0.94f, 0.88f})
+                .irradiance(1, new float[]{1.0f, 1.0f, 1.0f})
                 .intensity(8000.0f)
                 .build(engine);
         scene.setIndirectLight(indirectLight);
