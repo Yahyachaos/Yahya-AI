@@ -350,7 +350,7 @@ final class CelineRoomEnvironmentV80 {
             }
             for (int primitive = 0; primitive < primitives; primitive++) {
                 MaterialInstance material = manager.getMaterialInstanceAt(renderable, primitive);
-                material.setParameter("baseColorFactor", Colors.RgbaType.SRGB,
+                material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                         red, green, blue, 1.0f);
                 material.setParameter("metallicFactor", 0.0f);
                 material.setParameter("roughnessFactor", roughness);
