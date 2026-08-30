@@ -2,13 +2,17 @@
 
 This document locks the user-approved visual target for the remaining v80 room-polish work. Live GitHub remains source of truth for runtime state; this document is the visual acceptance contract.
 
-## Canonical reference image
+## STOP — every worker must inspect the exact uploaded reference first
 
-![Canonical v80 Celine room visual target](reference/CELINE_ROOM_VISUAL_TARGET.jpg)
+Before diagnosing, implementing, reviewing, or accepting any remaining room-visual work, open and visually inspect the exact user-uploaded reference image at repository root:
 
-Repository path: `docs/celine/room-source/v80-2026-08-28/reference/CELINE_ROOM_VISUAL_TARGET.jpg`
+![Exact canonical v80 Celine room visual target](../../../..//Refernzbild.png)
 
-This repository image is the canonical worker-visible visual reference for composition and atmosphere. It is a web-sized rendition of the exact user-supplied reference scene; it must not be replaced by a generated approximation or a generic bedroom reference. The original user-supplied source remains the authoritative high-resolution source.
+Canonical repository path: `/Refernzbild.png`
+
+Git blob SHA: `e85c43b5e365982aa862329eecfb31ab502db793`
+
+This exact uploaded PNG is the canonical visual target. Do not substitute a generated image, the older web-sized rendition, a generic bedroom, or a prose-only interpretation. If prose in this document appears ambiguous, the actual pixels in `/Refernzbild.png` win for visual composition, atmosphere, color relationships, depth and framing, subject to the protected runtime constraints below.
 
 ## Core intent
 
@@ -61,11 +65,12 @@ This visual target does not authorize reopening accepted/protected behavior. Can
 ## Iteration rule
 
 For each bounded visual candidate:
-1. diagnose the largest remaining mismatch against this target;
-2. change only the confirmed cause permitted by the active work order;
-3. run the smallest required build;
-4. run one targeted HOME -> CALL -> HOME proof when needed;
-5. inspect the real images against this contract;
-6. record explicit PASS/FAIL and the exact next action.
+1. open `/Refernzbild.png` and compare the current proof against it;
+2. diagnose the largest remaining mismatch against the actual image;
+3. change only the confirmed cause permitted by the active work order;
+4. run the smallest required build;
+5. run one targeted HOME -> CALL -> HOME proof when needed;
+6. inspect the real images against the uploaded PNG;
+7. record explicit PASS/FAIL and the exact next action.
 
-The final room-polish acceptance is not 'technically valid' or 'brighter'. It is: believable, warm, dimensional, stylish and recognizably aligned with Yahya's supplied reference composition and atmosphere.
+The final room-polish acceptance is not 'technically valid' or 'brighter'. It is: believable, warm, dimensional, stylish and recognizably aligned with the exact pixels of Yahya's uploaded reference image.
