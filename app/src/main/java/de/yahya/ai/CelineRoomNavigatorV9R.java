@@ -21,6 +21,7 @@ final class CelineRoomNavigatorV9R {
     private static final String TALK_ANCHOR = "camera_talk_anchor";
     private static final String BACK_CENTER_ANCHOR = "back_center_nav_anchor";
     private static final String SHELF_ANCHOR = "shelf_anchor";
+    private static final String LAMP_ANCHOR = "lamp_anchor";
     private static final String WINDOW_ANCHOR = "window_anchor";
     private static final String DRESSER_ANCHOR = "dresser_anchor";
     private static final String MIRROR_ANCHOR = "mirror_anchor";
@@ -44,6 +45,10 @@ final class CelineRoomNavigatorV9R {
     // 0.4545 m right of the lounge-chair AABB for the 0.35 m avatar capsule.
     private static final float SHELF_SAFETY_X_OFFSET_M = 0.50f;
     private static final float SHELF_SAFETY_Z_OFFSET_M = WINDOW_SAFETY_Z_OFFSET_M;
+    // The authored Lamp anchor is only about 0.341 m from the floor-lamp AABB corner, just inside
+    // the 0.35 m avatar capsule. Move only 0.10 m toward room center. This also makes the complete
+    // room_walk_left -> Lamp segment a straight x=-0.65 corridor with about 0.089 m safety reserve.
+    private static final float LAMP_SAFETY_X_OFFSET_M = 0.10f;
     // Dresser Proof #145 showed the minimum side-clearance anchor is outside useful framing;
     // Proof #147 showed an X-only move toward room center still projects Celine through the white
     // lounge-chair silhouette. The final room contract places the camera on +Z, so use a bounded
@@ -141,6 +146,9 @@ final class CelineRoomNavigatorV9R {
                         + " shelfSafetyX=+" + SHELF_SAFETY_X_OFFSET_M
                         + " shelfSafetyZ=+" + SHELF_SAFETY_Z_OFFSET_M
                         + " shelfDepth=cameraSide shelfReach=false shelfBookPickup=false"
+                        + " lampSafetyX=+" + LAMP_SAFETY_X_OFFSET_M
+                        + " lampDepth=authored lampReach=false lampSwitchTarget=false"
+                        + " lampLightEntity=true"
                         + " dresserSafetyX=+" + DRESSER_SAFETY_X_OFFSET_M
                         + " dresserSafetyZ=+" + DRESSER_SAFETY_Z_OFFSET_M
                         + " dresserContact=false"
@@ -172,6 +180,15 @@ final class CelineRoomNavigatorV9R {
                     source.localX + SHELF_SAFETY_X_OFFSET_M,
                     source.localY,
                     source.localZ + SHELF_SAFETY_Z_OFFSET_M,
+                    resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
+        }
+
+        if (LAMP_ANCHOR.equals(source.id)) {
+            return new CelineRoomWorldContractV80.Anchor(
+                    source.id, source.kind, source.objectId, source.approachAnchor, source.poseMode,
+                    source.localX + LAMP_SAFETY_X_OFFSET_M,
+                    source.localY,
+                    source.localZ,
                     resolvedFacing, source.clearanceRadius, source.contactCalibrationRequired);
         }
 
