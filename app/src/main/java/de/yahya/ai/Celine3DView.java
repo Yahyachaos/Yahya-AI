@@ -210,7 +210,7 @@ public final class Celine3DView extends FrameLayout {
         // the shared scene illumination toward a warm indoor evening baseline.
         indirectLight = new IndirectLight.Builder()
                 .irradiance(1, new float[]{1.0f, 0.94f, 0.88f})
-                .intensity(5000.0f)
+                .intensity(6500.0f)
                 .build(engine);
         scene.setIndirectLight(indirectLight);
 
