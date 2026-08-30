@@ -1,0 +1,79 @@
+name: Celine v80 room candidate8 ceiling material once
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - .github/workflows/celine-v80-room-candidate8-ceiling-material-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active branch
+        uses: actions/checkout@v4
+        with:
+          ref: auto/celine/v80-human-videochat-presence
+          fetch-depth: 0
+
+      - name: Apply bounded Candidate 8 ceiling-only material isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
+          text = path.read_text(encoding='utf-8')
+
+          old_field = '''        FilamentAsset roomAsset;\n        SeatAnchor seatAnchor;'''
+          new_field = '''        FilamentAsset roomAsset;\n        MaterialInstance ceilingMaterialOverride;\n        SeatAnchor seatAnchor;'''
+          if text.count(old_field) != 1:
+              raise SystemExit('Candidate #8 field anchor mismatch')
+          text = text.replace(old_field, new_field, 1)
+
+          old_call = '''                applyUserApprovedFurnitureOrientation(candidate);\n                applyWarmRoomShellMaterials(candidate);\n                validateWorldEntities(candidate, contract);'''
+          new_call = '''                applyUserApprovedFurnitureOrientation(candidate);\n                applyWarmRoomShellMaterials(candidate);\n                isolateCeilingMaterial(candidate);\n                validateWorldEntities(candidate, contract);'''
+          if text.count(old_call) != 1:
+              raise SystemExit('Candidate #8 build anchor mismatch')
+          text = text.replace(old_call, new_call, 1)
+
+          old_catch = '''                if (roomAsset != null || floorLampLightEntity != 0) {\n                    try { destroyRoom(); } catch (Throwable ignored) {}\n                } else {'''
+          new_catch = '''                if (roomAsset != null || floorLampLightEntity != 0\n                        || ceilingMaterialOverride != null) {\n                    try { destroyRoom(); } catch (Throwable ignored) {}\n                } else {'''
+          if text.count(old_catch) != 1:
+              raise SystemExit('Candidate #8 catch anchor mismatch')
+          text = text.replace(old_catch, new_catch, 1)
+
+          method_anchor = '''        private void tuneShellMaterial(\n                FilamentAsset asset, String entityName,\n                float red, float green, float blue, float roughness, float reflectance) {'''
+          method = '''        private void isolateCeilingMaterial(FilamentAsset asset) {\n            int entity = asset.getFirstEntityByName("room_ceiling");\n            if (entity == 0) {\n                throw new IllegalStateException("Room polish entity missing: room_ceiling");\n            }\n            RenderableManager manager = engine.getRenderableManager();\n            int renderable = manager.getInstance(entity);\n            if (renderable == 0) {\n                throw new IllegalStateException("Room polish renderable missing: room_ceiling");\n            }\n            int primitives = manager.getPrimitiveCount(renderable);\n            if (primitives != 1) {\n                throw new IllegalStateException(\n                        "Candidate #8 expects exactly one ceiling primitive, found " + primitives);\n            }\n            MaterialInstance source = manager.getMaterialInstanceAt(renderable, 0);\n            MaterialInstance duplicate = MaterialInstance.duplicate(\n                    source, "v80-room-ceiling-warm-beige");\n            boolean bound = false;\n            try {\n                duplicate.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,\n                        1.0f, 0.92f, 0.82f, 1.0f);\n                duplicate.setParameter("metallicFactor", 0.0f);\n                duplicate.setParameter("roughnessFactor", 0.88f);\n                duplicate.setParameter("reflectance", 0.40f);\n                manager.setMaterialInstanceAt(renderable, 0, duplicate);\n                ceilingMaterialOverride = duplicate;\n                bound = true;\n            } finally {\n                if (!bound) {\n                    try { engine.destroyMaterialInstance(duplicate); } catch (Throwable ignored) {}\n                }\n            }\n        }\n\n'''
+          if text.count(method_anchor) != 1:
+              raise SystemExit('Candidate #8 material method anchor mismatch')
+          text = text.replace(method_anchor, method + method_anchor, 1)
+
+          old_cleanup = '''            FilamentAsset current = roomAsset;\n            int lampLight = floorLampLightEntity;\n            roomAsset = null;\n            seatAnchor = null;\n            worldContract = null;\n            floorLampLightEntity = 0;\n            floorLampLightEnabled = false;\n            if (current == null && lampLight == 0) return;'''
+          new_cleanup = '''            FilamentAsset current = roomAsset;\n            int lampLight = floorLampLightEntity;\n            MaterialInstance ceilingOverride = ceilingMaterialOverride;\n            roomAsset = null;\n            ceilingMaterialOverride = null;\n            seatAnchor = null;\n            worldContract = null;\n            floorLampLightEntity = 0;\n            floorLampLightEnabled = false;\n            if (current == null && lampLight == 0 && ceilingOverride == null) return;'''
+          if text.count(old_cleanup) != 1:
+              raise SystemExit('Candidate #8 cleanup state anchor mismatch')
+          text = text.replace(old_cleanup, new_cleanup, 1)
+
+          old_destroy = '''                if (current != null) {\n                    for (int entity : current.getEntities()) {\n                        try { scene.removeEntity(entity); } catch (Throwable ignored) {}\n                    }\n                    assetLoader.destroyAsset(current);\n                }\n                Celine3DDiagnostics.record(context, "ROOM-130",'''
+          new_destroy = '''                if (current != null) {\n                    for (int entity : current.getEntities()) {\n                        try { scene.removeEntity(entity); } catch (Throwable ignored) {}\n                    }\n                    assetLoader.destroyAsset(current);\n                }\n                if (ceilingOverride != null) {\n                    try { engine.destroyMaterialInstance(ceilingOverride); } catch (Throwable ignored) {}\n                }\n                Celine3DDiagnostics.record(context, "ROOM-130",'''
+          if text.count(old_destroy) != 1:
+              raise SystemExit('Candidate #8 cleanup destroy anchor mismatch')
+          text = text.replace(old_destroy, new_destroy, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm .github/workflows/celine-v80-room-candidate8-ceiling-material-once.yml
+
+      - name: Commit bounded Candidate 8 runtime change
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java .github/workflows/celine-v80-room-candidate8-ceiling-material-once.yml
+          git commit -m "v80: isolate ceiling material for warm beige polish"
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
