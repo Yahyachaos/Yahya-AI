@@ -1,6 +1,6 @@
-# v80 Room Visual Polish Candidate #7 — manual verdict / Candidate #8 plan
+# v80 Room Visual Polish Candidate #7 verdict / Candidate #8 runtime checkpoint
 
-Live GitHub is authoritative. This file records the exact Candidate #7 build/proof/manual review and the next smallest evidence-backed correction. It does not reopen any accepted/protected runtime block.
+Live GitHub is authoritative. This file records the exact Candidate #7 evidence and the bounded Candidate #8 runtime now under validation. It does not reopen any accepted/protected runtime block.
 
 ## Active strand
 - Repository: `Yahyachaos/Yahya-AI`
@@ -8,10 +8,12 @@ Live GitHub is authoritative. This file records the exact Candidate #7 build/pro
 - Branch: `auto/celine/v80-human-videochat-presence`
 - Candidate #7 runtime commit: `7162a80332eb046d981a65377a5c31543eb49dd3`
 - Candidate #7 proof/checkpoint head: `ff3a49fb4517c076831b578120fb49664337245b`
-- Runtime file changed by Candidate #7: `app/src/main/java/de/yahya/ai/Celine3DView.java`
+- Candidate #8 runtime commit: `a0e740e91b6befdd5a6c61a55574c2738a96e0d3`
+- Runtime file changed by Candidate #8: `app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java`
 
 ## Protected baseline
 Unchanged and protected:
+- indirect lighting `(1.0, 1.0, 1.0)` at `8000`
 - directional-light color, direction and intensity (`14000`)
 - camera exposure
 - room GLB bytes, geometry and transforms
@@ -31,20 +33,22 @@ Celine Room Visual Polish Proof **#10**, run `33336089904`: **SUCCESS**.
 - structural result: PASS; Celine remained visible and HOME -> CALL -> HOME remained stable
 - manual verdict: **FAIL**
 
-Manual inspection of `home.png`, `call.png` and `home-return.png` shows the ceiling remains a distinct darker grey/taupe band while the back wall is warm light beige. Neutralizing indirect irradiance to `(1.0, 1.0, 1.0)` did not remove the mismatch. The floor remains strongly orange/red-brown. Celine and the room structure remain stable.
+Manual inspection of the actual `home.png`, `call.png` and `home-return.png` shows the ceiling remains a distinct darker grey/taupe band while the back wall is warm light beige. Neutralizing indirect irradiance to `(1.0, 1.0, 1.0)` did not remove the mismatch. The floor remains strongly orange/red-brown. Celine and room structure remain stable.
 
 ## Diagnosis after Candidates #4–#7
-Candidates #4–#6 showed that more indirect fill lightens the ceiling, but Candidate #7 proves global indirect color alone cannot make the ceiling match the wall. The accepted GLB maps wall and ceiling nodes to the same glTF material, and the current runtime tuning mutates the shared `MaterialInstance`; therefore wall and ceiling cannot be independently corrected by another global factor without also shifting the wall/floor lighting.
+Candidates #4–#6 showed that more indirect fill lightens the ceiling, but Candidate #7 proves global indirect color alone cannot make the ceiling match the wall. The accepted GLB maps wall and ceiling nodes to the same glTF material, and the prior runtime tuning mutates the shared `MaterialInstance`; therefore another global factor would also shift the wall rather than independently fixing the ceiling.
 
-The next bounded correction should stop global-light chasing and isolate only the ceiling material at runtime by duplicating the existing glTF `MaterialInstance` for `room_ceiling`, rebinding only that renderable primitive, and applying a slightly lighter warm-beige factor to that duplicate. This keeps textures/material shader features inherited from the original instance and leaves wall instances, floor, directional light, exposure, GLB bytes, transforms, Celine, camera/zoom, anchors/navigation and Lamp behavior unchanged.
+## Candidate #8 bounded runtime now implemented
+Candidate #8 runtime commit `a0e740e91b6befdd5a6c61a55574c2738a96e0d3` stops global-light chasing and isolates only the ceiling material at runtime:
+- duplicates the existing `room_ceiling` material instance only
+- binds the duplicate only to the single ceiling primitive
+- sets only the duplicate ceiling base color to lighter warm beige `(1.0, 0.92, 0.82, 1.0)` in LINEAR space
+- preserves ceiling metallic `0.0`, roughness `0.88`, reflectance `0.40`
+- destroys the duplicate material instance during room cleanup
+- leaves wall material factors and floor unchanged
+- leaves indirect/directional lighting, exposure, GLB bytes, transforms, Celine, camera/zoom, anchors/navigation and Lamp behavior unchanged
 
-## Candidate #8 exact bounded plan
-- keep Candidate #7 lighting unchanged: indirect `(1.0, 1.0, 1.0)` at `8000`, directional `14000`
-- duplicate the existing `room_ceiling` material instance only
-- bind the duplicate only to `room_ceiling`
-- set only the duplicate ceiling base color to a lighter warm beige
-- keep wall material factors unchanged
-- keep floor unchanged for this candidate
-- destroy the duplicate material instance during room cleanup
+The direct Android Build #821 on the GitHub-Actions-authored runtime commit concluded `action_required`, which is the known GitHub approval behavior for bot-authored PR heads rather than a runtime/build failure. This docs-only user checkpoint preserves Candidate #8 runtime exactly and exists only to obtain the normal PR validation run.
 
-After the runtime change: one Android build, then exactly one HOME/CALL/HOME Room Visual Polish proof, then manual image inspection and PASS/FAIL. No merge, no release, no NavMesh/free navigation.
+## Exact next action
+Run exactly one Android build on this runtime-equivalent user checkpoint. If successful, run exactly one HOME/CALL/HOME Room Visual Polish proof, inspect the actual images, and record PASS/FAIL. Do not change the floor or any protected behavior before that evidence. No merge, no release, no NavMesh/free navigation.
