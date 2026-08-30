@@ -28,31 +28,22 @@ jobs:
           from pathlib import Path
           path = Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
           text = path.read_text(encoding='utf-8')
-          old = '''    // Proof #14 showed the white back wall is already near display clipping under accepted global
-    // lighting. Aim the unchanged 60,000 lm down/back onto a dark camera-visible floor patch just
-    // behind the physical lamp near the left rug edge so ON/OFF has a local non-saturated witness.
-    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.6f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_X = 0.15080519f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.71883806f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.67862334f;
-    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.20943951f; // 12 degrees
-    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.41887902f; // 24 degrees
-'''
-          new = '''    // Proof #18 confirmed the default renderable light channel is now enabled, but the previous
-    // steep down/back beam still lands mostly outside the fixed-camera witness. Keep the proven
-    // 60,000 lm and lamp position unchanged; aim the same warm spot through the visible lounge-chair
-    // area toward the darker left wall so stable ON/OFF frames have a localized, non-clipped witness.
-    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 3.4f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.07282363f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.36411816f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.92850131f;
-    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.41887902f; // 24 degrees
-    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.69813170f; // 40 degrees
-'''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f'expected exactly one candidate #10 Lamp aiming block, found {count}')
-          text = text.replace(old, new, 1)
+          replacements = {
+              '    // Proof #14 showed the white back wall is already near display clipping under accepted global': '    // Proof #18 confirmed the default renderable light channel is enabled, but the previous',
+              '    // lighting. Aim the unchanged 60,000 lm down/back onto a dark camera-visible floor patch just': '    // steep down/back beam still lands mostly outside the fixed-camera witness. Keep the proven',
+              '    // behind the physical lamp near the left rug edge so ON/OFF has a local non-saturated witness.': '    // 60,000 lm and lamp position unchanged; aim the warm spot through the visible lounge-chair area.',
+              '    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.6f;': '    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 3.4f;',
+              '    private static final float FLOOR_LAMP_LIGHT_DIR_X = 0.15080519f;': '    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.07282363f;',
+              '    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.71883806f;': '    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.36411816f;',
+              '    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.67862334f;': '    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.92850131f;',
+              '    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.20943951f; // 12 degrees': '    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.41887902f; // 24 degrees',
+              '    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.41887902f; // 24 degrees': '    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.69813170f; // 40 degrees',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one Lamp anchor for {old!r}, found {count}')
+              text = text.replace(old, new, 1)
           path.write_text(text, encoding='utf-8')
           PY
           rm .github/workflows/celine-v80-lamp-visible-surface-fix-once.yml
