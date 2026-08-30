@@ -9,32 +9,32 @@
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
   "room_execution_trunk": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "status": "9R5_shelf_technically_and_manually_accepted_lamp_ready",
-  "latest_runtime_code_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-  "latest_built_runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
+  "status": "9R5_lamp_technical_pass_manual_fail_light_state_not_visible_handoff",
+  "latest_runtime_code_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
+  "latest_built_runtime_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
   "latest_visually_accepted_runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-  "runtime_fingerprint": "312292a7e853fa686a3f49a0ba190f73fb100eef1e29651f49dc992b8ae5bb8b",
+  "runtime_fingerprint": "821851eee0ecf0315c73aec8cb87e890c6aef12844de272f5e86e40c513ae266",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 758,
-    "run_id": 33282822925,
+    "run_number": 764,
+    "run_id": 33286069006,
     "conclusion": "success",
-    "runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-    "apk_artifact": 9723506493,
-    "runtime_fingerprint_artifact": 9723506635,
-    "apk_sha256": "06213cef04337f160771c02ba29446296a2eaa0d23c936b4f0e513d3c679a372"
+    "runtime_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
+    "apk_artifact": 9724486612,
+    "runtime_fingerprint_artifact": 9724486792,
+    "apk_sha256": "39a32615004ab270c24c226a5eec0452996c13144530abf1f26e794974071c37"
   },
   "latest_visual_proof": {
-    "name": "Celine Avatar Lab Proof",
-    "run_number": 162,
-    "run_id": 33282932900,
-    "proof_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-    "runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-    "artifact_id": 9723583934,
-    "artifact_digest": "sha256:a973f121dc5f29a49f6deee0c56041d96e9a84485de5213516856f6bcb790519",
+    "name": "Celine 9R.5 Lamp Proof",
+    "run_number": 5,
+    "run_id": 33286219797,
+    "proof_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
+    "runtime_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
+    "artifact_id": 9724590805,
+    "artifact_digest": "sha256:2b179aa7cbe69088251fc0da96ca148ae7b534bfd319a205044de1bc5fd6875b",
     "workflow_conclusion": "success",
-    "manual_inspection": "PASS_9R5_SHELF_CHAIN",
-    "note": "9R.5 Shelf technically and manually accepted. Proof #162 reused exact Android Build #758/runtime head 23c3ea02 via runtime fingerprint 312292a7... with fallback build skipped. Celine remains fully visible and grounded at the calibrated Shelf root (shelfSafetyX=+0.5, shelfSafetyZ=+0.65, camera-side depth), the bounded SHELF_STAND turns visibly toward the screen-left shelf/books, the later user-reacquire frame returns clearly toward the viewer, arms/hands stay natural with no fake reach/book pickup/contact, walk-away visibly begins and completes without teleport, and final fixed camera-talk framing returns with home-return zoom 601px -> 588px (0.978). Historical Proof #158 failed framing and Proof #160 failed look direction; both were corrected by the smallest Shelf-only evidence-driven changes."
+    "manual_inspection": "FAIL_9R5_LAMP_LIGHT_STATE_NOT_VISIBLE_60000LM",
+    "note": "Lamp Proof #5 is technically SUCCESS and reuses exact Android Build #764/runtime head 387a932b with runtime fingerprint 821851ee. Runtime evidence proves reversible floor_lamp_light ON/OFF at 60000 lm, LAMP_INTERACT, centralOwner=true, cameraFixed=true, handContact=false, switchTarget=false and noTeleport=true. Manual review still fails the required visible lighting-state criterion: 216-9r5-lamp-on-look-stable.png and 224-9r5-lamp-off-stable.png are visually nearly indistinguishable. Static wall/lamp-region comparison changes only about 0.2-0.3 RGB levels on average, so the ON state is not clearly warmer/brighter around the physical screen-left lamp. Celine remains reviewable, route/hold and both walk-away chains are clean, and final camera-talk framing restores with zoom 600px -> 599px (0.998). Do not accept Lamp or complete 9R.5 from workflow SUCCESS alone."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -55,17 +55,18 @@
   },
   "active_block": {
     "number": "9R.5",
-    "name": "Environment destinations — lamp next",
-    "status": "ready_for_read_only_audit"
+    "name": "Environment destination — lamp",
+    "status": "manual_visual_fail_handoff_stop"
   },
-  "current_blocker": null,
-  "exact_next_action": "Continue 9R.5 strictly with lamp_anchor only. Read-only audit lamp_anchor, room_walk_anchor_left route, floor-lamp collider/interaction exception, actual lamp mesh/node/material addressability, safe reach target feasibility and existing room-light/emission controls. Implement the smallest deterministic Lamp behavior required by the canonical room trunk: walk to a safe Lamp approach/hold -> bounded LAMP_INTERACT -> toggle a restrained lamp/room-light state if the actual final asset/runtime exposes a safe controllable target -> clear user re-acquisition -> walk away/return. If exact hand/switch geometry is not safely addressable, do not fake hand contact; explicit state toggle remains allowed by the trunk. Do not modify accepted Window, Dresser, Mirror or Shelf, 9R.1 locomotion, 9R.2 table, 9R.3 bed, 9R.4 chair, fixed camera, HOME/CALL, final room, gaze/blink/body layers or PCM lip sync. After one bounded Lamp runtime change, run exactly one Android build, exactly one targeted Lamp proof and mandatory manual visual inspection before declaring 9R.5 complete or advancing further.",
+  "current_blocker": "Lamp ON/OFF remains visually indistinguishable at 60000 lm despite correct runtime toggle/provenance. The lighting mechanism must be diagnosed rather than increased blindly again.",
+  "exact_next_action": "HANDOFF/STOP POINT. Do not continue automatically. The next operator must begin with fresh AGENTS.md/queue/work-order/live-GitHub reconciliation and keep PR #111/active branch single-flight. Read-only diagnose why floor_lamp_light has negligible visible contribution despite V80-484 toggling and 60000 lm: verify LightManager entity type/position/direction/falloff in the actual room/world coordinate space, scene exposure/indirect-light dominance, room transform/scale, and whether the lamp shade/material exposes a safe emissive target. Compare Proof #5 ON 216 vs OFF 224 before changing code. Do not make another blind intensity increase. Implement only the smallest evidence-driven Lamp visibility fix, then exactly one Android build, one targeted Lamp proof and mandatory manual review. Lamp is NOT accepted; 9R.5 is NOT complete. Do not merge or release.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
     "Do not merge or release during bounded 9R.5 environment-destination implementation.",
     "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or accepted 9R.5 Window/Dresser/Mirror/Shelf without new exact independent evidence.",
-    "9R.5 destinations are strictly sequential: Window, Dresser, Mirror and Shelf are accepted; Lamp is the only active destination.",
-    "Workflow SUCCESS is not visual acceptance."
+    "Lamp remains the only active 9R.5 destination and is blocked on manual visible-light-state acceptance.",
+    "Workflow SUCCESS is not visual acceptance.",
+    "Do not brute-force lamp intensity again without diagnosing why the current 60000 lm point light has negligible rendered effect."
   ],
   "roadmap": {
     "stage": 3,
