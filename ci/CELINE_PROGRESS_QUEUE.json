@@ -26,35 +26,35 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head": "aecd83f48b207a4856eddaed2255918fb5289cee",
-  "status": "9R5_lamp_candidate10_default_light_channel_fix_build_pending",
-  "latest_runtime_code_head": "aecd83f48b207a4856eddaed2255918fb5289cee",
-  "latest_built_runtime_head": "f3e26c619636697fe8253653c969452e0391b6cd",
+  "current_branch_head": "efd50772369e5af504fb830b04d76682786affa8",
+  "status": "9R5_lamp_candidate11_visible_chair_wall_witness_build_pending",
+  "latest_runtime_code_head": "efd50772369e5af504fb830b04d76682786affa8",
+  "latest_built_runtime_head": "aecd83f48b207a4856eddaed2255918fb5289cee",
   "latest_visually_accepted_runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-  "last_successful_runtime_fingerprint": "3abf1ce13a9228d23f955b6237aecc9b06910a03980567b76db92c0621055899",
+  "last_successful_runtime_fingerprint": "e9fb5f08cb46be13b07e0f39076826411294eb8fc9956d26dede8252ecdb6ae3",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 779,
-    "run_id": 33307322091,
+    "run_number": 782,
+    "run_id": 33307847472,
     "conclusion": "success",
-    "proof_head": "d74d38fa7b21604c3daa6be48ab5f1398537f1bf",
-    "runtime_equivalent_head": "f3e26c619636697fe8253653c969452e0391b6cd",
-    "apk_artifact": 9730902541,
-    "runtime_fingerprint_artifact": 9730902751,
-    "runtime_fingerprint": "3abf1ce13a9228d23f955b6237aecc9b06910a03980567b76db92c0621055899",
-    "note": "Build #779 validates candidate #9 warm indoor shared-light rebalance and the committed single room GLB. It predates candidate #10 light-channel fix."
+    "proof_head": "1b1da15eb1832e3bfbc7437ad6937d5c131797cf",
+    "runtime_equivalent_head": "aecd83f48b207a4856eddaed2255918fb5289cee",
+    "apk_artifact": 9731062708,
+    "runtime_fingerprint_artifact": 9731062864,
+    "runtime_fingerprint": "e9fb5f08cb46be13b07e0f39076826411294eb8fc9956d26dede8252ecdb6ae3",
+    "note": "Build #782 validates candidate #10: warm indoor shared-light rebalance plus default renderable Lamp light channel enabled. It predates candidate #11 beam re-aiming."
   },
   "latest_visual_proof": {
     "name": "Celine 9R.5 Lamp Proof",
-    "run_number": 17,
-    "run_id": 33307435173,
-    "proof_head": "d74d38fa7b21604c3daa6be48ab5f1398537f1bf",
-    "runtime_head": "f3e26c619636697fe8253653c969452e0391b6cd",
-    "artifact_id": 9730998036,
-    "artifact_digest": "sha256:2ffcad1006719023aea5861c1601acb01b958c3bb4a8ede595a8e755a0f9edfa",
+    "run_number": 18,
+    "run_id": 33307974147,
+    "proof_head": "1b1da15eb1832e3bfbc7437ad6937d5c131797cf",
+    "runtime_head": "aecd83f48b207a4856eddaed2255918fb5289cee",
+    "artifact_id": 9731166294,
+    "artifact_digest": "sha256:93e0d58998c19bafa36076946148be4f284034d5038720ef0c0ee04516133362",
     "workflow_conclusion": "success",
-    "manual_inspection": "FAIL_9R5_LAMP_WARM_ROOM_IMPROVED_BUT_ON_OFF_STILL_NOT_OBVIOUS",
-    "note": "Proof #17 is technically SUCCESS. Manual review confirms candidate #9 makes the whole room materially warmer and reduces the previous washed-out daylight look while preserving Celine and framing. However stable ON 216 vs OFF 224 remain visually too similar, including the physical screen-left lamp region; Lamp is not accepted. Source inspection then identified a concrete mechanism defect: the Lamp Builder explicitly called lightChannel(0, false), while normal glTF renderables use the default channel 0. Candidate #10 changes only that flag to true and leaves the 60,000 lm intensity, cone, position, direction, Celine, camera, room root and furniture transforms unchanged."
+    "manual_inspection": "FAIL_9R5_LAMP_CHANNEL_FIXED_BUT_STABLE_ON_OFF_STILL_TOO_SIMILAR",
+    "note": "Proof #18 is technically SUCCESS and uses Build #782 with runtime fingerprint e9fb5f08cb46be13b07e0f39076826411294eb8fc9956d26dede8252ecdb6ae3. Runtime logs prove enabled=true then enabled=false on floor_lamp_light at 60,000 lm, fixed camera and no teleport. Manual inspection of stable ON frame 216 versus OFF frame 224 still shows no obvious localized contribution around the physical screen-left Lamp/chair/wall region. Candidate #10 therefore remains manual FAIL. The default light-channel defect is fixed, so candidate #11 changes only beam direction/falloff/cone to place the same 60,000 lm light onto a camera-visible chair/wall witness."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -76,10 +76,10 @@
   "active_block": {
     "number": "9R.5",
     "name": "Environment destination — lamp / room-lighting visibility",
-    "status": "candidate10_runtime_change_waiting_for_exact_build_and_targeted_proof"
+    "status": "candidate11_runtime_change_waiting_for_exact_build_and_targeted_proof"
   },
-  "current_blocker": "Candidate #9 fixed the harsh global room ambience but did not make the Lamp ON/OFF witness obvious. Exact source diagnosis found the Lamp was explicitly excluded from default renderable light channel 0 via .lightChannel(0, false). Candidate #10 at aecd83f48b207a4856eddaed2255918fb5289cee changes only that to true.",
-  "exact_next_action": "Obtain exactly one successful Android build for candidate #10 aecd83f48b207a4856eddaed2255918fb5289cee (or a docs-only descendant with identical runtime fingerprint). Then run exactly one targeted 9R.5 Lamp proof and manually compare stable ON/OFF frames. Accept Lamp only if the local light contribution is clearly visible while Celine, camera, route/no-teleport behavior and the warmer room ambience remain correct. If PASS, mark Lamp/9R.5 complete and only then begin the broader room shell/material visual-polish scope from the user brief. Do not start continuous free/NavMesh navigation before that acceptance.",
+  "current_blocker": "Candidate #10 fixed the Lamp renderable light channel but stable ON/OFF evidence still does not show an obvious localized witness. Proof #18 indicates the steep down/back beam lands mostly outside the fixed-camera visible area. Candidate #11 at efd50772369e5af504fb830b04d76682786affa8 keeps the same 60,000 lm and Lamp position, re-aims toward the visible lounge-chair/left-wall region, extends falloff 2.6 -> 3.4 m and widens the cone 12/24 -> 24/40 degrees.",
+  "exact_next_action": "Obtain exactly one successful Android build for candidate #11 efd50772369e5af504fb830b04d76682786affa8 (or a docs-only descendant with identical runtime fingerprint). Then run exactly one targeted 9R.5 Lamp proof and manually compare stable ON/OFF frames. Accept Lamp only if a clearly localized warm contribution is visible on the chair/left-wall witness while Celine readability, fixed camera, route/no-teleport behavior and the warmer room ambience remain correct. If PASS, mark Lamp/9R.5 complete and only then begin the broader room shell/material visual-polish scope from the user brief. Do not start continuous free/NavMesh navigation before that acceptance.",
   "user_room_polish_request": {
     "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
     "accepted_as_new_product_direction": true,
