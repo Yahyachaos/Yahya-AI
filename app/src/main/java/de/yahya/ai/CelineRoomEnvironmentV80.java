@@ -41,6 +41,14 @@ final class CelineRoomEnvironmentV80 {
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
     private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.25f;
+    // The exact packaged lamp is one fused single-material mesh, so there is no safe bulb-only
+    // emissive target. Concentrate the already-proven 60,000 lm toward the adjacent screen-left
+    // wall instead of increasing intensity or making the whole lamp glow.
+    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.98893635f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.14834045f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Z = 0.0f;
+    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.43633232f; // 25 degrees
+    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.78539816f; // 45 degrees
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     static final class SeatAnchor {
@@ -145,9 +153,9 @@ final class CelineRoomEnvironmentV80 {
     }
 
     /**
-     * 9R.5 Lamp owns one real Filament point light, not an emissive-material fake. The app exposes
-     * only one active room, so a bounded Lamp interaction may toggle the currently built room state
-     * without taking transform ownership from CelineProductionPresenceV80.
+     * 9R.5 Lamp owns one real localized Filament focused spot light, not an emissive-material fake.
+     * The app exposes only one active room, so a bounded Lamp interaction may toggle the currently
+     * built room state without taking transform ownership from CelineProductionPresenceV80.
      */
     static boolean toggleActiveFloorLamp() {
         synchronized (STATES) {
@@ -239,9 +247,14 @@ final class CelineRoomEnvironmentV80 {
                         "bed=-90deg nightstands=+90deg; camera/Celine untouched");
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
-                        "entity=" + FLOOR_LAMP_LIGHT_ID + " enabled=false lumens="
+                        "entity=" + FLOOR_LAMP_LIGHT_ID
+                                + " type=FOCUSED_SPOT enabled=false lumens="
                                 + FLOOR_LAMP_LIGHT_LUMENS + " falloff="
-                                + FLOOR_LAMP_LIGHT_FALLOFF_M + "m materialEmission=false");
+                                + FLOOR_LAMP_LIGHT_FALLOFF_M + "m direction="
+                                + FLOOR_LAMP_LIGHT_DIR_X + "," + FLOOR_LAMP_LIGHT_DIR_Y + ","
+                                + FLOOR_LAMP_LIGHT_DIR_Z + " coneRad="
+                                + FLOOR_LAMP_SPOT_INNER_RAD + "/" + FLOOR_LAMP_SPOT_OUTER_RAD
+                                + " materialEmission=false");
                 failureLogged = false;
                 return true;
             } catch (Throwable error) {
@@ -342,8 +355,11 @@ final class CelineRoomEnvironmentV80 {
         private void createFloorLampLight() {
             int entity = EntityManager.get().create();
             try {
-                new LightManager.Builder(LightManager.Type.POINT)
+                new LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
                         .position(FLOOR_LAMP_LIGHT_X, FLOOR_LAMP_LIGHT_Y, FLOOR_LAMP_LIGHT_Z)
+                        .direction(FLOOR_LAMP_LIGHT_DIR_X,
+                                FLOOR_LAMP_LIGHT_DIR_Y, FLOOR_LAMP_LIGHT_DIR_Z)
+                        .spotLightCone(FLOOR_LAMP_SPOT_INNER_RAD, FLOOR_LAMP_SPOT_OUTER_RAD)
                         .color(1.0f, 0.55f, 0.30f)
                         .intensity(FLOOR_LAMP_LIGHT_LUMENS)
                         .falloff(FLOOR_LAMP_LIGHT_FALLOFF_M)
@@ -371,7 +387,7 @@ final class CelineRoomEnvironmentV80 {
             Celine3DDiagnostics.record(context, "V80-484",
                     "9R.5 Lampenstatus gewechselt",
                     "enabled=" + next + " lightEntity=" + FLOOR_LAMP_LIGHT_ID
-                            + " lumens=" + FLOOR_LAMP_LIGHT_LUMENS
+                            + " type=FOCUSED_SPOT lumens=" + FLOOR_LAMP_LIGHT_LUMENS
                             + " handContact=false switchTarget=false cameraFixed=true");
             return true;
         }
