@@ -39,7 +39,7 @@ final class CelineRoomEnvironmentV80 {
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
     private static final float FLOOR_LAMP_LIGHT_Z = 1.55f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
-    private static final float FLOOR_LAMP_LIGHT_LUMENS = 450.0f;
+    private static final float FLOOR_LAMP_LIGHT_LUMENS = 3600.0f;
     private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.25f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
