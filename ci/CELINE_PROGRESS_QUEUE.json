@@ -26,11 +26,11 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head": "efd50772369e5af504fb830b04d76682786affa8",
-  "status": "9R5_lamp_candidate11_visible_chair_wall_witness_build_success_proof_pending",
+  "current_branch_head": "689277d5a49e4c44938135e209bfee5dbcf8807c",
+  "status": "9R5_complete_room_visual_polish_ready",
   "latest_runtime_code_head": "efd50772369e5af504fb830b04d76682786affa8",
   "latest_built_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
-  "latest_visually_accepted_runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
+  "latest_visually_accepted_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
   "last_successful_runtime_fingerprint": "38392cf815ec925572e60085b219eab05054df5b72bfc4d4b6cffde1ec53ed1c",
   "android_build": {
     "workflow": "Android Build",
@@ -42,19 +42,19 @@
     "apk_artifact": 9731274670,
     "runtime_fingerprint_artifact": 9731274913,
     "runtime_fingerprint": "38392cf815ec925572e60085b219eab05054df5b72bfc4d4b6cffde1ec53ed1c",
-    "note": "Build #786 validates candidate #11 on the docs-only descendant. Candidate #11 preserves the 60,000 lm Lamp and default light channel, re-aiming only direction/falloff/cone toward a camera-visible chair/left-wall witness."
+    "note": "Build #786 validates the accepted Lamp candidate #11 runtime. It preserves the 60,000 lm Lamp and default light channel and changes only direction/falloff/cone toward the camera-visible lounge-chair/left-wall witness."
   },
   "latest_visual_proof": {
     "name": "Celine 9R.5 Lamp Proof",
-    "run_number": 18,
-    "run_id": 33307974147,
-    "proof_head": "1b1da15eb1832e3bfbc7437ad6937d5c131797cf",
-    "runtime_head": "aecd83f48b207a4856eddaed2255918fb5289cee",
-    "artifact_id": 9731166294,
-    "artifact_digest": "sha256:93e0d58998c19bafa36076946148be4f284034d5038720ef0c0ee04516133362",
+    "run_number": 19,
+    "run_id": 33308711467,
+    "proof_head": "689277d5a49e4c44938135e209bfee5dbcf8807c",
+    "runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
+    "artifact_id": 9731392163,
+    "artifact_digest": "sha256:7612296d4b31d93001964be556f9789f406ed1620a0333a9e2c632fc88cb0e2c",
     "workflow_conclusion": "success",
-    "manual_inspection": "FAIL_9R5_LAMP_CHANNEL_FIXED_BUT_STABLE_ON_OFF_STILL_TOO_SIMILAR",
-    "note": "Proof #18 is technically SUCCESS and uses Build #782 with runtime fingerprint e9fb5f08cb46be13b07e0f39076826411294eb8fc9956d26dede8252ecdb6ae3. Runtime logs prove enabled=true then enabled=false on floor_lamp_light at 60,000 lm, fixed camera and no teleport. Manual inspection of stable ON frame 216 versus OFF frame 224 still shows no obvious localized contribution around the physical screen-left Lamp/chair/wall region. Candidate #10 therefore remains manual FAIL. The default light-channel defect is fixed, so candidate #11 changes only beam direction/falloff/cone to place the same 60,000 lm light onto a camera-visible chair/wall witness."
+    "manual_inspection": "PASS_9R5_LAMP_LOCALIZED_WARM_CHAIR_FLOOR_WITNESS_VISIBLE",
+    "note": "Proof #19 is technically SUCCESS and reuses the runtime-equivalent Build #786 APK. Runtime evidence proves the reversible floor_lamp_light enabled=true then enabled=false at 60,000 lm, fixed camera and no teleport. Manual stable ON 216 versus OFF 224 inspection now shows a localized warm contribution on the static screen-left lounge chair and adjacent floor/lamp region while Celine remains readable and the warmer room ambience is preserved. Lamp is manually accepted; workflow SUCCESS alone was not used as acceptance."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -71,44 +71,47 @@
     "9R.5-window": "Environment destination — window",
     "9R.5-dresser": "Environment destination — dresser",
     "9R.5-mirror": "Environment destination — mirror",
-    "9R.5-shelf": "Environment destination — shelf"
+    "9R.5-shelf": "Environment destination — shelf",
+    "9R.5-lamp": "Environment destination — lamp / reversible localized room light",
+    "9R.5": "Environment destinations complete"
   },
   "active_block": {
-    "number": "9R.5",
-    "name": "Environment destination — lamp / room-lighting visibility",
-    "status": "candidate11_build_success_waiting_for_targeted_proof"
+    "number": "room-visual-polish",
+    "name": "Warm realistic room shell/material treatment",
+    "status": "ready_for_first_bounded_implementation"
   },
-  "current_blocker": "Candidate #10 fixed the Lamp renderable light channel but stable ON/OFF evidence still did not show an obvious localized witness. Candidate #11 at efd50772369e5af504fb830b04d76682786affa8 keeps the same 60,000 lm and Lamp position, re-aims toward the visible lounge-chair/left-wall region, extends falloff 2.6 -> 3.4 m and widens the cone 12/24 -> 24/40 degrees. Android Build #786 is SUCCESS with runtime fingerprint 38392cf815ec925572e60085b219eab05054df5b72bfc4d4b6cffde1ec53ed1c.",
-  "exact_next_action": "Run exactly one targeted 9R.5 Lamp proof using the runtime-equivalent Build #786 APK, then manually compare stable ON/OFF frames. Accept Lamp only if a clearly localized warm contribution is visible on the chair/left-wall witness while Celine readability, fixed camera, route/no-teleport behavior and the warmer room ambience remain correct. If PASS, mark Lamp/9R.5 complete and only then begin the broader room shell/material visual-polish scope from the user brief. Do not start continuous free/NavMesh navigation before that acceptance.",
+  "current_blocker": "none_for_9R5; room visual polish must preserve every accepted/protected behavior and must not mutate the 12 original furniture GLBs or canonical Celine",
+  "exact_next_action": "Re-read current root AGENTS.md from live main, reconcile live GitHub, then read the user-supplied Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md as the product brief. Select the smallest bounded room-shell/material/lighting polish change that improves the warm realistic beige-bedroom appearance without changing canonical Celine, camera/zoom, accepted poses, room root, furniture transforms, anchors/navigation, Lamp behavior or the 12 immutable original furniture GLBs. Validate the exact resulting head before expanding scope. Do not begin free continuous/NavMesh navigation yet.",
   "user_room_polish_request": {
     "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
     "accepted_as_new_product_direction": true,
     "live_state_corrections": [
-      "The brief's statements that 4R is not runtime accepted and that 9R locomotion is not enabled are stale; live repository state has 4R and 9R.1-9R.4 accepted/protected and 9R.5 Lamp active.",
+      "The brief's statements that 4R is not runtime accepted and that 9R locomotion is not enabled are stale; live repository state has 4R and 9R.1-9R.5 accepted/protected.",
       "The committed room GLB exists at the exact runtime path and Build #776 proved it is packaged correctly.",
-      "Broader shell/material/camera polish is sequenced after the current Lamp destination to preserve accepted behavior."
+      "Lamp/9R.5 is now accepted on runtime efd50772369e5af504fb830b04d76682786affa8 after Proof #19 manual review.",
+      "Broader shell/material/camera polish may now begin, but protected camera/zoom and interaction behavior must remain unchanged unless new exact independent evidence requires a bounded correction."
     ],
     "future_scope_after_lamp": [
       "Improve wall/floor/ceiling material realism toward the warm beige bedroom direction while preserving immutable original furniture GLBs.",
-      "Preserve accepted camera/zoom, seated pose, room anchors and Celine separation.",
-      "Current movement already uses the accepted anchor/path graph. Evaluate continuous free-navigation/NavMesh only as an explicit additional scope after protected anchor locomotion remains proven."
+      "Preserve accepted camera/zoom, seated pose, room anchors, all 9R.5 destinations and Celine separation.",
+      "Current movement already uses the accepted anchor/path graph. Evaluate continuous free-navigation/NavMesh only as an explicit later scope after room visual polish and protected anchor locomotion remain proven."
     ]
   },
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge or release during bounded 9R.5 environment-destination implementation.",
-    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or accepted 9R.5 Window/Dresser/Mirror/Shelf without new exact independent evidence.",
-    "Lamp remains the only active 9R.5 destination until manual visible-light-state acceptance.",
-    "Workflow SUCCESS is not visual acceptance.",
+    "Do not merge or release during bounded room visual-polish implementation.",
+    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or 9R.5 Window/Dresser/Mirror/Shelf/Lamp without new exact independent evidence.",
+    "Workflow SUCCESS is not visual acceptance where appearance is under review.",
     "Do not alter the 12 immutable original furniture GLBs in place.",
-    "Canonical Celine remains separate from the room and furniture."
+    "Canonical Celine remains separate from the room and furniture.",
+    "Do not start continuous free/NavMesh navigation during room visual polish."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "9R.5-lamp-room-lighting",
-    "next_substep_after_acceptance": "room-visual-polish-from-user-brief-then-reconcile-next-canonical-trunk-step",
+    "current_substep": "room-visual-polish-from-user-brief",
+    "next_substep_after_acceptance": "reconcile-next-canonical-trunk-step",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
   }
