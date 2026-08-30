@@ -1,0 +1,47 @@
+name: Celine v80 room candidate6 indirect intensity once
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - .github/workflows/celine-v80-room-candidate6-indirect-intensity-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active branch
+        uses: actions/checkout@v4
+        with:
+          ref: auto/celine/v80-human-videochat-presence
+          fetch-depth: 0
+
+      - name: Apply bounded Candidate 6 indirect intensity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/de/yahya/ai/Celine3DView.java')
+          text = path.read_text(encoding='utf-8')
+          old = '''        indirectLight = new IndirectLight.Builder()\n                .irradiance(1, new float[]{1.0f, 0.94f, 0.88f})\n                .intensity(6500.0f)\n                .build(engine);'''
+          new = '''        indirectLight = new IndirectLight.Builder()\n                .irradiance(1, new float[]{1.0f, 0.94f, 0.88f})\n                .intensity(8000.0f)\n                .build(engine);'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected exactly one Candidate #5 indirect-light anchor, found {count}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/celine-v80-room-candidate6-indirect-intensity-once.yml
+
+      - name: Commit bounded Candidate 6 runtime change
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/de/yahya/ai/Celine3DView.java .github/workflows/celine-v80-room-candidate6-indirect-intensity-once.yml
+          git commit -m "v80: lift indirect room fill to candidate 6"
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
