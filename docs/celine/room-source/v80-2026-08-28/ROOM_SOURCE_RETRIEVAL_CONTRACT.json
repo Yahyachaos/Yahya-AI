@@ -1,12 +1,26 @@
 {
-  "schema": 1,
+  "schema": 2,
   "purpose": "Canonical retrieval contract for the 12 textured Celine v80 room source GLBs.",
-  "source_kind": "chatgpt_persistent_library",
-  "library_root": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
+  "source_kind": "github_lfs_primary_with_library_backup",
+  "github_lfs_bridge": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_GITHUB_LFS_BRIDGE.json",
+  "github_lfs": {
+    "repository": "Yahyachaos/Yahya-AI",
+    "branch": "assets/celine-source-persistence",
+    "commit": "df50816187978cbf5faf818ad484c3f682be7588",
+    "path": "app/src/main/assets/models/möbel/",
+    "transport": "git_lfs",
+    "verification": "PASS_12_OF_12_GIT_LFS_POINTER_OID_AND_SIZE_MATCH_CANONICAL"
+  },
+  "library_backup": {
+    "root": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
+    "kind": "chatgpt_persistent_library",
+    "role": "secondary immutable backup and independent provenance source"
+  },
   "important_path_semantics": [
-    "library_root is a ChatGPT persistent Library path, not a repository path and not an automatically mounted worker filesystem path.",
-    "A worker must use an authorized Files/Library retrieval or materialization capability before programmatic 3D processing.",
-    "Never call ordinary filesystem open() on library_root unless the files have first been materialized into the worker workspace and the materialization result provides a real local path."
+    "The primary worker-accessible source is the pinned GitHub LFS commit/path above. The files are on the sibling branch assets/celine-source-persistence, not automatically on the active v80 implementation branch.",
+    "Git metadata contains small LFS pointer files; the pointer oid sha256 and size identify the original GLB bytes. A worker that needs the bytes must use Git LFS-aware checkout/fetch/materialization.",
+    "The Library root remains a valid backup path, but a worker does not need Library access when the pinned GitHub LFS source is accessible and passes all canonical hash checks.",
+    "Never treat either source location as permission to mutate the original GLB bytes in place."
   ],
   "expected_file_count": 12,
   "checksum_index": "docs/celine/room-source/v80-2026-08-28/SOURCE_SHA256SUMS.txt",
@@ -25,23 +39,24 @@
     "Tischfürlaptop.glb": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da"
   },
   "pre_assembly_gate": [
-    "Read root AGENTS.md, live queue, active work order/amendment, validation policy, room README, execution trunk and this retrieval contract.",
-    "Retrieve/materialize the current Library files only when 4R room assembly/optimization actually begins.",
+    "Read root AGENTS.md, live queue, active work order/amendment, validation policy, room README, execution trunk, this retrieval contract and ROOM_SOURCE_GITHUB_LFS_BRIDGE.json.",
+    "Prefer the pinned GitHub LFS source when available; otherwise materialize the Library backup through an authorized Files/Library capability.",
     "Verify exactly 12 unique GLB filenames are present.",
-    "Verify every GLB SHA-256 against expected_sources and SOURCE_SHA256SUMS.txt before modifying or optimizing any source.",
-    "Preserve the Library originals unchanged; work only on materialized/workspace copies.",
+    "Verify every original GLB identity against expected_sources and SOURCE_SHA256SUMS.txt. For GitHub LFS, verify pointer oid sha256 and size before fetching/processing bytes; for materialized bytes, verify SHA-256 directly.",
+    "Preserve original source bytes unchanged; work only on derived/materialized/workspace copies.",
     "Nachttisch.glb may be instantiated twice in the final room but must remain one source binary.",
     "Do not retrieve, restore or substitute the superseded six untextured GLBs."
   ],
   "hard_stop_conditions": [
-    "Worker has GitHub access but no authorized Files/Library access or materialization capability.",
+    "Neither the pinned GitHub LFS source nor the Library backup can be accessed/materialized.",
     "Any of the 12 expected files is missing.",
     "Any filename is unexpected or ambiguous.",
-    "Any SHA-256 differs from the canonical value.",
-    "The worker can see only stale/untextured room sources.",
-    "A tool tries to interpret library_root as a normal repository/local filesystem directory."
+    "Any SHA-256/LFS oid differs from the canonical value.",
+    "Any Git LFS pointer size differs from the canonical source byte size.",
+    "The worker can see only stale/untextured room sources."
   ],
-  "hard_stop_action": "Do not build a substitute room, do not use stale GLBs, do not guess paths and do not continue 4R asset assembly. Record the source-access mismatch as the current blocker and request/perform authorized materialization first.",
-  "runtime_rule": "Raw source GLBs are preservation inputs, not APK-ready assets. Optimize materialized copies and build the bounded modular production room; never copy all raw 120-189 MB GLBs directly into the APK.",
+  "hard_stop_action": "Do not build a substitute room, do not use stale GLBs, do not guess paths and do not continue source-derived room work. Record the source-access or identity mismatch as the blocker and restore access to one canonical source channel first.",
+  "relationship_rule": "ROOM_SOURCE_GITHUB_LFS_BRIDGE.json is the durable map from the immutable raw originals to the accepted optimized modular room parts, assembly/world/anchor/nav contracts and canonical Celine separation rules.",
+  "runtime_rule": "Raw source GLBs are preservation inputs, not APK-ready assets. Optimize derived copies and build/use the bounded modular production room; never copy all raw 120-189 MB GLBs directly into the APK.",
   "viewer_rule": "Tischfürlaptop.glb is the physical foreground table. The laptop itself is the camera/viewer and must not be visible in the final room."
 }
