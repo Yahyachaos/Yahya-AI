@@ -40,15 +40,15 @@ final class CelineRoomEnvironmentV80 {
     private static final float FLOOR_LAMP_LIGHT_Z = 1.55f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
-    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.25f;
-    // The exact packaged lamp is one fused single-material mesh, so there is no safe bulb-only
-    // emissive target. Concentrate the already-proven 60,000 lm toward the adjacent screen-left
-    // wall instead of increasing intensity or making the whole lamp glow.
-    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.98893635f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.14834045f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Z = 0.0f;
-    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.43633232f; // 25 degrees
-    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.78539816f; // 45 degrees
+    // Proof #10 showed that the nearby left side wall is almost edge-on/out of camera while the
+    // visible back wall is about 4.55 m from the shade. Reach that visible surface without raising
+    // lumens, and focus the pool toward its darker lower-left/shelf region rather than Celine.
+    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 5.0f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.18670049f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.09884144f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.9774320f;
+    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.17453292f; // 10 degrees
+    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.31415927f; // 18 degrees
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     static final class SeatAnchor {
