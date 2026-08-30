@@ -40,15 +40,15 @@ final class CelineRoomEnvironmentV80 {
     private static final float FLOOR_LAMP_LIGHT_Z = 1.55f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
-    // Proof #14 showed the white back wall is already near display clipping under accepted global
-    // lighting. Aim the unchanged 60,000 lm down/back onto a dark camera-visible floor patch just
-    // behind the physical lamp near the left rug edge so ON/OFF has a local non-saturated witness.
-    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 2.6f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_X = 0.15080519f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.71883806f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.67862334f;
-    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.20943951f; // 12 degrees
-    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.41887902f; // 24 degrees
+    // Proof #18 confirmed the default renderable light channel is enabled, but the previous
+    // steep down/back beam still lands mostly outside the fixed-camera witness. Keep the proven
+    // 60,000 lm and lamp position unchanged; aim the warm spot through the visible lounge-chair area.
+    private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 3.4f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.07282363f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.36411816f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.92850131f;
+    private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.41887902f; // 24 degrees
+    private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.69813170f; // 40 degrees
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     static final class SeatAnchor {
