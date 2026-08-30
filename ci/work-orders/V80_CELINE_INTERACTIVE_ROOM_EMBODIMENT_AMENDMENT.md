@@ -18,15 +18,31 @@ The machine-readable source access/materialization contract lives in:
 
 `docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json`
 
+The durable GitHub-LFS-to-runtime relationship map lives in:
+
+`docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_GITHUB_LFS_BRIDGE.json`
+
 ## Mandatory source retrieval gate
 
-Before **any 4R room asset optimization or assembly**, the worker must read `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and obey it literally.
+Before **any new room-source-derived optimization, rebuild or assembly work**, the worker must read `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and `ROOM_SOURCE_GITHUB_LFS_BRIDGE.json` and obey them literally.
 
-The canonical source directory `/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/` is a **ChatGPT persistent Library path**, not a GitHub repository path and not automatically a local worker filesystem path. A worker must use an authorized Files/Library retrieval or materialization capability and then use the real local paths returned by that materialization step.
+As of 2026-08-30, the exact 12 original textured GLBs are persisted through Git LFS on the sibling branch `assets/celine-source-persistence`, pinned by source commit `df50816187978cbf5faf818ad484c3f682be7588`, under:
 
-Before touching source geometry, the worker must verify exactly 12 unique GLBs and verify every SHA-256 against both `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and `SOURCE_SHA256SUMS.txt`. The persistent Library originals remain unchanged; optimization happens only on materialized/workspace copies.
+`app/src/main/assets/models/möbel/`
 
-If the worker cannot access/materialize the Library sources, if any source is missing, or if any hash differs, **4R must hard-stop**. Do not guess a path, do not restore the superseded six untextured GLBs, do not use substitutes, and do not build a replacement room from stale sources. Record source access as the blocker first.
+That Git LFS source was independently verified 12/12: every pointer `oid sha256` and declared source byte size matches both `ROOM_SOURCE_RETRIEVAL_CONTRACT.json` and `SOURCE_SHA256SUMS.txt`. This is now the preferred worker-accessible source channel when repository + Git LFS access is available.
+
+The previous persistent Library source remains preserved at:
+
+`/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/`
+
+It is a **ChatGPT persistent Library path**, not a normal repository/local filesystem path. It remains a secondary immutable backup and independent provenance source. A worker may use it through authorized Files/Library materialization when GitHub LFS is unavailable.
+
+Before touching source geometry, verify exactly 12 unique GLBs and verify every source identity against the canonical hashes. For GitHub LFS, the pinned pointer `oid sha256` plus `size` is the first identity gate; after materializing bytes for processing, direct SHA-256 verification remains required. Original source bytes are immutable; optimization happens only on derived/workspace copies.
+
+Hard-stop only if **neither** canonical source channel can be accessed/materialized, if any expected source is missing, or if any filename/hash/LFS size differs. Do not guess a path, do not restore the superseded six untextured GLBs, do not use substitutes, and do not build a replacement room from stale sources.
+
+This source-provenance update is docs-only and does **not** reopen accepted Block 4R. The accepted optimized modular room/runtime remains protected; the LFS originals are the immutable source-of-origin and recovery/rebuild input, not a command to replace the accepted runtime room with raw files.
 
 ## Amended execution order
 
@@ -55,7 +71,7 @@ Purpose: replace/evolve the current visually blocky functional Filament room wit
 
 - pass the mandatory source retrieval/materialization/hash gate above before source processing;
 - reconcile the provisional floorplan with the newer approximately 6.4 m × 5.8 m × 2.8 m assembly candidate;
-- use the 12 current textured GLB sources from the persistent room-source backup, never the superseded untextured six;
+- use the 12 current textured GLB originals identified by the canonical source bridge, never the superseded untextured six;
 - optimize rather than copy the raw 120–189 MB source GLBs directly into the APK;
 - normalize scale/orientation/origins, reduce mesh/texture cost, preserve contact-critical bed/chair/table geometry and verify Filament PBR interpretation;
 - preserve the fixed laptop/webcam viewer model: the table may be visible, the laptop must not be visible;
@@ -115,4 +131,4 @@ Do not expand the current trunk merely to add drawers, curtain cloth simulation,
 
 ## Efficiency rule
 
-This amendment, retrieval contract and execution trunk are docs-only and require no Android build. Runtime work remains bounded by the normal Efficiency Fast Path: one runtime change, one necessary build, one smallest relevant targeted proof, inspect actual evidence, then continue.
+This amendment, retrieval contract, LFS bridge and execution trunk are docs-only and require no Android build. Runtime work remains bounded by the normal Efficiency Fast Path: one runtime change, one necessary build, one smallest relevant targeted proof, inspect actual evidence, then continue.
