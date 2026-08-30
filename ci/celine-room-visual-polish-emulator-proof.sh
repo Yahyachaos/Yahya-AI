@@ -29,7 +29,6 @@ capture() {
   local name="$1" label="$2"
   adb exec-out screencap -p > "$OUT/$name.png"
   python3 ci/check-real-celine-render.py "$OUT/$name.png" "$label"
-  python3 ci/check-celine-person-presence.py "$OUT/$name.png" "$label"
 }
 
 test -s "$APK" || fail "APK missing"
@@ -91,6 +90,7 @@ cat > "$OUT/summary.txt" <<'EOF'
 STRUCTURAL_PASS targeted v80 room visual polish proof
 EXPECTED_VISUAL=warm_beige_walls_and_ceiling_warmer_wood_floor
 PROTECTED=canonical_Celine_camera_room_root_furniture_transforms_navigation_lamp
+CELINE_PRESENCE=CTL-350_plus_manual_image_review
 VISUAL_ACCEPTANCE=manual_review_required
 EOF
 
