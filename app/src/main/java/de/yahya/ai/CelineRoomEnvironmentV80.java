@@ -4,7 +4,9 @@ import android.content.Context;
 import android.opengl.Matrix;
 import android.view.View;
 
+import com.google.android.filament.Colors;
 import com.google.android.filament.Engine;
+import com.google.android.filament.MaterialInstance;
 import com.google.android.filament.EntityManager;
 import com.google.android.filament.LightManager;
 import com.google.android.filament.RenderableManager;
@@ -219,6 +221,7 @@ final class CelineRoomEnvironmentV80 {
 
                 alignRoomRoot(candidate);
                 applyUserApprovedFurnitureOrientation(candidate);
+                applyWarmRoomShellMaterials(candidate);
                 validateWorldEntities(candidate, contract);
 
                 scene.addEntities(candidate.getEntities());
@@ -245,6 +248,9 @@ final class CelineRoomEnvironmentV80 {
                 Celine3DDiagnostics.record(context, "ROOM-115",
                         "4R Möbelorientierung korrigiert",
                         "bed=-90deg nightstands=+90deg; camera/Celine untouched");
+                Celine3DDiagnostics.record(context, "ROOM-117",
+                        "Raum-Shell warm materialisiert",
+                        "walls/ceiling=warm-beige floor=warm-wood; geometry/transforms unchanged");
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
                         "entity=" + FLOOR_LAMP_LIGHT_ID
@@ -310,6 +316,46 @@ final class CelineRoomEnvironmentV80 {
             applyLocalYaw(asset, "room_bed", -180.0f);
             applyLocalYaw(asset, "room_nightstand_back", 90.0f);
             applyLocalYaw(asset, "room_nightstand_front", 90.0f);
+        }
+
+        /**
+         * First bounded room-visual-polish step from the user's warm beige-bedroom brief.
+         * The shell geometry, room root, anchors, furniture transforms, camera and Celine remain
+         * untouched. Only the existing glTF shell material factors are tuned at runtime.
+         */
+        private void applyWarmRoomShellMaterials(FilamentAsset asset) {
+            // RoomWarmOffWhite is shared by the three visible walls and ceiling in the accepted GLB.
+            tuneShellMaterial(asset, "room_back_wall",
+                    0.86f, 0.78f, 0.68f, 0.88f, 0.40f);
+            // Keep a dielectric wood floor, but lower roughness enough for a restrained warm sheen.
+            tuneShellMaterial(asset, "room_floor",
+                    0.64f, 0.44f, 0.28f, 0.62f, 0.45f);
+        }
+
+        private void tuneShellMaterial(
+                FilamentAsset asset, String entityName,
+                float red, float green, float blue, float roughness, float reflectance) {
+            int entity = asset.getFirstEntityByName(entityName);
+            if (entity == 0) {
+                throw new IllegalStateException("Room polish entity missing: " + entityName);
+            }
+            RenderableManager manager = engine.getRenderableManager();
+            int renderable = manager.getInstance(entity);
+            if (renderable == 0) {
+                throw new IllegalStateException("Room polish renderable missing: " + entityName);
+            }
+            int primitives = manager.getPrimitiveCount(renderable);
+            if (primitives <= 0) {
+                throw new IllegalStateException("Room polish primitive missing: " + entityName);
+            }
+            for (int primitive = 0; primitive < primitives; primitive++) {
+                MaterialInstance material = manager.getMaterialInstanceAt(renderable, primitive);
+                material.setParameter("baseColorFactor", Colors.RgbaType.SRGB,
+                        red, green, blue, 1.0f);
+                material.setParameter("metallicFactor", 0.0f);
+                material.setParameter("roughnessFactor", roughness);
+                material.setParameter("reflectance", reflectance);
+            }
         }
 
         private void applyLocalYaw(FilamentAsset asset, String entityName, float deltaDegrees) {
