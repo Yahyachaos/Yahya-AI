@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "purpose": "Durable worker bridge from the canonical 12 original textured furniture GLBs to the accepted v80 modular room/runtime contracts.",
+  "verification_date": "2026-08-30",
+  "verification_result": "PASS_12_OF_12_GIT_LFS_POINTER_OID_AND_SIZE_MATCH_CANONICAL",
+  "source_repository": "Yahyachaos/Yahya-AI",
+  "source_transport": "git_lfs",
+  "source_branch": "assets/celine-source-persistence",
+  "source_commit": "df50816187978cbf5faf818ad484c3f682be7588",
+  "source_path": "app/src/main/assets/models/möbel/",
+  "expected_file_count": 12,
+  "checksum_index": "docs/celine/room-source/v80-2026-08-28/SOURCE_SHA256SUMS.txt",
+  "archival_backup": {
+    "kind": "chatgpt_persistent_library",
+    "path": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
+    "role": "secondary immutable backup and independent provenance source"
+  },
+  "worker_retrieval_rules": [
+    "Prefer the pinned GitHub LFS source_commit when a worker has repository and Git LFS access.",
+    "The source_path is on the sibling branch assets/celine-source-persistence, not on the active v80 implementation branch unless explicitly integrated later.",
+    "Treat the small Git blobs as Git LFS pointer metadata; the pointer oid sha256 and size identify the original GLB bytes.",
+    "Before any new geometry processing, verify all 12 filenames plus LFS oid/size against this bridge and SOURCE_SHA256SUMS.txt.",
+    "Never edit the original GLB bytes in place. Create derived/optimized workspace copies only.",
+    "If GitHub LFS is unavailable, the persistent Library path remains an authorized fallback; either source is acceptable only when all canonical hashes match.",
+    "Do not restore or substitute the superseded six untextured GLBs."
+  ],
+  "relationship_to_runtime": {
+    "role_of_originals": "immutable high-resolution source-of-origin for the room furniture/decor",
+    "role_of_runtime_room": "optimized modular derivative used by the active v80 room/world implementation; raw 120-189 MB sources must not be copied directly into the APK",
+    "active_implementation_branch": "auto/celine/v80-human-videochat-presence",
+    "active_pr": 111,
+    "runtime_modular_source_parts": [
+      "app/src/main/room-source/celine_room_v80_final_modular.glb.part00",
+      "app/src/main/room-source/celine_room_v80_final_modular.glb.part01",
+      "app/src/main/room-source/celine_room_v80_final_modular.glb.part02",
+      "app/src/main/room-source/celine_room_v80_final_modular.glb.part03"
+    ],
+    "assembly_manifest": "app/src/main/assets/models/room/celine_room_v80_assembly.json",
+    "world_contract": "app/src/main/assets/models/room/celine_room_v80_world_contract.json",
+    "anchors_manifest": "app/src/main/assets/models/room/celine_room_v80_anchors.json",
+    "nav_collision_manifest": "app/src/main/assets/models/room/celine_room_v80_nav_collision.json",
+    "canonical_celine_manifest": "ci/CELINE_SOURCE_ASSET.json",
+    "canonical_celine_source": "app/src/main/assets/models/celine-source/Meshy_AI_biped_Character_output.glb",
+    "hard_relationship_rules": [
+      "Canonical Celine remains a separate asset and is never baked into furniture or the room.",
+      "Furniture source identity is filename plus canonical SHA-256, independent of runtime transforms or optimization.",
+      "Position, rotation, scale, interaction anchors and navigation semantics belong to the room assembly/world contracts, not to mutations of the original GLBs.",
+      "Nachttisch.glb is one original source binary instantiated twice in the room.",
+      "Tischfürlaptop.glb is the physical foreground table; the laptop itself is the camera/viewer and must not be visible.",
+      "The lamp source is Lampe.glb; the reversible runtime light state is a separate floor_lamp_light entity and does not justify changing the original lamp GLB."
+    ]
+  },
+  "sources": [
+    {
+      "file": "Bett.glb",
+      "sha256": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+      "size_bytes": 122256544,
+      "room_object_ids": ["room_bed"]
+    },
+    {
+      "file": "Fenstermitgardinen.glb",
+      "sha256": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+      "size_bytes": 127167492,
+      "room_object_ids": ["room_window_drapes"]
+    },
+    {
+      "file": "GroßeKomode.glb",
+      "sha256": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+      "size_bytes": 125839900,
+      "room_object_ids": ["room_dresser"]
+    },
+    {
+      "file": "Großepflanzemittopf.glb",
+      "sha256": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+      "size_bytes": 159323700,
+      "room_object_ids": ["room_plant_large"]
+    },
+    {
+      "file": "Hängeboardmitbücher.glb",
+      "sha256": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+      "size_bytes": 121299544,
+      "room_object_ids": ["room_wall_shelf_books"]
+    },
+    {
+      "file": "Kleinepflanzemittopf.glb",
+      "sha256": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+      "size_bytes": 177155676,
+      "room_object_ids": ["room_plant_small"]
+    },
+    {
+      "file": "Lampe.glb",
+      "sha256": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+      "size_bytes": 120449828,
+      "room_object_ids": ["room_floor_lamp", "floor_lamp_light"]
+    },
+    {
+      "file": "Nachttisch.glb",
+      "sha256": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+      "size_bytes": 120391268,
+      "room_object_ids": ["room_nightstand_back", "room_nightstand_front"]
+    },
+    {
+      "file": "Sessel.glb",
+      "sha256": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+      "size_bytes": 122003928,
+      "room_object_ids": ["room_lounge_chair"]
+    },
+    {
+      "file": "Teppisch.glb",
+      "sha256": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+      "size_bytes": 189246808,
+      "room_object_ids": ["room_rug"]
+    },
+    {
+      "file": "Tischfürlaptop.glb",
+      "sha256": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+      "size_bytes": 121105992,
+      "room_object_ids": ["room_foreground_table"]
+    },
+    {
+      "file": "Wandspiegelrund.glb",
+      "sha256": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0",
+      "size_bytes": 120251436,
+      "room_object_ids": ["room_round_mirror"]
+    }
+  ]
+}
