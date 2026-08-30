@@ -16,38 +16,45 @@
     "source_path": "app/src/main/assets/models/möbel/",
     "transport": "git_lfs",
     "verification": "PASS_12_OF_12_GIT_LFS_POINTER_OID_AND_SIZE_MATCH_CANONICAL",
+    "runtime_room_path": "app/src/main/assets/models/room/celine_room_v80_final_modular.glb",
+    "runtime_room_size_bytes": 46580788,
+    "runtime_room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
+    "runtime_room_materialized_commit": "6c76b9bf2cf10825362f5d00c7cde267da020767",
+    "runtime_room_packaging_verification": "Android Build #776 packaged the exact 46,580,788-byte GLB at assets/models/room/celine_room_v80_final_modular.glb with SHA-256 25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8.",
     "relationship": "The 12 Git-LFS GLBs are immutable original furniture/decor sources. The accepted v80 modular room is an optimized derivative governed by celine_room_v80_assembly/world/anchors/nav manifests; runtime transforms and interaction semantics do not mutate the originals. Canonical Celine remains separate.",
     "library_backup": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
-    "runtime_impact": "none_docs_only_source_provenance_update",
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "status": "9R5_lamp_technical_pass_manual_fail_light_state_not_visible_handoff",
-  "latest_runtime_code_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
-  "latest_built_runtime_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
+  "current_branch_head": "f3e26c619636697fe8253653c969452e0391b6cd",
+  "status": "9R5_lamp_candidate9_warm_indoor_scene_rebalance_build_pending",
+  "latest_runtime_code_head": "f3e26c619636697fe8253653c969452e0391b6cd",
+  "latest_built_runtime_head": "6c76b9bf2cf10825362f5d00c7cde267da020767",
   "latest_visually_accepted_runtime_head": "23c3ea029bebf79916e2047567e6d56ab879f966",
-  "runtime_fingerprint": "821851eee0ecf0315c73aec8cb87e890c6aef12844de272f5e86e40c513ae266",
+  "last_successful_runtime_fingerprint": "ed4a02ef710d85a6e16903ce7f7a5028c0fb27bb5550f8506a0604c8715ed360",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 764,
-    "run_id": 33286069006,
+    "run_number": 776,
+    "run_id": 33306450495,
     "conclusion": "success",
-    "runtime_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
-    "apk_artifact": 9724486612,
-    "runtime_fingerprint_artifact": 9724486792,
-    "apk_sha256": "39a32615004ab270c24c226a5eec0452996c13144530abf1f26e794974071c37"
+    "proof_head": "cc3db8a7a7e70b58baee7b5e2be4d3e1ea430773",
+    "runtime_equivalent_head": "6c76b9bf2cf10825362f5d00c7cde267da020767",
+    "apk_artifact": 9730637858,
+    "runtime_fingerprint_artifact": 9730638055,
+    "runtime_fingerprint": "ed4a02ef710d85a6e16903ce7f7a5028c0fb27bb5550f8506a0604c8715ed360",
+    "note": "This build verifies the newly committed single room GLB is packaged at the exact runtime path. It predates candidate #9 lighting rebalance and is not the build for f3e26c61."
   },
   "latest_visual_proof": {
     "name": "Celine 9R.5 Lamp Proof",
-    "run_number": 5,
-    "run_id": 33286219797,
-    "proof_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
-    "runtime_head": "387a932bb07536a94409ac54d8473e1d69f5f965",
-    "artifact_id": 9724590805,
-    "artifact_digest": "sha256:2b179aa7cbe69088251fc0da96ca148ae7b534bfd319a205044de1bc5fd6875b",
+    "run_number": 16,
+    "run_id": 33303288764,
+    "proof_head": "057cf3b890da503c791dbd5805897b04a59cf9e1",
+    "runtime_head": "057cf3b890da503c791dbd5805897b04a59cf9e1",
+    "artifact_id": 9729720948,
+    "artifact_digest": "sha256:18230e73e9d354f6d773bbe22d04b74d8558d5fdec230da348a8a6fc2e95b239",
     "workflow_conclusion": "success",
-    "manual_inspection": "FAIL_9R5_LAMP_LIGHT_STATE_NOT_VISIBLE_60000LM",
-    "note": "Lamp Proof #5 is technically SUCCESS and reuses exact Android Build #764/runtime head 387a932b with runtime fingerprint 821851ee. Runtime evidence proves reversible floor_lamp_light ON/OFF at 60000 lm, LAMP_INTERACT, centralOwner=true, cameraFixed=true, handContact=false, switchTarget=false and noTeleport=true. Manual review still fails the required visible lighting-state criterion: 216-9r5-lamp-on-look-stable.png and 224-9r5-lamp-off-stable.png are visually nearly indistinguishable. Static wall/lamp-region comparison changes only about 0.2-0.3 RGB levels on average, so the ON state is not clearly warmer/brighter around the physical screen-left lamp. Celine remains reviewable, route/hold and both walk-away chains are clean, and final camera-talk framing restores with zoom 600px -> 599px (0.998). Do not accept Lamp or complete 9R.5 from workflow SUCCESS alone."
+    "manual_inspection": "FAIL_9R5_LAMP_DARK_FLOOR_POOL_STILL_TOO_SUBTLE_AND_ROOM_FILL_CLIPPED",
+    "note": "Proof #16 is technically successful and confirms the reversible 60,000 lm focused-spot Lamp chain, no teleport and camera-fixed behavior. Manual ON/OFF review still does not make the localized lamp state obvious enough; the room wall/curtain area remains strongly clipped by the shared daylight-strength fill. This is consistent with the user-supplied 2026-08-30 room-improvement brief asking for a warmer indoor ambience. Do not accept Lamp from workflow SUCCESS alone."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -68,25 +75,40 @@
   },
   "active_block": {
     "number": "9R.5",
-    "name": "Environment destination — lamp",
-    "status": "manual_visual_fail_handoff_stop"
+    "name": "Environment destination — lamp / room-lighting visibility",
+    "status": "candidate9_runtime_change_waiting_for_exact_build_and_targeted_proof"
   },
-  "current_blocker": "Lamp ON/OFF remains visually indistinguishable at 60000 lm despite correct runtime toggle/provenance. The lighting mechanism must be diagnosed rather than increased blindly again.",
-  "exact_next_action": "HANDOFF/STOP POINT. Do not continue automatically. The next operator must begin with fresh AGENTS.md/queue/work-order/live-GitHub reconciliation and keep PR #111/active branch single-flight. Read-only diagnose why floor_lamp_light has negligible visible contribution despite V80-484 toggling and 60000 lm: verify LightManager entity type/position/direction/falloff in the actual room/world coordinate space, scene exposure/indirect-light dominance, room transform/scale, and whether the lamp shade/material exposes a safe emissive target. Compare Proof #5 ON 216 vs OFF 224 before changing code. Do not make another blind intensity increase. Implement only the smallest evidence-driven Lamp visibility fix, then exactly one Android build, one targeted Lamp proof and mandatory manual review. Lamp is NOT accepted; 9R.5 is NOT complete. Do not merge or release.",
+  "current_blocker": "The Lamp runtime toggle works, but prior daylight-strength global illumination clips the warm shell and masks the local ON/OFF witness. Candidate #9 changes only shared scene illumination: indirect fill 7000 -> 3000 with warmer irradiance, directional key 32000 -> 14000 with warmer color. Celine geometry, camera geometry, room root, furniture transforms, navigation and 60,000 lm Lamp light are unchanged.",
+  "exact_next_action": "On the current head after this queue reconciliation, obtain exactly one successful Android build for runtime candidate f3e26c619636697fe8253653c969452e0391b6cd (or a docs-only descendant with the same runtime fingerprint). Then run exactly one targeted 9R.5 Lamp proof and manually compare the stable ON/OFF frames for (a) obvious local lamp-state visibility, (b) warmer non-clipped room ambience, and (c) preserved Celine readability. If PASS, accept Lamp/complete the active 9R.5 destination before starting the broader room-shell visual-polish request. Do not start free continuous navigation or replace room geometry while Lamp remains active.",
+  "user_room_polish_request": {
+    "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
+    "accepted_as_new_product_direction": true,
+    "live_state_corrections": [
+      "The brief's statements that 4R is not runtime accepted and that 9R locomotion is not enabled are stale; live repository state has 4R and 9R.1-9R.4 accepted/protected and 9R.5 Lamp active.",
+      "The committed room GLB now exists at the exact runtime path and is packaged successfully.",
+      "Broader shell/material/camera polish must be sequenced after the current Lamp destination unless exact new evidence requires an earlier bounded fix."
+    ],
+    "future_scope_after_lamp": [
+      "Improve wall/floor/ceiling material realism while preserving the immutable original furniture GLBs.",
+      "Preserve accepted camera/zoom, seated pose, room anchors and Celine separation.",
+      "Evaluate continuous free-navigation/NavMesh only as an explicit additional scope; current accepted locomotion is anchor/path based."
+    ]
+  },
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
     "Do not merge or release during bounded 9R.5 environment-destination implementation.",
     "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or accepted 9R.5 Window/Dresser/Mirror/Shelf without new exact independent evidence.",
-    "Lamp remains the only active 9R.5 destination and is blocked on manual visible-light-state acceptance.",
+    "Lamp remains the only active 9R.5 destination until manual visible-light-state acceptance.",
     "Workflow SUCCESS is not visual acceptance.",
-    "Do not brute-force lamp intensity again without diagnosing why the current 60000 lm point light has negligible rendered effect."
+    "Do not alter the 12 immutable original furniture GLBs in place.",
+    "Canonical Celine remains separate from the room and furniture."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "9R.5-lamp",
-    "next_substep_after_acceptance": "complete-9R.5-and-reconcile-next-canonical-trunk-step",
+    "current_substep": "9R.5-lamp-room-lighting",
+    "next_substep_after_acceptance": "room-visual-polish-from-user-brief-then-reconcile-next-canonical-trunk-step",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
   }
