@@ -2,9 +2,13 @@
 
 This document locks the user-approved visual target for the remaining v80 room-polish work. Live GitHub remains source of truth for runtime state; this document is the visual acceptance contract.
 
-## Reference image
+## Canonical reference image
 
-Canonical source image supplied by Yahya in ChatGPT on 2026-08-31. The original image must be treated as the visual target. Until the binary image is persisted in-repo, do not replace it with a generated approximation or generic bedroom reference.
+![Canonical v80 Celine room visual target](reference/CELINE_ROOM_VISUAL_TARGET.jpg)
+
+Repository path: `docs/celine/room-source/v80-2026-08-28/reference/CELINE_ROOM_VISUAL_TARGET.jpg`
+
+This repository image is the canonical worker-visible visual reference for composition and atmosphere. It is a web-sized rendition of the exact user-supplied reference scene; it must not be replaced by a generated approximation or a generic bedroom reference. The original user-supplied source remains the authoritative high-resolution source.
 
 ## Core intent
 
