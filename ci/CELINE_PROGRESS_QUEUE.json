@@ -27,37 +27,37 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "c7ba96164c64bf34cf22cf7803d86fd1e8ad5fe7",
-  "checkpoint_note": "This queue update is a docs-only descendant of the checkpoint above; always reconcile the actual live PR head before writing.",
-  "status": "room_visual_polish_candidate2_manual_fail_clean_handoff",
-  "latest_runtime_code_head": "cd4f3daa76c4c1345676744b4a7721e67604bab7",
-  "latest_built_runtime_head": "cd4f3daa76c4c1345676744b4a7721e67604bab7",
+  "current_branch_head_checkpoint": "01f1c90391111d83e441345b84e179dd9255295e",
+  "checkpoint_note": "This queue update is a docs-only descendant of the Candidate #3 runtime checkpoint above; always reconcile the actual live PR head before writing.",
+  "status": "room_visual_polish_candidate3_manual_fail_clean_handoff",
+  "latest_runtime_code_head": "01f1c90391111d83e441345b84e179dd9255295e",
+  "latest_built_runtime_head": "01f1c90391111d83e441345b84e179dd9255295e",
   "latest_visually_accepted_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
-  "last_successful_runtime_fingerprint": "2c1fb07c8be92d6b0d4f9ca7e6a8e6a48af333dd4cb7ba59dc70429dca8c1b37",
+  "last_successful_runtime_fingerprint": "8a4c3c696b47b9503291f306e5f901d57dfd558ecbbfc5e28b897f330085f830",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 799,
-    "run_id": 33311159335,
+    "run_number": 802,
+    "run_id": 33314407800,
     "conclusion": "success",
-    "proof_head": "cdf5da313db59a1e2c6e4c4256b316f871382d5c",
-    "runtime_equivalent_head": "cd4f3daa76c4c1345676744b4a7721e67604bab7",
-    "apk_artifact": 9732033800,
-    "runtime_fingerprint_artifact": 9732033962,
-    "runtime_fingerprint": "2c1fb07c8be92d6b0d4f9ca7e6a8e6a48af333dd4cb7ba59dc70429dca8c1b37",
-    "note": "Candidate #2 built successfully. A later docs-only handoff commit triggered Android Build #800 change-scope only, which correctly reused Build #799 because the runtime fingerprint was unchanged; no second APK build was required."
+    "proof_head": "01f1c90391111d83e441345b84e179dd9255295e",
+    "runtime_equivalent_head": "01f1c90391111d83e441345b84e179dd9255295e",
+    "apk_artifact": 9733005264,
+    "runtime_fingerprint_artifact": 9733005495,
+    "runtime_fingerprint": "8a4c3c696b47b9503291f306e5f901d57dfd558ecbbfc5e28b897f330085f830",
+    "note": "Candidate #3 received exactly one necessary Android build. The runtime change only enumerates all four actual wall/ceiling renderables with the unchanged shared shell factor."
   },
   "latest_visual_proof": {
     "name": "Celine Room Visual Polish Proof",
-    "run_number": 3,
-    "run_id": 33311293339,
-    "proof_head": "cdf5da313db59a1e2c6e4c4256b316f871382d5c",
-    "runtime_head": "cd4f3daa76c4c1345676744b4a7721e67604bab7",
-    "artifact_id": 9732084448,
-    "artifact_digest": "sha256:ba65fffa640cacd25bbda33adebd7c72044342f86f181b91e9adb96f967f1802",
+    "run_number": 5,
+    "run_id": 33314567743,
+    "proof_head": "01f1c90391111d83e441345b84e179dd9255295e",
+    "runtime_head": "01f1c90391111d83e441345b84e179dd9255295e",
+    "artifact_id": 9733061290,
+    "artifact_digest": "sha256:640d61a5f90add1380e1dcd26c72dc8d49422c3ced4ac54c4ccb6d3ce34137a2",
     "workflow_conclusion": "success",
     "structural_result": "PASS",
-    "manual_inspection": "FAIL_CANDIDATE2_IMPROVED_BUT_ROOM_REMAINS_TOO_DARK_BROWN_ORANGE",
-    "note": "HOME/CALL/HOME remained structurally stable and Celine stayed readable. Candidate #2 lightened the lower wall/floor relative to Candidate #1, but the upper shell remained a large dark-brown field and the floor/overall room remained too dark/red-orange to satisfy the requested light warm-beige bedroom direction. Workflow success is not visual acceptance."
+    "manual_inspection": "FAIL_CANDIDATE3_ENTITY_ENUMERATION_VISUALLY_UNCHANGED_DARK_CEILING_AND_RED_ORANGE_FLOOR",
+    "note": "HOME/CALL/HOME remained structurally stable and Celine stayed visible. Fixed HOME crop values for upper ceiling, back wall and floor are effectively identical to Candidate #2. This proves incomplete shell-entity targeting was not the visible cause; workflow success is not visual acceptance."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -81,17 +81,17 @@
   "active_block": {
     "number": "room-visual-polish",
     "name": "Warm realistic room shell/material treatment",
-    "status": "candidate2_rejected_manual_handoff_ready"
+    "status": "candidate3_rejected_manual_handoff_ready"
   },
   "room_visual_polish_candidate": {
-    "number": 2,
-    "runtime_head": "cd4f3daa76c4c1345676744b4a7721e67604bab7",
-    "scope": "runtime material factors only; no GLB bytes or transforms changed",
+    "number": 3,
+    "runtime_head": "01f1c90391111d83e441345b84e179dd9255295e",
+    "scope": "explicit runtime targeting of all actual wall/ceiling renderables with unchanged material factors; no GLB bytes, transforms or lighting changed",
     "changed_file": "app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java",
     "change": [
-      "keep wall/ceiling numeric base factor 0.86,0.78,0.68 but apply it as LINEAR instead of SRGB",
-      "keep floor numeric base factor 0.64,0.44,0.28 but apply it as LINEAR instead of SRGB",
-      "preserve wall/ceiling roughness 0.88, floor roughness 0.62 and metallicFactor=0",
+      "apply the unchanged LINEAR wall/ceiling factor to room_back_wall, room_left_wall, room_right_wall and room_ceiling explicitly",
+      "preserve wall/ceiling factor 0.86,0.78,0.68 and roughness 0.88",
+      "preserve floor factor 0.64,0.44,0.28, floor roughness 0.62 and metallicFactor=0",
       "do not move room geometry, furniture, Celine, camera, anchors or navigation"
     ],
     "wall_ceiling_factor": [0.86, 0.78, 0.68],
@@ -99,10 +99,10 @@
     "floor_factor": [0.64, 0.44, 0.28],
     "floor_roughness": 0.62,
     "manual_verdict": "FAIL",
-    "manual_reason": "Improved versus Candidate #1 but upper wall/ceiling remains dark brown and floor/overall room remains too dark/red-orange rather than light warm beige."
+    "manual_reason": "Explicitly targeting all four actual shell renderables produced no meaningful visual change versus Candidate #2. The upper ceiling remains dark brown because its downward-facing interior receives little direct light; the floor remains dark red/orange under its warm factor plus warm lighting."
   },
-  "current_blocker": "Room visual polish Candidate #2 is technically built and structurally proven but manually rejected: the upper shell still renders much darker than the lower wall and the floor/overall room remains too dark/red-orange for the requested light warm-beige bedroom direction.",
-  "exact_next_action": "Next worker must first reconcile live GitHub and read AGENTS.md, this queue, ROOM_VISUAL_POLISH_STATUS.md and PR #111. Then perform a read-only diagnosis of the actual Filament material assignments plus lighting/exposure path affecting the upper shell and floor. Determine why the upper shell remains much darker than the lower wall despite the intended shared warm shell treatment and why the floor remains overly red/dark. Only after that diagnosis make one smallest bounded Candidate #3 correction, obtain one runtime-equivalent Android build, run exactly one targeted HOME/CALL/HOME Room Visual Polish proof and manually inspect the images. Do not stack speculative changes, do not re-integrate Block 4R, and do not begin continuous free/NavMesh navigation.",
+  "current_blocker": "Room visual polish Candidate #3 is technically built and structurally proven but manually rejected. GLB/Filament diagnosis and unchanged proof pixels confirm that all four shell renderables already share the tuned material; the dark upper field is the downward-facing ceiling receiving weak indirect fill while the back wall receives direct light. The floor remains dark red/orange from its warm factor combined with warm scene lighting.",
+  "exact_next_action": "Next worker must first reconcile live GitHub and read AGENTS.md, this queue, ROOM_VISUAL_POLISH_STATUS.md and PR #111. Then make exactly one bounded Candidate #4 indirect-fill correction in Celine3DView.java: adjust only IndirectLight irradiance/intensity toward a brighter warm-neutral fill for the downward-facing ceiling. Keep skybox, directional-light direction/color/intensity, camera exposure, room material factors, GLB bytes, geometry/transforms, Celine, camera/zoom, anchors/navigation and Lamp parameters unchanged; do not restore the previously rejected combined 7000-indirect plus 32000-directional daylight setup. Obtain exactly one Android build, run exactly one targeted HOME/CALL/HOME Room Visual Polish proof, manually inspect the actual images, and record PASS/FAIL. Do not stack a floor-material or second lighting change, re-integrate Block 4R, or begin continuous free/NavMesh navigation.",
   "user_room_polish_request": {
     "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
     "accepted_as_new_product_direction": true,
@@ -131,7 +131,7 @@
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "room-visual-polish-candidate2-rejected-clean-handoff",
+    "current_substep": "room-visual-polish-candidate3-rejected-clean-handoff",
     "next_substep_after_acceptance": "reconcile-next-canonical-trunk-step",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
