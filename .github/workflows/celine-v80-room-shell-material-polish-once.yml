@@ -1,0 +1,72 @@
+name: Celine v80 room shell material polish once
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - .github/workflows/celine-v80-room-shell-material-polish-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active branch
+        uses: actions/checkout@v4
+        with:
+          ref: auto/celine/v80-human-videochat-presence
+          fetch-depth: 0
+
+      - name: Apply bounded warm shell material polish
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
+          text = path.read_text(encoding='utf-8')
+
+          import_anchor = 'import com.google.android.filament.Engine;\n'
+          if text.count(import_anchor) != 1:
+              raise SystemExit('Engine import anchor mismatch')
+          text = text.replace(
+              import_anchor,
+              'import com.google.android.filament.Colors;\n'
+              'import com.google.android.filament.Engine;\n'
+              'import com.google.android.filament.MaterialInstance;\n',
+              1)
+
+          call_anchor = '''                alignRoomRoot(candidate);\n                applyUserApprovedFurnitureOrientation(candidate);\n                validateWorldEntities(candidate, contract);\n'''
+          call_replacement = '''                alignRoomRoot(candidate);\n                applyUserApprovedFurnitureOrientation(candidate);\n                applyWarmRoomShellMaterials(candidate);\n                validateWorldEntities(candidate, contract);\n'''
+          if text.count(call_anchor) != 1:
+              raise SystemExit('room build call anchor mismatch')
+          text = text.replace(call_anchor, call_replacement, 1)
+
+          method_anchor = '''        private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {\n            // The prepared 4R GLB baked the bed with its headboard toward the room center and left\n            // the two bedside drawer fronts sideways. Correct only those confirmed orientation\n            // defects at the furniture-node level; footprint, anchors, camera and Celine stay fixed.\n            applyLocalYaw(asset, "room_bed", -180.0f);\n            applyLocalYaw(asset, "room_nightstand_back", 90.0f);\n            applyLocalYaw(asset, "room_nightstand_front", 90.0f);\n        }\n\n'''
+          addition = '''        private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {\n            // The prepared 4R GLB baked the bed with its headboard toward the room center and left\n            // the two bedside drawer fronts sideways. Correct only those confirmed orientation\n            // defects at the furniture-node level; footprint, anchors, camera and Celine stay fixed.\n            applyLocalYaw(asset, "room_bed", -180.0f);\n            applyLocalYaw(asset, "room_nightstand_back", 90.0f);\n            applyLocalYaw(asset, "room_nightstand_front", 90.0f);\n        }\n\n        /**\n         * First bounded room-visual-polish step from the user's warm beige-bedroom brief.\n         * The shell geometry, room root, anchors, furniture transforms, camera and Celine remain\n         * untouched. Only the existing glTF shell material factors are tuned at runtime.\n         */\n        private void applyWarmRoomShellMaterials(FilamentAsset asset) {\n            // RoomWarmOffWhite is shared by the three visible walls and ceiling in the accepted GLB.\n            tuneShellMaterial(asset, "room_back_wall",\n                    0.86f, 0.78f, 0.68f, 0.88f, 0.40f);\n            // Keep a dielectric wood floor, but lower roughness enough for a restrained warm sheen.\n            tuneShellMaterial(asset, "room_floor",\n                    0.64f, 0.44f, 0.28f, 0.62f, 0.45f);\n        }\n\n        private void tuneShellMaterial(\n                FilamentAsset asset, String entityName,\n                float red, float green, float blue, float roughness, float reflectance) {\n            int entity = asset.getFirstEntityByName(entityName);\n            if (entity == 0) {\n                throw new IllegalStateException("Room polish entity missing: " + entityName);\n            }\n            RenderableManager manager = engine.getRenderableManager();\n            int renderable = manager.getInstance(entity);\n            if (renderable == 0) {\n                throw new IllegalStateException("Room polish renderable missing: " + entityName);\n            }\n            int primitives = manager.getPrimitiveCount(renderable);\n            if (primitives <= 0) {\n                throw new IllegalStateException("Room polish primitive missing: " + entityName);\n            }\n            for (int primitive = 0; primitive < primitives; primitive++) {\n                MaterialInstance material = manager.getMaterialInstanceAt(renderable, primitive);\n                material.setParameter("baseColorFactor", Colors.RgbaType.SRGB,\n                        red, green, blue, 1.0f);\n                material.setParameter("metallicFactor", 0.0f);\n                material.setParameter("roughnessFactor", roughness);\n                material.setParameter("reflectance", reflectance);\n            }\n        }\n\n'''
+          if text.count(method_anchor) != 1:
+              raise SystemExit('orientation method anchor mismatch')
+          text = text.replace(method_anchor, addition, 1)
+
+          diagnostic_anchor = '''                Celine3DDiagnostics.record(context, "ROOM-115",\n                        "4R Möbelorientierung korrigiert",\n                        "bed=-90deg nightstands=+90deg; camera/Celine untouched");\n'''
+          diagnostic_replacement = diagnostic_anchor + '''                Celine3DDiagnostics.record(context, "ROOM-117",\n                        "Raum-Shell warm materialisiert",\n                        "walls/ceiling=warm-beige floor=warm-wood; geometry/transforms unchanged");\n'''
+          if text.count(diagnostic_anchor) != 1:
+              raise SystemExit('diagnostic anchor mismatch')
+          text = text.replace(diagnostic_anchor, diagnostic_replacement, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm .github/workflows/celine-v80-room-shell-material-polish-once.yml
+
+      - name: Commit bounded room shell material polish
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java .github/workflows/celine-v80-room-shell-material-polish-once.yml
+          git commit -m "feat: warm v80 room shell materials"
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
