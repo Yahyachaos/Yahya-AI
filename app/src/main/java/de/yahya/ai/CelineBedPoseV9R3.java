@@ -106,13 +106,13 @@ final class CelineBedPoseV9R3 {
     // back to the normal camera-facing social layer. HIPS/legs/arms/hands stay untouched.
     private static final float SHELF_REACQUIRE_DELAY_SECONDS = 1.45f;
     private static final float SHELF_REACQUIRE_RAMP_SECONDS = 0.55f;
-    private static final float SHELF_LOOK_SPINE_YAW_DEG = 7.0f;
-    private static final float SHELF_LOOK_SPINE01_YAW_DEG = 6.0f;
-    private static final float SHELF_LOOK_SPINE02_YAW_DEG = 5.0f;
+    private static final float SHELF_LOOK_SPINE_YAW_DEG = -7.0f;
+    private static final float SHELF_LOOK_SPINE01_YAW_DEG = -6.0f;
+    private static final float SHELF_LOOK_SPINE02_YAW_DEG = -5.0f;
     private static final float SHELF_LOOK_NECK_PITCH_DEG = -2.5f;
     private static final float SHELF_LOOK_HEAD_PITCH_DEG = -5.0f;
-    private static final float SHELF_LOOK_NECK_YAW_DEG = 18.0f;
-    private static final float SHELF_LOOK_HEAD_YAW_DEG = 52.0f;
+    private static final float SHELF_LOOK_NECK_YAW_DEG = -18.0f;
+    private static final float SHELF_LOOK_HEAD_YAW_DEG = -52.0f;
 
     private final float edgeSeatRootY;
     private final float edgeOffsetX;
