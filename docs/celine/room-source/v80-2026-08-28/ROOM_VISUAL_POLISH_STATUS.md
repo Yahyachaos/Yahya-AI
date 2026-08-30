@@ -1,6 +1,6 @@
-# v80 Room Visual Polish — Candidate #8 verdict / Candidate #9 validation
+# v80 Room Visual Polish — Candidate #9 verdict / Candidate #10 plan
 
-Live GitHub is authoritative. This file records the exact Candidate #8 proof verdict and the bounded Candidate #9 runtime now under normal validation. It does not reopen any accepted/protected runtime block.
+Live GitHub is authoritative. This file records the exact Candidate #9 evidence/manual verdict and the next single bounded ceiling-only action. It does not reopen any accepted/protected runtime block.
 
 ## Active strand
 - Repository: `Yahyachaos/Yahya-AI`
@@ -8,10 +8,8 @@ Live GitHub is authoritative. This file records the exact Candidate #8 proof ver
 - Branch: `auto/celine/v80-human-videochat-presence`
 - Canonical visual target image: `/Refernzbild.png`
 - Canonical visual target contract: `docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_TARGET_REFERENCE.md`
-- Candidate #8 runtime commit: `a0e740e91b6befdd5a6c61a55574c2738a96e0d3`
-- Candidate #9 bot cleanup/head: `1f67fa7fe4783578dbc0823c14e7cba4055bd300`
-- Candidate #9 user-authored checkpoint: `66713faa34f7bdb4f34495d295f6cf823c034f08`
-- Runtime file changed by Candidate #9: `app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java`
+- Candidate #9 runtime-equivalent checkpoint: `66713faa34f7bdb4f34495d295f6cf823c034f08`
+- Candidate #9 proof head: `1ea33ee23db10378700e00a5b09446afe3534dd7`
 
 ## Protected baseline
 Unchanged and protected:
@@ -24,32 +22,34 @@ Unchanged and protected:
 - camera/zoom, accepted poses, anchors/navigation and all accepted 9R actions
 - accepted 60,000 lm Lamp behavior
 
-## Candidate #8 exact evidence and verdict
-Android Build **#822**, run `33340472461`: **SUCCESS**.
+## Candidate #9 exact evidence and verdict
+Candidate #9 changed only the isolated ceiling duplicate base color in LINEAR space from `(1.0, 0.92, 0.82, 1.0)` to `(1.0, 1.0, 0.92, 1.0)`.
 
-Celine Room Visual Polish Proof **#11**, run `33340655448`: **SUCCESS structurally**.
+Android Build **#830 / run `33342948601`: SUCCESS** on the runtime-equivalent user checkpoint. A later docs-only descendant also received Android Build #831 without changing runtime identity.
 
-- evidence artifact: `9740466041`
-- evidence digest: `sha256:1837f2e199538964e97d9333b7d094431d37f824e14c7fca8ee1769eca8afbd8`
-- structural result: PASS; Celine remained visible and HOME -> CALL -> HOME remained stable
+Celine Room Visual Polish Proof **#14 / run `33343083927`: SUCCESS structurally** on proof head `1ea33ee23db10378700e00a5b09446afe3534dd7`.
+
+- evidence artifact: `9741173060`
+- evidence digest: `sha256:1268c51678e3b963aab71853cd2459519d789bc71ff8483934eb02c3bfa69dc5`
+- structural result: PASS; HOME -> CALL -> HOME remained stable and Celine remained visible
 - manual verdict: **FAIL**
 
-Manual inspection against `/Refernzbild.png` shows that the isolated ceiling material works technically, but the ceiling remains visibly too grey/taupe and too separated from the warm cream wall. The floor also remains too orange/red-brown, but floor changes are intentionally deferred until the ceiling candidate is accepted. Workflow SUCCESS is not visual acceptance.
+Manual inspection of the actual `home.png`, `call.png` and `home-return.png` against `/Refernzbild.png` shows Candidate #9 successfully lightened the upper ceiling field, but it overshot toward a pale cool/grey-cream slab. The reference ceiling is visibly warm beige/tan with natural warm shading, not a cool flat band. The wall remains warm cream and the floor remains too orange/red-brown; the floor was intentionally untouched for this candidate.
 
-## Candidate #9 bounded runtime
-Candidate #9 changes only the already-isolated ceiling material toward the user reference:
-- ceiling duplicate base color changed in LINEAR space from `(1.0, 0.92, 0.82, 1.0)` to `(1.0, 1.0, 0.92, 1.0)`
-- ceiling metallic remains `0.0`
-- ceiling roughness remains `0.88`
-- ceiling reflectance remains `0.40`
-- wall material factors unchanged
-- floor unchanged
-- indirect/directional lighting and exposure unchanged
-- GLB bytes/transforms, Celine, camera/zoom, anchors/navigation and Lamp behavior unchanged
+## Diagnosis
+The isolated ceiling override is now proven to control the ceiling independently. Candidate #8 was too dark/taupe; Candidate #9 is lighter but too cool/pale. The remaining confirmed ceiling mismatch is therefore the isolated ceiling color balance, not global fill quantity and not entity targeting.
 
-The direct Android Build #829 on the GitHub-Actions-authored Candidate #9 head concluded `action_required`, which is the known GitHub approval behavior for bot-authored PR heads rather than a compiler/runtime failure.
+## Candidate #10 exact bounded plan
+Change only the isolated `room_ceiling` duplicate base color in LINEAR space from Candidate #9 `(1.0, 1.0, 0.92, 1.0)` to a brighter warm-beige balance `(1.0, 0.97, 0.82, 1.0)`.
 
-The runtime-equivalent user-authored checkpoint `66713faa34f7bdb4f34495d295f6cf823c034f08` then received Android Build **#830 / run `33342948601`: SUCCESS**.
+Preserve exactly:
+- ceiling metallic `0.0`, roughness `0.88`, reflectance `0.40`
+- all wall factors
+- floor factor/material
+- indirect and directional lighting
+- exposure/skybox
+- room GLB bytes, geometry/transforms
+- Celine, camera/zoom, anchors/navigation/actions and Lamp behavior
 
 ## Exact next action
-Run exactly one targeted HOME -> CALL -> HOME Room Visual Polish proof for Candidate #9, inspect the actual images against `/Refernzbild.png`, and record PASS/FAIL. Do not change floor, camera, global lighting, GLB bytes/transforms, Celine, navigation or Lamp before that evidence. No merge, no release, no NavMesh/free navigation.
+Implement exactly Candidate #10 above, obtain one necessary Android build, run one targeted HOME -> CALL -> HOME Room Visual Polish proof, inspect the real images against `/Refernzbild.png`, and record PASS/FAIL. Do not stack a floor, camera, global-light or other runtime change before that evidence. No merge, no release, no NavMesh/free navigation.
