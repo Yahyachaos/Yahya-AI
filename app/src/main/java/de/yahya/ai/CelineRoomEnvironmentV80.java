@@ -32,6 +32,12 @@ import java.util.WeakHashMap;
 final class CelineRoomEnvironmentV80 {
     private static final String ROOM_PATH =
             "models/room/celine_room_v80_final_modular.glb";
+    private static final String[] ROOM_WALL_AND_CEILING_ENTITIES = {
+            "room_back_wall",
+            "room_left_wall",
+            "room_right_wall",
+            "room_ceiling"
+    };
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
     // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
     // runtime light sits inside its shade, then applies the already locked room root offset.
@@ -324,9 +330,13 @@ final class CelineRoomEnvironmentV80 {
          * untouched. Only the existing glTF shell material factors are tuned at runtime.
          */
         private void applyWarmRoomShellMaterials(FilamentAsset asset) {
-            // RoomWarmOffWhite is shared by the three visible walls and ceiling in the accepted GLB.
-            tuneShellMaterial(asset, "room_back_wall",
-                    0.86f, 0.78f, 0.68f, 0.88f, 0.40f);
+            // The accepted GLB maps all four nodes to RoomWarmOffWhite. Filament currently shares
+            // that material instance, but address every actual renderable explicitly so shell
+            // coverage does not rely on that loader detail.
+            for (String entityName : ROOM_WALL_AND_CEILING_ENTITIES) {
+                tuneShellMaterial(asset, entityName,
+                        0.86f, 0.78f, 0.68f, 0.88f, 0.40f);
+            }
             // Keep a dielectric wood floor, but lower roughness enough for a restrained warm sheen.
             tuneShellMaterial(asset, "room_floor",
                     0.64f, 0.44f, 0.28f, 0.62f, 0.45f);
