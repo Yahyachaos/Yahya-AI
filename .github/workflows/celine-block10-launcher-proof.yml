@@ -60,7 +60,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
-            set -euo pipefail
+            set -eu
             mkdir -p block10-launcher-proof
             APK="$(find ci-apk -name '*.apk' -print -quit)"
             test -n "$APK"
