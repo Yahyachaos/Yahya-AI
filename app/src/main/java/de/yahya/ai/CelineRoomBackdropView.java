@@ -33,6 +33,7 @@ final class CelineRoomBackdropView extends View {
         Celine3DView threeD = findSibling3D();
         if (threeD != null) {
             CelineRoomEnvironmentV80.ensure(getContext(), threeD);
+            CelineRoomReferenceLightingV80.ensure(threeD);
         }
     }
 
@@ -42,6 +43,7 @@ final class CelineRoomBackdropView extends View {
         Celine3DView threeD = findSibling3D();
         if (threeD != null) {
             CelineRoomEnvironmentV80.ensure(getContext(), threeD);
+            CelineRoomReferenceLightingV80.ensure(threeD);
         }
         invalidate();
     }
