@@ -26,17 +26,18 @@ import java.util.WeakHashMap;
  * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * The inspected contrast proof remains too evenly studio-lit and the front/right practical still
- * does not create a strong enough localized bedside pool. Keep all global lighting, shell material,
- * geometry, camera and Celine state fixed and change only that already-proven focused practical from
- * 3000 to 6000 lm. This is deliberately bounded so the next HOME/CALL/HOME proof can tell whether
- * local falloff becomes visible without another speculative global-light rewrite.
+ * The latest proof confirmed that doubling the focused practical from 3000 to 6000 lm is structurally
+ * stable but changes the visible bed-side region only marginally while the whole room still reads too
+ * evenly studio-lit. Keep the accepted practical, indirect fill, shell material, geometry, camera and
+ * Celine fixed and lower only the global directional key from 11000 to 9000 lux. The purpose is to
+ * create the darker corner/falloff relationship required by the canonical warm-evening reference
+ * without returning to the under-filled R1 state.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
     private static final float KEY_GREEN = 0.80f;
     private static final float KEY_BLUE = 0.66f;
-    private static final float KEY_LUX = 11000.0f;
+    private static final float KEY_LUX = 9000.0f;
     private static final float INDIRECT_LUX = 9000.0f;
 
     private static final float CEILING_RED = 0.88f;
@@ -45,9 +46,6 @@ final class CelineRoomReferenceLightingV80 {
     private static final float CEILING_ROUGHNESS = 0.92f;
     private static final float CEILING_REFLECTANCE = 0.38f;
 
-    // Assembly front nightstand: (2.66, 0.609148, 0.50). Keep the practical just above the visible
-    // shade after the locked room-root offset. Aim it toward the nearby bed center so its energy is
-    // a localized practical-light pool rather than an omnidirectional fill.
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
     private static final float PRACTICAL_Z = 0.50f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
@@ -109,7 +107,7 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum R1/R2/R3/R4 Kontrast aktiv",
+                    "Referenzraum Abendkontrast aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
@@ -121,7 +119,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " · walls/floor/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum R1/R2/R3/R4 Kontrast FEHLER", error);
+                    "Referenzraum Abendkontrast FEHLER", error);
         }
     }
 
