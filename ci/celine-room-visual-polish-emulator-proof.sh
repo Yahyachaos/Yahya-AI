@@ -25,6 +25,20 @@ wait_log() {
   fail "timed out waiting for $label ($needle)"
 }
 
+wait_log_count_gt() {
+  local needle="$1" before="$2" label="$3"
+  local count
+  for _ in $(seq 1 75); do
+    count="$(adb logcat -d | grep -Fc "$needle" || true)"
+    if (( count > before )); then
+      echo "Ready: $label count=$count before=$before"
+      return 0
+    fi
+    sleep 1
+  done
+  fail "timed out waiting for fresh $label ($needle count>$before)"
+}
+
 dump_ui() {
   local remote="$1" local_file="$2" label="$3"
   for attempt in 1 2 3 4 5; do
@@ -106,9 +120,15 @@ wait_log 'V80-420' 'CALL layered frame'
 sleep 2
 capture call ROOM_POLISH_CALL
 
+# The Block-12 transition guard can still be presenting its real-frame cover for a short window
+# after the production owner has already switched its target back to HOME. A fixed sleep therefore
+# captured a legitimate in-flight transition as if it were the settled HOME result. Bind the
+# return screenshot to a *fresh* V80-512 direct-surface release instead.
+READY_RELEASES_BEFORE="$(adb logcat -d | grep -Fc 'V80-512' || true)"
 adb shell input keyevent 4
 wait_log 'target=HOME eased=true snap=false' 'CALL to HOME transition'
-sleep 2
+wait_log_count_gt 'V80-512' "$READY_RELEASES_BEFORE" 'HOME direct Surface release'
+sleep 1
 capture home-return ROOM_POLISH_HOME_RETURN
 
 adb logcat -d -v threadtime > "$OUT/logcat.txt"
