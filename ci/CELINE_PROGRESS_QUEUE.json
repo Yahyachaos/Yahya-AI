@@ -28,40 +28,39 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "8fd8c9f0f76fad7dfeb25b1b2ebadf46f1be7e89",
-  "checkpoint_note": "Block 10 is manually accepted from the installed Android launcher proof. The branch checkpoint is CI-only; the validated runtime identity remains the safe-zone icon runtime head cc857eac62175c74a7c5615fa6ea68c0b1147ae5 and fingerprint 7a4be6a781c16c9db31dc8cb5552864ee10d36a22cab1b4ea27594a72c34c9c0.",
-  "status": "block10_launcher_identity_accepted_block11_dependency_audit_next",
-  "latest_runtime_code_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
-  "latest_built_runtime_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
-  "latest_visually_accepted_runtime_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
-  "last_successful_runtime_fingerprint": "7a4be6a781c16c9db31dc8cb5552864ee10d36a22cab1b4ea27594a72c34c9c0",
+  "current_branch_head_checkpoint": "12b6a2da41b5927eda0e58febdb58e53670765d3",
+  "checkpoint_note": "Block 11 is manually accepted from an installed Android app-drawer proof using the exact Block 11 APK. The checkpoint is CI-only; the accepted runtime identity is 53451e58b5b02af4a803876b5d89b9230e981145 with fingerprint 23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e.",
+  "status": "block11_duplicate_launchers_accepted_block12_final_temporal_next",
+  "latest_runtime_code_head": "53451e58b5b02af4a803876b5d89b9230e981145",
+  "latest_built_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
+  "latest_visually_accepted_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
+  "last_successful_runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 861,
-    "run_id": 33389296933,
+    "run_number": 864,
+    "run_id": 33392193364,
     "conclusion": "success",
-    "head_sha": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
-    "runtime_fingerprint": "7a4be6a781c16c9db31dc8cb5552864ee10d36a22cab1b4ea27594a72c34c9c0",
-    "apk_artifact": 9756852864,
-    "apk_artifact_digest": "sha256:5dc7ca3058c587f54e1b05b908ca59878702140f866ff44b0cf77050151cb7df",
-    "runtime_fingerprint_artifact": 9756853220,
-    "runtime_fingerprint_artifact_digest": "sha256:79c3e85dae9c3c131a9f33c39042cc74ad2b6955610aab71d6cab05ddfb15b77",
-    "note": "This is the exact runtime build used by the accepted installed launcher proof. A later Android Build #862 was triggered by the CI-only proof-binding commit and does not replace this runtime identity."
+    "head_sha": "53451e58b5b02af4a803876b5d89b9230e981145",
+    "runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
+    "apk_artifact": 9757940359,
+    "apk_artifact_digest": "sha256:b7d3cd975ee7f6bca8d07c2668e0210449ed70e0a889c25ddaafc6f0415cb215",
+    "runtime_fingerprint_artifact": 9757940710,
+    "runtime_fingerprint_artifact_digest": "sha256:69cc93a9a31b4b2f0dbc8cdab7cecf08fd33ed5dfa1d0976bad11c339325cc2b",
+    "note": "Exactly one runtime build for the Block 11 manifest cleanup. Android Build #865 on the later proof-binding CI-only head correctly skipped the build job."
   },
   "latest_visual_proof": {
-    "name": "Celine Block 10 Launcher Proof",
-    "run_number": 17,
-    "run_id": 33389495311,
-    "proof_head": "8fd8c9f0f76fad7dfeb25b1b2ebadf46f1be7e89",
-    "runtime_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
-    "runtime_fingerprint": "7a4be6a781c16c9db31dc8cb5552864ee10d36a22cab1b4ea27594a72c34c9c0",
-    "artifact_id": 9756926675,
-    "artifact_digest": "sha256:3b9b31a85454f16f1abb36c2465ddec6a57612fcb0a374531676e7e06120a2f5",
+    "name": "Celine Block 10 Launcher Proof reused for Block 11 installed launcher acceptance",
+    "run_number": 21,
+    "run_id": 33392398885,
+    "proof_head": "12b6a2da41b5927eda0e58febdb58e53670765d3",
+    "runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
+    "runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
+    "artifact_id": 9758018039,
+    "artifact_digest": "sha256:4b3828bd3529a6448aed9d85073c12c54838fb58af0c5eaf76703f68a20b24fa",
     "workflow_conclusion": "success",
     "structural_result": "PASS_YAHYA_AI_LAUNCHER_FOUND",
-    "manual_inspection": "PASS_APPROVED_PORTRAIT_VISIBLE_FACE_EYES_HAIR_WELL_FRAMED",
-    "mask_validation": "PASS_LOCAL_CIRCLE_SQUIRCLE_ROUNDED_SQUARE_SAFE_ZONE_PREVIEW; installed emulator launcher default mask also manually PASS",
-    "note": "Actual emulator app-drawer screenshot default.png was manually inspected. Earlier proofs #11/#14 were rejected despite workflow success because the icon was grey/cropped; the safe-zone 108x108 exact-source crop fixes that defect."
+    "manual_inspection": "PASS_ONLY_YAHYA_AI_PRODUCT_LAUNCHER_VISIBLE_NO_AVATAR_LAB_OR_3D_IMPORT_DUPLICATES",
+    "note": "Actual emulator app-drawer default.png was manually inspected. Yahya AI is the only app launcher from this package; Celine Avatar Lab and Celine 3D import are absent from the drawer. The approved portrait icon remains correctly visible."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -83,12 +82,13 @@
     "9R.5": "Environment destinations complete",
     "room-polish-candidate12-ceiling": "Accepted warm tan/beige isolated ceiling material",
     "room-polish-candidate13-floor": "Accepted darker less-saturated natural warm-brown floor factor",
-    "10": "Yahya AI launcher identity / exact approved portrait icon"
+    "10": "Yahya AI launcher identity / exact approved portrait icon",
+    "11": "Duplicate product launcher cleanup / Yahya AI sole normal launcher"
   },
   "active_block": {
-    "number": 11,
-    "name": "Remove duplicate product launchers after dependency audit",
-    "status": "authorized_dependency_audit_next_no_runtime_change_yet"
+    "number": 12,
+    "name": "Final temporal acceptance gate",
+    "status": "authorized_reconcile_and_prepare_exact_runtime_temporal_acceptance"
   },
   "room_visual_polish_candidate": {
     "number": 13,
@@ -114,24 +114,35 @@
     "local_mask_preview": "PASS_CIRCLE_SQUIRCLE_ROUNDED_SQUARE_FACE_EYES_HAIR_READABLE",
     "installed_launcher_visual_acceptance": "PASS_MANUAL_EMULATOR_APP_DRAWER"
   },
-  "current_blocker": "No Block 10 blocker. Block 10 is accepted. Block 11 must begin with a dependency audit before removing any launcher exposure or hardening exported activities.",
-  "exact_next_action": "Block 11 dependency audit on the existing PR/branch: trace CelineAvatarLabActivity, AvatarPickerActivity, CelineAvatarLabCaptureActivity and CelineModelImportActivity call sites, Settings/developer entry points and proof-tool external invocation requirements. Then make only the minimum manifest/navigation change that leaves Yahya AI as the sole normal launcher while preserving required Avatar Lab/import/proof access. Do not delete import code blindly.",
+  "block11_launcher_cleanup": {
+    "runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
+    "dependency_audit": {
+      "CelineAvatarLabActivity": "retained exported developer/proof surface; MAIN/LAUNCHER removed",
+      "AvatarPickerActivity": "retained explicit developer import picker; MAIN/LAUNCHER removed",
+      "CelineAvatarLabCaptureActivity": "retained exported because ci/avatar-lab-proof.sh starts the exact component via adb",
+      "CelineModelImportActivity": "retained exported VIEW/BROWSABLE GLB/ZIP import path"
+    },
+    "normal_launcher_count_for_package": 1,
+    "normal_launcher": "de.yahya.ai/.MainActivity",
+    "manual_installed_verdict": "PASS_ONLY_YAHYA_AI_VISIBLE_IN_APP_DRAWER"
+  },
+  "current_blocker": "No Block 11 blocker. Block 11 is accepted. Block 12 final temporal acceptance must now be executed against the current runtime fingerprint without reopening accepted blocks or inventing new runtime changes.",
+  "exact_next_action": "Block 12: fresh-reconcile the exact current PR/runtime state and existing temporal/proof infrastructure, then execute the smallest production-equivalent continuous temporal acceptance sequence required by the v80 work order and room amendment using the current runtime fingerprint. Manually inspect the actual video/frames for HOME visibility, living idle, CALL seating, speech/body life, multiple clean blinks, continuous zoom to face and back, room actions including table/bed/chair/window/lamp where implemented, and HOME return. Do not mark PASS from CI alone; do not merge/release until the full exact-head acceptance stage is explicitly satisfied.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge or release during bounded v80 implementation.",
-    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1-9R.5 or Block 10 without new exact independent evidence.",
-    "Workflow SUCCESS is not visual acceptance where appearance is under review.",
+    "Do not merge or release until Block 12 and exact-head requirements are actually satisfied.",
+    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1-9R.5, 10 or 11 without new exact independent evidence.",
+    "Workflow SUCCESS is not visual acceptance where appearance or temporal behavior is under review.",
     "Do not alter the 12 immutable original furniture GLBs in place.",
-    "Canonical Celine remains separate from the room and furniture and was not modified by Block 10.",
-    "Do not start continuous free/NavMesh navigation during v80.",
-    "Block 11 must audit dependencies before changing launcher/exported activity exposure."
+    "Canonical Celine remains separate from the room and furniture.",
+    "Do not start continuous free/NavMesh navigation during v80."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "block11-duplicate-launcher-dependency-audit",
-    "next_substep_after_acceptance": "block12-final-temporal-acceptance",
+    "current_substep": "block12-final-temporal-acceptance",
+    "next_substep_after_acceptance": "final-exact-head-gates",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
   }
