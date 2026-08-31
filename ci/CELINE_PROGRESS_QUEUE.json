@@ -28,9 +28,9 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "12b6a2da41b5927eda0e58febdb58e53670765d3",
-  "checkpoint_note": "Block 11 is manually accepted from an installed Android app-drawer proof using the exact Block 11 APK. The checkpoint is CI-only; the accepted runtime identity is 53451e58b5b02af4a803876b5d89b9230e981145 with fingerprint 23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e.",
-  "status": "block11_duplicate_launchers_accepted_block12_final_temporal_next",
+  "current_branch_head_checkpoint": "7be485fbb19f12a13a55b09101a111b6cb79d0d8",
+  "checkpoint_note": "Block 12 Temporal Proof #6 was manually inspected and is a real FAIL on the exact accepted Block 11 runtime. The CALL transition destroys/recreates the SurfaceView: Celine is absent for visible CALL frames, then the first returned frames are transiently clipped before settling. A proof-only segmented recorder repair is committed at 7be485f so the complete room sequence can be recorded beyond Android screenrecord's single-file limit. This checkpoint does not claim a new runtime validation.",
+  "status": "block12_temporal_fail_call_entry_blank_runtime_fix_required",
   "latest_runtime_code_head": "53451e58b5b02af4a803876b5d89b9230e981145",
   "latest_built_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
   "latest_visually_accepted_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
@@ -46,21 +46,42 @@
     "apk_artifact_digest": "sha256:b7d3cd975ee7f6bca8d07c2668e0210449ed70e0a889c25ddaafc6f0415cb215",
     "runtime_fingerprint_artifact": 9757940710,
     "runtime_fingerprint_artifact_digest": "sha256:69cc93a9a31b4b2f0dbc8cdab7cecf08fd33ed5dfa1d0976bad11c339325cc2b",
-    "note": "Exactly one runtime build for the Block 11 manifest cleanup. Android Build #865 on the later proof-binding CI-only head correctly skipped the build job."
+    "note": "Accepted Block 11 runtime build. Proof/queue-only heads after it do not replace this runtime identity."
   },
   "latest_visual_proof": {
-    "name": "Celine Block 10 Launcher Proof reused for Block 11 installed launcher acceptance",
-    "run_number": 21,
-    "run_id": 33392398885,
-    "proof_head": "12b6a2da41b5927eda0e58febdb58e53670765d3",
+    "name": "Celine Block 12 Temporal Proof",
+    "run_number": 6,
+    "run_id": 33401144422,
+    "proof_head": "b2536ae00e971107fb15b37ed4e7f0fe8e5c7d96",
     "runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
     "runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
-    "artifact_id": 9758018039,
-    "artifact_digest": "sha256:4b3828bd3529a6448aed9d85073c12c54838fb58af0c5eaf76703f68a20b24fa",
+    "artifact_id": 9762021294,
+    "artifact_digest": "sha256:f8a6d5c3b29344349503267b552246149277a9fcc0b8efff2ddd7fab48610f81",
     "workflow_conclusion": "success",
-    "structural_result": "PASS_YAHYA_AI_LAUNCHER_FOUND",
-    "manual_inspection": "PASS_ONLY_YAHYA_AI_PRODUCT_LAUNCHER_VISIBLE_NO_AVATAR_LAB_OR_3D_IMPORT_DUPLICATES",
-    "note": "Actual emulator app-drawer default.png was manually inspected. Yahya AI is the only app launcher from this package; Celine Avatar Lab and Celine 3D import are absent from the drawer. The approved portrait icon remains correctly visible."
+    "structural_result": "PASS_STRUCTURAL_BUT_SINGLE_180S_VIDEO_DID_NOT_COVER_ROOM_SEQUENCE",
+    "manual_inspection": "FAIL_CALL_ENTRY_CELINE_ABSENT_THEN_TRANSIENTLY_CLIPPED",
+    "visual_acceptance": "FAIL_BLOCK12",
+    "evidence": [
+      "The actual temporal MP4 was manually inspected, not inferred from workflow SUCCESS.",
+      "CALL UI becomes visible while the avatar stage is empty/purple for multiple video frames; Celine is completely absent.",
+      "Celine then reappears in transiently clipped framing before settling into the accepted CALL view.",
+      "Runtime log correlates the defect with REN-323 Surface destroyed at 14:14:20.993, V45-100/V80-210 at 14:14:22.032-22.034, and REN-320 Surface recreated at 14:14:22.050.",
+      "The original single screenrecord ended before the later table/bed/chair/window/lamp sequence, so still checkpoints cannot substitute for final temporal evidence."
+    ]
+  },
+  "block12_proof_infrastructure": {
+    "proof_only_fix_head": "7be485fbb19f12a13a55b09101a111b6cb79d0d8",
+    "change": "Rotate Android screenrecord into sequential 170-second segments over the same uninterrupted app process and require at least two nonempty segments.",
+    "runtime_fingerprint_changed": false,
+    "android_build_871_run": 33410458171,
+    "android_build_871_result": "success_scope_only_build_skipped",
+    "rerun": {
+      "workflow": "Celine Block 12 Temporal Proof",
+      "run_number": 8,
+      "run_id": 33410458165,
+      "state_at_checkpoint": "in_progress_using_exact_block11_runtime_apk",
+      "acceptance_note": "Even if structurally green, this old-runtime run cannot override the confirmed CALL-entry visual FAIL. It is useful only to validate segmented temporal capture infrastructure."
+    }
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -69,7 +90,7 @@
     "6": "Gaze, head and social presence",
     "7": "Blink and eyelid correctness",
     "8": "Speech/face coordination",
-    "9": "Lifecycle and temporal stability",
+    "9": "Lifecycle and temporal stability; reopened only for the newly proven CALL-entry transition defect within Block 12",
     "9R.1": "Locomotion foundation",
     "9R.2": "Camera/table interactions",
     "9R.3": "Bed chain",
@@ -88,17 +109,7 @@
   "active_block": {
     "number": 12,
     "name": "Final temporal acceptance gate",
-    "status": "authorized_reconcile_and_prepare_exact_runtime_temporal_acceptance"
-  },
-  "room_visual_polish_candidate": {
-    "number": 13,
-    "runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
-    "validated_checkpoint": "1dbf3a14f95639aff854e0a4a38ea20e45337ead",
-    "scope": "floor base-color only; no ceiling/wall/light/camera/GLB/transform/navigation/Lamp changes",
-    "floor_factor_after": [0.48, 0.38, 0.30],
-    "floor_roughness": 0.62,
-    "floor_reflectance": 0.45,
-    "manual_verdict": "PASS"
+    "status": "failed_on_call_entry_transition_minimal_runtime_repair_required"
   },
   "block10_launcher": {
     "runtime_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
@@ -106,42 +117,34 @@
     "source_copy_sha256": "04d52cfcc5b8c045c3cff306e985746a3137987d270e4a0716c9f442c05d5eb3",
     "derived_foreground_path": "app/src/main/res/drawable-nodpi/celine_launcher_foreground.jpg",
     "derived_foreground_sha256": "bce254e98417bfdb79ce1b50a2511d9599fae3355e71e0db6e4b9618c02ec2f6",
-    "derived_foreground_git_blob": "9d534b0709138e42175572f05ae75f7b867e8986",
     "adaptive_icon": true,
     "legacy_fallback": true,
     "manifest_icon_bound": true,
     "generated_lookalike_used": false,
-    "local_mask_preview": "PASS_CIRCLE_SQUIRCLE_ROUNDED_SQUARE_FACE_EYES_HAIR_READABLE",
     "installed_launcher_visual_acceptance": "PASS_MANUAL_EMULATOR_APP_DRAWER"
   },
   "block11_launcher_cleanup": {
     "runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
-    "dependency_audit": {
-      "CelineAvatarLabActivity": "retained exported developer/proof surface; MAIN/LAUNCHER removed",
-      "AvatarPickerActivity": "retained explicit developer import picker; MAIN/LAUNCHER removed",
-      "CelineAvatarLabCaptureActivity": "retained exported because ci/avatar-lab-proof.sh starts the exact component via adb",
-      "CelineModelImportActivity": "retained exported VIEW/BROWSABLE GLB/ZIP import path"
-    },
     "normal_launcher_count_for_package": 1,
     "normal_launcher": "de.yahya.ai/.MainActivity",
     "manual_installed_verdict": "PASS_ONLY_YAHYA_AI_VISIBLE_IN_APP_DRAWER"
   },
-  "current_blocker": "No Block 11 blocker. Block 11 is accepted. Block 12 final temporal acceptance must now be executed against the current runtime fingerprint without reopening accepted blocks or inventing new runtime changes.",
-  "exact_next_action": "Block 12: fresh-reconcile the exact current PR/runtime state and existing temporal/proof infrastructure, then execute the smallest production-equivalent continuous temporal acceptance sequence required by the v80 work order and room amendment using the current runtime fingerprint. Manually inspect the actual video/frames for HOME visibility, living idle, CALL seating, speech/body life, multiple clean blinks, continuous zoom to face and back, room actions including table/bed/chair/window/lamp where implemented, and HOME return. Do not mark PASS from CI alone; do not merge/release until the full exact-head acceptance stage is explicitly satisfied.",
+  "current_blocker": "Confirmed Block 12 runtime visual failure: CelineVideoCallV45 reparents the existing avatarStage into the CALL overlay. The embedded Celine3DView SurfaceView is destroyed and recreated, exposing an empty CALL stage for visible frames; the first returned frames are also transiently clipped before the camera/layout settles. This contradicts Block 12 even though the workflow is structurally green.",
+  "root_cause": "The transition order in CelineVideoCallV45 builds the CALL overlay and immediately reparents the live SurfaceView-backed avatar stage. Runtime evidence shows REN-323 Surface destroyed, then roughly one second with CALL UI and no Celine before REN-320 Surface recreated. CALL zoom is applied before/around the recreated surface while the call lens/layout settle later, exposing transient invalid framing.",
+  "exact_next_action": "Fresh-reconcile PR #111/head and Block 12 run #8, then make exactly one minimal CALL-entry presentation/lifecycle repair in the existing CelineVideoCallV45 path so reparent/surface recreation is never exposed as an empty or transiently clipped user-visible CALL frame (for example preserve the last valid Celine frame only during the bounded transition and remove it only after the recreated production Celine frame and CALL camera/layout are confirmed ready). Preserve accepted camera/zoom semantics and all other protected subsystems. Then run exactly one required Android build and one Block 12 temporal proof on the new runtime, manually inspect every video segment/frame, and only then decide PASS/FAIL. No merge/release before full exact-head acceptance.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
     "Do not merge or release until Block 12 and exact-head requirements are actually satisfied.",
-    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1-9R.5, 10 or 11 without new exact independent evidence.",
+    "Do not reopen accepted Blocks except the exact CALL-entry lifecycle surface newly invalidated by independent Block 12 video evidence.",
     "Workflow SUCCESS is not visual acceptance where appearance or temporal behavior is under review.",
-    "Do not alter the 12 immutable original furniture GLBs in place.",
-    "Canonical Celine remains separate from the room and furniture.",
+    "Do not alter canonical Celine, accepted camera/zoom semantics, room GLB bytes/geometry/transforms, 12 immutable furniture GLBs, accepted anchors/actions or Lamp behavior.",
     "Do not start continuous free/NavMesh navigation during v80."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "block12-final-temporal-acceptance",
+    "current_substep": "block12-call-entry-transition-repair",
     "next_substep_after_acceptance": "final-exact-head-gates",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
