@@ -1,6 +1,6 @@
-# v80 Room Visual Polish — Candidate #12 ceiling PASS / Candidate #13 runtime checkpoint
+# v80 Room Visual Polish — Candidate #12 ceiling PASS / Candidate #13 floor PASS
 
-Live GitHub is authoritative. This file records the exact Candidate #12 evidence/manual verdict and the bounded Candidate #13 floor runtime now awaiting normal validation. It does not reopen any accepted/protected runtime block.
+Live GitHub is authoritative. This file records the exact Candidate #12 ceiling acceptance and Candidate #13 floor acceptance from the latest targeted production-equivalent evidence. It does not reopen any accepted/protected runtime block.
 
 ## Active strand
 - Repository: `Yahyachaos/Yahya-AI`
@@ -9,7 +9,8 @@ Live GitHub is authoritative. This file records the exact Candidate #12 evidence
 - Canonical visual target image: `/Refernzbild.png`
 - Canonical visual target contract: `docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_TARGET_REFERENCE.md`
 - Candidate #12 runtime-equivalent checkpoint: `3422e5707c7a30735d35c53777371b090d09d0b5`
-- Candidate #13 bot cleanup/head: `ba9870fb8a82961652a474505fd55dd163973d54`
+- Candidate #13 runtime-code head: `c147fa1c1514b0c66c107c18fb4a8607a427682c`
+- Candidate #13 validated checkpoint: `1dbf3a14f95639aff854e0a4a38ea20e45337ead`
 
 ## Protected baseline
 Unchanged and protected:
@@ -36,10 +37,10 @@ Celine Room Visual Polish Proof **#17 / run `33378776586`: SUCCESS structurally*
 - structural result: PASS; HOME -> CALL -> HOME remained stable and Celine remained visible
 - manual ceiling verdict: **PASS**
 
-Manual inspection of the actual `home.png`, `call.png` and `home-return.png` against `/Refernzbild.png` shows the ceiling now reads as a coherent warm tan/beige field with clear separation from the cream wall. It is no longer cool-grey/khaki enough to justify another ceiling iteration. The remaining dominant shell mismatch is the floor, which is too saturated orange/red-brown compared with the reference's darker natural medium warm-brown wood.
+The ceiling reads as a coherent warm tan/beige field with clear separation from the cream wall. It is no longer cool-grey/khaki enough to justify another ceiling iteration.
 
-## Candidate #13 bounded runtime now implemented
-Candidate #13 changes only the existing `room_floor` runtime material factor in LINEAR space from `(0.64, 0.44, 0.28, 1.0)` to `(0.48, 0.38, 0.30, 1.0)`.
+## Candidate #13 exact runtime and evidence
+Candidate #13 changed only the existing `room_floor` runtime material factor in LINEAR space from `(0.64, 0.44, 0.28, 1.0)` to `(0.48, 0.38, 0.30, 1.0)` at runtime-code head `c147fa1c1514b0c66c107c18fb4a8607a427682c`.
 
 Preserved exactly:
 - accepted Candidate #12 ceiling and all wall factors
@@ -49,7 +50,25 @@ Preserved exactly:
 - room GLB bytes, geometry/transforms
 - Celine, camera/zoom, anchors/navigation/actions and Lamp behavior
 
-This docs-only user-authored checkpoint preserves Candidate #13 runtime exactly and exists only to obtain the normal PR validation run after the bot-authored runtime head.
+Android Build **#847 / run `33379564664`: SUCCESS** on runtime-equivalent checkpoint `1dbf3a14f95639aff854e0a4a38ea20e45337ead`.
+
+- runtime fingerprint: `00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f`
+- APK artifact: `9753249448`
+- APK artifact digest: `sha256:5660b5d0e1e1c7afa134903bf5a1c43823628af399ea6a94e0fdab3e2b59666b`
+- runtime-fingerprint artifact: `9753250023`
+- fingerprint artifact digest: `sha256:798fb7d4e630c30c55d24f03942c892216377a0d5cdc45902ea8c24838d25700`
+
+Celine Room Visual Polish Proof **#18 / run `33380542256`: SUCCESS structurally** on the same exact checkpoint.
+
+- evidence artifact: `9753636780`
+- evidence digest: `sha256:2311e0ad1e5ac5b0314b34699eb81d540d8b7373ebadfc58126c3798ae3b428f`
+- structural result: PASS; HOME -> CALL -> HOME stable, Celine visible, no blank renderer
+- manual floor verdict: **PASS**
+
+Manual inspection of `home.png`, `call.png` and `home-return.png`, including direct comparison with Candidate #12, shows that the visible floor now reads as a darker, less saturated natural warm brown instead of the previous orange/red-brown emphasis. The accepted Candidate #12 ceiling remains unchanged. No further floor-base-color iteration is justified by this bounded criterion.
+
+## Current room-polish state
+Candidate #12 ceiling and Candidate #13 floor are accepted/protected for this room-polish strand. This does **not** claim that every remaining composition/lighting/material difference to the canonical room reference is solved, and it does not authorize reopening camera, transforms, accepted anchors/actions, Lamp behavior, room GLB bytes or furniture originals.
 
 ## Exact next action
-Obtain exactly one Android build on this runtime-equivalent user-authored checkpoint. If successful, run exactly one targeted HOME -> CALL -> HOME Room Visual Polish proof, inspect the real images against `/Refernzbild.png`, and record PASS/FAIL. Do not stack a camera, ceiling, global-light or other runtime change before that evidence. No merge, no release, no NavMesh/free navigation.
+Fresh-reconcile the live branch/PR after this docs-only acceptance commit and determine the next explicitly authorized canonical v80 action. Do not make another room runtime change merely because a broader visual difference exists; first bind the next bounded change to the current queue/work-order/visual-target contract. No merge, no release, no NavMesh/free navigation, no new branch and no new PR.
