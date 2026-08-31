@@ -342,7 +342,7 @@ final class CelineRoomEnvironmentV80 {
             }
             // Keep a dielectric wood floor, but lower roughness enough for a restrained warm sheen.
             tuneShellMaterial(asset, "room_floor",
-                    0.64f, 0.44f, 0.28f, 0.62f, 0.45f);
+                    0.48f, 0.38f, 0.30f, 0.62f, 0.45f);
         }
 
         private void isolateCeilingMaterial(FilamentAsset asset) {
