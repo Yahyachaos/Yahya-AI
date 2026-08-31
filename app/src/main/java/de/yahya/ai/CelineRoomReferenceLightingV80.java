@@ -40,7 +40,7 @@ final class CelineRoomReferenceLightingV80 {
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
     private static final float PRACTICAL_Z = 0.50f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
-    private static final float PRACTICAL_LUMENS = 1450.0f;
+    private static final float PRACTICAL_LUMENS = 6000.0f;
     private static final float PRACTICAL_FALLOFF_M = 2.35f;
 
     private static final Set<Celine3DView> APPLIED =
