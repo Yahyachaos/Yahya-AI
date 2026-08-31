@@ -2,5 +2,5 @@ R2 runtime proof trigger
 runtime_head=8ae27954b808e9b17cf8cdeb753d00e834b8c1b5
 runtime_fingerprint=b60d51442c80e322660b4548a83ee252910a5262843c202f185d0a8466ff3d13
 android_build_run=33421441050
-trigger_sequence=4
-reason=retry_with_bounded_call_entry_tap
+trigger_sequence=5
+reason=retry_after_settled_home_return_gate
