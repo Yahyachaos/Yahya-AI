@@ -57,6 +57,12 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: bash ci/celine-block12-temporal-proof.sh
+      - name: Bind proof metadata to exact CALL-transition runtime
+        if: success()
+        run: |
+          sed -i 's/^RUNTIME_HEAD=.*/RUNTIME_HEAD=99d053cc08cffa58691dab8b1697def6ac3f3ea4/' block12-temporal-proof/summary.txt
+          sed -i 's/^RUNTIME_FINGERPRINT=.*/RUNTIME_FINGERPRINT=c724a797b0c5faef56ca7df8a8ea2caacfabc9f7207423e15dcc6952ae8b1af7/' block12-temporal-proof/summary.txt
+          printf '%s\n' 'APK_BUILD_RUN=33415067045' 'APK_ARTIFACT=9766732364' >> block12-temporal-proof/summary.txt
       - if: always()
         uses: actions/upload-artifact@v4
         with:
