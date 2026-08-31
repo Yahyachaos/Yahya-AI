@@ -8,6 +8,8 @@
   "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
   "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
   "room_execution_trunk": "docs/celine/room-source/v80-2026-08-28/INTERACTIVE_ROOM_EXECUTION_TRUNK.md",
+  "room_visual_target": "docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_TARGET_REFERENCE.md",
+  "room_visual_target_image": "/Refernzbild.png",
   "room_visual_polish_handoff": "docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_POLISH_STATUS.md",
   "room_source_bridge": {
     "retrieval_contract": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json",
@@ -21,43 +23,45 @@
     "runtime_room_size_bytes": 46580788,
     "runtime_room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
     "runtime_room_materialized_commit": "6c76b9bf2cf10825362f5d00c7cde267da020767",
-    "runtime_room_packaging_verification": "Android Build #776 packaged the exact 46,580,788-byte GLB at assets/models/room/celine_room_v80_final_modular.glb with the canonical SHA-256.",
-    "relationship": "The 12 Git-LFS GLBs are immutable original furniture/decor sources. The accepted v80 modular room is an optimized derivative governed by celine_room_v80_assembly/world/anchors/nav manifests; runtime transforms and interaction semantics do not mutate the originals. Canonical Celine remains separate.",
+    "relationship": "The 12 Git-LFS GLBs are immutable original furniture/decor sources. The accepted v80 modular room is an optimized derivative governed by the room assembly/world/anchor/nav manifests. Canonical Celine remains separate.",
     "library_backup": "/Yahya-AI/Celine-v80-Room-Source-Backup/meshy_glb/",
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "01f1c90391111d83e441345b84e179dd9255295e",
-  "checkpoint_note": "This queue update is a docs-only descendant of the Candidate #3 runtime checkpoint above; always reconcile the actual live PR head before writing.",
-  "status": "room_visual_polish_candidate3_manual_fail_clean_handoff",
-  "latest_runtime_code_head": "01f1c90391111d83e441345b84e179dd9255295e",
-  "latest_built_runtime_head": "01f1c90391111d83e441345b84e179dd9255295e",
-  "latest_visually_accepted_runtime_head": "efd50772369e5af504fb830b04d76682786affa8",
-  "last_successful_runtime_fingerprint": "8a4c3c696b47b9503291f306e5f901d57dfd558ecbbfc5e28b897f330085f830",
+  "current_branch_head_checkpoint": "01152ad5b40ab1668add1d7a6501af097b8b3e10",
+  "checkpoint_note": "Docs-only Candidate #13 acceptance checkpoint. The validated runtime state remains bound to runtime-code head c147fa1c1514b0c66c107c18fb4a8607a427682c and runtime fingerprint 00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f.",
+  "status": "room_visual_polish_candidate13_floor_accepted_reconcile_next_bounded_action",
+  "latest_runtime_code_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+  "latest_built_runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+  "latest_visually_accepted_runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+  "last_successful_runtime_fingerprint": "00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 802,
-    "run_id": 33314407800,
+    "run_number": 847,
+    "run_id": 33379564664,
     "conclusion": "success",
-    "proof_head": "01f1c90391111d83e441345b84e179dd9255295e",
-    "runtime_equivalent_head": "01f1c90391111d83e441345b84e179dd9255295e",
-    "apk_artifact": 9733005264,
-    "runtime_fingerprint_artifact": 9733005495,
-    "runtime_fingerprint": "8a4c3c696b47b9503291f306e5f901d57dfd558ecbbfc5e28b897f330085f830",
-    "note": "Candidate #3 received exactly one necessary Android build. The runtime change only enumerates all four actual wall/ceiling renderables with the unchanged shared shell factor."
+    "proof_head": "1dbf3a14f95639aff854e0a4a38ea20e45337ead",
+    "runtime_equivalent_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+    "apk_artifact": 9753249448,
+    "apk_artifact_digest": "sha256:5660b5d0e1e1c7afa134903bf5a1c43823628af399ea6a94e0fdab3e2b59666b",
+    "runtime_fingerprint_artifact": 9753250023,
+    "runtime_fingerprint_artifact_digest": "sha256:798fb7d4e630c30c55d24f03942c892216377a0d5cdc45902ea8c24838d25700",
+    "runtime_fingerprint": "00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f",
+    "note": "Exactly one required build for Candidate #13 runtime-equivalent checkpoint; draft emulator/publish work remained skipped as intended."
   },
   "latest_visual_proof": {
     "name": "Celine Room Visual Polish Proof",
-    "run_number": 5,
-    "run_id": 33314567743,
-    "proof_head": "01f1c90391111d83e441345b84e179dd9255295e",
-    "runtime_head": "01f1c90391111d83e441345b84e179dd9255295e",
-    "artifact_id": 9733061290,
-    "artifact_digest": "sha256:640d61a5f90add1380e1dcd26c72dc8d49422c3ced4ac54c4ccb6d3ce34137a2",
+    "run_number": 18,
+    "run_id": 33380542256,
+    "proof_head": "1dbf3a14f95639aff854e0a4a38ea20e45337ead",
+    "runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+    "runtime_fingerprint": "00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f",
+    "artifact_id": 9753636780,
+    "artifact_digest": "sha256:2311e0ad1e5ac5b0314b34699eb81d540d8b7373ebadfc58126c3798ae3b428f",
     "workflow_conclusion": "success",
-    "structural_result": "PASS",
-    "manual_inspection": "FAIL_CANDIDATE3_ENTITY_ENUMERATION_VISUALLY_UNCHANGED_DARK_CEILING_AND_RED_ORANGE_FLOOR",
-    "note": "HOME/CALL/HOME remained structurally stable and Celine stayed visible. Fixed HOME crop values for upper ceiling, back wall and floor are effectively identical to Candidate #2. This proves incomplete shell-entity targeting was not the visible cause; workflow success is not visual acceptance."
+    "structural_result": "PASS_HOME_CALL_HOME_STABLE_CELINE_VISIBLE",
+    "manual_inspection": "PASS_CANDIDATE13_FLOOR_NATURAL_WARM_BROWN",
+    "note": "Actual home/call/home-return images were inspected and compared with Candidate #12. Candidate #13 removes the dominant orange/red-brown floor emphasis while Candidate #12 ceiling remains accepted. Workflow success alone was not used as acceptance."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -76,52 +80,34 @@
     "9R.5-mirror": "Environment destination — mirror",
     "9R.5-shelf": "Environment destination — shelf",
     "9R.5-lamp": "Environment destination — lamp / reversible localized room light",
-    "9R.5": "Environment destinations complete"
+    "9R.5": "Environment destinations complete",
+    "room-polish-candidate12-ceiling": "Accepted warm tan/beige isolated ceiling material",
+    "room-polish-candidate13-floor": "Accepted darker less-saturated natural warm-brown floor factor"
   },
   "active_block": {
     "number": "room-visual-polish",
     "name": "Warm realistic room shell/material treatment",
-    "status": "candidate3_rejected_manual_handoff_ready"
+    "status": "candidate13_floor_accepted_next_bounded_action_not_yet_selected"
   },
   "room_visual_polish_candidate": {
-    "number": 3,
-    "runtime_head": "01f1c90391111d83e441345b84e179dd9255295e",
-    "scope": "explicit runtime targeting of all actual wall/ceiling renderables with unchanged material factors; no GLB bytes, transforms or lighting changed",
+    "number": 13,
+    "runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+    "validated_checkpoint": "1dbf3a14f95639aff854e0a4a38ea20e45337ead",
+    "scope": "floor base-color only; no ceiling/wall/light/camera/GLB/transform/navigation/Lamp changes",
     "changed_file": "app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java",
-    "change": [
-      "apply the unchanged LINEAR wall/ceiling factor to room_back_wall, room_left_wall, room_right_wall and room_ceiling explicitly",
-      "preserve wall/ceiling factor 0.86,0.78,0.68 and roughness 0.88",
-      "preserve floor factor 0.64,0.44,0.28, floor roughness 0.62 and metallicFactor=0",
-      "do not move room geometry, furniture, Celine, camera, anchors or navigation"
-    ],
-    "wall_ceiling_factor": [0.86, 0.78, 0.68],
-    "wall_ceiling_roughness": 0.88,
-    "floor_factor": [0.64, 0.44, 0.28],
+    "floor_factor_before": [0.64, 0.44, 0.28],
+    "floor_factor_after": [0.48, 0.38, 0.30],
     "floor_roughness": 0.62,
-    "manual_verdict": "FAIL",
-    "manual_reason": "Explicitly targeting all four actual shell renderables produced no meaningful visual change versus Candidate #2. The upper ceiling remains dark brown because its downward-facing interior receives little direct light; the floor remains dark red/orange under its warm factor plus warm lighting."
+    "floor_reflectance": 0.45,
+    "manual_verdict": "PASS",
+    "manual_reason": "The floor now reads darker and less saturated, with natural warm-brown character instead of the previous dominant orange/red-brown look."
   },
-  "current_blocker": "Room visual polish Candidate #3 is technically built and structurally proven but manually rejected. GLB/Filament diagnosis and unchanged proof pixels confirm that all four shell renderables already share the tuned material; the dark upper field is the downward-facing ceiling receiving weak indirect fill while the back wall receives direct light. The floor remains dark red/orange from its warm factor combined with warm scene lighting.",
-  "exact_next_action": "Next worker must first reconcile live GitHub and read AGENTS.md, this queue, ROOM_VISUAL_POLISH_STATUS.md and PR #111. Then make exactly one bounded Candidate #4 indirect-fill correction in Celine3DView.java: adjust only IndirectLight irradiance/intensity toward a brighter warm-neutral fill for the downward-facing ceiling. Keep skybox, directional-light direction/color/intensity, camera exposure, room material factors, GLB bytes, geometry/transforms, Celine, camera/zoom, anchors/navigation and Lamp parameters unchanged; do not restore the previously rejected combined 7000-indirect plus 32000-directional daylight setup. Obtain exactly one Android build, run exactly one targeted HOME/CALL/HOME Room Visual Polish proof, manually inspect the actual images, and record PASS/FAIL. Do not stack a floor-material or second lighting change, re-integrate Block 4R, or begin continuous free/NavMesh navigation.",
-  "user_room_polish_request": {
-    "source": "Raum_Probleme_und_Verbesserungen_fuer_ChatGPT.md supplied 2026-08-30",
-    "accepted_as_new_product_direction": true,
-    "live_state_corrections": [
-      "The brief's statements that 4R is not runtime accepted and that 9R locomotion is not enabled are stale; live repository state has 4R and 9R.1-9R.5 accepted/protected.",
-      "The committed room GLB already exists at the exact runtime path.",
-      "Lamp/9R.5 is accepted on runtime efd50772369e5af504fb830b04d76682786affa8 after Proof #19 manual review.",
-      "Room visual polish may proceed only through bounded visual changes that preserve all accepted behavior."
-    ],
-    "future_scope_after_lamp": [
-      "Improve wall/floor/ceiling material realism toward the warm beige bedroom direction while preserving immutable original furniture GLBs.",
-      "Preserve accepted camera/zoom, seated pose, room anchors, all 9R.5 destinations and Celine separation.",
-      "Current movement already uses the accepted anchor/path graph. Evaluate continuous free-navigation/NavMesh only as an explicit later scope after room visual polish and protected anchor locomotion remain proven."
-    ]
-  },
+  "current_blocker": "No technical blocker. Candidate #13 floor is accepted. The next runtime change must not be invented from stale candidate history; it must first be bound to the current canonical v80/room-polish target after a fresh live reconcile.",
+  "exact_next_action": "Fresh-reconcile PR #111 and the current room visual target after this docs-only queue checkpoint. Determine exactly one next bounded, explicitly authorized v80 action before any runtime write. Preserve Candidate #12 ceiling and Candidate #13 floor, canonical Celine, camera/zoom, accepted anchors/navigation/actions, 60,000 lm Lamp behavior, room GLB bytes/geometry/transforms and all 12 immutable furniture GLBs. Do not merge/release or begin NavMesh/free navigation.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
     "Do not merge or release during bounded room visual-polish implementation.",
-    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or 9R.5 Window/Dresser/Mirror/Shelf/Lamp without new exact independent evidence.",
+    "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or 9R.5 without new exact independent evidence.",
     "Workflow SUCCESS is not visual acceptance where appearance is under review.",
     "Do not alter the 12 immutable original furniture GLBs in place.",
     "Canonical Celine remains separate from the room and furniture.",
@@ -131,7 +117,7 @@
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "room-visual-polish-candidate3-rejected-clean-handoff",
+    "current_substep": "room-visual-polish-candidate13-floor-accepted-reconcile-next",
     "next_substep_after_acceptance": "reconcile-next-canonical-trunk-step",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
