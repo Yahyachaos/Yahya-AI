@@ -26,16 +26,17 @@ import java.util.WeakHashMap;
  * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * The 9000-lux proof improves evening falloff, but manual CALL inspection still shows a strong
- * orange/brown cast across Celine and the room, conflicting with the canonical warm-but-not-orange
- * target. Keep intensity, indirect fill, practical, shell material, geometry, camera and Celine
- * untouched; change only the directional key chromaticity to a warmer-neutral white.
+ * Manual proof after the warm-neutral chromaticity repair still reads too evenly daylight/studio-lit.
+ * Filament expresses directional-light intensity in lux, and 9000 lx is still in late-day outdoor-sky
+ * territory rather than an indoor evening bedroom. Keep chromaticity, indirect fill, practical,
+ * materials, geometry, camera and Celine fixed; lower only the directional key to 5000 lx so the
+ * local practical/falloff relationship can become visible without crushing the shared fill.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
     private static final float KEY_GREEN = 0.90f;
     private static final float KEY_BLUE = 0.82f;
-    private static final float KEY_LUX = 9000.0f;
+    private static final float KEY_LUX = 5000.0f;
     private static final float INDIRECT_LUX = 9000.0f;
 
     private static final float CEILING_RED = 0.88f;
@@ -105,7 +106,7 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum warm-neutral aktiv",
+                    "Referenzraum indoor-evening aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
@@ -117,7 +118,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " · walls/floor/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum warm-neutral FEHLER", error);
+                    "Referenzraum indoor-evening FEHLER", error);
         }
     }
 
