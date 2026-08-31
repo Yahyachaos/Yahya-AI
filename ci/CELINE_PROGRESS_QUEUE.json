@@ -28,26 +28,27 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "01152ad5b40ab1668add1d7a6501af097b8b3e10",
-  "checkpoint_note": "Docs-only Candidate #13 acceptance checkpoint. The validated runtime state remains bound to runtime-code head c147fa1c1514b0c66c107c18fb4a8607a427682c and runtime fingerprint 00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f.",
-  "status": "room_visual_polish_candidate13_floor_accepted_reconcile_next_bounded_action",
-  "latest_runtime_code_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
-  "latest_built_runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
+  "current_branch_head_checkpoint": "c0910552177b9cf752ab04aaa56b1c8c2c63e05a",
+  "checkpoint_note": "Block 10 runtime/build-input head adds the approved user-provided portrait source copy and Android adaptive/legacy launcher assets only. Canonical 3D Celine and all accepted room/camera/animation behavior remain untouched. Installed launcher appearance is not yet claimed as accepted.",
+  "status": "block10_launcher_identity_built_installed_visual_validation_pending",
+  "latest_runtime_code_head": "c0910552177b9cf752ab04aaa56b1c8c2c63e05a",
+  "latest_built_runtime_head": "c0910552177b9cf752ab04aaa56b1c8c2c63e05a",
   "latest_visually_accepted_runtime_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
-  "last_successful_runtime_fingerprint": "00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f",
+  "last_successful_runtime_fingerprint": "e822e725bcb1842dbdd7da45970b294071c2ab8449cd1df05466201fa6ff2e13",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 847,
-    "run_id": 33379564664,
+    "run_number": 850,
+    "run_id": 33385053463,
     "conclusion": "success",
-    "proof_head": "1dbf3a14f95639aff854e0a4a38ea20e45337ead",
-    "runtime_equivalent_head": "c147fa1c1514b0c66c107c18fb4a8607a427682c",
-    "apk_artifact": 9753249448,
-    "apk_artifact_digest": "sha256:5660b5d0e1e1c7afa134903bf5a1c43823628af399ea6a94e0fdab3e2b59666b",
-    "runtime_fingerprint_artifact": 9753250023,
-    "runtime_fingerprint_artifact_digest": "sha256:798fb7d4e630c30c55d24f03942c892216377a0d5cdc45902ea8c24838d25700",
-    "runtime_fingerprint": "00c96cfca78b53c4d71211075fb5a49c107b02ae133c5bd5c2af7470632ffb6f",
-    "note": "Exactly one required build for Candidate #13 runtime-equivalent checkpoint; draft emulator/publish work remained skipped as intended."
+    "head_sha": "c0910552177b9cf752ab04aaa56b1c8c2c63e05a",
+    "runtime_fingerprint": "e822e725bcb1842dbdd7da45970b294071c2ab8449cd1df05466201fa6ff2e13",
+    "apk_artifact": 9755300459,
+    "apk_artifact_digest": "sha256:a6336920414a905c2addf6f89442d24528b476d5a031f1ad22691631103512ce",
+    "runtime_fingerprint_artifact": 9755301129,
+    "runtime_fingerprint_artifact_digest": "sha256:2f665fc0665f5a21c5b6cac9f3a150b92f148702599562365bb2f9bd932d79f1",
+    "emulator_job": "skipped_draft_fast_path",
+    "publish_job": "skipped_draft_fast_path",
+    "note": "Exactly one Android build was used for the Block 10 runtime/build-input change; debug APK and fingerprint artifacts are live."
   },
   "latest_visual_proof": {
     "name": "Celine Room Visual Polish Proof",
@@ -61,7 +62,7 @@
     "workflow_conclusion": "success",
     "structural_result": "PASS_HOME_CALL_HOME_STABLE_CELINE_VISIBLE",
     "manual_inspection": "PASS_CANDIDATE13_FLOOR_NATURAL_WARM_BROWN",
-    "note": "Actual home/call/home-return images were inspected and compared with Candidate #12. Candidate #13 removes the dominant orange/red-brown floor emphasis while Candidate #12 ceiling remains accepted. Workflow success alone was not used as acceptance."
+    "note": "This remains the latest accepted room/Celine visual evidence. It does not visually accept the newer Block 10 launcher runtime head."
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -85,9 +86,9 @@
     "room-polish-candidate13-floor": "Accepted darker less-saturated natural warm-brown floor factor"
   },
   "active_block": {
-    "number": "room-visual-polish",
-    "name": "Warm realistic room shell/material treatment",
-    "status": "candidate13_floor_accepted_next_bounded_action_not_yet_selected"
+    "number": 10,
+    "name": "Yahya AI launcher identity / icon",
+    "status": "implementation_and_build_pass_installed_launcher_visual_validation_pending"
   },
   "room_visual_polish_candidate": {
     "number": 13,
@@ -102,23 +103,37 @@
     "manual_verdict": "PASS",
     "manual_reason": "The floor now reads darker and less saturated, with natural warm-brown character instead of the previous dominant orange/red-brown look."
   },
-  "current_blocker": "No technical blocker. Candidate #13 floor is accepted. The next runtime change must not be invented from stale candidate history; it must first be bound to the current canonical v80/room-polish target after a fresh live reconcile.",
-  "exact_next_action": "Fresh-reconcile PR #111 and the current room visual target after this docs-only queue checkpoint. Determine exactly one next bounded, explicitly authorized v80 action before any runtime write. Preserve Candidate #12 ceiling and Candidate #13 floor, canonical Celine, camera/zoom, accepted anchors/navigation/actions, 60,000 lm Lamp behavior, room GLB bytes/geometry/transforms and all 12 immutable furniture GLBs. Do not merge/release or begin NavMesh/free navigation.",
+  "block10_launcher": {
+    "runtime_head": "c0910552177b9cf752ab04aaa56b1c8c2c63e05a",
+    "source_path": "docs/celine/reference/v80/yahya-ai-launcher-source.jpg",
+    "source_copy_sha256": "04d52cfcc5b8c045c3cff306e985746a3137987d270e4a0716c9f442c05d5eb3",
+    "derived_foreground_path": "app/src/main/res/drawable-nodpi/celine_launcher_foreground.jpg",
+    "derived_foreground_sha256": "49db3c3173c9d487109b9a740cb90899cfcbe879fd81268a07ecd5bae1c39f3b",
+    "adaptive_icon": true,
+    "legacy_fallback": true,
+    "manifest_icon_bound": true,
+    "generated_lookalike_used": false,
+    "local_mask_preview": "PASS_CIRCLE_SQUIRCLE_ROUNDED_SQUARE_FACE_EYES_HAIR_READABLE",
+    "installed_launcher_visual_acceptance": "PENDING_NOT_CLAIMED"
+  },
+  "current_blocker": "No technical build blocker. Block 10 implementation compiles and packages successfully, but the work order still requires the installed launcher appearance to be inspected on a target device/emulator before Block 10 can be accepted.",
+  "exact_next_action": "Use the exact Block 10 APK from Android Build #850 / run 33385053463 / artifact 9755300459, install it on the target device or a suitable Android emulator, and manually inspect the actual Yahya AI launcher icon under circle, squircle/rounded launcher masking. If face/eyes/hair remain well framed and the installed icon is the approved portrait, record Block 10 PASS; otherwise change only the confirmed icon crop/safe-zone cause and rebuild once. Do not start Block 11 before Block 10 is accepted.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge or release during bounded room visual-polish implementation.",
+    "Do not merge or release during bounded v80 implementation.",
     "Do not reopen accepted Blocks 4, 4R, 5, 6, 7, 8, 9, 9R.1, 9R.2, 9R.3, 9R.4 or 9R.5 without new exact independent evidence.",
     "Workflow SUCCESS is not visual acceptance where appearance is under review.",
     "Do not alter the 12 immutable original furniture GLBs in place.",
-    "Canonical Celine remains separate from the room and furniture.",
-    "Do not start continuous free/NavMesh navigation during room visual polish."
+    "Canonical Celine remains separate from the room and furniture and was not modified by Block 10.",
+    "Do not start continuous free/NavMesh navigation during v80.",
+    "Do not begin Block 11 until the installed Block 10 launcher icon is manually accepted."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "room-visual-polish-candidate13-floor-accepted-reconcile-next",
-    "next_substep_after_acceptance": "reconcile-next-canonical-trunk-step",
+    "current_substep": "block10-launcher-installed-visual-validation",
+    "next_substep_after_acceptance": "block11-duplicate-launcher-dependency-audit",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
   }
