@@ -11,6 +11,7 @@
   "room_visual_target": "docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_TARGET_REFERENCE.md",
   "room_visual_target_image": "/Refernzbild.png",
   "room_visual_polish_handoff": "docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_POLISH_STATUS.md",
+  "room_reference_realism_plan": "docs/celine/room-source/v80-2026-08-28/ROOM_REFERENCE_REALISM_PLAN.md",
   "room_source_bridge": {
     "retrieval_contract": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json",
     "relationship_manifest": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_GITHUB_LFS_BRIDGE.json",
@@ -28,59 +29,90 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "7be485fbb19f12a13a55b09101a111b6cb79d0d8",
-  "checkpoint_note": "Block 12 Temporal Proof #6 was manually inspected and is a real FAIL on the exact accepted Block 11 runtime. The CALL transition destroys/recreates the SurfaceView: Celine is absent for visible CALL frames, then the first returned frames are transiently clipped before settling. A proof-only segmented recorder repair is committed at 7be485f so the complete room sequence can be recorded beyond Android screenrecord's single-file limit. This checkpoint does not claim a new runtime validation.",
-  "status": "block12_temporal_fail_call_entry_blank_runtime_fix_required",
-  "latest_runtime_code_head": "53451e58b5b02af4a803876b5d89b9230e981145",
-  "latest_built_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
+  "current_branch_head_checkpoint": "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5",
+  "checkpoint_note": "Stale Block-12 queue state was causing competing workers to keep reopening the already-repaired CALL transition while the user explicitly redirected v80 to finish whole-room reference realism. Live GitHub was reconciled through 8ae2795. The durable room plan is now canonical for the active visual substep. R1 proof #21 showed real depth improvement after enabling shadows, but Celine/shadow-side fill remained too dark versus /Refernzbild.png. R2 therefore changes only existing indirect-light intensity from 8000 to 10000. Build #883 is the useful exact-runtime build currently queued/in progress; do not start another runtime change before that build and one targeted room proof are evaluated.",
+  "status": "room_reference_realism_r2_build_then_targeted_visual_proof",
+  "latest_runtime_code_head": "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5",
+  "latest_built_runtime_head": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
   "latest_visually_accepted_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
-  "last_successful_runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
+  "last_successful_runtime_fingerprint": "77e5a83bca86e0b114d23a50931a51d5c6824a3666fbca2d8cae29583ceed78f",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 864,
-    "run_id": 33392193364,
+    "run_number": 880,
+    "run_id": 33420704971,
     "conclusion": "success",
-    "head_sha": "53451e58b5b02af4a803876b5d89b9230e981145",
-    "runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
-    "apk_artifact": 9757940359,
-    "apk_artifact_digest": "sha256:b7d3cd975ee7f6bca8d07c2668e0210449ed70e0a889c25ddaafc6f0415cb215",
-    "runtime_fingerprint_artifact": 9757940710,
-    "runtime_fingerprint_artifact_digest": "sha256:69cc93a9a31b4b2f0dbc8cdab7cecf08fd33ed5dfa1d0976bad11c339325cc2b",
-    "note": "Accepted Block 11 runtime build. Proof/queue-only heads after it do not replace this runtime identity."
+    "head_sha": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
+    "runtime_fingerprint": "77e5a83bca86e0b114d23a50931a51d5c6824a3666fbca2d8cae29583ceed78f",
+    "apk_artifact": 9768828195,
+    "apk_artifact_digest": "sha256:44cf978263e1c8c46ecc100598c1cdd0743d62478f19cc24578285b66a03f399",
+    "runtime_fingerprint_artifact": 9768828728,
+    "runtime_fingerprint_artifact_digest": "sha256:6ac8c6ece3c5e01ca29f7289327c57902c90418192f7f914737bc6eb5e42fce9",
+    "note": "Latest completed runtime build before R2. Build #883 is the useful newer exact-runtime build and must be allowed to finish rather than displaced by another runtime write."
+  },
+  "block12_temporal_state": {
+    "confirmed_original_failure": "CALL SurfaceView reparent exposed blank/transient clipped frames on accepted Block-11 runtime.",
+    "first_runtime_repair_head": "99d053cc08cffa58691dab8b1697def6ac3f3ea4",
+    "segmented_structural_proof_run": 33415578450,
+    "segmented_structural_proof_number": 16,
+    "segmented_structural_proof_artifact": 9767505612,
+    "segmented_structural_proof_result": "SUCCESS_STRUCTURAL_MANUAL_FULL_V80_ACCEPTANCE_NOT_CLAIMED",
+    "newer_live_guard_heads": [
+      "ded4aae0555fd96ecfb50df17fe195a04d28679c",
+      "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
+      "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5"
+    ],
+    "guard_scope": "CelineSurfaceTransitionGuardV80 lifecycle-only preservation of live Surface pixels; no room-light/material/camera ownership.",
+    "instruction": "Do not perform another speculative Block-12 runtime rewrite while room-reference R2 build/proof is the active exact_next_action. Final temporal acceptance returns only after the room visual target is accepted."
   },
   "latest_visual_proof": {
-    "name": "Celine Block 12 Temporal Proof",
-    "run_number": 6,
-    "run_id": 33401144422,
-    "proof_head": "b2536ae00e971107fb15b37ed4e7f0fe8e5c7d96",
-    "runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
-    "runtime_fingerprint": "23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e",
-    "artifact_id": 9762021294,
-    "artifact_digest": "sha256:f8a6d5c3b29344349503267b552246149277a9fcc0b8efff2ddd7fab48610f81",
+    "name": "Celine Room Visual Polish Proof",
+    "run_number": 21,
+    "run_id": 33420953532,
+    "proof_head": "0bc382e9feb71d20152311ad31d4b27c9abbc496",
+    "runtime_head": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
+    "runtime_fingerprint": "77e5a83bca86e0b114d23a50931a51d5c6824a3666fbca2d8cae29583ceed78f",
+    "artifact_id": 9768947065,
+    "artifact_digest": "sha256:348ae990596c6bb5d34e8ef47b43f3fe713ee0d7c700ec52d2960b1351664dad",
     "workflow_conclusion": "success",
-    "structural_result": "PASS_STRUCTURAL_BUT_SINGLE_180S_VIDEO_DID_NOT_COVER_ROOM_SEQUENCE",
-    "manual_inspection": "FAIL_CALL_ENTRY_CELINE_ABSENT_THEN_TRANSIENTLY_CLIPPED",
-    "visual_acceptance": "FAIL_BLOCK12",
+    "structural_result": "PASS_HOME_CALL_HOME_CAPTURE",
+    "manual_inspection": "PARTIAL_PASS_DEPTH_IMPROVED_BUT_CELINE_AND_SHADOW_SIDE_TOO_DARK",
+    "visual_acceptance": "FAIL_R2_FILL_REQUIRED",
     "evidence": [
-      "The actual temporal MP4 was manually inspected, not inferred from workflow SUCCESS.",
-      "CALL UI becomes visible while the avatar stage is empty/purple for multiple video frames; Celine is completely absent.",
-      "Celine then reappears in transiently clipped framing before settling into the accepted CALL view.",
-      "Runtime log correlates the defect with REN-323 Surface destroyed at 14:14:20.993, V45-100/V80-210 at 14:14:22.032-22.034, and REN-320 Surface recreated at 14:14:22.050.",
-      "The original single screenrecord ended before the later table/bed/chair/window/lamp sequence, so still checkpoints cannot substitute for final temporal evidence."
+      "Actual home.png/call.png/home-return.png were manually inspected, not inferred from workflow SUCCESS.",
+      "Enabling shadows on the existing directional key produced the first clear grounded furniture/contact depth improvement versus the previous flat room.",
+      "The warm-neutral key removed the prior over-orange R1 candidate.",
+      "Celine and the shadow side are visibly too dark compared with the warm bright reference, especially in CALL, so R1 alone is not a final room-realism PASS.",
+      "The smallest evidence-backed next change is existing indirect-fill intensity only; no material/camera/geometry change is justified yet."
     ]
   },
-  "block12_proof_infrastructure": {
-    "proof_only_fix_head": "7be485fbb19f12a13a55b09101a111b6cb79d0d8",
-    "change": "Rotate Android screenrecord into sequential 170-second segments over the same uninterrupted app process and require at least two nonempty segments.",
-    "runtime_fingerprint_changed": false,
-    "android_build_871_run": 33410458171,
-    "android_build_871_result": "success_scope_only_build_skipped",
-    "rerun": {
-      "workflow": "Celine Block 12 Temporal Proof",
-      "run_number": 8,
-      "run_id": 33410458165,
-      "state_at_checkpoint": "in_progress_using_exact_block11_runtime_apk",
-      "acceptance_note": "Even if structurally green, this old-runtime run cannot override the confirmed CALL-entry visual FAIL. It is useful only to validate segmented temporal capture infrastructure."
+  "room_reference_realism": {
+    "authority": "/Refernzbild.png",
+    "plan": "docs/celine/room-source/v80-2026-08-28/ROOM_REFERENCE_REALISM_PLAN.md",
+    "r1_first_candidate": {
+      "runtime_head": "febba2a2d8d341b9c39e743200526b8192bc3b07",
+      "proof_run": 33420168962,
+      "proof_number": 20,
+      "artifact": 9768652790,
+      "verdict": "FAIL_OVER_ORANGE_AND_STILL_FLAT"
+    },
+    "r1_repair": {
+      "runtime_head": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
+      "directional_color": [1.0, 0.8, 0.66],
+      "directional_intensity_lux": 11000.0,
+      "directional_shadows": true,
+      "proof_run": 33420953532,
+      "proof_number": 21,
+      "artifact": 9768947065,
+      "verdict": "DEPTH_FIX_CONFIRMED_FILL_TOO_DARK"
+    },
+    "r2_candidate": {
+      "runtime_change_head": "7ed89e13deb7b95c70d1ed808d74ee91201d090f",
+      "live_runtime_head_with_reconciled_block12_guard": "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5",
+      "change": "Existing IndirectLight intensity 8000 -> 10000 only; keep current neutral irradiance color for this bounded fill test.",
+      "build_run": 33421441050,
+      "build_number": 883,
+      "state_at_checkpoint": "queued_or_in_progress",
+      "visual_proof": "NOT_STARTED_UNTIL_BUILD_SUCCESS"
     }
   },
   "accepted_blocks": {
@@ -90,7 +122,7 @@
     "6": "Gaze, head and social presence",
     "7": "Blink and eyelid correctness",
     "8": "Speech/face coordination",
-    "9": "Lifecycle and temporal stability; reopened only for the newly proven CALL-entry transition defect within Block 12",
+    "9": "Lifecycle and temporal stability; reopened only for exact independently proven CALL-transition evidence",
     "9R.1": "Locomotion foundation",
     "9R.2": "Camera/table interactions",
     "9R.3": "Bed chain",
@@ -101,15 +133,15 @@
     "9R.5-shelf": "Environment destination — shelf",
     "9R.5-lamp": "Environment destination — lamp / reversible localized room light",
     "9R.5": "Environment destinations complete",
-    "room-polish-candidate12-ceiling": "Accepted warm tan/beige isolated ceiling material",
-    "room-polish-candidate13-floor": "Accepted darker less-saturated natural warm-brown floor factor",
+    "room-polish-candidate12-ceiling": "Accepted warm tan/beige isolated ceiling material; criterion-specific, not whole-reference acceptance",
+    "room-polish-candidate13-floor": "Accepted darker less-saturated natural warm-brown floor factor; criterion-specific, not whole-reference acceptance",
     "10": "Yahya AI launcher identity / exact approved portrait icon",
     "11": "Duplicate product launcher cleanup / Yahya AI sole normal launcher"
   },
   "active_block": {
     "number": 12,
-    "name": "Final temporal acceptance gate",
-    "status": "failed_on_call_entry_transition_minimal_runtime_repair_required"
+    "name": "Final temporal acceptance gate with user-directed reference-room realism completion before final exact-head gates",
+    "status": "room_reference_realism_r2_active"
   },
   "block10_launcher": {
     "runtime_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
@@ -129,23 +161,25 @@
     "normal_launcher": "de.yahya.ai/.MainActivity",
     "manual_installed_verdict": "PASS_ONLY_YAHYA_AI_VISIBLE_IN_APP_DRAWER"
   },
-  "current_blocker": "Confirmed Block 12 runtime visual failure: CelineVideoCallV45 reparents the existing avatarStage into the CALL overlay. The embedded Celine3DView SurfaceView is destroyed and recreated, exposing an empty CALL stage for visible frames; the first returned frames are also transiently clipped before the camera/layout settles. This contradicts Block 12 even though the workflow is structurally green.",
-  "root_cause": "The transition order in CelineVideoCallV45 builds the CALL overlay and immediately reparents the live SurfaceView-backed avatar stage. Runtime evidence shows REN-323 Surface destroyed, then roughly one second with CALL UI and no Celine before REN-320 Surface recreated. CALL zoom is applied before/around the recreated surface while the call lens/layout settle later, exposing transient invalid framing.",
-  "exact_next_action": "Fresh-reconcile PR #111/head and Block 12 run #8, then make exactly one minimal CALL-entry presentation/lifecycle repair in the existing CelineVideoCallV45 path so reparent/surface recreation is never exposed as an empty or transiently clipped user-visible CALL frame (for example preserve the last valid Celine frame only during the bounded transition and remove it only after the recreated production Celine frame and CALL camera/layout are confirmed ready). Preserve accepted camera/zoom semantics and all other protected subsystems. Then run exactly one required Android build and one Block 12 temporal proof on the new runtime, manually inspect every video segment/frame, and only then decide PASS/FAIL. No merge/release before full exact-head acceptance.",
+  "current_blocker": "No design blocker. The current R2 runtime has not yet received its successful required Android build because useful builds were repeatedly cancelled by competing stale-queue Block-12 writes. Queue is now reconciled to stop that interference. Allow Android Build #883 for the live R2 runtime to finish, then run exactly one targeted room proof and inspect actual frames.",
+  "root_cause": "Whole-room realism lagged because earlier criterion-specific room passes were mistaken for completion and global lighting remained flat. The stale Queue then kept directing other workers back into the CALL transition after Live GitHub had advanced, cancelling useful room builds. Visual evidence now isolates the room problem: directional shadows restore depth; existing indirect fill is insufficient to keep the warm bright reference look without underexposing Celine/shadow-side surfaces.",
+  "exact_next_action": "DO NOT WRITE MORE RUNTIME CODE. Fresh-reconcile the live PR/head and Android Build #883. If the live runtime fingerprint containing R2 (existing IndirectLight intensity 10000) receives a successful Android build with a live APK artifact, trigger exactly one Celine Room Visual Polish Proof against that runtime-equivalent APK. Manually inspect HOME/CALL/HOME against /Refernzbild.png. Record R2 PASS/FAIL. Only after that evidence may the next bounded realism phase be chosen. Do not reopen Block-12 transition code, camera/zoom, materials, geometry, furniture transforms, anchors/actions, Lamp behavior or Celine while this R2 evidence is pending. No merge/release.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge or release until Block 12 and exact-head requirements are actually satisfied.",
-    "Do not reopen accepted Blocks except the exact CALL-entry lifecycle surface newly invalidated by independent Block 12 video evidence.",
+    "Do not merge or release until room-reference realism, Block 12 temporal acceptance and final exact-head gates are actually satisfied.",
     "Workflow SUCCESS is not visual acceptance where appearance or temporal behavior is under review.",
-    "Do not alter canonical Celine, accepted camera/zoom semantics, room GLB bytes/geometry/transforms, 12 immutable furniture GLBs, accepted anchors/actions or Lamp behavior.",
-    "Do not start continuous free/NavMesh navigation during v80."
+    "Do not alter canonical Celine, accepted camera/zoom semantics, room GLB bytes/geometry/transforms, 12 immutable furniture GLBs, accepted anchors/actions or interactive 60,000 lm Lamp behavior without new independent evidence.",
+    "Do not start continuous free/NavMesh navigation during v80.",
+    "Do not introduce a second visible room/backdrop or a parallel renderer.",
+    "While R2 build/proof is pending, other workers must not perform speculative Block-12 or room runtime writes."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "block12-call-entry-transition-repair",
-    "next_substep_after_acceptance": "final-exact-head-gates",
+    "current_substep": "room-reference-realism-r2-proof",
+    "next_substep_after_reference_acceptance": "block12-final-temporal-acceptance-on-final-room-runtime",
+    "next_substep_after_block12_acceptance": "final-exact-head-gates",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
     "next_step": null
   }
