@@ -366,7 +366,7 @@ final class CelineRoomEnvironmentV80 {
             boolean bound = false;
             try {
                 duplicate.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
-                        1.0f, 1.0f, 0.92f, 1.0f);
+                        1.0f, 0.97f, 0.82f, 1.0f);
                 duplicate.setParameter("metallicFactor", 0.0f);
                 duplicate.setParameter("roughnessFactor", 0.88f);
                 duplicate.setParameter("reflectance", 0.40f);
