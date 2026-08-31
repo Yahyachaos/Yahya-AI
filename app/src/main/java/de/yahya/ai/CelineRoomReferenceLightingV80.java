@@ -21,11 +21,13 @@ import java.util.WeakHashMap;
  * also showed that Celine and the room shadow side became too dark compared with the warm, bright
  * reference. R2 therefore raised only the existing indirect fill from 8000 to 10000.
  *
- * The subsequent bounded table-layout correction now restores the required near-camera foreground
- * crop. The exact production proof still reads broadly and globally lit versus the canonical warm
- * evening reference. R3 therefore adds one restrained always-on practical point light at the
- * visible front/right nightstand lamp. It is deliberately separate from the accepted interactive
- * 60,000 lm floor-lamp toggle and does not change camera, room/furniture transforms or Celine.
+ * The subsequent bounded table-layout correction restores the required near-camera foreground
+ * crop. R3 point-light evidence was structurally stable but manually confirmed almost no visible
+ * local pool around the front nightstand/bed. The bounded R3 repair therefore keeps the same fixture
+ * and ownership, but concentrates its lumens with a warm focused spot aimed at the bed mass. This
+ * mirrors the already proven Filament light shape used by the accepted interactive floor lamp while
+ * remaining a separate always-on practical. Camera, room/furniture transforms and Celine are not
+ * changed here.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -34,14 +36,19 @@ final class CelineRoomReferenceLightingV80 {
     private static final float KEY_LUX = 11000.0f;
     private static final float INDIRECT_LUX = 10000.0f;
 
-    // Assembly front nightstand: (2.66, 0.609148, 0.50). Put a small warm point just above the
-    // visible shade, after the already locked room-root runtime offset. This is a local practical,
-    // not another global fill and not the protected interactive floor-lamp light.
+    // Assembly front nightstand: (2.66, 0.609148, 0.50). Keep the practical just above the visible
+    // shade after the locked room-root offset. Aim it toward the nearby bed center so its energy is
+    // a localized practical-light pool rather than an invisible omnidirectional fill.
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
     private static final float PRACTICAL_Z = 0.50f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
-    private static final float PRACTICAL_LUMENS = 6000.0f;
-    private static final float PRACTICAL_FALLOFF_M = 2.35f;
+    private static final float PRACTICAL_DIR_X = -0.43410667f;
+    private static final float PRACTICAL_DIR_Y = -0.47690592f;
+    private static final float PRACTICAL_DIR_Z = -0.76427230f;
+    private static final float PRACTICAL_INNER_RAD = 0.48869219f; // 28 degrees
+    private static final float PRACTICAL_OUTER_RAD = 0.87266463f; // 50 degrees
+    private static final float PRACTICAL_LUMENS = 3000.0f;
+    private static final float PRACTICAL_FALLOFF_M = 3.0f;
 
     private static final Set<Celine3DView> APPLIED =
             Collections.newSetFromMap(new WeakHashMap<Celine3DView, Boolean>());
@@ -97,8 +104,10 @@ final class CelineRoomReferenceLightingV80 {
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
-                            + " practical=front_nightstand_point@" + PRACTICAL_LUMENS + "lm"
+                            + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
                             + " falloff=" + PRACTICAL_FALLOFF_M + "m"
+                            + " direction=" + PRACTICAL_DIR_X + "," + PRACTICAL_DIR_Y + "," + PRACTICAL_DIR_Z
+                            + " coneRad=" + PRACTICAL_INNER_RAD + "/" + PRACTICAL_OUTER_RAD
                             + " · exposure/materials/camera/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
@@ -110,8 +119,10 @@ final class CelineRoomReferenceLightingV80 {
             Celine3DView view, Engine engine, Scene scene) {
         int entity = EntityManager.get().create();
         try {
-            new LightManager.Builder(LightManager.Type.POINT)
+            new LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
                     .position(PRACTICAL_X, PRACTICAL_Y, PRACTICAL_Z)
+                    .direction(PRACTICAL_DIR_X, PRACTICAL_DIR_Y, PRACTICAL_DIR_Z)
+                    .spotLightCone(PRACTICAL_INNER_RAD, PRACTICAL_OUTER_RAD)
                     .color(1.0f, 0.58f, 0.34f)
                     .intensity(PRACTICAL_LUMENS)
                     .falloff(PRACTICAL_FALLOFF_M)
