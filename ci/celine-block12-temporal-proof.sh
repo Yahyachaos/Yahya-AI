@@ -182,8 +182,8 @@ if grep -Eq 'V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|ROO
 
 cat > "$OUT/summary.txt" <<EOF
 PASS Block 12 structural segmented-continuous gate; manual video acceptance required
-RUNTIME_HEAD=53451e58b5b02af4a803876b5d89b9230e981145
-RUNTIME_FINGERPRINT=23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e
+RUNTIME_HEAD=99d053cc08cffa58691dab8b1697def6ac3f3ea4
+RUNTIME_FINGERPRINT=c724a797b0c5faef56ca7df8a8ea2caacfabc9f7207423e15dcc6952ae8b1af7
 HOME_IDLE=recorded
 SPEAKING_WINDOW=recorded
 HOME_CALL_HOME=same_process
