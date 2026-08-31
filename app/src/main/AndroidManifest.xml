@@ -24,24 +24,16 @@
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
 
-        <activity android:name=".CelineAvatarLabActivity" android:screenOrientation="portrait" android:exported="true" android:label="Celine Avatar Lab">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+        <!-- Block 11: retained as an explicit developer/proof surface, but no longer a normal launcher. -->
+        <activity android:name=".CelineAvatarLabActivity" android:screenOrientation="portrait" android:exported="true" android:label="Celine Avatar Lab" />
+
+        <!-- Kept exported because ci/avatar-lab-proof.sh invokes this exact component through adb shell. -->
         <activity android:name=".CelineAvatarLabCaptureActivity" android:screenOrientation="portrait" android:exported="true" android:label="Celine Avatar Lab Capture" />
 
-        <!-- v35 diagnostic launcher: gives the user a reliable in-app document picker instead of
-             depending on Samsung's MIME/Open-with routing. It can be removed again after the
-             device-side 3D path is confirmed. -->
-        <activity android:name=".AvatarPickerActivity" android:exported="true" android:label="Celine 3D importieren">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+        <!-- v35 import picker is preserved for explicit developer use but is no longer a launcher icon. -->
+        <activity android:name=".AvatarPickerActivity" android:exported="true" android:label="Celine 3D importieren" />
 
+        <!-- External VIEW import remains intentionally available for file/URI based development imports. -->
         <activity android:name=".CelineModelImportActivity" android:exported="true" android:noHistory="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
