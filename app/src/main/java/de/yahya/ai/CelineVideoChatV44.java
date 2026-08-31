@@ -40,6 +40,7 @@ final class CelineVideoChatV44 {
         Celine3DView threeD = find3D(decor);
         if (threeD == null) return;
 
+        CelineSurfaceTransitionGuardV80.ensure(activity, threeD);
         installRoom(activity, threeD);
         hideDiagnosticBadge(threeD.getParent() instanceof ViewGroup ? (ViewGroup) threeD.getParent() : null);
         installDiagnosticsLongPress(activity, threeD);
