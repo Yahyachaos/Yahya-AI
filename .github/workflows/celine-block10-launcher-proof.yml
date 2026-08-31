@@ -38,14 +38,14 @@ jobs:
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
-      - name: Reuse exact corrected Block 10 APK from Android Build 861
+      - name: Reuse exact Block 11 launcher-cleanup APK from Android Build 864
         uses: actions/download-artifact@v4
         with:
           name: yahya-ai-debug
           path: ci-apk
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
-          run-id: 33389296933
+          run-id: 33392193364
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
