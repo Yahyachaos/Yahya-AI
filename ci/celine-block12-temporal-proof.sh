@@ -32,6 +32,7 @@ capture(){ local name="$1" label="$2"; adb exec-out screencap -p > "$OUT/$name.p
 write_room(){ local target="$1"; adb shell "run-as $PACKAGE sh -c 'printf %s $target > files/$ROOM_MARKER.tmp && mv files/$ROOM_MARKER.tmp files/$ROOM_MARKER'" || fail "room marker $target"; }
 room_anchor(){ local target="$1" label="$2"; adb logcat -c || true; write_room "$target"; wait_log "V80-472"; wait_log "target=$target"; wait_log "V80-475" 420; wait_log "anchor=$target" 420; sleep 0.28; capture "$label" "BLOCK12_${label}"; }
 room_pose(){ local target="$1" pose="$2" label="$3"; room_anchor "$target" "$label-arrived"; wait_log "V80-483" 420; wait_log "pose=$pose" 420; wait_log "centralOwner=true" 420; wait_log "noTeleport=true" 420; sleep 0.50; capture "$label-stable" "BLOCK12_${label}_STABLE"; }
+table_lean(){ local label="$1"; room_anchor foreground_table_lean_anchor "$label-arrived"; wait_log "V80-480" 420; wait_log "anchor=foreground_table_lean_anchor" 420; wait_log "handContact=false" 420; wait_log "centralOwner=true" 420; wait_log "cameraFixed=true" 420; sleep 0.50; capture "$label-stable" "BLOCK12_${label}_STABLE"; }
 set_zoom(){ local requested="$1" expected="${2:-$1}"; adb shell "run-as $PACKAGE sh -c 'printf %s $requested > files/$ZOOM_MARKER.tmp && mv files/$ZOOM_MARKER.tmp files/$ZOOM_MARKER'" || fail "zoom marker $requested"; for _ in $(seq 1 45); do adb logcat -d | grep -F 'V70-141' | grep -F "requested=$requested" | grep -Fq "zoom=$expected" && { sleep 1.2; return 0; }; sleep 0.35; done; fail "zoom not consumed requested=$requested expected=$expected"; }
 
 [[ -s "$APK" ]] || fail "missing APK $APK"
@@ -78,9 +79,9 @@ sleep 1
 capture 20-home-after-call BLOCK12_HOME_AFTER_CALL
 [[ "$(pid)" = "$PID0" ]] || fail "process changed across HOME/CALL/HOME"
 
-# Table approach + lean + return.
+# Table approach + lean + return. Table lean has its own accepted 9R.2 diagnostic contract (V80-480), not a V80-483 authored pose.
 room_anchor foreground_table_approach_anchor 30-table-approach
-room_pose foreground_table_lean_anchor TABLE_LEAN 31-table-lean
+table_lean 31-table-lean
 room_anchor camera_talk_anchor 32-table-return
 
 # Accepted complete bed chain, forward and reverse, then walk away and return.
@@ -131,7 +132,7 @@ adb pull /sdcard/block12-temporal.mp4 "$OUT/block12-temporal.mp4" >/dev/null 2>&
 [[ -s "$OUT/block12-temporal.mp4" ]] || fail "continuous temporal recording missing"
 
 # Structural/temporal invariants. Manual video/frame inspection remains mandatory.
-for marker in 'V80-400' 'V80-410' 'V80-420' 'target=CALL eased=true snap=false' 'target=HOME eased=true snap=false' 'V70-141' 'V80-472' 'V80-475' 'V80-483'; do
+for marker in 'V80-400' 'V80-410' 'V80-420' 'target=CALL eased=true snap=false' 'target=HOME eased=true snap=false' 'V70-141' 'V80-472' 'V80-475' 'V80-480' 'V80-483'; do
   grep -Fq "$marker" "$OUT/runtime.txt" || fail "required temporal marker missing: $marker"
 done
 for pose in 'BED_EDGE_SIT' 'BED_RELAX' 'BED_LIE' 'STAND_EXIT' 'CHAIR_SIT' 'WINDOW_STAND' 'LAMP_INTERACT'; do
