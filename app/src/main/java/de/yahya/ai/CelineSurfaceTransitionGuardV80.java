@@ -56,6 +56,7 @@ final class CelineSurfaceTransitionGuardV80 {
         final Handler main = new Handler(Looper.getMainLooper());
 
         Bitmap lastFrame;
+        Bitmap coverSourceFrame;
         ImageView cover;
         boolean snapshotInFlight;
         boolean installed;
@@ -109,7 +110,7 @@ final class CelineSurfaceTransitionGuardV80 {
             try {
                 PixelCopy.request(surface, bitmap, result -> {
                     snapshotInFlight = false;
-                    if (!installed || result != PixelCopy.SUCCESS || bitmap.isRecycled()
+                    if (!installed || cover != null || result != PixelCopy.SUCCESS || bitmap.isRecycled()
                             || !hasVisibleCelinePixels(bitmap)) {
                         if (!bitmap.isRecycled()) bitmap.recycle();
                         return;
@@ -138,7 +139,7 @@ final class CelineSurfaceTransitionGuardV80 {
             lastTop = surfaceLocation[1] - contentLocation[1];
             lastWidth = bitmap.getWidth();
             lastHeight = bitmap.getHeight();
-            if (previous != null && previous != bitmap && !previous.isRecycled()) {
+            if (cover == null && previous != null && previous != bitmap && !previous.isRecycled()) {
                 previous.recycle();
             }
         }
@@ -175,6 +176,7 @@ final class CelineSurfaceTransitionGuardV80 {
             ImageView image = new ImageView(activity);
             image.setScaleType(ImageView.ScaleType.FIT_XY);
             image.setImageBitmap(lastFrame);
+            coverSourceFrame = lastFrame;
             image.setClickable(false);
             image.setFocusable(false);
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(lastWidth, lastHeight);
@@ -329,13 +331,18 @@ final class CelineSurfaceTransitionGuardV80 {
 
         void removeCover(boolean keepFrame) {
             ImageView current = cover;
+            Bitmap staleCoverFrame = coverSourceFrame;
             cover = null;
+            coverSourceFrame = null;
             if (current != null) {
                 current.animate().cancel();
                 current.setImageDrawable(null);
                 if (current.getParent() instanceof ViewGroup) {
                     ((ViewGroup) current.getParent()).removeView(current);
                 }
+            }
+            if (staleCoverFrame != null && staleCoverFrame != lastFrame && !staleCoverFrame.isRecycled()) {
+                staleCoverFrame.recycle();
             }
             if (!keepFrame && lastFrame != null && lastFrame.isRecycled()) lastFrame = null;
         }
