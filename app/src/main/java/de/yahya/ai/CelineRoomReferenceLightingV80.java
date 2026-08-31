@@ -10,16 +10,18 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * v80 reference-realism lighting owner for the bounded R1/R2 passes.
+ * v80 reference-realism owner for the bounded reference-room passes.
  *
  * R1 evidence rejected the overly orange key and then confirmed that enabling shadows on the same
  * warm-neutral directional key restores badly missing room depth. The inspected R1-repair proof
  * also showed that Celine and the room shadow side became too dark compared with the warm, bright
- * reference. R2 therefore changes only the intensity of the already-existing indirect fill from
- * 8000 to 10000. It does not create or replace any light object and does not change its color.
+ * reference. R2 therefore raised only the existing indirect fill from 8000 to 10000.
  *
- * Camera, exposure, room materials, geometry, transforms, Celine ownership, anchors/actions and
- * the accepted interactive floor-lamp light remain untouched.
+ * The next manually confirmed mismatch is composition/derived geometry: the foreground table is
+ * rendered as a fully displayed central slab instead of the cropped near-camera occluder required
+ * by the canonical reference. CelineRoomReferenceLayoutV80 applies that one bounded table-layout
+ * candidate before lighting. Canonical Celine, camera semantics, source GLB bytes and the accepted
+ * interactive floor-lamp behavior remain untouched.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -35,6 +37,11 @@ final class CelineRoomReferenceLightingV80 {
 
     static void ensure(Celine3DView view) {
         if (view == null) return;
+
+        // Layout has its own room-asset identity guard, so it can reapply after a Surface/room
+        // rebuild even when this lighting owner has already been applied to the same Celine3DView.
+        CelineRoomReferenceLayoutV80.ensure(view);
+
         synchronized (APPLIED) {
             if (APPLIED.contains(view)) return;
         }
