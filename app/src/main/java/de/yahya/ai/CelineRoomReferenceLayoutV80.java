@@ -12,15 +12,17 @@ import java.util.WeakHashMap;
 /**
  * Bounded v80 reference-image layout correction.
  *
- * The current production proof shows the foreground table as a fully displayed central slab,
+ * The baseline production proof showed the foreground table as a fully displayed central slab,
  * while the canonical room reference requires it to behave as a near-camera foreground occluder:
- * only the near surface/edge should enter the bottom of frame. Keep the source GLB immutable and
- * move only the derived runtime table node toward the fixed +Z viewer. The two embedded table
- * anchor marker nodes move with the same delta so the GLB remains internally coherent; logical
- * 9R anchor/nav metadata stays unchanged until this visual candidate is manually accepted.
+ * only the near surface/edge should enter the bottom of frame. The first +0.70 m candidate moved
+ * the table completely out of the HOME frame. This measured midpoint candidate keeps the source
+ * GLB immutable and moves only the derived runtime table node +0.35 m toward the fixed +Z viewer.
+ * The two embedded table anchor marker nodes move with the same delta so the GLB stays internally
+ * coherent; logical 9R anchor/nav metadata remains unchanged until this visual candidate is
+ * manually accepted.
  */
 final class CelineRoomReferenceLayoutV80 {
-    static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.70f;
+    static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
 
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED =
             new WeakHashMap<>();
