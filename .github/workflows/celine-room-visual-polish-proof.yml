@@ -4,26 +4,30 @@ on:
   pull_request:
     branches: [ main ]
     types: [ edited ]
+  push:
+    branches: [ auto/celine/v80-human-videochat-presence ]
+    paths:
+      - ci/room-polish-proof-trigger.txt
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: celine-room-visual-polish-${{ github.event.pull_request.number }}
+  group: celine-room-visual-polish-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   room-visual-polish-proof:
     name: Warm room HOME CALL HOME visual proof
-    if: contains(github.event.pull_request.body, '[run-room-polish-proof]')
+    if: github.event_name == 'push' || contains(github.event.pull_request.body, '[run-room-polish-proof]')
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
       - name: Checkout exact proof head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           lfs: false
 
@@ -31,7 +35,7 @@ jobs:
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: bash ci/celine-find-runtime-apk.sh
 
@@ -41,7 +45,7 @@ jobs:
           RUN_ID: ${{ steps.source.outputs.run_id }}
           SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
           RUNTIME_FP: ${{ steps.source.outputs.runtime_fingerprint }}
-          TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -78,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: room-visual-polish-${{ github.event.pull_request.head.sha }}
+          name: room-visual-polish-${{ github.event.pull_request.head.sha || github.sha }}
           path: room-polish-proof/
           if-no-files-found: warn
           retention-days: 30
