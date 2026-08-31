@@ -8,9 +8,13 @@ ACTIVITY="de.yahya.ai/.MainActivity"
 ROOM_MARKER="celine-ci-room-action-v9r"
 ZOOM_MARKER="celine-ci-camera-zoom-v70"
 mkdir -p "$OUT"
+LOG_ROLLING="$OUT/runtime-rolling.txt"
+: > "$LOG_ROLLING"
 
+flush_log(){ adb logcat -d -v threadtime >> "$LOG_ROLLING" 2>&1 || true; }
 fail(){
   echo "BLOCK12 ERROR: $*" >&2
+  flush_log
   adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|SIGABRT|V80-|V79-|V77-|V76-|V70-|V61-|REN-|ROOM-' | tail -500 || true
   exit 1
 }
@@ -30,7 +34,7 @@ PY
 }
 capture(){ local name="$1" label="$2"; adb exec-out screencap -p > "$OUT/$name.png"; [[ -s "$OUT/$name.png" ]] || fail "empty screenshot $name"; python3 ci/check-real-celine-render.py "$OUT/$name.png" "$label"; python3 ci/check-celine-person-presence.py "$OUT/$name.png" "$label"; }
 write_room(){ local target="$1"; adb shell "run-as $PACKAGE sh -c 'printf %s $target > files/$ROOM_MARKER.tmp && mv files/$ROOM_MARKER.tmp files/$ROOM_MARKER'" || fail "room marker $target"; }
-room_anchor(){ local target="$1" label="$2"; adb logcat -c || true; write_room "$target"; wait_log "V80-472"; wait_log "target=$target"; wait_log "V80-475" 420; wait_log "anchor=$target" 420; sleep 0.28; capture "$label" "BLOCK12_${label}"; }
+room_anchor(){ local target="$1" label="$2"; flush_log; adb logcat -c || true; write_room "$target"; wait_log "V80-472"; wait_log "target=$target"; wait_log "V80-475" 420; wait_log "anchor=$target" 420; sleep 0.28; capture "$label" "BLOCK12_${label}"; }
 room_pose(){ local target="$1" pose="$2" label="$3"; room_anchor "$target" "$label-arrived"; wait_log "V80-483" 420; wait_log "pose=$pose" 420; wait_log "centralOwner=true" 420; wait_log "noTeleport=true" 420; sleep 0.50; capture "$label-stable" "BLOCK12_${label}_STABLE"; }
 table_lean(){ local label="$1"; room_anchor foreground_table_lean_anchor "$label-arrived"; wait_log "V80-480" 420; wait_log "anchor=foreground_table_lean_anchor" 420; wait_log "handContact=false" 420; wait_log "centralOwner=true" 420; wait_log "cameraFixed=true" 420; sleep 0.50; capture "$label-stable" "BLOCK12_${label}_STABLE"; }
 set_zoom(){ local requested="$1" expected="${2:-$1}"; adb shell "run-as $PACKAGE sh -c 'printf %s $requested > files/$ZOOM_MARKER.tmp && mv files/$ZOOM_MARKER.tmp files/$ZOOM_MARKER'" || fail "zoom marker $requested"; for _ in $(seq 1 45); do adb logcat -d | grep -F 'V70-141' | grep -F "requested=$requested" | grep -Fq "zoom=$expected" && { sleep 1.2; return 0; }; sleep 0.35; done; fail "zoom not consumed requested=$requested expected=$expected"; }
@@ -124,7 +128,8 @@ sleep 3
 capture 80-home-final BLOCK12_HOME_FINAL
 [[ "$(pid)" = "$PID0" ]] || fail "process changed during room-action sequence"
 
-adb logcat -d -v threadtime > "$OUT/runtime.txt" 2>&1 || true
+flush_log
+cp "$LOG_ROLLING" "$OUT/runtime.txt"
 # Stop and retrieve the continuous recording before technical assertions.
 adb shell 'pkill -INT screenrecord >/dev/null 2>&1 || true' || true
 sleep 2
