@@ -2,4 +2,5 @@ R2 runtime proof trigger
 runtime_head=8ae27954b808e9b17cf8cdeb753d00e834b8c1b5
 runtime_fingerprint=b60d51442c80e322660b4548a83ee252910a5262843c202f185d0a8466ff3d13
 android_build_run=33421441050
-trigger_sequence=2
+trigger_sequence=3
+reason=retry_transient_uiautomator_null_root

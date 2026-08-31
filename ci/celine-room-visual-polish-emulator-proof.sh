@@ -25,6 +25,23 @@ wait_log() {
   fail "timed out waiting for $label ($needle)"
 }
 
+dump_ui() {
+  local remote="$1" local_file="$2" label="$3"
+  for attempt in 1 2 3 4 5; do
+    adb shell rm -f "$remote" >/dev/null 2>&1 || true
+    if adb shell uiautomator dump "$remote" >/dev/null 2>&1 \
+      && adb shell test -s "$remote" \
+      && adb pull "$remote" "$local_file" >/dev/null 2>&1 \
+      && test -s "$local_file"; then
+      echo "UI dump ready: $label attempt=$attempt"
+      return 0
+    fi
+    echo "UI dump retry: $label attempt=$attempt" >&2
+    sleep 2
+  done
+  fail "$label UI dump unavailable after retries"
+}
+
 capture() {
   local name="$1" label="$2"
   adb exec-out screencap -p > "$OUT/$name.png"
@@ -45,8 +62,7 @@ wait_log 'V80-410' 'HOME layered frame'
 wait_log 'CTL-350' 'canonical Celine visible'
 sleep 2
 
-adb shell uiautomator dump /sdcard/room-polish-home.xml >/dev/null || fail "HOME UI dump"
-adb pull /sdcard/room-polish-home.xml "$OUT/home.xml" >/dev/null || fail "HOME UI pull"
+dump_ui /sdcard/room-polish-home.xml "$OUT/home.xml" 'HOME'
 capture home ROOM_POLISH_HOME
 grep -q 'Celin 3D Ansicht' "$OUT/home.xml" || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' "$OUT/home.xml" || fail "CALL entry missing"
