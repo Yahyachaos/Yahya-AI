@@ -4,7 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.os.Handler;
@@ -16,10 +18,12 @@ import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -85,12 +89,15 @@ final class CelineVideoCallV45 {
         boolean paused;
         long awaitingSince;
         long callStartedAt;
+        long callTransitionReadyStartedAt;
 
         ViewGroup originalStageParent;
         int originalStageIndex = -1;
         ViewGroup.LayoutParams originalStageLayout;
         FrameLayout avatarStage;
         FrameLayout overlay;
+        ImageView transitionCover;
+        Bitmap transitionBitmap;
         TextView callStatus;
         TextView caption;
         TextView timer;
@@ -167,9 +174,80 @@ final class CelineVideoCallV45 {
             awaitingReply = false;
             sawSpeaking = false;
             callStartedAt = SystemClock.elapsedRealtime();
+            captureTransitionCover(3);
+        }
 
+        void captureTransitionCover(int remaining) {
+            if (!callActive) return;
+            ViewGroup content = activity.findViewById(android.R.id.content);
+            if (content == null || content.getWidth() <= 1 || content.getHeight() <= 1) {
+                if (remaining > 1) {
+                    main.postDelayed(() -> captureTransitionCover(remaining - 1), 90L);
+                } else {
+                    abortCallBeforeOverlay("HOME content not ready for transition capture");
+                }
+                return;
+            }
+
+            int[] location = new int[2];
+            content.getLocationInWindow(location);
+            Rect source = new Rect(location[0], location[1],
+                    location[0] + content.getWidth(), location[1] + content.getHeight());
+            final Bitmap bitmap;
+            try {
+                bitmap = Bitmap.createBitmap(source.width(), source.height(), Bitmap.Config.ARGB_8888);
+            } catch (Throwable e) {
+                abortCallBeforeOverlay("transition bitmap allocation failed: " + e.getClass().getSimpleName());
+                return;
+            }
+
+            try {
+                PixelCopy.request(activity.getWindow(), source, bitmap, result -> {
+                    if (!callActive) {
+                        bitmap.recycle();
+                        return;
+                    }
+                    if (result == PixelCopy.SUCCESS) {
+                        installTransitionCover(content, bitmap);
+                        beginCallAfterTransitionCover();
+                        return;
+                    }
+                    bitmap.recycle();
+                    if (remaining > 1) {
+                        main.postDelayed(() -> captureTransitionCover(remaining - 1), 90L);
+                    } else {
+                        abortCallBeforeOverlay("PixelCopy failed result=" + result);
+                    }
+                }, main);
+            } catch (Throwable e) {
+                bitmap.recycle();
+                if (remaining > 1) {
+                    main.postDelayed(() -> captureTransitionCover(remaining - 1), 90L);
+                } else {
+                    abortCallBeforeOverlay("PixelCopy exception=" + e.getClass().getSimpleName());
+                }
+            }
+        }
+
+        void installTransitionCover(ViewGroup content, Bitmap bitmap) {
+            clearTransitionCover();
+            transitionBitmap = bitmap;
+            transitionCover = new ImageView(activity);
+            transitionCover.setScaleType(ImageView.ScaleType.FIT_XY);
+            transitionCover.setImageBitmap(bitmap);
+            transitionCover.setClickable(true);
+            transitionCover.setFocusable(true);
+            content.addView(transitionCover, new ViewGroup.LayoutParams(-1, -1));
+            transitionCover.bringToFront();
+            Celine3DDiagnostics.record(activity, "V45-120", "CALL Übergangsframe gesichert",
+                    "content=" + content.getWidth() + "x" + content.getHeight() + " · PixelCopy window content");
+        }
+
+        void beginCallAfterTransitionCover() {
+            if (!callActive) return;
             buildOverlay();
             reparentStageIntoCall();
+            if (transitionCover != null) transitionCover.bringToFront();
             ensureRecognizer();
             setAvatarState("LISTENING");
             setCallStatus("Celin hört zu …");
@@ -179,10 +257,114 @@ final class CelineVideoCallV45 {
             main.removeCallbacks(monitor);
             main.post(monitor);
             main.postDelayed(() -> {
+                if (!callActive) return;
                 CelineVideoChatV44.ensure(activity, activity.getWindow().getDecorView());
                 applyCallLens();
-                scheduleListen(300L);
+                callTransitionReadyStartedAt = SystemClock.elapsedRealtime();
+                waitForStableCallStage(-1, -1, 0, 0);
             }, 280L);
+        }
+
+        void waitForStableCallStage(int lastWidth, int lastHeight, int stablePasses, int attempts) {
+            if (!callActive) {
+                clearTransitionCover();
+                return;
+            }
+            Celine3DView threeD = find3D(avatarStage);
+            if (threeD == null) {
+                if (attempts >= 40) {
+                    abortCallAfterOverlay("Celine3DView missing while waiting for CALL stage");
+                } else {
+                    main.postDelayed(() -> waitForStableCallStage(lastWidth, lastHeight, 0, attempts + 1), 180L);
+                }
+                return;
+            }
+
+            int width = threeD.getWidth();
+            int height = threeD.getHeight();
+            int nextStable = width > 0 && height > 0 && width == lastWidth && height == lastHeight
+                    ? stablePasses + 1 : 0;
+            long elapsed = SystemClock.elapsedRealtime() - callTransitionReadyStartedAt;
+
+            if (attempts >= 40) {
+                abortCallAfterOverlay("CALL stage did not stabilize: " + width + "x" + height + " elapsed=" + elapsed);
+                return;
+            }
+            if (elapsed < 2800L || nextStable < 4) {
+                main.postDelayed(() -> waitForStableCallStage(width, height, nextStable, attempts + 1), 180L);
+                return;
+            }
+
+            applyCallLens();
+            final int expectedWidth = width;
+            final int expectedHeight = height;
+            threeD.verifyVisibleFrame(main, visible -> {
+                if (!callActive) return;
+                if (!visible) {
+                    abortCallAfterOverlay("CALL production frame not visibly rendered");
+                    return;
+                }
+                main.postDelayed(() -> {
+                    if (!callActive) return;
+                    int finalWidth = threeD.getWidth();
+                    int finalHeight = threeD.getHeight();
+                    if (finalWidth != expectedWidth || finalHeight != expectedHeight) {
+                        waitForStableCallStage(finalWidth, finalHeight, 0, attempts + 1);
+                        return;
+                    }
+                    revealReadyCall();
+                }, 220L);
+            });
+        }
+
+        void revealReadyCall() {
+            if (!callActive) return;
+            Celine3DDiagnostics.record(activity, "V45-121", "CALL Übergang visuell bereit",
+                    "stableStage=true · productionFrameVisible=true · cameraLayoutSettled=true");
+            ImageView cover = transitionCover;
+            if (cover == null) {
+                scheduleListen(300L);
+                return;
+            }
+            cover.animate().alpha(0f).setDuration(180L).withEndAction(() -> {
+                clearTransitionCover();
+                if (callActive) scheduleListen(300L);
+            }).start();
+        }
+
+        void abortCallBeforeOverlay(String reason) {
+            callActive = false;
+            paused = false;
+            Celine3DDiagnostics.record(activity, "V45-128", "CALL Start vor Overlay abgebrochen", reason);
+            clearTransitionCover();
+            Toast.makeText(activity, "Videochat konnte nicht sauber starten. Bitte erneut versuchen.", Toast.LENGTH_SHORT).show();
+        }
+
+        void abortCallAfterOverlay(String reason) {
+            Celine3DDiagnostics.record(activity, "V45-129", "CALL Übergang sicher abgebrochen", reason);
+            Toast.makeText(activity, "Videochat wird sicher zurückgesetzt. Bitte erneut versuchen.", Toast.LENGTH_SHORT).show();
+            endCall();
+            Celine3DView home = find3D(avatarStage);
+            if (home != null) {
+                home.verifyVisibleFrame(main, visible -> main.postDelayed(this::clearTransitionCover, visible ? 120L : 650L));
+            } else {
+                main.postDelayed(this::clearTransitionCover, 650L);
+            }
+        }
+
+        void clearTransitionCover() {
+            if (transitionCover != null) {
+                transitionCover.animate().cancel();
+                transitionCover.setImageDrawable(null);
+                if (transitionCover.getParent() instanceof ViewGroup) {
+                    ((ViewGroup) transitionCover.getParent()).removeView(transitionCover);
+                }
+                transitionCover = null;
+            }
+            if (transitionBitmap != null) {
+                if (!transitionBitmap.isRecycled()) transitionBitmap.recycle();
+                transitionBitmap = null;
+            }
         }
 
         void buildOverlay() {
@@ -417,6 +599,7 @@ final class CelineVideoCallV45 {
             callActive = false;
             main.removeCallbacks(monitor);
             stopListeningOnly();
+            clearTransitionCover();
             if (recognizer != null) {
                 try { recognizer.destroy(); } catch (Throwable ignored) {}
                 recognizer = null;
