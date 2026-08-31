@@ -18,7 +18,7 @@
     <queries>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
-    <application android:name=".YahyaApplication" android:allowBackup="true" android:label="Yahya AI" android:theme="@style/AppTheme" android:usesCleartextTraffic="false">
+    <application android:name=".YahyaApplication" android:allowBackup="true" android:label="Yahya AI" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:theme="@style/AppTheme" android:usesCleartextTraffic="false">
         <meta-data android:name="de.yahya.ai.OWNER_NAME" android:value="@string/owner_name" />
         <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true" android:windowSoftInputMode="adjustResize|stateAlwaysHidden">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
