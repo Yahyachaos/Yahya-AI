@@ -1,0 +1,43 @@
+name: Apply room polish candidate 10
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - .github/workflows/apply-room-polish-candidate10.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: auto/celine/v80-human-videochat-presence
+          fetch-depth: 0
+      - name: Apply one ceiling-only warm-beige correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
+          s = p.read_text()
+          old = '1.0f, 1.0f, 0.92f, 1.0f);'
+          new = '1.0f, 0.97f, 0.82f, 1.0f);'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected exactly one Candidate #9 ceiling factor, found {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          git commit -m 'v80: warm isolated ceiling toward reference'
+          git rm .github/workflows/apply-room-polish-candidate10.yml
+          git commit -m 'ci: remove candidate 10 applicator'
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
