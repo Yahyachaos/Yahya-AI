@@ -2,14 +2,19 @@ package de.yahya.ai;
 
 import android.view.View;
 
+import com.google.android.filament.Colors;
 import com.google.android.filament.Engine;
 import com.google.android.filament.EntityManager;
 import com.google.android.filament.IndirectLight;
 import com.google.android.filament.LightManager;
+import com.google.android.filament.MaterialInstance;
+import com.google.android.filament.RenderableManager;
 import com.google.android.filament.Scene;
+import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 
@@ -17,17 +22,15 @@ import java.util.WeakHashMap;
  * v80 reference-realism owner for the bounded reference-room passes.
  *
  * R1 evidence rejected the overly orange key and then confirmed that enabling shadows on the same
- * warm-neutral directional key restores badly missing room depth. The inspected R1-repair proof
- * also showed that Celine and the room shadow side became too dark compared with the warm, bright
- * reference. R2 therefore raised only the existing indirect fill from 8000 to 10000.
+ * warm-neutral directional key restores badly missing room depth. R2 raised the existing indirect
+ * fill to keep Celine and the shadow side readable. R3 moved the front-nightstand practical from an
+ * almost invisible point light to a focused warm spot aimed at the nearby bed mass.
  *
- * The subsequent bounded table-layout correction restores the required near-camera foreground
- * crop. R3 point-light evidence was structurally stable but manually confirmed almost no visible
- * local pool around the front nightstand/bed. The bounded R3 repair therefore keeps the same fixture
- * and ownership, but concentrates its lumens with a warm focused spot aimed at the bed mass. This
- * mirrors the already proven Filament light shape used by the accepted interactive floor lamp while
- * remaining a separate always-on practical. Camera, room/furniture transforms and Celine are not
- * changed here.
+ * The latest inspected R3-focused HOME/CALL/HOME proof is structurally stable, but the room still
+ * has a large flat yellow ceiling field that is visibly unlike the canonical warm-neutral reference.
+ * The next bounded material refinement therefore changes only the already-isolated ceiling material
+ * toward a coherent cream/beige response. Walls, floor, geometry, furniture transforms, camera,
+ * Celine and the protected interactive 60k floor-lamp behavior remain untouched.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -36,9 +39,15 @@ final class CelineRoomReferenceLightingV80 {
     private static final float KEY_LUX = 11000.0f;
     private static final float INDIRECT_LUX = 10000.0f;
 
+    private static final float CEILING_RED = 0.88f;
+    private static final float CEILING_GREEN = 0.80f;
+    private static final float CEILING_BLUE = 0.72f;
+    private static final float CEILING_ROUGHNESS = 0.92f;
+    private static final float CEILING_REFLECTANCE = 0.38f;
+
     // Assembly front nightstand: (2.66, 0.609148, 0.50). Keep the practical just above the visible
     // shade after the locked room-root offset. Aim it toward the nearby bed center so its energy is
-    // a localized practical-light pool rather than an invisible omnidirectional fill.
+    // a localized practical-light pool rather than an omnidirectional fill.
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
     private static final float PRACTICAL_Z = 0.50f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
@@ -93,6 +102,10 @@ final class CelineRoomReferenceLightingV80 {
             lights.setShadowCaster(instance, true);
             indirect.setIntensity(INDIRECT_LUX);
 
+            // Do not lock this owner onto the view until the actual room asset is available and the
+            // isolated ceiling material was reached. That keeps lifecycle rebuilds fail-closed.
+            if (!applyReferenceCeilingMaterial(view, engine)) return;
+
             PracticalLightState practical = createPracticalLight(view, engine, scene);
             synchronized (APPLIED) {
                 APPLIED.add(view);
@@ -100,19 +113,52 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum R1/R2/R3 Licht aktiv",
+                    "Referenzraum R1/R2/R3/R4 aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
+                            + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
                             + " falloff=" + PRACTICAL_FALLOFF_M + "m"
                             + " direction=" + PRACTICAL_DIR_X + "," + PRACTICAL_DIR_Y + "," + PRACTICAL_DIR_Z
                             + " coneRad=" + PRACTICAL_INNER_RAD + "/" + PRACTICAL_OUTER_RAD
-                            + " · exposure/materials/camera/60k-lamp unchanged");
+                            + " · walls/floor/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum R1/R2/R3 Beleuchtung FEHLER", error);
+                    "Referenzraum R1/R2/R3/R4 FEHLER", error);
         }
+    }
+
+    private static boolean applyReferenceCeilingMaterial(Celine3DView view, Engine engine)
+            throws Exception {
+        Field statesField = CelineRoomEnvironmentV80.class.getDeclaredField("STATES");
+        statesField.setAccessible(true);
+        Object rawStates = statesField.get(null);
+        if (!(rawStates instanceof Map)) return false;
+        Object state = ((Map<?, ?>) rawStates).get(view);
+        if (state == null) return false;
+
+        Field roomAssetField = state.getClass().getDeclaredField("roomAsset");
+        roomAssetField.setAccessible(true);
+        FilamentAsset asset = (FilamentAsset) roomAssetField.get(state);
+        if (asset == null) return false;
+
+        int entity = asset.getFirstEntityByName("room_ceiling");
+        if (entity == 0) throw new IllegalStateException("R4 ceiling entity fehlt");
+        RenderableManager manager = engine.getRenderableManager();
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0) throw new IllegalStateException("R4 ceiling renderable fehlt");
+        if (manager.getPrimitiveCount(renderable) != 1) {
+            throw new IllegalStateException("R4 ceiling primitive count != 1");
+        }
+        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
+        if (material == null) throw new IllegalStateException("R4 ceiling material fehlt");
+        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                CEILING_RED, CEILING_GREEN, CEILING_BLUE, 1.0f);
+        material.setParameter("metallicFactor", 0.0f);
+        material.setParameter("roughnessFactor", CEILING_ROUGHNESS);
+        material.setParameter("reflectance", CEILING_REFLECTANCE);
+        return true;
     }
 
     private static PracticalLightState createPracticalLight(
