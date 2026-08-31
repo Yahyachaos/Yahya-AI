@@ -26,10 +26,11 @@ import java.util.WeakHashMap;
  * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * The inspected R4 proof improves shell color, but the room still reads too evenly illuminated and
- * game-like versus the reference's local pools and darker falloff. This bounded contrast pass lowers
- * only the shared indirect fill from 10000 to 9000 while keeping the proven directional key, focused
- * practical, ceiling material, walls/floor, geometry, camera, Celine and interactive lamp unchanged.
+ * The inspected contrast proof remains too evenly studio-lit and the front/right practical still
+ * does not create a strong enough localized bedside pool. Keep all global lighting, shell material,
+ * geometry, camera and Celine state fixed and change only that already-proven focused practical from
+ * 3000 to 6000 lm. This is deliberately bounded so the next HOME/CALL/HOME proof can tell whether
+ * local falloff becomes visible without another speculative global-light rewrite.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -55,7 +56,7 @@ final class CelineRoomReferenceLightingV80 {
     private static final float PRACTICAL_DIR_Z = -0.76427230f;
     private static final float PRACTICAL_INNER_RAD = 0.48869219f; // 28 degrees
     private static final float PRACTICAL_OUTER_RAD = 0.87266463f; // 50 degrees
-    private static final float PRACTICAL_LUMENS = 3000.0f;
+    private static final float PRACTICAL_LUMENS = 6000.0f;
     private static final float PRACTICAL_FALLOFF_M = 3.0f;
 
     private static final Set<Celine3DView> APPLIED =
