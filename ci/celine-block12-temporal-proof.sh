@@ -10,8 +10,18 @@ ZOOM_MARKER="celine-ci-camera-zoom-v70"
 mkdir -p "$OUT"
 LOG_ROLLING="$OUT/runtime-rolling.txt"
 : > "$LOG_ROLLING"
+RECORDER_PID=""
 
 flush_log(){ adb logcat -d -v threadtime >> "$LOG_ROLLING" 2>&1 || true; }
+cleanup_recorder(){
+  adb shell 'pkill -INT screenrecord >/dev/null 2>&1 || true' >/dev/null 2>&1 || true
+  if [[ -n "$RECORDER_PID" ]]; then
+    kill "$RECORDER_PID" >/dev/null 2>&1 || true
+    wait "$RECORDER_PID" >/dev/null 2>&1 || true
+    RECORDER_PID=""
+  fi
+}
+trap cleanup_recorder EXIT
 fail(){
   echo "BLOCK12 ERROR: $*" >&2
   flush_log
@@ -38,6 +48,30 @@ room_anchor(){ local target="$1" label="$2"; flush_log; adb logcat -c || true; w
 room_pose(){ local target="$1" pose="$2" label="$3"; room_anchor "$target" "$label-arrived"; wait_log "V80-483" 420; wait_log "pose=$pose" 420; wait_log "centralOwner=true" 420; wait_log "noTeleport=true" 420; sleep 0.50; capture "$label-stable" "BLOCK12_${label}_STABLE"; }
 table_lean(){ local label="$1"; room_anchor foreground_table_lean_anchor "$label-arrived"; wait_log "V80-480" 420; wait_log "anchor=foreground_table_lean_anchor" 420; wait_log "handContact=false" 420; wait_log "centralOwner=true" 420; wait_log "cameraFixed=true" 420; sleep 0.50; capture "$label-stable" "BLOCK12_${label}_STABLE"; }
 set_zoom(){ local requested="$1" expected="${2:-$1}"; adb shell "run-as $PACKAGE sh -c 'printf %s $requested > files/$ZOOM_MARKER.tmp && mv files/$ZOOM_MARKER.tmp files/$ZOOM_MARKER'" || fail "zoom marker $requested"; for _ in $(seq 1 45); do adb logcat -d | grep -F 'V70-141' | grep -F "requested=$requested" | grep -Fq "zoom=$expected" && { sleep 1.2; return 0; }; sleep 0.35; done; fail "zoom not consumed requested=$requested expected=$expected"; }
+start_recording(){
+  adb shell 'rm -f /sdcard/block12-temporal-*.mp4' >/dev/null 2>&1 || true
+  (
+    for n in $(seq -w 1 9); do
+      adb shell "screenrecord --bit-rate 4000000 --time-limit 170 /sdcard/block12-temporal-${n}.mp4" >/dev/null 2>&1 || true
+    done
+  ) &
+  RECORDER_PID=$!
+  sleep 1
+}
+collect_recordings(){
+  cleanup_recorder
+  sleep 2
+  local count=0 remote base
+  while IFS= read -r remote; do
+    remote="${remote//$'\r'/}"
+    [[ -n "$remote" ]] || continue
+    base="${remote##*/}"
+    adb pull "$remote" "$OUT/$base" >/dev/null 2>&1 || true
+    if [[ -s "$OUT/$base" ]]; then count=$((count + 1)); fi
+  done < <(adb shell 'ls /sdcard/block12-temporal-*.mp4 2>/dev/null || true')
+  [[ "$count" -ge 2 ]] || fail "segmented continuous temporal recording incomplete: segments=$count"
+  printf '%s\n' "$count" > "$OUT/video-segment-count.txt"
+}
 
 [[ -s "$APK" ]] || fail "missing APK $APK"
 adb install -r "$APK" >/dev/null
@@ -50,10 +84,10 @@ wait_text "Mit Celin" /sdcard/block12-home.xml "$OUT/home.xml"
 sleep 2
 PID0="$(pid)"; [[ -n "$PID0" ]] || fail "HOME process missing"
 
-# One continuous installed-app recording. Individual stills are acceptance checkpoints, not substitutes.
-adb shell rm -f /sdcard/block12-temporal.mp4 >/dev/null 2>&1 || true
-adb shell 'screenrecord --bit-rate 4000000 --time-limit 180 /sdcard/block12-temporal.mp4 >/dev/null 2>&1 &' || true
-sleep 1
+# Android screenrecord hard-caps a single file at 180 seconds. Rotate 170-second segments in the background so the
+# same uninterrupted installed-app process is covered from HOME through CALL and the full accepted room-action sequence.
+# Individual stills remain acceptance checkpoints, not substitutes for temporal evidence.
+start_recording
 capture 01-home-start BLOCK12_HOME_START
 # Long enough to expose bounded idle/head/arm life and natural blink opportunities.
 sleep 10
@@ -130,11 +164,8 @@ capture 80-home-final BLOCK12_HOME_FINAL
 
 flush_log
 cp "$LOG_ROLLING" "$OUT/runtime.txt"
-# Stop and retrieve the continuous recording before technical assertions.
-adb shell 'pkill -INT screenrecord >/dev/null 2>&1 || true' || true
-sleep 2
-adb pull /sdcard/block12-temporal.mp4 "$OUT/block12-temporal.mp4" >/dev/null 2>&1 || true
-[[ -s "$OUT/block12-temporal.mp4" ]] || fail "continuous temporal recording missing"
+# Stop and retrieve every sequential recording segment before technical assertions.
+collect_recordings
 
 # Structural/temporal invariants. Manual video/frame inspection remains mandatory.
 for marker in 'V80-400' 'V80-410' 'V80-420' 'target=CALL eased=true snap=false' 'target=HOME eased=true snap=false' 'V70-141' 'V80-472' 'V80-475' 'V80-480' 'V80-483'; do
@@ -150,7 +181,7 @@ done
 if grep -Eq 'V80-499|V79-598|V79-599|V76-298|V76-299|V61-102|V61-199|REN-399|ROOM-199|FATAL EXCEPTION|SIGABRT' "$OUT/runtime.txt"; then fail "runtime/source failure detected"; fi
 
 cat > "$OUT/summary.txt" <<EOF
-PASS Block 12 structural continuous-sequence gate; manual video acceptance required
+PASS Block 12 structural segmented-continuous gate; manual video acceptance required
 RUNTIME_HEAD=53451e58b5b02af4a803876b5d89b9230e981145
 RUNTIME_FINGERPRINT=23ffe5179f6fc38bdaedc8e745b6a1828c763815d1496bb44bd0eb7e573fe93e
 HOME_IDLE=recorded
@@ -162,8 +193,10 @@ BED=edge_relax_lie_relax_edge_stand_walk_return
 CHAIR=approach_sit_hold_stand_walk_return
 WINDOW=stand_hold_return
 LAMP=interact_real_light_return
-VIDEO=block12-temporal.mp4
+VIDEO_SEGMENTS=block12-temporal-*.mp4
+ANDROID_SCREENRECORD_LIMIT=170s_rotation_under_180s_platform_cap
 MANUAL_ACCEPTANCE=required
 EOF
 
-echo "PASS: Block 12 continuous structural sequence captured; inspect actual video and checkpoint frames before visual acceptance."
+trap - EXIT
+echo "PASS: Block 12 same-process temporal sequence captured across rotated Android screenrecord segments; inspect every segment and checkpoint frame before visual acceptance."
