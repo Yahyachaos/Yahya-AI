@@ -1,6 +1,10 @@
 name: Celine Block 10 Launcher Proof
 
 on:
+  push:
+    branches: ['auto/celine/v80-human-videochat-presence']
+    paths:
+      - '.github/workflows/celine-block10-launcher-proof.yml'
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
