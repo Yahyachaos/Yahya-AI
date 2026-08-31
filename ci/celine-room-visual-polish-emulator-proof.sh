@@ -84,8 +84,24 @@ raise SystemExit('CALL bounds missing')
 PY
 )"
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL coordinates missing"
-adb shell input tap "$TAP_X" "$TAP_Y"
-wait_log 'target=CALL eased=true snap=false' 'HOME to CALL transition'
+
+# Emulator input occasionally lands during the last HOME layout pass even though the button's
+# accessibility bounds are already stable. Retry the same bounded entry tap only until the real
+# production-owner CALL transition is observed. This changes proof transport only, never runtime.
+CALL_ENTERED=false
+for attempt in 1 2 3 4 5 6; do
+  adb shell input tap "$TAP_X" "$TAP_Y"
+  for _ in $(seq 1 8); do
+    if adb logcat -d | grep -Fq 'target=CALL eased=true snap=false'; then
+      CALL_ENTERED=true
+      echo "Ready: HOME to CALL transition tap_attempt=$attempt"
+      break 2
+    fi
+    sleep 0.5
+  done
+  echo "CALL tap retry: attempt=$attempt" >&2
+done
+[[ "$CALL_ENTERED" == true ]] || fail "timed out entering CALL after bounded tap retries"
 wait_log 'V80-420' 'CALL layered frame'
 sleep 2
 capture call ROOM_POLISH_CALL
