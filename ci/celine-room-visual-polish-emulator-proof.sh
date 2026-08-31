@@ -7,9 +7,34 @@ PACKAGE="de.yahya.ai"
 MAIN="de.yahya.ai/.MainActivity"
 mkdir -p "$OUT"
 
+retain_failure_logcat() {
+  adb logcat -d -v threadtime > "$OUT/logcat-failure.txt" 2>/dev/null || true
+  if [[ -s "$OUT/logcat-failure.txt" ]]; then
+    python3 - "$OUT/logcat-failure.txt" "$OUT/fatal-context.txt" <<'PY'
+import sys
+from pathlib import Path
+src = Path(sys.argv[1])
+out = Path(sys.argv[2])
+lines = src.read_text(errors='replace').splitlines()
+needles = ('FATAL EXCEPTION', 'AndroidRuntime', 'SIGABRT', 'OutOfMemoryError')
+indices = [i for i, line in enumerate(lines) if any(n in line for n in needles)]
+selected = set()
+for i in indices:
+    selected.update(range(max(0, i - 12), min(len(lines), i + 80)))
+if selected:
+    out.write_text('\n'.join(lines[i] for i in sorted(selected)) + '\n')
+PY
+  fi
+}
+
 fail() {
   echo "room visual polish proof ERROR: $*" >&2
-  adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|SIGABRT|OutOfMemory|ROOM-|V80-|CTL-' | tail -300 || true
+  retain_failure_logcat
+  if [[ -s "$OUT/fatal-context.txt" ]]; then
+    cat "$OUT/fatal-context.txt" >&2 || true
+  else
+    adb logcat -d | grep -E 'de\.yahya\.ai|FATAL EXCEPTION|SIGABRT|OutOfMemory|ROOM-|V80-|CTL-' | tail -300 || true
+  fi
   exit 1
 }
 
