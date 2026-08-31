@@ -1,6 +1,6 @@
-# v80 Room Visual Polish — Candidate #11 verdict / Candidate #12 plan
+# v80 Room Visual Polish — Candidate #11 verdict / Candidate #12 runtime checkpoint
 
-Live GitHub is authoritative. This file records the exact Candidate #11 evidence/manual verdict and the next single bounded ceiling-only action. It does not reopen any accepted/protected runtime block.
+Live GitHub is authoritative. This file records the exact Candidate #11 evidence/manual verdict and the bounded Candidate #12 runtime now awaiting normal validation. It does not reopen any accepted/protected runtime block.
 
 ## Active strand
 - Repository: `Yahyachaos/Yahya-AI`
@@ -9,6 +9,7 @@ Live GitHub is authoritative. This file records the exact Candidate #11 evidence
 - Canonical visual target image: `/Refernzbild.png`
 - Canonical visual target contract: `docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_TARGET_REFERENCE.md`
 - Candidate #11 runtime-equivalent checkpoint: `70044ab5eefbde550d8cf905bd2c5eb9c48e0a2e`
+- Candidate #12 bot cleanup/head: `feb08501faa81717b65d56c40879639daa88e929`
 
 ## Protected baseline
 Unchanged and protected:
@@ -39,10 +40,10 @@ Manual inspection of the actual `home.png`, `call.png` and `home-return.png` aga
 ## Diagnosis
 The isolated ceiling override remains proven and stable. Candidate #11 confirms that the remaining ceiling mismatch is still the isolated base-color balance: it needs less green/blue contribution and more tan/brown character. Do not use global fill, camera, floor or another protected surface to compensate for this ceiling mismatch.
 
-## Candidate #12 exact bounded plan
-Change only the isolated `room_ceiling` duplicate base color in LINEAR space from Candidate #11 `(1.0, 0.95, 0.76, 1.0)` to a darker/warmer tan `(1.0, 0.88, 0.62, 1.0)`.
+## Candidate #12 bounded runtime now implemented
+Candidate #12 changes only the isolated `room_ceiling` duplicate base color in LINEAR space from Candidate #11 `(1.0, 0.95, 0.76, 1.0)` to darker/warmer tan `(1.0, 0.88, 0.62, 1.0)`.
 
-Preserve exactly:
+Preserved exactly:
 - ceiling metallic `0.0`, roughness `0.88`, reflectance `0.40`
 - all wall factors
 - floor factor/material
@@ -51,5 +52,7 @@ Preserve exactly:
 - room GLB bytes, geometry/transforms
 - Celine, camera/zoom, anchors/navigation/actions and Lamp behavior
 
+This docs-only user-authored checkpoint preserves Candidate #12 runtime exactly and exists only to obtain the normal PR validation run after the bot-authored runtime head.
+
 ## Exact next action
-Implement exactly Candidate #12 above, obtain one necessary Android build, run one targeted HOME -> CALL -> HOME Room Visual Polish proof, inspect the real images against `/Refernzbild.png`, and record PASS/FAIL. Do not stack a floor, camera, global-light or other runtime change before that evidence. No merge, no release, no NavMesh/free navigation.
+Obtain exactly one Android build on this runtime-equivalent user-authored checkpoint. If successful, run exactly one targeted HOME -> CALL -> HOME Room Visual Polish proof, inspect the real images against `/Refernzbild.png`, and record PASS/FAIL. Do not stack a floor, camera, global-light or other runtime change before that evidence. No merge, no release, no NavMesh/free navigation.
