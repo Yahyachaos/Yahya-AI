@@ -11,14 +11,17 @@ import java.util.WeakHashMap;
 /**
  * v80 reference-realism R1: one bounded adjustment of the existing shared directional key.
  *
- * This helper deliberately does not create a second light system and does not touch camera,
- * indirect light, room materials, geometry, transforms, Celine, anchors/actions or the accepted
- * interactive floor-lamp light. It only warms and softens the already-existing directional key.
+ * The first R1 proof showed that forcing a very warm 1.00/0.68/0.45 key over-warmed Celine while
+ * the room still read flat because the existing directional light did not cast shadows. This
+ * evidence-backed repair restores the already-proven warm-neutral key chroma, keeps the softer
+ * quantity, and enables shadows on that same existing key. No second light system is created.
+ * Camera, indirect light, room materials, geometry, transforms, Celine ownership, anchors/actions
+ * and the accepted interactive floor-lamp light remain untouched.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
-    private static final float KEY_GREEN = 0.68f;
-    private static final float KEY_BLUE = 0.45f;
+    private static final float KEY_GREEN = 0.80f;
+    private static final float KEY_BLUE = 0.66f;
     private static final float KEY_LUX = 11000.0f;
 
     private static final Set<Celine3DView> APPLIED =
@@ -48,12 +51,13 @@ final class CelineRoomReferenceLightingV80 {
 
             lights.setColor(instance, KEY_RED, KEY_GREEN, KEY_BLUE);
             lights.setIntensity(instance, KEY_LUX);
+            lights.setShadowCaster(instance, true);
 
             synchronized (APPLIED) { APPLIED.add(view); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum R1 warmes Key-Light aktiv",
+                    "Referenzraum R1 warm-neutrales Key-Light mit Tiefe aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
-                            + " intensity=" + KEY_LUX
+                            + " intensity=" + KEY_LUX + " shadows=true"
                             + " · indirect/exposure/materials/camera/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
