@@ -13,6 +13,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -27,7 +28,7 @@ import java.util.WeakHashMap;
  */
 final class CelineSurfaceTransitionGuardV80 {
     private static final long SNAPSHOT_INTERVAL_MS = 320L;
-    private static final long MIN_READY_MS = 720L;
+    private static final long MIN_READY_MS = 620L;
     private static final int MAX_READY_ATTEMPTS = 48;
     private static final WeakHashMap<Celine3DView, Guard> GUARDS = new WeakHashMap<>();
 
@@ -108,32 +109,37 @@ final class CelineSurfaceTransitionGuardV80 {
             try {
                 PixelCopy.request(surface, bitmap, result -> {
                     snapshotInFlight = false;
-                    if (!installed || result != PixelCopy.SUCCESS || bitmap.isRecycled()) {
+                    if (!installed || result != PixelCopy.SUCCESS || bitmap.isRecycled()
+                            || !hasVisibleCelinePixels(bitmap)) {
                         if (!bitmap.isRecycled()) bitmap.recycle();
                         return;
                     }
-                    int[] contentLocation = new int[2];
-                    int[] surfaceLocation = new int[2];
-                    ViewGroup content = activity.findViewById(android.R.id.content);
-                    if (content == null) {
-                        bitmap.recycle();
-                        return;
-                    }
-                    content.getLocationInWindow(contentLocation);
-                    surface.getLocationInWindow(surfaceLocation);
-                    Bitmap previous = lastFrame;
-                    lastFrame = bitmap;
-                    lastLeft = surfaceLocation[0] - contentLocation[0];
-                    lastTop = surfaceLocation[1] - contentLocation[1];
-                    lastWidth = width;
-                    lastHeight = height;
-                    if (previous != null && previous != bitmap && !previous.isRecycled()) {
-                        previous.recycle();
-                    }
+                    storeFrame(bitmap);
                 }, main);
             } catch (Throwable error) {
                 snapshotInFlight = false;
                 bitmap.recycle();
+            }
+        }
+
+        void storeFrame(Bitmap bitmap) {
+            int[] contentLocation = new int[2];
+            int[] surfaceLocation = new int[2];
+            ViewGroup content = activity.findViewById(android.R.id.content);
+            if (content == null) {
+                bitmap.recycle();
+                return;
+            }
+            content.getLocationInWindow(contentLocation);
+            surface.getLocationInWindow(surfaceLocation);
+            Bitmap previous = lastFrame;
+            lastFrame = bitmap;
+            lastLeft = surfaceLocation[0] - contentLocation[0];
+            lastTop = surfaceLocation[1] - contentLocation[1];
+            lastWidth = bitmap.getWidth();
+            lastHeight = bitmap.getHeight();
+            if (previous != null && previous != bitmap && !previous.isRecycled()) {
+                previous.recycle();
             }
         }
 
@@ -157,7 +163,7 @@ final class CelineSurfaceTransitionGuardV80 {
                 return;
             }
             transitionStartedAt = SystemClock.elapsedRealtime();
-            main.postDelayed(() -> waitForReady(-1, -1, 0, 0), 180L);
+            main.postDelayed(() -> waitForReady(-1, -1, 0, 0), 140L);
         }
 
         void installCover() {
@@ -179,9 +185,6 @@ final class CelineSurfaceTransitionGuardV80 {
             image.bringToFront();
             cover = image;
             transitionStartedAt = SystemClock.elapsedRealtime();
-            // V45 brings its full-window transition ImageView to front immediately after reparent.
-            // Reassert this Surface-only layer after that synchronous mutation so the real Celine
-            // pixels sit above the otherwise empty SurfaceView hole.
             main.post(image::bringToFront);
             main.postDelayed(image::bringToFront, 80L);
             main.postDelayed(image::bringToFront, 220L);
@@ -194,12 +197,12 @@ final class CelineSurfaceTransitionGuardV80 {
             if (!installed || cover == null) return;
             if (!view.isAttachedToWindow()) {
                 if (attempts < MAX_READY_ATTEMPTS) {
-                    main.postDelayed(() -> waitForReady(priorWidth, priorHeight, 0, attempts + 1), 160L);
+                    main.postDelayed(() -> waitForReady(priorWidth, priorHeight, 0, attempts + 1), 140L);
                 }
                 return;
             }
-            int width = view.getWidth();
-            int height = view.getHeight();
+            int width = surface.getWidth();
+            int height = surface.getHeight();
             int nextStable = width > 1 && height > 1 && width == priorWidth && height == priorHeight
                     ? stablePasses + 1 : 0;
             long elapsed = SystemClock.elapsedRealtime() - transitionStartedAt;
@@ -211,38 +214,79 @@ final class CelineSurfaceTransitionGuardV80 {
                 main.post(snapshotLoop);
                 return;
             }
-            if (elapsed < MIN_READY_MS || nextStable < 3 || hasV45TransitionCover()) {
-                main.postDelayed(() -> waitForReady(width, height, nextStable, attempts + 1), 160L);
+            if (elapsed < MIN_READY_MS || nextStable < 3 || snapshotInFlight) {
+                main.postDelayed(() -> waitForReady(width, height, nextStable, attempts + 1), 140L);
                 return;
             }
+            captureReadyTargetFrame(width, height, attempts);
+        }
 
-            final int expectedWidth = width;
-            final int expectedHeight = height;
-            view.verifyVisibleFrame(main, visible -> {
-                if (!installed || cover == null) return;
-                if (!visible) {
-                    main.postDelayed(() -> waitForReady(expectedWidth, expectedHeight, 0, attempts + 1), 180L);
-                    return;
-                }
-                main.postDelayed(() -> {
-                    if (cover == null || !view.isAttachedToWindow()) return;
-                    if (view.getWidth() != expectedWidth || view.getHeight() != expectedHeight
-                            || hasV45TransitionCover()) {
-                        waitForReady(view.getWidth(), view.getHeight(), 0, attempts + 1);
+        void captureReadyTargetFrame(int width, int height, int attempts) {
+            if (cover == null || snapshotInFlight || !surface.isAttachedToWindow()) {
+                main.postDelayed(() -> waitForReady(width, height, 0, attempts + 1), 140L);
+                return;
+            }
+            final Bitmap bitmap;
+            try {
+                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            } catch (Throwable error) {
+                main.postDelayed(() -> waitForReady(width, height, 0, attempts + 1), 160L);
+                return;
+            }
+            snapshotInFlight = true;
+            try {
+                PixelCopy.request(surface, bitmap, result -> {
+                    snapshotInFlight = false;
+                    if (!installed || cover == null) {
+                        bitmap.recycle();
                         return;
                     }
-                    moveCoverToCurrentSurface();
+                    if (result != PixelCopy.SUCCESS || !hasVisibleCelinePixels(bitmap)) {
+                        bitmap.recycle();
+                        main.postDelayed(() -> waitForReady(width, height, 0, attempts + 1), 140L);
+                        return;
+                    }
+                    storeFrame(bitmap);
                     ImageView current = cover;
                     if (current == null) return;
-                    current.animate().alpha(0f).setDuration(150L).withEndAction(() -> {
+                    current.setImageBitmap(lastFrame);
+                    moveCoverToCurrentSurface();
+                    clearV45TransitionCover();
+                    current.animate().alpha(0f).setDuration(130L).withEndAction(() -> {
                         removeCover(true);
                         main.post(snapshotLoop);
                         Celine3DDiagnostics.record(activity, "V80-512",
-                                "Surface-Rebuild erst nach echtem Produktionsframe freigegeben",
-                                "productionFrameVisible=true stableStage=true");
+                                "Surface-Rebuild auf direkten echten Zielframe freigegeben",
+                                "directSurfaceFrameVisible=true stableStage=true v45CoverCleared=true");
                     }).start();
-                }, 180L);
-            });
+                }, main);
+            } catch (Throwable error) {
+                snapshotInFlight = false;
+                bitmap.recycle();
+                main.postDelayed(() -> waitForReady(width, height, 0, attempts + 1), 160L);
+            }
+        }
+
+        boolean hasVisibleCelinePixels(Bitmap bitmap) {
+            if (bitmap == null || bitmap.isRecycled()) return false;
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            if (width <= 1 || height <= 1) return false;
+            int stride = Math.max(1, Math.min(width, height) / 180);
+            int sampled = 0;
+            int visible = 0;
+            for (int y = 0; y < height; y += stride) {
+                for (int x = 0; x < width; x += stride) {
+                    int pixel = bitmap.getPixel(x, y);
+                    sampled++;
+                    int alpha = (pixel >>> 24) & 0xff;
+                    int red = (pixel >>> 16) & 0xff;
+                    int green = (pixel >>> 8) & 0xff;
+                    int blue = pixel & 0xff;
+                    if (alpha > 20 && red + green + blue > 75) visible++;
+                }
+            }
+            return visible >= Math.max(16, sampled / 500);
         }
 
         void moveCoverToCurrentSurface() {
@@ -261,21 +305,26 @@ final class CelineSurfaceTransitionGuardV80 {
             cover.bringToFront();
         }
 
-        boolean hasV45TransitionCover() {
+        Object v45Session() {
             try {
                 Field sessionsField = CelineVideoCallV45.class.getDeclaredField("SESSIONS");
                 sessionsField.setAccessible(true);
                 Object raw = sessionsField.get(null);
-                if (!(raw instanceof Map)) return false;
-                Object session = ((Map<?, ?>) raw).get(activity);
-                if (session == null) return false;
-                Field coverField = session.getClass().getDeclaredField("transitionCover");
-                coverField.setAccessible(true);
-                Object value = coverField.get(session);
-                return value instanceof View && ((View) value).isAttachedToWindow();
+                if (!(raw instanceof Map)) return null;
+                return ((Map<?, ?>) raw).get(activity);
             } catch (Throwable ignored) {
-                return false;
+                return null;
             }
+        }
+
+        void clearV45TransitionCover() {
+            Object session = v45Session();
+            if (session == null) return;
+            try {
+                Method method = session.getClass().getDeclaredMethod("clearTransitionCover");
+                method.setAccessible(true);
+                method.invoke(session);
+            } catch (Throwable ignored) {}
         }
 
         void removeCover(boolean keepFrame) {
