@@ -21,23 +21,22 @@ import java.util.WeakHashMap;
 /**
  * v80 reference-realism owner for the bounded reference-room passes.
  *
- * R1 evidence rejected the overly orange key and then confirmed that enabling shadows on the same
- * warm-neutral directional key restores badly missing room depth. R2 raised the existing indirect
- * fill to keep Celine and the shadow side readable. R3 moved the front-nightstand practical from an
- * almost invisible point light to a focused warm spot aimed at the nearby bed mass.
+ * R1 evidence rejected the overly orange key and confirmed that directional shadows restore missing
+ * depth. R2 raised indirect fill so Celine and shadow-side surfaces stayed readable. R3 converted the
+ * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
+ * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * The latest inspected R3-focused HOME/CALL/HOME proof is structurally stable, but the room still
- * has a large flat yellow ceiling field that is visibly unlike the canonical warm-neutral reference.
- * The next bounded material refinement therefore changes only the already-isolated ceiling material
- * toward a coherent cream/beige response. Walls, floor, geometry, furniture transforms, camera,
- * Celine and the protected interactive 60k floor-lamp behavior remain untouched.
+ * The inspected R4 proof improves shell color, but the room still reads too evenly illuminated and
+ * game-like versus the reference's local pools and darker falloff. This bounded contrast pass lowers
+ * only the shared indirect fill from 10000 to 9000 while keeping the proven directional key, focused
+ * practical, ceiling material, walls/floor, geometry, camera, Celine and interactive lamp unchanged.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
     private static final float KEY_GREEN = 0.80f;
     private static final float KEY_BLUE = 0.66f;
     private static final float KEY_LUX = 11000.0f;
-    private static final float INDIRECT_LUX = 10000.0f;
+    private static final float INDIRECT_LUX = 9000.0f;
 
     private static final float CEILING_RED = 0.88f;
     private static final float CEILING_GREEN = 0.80f;
@@ -69,8 +68,6 @@ final class CelineRoomReferenceLightingV80 {
     static void ensure(Celine3DView view) {
         if (view == null) return;
 
-        // Layout has its own room-asset identity guard, so it can reapply after a Surface/room
-        // rebuild even when this lighting owner has already been applied to the same Celine3DView.
         CelineRoomReferenceLayoutV80.ensure(view);
 
         synchronized (APPLIED) {
@@ -102,8 +99,6 @@ final class CelineRoomReferenceLightingV80 {
             lights.setShadowCaster(instance, true);
             indirect.setIntensity(INDIRECT_LUX);
 
-            // Do not lock this owner onto the view until the actual room asset is available and the
-            // isolated ceiling material was reached. That keeps lifecycle rebuilds fail-closed.
             if (!applyReferenceCeilingMaterial(view, engine)) return;
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
@@ -113,7 +108,7 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum R1/R2/R3/R4 aktiv",
+                    "Referenzraum R1/R2/R3/R4 Kontrast aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
@@ -125,7 +120,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " · walls/floor/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum R1/R2/R3/R4 FEHLER", error);
+                    "Referenzraum R1/R2/R3/R4 Kontrast FEHLER", error);
         }
     }
 
@@ -200,7 +195,6 @@ final class CelineRoomReferenceLightingV80 {
         }
 
         @Override public void onViewAttachedToWindow(View v) {
-            // The regular production owner will call ensure() again if a rebuilt surface needs it.
         }
 
         @Override public void onViewDetachedFromWindow(View v) {
