@@ -54,12 +54,12 @@ final class CelineRoomReferenceLightingV80 {
     private static final float WINDOW_GREEN = 1.00f;
     private static final float WINDOW_BLUE = 1.00f;
 
-    // Proof #58 leaves the bed/bedding as the largest remaining single material mismatch: it is still
-    // materially darker and less readable than the light upholstered reference mass. Preserve every
-    // existing bed texture and material binding, and apply only a restrained linear base-color lift.
-    private static final float BED_RED = 1.10f;
-    private static final float BED_GREEN = 1.08f;
-    private static final float BED_BLUE = 1.05f;
+    // Proof #59 proved that the first 1.10/1.08/1.05 lift barely moved the dark bed witness. Keep the
+    // exact same texture-preserving material path and increase only this factor far enough to create a
+    // measurable light-upholstery comparison candidate without touching lights, roughness or geometry.
+    private static final float BED_RED = 1.45f;
+    private static final float BED_GREEN = 1.35f;
+    private static final float BED_BLUE = 1.25f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
