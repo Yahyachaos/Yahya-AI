@@ -21,12 +21,15 @@ import java.util.WeakHashMap;
  *
  * Proof #87 exposed the floor lamp as a huge clipped foreground object. Moving only its derived parent
  * depth by -3.35 m placed the assembly origin from z=+1.55 at z=-1.80. Proof #88 proved that depth
- * correction correct, then Proof #89 on exact runtime 667ee1e0 proved the measured non-uniform local
- * size correction X/Z 0.34 and Y 0.54 brings the lamp dimensions close to target. HOME remains valid
- * (std=54.96, colors=90); only the later CALL diversity gate fails. Manual HOME measurement now gives
- * lamp x~0.21..0.25, y~0.31..0.50 versus reference x~0.233..0.279, y~0.269..0.470: size is accepted,
- * with the remaining reliable error being a small horizontal center offset. Apply only +0.16 m parent-X
- * to the lamp and its embedded marker. Preserve lamp Y/Z/scale, chair, camera and all other furniture.
+ * correction correct, Proof #89 established the measured non-uniform local size correction X/Z 0.34
+ * and Y 0.54, and Proof #90 on exact runtime 7ccc32cc confirmed valid HOME while only the later CALL
+ * diversity gate fails. The lamp is now close enough in size/X to freeze while larger M2 errors remain.
+ *
+ * Proof #90 makes the next dominant mismatch unambiguous: the reference has a large low dresser across
+ * the lower-left wall, but the runtime dresser is effectively outside the visible frame. Canonical
+ * assembly places room_dresser at x=-2.90, z=+0.35 on the camera side, while the adjacent visible large
+ * plant sits at z=-1.90. Test only dresser depth by moving it -2.25 m parent-room Z onto z=-1.90. Keep
+ * dresser X/Y/rotation/scale unchanged and move its embedded marker by the same delta when present.
  * Logical interaction metadata remains M3 after visual geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
@@ -38,6 +41,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FLOOR_LAMP_Z_OFFSET_M = -3.35f;
     static final float FLOOR_LAMP_SCALE_XZ_FACTOR = 0.34f;
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
+    static final float DRESSER_Z_OFFSET_M = -2.25f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -114,6 +118,11 @@ final class CelineRoomReferenceLayoutV80 {
             boolean movedLampMarker = translateParentLocal(asset, transforms,
                     "lamp_anchor", FLOOR_LAMP_X_OFFSET_M, 0.0f, FLOOR_LAMP_Z_OFFSET_M, false);
 
+            translateParentLocal(asset, transforms,
+                    "room_dresser", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, true);
+            boolean movedDresserMarker = translateParentLocal(asset, transforms,
+                    "dresser_anchor", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, false);
+
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
@@ -128,6 +137,8 @@ final class CelineRoomReferenceLayoutV80 {
                             + " lampScaleXYZ=" + FLOOR_LAMP_SCALE_XZ_FACTOR + ","
                             + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
                             + " lampMarkerMoved=" + movedLampMarker
+                            + " dresserZ=" + DRESSER_Z_OFFSET_M + "m"
+                            + " dresserMarkerMoved=" + movedDresserMarker
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
