@@ -20,20 +20,21 @@ import java.util.WeakHashMap;
  * brings its X placement and apparent width close to the target, so those accepted values stay fixed.
  *
  * Proof #87 exposed the floor lamp as a huge clipped foreground object. Moving only its derived parent
- * depth by -3.35 m placed the assembly origin from z=+1.55 at z=-1.80. Proof #88 on exact runtime
- * b3c4d912 then proved that depth correction is directionally correct: the lamp is fully visible and its
- * horizontal center is near target, but its measured HOME box is still about x~0.17..0.31,
- * y~0.22..0.59 versus reference x~0.233..0.279, y~0.269..0.470. The immutable source lamp therefore
- * has a materially wider aspect ratio than the reference target. Apply only a derived non-uniform local
- * size correction using measured ratios: X/Z 0.34 and Y 0.54. Post-multiplication preserves the accepted
- * parent translation/depth. Lamp marker remains translated with the object but is deliberately not
- * scaled; logical interaction metadata remains M3 after visual geometry settles.
+ * depth by -3.35 m placed the assembly origin from z=+1.55 at z=-1.80. Proof #88 proved that depth
+ * correction correct, then Proof #89 on exact runtime 667ee1e0 proved the measured non-uniform local
+ * size correction X/Z 0.34 and Y 0.54 brings the lamp dimensions close to target. HOME remains valid
+ * (std=54.96, colors=90); only the later CALL diversity gate fails. Manual HOME measurement now gives
+ * lamp x~0.21..0.25, y~0.31..0.50 versus reference x~0.233..0.279, y~0.269..0.470: size is accepted,
+ * with the remaining reliable error being a small horizontal center offset. Apply only +0.16 m parent-X
+ * to the lamp and its embedded marker. Preserve lamp Y/Z/scale, chair, camera and all other furniture.
+ * Logical interaction metadata remains M3 after visual geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float BED_X_OFFSET_M = -0.45f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
+    static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
     static final float FLOOR_LAMP_Z_OFFSET_M = -3.35f;
     static final float FLOOR_LAMP_SCALE_XZ_FACTOR = 0.34f;
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
@@ -104,14 +105,14 @@ final class CelineRoomReferenceLayoutV80 {
             }
 
             translateParentLocal(asset, transforms,
-                    "room_floor_lamp", 0.0f, 0.0f, FLOOR_LAMP_Z_OFFSET_M, true);
+                    "room_floor_lamp", FLOOR_LAMP_X_OFFSET_M, 0.0f, FLOOR_LAMP_Z_OFFSET_M, true);
             scaleLocalXyz(asset, transforms, "room_floor_lamp",
                     FLOOR_LAMP_SCALE_XZ_FACTOR,
                     FLOOR_LAMP_SCALE_Y_FACTOR,
                     FLOOR_LAMP_SCALE_XZ_FACTOR,
                     true);
             boolean movedLampMarker = translateParentLocal(asset, transforms,
-                    "lamp_anchor", 0.0f, 0.0f, FLOOR_LAMP_Z_OFFSET_M, false);
+                    "lamp_anchor", FLOOR_LAMP_X_OFFSET_M, 0.0f, FLOOR_LAMP_Z_OFFSET_M, false);
 
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
@@ -122,6 +123,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
+                            + " lampX=+" + FLOOR_LAMP_X_OFFSET_M + "m"
                             + " lampZ=" + FLOOR_LAMP_Z_OFFSET_M + "m"
                             + " lampScaleXYZ=" + FLOOR_LAMP_SCALE_XZ_FACTOR + ","
                             + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
@@ -166,8 +168,6 @@ final class CelineRoomReferenceLayoutV80 {
         float[] adjusted = new float[16];
         Matrix.setIdentityM(translation, 0);
         Matrix.translateM(translation, 0, deltaX, deltaY, deltaZ);
-        // Pre-multiply so the exact delta is expressed in parent room coordinates and is not
-        // scaled/rotated by the furniture node's existing local transform.
         Matrix.multiplyMM(adjusted, 0, translation, 0, base, 0);
         transforms.setTransform(instance, adjusted);
         return true;
@@ -199,7 +199,6 @@ final class CelineRoomReferenceLayoutV80 {
         float[] adjusted = new float[16];
         Matrix.setIdentityM(scale, 0);
         Matrix.scaleM(scale, 0, factorX, factorY, factorZ);
-        // Post-multiply so the node's local basis is resized while parent translation stays fixed.
         Matrix.multiplyMM(adjusted, 0, base, 0, scale, 0);
         transforms.setTransform(instance, adjusted);
         return true;
