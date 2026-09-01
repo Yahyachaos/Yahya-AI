@@ -27,9 +27,9 @@ import java.util.WeakHashMap;
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
  * Proof #52 showed that pushing the directional key all the way to neutral white did not remove Celine's
- * brown/orange appearance and regressed CALL detail diversity to 41 effective colors. Restore the proven
- * 1.00/0.95/0.90 warm-neutral key from Proof #51; the remaining Celine-local cast must be diagnosed at
- * its actual material/rendering source rather than hidden with another global room-light change.
+ * brown/orange appearance. Proof #54 then preserved the loaded source PBR response but still showed the
+ * warm cast isolated on Celine. Keep the accepted room lighting unchanged and apply one bounded cool-neutral
+ * base-color multiplier to Celine's runtime material instances only; source GLB bytes and rig stay untouched.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -47,6 +47,10 @@ final class CelineRoomReferenceLightingV80 {
     private static final float WINDOW_RED = 0.88f;
     private static final float WINDOW_GREEN = 0.84f;
     private static final float WINDOW_BLUE = 0.80f;
+
+    private static final float CELINE_TONE_RED = 0.90f;
+    private static final float CELINE_TONE_GREEN = 0.97f;
+    private static final float CELINE_TONE_BLUE = 1.00f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
@@ -104,6 +108,7 @@ final class CelineRoomReferenceLightingV80 {
             if (roomAsset == null) return;
             applyReferenceCeilingMaterial(roomAsset, engine);
             applyReferenceWindowMaterial(roomAsset, engine);
+            applyCelineTone(view);
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
             synchronized (APPLIED) {
@@ -118,8 +123,9 @@ final class CelineRoomReferenceLightingV80 {
                             + " indirectIntensity=" + INDIRECT_LUX
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
+                            + " celineTone=" + CELINE_TONE_RED + "," + CELINE_TONE_GREEN + "," + CELINE_TONE_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
-                            + " · geometry/camera/Celine/60k-lamp unchanged");
+                            + " · geometry/camera/rig/source-GLB/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
                     "Referenzraum warm-neutral-key FEHLER", error);
@@ -151,6 +157,17 @@ final class CelineRoomReferenceLightingV80 {
         MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
         material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                 WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
+    }
+
+    private static void applyCelineTone(Celine3DView view) throws Exception {
+        Field assetField = Celine3DView.class.getDeclaredField("asset");
+        assetField.setAccessible(true);
+        FilamentAsset celineAsset = (FilamentAsset) assetField.get(view);
+        if (celineAsset == null || celineAsset.getInstance() == null) return;
+        for (MaterialInstance material : celineAsset.getInstance().getMaterialInstances()) {
+            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                    CELINE_TONE_RED, CELINE_TONE_GREEN, CELINE_TONE_BLUE, 1.0f);
+        }
     }
 
     private static MaterialInstance singleMaterial(
