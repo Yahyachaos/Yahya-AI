@@ -61,6 +61,12 @@ final class CelineRoomWindowTextureV80 {
             bitmap = copy;
         }
 
+        Bitmap smoothed = smoothAtlas(bitmap);
+        if (smoothed != bitmap) {
+            bitmap.recycle();
+            bitmap = smoothed;
+        }
+
         Texture texture = new Texture.Builder()
                 .width(bitmap.getWidth())
                 .height(bitmap.getHeight())
@@ -72,7 +78,7 @@ final class CelineRoomWindowTextureV80 {
             TextureHelper.setBitmap(engine, texture, 0, bitmap);
             engine.flushAndWait();
             TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
-                    TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.REPEAT);
+                    TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
             material.setParameter("baseColorMap", texture, sampler);
             material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR, 1f, 1f, 1f, 1f);
             synchronized (TEXTURES) { TEXTURES.put(view, texture); }
@@ -82,6 +88,18 @@ final class CelineRoomWindowTextureV80 {
         } finally {
             bitmap.recycle();
         }
+    }
+
+    private static Bitmap smoothAtlas(Bitmap source) {
+        int width = source.getWidth();
+        int height = source.getHeight();
+        int reducedWidth = Math.max(48, width / 16);
+        int reducedHeight = Math.max(48, height / 16);
+        if (reducedWidth >= width || reducedHeight >= height) return source;
+        Bitmap reduced = Bitmap.createScaledBitmap(source, reducedWidth, reducedHeight, true);
+        Bitmap smoothed = Bitmap.createScaledBitmap(reduced, width, height, true);
+        if (reduced != source && reduced != smoothed) reduced.recycle();
+        return smoothed;
     }
 
     static void release(Celine3DView view, Engine engine) {
