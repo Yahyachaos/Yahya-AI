@@ -78,6 +78,14 @@ jobs:
           evidence_dir = Path('bed-texture-evidence')
           evidence_dir.mkdir(exist_ok=True)
 
+          reference = Path('Refernzbild.png')
+          if not reference.is_file() or reference.stat().st_size != 1960774:
+              raise SystemExit(f'canonical reference missing/wrong size: {reference}')
+          reference_bytes = reference.read_bytes()
+          if reference_bytes[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('canonical reference is not a PNG')
+          (evidence_dir / 'Refernzbild.png').write_bytes(reference_bytes)
+
           def tex_info(label, info):
               if not isinstance(info, dict) or 'index' not in info:
                   return None
@@ -114,6 +122,7 @@ jobs:
               'glb': {'path': str(path), 'bytes': len(data)},
               'node': {'index': node_index, 'value': node},
               'mesh': {'index': mesh_index, 'name': mesh.get('name'), 'primitive_count': 1},
+              'canonical_reference': {'path': str(reference), 'bytes': len(reference_bytes)},
               'primitive': {
                   'primitive_index': 0,
                   'material_index': mi,
@@ -138,7 +147,7 @@ jobs:
               print(f'evidence {p.name} bytes={p.stat().st_size}')
           PY
 
-      - name: Upload audit report and extracted textures
+      - name: Upload audit report, textures and canonical reference
         uses: actions/upload-artifact@v4
         with:
           name: celine-room-bed-texture-evidence
