@@ -54,6 +54,13 @@ final class CelineRoomReferenceLightingV80 {
     private static final float WINDOW_GREEN = 1.00f;
     private static final float WINDOW_BLUE = 1.00f;
 
+    // Proof #58 leaves the bed/bedding as the largest remaining single material mismatch: it is still
+    // materially darker and less readable than the light upholstered reference mass. Preserve every
+    // existing bed texture and material binding, and apply only a restrained linear base-color lift.
+    private static final float BED_RED = 1.10f;
+    private static final float BED_GREEN = 1.08f;
+    private static final float BED_BLUE = 1.05f;
+
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
     private static final float PRACTICAL_Z = 0.50f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
@@ -110,6 +117,7 @@ final class CelineRoomReferenceLightingV80 {
             if (roomAsset == null) return;
             applyReferenceCeilingMaterial(roomAsset, engine);
             applyReferenceWindowMaterial(roomAsset, engine);
+            applyReferenceBedMaterial(roomAsset, engine);
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
             synchronized (APPLIED) {
@@ -124,6 +132,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " indirectIntensity=" + INDIRECT_LUX
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
+                            + " bedFactor=" + BED_RED + "," + BED_GREEN + "," + BED_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
                             + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
         } catch (Throwable error) {
@@ -157,6 +166,22 @@ final class CelineRoomReferenceLightingV80 {
         MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
         material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                 WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
+    }
+
+    private static void applyReferenceBedMaterial(FilamentAsset asset, Engine engine) {
+        int entity = asset.getFirstEntityByName("room_bed");
+        if (entity == 0) throw new IllegalStateException("bed entity fehlt");
+        RenderableManager manager = engine.getRenderableManager();
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0) throw new IllegalStateException("bed renderable fehlt");
+        int primitives = manager.getPrimitiveCount(renderable);
+        if (primitives <= 0) throw new IllegalStateException("bed primitives fehlen");
+        for (int primitive = 0; primitive < primitives; primitive++) {
+            MaterialInstance material = manager.getMaterialInstanceAt(renderable, primitive);
+            if (material == null) throw new IllegalStateException("bed material fehlt: " + primitive);
+            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                    BED_RED, BED_GREEN, BED_BLUE, 1.0f);
+        }
     }
 
     private static MaterialInstance singleMaterial(
