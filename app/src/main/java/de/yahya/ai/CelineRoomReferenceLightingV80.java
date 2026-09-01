@@ -61,6 +61,7 @@ final class CelineRoomReferenceLightingV80 {
     private static final float BED_RED = 1.00f;
     private static final float BED_GREEN = 1.00f;
     private static final float BED_BLUE = 1.00f;
+    private static final float BED_METALLIC = 0.00f;
     private static final float BED_EMISSIVE_RED = 0.08f;
     private static final float BED_EMISSIVE_GREEN = 0.07f;
     private static final float BED_EMISSIVE_BLUE = 0.06f;
@@ -137,6 +138,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
                             + " bedFactor=" + BED_RED + "," + BED_GREEN + "," + BED_BLUE
+                            + " bedMetallic=" + BED_METALLIC
                             + " bedEmissive=" + BED_EMISSIVE_RED + "," + BED_EMISSIVE_GREEN + "," + BED_EMISSIVE_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
                             + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
@@ -186,6 +188,9 @@ final class CelineRoomReferenceLightingV80 {
             if (material == null) throw new IllegalStateException("bed material fehlt: " + primitive);
             material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                     BED_RED, BED_GREEN, BED_BLUE, 1.0f);
+            if (material.getMaterial().hasParameter("metallicFactor")) {
+                material.setParameter("metallicFactor", BED_METALLIC);
+            }
             if (material.getMaterial().hasParameter("emissiveFactor")) {
                 material.setParameter("emissiveFactor",
                         BED_EMISSIVE_RED, BED_EMISSIVE_GREEN, BED_EMISSIVE_BLUE);
