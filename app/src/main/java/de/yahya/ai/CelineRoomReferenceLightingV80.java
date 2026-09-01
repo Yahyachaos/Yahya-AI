@@ -26,11 +26,11 @@ import java.util.WeakHashMap;
  * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * Proof #46 with 9000 indirect was structurally stable but manually too flat. Proof #47 with 6500
- * indirect created stronger HOME contrast, but CALL failed the real-render diversity guard and manual
- * inspection confirms excessive brown/orange collapse across Celine's close-up. Keep the 5000-lux
- * neutral key, practical, materials, geometry, camera and Celine fixed; use the evidence-bounded
- * midpoint of 8000 indirect for the next single-factor witness.
+ * Proof #48 confirms 8000 indirect restores structural HOME/CALL/HOME diversity after the 6500 fail,
+ * but manual inspection still shows the large window/drape asset as a nearly white flat rectangle
+ * directly behind Celine. APK GLB inspection proves room_window_drapes owns its own single material,
+ * so this bounded pass changes only that material's base-color multiplier to a restrained warm taupe.
+ * Geometry, textures, lighting levels, camera, Celine and every other room material remain fixed.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -44,6 +44,10 @@ final class CelineRoomReferenceLightingV80 {
     private static final float CEILING_BLUE = 0.72f;
     private static final float CEILING_ROUGHNESS = 0.92f;
     private static final float CEILING_REFLECTANCE = 0.38f;
+
+    private static final float WINDOW_RED = 0.78f;
+    private static final float WINDOW_GREEN = 0.72f;
+    private static final float WINDOW_BLUE = 0.66f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
@@ -97,7 +101,10 @@ final class CelineRoomReferenceLightingV80 {
             lights.setShadowCaster(instance, true);
             indirect.setIntensity(INDIRECT_LUX);
 
-            if (!applyReferenceCeilingMaterial(view, engine)) return;
+            FilamentAsset roomAsset = currentRoomAsset(view);
+            if (roomAsset == null) return;
+            applyReferenceCeilingMaterial(roomAsset, engine);
+            applyReferenceWindowMaterial(roomAsset, engine);
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
             synchronized (APPLIED) {
@@ -106,52 +113,60 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum bounded-depth aktiv",
+                    "Referenzraum window-depth aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
+                            + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
-                            + " falloff=" + PRACTICAL_FALLOFF_M + "m"
-                            + " direction=" + PRACTICAL_DIR_X + "," + PRACTICAL_DIR_Y + "," + PRACTICAL_DIR_Z
-                            + " coneRad=" + PRACTICAL_INNER_RAD + "/" + PRACTICAL_OUTER_RAD
-                            + " · walls/floor/camera/Celine/60k-lamp unchanged");
+                            + " · geometry/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum bounded-depth FEHLER", error);
+                    "Referenzraum window-depth FEHLER", error);
         }
     }
 
-    private static boolean applyReferenceCeilingMaterial(Celine3DView view, Engine engine)
-            throws Exception {
+    private static FilamentAsset currentRoomAsset(Celine3DView view) throws Exception {
         Field statesField = CelineRoomEnvironmentV80.class.getDeclaredField("STATES");
         statesField.setAccessible(true);
         Object rawStates = statesField.get(null);
-        if (!(rawStates instanceof Map)) return false;
+        if (!(rawStates instanceof Map)) return null;
         Object state = ((Map<?, ?>) rawStates).get(view);
-        if (state == null) return false;
-
+        if (state == null) return null;
         Field roomAssetField = state.getClass().getDeclaredField("roomAsset");
         roomAssetField.setAccessible(true);
-        FilamentAsset asset = (FilamentAsset) roomAssetField.get(state);
-        if (asset == null) return false;
+        return (FilamentAsset) roomAssetField.get(state);
+    }
 
-        int entity = asset.getFirstEntityByName("room_ceiling");
-        if (entity == 0) throw new IllegalStateException("R4 ceiling entity fehlt");
-        RenderableManager manager = engine.getRenderableManager();
-        int renderable = manager.getInstance(entity);
-        if (renderable == 0) throw new IllegalStateException("R4 ceiling renderable fehlt");
-        if (manager.getPrimitiveCount(renderable) != 1) {
-            throw new IllegalStateException("R4 ceiling primitive count != 1");
-        }
-        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
-        if (material == null) throw new IllegalStateException("R4 ceiling material fehlt");
+    private static void applyReferenceCeilingMaterial(FilamentAsset asset, Engine engine) {
+        MaterialInstance material = singleMaterial(asset, engine, "room_ceiling", "ceiling");
         material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                 CEILING_RED, CEILING_GREEN, CEILING_BLUE, 1.0f);
         material.setParameter("metallicFactor", 0.0f);
         material.setParameter("roughnessFactor", CEILING_ROUGHNESS);
         material.setParameter("reflectance", CEILING_REFLECTANCE);
-        return true;
+    }
+
+    private static void applyReferenceWindowMaterial(FilamentAsset asset, Engine engine) {
+        MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
+        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
+    }
+
+    private static MaterialInstance singleMaterial(
+            FilamentAsset asset, Engine engine, String entityName, String diagnosticName) {
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0) throw new IllegalStateException(diagnosticName + " entity fehlt");
+        RenderableManager manager = engine.getRenderableManager();
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0) throw new IllegalStateException(diagnosticName + " renderable fehlt");
+        if (manager.getPrimitiveCount(renderable) != 1) {
+            throw new IllegalStateException(diagnosticName + " primitive count != 1");
+        }
+        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
+        if (material == null) throw new IllegalStateException(diagnosticName + " material fehlt");
+        return material;
     }
 
     private static PracticalLightState createPracticalLight(
