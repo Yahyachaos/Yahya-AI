@@ -62,10 +62,10 @@ final class CelineRoomWindowTextureV80 {
             bitmap = copy;
         }
 
-        Bitmap compressed = compressAtlasContrast(bitmap);
-        if (compressed != bitmap) {
+        Bitmap balanced = balanceDrapeAtlas(bitmap);
+        if (balanced != bitmap) {
             bitmap.recycle();
-            bitmap = compressed;
+            bitmap = balanced;
         }
 
         Texture texture = new Texture.Builder()
@@ -91,12 +91,12 @@ final class CelineRoomWindowTextureV80 {
         }
 
         // Proof #64-#66 kept the exact same large gaps under radically different opaque atlases.
-        // They are therefore not base-color holes. Add one bounded derived night plane behind the
-        // immutable sparse drape mesh so those openings read as window depth instead of torn geometry.
+        // Proof #67 confirmed that a bounded dark backing turns those gaps into coherent night depth.
+        // Keep that geometry repair and tune only the visible drape strands here.
         CelineRoomWindowBackdropV80.apply(view, asset, engine);
     }
 
-    private static Bitmap compressAtlasContrast(Bitmap source) {
+    private static Bitmap balanceDrapeAtlas(Bitmap source) {
         int width = source.getWidth();
         int height = source.getHeight();
         int[] pixels = new int[width * height];
@@ -107,12 +107,17 @@ final class CelineRoomWindowTextureV80 {
             float g = Color.green(color) / 255f;
             float b = Color.blue(color) / 255f;
             float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+
+            // The dark backing now owns night depth. The source strands should therefore read as
+            // fabric in front of that depth, not as another near-black layer. Compress the source
+            // into a warm cream/taupe range while retaining enough local tonal variation for folds.
             float target = luminance < 0.5f
-                    ? 0.24f + 0.36f * (luminance / 0.5f)
-                    : 0.60f + 0.20f * ((luminance - 0.5f) / 0.5f);
-            float nr = clamp01(target + (r - luminance) * 0.35f);
-            float ng = clamp01(target + (g - luminance) * 0.35f);
-            float nb = clamp01(target + (b - luminance) * 0.35f);
+                    ? 0.50f + 0.20f * (luminance / 0.5f)
+                    : 0.70f + 0.18f * ((luminance - 0.5f) / 0.5f);
+            float chromaScale = 0.20f;
+            float nr = clamp01(target + (r - luminance) * chromaScale + 0.035f);
+            float ng = clamp01(target + (g - luminance) * chromaScale + 0.010f);
+            float nb = clamp01(target + (b - luminance) * chromaScale - 0.035f);
             pixels[i] = Color.argb(Color.alpha(color), Math.round(nr * 255f),
                     Math.round(ng * 255f), Math.round(nb * 255f));
         }
