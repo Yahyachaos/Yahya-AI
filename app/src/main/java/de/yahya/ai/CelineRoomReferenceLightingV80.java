@@ -27,10 +27,11 @@ import java.util.WeakHashMap;
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
  * Proof #52 showed that pushing the directional key all the way to neutral white did not remove Celine's
- * brown/orange appearance. Proof #54 then preserved the loaded source PBR response but still showed the
- * warm cast isolated on Celine. Proof #55 moved the cast in the right direction but CALL remained visibly
- * red/brown and still failed detail diversity at 44 effective colors. Keep the accepted room lighting
- * unchanged and strengthen only the bounded cool-neutral Celine multiplier; source GLB bytes and rig stay untouched.
+ * brown/orange appearance. Proof #54 preserved the loaded source PBR response and passed the structural
+ * HOME/CALL/HOME capture. Proofs #55 and #56 then showed that overriding every Celine material with one
+ * cool-neutral base-color factor barely reduced the cast while regressing CALL detail diversity (44 then
+ * 41 effective colors). Preserve the source-loaded per-material base-color response instead; the remaining
+ * appearance issue must be diagnosed without another global Celine material flattening pass.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -48,10 +49,6 @@ final class CelineRoomReferenceLightingV80 {
     private static final float WINDOW_RED = 0.88f;
     private static final float WINDOW_GREEN = 0.84f;
     private static final float WINDOW_BLUE = 0.80f;
-
-    private static final float CELINE_TONE_RED = 0.84f;
-    private static final float CELINE_TONE_GREEN = 0.99f;
-    private static final float CELINE_TONE_BLUE = 1.00f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
@@ -109,7 +106,6 @@ final class CelineRoomReferenceLightingV80 {
             if (roomAsset == null) return;
             applyReferenceCeilingMaterial(roomAsset, engine);
             applyReferenceWindowMaterial(roomAsset, engine);
-            applyCelineTone(view);
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
             synchronized (APPLIED) {
@@ -124,9 +120,8 @@ final class CelineRoomReferenceLightingV80 {
                             + " indirectIntensity=" + INDIRECT_LUX
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
-                            + " celineTone=" + CELINE_TONE_RED + "," + CELINE_TONE_GREEN + "," + CELINE_TONE_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
-                            + " · geometry/camera/rig/source-GLB/60k-lamp unchanged");
+                            + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
                     "Referenzraum warm-neutral-key FEHLER", error);
@@ -158,17 +153,6 @@ final class CelineRoomReferenceLightingV80 {
         MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
         material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                 WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
-    }
-
-    private static void applyCelineTone(Celine3DView view) throws Exception {
-        Field assetField = Celine3DView.class.getDeclaredField("asset");
-        assetField.setAccessible(true);
-        FilamentAsset celineAsset = (FilamentAsset) assetField.get(view);
-        if (celineAsset == null || celineAsset.getInstance() == null) return;
-        for (MaterialInstance material : celineAsset.getInstance().getMaterialInstances()) {
-            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
-                    CELINE_TONE_RED, CELINE_TONE_GREEN, CELINE_TONE_BLUE, 1.0f);
-        }
     }
 
     private static MaterialInstance singleMaterial(
