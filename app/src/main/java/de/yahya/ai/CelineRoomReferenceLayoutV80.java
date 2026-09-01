@@ -46,15 +46,19 @@ import java.util.WeakHashMap;
  * total bounded offset is refined to +0.92 m with Y/Z/scale/source bytes unchanged. Proof #99 confirms
  * that horizontal placement around x~0.13..0.24 is now in the target family, so plant X is frozen.
  *
- * Proof #99 also exposes the foreground table as the next dominant measured mismatch: current apparent
- * width is only ~0.52 viewport versus target 1.00, while visible height is ~0.11 versus target ~0.24.
- * Keep the previously established table Z offset and camera fixed; apply exactly one uniform local scale
- * factor 1.90 derived from target/current width (1.00/0.52 ~= 1.92). Table interaction anchors remain
- * logically unreconciled until M3 after visual geometry settles.
+ * Proof #99 exposed the foreground table as the next dominant measured mismatch: apparent width was only
+ * ~0.52 viewport versus target 1.00 and visible depth/height ~0.11 versus target ~0.24. Uniform scale 1.90
+ * on Proof #100 correctly expands the table to full viewport width, but direct reference comparison shows
+ * its near-plane depth now begins around normalized y~0.67 versus target y~0.763, occupying ~0.33 viewport
+ * height instead of ~0.24. Therefore retain measured local-X width scale 1.90, restore Y to source scale,
+ * and reduce local-Z depth to 1.38 (=1.90 * 0.24/0.33, rounded). Existing table Z offset and camera remain
+ * fixed. This is one bounded derived transform correction; source Tischfürlaptop.glb bytes remain unchanged.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
-    static final float FOREGROUND_TABLE_SCALE_FACTOR = 1.90f;
+    static final float FOREGROUND_TABLE_SCALE_X_FACTOR = 1.90f;
+    static final float FOREGROUND_TABLE_SCALE_Y_FACTOR = 1.00f;
+    static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
     static final float BED_X_OFFSET_M = -0.45f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
@@ -104,8 +108,11 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_foreground_table", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
-            scaleLocal(asset, transforms,
-                    "room_foreground_table", FOREGROUND_TABLE_SCALE_FACTOR, true);
+            scaleLocalXyz(asset, transforms, "room_foreground_table",
+                    FOREGROUND_TABLE_SCALE_X_FACTOR,
+                    FOREGROUND_TABLE_SCALE_Y_FACTOR,
+                    FOREGROUND_TABLE_SCALE_Z_FACTOR,
+                    true);
             translateParentLocal(asset, transforms,
                     "foreground_table_approach_anchor", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
             translateParentLocal(asset, transforms,
@@ -157,7 +164,9 @@ final class CelineRoomReferenceLayoutV80 {
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
                     "tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
-                            + "m tableScale=" + FOREGROUND_TABLE_SCALE_FACTOR
+                            + "m tableScaleXYZ=" + FOREGROUND_TABLE_SCALE_X_FACTOR + ","
+                            + FOREGROUND_TABLE_SCALE_Y_FACTOR + ","
+                            + FOREGROUND_TABLE_SCALE_Z_FACTOR
                             + " bedX=" + BED_X_OFFSET_M + "m"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
