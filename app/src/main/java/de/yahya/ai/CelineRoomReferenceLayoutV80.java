@@ -16,16 +16,23 @@ import java.util.WeakHashMap;
  * measured derived furniture transforms while keeping source GLB bytes immutable. Proof #85 measured
  * the lounge chair around normalized x~0.08..0.24 versus target x~0.21..0.33; Proof #86 confirms the
  * +0.65 m parent-X correction centers it near the reference, but the visible chair width is still about
- * 0.20 of the viewport versus a ~0.12 target. Keep that accepted horizontal placement and reduce only
- * the chair's local uniform size by factor 0.60 (effective source scale ~0.30 from 0.50). Post-multiply
- * the scale so parent translation stays fixed. Chair anchors keep the accepted translated positions and
- * are not scaled. Depth/rotation remain unchanged until this isolated size correction is measured.
+ * 0.20 of the viewport versus a ~0.12 target. Proof #87 confirms the 0.60 local chair size correction
+ * brings its X placement and apparent width close to the target, so those accepted values stay fixed.
+ *
+ * Proof #87 also exposes the next larger M2 error: the floor lamp is a huge clipped foreground object
+ * at the left edge while the reference lamp is a narrow back-room object beside the chair/plant group.
+ * The canonical assembly explains the mismatch directly: room_floor_lamp starts at z=+1.55 on the
+ * camera side whereas chair/plant/window occupy the negative-z room depth. Move only the derived lamp
+ * node by -3.35 m in parent-room Z, placing its assembly origin at z=-1.80. Keep lamp X, Y, rotation and
+ * scale untouched for this isolated depth proof. Move the embedded lamp marker by the same delta when
+ * present; logical JSON reconciliation remains M3 after visual geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float BED_X_OFFSET_M = -0.45f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
+    static final float FLOOR_LAMP_Z_OFFSET_M = -3.35f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -92,6 +99,11 @@ final class CelineRoomReferenceLayoutV80 {
                 }
             }
 
+            translateParentLocal(asset, transforms,
+                    "room_floor_lamp", 0.0f, 0.0f, FLOOR_LAMP_Z_OFFSET_M, true);
+            boolean movedLampMarker = translateParentLocal(asset, transforms,
+                    "lamp_anchor", 0.0f, 0.0f, FLOOR_LAMP_Z_OFFSET_M, false);
+
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
@@ -101,6 +113,8 @@ final class CelineRoomReferenceLayoutV80 {
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
+                            + " lampZ=" + FLOOR_LAMP_Z_OFFSET_M + "m"
+                            + " lampMarkerMoved=" + movedLampMarker
                             + " sourceGLB=unchanged camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
         } catch (Throwable error) {
