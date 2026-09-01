@@ -19,13 +19,15 @@ import java.util.WeakHashMap;
  * 0.20 of the viewport versus a ~0.12 target. Proof #87 confirms the 0.60 local chair size correction
  * brings its X placement and apparent width close to the target, so those accepted values stay fixed.
  *
- * Proof #87 also exposes the next larger M2 error: the floor lamp is a huge clipped foreground object
- * at the left edge while the reference lamp is a narrow back-room object beside the chair/plant group.
- * The canonical assembly explains the mismatch directly: room_floor_lamp starts at z=+1.55 on the
- * camera side whereas chair/plant/window occupy the negative-z room depth. Move only the derived lamp
- * node by -3.35 m in parent-room Z, placing its assembly origin at z=-1.80. Keep lamp X, Y, rotation and
- * scale untouched for this isolated depth proof. Move the embedded lamp marker by the same delta when
- * present; logical JSON reconciliation remains M3 after visual geometry settles.
+ * Proof #87 exposed the floor lamp as a huge clipped foreground object. Moving only its derived parent
+ * depth by -3.35 m placed the assembly origin from z=+1.55 at z=-1.80. Proof #88 on exact runtime
+ * b3c4d912 then proved that depth correction is directionally correct: the lamp is fully visible and its
+ * horizontal center is near target, but its measured HOME box is still about x~0.17..0.31,
+ * y~0.22..0.59 versus reference x~0.233..0.279, y~0.269..0.470. The immutable source lamp therefore
+ * has a materially wider aspect ratio than the reference target. Apply only a derived non-uniform local
+ * size correction using measured ratios: X/Z 0.34 and Y 0.54. Post-multiplication preserves the accepted
+ * parent translation/depth. Lamp marker remains translated with the object but is deliberately not
+ * scaled; logical interaction metadata remains M3 after visual geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -33,6 +35,8 @@ final class CelineRoomReferenceLayoutV80 {
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_Z_OFFSET_M = -3.35f;
+    static final float FLOOR_LAMP_SCALE_XZ_FACTOR = 0.34f;
+    static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -101,6 +105,11 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_floor_lamp", 0.0f, 0.0f, FLOOR_LAMP_Z_OFFSET_M, true);
+            scaleLocalXyz(asset, transforms, "room_floor_lamp",
+                    FLOOR_LAMP_SCALE_XZ_FACTOR,
+                    FLOOR_LAMP_SCALE_Y_FACTOR,
+                    FLOOR_LAMP_SCALE_XZ_FACTOR,
+                    true);
             boolean movedLampMarker = translateParentLocal(asset, transforms,
                     "lamp_anchor", 0.0f, 0.0f, FLOOR_LAMP_Z_OFFSET_M, false);
 
@@ -114,8 +123,11 @@ final class CelineRoomReferenceLayoutV80 {
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
                             + " lampZ=" + FLOOR_LAMP_Z_OFFSET_M + "m"
+                            + " lampScaleXYZ=" + FLOOR_LAMP_SCALE_XZ_FACTOR + ","
+                            + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
                             + " lampMarkerMoved=" + movedLampMarker
-                            + " sourceGLB=unchanged camera/Celine=unchanged"
+                            + " sourceGLB=unchanged derivedNonUniformScale=true"
+                            + " camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
@@ -164,6 +176,13 @@ final class CelineRoomReferenceLayoutV80 {
     private static boolean scaleLocal(
             FilamentAsset asset, TransformManager transforms,
             String entityName, float factor, boolean required) {
+        return scaleLocalXyz(asset, transforms, entityName, factor, factor, factor, required);
+    }
+
+    private static boolean scaleLocalXyz(
+            FilamentAsset asset, TransformManager transforms,
+            String entityName, float factorX, float factorY, float factorZ,
+            boolean required) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
             if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
@@ -179,8 +198,8 @@ final class CelineRoomReferenceLayoutV80 {
         float[] scale = new float[16];
         float[] adjusted = new float[16];
         Matrix.setIdentityM(scale, 0);
-        Matrix.scaleM(scale, 0, factor, factor, factor);
-        // Post-multiply so the node's local basis is uniformly scaled while parent translation stays fixed.
+        Matrix.scaleM(scale, 0, factorX, factorY, factorZ);
+        // Post-multiply so the node's local basis is resized while parent translation stays fixed.
         Matrix.multiplyMM(adjusted, 0, base, 0, scale, 0);
         transforms.setTransform(instance, adjusted);
         return true;
