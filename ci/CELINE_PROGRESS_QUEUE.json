@@ -10,6 +10,7 @@
   "room_visual_target": "docs/celine/room-source/v80-2026-08-28/ROOM_VISUAL_TARGET_REFERENCE.md",
   "room_visual_target_image": "/Refernzbild.png",
   "room_reference_realism_plan": "docs/celine/room-source/v80-2026-08-28/ROOM_REFERENCE_REALISM_PLAN.md",
+  "room_reference_acceptance": "USER_REJECTED_CURRENT_LAYOUT__FULL_MEASURED_RECONSTRUCTION_REQUIRED__ZERO_RECOGNIZABLE_DEVIATION_TARGET",
   "room_source_bridge": {
     "source_branch": "assets/celine-source-persistence",
     "source_commit": "df50816187978cbf5faf818ad484c3f682be7588",
@@ -17,75 +18,57 @@
     "verification": "PASS_12_OF_12_GIT_LFS_POINTER_OID_AND_SIZE_MATCH_CANONICAL",
     "runtime_room_path": "app/src/main/assets/models/room/celine_room_v80_final_modular.glb",
     "runtime_room_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
-    "relationship": "The 12 Git-LFS GLBs remain immutable originals. The v80 room is a derived runtime assembly; bounded derived geometry/material handling may change when exact-reference evidence requires it. Canonical Celine remains separate."
+    "relationship": "The 12 Git-LFS GLBs remain immutable source-of-origin files. The v80 room is a derived runtime assembly. Derived room geometry and furniture position/rotation/scale may change when measured reference reconstruction requires it. Canonical Celine remains separate."
   },
-  "current_branch_head_checkpoint": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-  "checkpoint_note": "Window realism is now the active bounded substep. Texture-only candidates #64-#66 proved the persistent vertical gaps were geometry/coverage, not baseColor atlas holes. Proof #67 confirmed a derived dark night backing correctly converts those openings into window depth. Proof #69 confirmed broad side fills improve left/right curtain mass. Proof #70 confirmed central cream fill geometry is correctly layered but too opaque/wall-like. Runtime 976d759 narrows only the two central fills to restore visible night depth. Build #941 succeeded and Proof #71 was manually inspected: HOME/CALL remain stable; more dark depth is visible, but the central fills still read as opaque beige boards and the immutable source drape fragments remain ragged. Whole-reference acceptance remains FAIL.",
-  "status": "room_reference_realism_window_coverage_active_after_proof_71",
-  "latest_runtime_code_head": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-  "latest_built_runtime_head": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-  "latest_visually_accepted_runtime_head": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-  "visual_acceptance_scope": "PASS_STRUCTURAL_AND_WINDOW_LAYERING_PARTIAL_ONLY__WHOLE_ROOM_REFERENCE_FAIL",
-  "last_successful_runtime_fingerprint": "4f09ea54e9da23facb5626d3f0a2b7bc42a022ce80b2ec76778e7f2866d6f8ed",
-  "android_build": {
+  "current_branch_head_checkpoint": "0a075604af855f467fe064f564f5a7868d8155e3",
+  "checkpoint_kind": "docs_only_reconstruction_contract",
+  "checkpoint_note": "User rejected the current room because whole-scene geometry, furniture apparent dimensions/scale/spacing and composition materially differ from /Refernzbild.png. The old window/light-first polish strategy is superseded. ROOM_REFERENCE_REALISM_PLAN.md is now the canonical measured reconstruction contract: baseline measurement first, then shell/perspective/camera, furniture transforms, interaction-anchor reconciliation, materials, lighting/shadows, and window/final detail. No whole-room PASS while a recognizable reference mismatch remains.",
+  "status": "room_full_measured_reconstruction_phase_M0_pending",
+  "latest_runtime_code_head": "2d7e200828e23cf1fa475c01472ad005aef4d544",
+  "latest_built_runtime_head": "2d7e200828e23cf1fa475c01472ad005aef4d544",
+  "latest_visually_accepted_runtime_head": null,
+  "visual_acceptance_scope": "FAIL_WHOLE_REFERENCE__CURRENT_ROOM_USER_REJECTED",
+  "latest_pr_build": {
     "workflow": "Android Build",
-    "run_number": 941,
-    "run_id": 33531394013,
+    "run_number": 945,
+    "run_id": 33534704114,
     "conclusion": "success",
-    "head_sha": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-    "runtime_fingerprint": "4f09ea54e9da23facb5626d3f0a2b7bc42a022ce80b2ec76778e7f2866d6f8ed",
-    "apk_artifact": 9809936954,
-    "apk_artifact_digest": "sha256:c4b23ddeabc45f83b9bbb72f56cc685b39aff685e3c8d3d1f4846c624072fba7",
-    "runtime_fingerprint_artifact": 9809937591,
-    "runtime_fingerprint_artifact_digest": "sha256:225703172a76a8e50d16c5e04023d3cead63e4dc01b50a097f30d7bea8bf911f",
-    "apk_sha256_inside_proof": "40e3ca87ceac729dd96d33711744e8325ca9fc39cbaede61fdb66b95ed3bb55e"
+    "head_sha": "2d7e200828e23cf1fa475c01472ad005aef4d544"
   },
   "latest_visual_proof": {
-    "name": "Celine Room Visual Polish Proof",
-    "run_number": 71,
-    "run_id": 33531704774,
-    "proof_head": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-    "runtime_head": "976d75975aea95ae9c3e7ca8db66fe7785b4e209",
-    "runtime_fingerprint": "4f09ea54e9da23facb5626d3f0a2b7bc42a022ce80b2ec76778e7f2866d6f8ed",
-    "artifact_id": 9810072286,
-    "artifact_digest": "sha256:17a4af0b3b8c22229dbe2f64297757a15db88d67ff1d693e026a1a5a89285d2d",
+    "workflow": "Celine Room Visual Polish Proof",
+    "run_number": 74,
+    "run_id": 33534972997,
+    "head_sha": "2d7e200828e23cf1fa475c01472ad005aef4d544",
     "workflow_conclusion": "failure",
-    "structural_result": "PASS_HOME_AND_CALL_CAPTURE__CALL_DIVERSITY_GUARD_FAIL",
-    "manual_inspection": "PARTIAL_PASS_MORE_NIGHT_DEPTH__FAIL_OPAQUE_SHEERS_AND_RAGGED_SOURCE_DRAPE_DETAIL",
-    "visual_acceptance": "FAIL_WHOLE_REFERENCE",
-    "metrics": {
-      "home_effective_colors": 87,
-      "call_effective_colors": 37,
-      "call_failure": "insufficient color/detail diversity"
-    },
-    "evidence": [
-      "home.png and call.png from Proof #71 were manually inspected.",
-      "Celine remains visible and stable; no blank renderer or transition crash is evidenced.",
-      "Narrowing only the central sheer panels restored more visible dark night depth compared with Proof #70.",
-      "The two central panels still read as opaque beige boards rather than light translucent/folded sheers from Refernzbild.png.",
-      "The original room_window_drapes mesh remains visibly ragged/shredded around and over the derived fills.",
-      "Broad side fills and dark night backing remain useful partial improvements and should not be removed speculatively.",
-      "Bed remains too dark/brown and Celine remains too warm/orange, but neither should be changed simultaneously with the active window repair."
-    ]
+    "manual_result": "USER_REJECTED_WHOLE_ROOM_GEOMETRY_PROPORTIONS_FURNITURE_SCALE_AND_COMPOSITION",
+    "visual_acceptance": "FAIL_WHOLE_REFERENCE"
   },
-  "window_reference_realism": {
-    "authority": "/Refernzbild.png",
-    "source_component": "room_window_drapes / Fenstermitgardinen.glb",
-    "confirmed_root_cause": "The source drape mesh is too sparse/ragged for the reference window. Texture-only changes cannot close the persistent gaps. Derived night/side/central coverage can repair layering, but opaque back-wall-derived panels still lack true sheer/fold realism.",
-    "accepted_partial_layers": [
-      "Derived dark night backing behind sparse source drape geometry",
-      "Broad derived left/right curtain mass fills",
-      "Central derived coverage placement is correct and does not occlude Celine"
-    ],
-    "remaining_window_mismatches": [
-      "Central light sheers remain too opaque and wall-like.",
-      "Source drape fragments remain ragged/shredded rather than smooth fabric folds.",
-      "Exact-reference night/frame/sheer visual hierarchy is not yet close enough."
-    ]
-  },
+  "reconstruction_order": [
+    "M0_measure_reference_and_latest_HOME_in_normalized_image_coordinates_and_commit_durable_measurement_table",
+    "M1_correct_room_shell_perspective_and_camera_composition_from_largest_measured_delta",
+    "M2_correct_each_furniture_runtime_scale_rotation_position_and_spacing_without_modifying_original_GLB_bytes",
+    "M3_reconcile_anchors_actions_destinations_after_geometry_settles",
+    "M4_match_materials_and_textures",
+    "M5_match_lighting_shadows_depth",
+    "M6_match_window_curtains_and_final_details",
+    "then_Block12_temporal_acceptance_on_final_room_runtime",
+    "then_final_exact_head_gates"
+  ],
+  "measurement_contract_minimum": [
+    "viewport_dimensions_and_normalized_coordinate_system",
+    "wall_floor_ceiling_boundaries_and_perspective_lines",
+    "window_frame_curtain_sheer_extents",
+    "bed_bbox_orientation_and_apparent_dimensions",
+    "all_visible_nightstand_dresser_cabinet_bboxes_orientation_and_gaps",
+    "chair_other_furniture_bboxes_orientation_and_gaps",
+    "rug_table_lamp_and_other_major_visible_object_extents",
+    "target_vs_current_x_y_w_h_centers_gaps_and_deltas",
+    "classification_of_each_delta_as_geometry_transform_camera_material_or_lighting"
+  ],
   "accepted_blocks": {
     "4": "Central layered animation owner",
-    "4R": "Final modular room/world",
+    "4R": "Final modular room/world foundation; whole-reference visual layout is reopened by exact user evidence without changing immutable source GLBs",
     "5": "Human idle body, arms and hands",
     "6": "Gaze, head and social presence",
     "7": "Blink and eyelid correctness",
@@ -97,35 +80,34 @@
     "9R.4": "Chair chain",
     "9R.5": "Environment destinations complete",
     "10": "Yahya AI launcher identity",
-    "11": "Duplicate launcher cleanup",
-    "room-polish-semantic-texture-repair": "Proof #57 restored textured Celine semantic regions; whole reference not accepted",
-    "room-polish-window-night-backing": "Proof #67 partial PASS for window depth only",
-    "room-polish-window-side-fill": "Proof #69 partial PASS for broad side mass only"
+    "11": "Duplicate launcher cleanup"
   },
   "active_block": {
     "number": 12,
-    "name": "Final temporal acceptance gate with room-reference realism completion first",
-    "status": "room_reference_realism_window_active_before_final_temporal"
+    "name": "Final temporal acceptance gate with room-reference reconstruction completion first",
+    "status": "room_reconstruction_M0_before_final_temporal"
   },
   "block12_temporal_state": {
-    "instruction": "Do not chase current Block-12 failures until the whole-room reference target is accepted. Final temporal acceptance returns only on the final accepted room runtime."
+    "instruction": "Do not chase Block-12 temporal failures until the whole-room reference reconstruction is visually accepted. Final temporal acceptance returns only on the final accepted room runtime."
   },
-  "current_blocker": "No external blocker. Window geometry/material fidelity is still below the exact reference; Proof #71 is a partial layering improvement only.",
-  "root_cause": "Exact-reference inspection plus Proofs #64-#71 isolate the window defect to sparse/ragged source geometry combined with an opaque-only derived material path. Texture-only changes did not move the gaps; the dark backing fixed depth, side fills fixed mass, and narrower central fills restored some night depth, but the source strips and opaque central panels still do not read as smooth sheers.",
-  "exact_next_action": "Start with root AGENTS.md and Mandatory Start Chronology, then fresh-reconcile live PR #111/head/workflows. Treat runtime 976d759 and Proof #71 as the current partial window baseline. Do not change bed, Celine, camera, global lighting, side fills or night backing in the same iteration. Inspect whether the ragged source room_window_drapes renderable can be safely de-emphasized/hidden or moved behind the derived coverage without changing source GLB bytes; if so, make exactly one bounded runtime visibility/layering repair and run one Android build plus one Room Visual Polish Proof, then manually inspect HOME/CALL against /Refernzbild.png. If hiding/reordering the source mesh makes the window too flat, add fold detail only in a subsequent evidence-backed step. No merge/release/new branch/new PR/NavMesh/free navigation.",
+  "current_blocker": "No external blocker. Current room has user-confirmed whole-scene geometry/proportion/furniture-scale/composition mismatch versus /Refernzbild.png.",
+  "root_cause": "The previous iteration strategy optimized local window/material/light details while larger scene geometry, furniture apparent dimensions/spacing and composition remained wrong. Whole-room reconstruction must therefore be driven by measured reference deltas rather than eye-balled local polish.",
+  "exact_next_action": "Start with root AGENTS.md and Mandatory Start Chronology, then fresh-reconcile live PR #111/head/workflows. Read the updated ROOM_REFERENCE_REALISM_PLAN.md. Perform Phase M0 only: obtain /Refernzbild.png and the latest real HOME proof, measure both in one normalized coordinate system, and commit a durable reconstruction measurement table listing target/current x,y,w,h, orientation, gaps and deltas for room boundaries, bed, cabinets/nightstands, window/curtains, chair, rug, table, lamp and other major visible objects. Rank the mismatches by magnitude and identify the single largest structural mismatch for the first runtime change. M0 is docs/measurement-only: no Android build and no further window/light/material runtime polish before this baseline exists.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
-    "Do not merge or release until room-reference realism, Block 12 temporal acceptance and final exact-head gates are satisfied.",
+    "Do not merge or release until room-reference reconstruction, Block 12 temporal acceptance and final exact-head gates are satisfied.",
     "Workflow SUCCESS is not visual acceptance.",
     "Keep the 12 original furniture GLBs immutable source-of-origin assets.",
-    "Preserve canonical Celine source/rig/identity, accepted camera/zoom, anchors/actions, lifecycle, voice/lip-sync and interactive 60,000 lm Lamp unless fresh independent evidence requires a bounded change.",
-    "Do not introduce a second room renderer or NavMesh/free navigation during v80."
+    "Derived runtime room geometry and furniture position/rotation/scale may change when required by measured reference evidence.",
+    "Preserve canonical Celine source/rig/identity and unrelated voice/lifecycle/animation-owner systems unless fresh independent evidence requires a bounded change.",
+    "Do not introduce a second room renderer or NavMesh/free navigation during v80.",
+    "No recognizable reference mismatch may be silently accepted as good enough; correct it or document exact immutable technical evidence for the limit."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "room-reference-realism-window-after-proof-71",
+    "current_substep": "room-full-measured-reconstruction-M0",
     "next_substep_after_reference_acceptance": "block12-final-temporal-acceptance-on-final-room-runtime",
     "next_substep_after_block12_acceptance": "final-exact-head-gates",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md"
