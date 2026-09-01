@@ -1,91 +1,117 @@
-# v80 Room Reference Realism Plan
+# v80 Room Reference Reconstruction Contract
 
-## Purpose
+## Authority and user acceptance
 
-This is the execution contract for finishing the v80 room so that the production HOME/CALL scene is recognizably aligned with the exact canonical reference `/Refernzbild.png` and reads as a believable warm bedroom rather than a flat 3D set.
+`/Refernzbild.png` is the exact visual authority for the finished production room. The current room layout/proportions have been user-rejected and the previous lighting/window-first polish strategy is superseded by this reconstruction contract.
 
-The exact pixels of `/Refernzbild.png` remain the visual authority. This plan supplements, and does not replace, `ROOM_VISUAL_TARGET_REFERENCE.md`, the active v80 work order/amendment, `AGENTS.md`, the Queue, or Live GitHub.
+The room is **not accepted** while a relevant visible difference remains in room geometry, perspective, furniture scale, placement, rotation, spacing, framing/composition, materials, lighting, shadows, window treatment, or other visible detail. “Close enough”, “looks better”, partial criterion PASS, or green CI do not constitute whole-scene acceptance.
 
-## Why this plan exists
+The target is zero recognizable deviation from the reference to the maximum technically attainable extent with the canonical source assets and renderer. If a remaining deviation cannot be removed because of a genuinely immutable source/renderer limitation, the exact limitation must be demonstrated and documented; it must never be silently accepted.
 
-The current production room already has the correct high-level composition ingredients: foreground table crop, central Celine, window depth, lounge chair on the left, bed mass on the right, warm shell, floor, lamp, anchors and room actions. However, the latest inspected Block-12 HOME evidence still reads too flat, bright and game-like compared with the reference. The largest remaining gap is lighting/material realism, not missing room topology.
+## Why the previous plan is invalid
 
-The previous Candidate #12 ceiling and Candidate #13 floor acceptances were bounded criterion passes only. They did not claim whole-reference realism.
+Latest inspected HOME evidence proves the problem is not merely lighting/material response. The scene differs materially in proportions and composition, including furniture apparent dimensions/spacing and overall room layout. Therefore further isolated curtain/window/light polish on the existing geometry is not the priority.
 
-## Incorporated prior research
+Any older statement that the current room topology/transforms are already broadly correct, or that lighting/materials must be exhausted before geometry/camera adjustment, is superseded by this file.
 
-The earlier Grok-derived room research remains useful only as architectural/visual guidance where it agrees with live runtime evidence:
+## Protected source-of-origin assets
 
-- keep one real Filament world rather than stacking a second backdrop;
-- keep Canonical Celine separate;
-- keep camera/dolly semantics, pose ownership, anchors/actions and speech/lip-sync ownership outside the room renderer;
-- prefer warm practical/local illumination and believable depth instead of global brightening;
-- use the existing Ubershader/material infrastructure rather than introducing a parallel renderer;
-- make small evidence-backed visual changes and inspect real production-equivalent frames after each one.
+- Keep the 12 original furniture GLBs byte-identical as immutable source-of-origin assets.
+- Keep canonical Celine source/model/rig/identity protected unless fresh independent evidence specifically requires a bounded change.
+- Do not alter unrelated voice, lip-sync, lifecycle, animation-owner or launcher behavior for this room reconstruction.
+- No second renderer and no NavMesh/free-roam work.
 
-Do not copy old Grok code sketches verbatim. Live repository code and current Filament APIs are authoritative.
+These protections do **not** prohibit derived runtime room assembly changes. To reproduce the reference, derived runtime room geometry and furniture transforms may be changed, including position, rotation and scale, with anchors/actions reconciled after geometry settles.
 
-## Protected invariants
+## Mandatory reconstruction measurement contract
 
-Unless new independent evidence proves one of these is itself the cause, do not change during this realism pass:
+Before further aesthetic polish, compare the exact canonical reference and the latest production HOME proof in the same normalized image coordinate system. Record reproducible target measurements rather than working from memory or visual guesswork.
 
-- Canonical Celine source/model/rig/morph identity;
-- Celine root scale;
-- accepted camera/zoom/dolly semantics and close-up behavior;
-- room GLB bytes, room geometry and existing room/furniture transforms;
-- the 12 immutable original furniture GLBs;
-- accepted world anchors/navigation/action chains;
-- accepted 60,000 lm interactive floor-lamp behavior;
-- animation/presence ownership, blink, PCM lip sync, speech and lifecycle systems;
-- no laptop in the visible viewer scene;
-- no NavMesh/free-roam work.
+At minimum measure and track:
 
-## Visual diagnosis from current production evidence vs canonical reference
+- viewport/reference width and height;
+- visible wall/floor/ceiling boundaries and major vanishing/perspective lines;
+- window opening, frame, curtain/sheers and their visible extents;
+- bed outer bounding box, head/foot orientation, height, width and depth appearance;
+- each visible bedside cabinet/dresser/nightstand bounding box, orientation and gap to bed/walls;
+- lounge chair/other furniture bounding boxes and orientation;
+- rug/carpet extents;
+- foreground table/crop if visible in the target;
+- lamp and other major fixtures;
+- Celine placement only as needed to preserve the production composition while reconstructing the room;
+- inter-object gaps expressed both in pixels and as normalized fractions of viewport width/height.
 
-Priority order is based on the latest inspected production HOME frame and the exact reference image:
+For each major object store: target `x/y/w/h`, center, orientation, nearest relevant gaps, current proof values, delta, and whether the mismatch is caused by geometry/transform, camera/perspective, material, or lighting.
 
-1. **Global light character is the largest mismatch.** Current room is broadly/flatly lit. Reference is warm evening light with localized falloff and darker corners.
-2. **Wall/ceiling/furniture tonal separation is too weak.** Current shell reads as broad flat color fields. Reference has warm beige walls, coherent ceiling, soft gradients and practical-light pools.
-3. **Furniture/material response is too matte/flat under the current global light.** Texture detail exists but is visually washed into broad brown/cream masses.
-4. **Depth cues are weaker than the reference.** The composition is already broadly correct; improve depth first through light/material response before considering any camera or transform change.
-5. **Only after lighting/material passes are exhausted** may a later explicitly authorized pass consider a bounded framing adjustment. Never use framing as a shortcut for a lighting defect.
+Create/update a durable measurement table in the repository as reconstruction proceeds so every later worker uses the same target values. Do not reset measurements by eye on each run.
 
-## Ordered execution phases
+## Ordered execution — strict
 
-### R1 — Global warm-evening key correction
+### Phase M0 — Establish measured baseline
 
-Change only the shared production directional-light color/intensity in `Celine3DView` toward a softer approximately 2700 K warm-white key and reduce the present studio-like intensity. Preserve camera exposure, indirect light, room materials, geometry and all Celine systems.
+1. Fresh-reconcile live PR/head and obtain the exact latest HOME proof.
+2. Compare it directly with `/Refernzbild.png`.
+3. Produce the normalized measurement table and rank mismatches by visual magnitude.
+4. Do not make another curtain/light/material tweak before this baseline exists.
 
-Acceptance: HOME/CALL/HOME remain stable; Celine remains readable; room becomes warmer and less flat/overlit without turning orange or crushing detail.
+Docs/measurement-only work requires no Android build.
 
-### R2 — Warm indirect-room fill
+### Phase M1 — Room shell, perspective and composition foundation
 
-Only if R1 evidence confirms the key improved but the shell remains flat/cold, tune the existing indirect irradiance color/intensity toward a restrained warm-beige fill. Do not add a new light system.
+Correct the largest structural mismatch first: room visible proportions, wall/floor/ceiling relationships, perspective and camera/FOV/target/composition as required by evidence.
 
-Acceptance: ceiling/walls receive soft warm fill and darker corners remain plausible; Celine skin is not over-warmed.
+The goal is that the same architectural boundaries land at the same normalized image coordinates as the reference.
 
-### R3 — Practical/local light pools
+### Phase M2 — Furniture transform reconstruction
 
-Only if R1/R2 still lack reference depth, add the smallest room-owned always-on warm practical light(s) tied to visible fixtures, separate from and without modifying the accepted interactive 60,000 lm floor-lamp toggle.
+For every visible furniture asset, match apparent dimensions, orientation and placement to the measured target. Work from largest/most composition-defining object to smallest, normally bed first and then adjacent cabinets/nightstands, followed by remaining visible furniture.
 
-Acceptance: visible local falloff/depth without blown walls, duplicate lighting or camera changes.
+The original GLB files remain untouched. Modify only derived runtime transform/assembly where possible.
 
-### R4 — Material-response refinement
+Do not accept a furniture object merely because it is the correct source model; its rendered scale, orientation and location must match the reference.
 
-Only after lighting is stable, adjust room-owned shell/furniture material response where exact evidence shows a mismatch. Candidate #12 ceiling and #13 floor remain the baseline; do not reopen them without a specific reference mismatch.
+### Phase M3 — Reconcile interactions after geometry settles
 
-### R5 — Final reference composition check
+After structural/furniture transforms converge, reconcile any affected anchors/actions/destinations against the final geometry. Do not distort room reconstruction just to preserve an old anchor coordinate.
 
-Compare actual HOME/CALL/HOME evidence with `/Refernzbild.png`. Only if lighting/material changes cannot solve a remaining composition mismatch may a later worker propose one bounded camera/framing change, explicitly documenting why it is necessary and which accepted camera behaviors must remain invariant.
+### Phase M4 — Materials and textures
 
-## Validation loop
+Only after geometry/layout/composition are visually aligned, correct material/texture response against the reference.
 
-For every R-phase candidate:
+### Phase M5 — Lighting and shadows
 
-`fresh reconcile -> one bounded runtime change -> exactly one Android build -> one targeted Room Visual Polish proof -> inspect actual HOME/CALL/HOME images against /Refernzbild.png -> PASS/FAIL -> record result -> next phase only if evidence justifies it`
+Then match overall light direction, warmth, intensity, practical pools, falloff, shadows and depth cues. Do not use lighting to conceal a wrong object size or placement.
 
-Workflow success is structural only. Visual acceptance always requires image inspection.
+### Phase M6 — Window, curtains and final detail
+
+Only after the full room foundation matches, finish curtain/sheers/window depth and small details. Previous derived window experiments are historical evidence only; preserve or remove them based on the final measured reference result, not because they previously received a partial criterion PASS.
+
+## Iteration and proof discipline
+
+Use the `AGENTS.md` Efficiency Fast Path.
+
+For each bounded runtime visual change:
+
+`fresh reconcile -> select largest measured remaining mismatch -> one bounded change -> one required Android build if runtime fingerprint changed -> one smallest relevant room proof -> inspect real HOME evidence -> compare against reference/measurement table -> record deltas -> next largest mismatch`
+
+Do not stack speculative fixes before inspecting the previous proof. Do not run the full final suite during reconstruction iteration.
+
+Where tooling permits, use overlay/difference/edge or normalized-coordinate comparison in addition to manual inspection. Automated metrics supplement but never replace manual visual comparison.
+
+## Acceptance rule
+
+Whole-scene HOME acceptance requires that no relevant recognizable mismatch remains versus `/Refernzbild.png` in:
+
+- architecture/perspective;
+- furniture dimensions/scale;
+- furniture position/rotation/spacing;
+- camera composition;
+- materials/textures;
+- lighting/shadows;
+- window/curtains/detail.
+
+Any remaining meaningful visual difference is FAIL until corrected or proven to be an unavoidable immutable technical limit. Only after HOME whole-reference reconstruction is accepted may Block 12 temporal acceptance resume on the final room runtime, followed by final exact-head gates.
 
 ## Current exact next action
 
-Execute **R1 only**: soften and warm the existing shared directional key in `Celine3DView`, then run exactly one Android build and one targeted Room Visual Polish proof. Inspect the real images against `/Refernzbild.png` before deciding whether R2 is justified.
+Stop the old window-detail iteration. Fresh-reconcile PR #111 and the latest room proof, then perform **Phase M0 only**: measure `/Refernzbild.png` against the latest HOME proof and commit a reproducible normalized reconstruction measurement table/contract identifying the largest geometry/layout/proportion/camera mismatches. No runtime change and no Android build are needed for this measurement-only step. The first runtime reconstruction change must then address the single largest measured structural mismatch, not another lighting/window cosmetic tweak.
