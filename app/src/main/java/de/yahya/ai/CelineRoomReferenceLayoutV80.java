@@ -12,17 +12,19 @@ import java.util.WeakHashMap;
 /**
  * Bounded v80 reference-image layout correction.
  *
- * The foreground-table correction keeps only the near table edge/surface in the product frame.
- * Direct manual inspection of the canonical /Refernzbild.png now also proves a larger geometry gap:
- * the bed must read as the major right-side room mass with its upper/headboard region visible, while
- * the previous runtime left only a small lower-right bed fragment in frame. Keep the source GLB
- * immutable and move only the derived runtime bed node 0.45 m left in parent/world-room X. Embedded
- * bed marker nodes, when present, receive the same delta so the GLB remains internally coherent;
- * logical 9R metadata remains pending until this visual geometry candidate is accepted.
+ * M1 established the closest stable HOME camera foundation against /Refernzbild.png. M2 now changes
+ * only measured furniture placement while keeping source GLB bytes immutable. The foreground table
+ * keeps its accepted forward correction and the bed keeps its existing left correction. Proof #85
+ * measures the lounge chair around normalized x~0.08..0.24 while the reference target is x~0.21..0.33.
+ * With the current fixed M1 camera, that ~0.12-frame horizontal error corresponds to about +0.65 m in
+ * parent room X. Move only the derived lounge-chair node and its two embedded chair marker nodes by
+ * that amount. Depth/scale/rotation remain unchanged until this isolated horizontal correction is
+ * visually measured. Logical 9R metadata remains pending until M2 geometry is accepted.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float BED_X_OFFSET_M = -0.45f;
+    static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -30,6 +32,11 @@ final class CelineRoomReferenceLayoutV80 {
             "bed_relax_anchor",
             "bed_lie_anchor",
             "bed_exit_anchor"
+    };
+
+    private static final String[] CHAIR_MARKER_NODES = {
+            "chair_approach_anchor",
+            "chair_sit_anchor"
     };
 
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED =
@@ -72,12 +79,24 @@ final class CelineRoomReferenceLayoutV80 {
                 }
             }
 
+            translateParentLocal(asset, transforms,
+                    "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0.0f, 0.0f, true);
+            int movedChairMarkers = 0;
+            for (String marker : CHAIR_MARKER_NODES) {
+                if (translateParentLocal(asset, transforms,
+                        marker, LOUNGE_CHAIR_X_OFFSET_M, 0.0f, 0.0f, false)) {
+                    movedChairMarkers++;
+                }
+            }
+
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
                     "tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
                             + "m bedX=" + BED_X_OFFSET_M + "m"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
+                            + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
+                            + " chairMarkerNodesMoved=" + movedChairMarkers
                             + " sourceGLB=unchanged camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
         } catch (Throwable error) {
