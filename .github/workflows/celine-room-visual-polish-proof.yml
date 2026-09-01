@@ -57,6 +57,14 @@ jobs:
             "$TARGET_SHA" "$SOURCE_SHA" "$RUNTIME_FP" "$RUN_ID" \
             | tee room-polish-proof/runtime-source.txt
 
+      - name: Export canonical room reference for measured comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Refernzbild.png
+          cp Refernzbild.png room-polish-proof/reference.png
+          sha256sum room-polish-proof/reference.png | tee room-polish-proof/reference.sha256
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
