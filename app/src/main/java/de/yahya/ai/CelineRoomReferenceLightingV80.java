@@ -28,8 +28,9 @@ import java.util.WeakHashMap;
  *
  * Proof #52 showed that pushing the directional key all the way to neutral white did not remove Celine's
  * brown/orange appearance. Proof #54 then preserved the loaded source PBR response but still showed the
- * warm cast isolated on Celine. Keep the accepted room lighting unchanged and apply one bounded cool-neutral
- * base-color multiplier to Celine's runtime material instances only; source GLB bytes and rig stay untouched.
+ * warm cast isolated on Celine. Proof #55 moved the cast in the right direction but CALL remained visibly
+ * red/brown and still failed detail diversity at 44 effective colors. Keep the accepted room lighting
+ * unchanged and strengthen only the bounded cool-neutral Celine multiplier; source GLB bytes and rig stay untouched.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -48,8 +49,8 @@ final class CelineRoomReferenceLightingV80 {
     private static final float WINDOW_GREEN = 0.84f;
     private static final float WINDOW_BLUE = 0.80f;
 
-    private static final float CELINE_TONE_RED = 0.90f;
-    private static final float CELINE_TONE_GREEN = 0.97f;
+    private static final float CELINE_TONE_RED = 0.84f;
+    private static final float CELINE_TONE_GREEN = 0.99f;
     private static final float CELINE_TONE_BLUE = 1.00f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
