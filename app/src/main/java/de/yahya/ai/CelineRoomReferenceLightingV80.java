@@ -26,11 +26,11 @@ import java.util.WeakHashMap;
  * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * Proof #48 confirms 8000 indirect restores structural HOME/CALL/HOME diversity after the 6500 fail,
- * but manual inspection still shows the large window/drape asset as a nearly white flat rectangle
- * directly behind Celine. APK GLB inspection proves room_window_drapes owns its own single material,
- * so this bounded pass changes only that material's base-color multiplier to a restrained warm taupe.
- * Geometry, textures, lighting levels, camera, Celine and every other room material remain fixed.
+ * Proof #49 confirmed that the first window-depth multiplier (0.78/0.72/0.66) crushed too much fabric
+ * detail in CALL: the real-render guard fell to only 43 effective colors and the backdrop became broad
+ * dark-taupe/white fields. Keep all lighting, geometry, camera, Celine and other materials fixed; this
+ * bounded repair lifts only that window/drape multiplier toward a restrained warm-neutral midpoint so
+ * the backdrop retains depth without erasing texture/detail.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
@@ -45,9 +45,9 @@ final class CelineRoomReferenceLightingV80 {
     private static final float CEILING_ROUGHNESS = 0.92f;
     private static final float CEILING_REFLECTANCE = 0.38f;
 
-    private static final float WINDOW_RED = 0.78f;
-    private static final float WINDOW_GREEN = 0.72f;
-    private static final float WINDOW_BLUE = 0.66f;
+    private static final float WINDOW_RED = 0.88f;
+    private static final float WINDOW_GREEN = 0.84f;
+    private static final float WINDOW_BLUE = 0.80f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
@@ -113,7 +113,7 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum window-depth aktiv",
+                    "Referenzraum window-depth-soft aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
@@ -123,7 +123,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " · geometry/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum window-depth FEHLER", error);
+                    "Referenzraum window-depth-soft FEHLER", error);
         }
     }
 
