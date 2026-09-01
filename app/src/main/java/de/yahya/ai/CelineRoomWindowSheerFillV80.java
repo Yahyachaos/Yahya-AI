@@ -27,13 +27,14 @@ import java.util.WeakHashMap;
  * Proof #69 confirms the broad side masses are a useful improvement, but the middle still reads as
  * an exposed dark opening with ragged source strips. Refernzbild.png instead shows two smooth light
  * sheer panels over the night window. Keep the accepted night backing and side fills unchanged and add
- * only two warm-cream central panels behind the immutable source drape detail, preserving a narrow dark
- * center seam for depth. No Celine, camera, anchors, furniture transforms or source GLB bytes change.
+ * only two warm-cream central panels behind the immutable source drape detail, preserving visible dark
+ * night depth between and around them. No Celine, camera, anchors, furniture transforms or source GLB
+ * bytes change.
  */
 final class CelineRoomWindowSheerFillV80 {
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.730f;
-    private static final float HALF_WIDTH = 0.25f;
+    private static final float HALF_WIDTH = 0.18f;
     private static final float HALF_HEIGHT = 1.06f;
     private static final float LEFT_CENTER_X = 0.18f;
     private static final float RIGHT_CENTER_X = 0.72f;
@@ -102,11 +103,11 @@ final class CelineRoomWindowSheerFillV80 {
             State state = new State(scene, entities, material, vertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-146",
-                    "Helle zentrale Gardinen-Füllflächen aktiv",
+                    "Schmalere zentrale Gardinen-Füllflächen aktiv",
                     "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
                             + " y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · narrow night seam/source drapes preserved"
+                            + " · more night depth/source drapes preserved"
                             + " · source GLB/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
