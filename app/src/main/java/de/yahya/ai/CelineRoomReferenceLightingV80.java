@@ -26,16 +26,16 @@ import java.util.WeakHashMap;
  * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
  * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
  *
- * Proof #49 confirmed that the first window-depth multiplier (0.78/0.72/0.66) crushed too much fabric
- * detail in CALL: the real-render guard fell to only 43 effective colors and the backdrop became broad
- * dark-taupe/white fields. Keep all lighting, geometry, camera, Celine and other materials fixed; this
- * bounded repair lifts only that window/drape multiplier toward a restrained warm-neutral midpoint so
- * the backdrop retains depth without erasing texture/detail.
+ * Proof #50 confirms the softened window multiplier restores structural HOME/CALL/HOME diversity and
+ * preserves backdrop detail. Manual CALL inspection still shows Celine's skin, hair and top under a
+ * strong brown/orange cast versus the warm-but-not-orange reference. Keep key intensity, indirect fill,
+ * practical, window/ceiling materials, geometry, camera and Celine fixed; change only the directional
+ * key chromaticity one restrained step toward warm-neutral white.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float KEY_RED = 1.00f;
-    private static final float KEY_GREEN = 0.90f;
-    private static final float KEY_BLUE = 0.82f;
+    private static final float KEY_GREEN = 0.95f;
+    private static final float KEY_BLUE = 0.90f;
     private static final float KEY_LUX = 5000.0f;
     private static final float INDIRECT_LUX = 8000.0f;
 
@@ -113,7 +113,7 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum window-depth-soft aktiv",
+                    "Referenzraum warm-neutral-key aktiv",
                     "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
                             + " keyIntensity=" + KEY_LUX + " shadows=true"
                             + " indirectIntensity=" + INDIRECT_LUX
@@ -123,7 +123,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " · geometry/camera/Celine/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
-                    "Referenzraum window-depth-soft FEHLER", error);
+                    "Referenzraum warm-neutral-key FEHLER", error);
         }
     }
 
