@@ -46,9 +46,13 @@ final class CelineRoomReferenceLightingV80 {
     private static final float CEILING_ROUGHNESS = 0.92f;
     private static final float CEILING_REFLECTANCE = 0.38f;
 
-    private static final float WINDOW_RED = 0.88f;
-    private static final float WINDOW_GREEN = 0.84f;
-    private static final float WINDOW_BLUE = 0.80f;
+    // Proof #57 restored the canonical Celine atlas and showed that preserving source texture detail
+    // is preferable to broad color overrides. Apply the same bounded principle to the one-primitive
+    // window/drape asset: keep its loaded source PBR/base-color response instead of multiplying it by
+    // the older warm-dark factor that now reads patchy/washed against the room reference.
+    private static final float WINDOW_RED = 1.00f;
+    private static final float WINDOW_GREEN = 1.00f;
+    private static final float WINDOW_BLUE = 1.00f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
