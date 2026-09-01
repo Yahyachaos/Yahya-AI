@@ -28,10 +28,14 @@ import java.util.WeakHashMap;
  * Proof #91 on exact runtime 48ac963d confirms the dresser depth move restores the missing low-left
  * cabinet at the correct depth family. HOME is valid (std=55.80, colors=90); the proof fails only later
  * at the known CALL diversity gate. Manual normalized HOME measurement gives dresser visible width
- * ~0.124 versus reference ~0.180 while its height/depth placement are already much closer. Preserve the
- * accepted -2.25 m Z correction and widen only local dresser X by 1.45. Keep dresser Y/Z scale,
- * parent X/Y, rotation and source GLB unchanged. Logical interaction metadata remains M3 after visual
- * geometry settles.
+ * ~0.124 versus reference ~0.180 while its height/depth placement are already much closer.
+ *
+ * Proof #93 on d464cb7 disproves the first X-only width hypothesis: local X scaling did not increase the
+ * visible horizontal span. The packaged canonical assembly contract provides the exact reason:
+ * room_dresser has rotation_y_deg=90, so the dresser's visible/world-X width lies on its local Z axis.
+ * Preserve the accepted -2.25 m Z translation, return local X/Y to 1.0 and widen only local Z by 1.45.
+ * Parent X/Y, rotation, source GLB and the visual depth marker remain unchanged. Logical interaction
+ * metadata remains M3 after visual geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -43,7 +47,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FLOOR_LAMP_SCALE_XZ_FACTOR = 0.34f;
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
     static final float DRESSER_Z_OFFSET_M = -2.25f;
-    static final float DRESSER_SCALE_X_FACTOR = 1.45f;
+    static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -123,7 +127,7 @@ final class CelineRoomReferenceLayoutV80 {
             translateParentLocal(asset, transforms,
                     "room_dresser", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, true);
             scaleLocalXyz(asset, transforms, "room_dresser",
-                    DRESSER_SCALE_X_FACTOR, 1.0f, 1.0f, true);
+                    1.0f, 1.0f, DRESSER_SCALE_Z_FACTOR, true);
             boolean movedDresserMarker = translateParentLocal(asset, transforms,
                     "dresser_anchor", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, false);
 
@@ -142,7 +146,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
                             + " lampMarkerMoved=" + movedLampMarker
                             + " dresserZ=" + DRESSER_Z_OFFSET_M + "m"
-                            + " dresserScaleXYZ=" + DRESSER_SCALE_X_FACTOR + ",1.0,1.0"
+                            + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
                             + " dresserMarkerMoved=" + movedDresserMarker
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
