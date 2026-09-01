@@ -12,15 +12,17 @@ import java.util.WeakHashMap;
 /**
  * Bounded v80 reference-image layout correction.
  *
- * The foreground-table correction keeps only the near table edge/surface in the product frame.
- * Direct manual inspection of the canonical /Refernzbild.png now also proves a larger geometry gap:
- * the bed must read as the major right-side room mass with its upper/headboard region visible, while
- * the previous runtime left only a small lower-right bed fragment in frame. Keep the source GLB
- * immutable and move only the derived runtime bed node 0.45 m left in parent/world-room X. Embedded
- * bed marker nodes, when present, receive the same delta so the GLB remains internally coherent;
- * logical 9R metadata remains pending until this visual geometry candidate is accepted.
+ * M0 measured the production HOME frame directly against /Refernzbild.png. The dominant structural
+ * mismatch is global rather than material-specific: the current wall/floor boundary sits at normalized
+ * y~0.828 while the target is y~0.490, and the bed/window/chair/rug are all roughly 0.29-0.37 viewport
+ * heights too low. Celine itself is already close to the target center, so moving the camera would damage
+ * the protected subject framing. M1 therefore raises only the derived room root as one bounded probe.
+ *
+ * Source GLB bytes remain immutable. Logical anchors/actions and the localized Lamp contract are not
+ * claimed reconciled by this visual candidate; M3 owns that reconciliation only after geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
+    static final float ROOM_ROOT_Y_OFFSET_M = 1.00f;
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float BED_X_OFFSET_M = -0.45f;
 
@@ -55,6 +57,9 @@ final class CelineRoomReferenceLayoutV80 {
                 if (APPLIED.get(view) == asset) return;
             }
 
+            translateEntity(transforms, asset.getRoot(),
+                    0.0f, ROOM_ROOT_Y_OFFSET_M, 0.0f, true, "room root");
+
             translateParentLocal(asset, transforms,
                     "room_foreground_table", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
             translateParentLocal(asset, transforms,
@@ -75,11 +80,12 @@ final class CelineRoomReferenceLayoutV80 {
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
-                    "tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
+                    "roomRootY=+" + ROOM_ROOT_Y_OFFSET_M
+                            + "m tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
                             + "m bedX=" + BED_X_OFFSET_M + "m"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " sourceGLB=unchanged camera/Celine=unchanged"
-                            + " logical9Rmetadata=pending_visual_acceptance");
+                            + " logicalAnchorsLamp=pending_M3_after_geometry");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
                     "Referenzraum Layout-Korrektur FEHLER", error);
@@ -108,10 +114,21 @@ final class CelineRoomReferenceLayoutV80 {
             }
             return false;
         }
+        return translateEntity(transforms, entity, deltaX, deltaY, deltaZ, required, entityName);
+    }
+
+    private static boolean translateEntity(
+            TransformManager transforms, int entity,
+            float deltaX, float deltaY, float deltaZ,
+            boolean required, String label) {
+        if (entity == 0) {
+            if (required) throw new IllegalStateException("Reference layout entity missing: " + label);
+            return false;
+        }
         int instance = transforms.getInstance(entity);
         if (instance == 0) {
             if (required) {
-                throw new IllegalStateException("Reference layout transform missing: " + entityName);
+                throw new IllegalStateException("Reference layout transform missing: " + label);
             }
             return false;
         }
