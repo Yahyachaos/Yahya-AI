@@ -12,13 +12,14 @@ import java.util.WeakHashMap;
  * y~0.49. A global room/root Y lift was disproven by direct proof. Proof #80 isolated a camera eye
  * above the room ceiling; proof #81 established a shell-safe eye; proof #82 reduced the horizon error
  * but left Celine oversized/clipped. Proof #83 with Z distance 5.15 m restores Celine fully and puts
- * her apparent width near the reference, while the remaining wall/floor boundary is roughly y~0.59.
- * Keep the proven eye height and 5.15 m apparent-scale solution, and lower only HOME target Y from
- * -0.30 to -0.45 as the smallest measured pitch step toward target y~0.49. CALL, room-root, furniture
- * transforms, materials, lighting and canonical Celine transforms remain untouched.
+ * her apparent width near the reference. Proof #84 on target Y -0.45 keeps Celine fully visible and
+ * moves the HOME wall/floor boundary to roughly y~0.53..0.54 while the target remains y~0.49. Preserve
+ * the proven eye height and 5.15 m apparent-scale solution and apply one same-size bounded pitch step,
+ * HOME target Y -0.45 -> -0.60, to close the remaining measured horizon delta. CALL, room-root,
+ * furniture transforms, materials, lighting and canonical Celine transforms remain untouched.
  */
 final class CelineReferenceHomeCameraV80 {
-    static final float HOME_TARGET_Y = -0.45f;
+    static final float HOME_TARGET_Y = -0.60f;
     static final float HOME_TARGET_Z = -4.0f;
     static final float HOME_EYE_Y_OFFSET_M = 1.05f;
     static final float HOME_EYE_Z_OFFSET_M = 5.15f;
@@ -88,13 +89,13 @@ final class CelineReferenceHomeCameraV80 {
             if (!logged) {
                 logged = true;
                 Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
-                        "M1 gemessene HOME-Kamera · Horizont-Korrektur aktiv",
+                        "M1 gemessene HOME-Kamera · finaler Horizont-Schritt aktiv",
                         "eye=0," + HOME_EYE_Y_OFFSET_M + ","
                                 + (HOME_TARGET_Z + HOME_EYE_Z_OFFSET_M)
                                 + " target=0," + HOME_TARGET_Y + "," + HOME_TARGET_Z
                                 + " zoom=" + zoom
                                 + " ceilingY=1.25 floorY=-1.55"
-                                + " source=proof83 horizon-delta"
+                                + " source=proof84 measured-horizon-delta"
                                 + " CALL=untouched roomRootLift=false");
             }
         }
