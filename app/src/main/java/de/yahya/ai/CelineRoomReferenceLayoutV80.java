@@ -12,60 +12,30 @@ import java.util.WeakHashMap;
 /**
  * Bounded v80 reference-image layout correction.
  *
- * M1 established the closest stable HOME camera foundation against /Refernzbild.png. M2 changes only
- * measured derived furniture transforms while keeping source GLB bytes immutable. Proof #85 measured
- * the lounge chair around normalized x~0.08..0.24 versus target x~0.21..0.33; Proof #86 confirms the
- * +0.65 m parent-X correction centers it near the reference, but the visible chair width is still about
- * 0.20 of the viewport versus a ~0.12 target. Proof #87 confirms the 0.60 local chair size correction
- * brings its X placement and apparent width close to the target, so those accepted values stay fixed.
+ * M1 established the stable HOME camera foundation. M2 changes only measured derived furniture
+ * transforms while keeping the 12 source GLBs immutable and canonical Celine separate.
  *
- * Proof #87 exposed the floor lamp as a huge clipped foreground object. Moving only its derived parent
- * depth by -3.35 m placed the assembly origin from z=+1.55 at z=-1.80. Proof #88 proved that depth
- * correction correct, Proof #89 established the measured non-uniform local size correction X/Z 0.34
- * and Y 0.54, and Proof #90 on exact runtime 7ccc32cc confirmed valid HOME while only the later CALL
- * diversity gate fails. The lamp is now close enough in size/X to freeze while larger M2 errors remain.
+ * Frozen measured placements:
+ * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38 (Proof #102 target family)
+ * - lounge chair: X +0.65 m, local scale 0.60
+ * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
+ * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
+ * - large plant: X +0.92 m
  *
- * Proof #91 on exact runtime 48ac963d confirms the dresser depth move restores the missing low-left
- * cabinet at the correct depth family. HOME is valid (std=55.80, colors=90); the proof fails only later
- * at the known CALL diversity gate. Manual normalized HOME measurement gives dresser visible width
- * ~0.124 versus reference ~0.180 while its height/depth placement are already much closer.
- *
- * Proof #93 on d464cb7 disproves the first X-only width hypothesis: local X scaling did not increase the
- * visible horizontal span. The packaged canonical assembly contract provides the exact reason:
- * room_dresser has rotation_y_deg=90, so the dresser's visible/world-X width lies on its local Z axis.
- * Preserve the accepted -2.25 m Z translation, return local X/Y to 1.0 and widen only local Z by 1.45.
- * Parent X/Y, rotation, source GLB and the visual depth marker remain unchanged. Logical interaction
- * metadata remains M3 after visual geometry settles.
- *
- * Proof #95 on exact head 02c8533a confirms the calibrated HOME->CALL->HOME proof is structurally green
- * and the dresser now spans approximately the target left-edge width family, so dresser is frozen. In
- * the same HOME frame the large plant has approximately target apparent size/height but is clipped hard
- * against the left viewport edge instead of occupying target normalized x~0.132..0.254. Proof #97 after
- * +0.65 m X moves it substantially toward target but leaves its horizontal span still about 0.05-0.06
- * viewport-width too far left. The same measured chair calibration implies ~+0.27 m additional X, so the
- * total bounded offset is refined to +0.92 m with Y/Z/scale/source bytes unchanged. Proof #99 confirms
- * that horizontal placement around x~0.13..0.24 is now in the target family, so plant X is frozen.
- *
- * Proof #99 exposed the foreground table as the next dominant mismatch. Proof #100 showed uniform 1.90
- * fixes width but over-expands visible lower-frame depth (~0.33 versus target ~0.24). Proof #101 on
- * X/Y/Z=1.90/1.00/1.38 keeps the width family but under-expands visible depth to ~0.13. Together with
- * Proof #99 baseline ~0.11 at source scale, these three measured points isolate local Y as the dominant
- * remaining projected-height contributor. Linear interpolation between the bounded measured states gives
- * Y~1.66 for target ~0.24 while retaining X=1.90 and Z=1.38. Proof #102 confirms the resulting table top
- * around normalized y~0.76 and visible height ~0.24, matching the target family, so the table is frozen.
- *
- * In the same Proof #102 HOME frame, the bed's visible left edge remains around x~0.63 versus reference
- * x~0.512. The already measured chair horizontal calibration maps roughly 0.65 m to ~0.12 normalized X;
- * therefore refine the total bed parent-X correction from -0.45 m to -1.05 m while preserving bed depth,
- * scale, rotation, source bytes, camera and every other frozen furniture transform. Bed markers follow the
- * same bounded X correction; later M3 still reconciles final interaction metadata after geometry settles.
+ * Bed calibration remains the active bounded M2 surface. Proof #102 showed bed left edge around
+ * normalized x~0.63 versus target x~0.512. The -1.05 m candidate in Proof #103 moved the visible
+ * left edge to roughly x~0.468 and right edge to ~0.949, proving the horizontal direction but
+ * overshooting left by ~0.044. Linear interpolation across the measured -0.60 m delta gives a
+ * target-family total parent-X correction of about -0.89 m. Only bed X and its temporary marker
+ * companions change here; bed Z/scale/rotation, camera, materials, lighting and all other furniture
+ * remain frozen until this candidate is proved.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float FOREGROUND_TABLE_SCALE_X_FACTOR = 1.90f;
     static final float FOREGROUND_TABLE_SCALE_Y_FACTOR = 1.66f;
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
-    static final float BED_X_OFFSET_M = -1.05f;
+    static final float BED_X_OFFSET_M = -0.89f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
