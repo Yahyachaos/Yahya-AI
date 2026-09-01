@@ -51,15 +51,21 @@ import java.util.WeakHashMap;
  * X/Y/Z=1.90/1.00/1.38 keeps the width family but under-expands visible depth to ~0.13. Together with
  * Proof #99 baseline ~0.11 at source scale, these three measured points isolate local Y as the dominant
  * remaining projected-height contributor. Linear interpolation between the bounded measured states gives
- * Y~1.66 for target ~0.24 while retaining X=1.90 and Z=1.38. Existing table Z offset/camera and all other
- * furniture remain fixed. Source Tischfürlaptop.glb bytes stay unchanged.
+ * Y~1.66 for target ~0.24 while retaining X=1.90 and Z=1.38. Proof #102 confirms the resulting table top
+ * around normalized y~0.76 and visible height ~0.24, matching the target family, so the table is frozen.
+ *
+ * In the same Proof #102 HOME frame, the bed's visible left edge remains around x~0.63 versus reference
+ * x~0.512. The already measured chair horizontal calibration maps roughly 0.65 m to ~0.12 normalized X;
+ * therefore refine the total bed parent-X correction from -0.45 m to -1.05 m while preserving bed depth,
+ * scale, rotation, source bytes, camera and every other frozen furniture transform. Bed markers follow the
+ * same bounded X correction; later M3 still reconciles final interaction metadata after geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float FOREGROUND_TABLE_SCALE_X_FACTOR = 1.90f;
     static final float FOREGROUND_TABLE_SCALE_Y_FACTOR = 1.66f;
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
-    static final float BED_X_OFFSET_M = -0.45f;
+    static final float BED_X_OFFSET_M = -1.05f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
