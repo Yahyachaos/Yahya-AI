@@ -89,6 +89,11 @@ final class CelineRoomWindowTextureV80 {
         } finally {
             bitmap.recycle();
         }
+
+        // Proof #64-#66 kept the exact same large gaps under radically different opaque atlases.
+        // They are therefore not base-color holes. Add one bounded derived night plane behind the
+        // immutable sparse drape mesh so those openings read as window depth instead of torn geometry.
+        CelineRoomWindowBackdropV80.apply(view, asset, engine);
     }
 
     private static Bitmap compressAtlasContrast(Bitmap source) {
@@ -121,6 +126,7 @@ final class CelineRoomWindowTextureV80 {
     }
 
     static void release(Celine3DView view, Engine engine) {
+        CelineRoomWindowBackdropV80.release(view, engine);
         Texture texture;
         synchronized (TEXTURES) { texture = TEXTURES.remove(view); }
         if (texture != null) {
