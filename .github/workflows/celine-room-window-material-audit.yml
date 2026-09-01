@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           python3 -m pip install --quiet pillow
           python3 <<'PY'
-          import io, struct, json
+          import base64, io, json, struct
           from pathlib import Path
           from PIL import Image
 
@@ -57,7 +57,8 @@ jobs:
           if doc is None or bin_payload is None:
               raise SystemExit('source GLB chunks missing')
           material = doc['materials'][0]
-          image_index = doc['textures'][material['pbrMetallicRoughness']['baseColorTexture']['index']]['source']
+          texture_index = material['pbrMetallicRoughness']['baseColorTexture']['index']
+          image_index = doc['textures'][texture_index]['source']
           image = doc['images'][image_index]
           view = doc['bufferViews'][image['bufferView']]
           start = int(view.get('byteOffset', 0))
@@ -65,173 +66,50 @@ jobs:
           bitmap = Image.open(io.BytesIO(bin_payload[start:start+length])).convert('RGB')
           if bitmap.size != (2048, 2048):
               raise SystemExit(f'unexpected source texture size {bitmap.size}')
+          bitmap = bitmap.resize((1024, 1024), Image.Resampling.LANCZOS)
 
-          # The immutable Meshy atlas has two dominant islands: clipped white and grey/taupe.
-          # Preserve every UV island and fine detail, but remap only its luminance/chroma into the
-          # warm cream / curtain-brown / dark-night range visible in Refernzbild.png. No geometry,
-          # UV, normal or metallic-roughness data is changed.
           px = bitmap.load()
+          anchors = ((0.00,(0.06,0.05,0.045)),(0.48,(0.16,0.12,0.09)),(0.62,(0.48,0.34,0.24)),(0.82,(0.72,0.60,0.46)),(1.00,(0.88,0.82,0.72)))
           for y in range(bitmap.height):
               for x in range(bitmap.width):
-                  r, g, b = px[x, y]
-                  lr, lg, lb = r/255.0, g/255.0, b/255.0
+                  r,g,b = px[x,y]
+                  lr,lg,lb = r/255.0,g/255.0,b/255.0
                   lum = 0.2126*lr + 0.7152*lg + 0.0722*lb
-                  anchors = (
-                      (0.00, (0.06, 0.05, 0.045)),
-                      (0.48, (0.16, 0.12, 0.09)),
-                      (0.62, (0.48, 0.34, 0.24)),
-                      (0.82, (0.72, 0.60, 0.46)),
-                      (1.00, (0.88, 0.82, 0.72)),
-                  )
                   for i in range(len(anchors)-1):
-                      x0, c0 = anchors[i]
-                      x1, c1 = anchors[i+1]
+                      x0,c0 = anchors[i]; x1,c1 = anchors[i+1]
                       if lum <= x1 or i == len(anchors)-2:
-                          t = max(0.0, min(1.0, (lum-x0)/(x1-x0)))
+                          t = max(0.0,min(1.0,(lum-x0)/(x1-x0)))
                           base = tuple(c0[j] + (c1[j]-c0[j])*t for j in range(3))
                           break
-                  detail = ((lr-lum)*0.12, (lg-lum)*0.12, (lb-lum)*0.12)
-                  out = [max(0.0, min(1.0, base[j]+detail[j])) for j in range(3)]
-                  px[x, y] = tuple(int(v*255+0.5) for v in out)
+                  detail = ((lr-lum)*0.12,(lg-lum)*0.12,(lb-lum)*0.12)
+                  out = [max(0.0,min(1.0,base[j]+detail[j])) for j in range(3)]
+                  px[x,y] = tuple(int(v*255+0.5) for v in out)
 
-          bitmap = bitmap.resize((1024, 1024), Image.Resampling.LANCZOS)
           texture_path = Path('app/src/main/assets/textures/room_window_drapes_reference.jpg')
           texture_path.parent.mkdir(parents=True, exist_ok=True)
           bitmap.save(texture_path, format='JPEG', quality=90, optimize=True)
 
-          helper = r'''package de.yahya.ai;
-
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-
-import com.google.android.filament.Colors;
-import com.google.android.filament.Engine;
-import com.google.android.filament.MaterialInstance;
-import com.google.android.filament.RenderableManager;
-import com.google.android.filament.Texture;
-import com.google.android.filament.TextureSampler;
-import com.google.android.filament.android.TextureHelper;
-import com.google.android.filament.gltfio.FilamentAsset;
-
-import java.io.InputStream;
-import java.util.WeakHashMap;
-
-/**
- * v80 bounded derived-material owner for the single room_window_drapes primitive.
- *
- * The immutable Fenstermitgardinen.glb and the optimized room GLB both carry the same high-contrast,
- * patchy white/taupe Meshy base-color atlas. Reference-room evidence shows that preserving that atlas
- * verbatim cannot produce the warm cream sheers, brown curtains and dark night separation required by
- * Refernzbild.png. This owner binds only a derived color-balanced copy that preserves the original UV
- * islands. Geometry, UVs, normal map, metallic/roughness map and immutable source bytes stay unchanged.
- */
-final class CelineRoomWindowTextureV80 {
-    private static final String TEXTURE_ASSET = "textures/room_window_drapes_reference.jpg";
-    private static final WeakHashMap<Celine3DView, Texture> TEXTURES = new WeakHashMap<>();
-
-    private CelineRoomWindowTextureV80() {}
-
-    static void apply(Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
-        int entity = asset.getFirstEntityByName("room_window_drapes");
-        if (entity == 0) throw new IllegalStateException("window entity fehlt");
-        RenderableManager manager = engine.getRenderableManager();
-        int renderable = manager.getInstance(entity);
-        if (renderable == 0 || manager.getPrimitiveCount(renderable) != 1) {
-            throw new IllegalStateException("window renderable/primitive ungültig");
-        }
-        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
-        if (material == null || !material.getMaterial().hasParameter("baseColorMap")) {
-            throw new IllegalStateException("window baseColorMap fehlt");
-        }
-
-        synchronized (TEXTURES) {
-            Texture previous = TEXTURES.remove(view);
-            if (previous != null) {
-                try { engine.destroyTexture(previous); } catch (Throwable ignored) {}
-            }
-        }
-
-        Bitmap bitmap;
-        try (InputStream input = view.getContext().getAssets().open(TEXTURE_ASSET)) {
-            bitmap = BitmapFactory.decodeStream(input);
-        }
-        if (bitmap == null) throw new IllegalStateException("window reference texture decode fehlgeschlagen");
-        if (bitmap.getConfig() == Bitmap.Config.HARDWARE) {
-            Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
-            bitmap.recycle();
-            bitmap = copy;
-        }
-
-        Texture texture = new Texture.Builder()
-                .width(bitmap.getWidth())
-                .height(bitmap.getHeight())
-                .levels(1)
-                .sampler(Texture.Sampler.SAMPLER_2D)
-                .format(Texture.InternalFormat.SRGB8_A8)
-                .build(engine);
-        try {
-            TextureHelper.setBitmap(engine, texture, 0, bitmap);
-            engine.flushAndWait();
-            TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
-                    TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.REPEAT);
-            material.setParameter("baseColorMap", texture, sampler);
-            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR, 1f, 1f, 1f, 1f);
-            synchronized (TEXTURES) { TEXTURES.put(view, texture); }
-        } catch (Throwable error) {
-            try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
-            throw error;
-        } finally {
-            bitmap.recycle();
-        }
-    }
-
-    static void release(Celine3DView view, Engine engine) {
-        Texture texture;
-        synchronized (TEXTURES) { texture = TEXTURES.remove(view); }
-        if (texture != null) {
-            try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
-        }
-    }
-}
-'''
+          helper_b64 = 'cGFja2FnZSBkZS55YWh5YS5haTsKCmltcG9ydCBhbmRyb2lkLmdyYXBoaWNzLkJpdG1hcDsKaW1wb3J0IGFuZHJvaWQuZ3JhcGhpY3MuQml0bWFwRmFjdG9yeTsKCmltcG9ydCBjb20uZ29vZ2xlLmFuZHJvaWQuZmlsYW1lbnQuQ29sb3JzOwppbXBvcnQgY29tLmdvb2dsZS5hbmRyb2lkLmZpbGFtZW50LkVuZ2luZTsKaW1wb3J0IGNvbS5nb29nbGUuYW5kcm9pZC5maWxhbWVudC5NYXRlcmlhbEluc3RhbmNlOwppbXBvcnQgY29tLmdvb2dsZS5hbmRyb2lkLmZpbGFtZW50LlJlbmRlcmFibGVNYW5hZ2VyOwppbXBvcnQgY29tLmdvb2dsZS5hbmRyb2lkLmZpbGFtZW50LlRleHR1cmU7CmltcG9ydCBjb20uZ29vZ2xlLmFuZHJvaWQuZmlsYW1lbnQuVGV4dHVyZVNhbXBsZXI7CmltcG9ydCBjb20uZ29vZ2xlLmFuZHJvaWQuZmlsYW1lbnQuYW5kcm9pZC5UZXh0dXJlSGVscGVyOwppbXBvcnQgY29tLmdvb2dsZS5hbmRyb2lkLmZpbGFtZW50LmdsdGZpby5GaWxhbWVudEFzc2V0OwoKaW1wb3J0IGphdmEuaW8uSW5wdXRTdHJlYW07CmltcG9ydCBqYXZhLnV0aWwuV2Vha0hhc2hNYXA7CgovKioKICogdjgwIGJvdW5kZWQgZGVyaXZlZC1tYXRlcmlhbCBvd25lciBmb3IgdGhlIHNpbmdsZSByb29tX3dpbmRvd19kcmFwZXMgcHJpbWl0aXZlLgogKgogKiBUaGUgaW1tdXRhYmxlIEZlbnN0ZXJtaXRnYXJkaW5lbi5nbGIgYW5kIHRoZSBvcHRpbWl6ZWQgcm9vbSBHTEIgYm90aCBjYXJyeSB0aGUgc2FtZSBoaWdoLWNvbnRyYXN0LAogKiBwYXRjaHkgd2hpdGUvdGF1cGUgTWVzaHkgYmFzZS1jb2xvciBhdGxhcy4gUmVmZXJlbmNlLXJvb20gZXZpZGVuY2Ugc2hvd3MgdGhhdCBwcmVzZXJ2aW5nIHRoYXQgYXRsYXMKICogdmVyYmF0aW0gY2Fubm90IHByb2R1Y2UgdGhlIHdhcm0gY3JlYW0gc2hlZXJzLCBicm93biBjdXJ0YWlucyBhbmQgZGFyayBuaWdodCBzZXBhcmF0aW9uIHJlcXVpcmVkIGJ5CiAqIFJlZmVybnpiaWxkLnBuZy4gVGhpcyBvd25lciBiaW5kcyBvbmx5IGEgZGVyaXZlZCBjb2xvci1iYWxhbmNlZCBjb3B5IHRoYXQgcHJlc2VydmVzIHRoZSBvcmlnaW5hbCBVVgogKiBpc2xhbmRzLiBHZW9tZXRyeSwgVVZzLCBub3JtYWwgbWFwLCBtZXRhbGxpYy9yb3VnaG5lc3MgbWFwIGFuZCBpbW11dGFibGUgc291cmNlIGJ5dGVzIHN0YXkgdW5jaGFuZ2VkLgogKi8KZmluYWwgY2xhc3MgQ2VsaW5lUm9vbVdpbmRvd1RleHR1cmVWODAgewogICAgcHJpdmF0ZSBzdGF0aWMgZmluYWwgU3RyaW5nIFRFWFRVUkVfQVNTRVQgPSAidGV4dHVyZXMvcm9vbV93aW5kb3dfZHJhcGVzX3JlZmVyZW5jZS5qcGciOwogICAgcHJpdmF0ZSBzdGF0aWMgZmluYWwgV2Vha0hhc2hNYXA8Q2VsaW5lM0RWaWV3LCBUZXh0dXJlPiBURVhUVVJFUyA9IG5ldyBXZWFrSGFzaE1hcDw+KCk7CgogICAgcHJpdmF0ZSBDZWxpbmVSb29tV2luZG93VGV4dHVyZVY4MCgpIHt9CgogICAgc3RhdGljIHZvaWQgYXBwbHkoQ2VsaW5lM0RWaWV3IHZpZXcsIEZpbGFtZW50QXNzZXQgYXNzZXQsIEVuZ2luZSBlbmdpbmUpIHRocm93cyBFeGNlcHRpb24gewogICAgICAgIGludCBlbnRpdHkgPSBhc3NldC5nZXRGaXJzdEVudGl0eUJ5TmFtZSgicm9vbV93aW5kb3dfZHJhcGVzIik7CiAgICAgICAgaWYgKGVudGl0eSA9PSAwKSB0aHJvdyBuZXcgSWxsZWdhbFN0YXRlRXhjZXB0aW9uKCJ3aW5kb3cgZW50aXR5IGZlaGx0Iik7CiAgICAgICAgUmVuZGVyYWJsZU1hbmFnZXIgbWFuYWdlciA9IGVuZ2luZS5nZXRSZW5kZXJhYmxlTWFuYWdlcigpOwogICAgICAgIGludCByZW5kZXJhYmxlID0gbWFuYWdlci5nZXRJbnN0YW5jZShlbnRpdHkpOwogICAgICAgIGlmIChyZW5kZXJhYmxlID09IDAgfHwgbWFuYWdlci5nZXRQcmltaXRpdmVDb3VudChyZW5kZXJhYmxlKSAhPSAxKSB7CiAgICAgICAgICAgIHRocm93IG5ldyBJbGxlZ2FsU3RhdGVFeGNlcHRpb24oIndpbmRvdyByZW5kZXJhYmxlL3ByaW1pdGl2ZSB1bmfDvGx0aWciKTsKICAgICAgICB9CiAgICAgICAgTWF0ZXJpYWxJbnN0YW5jZSBtYXRlcmlhbCA9IG1hbmFnZXIuZ2V0TWF0ZXJpYWxJbnN0YW5jZUF0KHJlbmRlcmFibGUsIDApOwogICAgICAgIGlmIChtYXRlcmlhbCA9PSBudWxsIHx8ICFtYXRlcmlhbC5nZXRNYXRlcmlhbCgpLmhhc1BhcmFtZXRlcigiYmFzZUNvbG9yTWFwIikpIHsKICAgICAgICAgICAgdGhyb3cgbmV3IElsbGVnYWxTdGF0ZUV4Y2VwdGlvbigid2luZG93IGJhc2VDb2xvck1hcCBmZWhsdCIpOwogICAgICAgIH0KCiAgICAgICAgc3luY2hyb25pemVkIChURVhUVVJFUykgewogICAgICAgICAgICBUZXh0dXJlIHByZXZpb3VzID0gVEVYVFVSRVMucmVtb3ZlKHZpZXcpOwogICAgICAgICAgICBpZiAocHJldmlvdXMgIT0gbnVsbCkgewogICAgICAgICAgICAgICAgdHJ5IHsgZW5naW5lLmRlc3Ryb3lUZXh0dXJlKHByZXZpb3VzKTsgfSBjYXRjaCAoVGhyb3dhYmxlIGlnbm9yZWQpIHt9CiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIEJpdG1hcCBiaXRtYXA7CiAgICAgICAgdHJ5IChJbnB1dFN0cmVhbSBpbnB1dCA9IHZpZXcuZ2V0Q29udGV4dCgpLmdldEFzc2V0cygpLm9wZW4oVEVYVFVSRV9BU1NFVCkpIHsKICAgICAgICAgICAgYml0bWFwID0gQml0bWFwRmFjdG9yeS5kZWNvZGVTdHJlYW0oaW5wdXQpOwogICAgICAgIH0KICAgICAgICBpZiAoYml0bWFwID09IG51bGwpIHRocm93IG5ldyBJbGxlZ2FsU3RhdGVFeGNlcHRpb24oIndpbmRvdyByZWZlcmVuY2UgdGV4dHVyZSBkZWNvZGUgZmVobGdlc2NobGFnZW4iKTsKICAgICAgICBpZiAoYml0bWFwLmdldENvbmZpZygpID09IEJpdG1hcC5Db25maWcuSEFSRFdBUkUpIHsKICAgICAgICAgICAgQml0bWFwIGNvcHkgPSBiaXRtYXAuY29weShCaXRtYXAuQ29uZmlnLkFSR0JfODg4OCwgZmFsc2UpOwogICAgICAgICAgICBiaXRtYXAucmVjeWNsZSgpOwogICAgICAgICAgICBiaXRtYXAgPSBjb3B5OwogICAgICAgIH0KCiAgICAgICAgVGV4dHVyZSB0ZXh0dXJlID0gbmV3IFRleHR1cmUuQnVpbGRlcigpCiAgICAgICAgICAgICAgICAud2lkdGgoYml0bWFwLmdldFdpZHRoKCkpCiAgICAgICAgICAgICAgICAuaGVpZ2h0KGJpdG1hcC5nZXRIZWlnaHQoKSkKICAgICAgICAgICAgICAgIC5sZXZlbHMoMSkKICAgICAgICAgICAgICAgIC5zYW1wbGVyKFRleHR1cmUuU2FtcGxlci5TQU1QTEVSXzJEKQogICAgICAgICAgICAgICAgLmZvcm1hdChUZXh0dXJlLkludGVybmFsRm9ybWF0LlNSR0I4X0E4KQogICAgICAgICAgICAgICAgLmJ1aWxkKGVuZ2luZSk7CiAgICAgICAgdHJ5IHsKICAgICAgICAgICAgVGV4dHVyZUhlbHBlci5zZXRCaXRtYXAoZW5naW5lLCB0ZXh0dXJlLCAwLCBiaXRtYXApOwogICAgICAgICAgICBlbmdpbmUuZmx1c2hBbmRXYWl0KCk7CiAgICAgICAgICAgIFRleHR1cmVTYW1wbGVyIHNhbXBsZXIgPSBuZXcgVGV4dHVyZVNhbXBsZXIoVGV4dHVyZVNhbXBsZXIuTWluRmlsdGVyLkxJTkVBUiwKICAgICAgICAgICAgICAgICAgICBUZXh0dXJlU2FtcGxlci5NYWdGaWx0ZXIuTElORUFSLCBUZXh0dXJlU2FtcGxlci5XcmFwTW9kZS5SRVBFQVQpOwogICAgICAgICAgICBtYXRlcmlhbC5zZXRQYXJhbWV0ZXIoImJhc2VDb2xvck1hcCIsIHRleHR1cmUsIHNhbXBsZXIpOwogICAgICAgICAgICBtYXRlcmlhbC5zZXRQYXJhbWV0ZXIoImJhc2VDb2xvckZhY3RvciIsIENvbG9ycy5SZ2JhVHlwZS5MSU5FQVIsIDFmLCAxZiwgMWYsIDFmKTsKICAgICAgICAgICAgc3luY2hyb25pemVkIChURVhUVVJFUykgeyBURVhUVVJFUy5wdXQodmlldywgdGV4dHVyZSk7IH0KICAgICAgICB9IGNhdGNoIChUaHJvd2FibGUgZXJyb3IpIHsKICAgICAgICAgICAgdHJ5IHsgZW5naW5lLmRlc3Ryb3lUZXh0dXJlKHRleHR1cmUpOyB9IGNhdGNoIChUaHJvd2FibGUgaWdub3JlZCkge30KICAgICAgICAgICAgdGhyb3cgZXJyb3I7CiAgICAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgICAgYml0bWFwLnJlY3ljbGUoKTsKICAgICAgICB9CiAgICB9CgogICAgc3RhdGljIHZvaWQgcmVsZWFzZShDZWxpbmUzRFZpZXcgdmlldywgRW5naW5lIGVuZ2luZSkgewogICAgICAgIFRleHR1cmUgdGV4dHVyZTsKICAgICAgICBzeW5jaHJvbml6ZWQgKFRFWFRVUkVTKSB7IHRleHR1cmUgPSBURVhUVVJFUy5yZW1vdmUodmlldyk7IH0KICAgICAgICBpZiAodGV4dHVyZSAhPSBudWxsKSB7CiAgICAgICAgICAgIHRyeSB7IGVuZ2luZS5kZXN0cm95VGV4dHVyZSh0ZXh0dXJlKTsgfSBjYXRjaCAoVGhyb3dhYmxlIGlnbm9yZWQpIHt9CiAgICAgICAgfQogICAgfQp9Cg=='
+          helper = base64.b64decode(helper_b64).decode('utf-8')
           Path('app/src/main/java/de/yahya/ai/CelineRoomWindowTextureV80.java').write_text(helper, encoding='utf-8')
 
           lighting_path = Path('app/src/main/java/de/yahya/ai/CelineRoomReferenceLightingV80.java')
           text = lighting_path.read_text(encoding='utf-8')
           old_call = '            applyReferenceWindowMaterial(roomAsset, engine);'
-          new_call = '            applyReferenceWindowMaterial(view, roomAsset, engine);'
           if text.count(old_call) != 1:
               raise SystemExit('window apply call contract changed')
-          text = text.replace(old_call, new_call)
-
-          old_method = '''    private static void applyReferenceWindowMaterial(FilamentAsset asset, Engine engine) {
-        MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
-        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
-                WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
-    }
-'''
-          new_method = '''    private static void applyReferenceWindowMaterial(
-            Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
-        CelineRoomWindowTextureV80.apply(view, asset, engine);
-    }
-'''
+          text = text.replace(old_call, '            applyReferenceWindowMaterial(view, roomAsset, engine);')
+          old_method = '    private static void applyReferenceWindowMaterial(FilamentAsset asset, Engine engine) {\n        MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");\n        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,\n                WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);\n    }\n'
+          new_method = '    private static void applyReferenceWindowMaterial(\n            Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {\n        CelineRoomWindowTextureV80.apply(view, asset, engine);\n    }\n'
           if text.count(old_method) != 1:
               raise SystemExit('window material method contract changed')
           text = text.replace(old_method, new_method)
-
           old_diag = '                            + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE\n'
-          new_diag = old_diag + '                            + " windowTexture=derived_reference_uv_preserved"\n'
           if text.count(old_diag) != 1:
               raise SystemExit('window diagnostic contract changed')
-          text = text.replace(old_diag, new_diag)
-
-          old_release = '''            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
-            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
-'''
-          new_release = '''            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
-            CelineRoomWindowTextureV80.release(view, engine);
-            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
-'''
+          text = text.replace(old_diag, old_diag + '                            + " windowTexture=derived_reference_uv_preserved"\n')
+          old_release = '            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}\n            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}\n'
+          new_release = '            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}\n            CelineRoomWindowTextureV80.release(view, engine);\n            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}\n'
           if text.count(old_release) != 1:
               raise SystemExit('detach release contract changed')
           text = text.replace(old_release, new_release)
