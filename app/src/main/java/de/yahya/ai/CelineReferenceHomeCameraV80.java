@@ -8,22 +8,21 @@ import java.util.WeakHashMap;
 /**
  * M1 measured HOME camera owner for the reference-room reconstruction.
  *
- * The exact HOME proof at e1425b5 measured the room wall/floor boundary near normalized y~0.81,
- * while /Refernzbild.png requires y~0.49. A global room/root Y lift was disproven by direct proof.
- * The first measured-camera solve then placed the eye at y=2.38 m, but the accepted room shell runs
- * from runtime floor y=-1.55 m to ceiling y=+1.25 m. Proof #80 therefore looked through/above the
- * ceiling and occluded almost all of Celine in HOME. Keep the same measured downward viewing vector
- * while translating both eye and target down by 1.33 m: eye y=1.05 remains 0.20 m inside the room,
- * target y=-1.33 remains 0.22 m above the floor. This is a bounded shell-valid repair of the proven
- * camera cause, not a material/light/room-root workaround. CALL remains untouched.
+ * M0 measured the HOME wall/floor boundary near normalized y~0.81 while /Refernzbild.png requires
+ * y~0.49. A global room/root Y lift was disproven by direct proof. The first measured-camera solve
+ * then placed the eye above the accepted room ceiling; proof #80 therefore looked through the shell.
+ * Proof #81 on the shell-safe eye y=1.05 / target y=-1.33 removed that occlusion, but over-corrected
+ * the composition: the wall/floor boundary moved to roughly y~0.25 and Celine's head was clipped out
+ * of HOME. Keep the proven shell-safe eye fixed and reduce only the downward pitch by raising the HOME
+ * target to y=-0.30. This is the single bounded M1 camera correction supported by proof #81; CALL,
+ * room-root, furniture, materials, lighting and canonical Celine transforms remain untouched.
  *
  * It is invoked from the final pre-render hook, after Celine3DView's legacy camera update, so the
  * frame that is actually rendered has one deterministic measured HOME camera. Existing pinch zoom
- * remains a real dolly and existing bounded pan remains additive. No Celine transform, source room
- * GLB, furniture GLB or CALL camera contract is changed.
+ * remains a real dolly and existing bounded pan remains additive.
  */
 final class CelineReferenceHomeCameraV80 {
-    static final float HOME_TARGET_Y = -1.33f;
+    static final float HOME_TARGET_Y = -0.30f;
     static final float HOME_TARGET_Z = -4.0f;
     static final float HOME_EYE_Y_OFFSET_M = 1.05f;
     static final float HOME_EYE_Z_OFFSET_M = 4.35f;
@@ -93,13 +92,13 @@ final class CelineReferenceHomeCameraV80 {
             if (!logged) {
                 logged = true;
                 Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
-                        "M1 shell-sichere Referenz-HOME-Kamera aktiv",
+                        "M1 gemessene HOME-Kamera · Pitch-Korrektur aktiv",
                         "eye=0," + HOME_EYE_Y_OFFSET_M + ","
                                 + (HOME_TARGET_Z + HOME_EYE_Z_OFFSET_M)
                                 + " target=0," + HOME_TARGET_Y + "," + HOME_TARGET_Z
                                 + " zoom=" + zoom
                                 + " ceilingY=1.25 floorY=-1.55"
-                                + " source=proof80 ceiling-occlusion repair"
+                                + " source=proof81 horizon-overcorrection"
                                 + " CALL=untouched roomRootLift=false");
             }
         }
