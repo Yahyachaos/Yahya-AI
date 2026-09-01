@@ -16,26 +16,25 @@ import java.util.WeakHashMap;
  * transforms while keeping the 12 source GLBs immutable and canonical Celine separate.
  *
  * Frozen measured placements:
- * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38 (Proof #102 target family)
+ * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38
  * - lounge chair: X +0.65 m, local scale 0.60
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
  * - large plant: X +0.92 m
  *
- * Bed calibration remains the active bounded M2 surface. Proof #102 showed bed left edge around
- * normalized x~0.63 versus target x~0.512. The -1.05 m candidate in Proof #103 moved the visible
- * left edge to roughly x~0.468 and right edge to ~0.949, proving the horizontal direction but
- * overshooting left by ~0.044. Linear interpolation across the measured -0.60 m delta gives a
- * target-family total parent-X correction of about -0.89 m. Only bed X and its temporary marker
- * companions change here; bed Z/scale/rotation, camera, materials, lighting and all other furniture
- * remain frozen until this candidate is proved.
+ * Bed X remains the only active bounded M2 parameter in this candidate. Proof #104 on the -0.89 m
+ * state placed the major bed mass at approximately normalized x~0.496..0.968 versus the exact target
+ * x~0.512..1.000. The width is already close; the center remains roughly 0.024 viewport widths too
+ * far left. The measured horizontal response from the preceding candidates maps that residual to about
+ * +0.14 m parent X, so refine the total correction to -0.75 m. Bed depth/scale/rotation, camera,
+ * materials, lighting and every other furniture transform remain frozen until this candidate is proved.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float FOREGROUND_TABLE_SCALE_X_FACTOR = 1.90f;
     static final float FOREGROUND_TABLE_SCALE_Y_FACTOR = 1.66f;
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
-    static final float BED_X_OFFSET_M = -0.89f;
+    static final float BED_X_OFFSET_M = -0.75f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
