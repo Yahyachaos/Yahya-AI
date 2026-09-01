@@ -65,6 +65,13 @@ final class CelineMorphRuntimeV62 {
 
     static void onFrame(Celine3DView view, long frameTimeNanos) {
         if (view == null) return;
+
+        // Celine3DView calls this method after its legacy camera update and immediately before
+        // renderer.beginFrame(). Keep the measured M1 HOME framing here so the rendered frame,
+        // rather than a later Choreographer callback, receives the reference camera. CALL is
+        // explicitly excluded inside the camera owner.
+        CelineReferenceHomeCameraV80.apply(view);
+
         RuntimeState state = stateFor(view);
         if (!state.probed) probeMorphRig(view, state);
         if (!state.enabled || state.morphInstances == null || state.morphInstances.length == 0) return;
