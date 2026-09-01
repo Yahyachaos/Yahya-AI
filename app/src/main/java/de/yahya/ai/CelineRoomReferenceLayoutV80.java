@@ -13,16 +13,17 @@ import java.util.WeakHashMap;
  * Bounded v80 reference-image layout correction.
  *
  * M0 measured the production HOME frame directly against /Refernzbild.png. The dominant structural
- * mismatch is global rather than material-specific: the current wall/floor boundary sits at normalized
- * y~0.828 while the target is y~0.490, and the bed/window/chair/rug are all roughly 0.29-0.37 viewport
- * heights too low. Celine itself is already close to the target center, so moving the camera would damage
- * the protected subject framing. M1 therefore raises only the derived room root as one bounded probe.
+ * mismatch is global rather than material-specific. M1 proof #77 measured the +1.00 m room-root probe:
+ * the wall/floor boundary moved from normalized y~0.866 to y~0.641, in the correct direction but still
+ * below the target y~0.490. Linear calibration of that observed screen-space response gives a total room
+ * root lift of about +1.67 m for the next bounded candidate. Celine itself remains close to the target
+ * center, so camera/Celine are deliberately untouched.
  *
  * Source GLB bytes remain immutable. Logical anchors/actions and the localized Lamp contract are not
  * claimed reconciled by this visual candidate; M3 owns that reconciliation only after geometry settles.
  */
 final class CelineRoomReferenceLayoutV80 {
-    static final float ROOM_ROOT_Y_OFFSET_M = 1.00f;
+    static final float ROOM_ROOT_Y_OFFSET_M = 1.67f;
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float BED_X_OFFSET_M = -0.45f;
 
