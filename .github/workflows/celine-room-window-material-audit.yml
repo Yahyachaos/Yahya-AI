@@ -15,10 +15,17 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact head
+      - name: Checkout exact runtime head
         uses: actions/checkout@v4
 
-      - name: Parse room_window_drapes GLB material and extract texture evidence
+      - name: Checkout immutable window source with LFS
+        uses: actions/checkout@v4
+        with:
+          ref: assets/celine-source-persistence
+          path: source-room
+          lfs: true
+
+      - name: Parse runtime and immutable source window materials
         shell: bash
         run: |
           set -euo pipefail
@@ -26,119 +33,131 @@ jobs:
           import json, struct
           from pathlib import Path
 
-          path = Path('app/src/main/assets/models/room/celine_room_v80_final_modular.glb')
-          data = path.read_bytes()
-          if data[:4] != b'glTF':
-              raise SystemExit('invalid GLB magic')
-          version, declared = struct.unpack_from('<II', data, 4)
-          if version != 2 or declared != len(data):
-              raise SystemExit(f'invalid GLB header version={version} declared={declared} actual={len(data)}')
-
-          offset = 12
-          doc = None
-          bin_payload = None
-          while offset + 8 <= len(data):
-              length, ctype = struct.unpack_from('<II', data, offset)
-              offset += 8
-              payload = data[offset:offset + length]
-              offset += length
-              if ctype == 0x4E4F534A:
-                  doc = json.loads(payload.rstrip(b'\x00 \t\r\n').decode('utf-8'))
-              elif ctype == 0x004E4942:
-                  bin_payload = payload
-          if doc is None or bin_payload is None:
-              raise SystemExit('required GLB chunks missing')
-
-          nodes = doc.get('nodes', [])
-          meshes = doc.get('meshes', [])
-          materials = doc.get('materials', [])
-          textures = doc.get('textures', [])
-          images = doc.get('images', [])
-          samplers = doc.get('samplers', [])
-          buffer_views = doc.get('bufferViews', [])
-
-          matches = [(i, n) for i, n in enumerate(nodes) if n.get('name') == 'room_window_drapes']
-          if len(matches) != 1:
-              raise SystemExit(f'expected exactly one room_window_drapes node, found {len(matches)}')
-          node_index, node = matches[0]
-          mesh_index = node.get('mesh')
-          if not isinstance(mesh_index, int) or not (0 <= mesh_index < len(meshes)):
-              raise SystemExit(f'window mesh invalid: {mesh_index}')
-          mesh = meshes[mesh_index]
-          if len(mesh.get('primitives', [])) != 1:
-              raise SystemExit(f'expected exactly one window primitive, found {len(mesh.get("primitives", []))}')
-
-          primitive = mesh['primitives'][0]
-          mi = primitive.get('material')
-          if not isinstance(mi, int) or not (0 <= mi < len(materials)):
-              raise SystemExit(f'window material invalid: {mi}')
-          mat = materials[mi]
-          pbr = mat.get('pbrMetallicRoughness', {})
-
           evidence_dir = Path('window-texture-evidence')
           evidence_dir.mkdir(exist_ok=True)
 
           reference = Path('Refernzbild.png')
-          if not reference.is_file() or reference.stat().st_size != 1960774:
-              raise SystemExit(f'canonical reference missing/wrong size: {reference}')
           reference_bytes = reference.read_bytes()
-          if reference_bytes[:8] != b'\x89PNG\r\n\x1a\n':
-              raise SystemExit('canonical reference is not a PNG')
+          if len(reference_bytes) != 1960774 or reference_bytes[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('canonical reference missing or invalid')
           (evidence_dir / 'Refernzbild.png').write_bytes(reference_bytes)
 
-          def tex_info(label, info):
-              if not isinstance(info, dict) or 'index' not in info:
-                  return None
-              ti = info['index']
-              out = {'texture_index': ti, 'texCoord': info.get('texCoord', 0)}
-              if not (0 <= ti < len(textures)):
-                  return out
-              tex = textures[ti]
-              out['texture'] = tex
-              si = tex.get('source')
-              if isinstance(si, int) and 0 <= si < len(images):
-                  image = images[si]
-                  out['image'] = image
-                  bv_index = image.get('bufferView')
-                  if isinstance(bv_index, int) and 0 <= bv_index < len(buffer_views):
-                      bv = buffer_views[bv_index]
-                      start = int(bv.get('byteOffset', 0))
-                      length = int(bv.get('byteLength', 0))
-                      payload = bin_payload[start:start + length]
-                      mime = image.get('mimeType', '')
-                      ext = '.jpg' if mime == 'image/jpeg' else '.png' if mime == 'image/png' else '.bin'
-                      out_path = evidence_dir / f'{label}{ext}'
-                      out_path.write_bytes(payload)
-                      out['extracted_path'] = str(out_path)
-                      out['extracted_bytes'] = len(payload)
-                  else:
-                      out['extraction_error'] = f'invalid bufferView {bv_index}'
-              samp = tex.get('sampler')
-              if isinstance(samp, int) and 0 <= samp < len(samplers):
-                  out['sampler'] = samplers[samp]
-              return out
+          def parse_glb(path, label, target_node=None):
+              data = path.read_bytes()
+              if data[:4] != b'glTF':
+                  raise SystemExit(f'{label}: invalid GLB magic bytes={len(data)}')
+              version, declared = struct.unpack_from('<II', data, 4)
+              if version != 2 or declared != len(data):
+                  raise SystemExit(f'{label}: invalid GLB header version={version} declared={declared} actual={len(data)}')
+              offset = 12
+              doc = None
+              bin_payload = None
+              while offset + 8 <= len(data):
+                  length, ctype = struct.unpack_from('<II', data, offset)
+                  offset += 8
+                  payload = data[offset:offset + length]
+                  offset += length
+                  if ctype == 0x4E4F534A:
+                      doc = json.loads(payload.rstrip(b'\x00 \t\r\n').decode('utf-8'))
+                  elif ctype == 0x004E4942:
+                      bin_payload = payload
+              if doc is None or bin_payload is None:
+                  raise SystemExit(f'{label}: required GLB chunks missing')
 
-          report = {
-              'glb': {'path': str(path), 'bytes': len(data)},
-              'node': {'index': node_index, 'value': node},
-              'mesh': {'index': mesh_index, 'name': mesh.get('name'), 'primitive_count': 1},
-              'canonical_reference': {'path': str(reference), 'bytes': len(reference_bytes)},
-              'primitive': {
-                  'primitive_index': 0,
-                  'material_index': mi,
-                  'material_name': mat.get('name'),
-                  'baseColorFactor': pbr.get('baseColorFactor', [1,1,1,1]),
-                  'metallicFactor': pbr.get('metallicFactor', 1),
-                  'roughnessFactor': pbr.get('roughnessFactor', 1),
-                  'baseColorTexture': tex_info('base_color', pbr.get('baseColorTexture')),
-                  'metallicRoughnessTexture': tex_info('metallic_roughness', pbr.get('metallicRoughnessTexture')),
-                  'normalTexture': tex_info('normal', mat.get('normalTexture')),
-                  'emissiveFactor': mat.get('emissiveFactor', [0,0,0]),
-                  'alphaMode': mat.get('alphaMode', 'OPAQUE'),
-                  'alphaCutoff': mat.get('alphaCutoff'),
-                  'doubleSided': mat.get('doubleSided', False),
-                  'extensions': mat.get('extensions', {})
+              nodes = doc.get('nodes', [])
+              meshes = doc.get('meshes', [])
+              materials = doc.get('materials', [])
+              textures = doc.get('textures', [])
+              images = doc.get('images', [])
+              samplers = doc.get('samplers', [])
+              buffer_views = doc.get('bufferViews', [])
+
+              if target_node:
+                  matches = [(i, n) for i, n in enumerate(nodes) if n.get('name') == target_node]
+                  if len(matches) != 1:
+                      raise SystemExit(f'{label}: expected one {target_node} node, found {len(matches)}')
+                  selected_nodes = matches
+              else:
+                  selected_nodes = [(i, n) for i, n in enumerate(nodes) if isinstance(n.get('mesh'), int)]
+
+              def extract_texture(prefix, info):
+                  if not isinstance(info, dict) or 'index' not in info:
+                      return None
+                  ti = info['index']
+                  out = {'texture_index': ti, 'texCoord': info.get('texCoord', 0)}
+                  if not (0 <= ti < len(textures)):
+                      return out
+                  tex = textures[ti]
+                  out['texture'] = tex
+                  si = tex.get('source')
+                  if isinstance(si, int) and 0 <= si < len(images):
+                      image = images[si]
+                      out['image'] = image
+                      bv_index = image.get('bufferView')
+                      if isinstance(bv_index, int) and 0 <= bv_index < len(buffer_views):
+                          bv = buffer_views[bv_index]
+                          start = int(bv.get('byteOffset', 0))
+                          length = int(bv.get('byteLength', 0))
+                          payload = bin_payload[start:start + length]
+                          mime = image.get('mimeType', '')
+                          ext = '.jpg' if mime == 'image/jpeg' else '.png' if mime == 'image/png' else '.bin'
+                          out_path = evidence_dir / f'{prefix}{ext}'
+                          out_path.write_bytes(payload)
+                          out['extracted_path'] = str(out_path)
+                          out['extracted_bytes'] = len(payload)
+                      else:
+                          out['extraction_error'] = f'invalid bufferView {bv_index}'
+                  samp = tex.get('sampler')
+                  if isinstance(samp, int) and 0 <= samp < len(samplers):
+                      out['sampler'] = samplers[samp]
+                  return out
+
+              records = []
+              for node_index, node in selected_nodes:
+                  mesh_index = node.get('mesh')
+                  if not isinstance(mesh_index, int) or not (0 <= mesh_index < len(meshes)):
+                      continue
+                  mesh = meshes[mesh_index]
+                  for pi, primitive in enumerate(mesh.get('primitives', [])):
+                      mi = primitive.get('material')
+                      if not isinstance(mi, int) or not (0 <= mi < len(materials)):
+                          continue
+                      mat = materials[mi]
+                      pbr = mat.get('pbrMetallicRoughness', {})
+                      prefix = f'{label}_n{node_index}_p{pi}_m{mi}'
+                      records.append({
+                          'node_index': node_index,
+                          'node_name': node.get('name'),
+                          'node': node,
+                          'mesh_index': mesh_index,
+                          'mesh_name': mesh.get('name'),
+                          'primitive_index': pi,
+                          'material_index': mi,
+                          'material_name': mat.get('name'),
+                          'baseColorFactor': pbr.get('baseColorFactor', [1,1,1,1]),
+                          'metallicFactor': pbr.get('metallicFactor', 1),
+                          'roughnessFactor': pbr.get('roughnessFactor', 1),
+                          'baseColorTexture': extract_texture(prefix + '_base_color', pbr.get('baseColorTexture')),
+                          'metallicRoughnessTexture': extract_texture(prefix + '_metallic_roughness', pbr.get('metallicRoughnessTexture')),
+                          'normalTexture': extract_texture(prefix + '_normal', mat.get('normalTexture')),
+                          'emissiveFactor': mat.get('emissiveFactor', [0,0,0]),
+                          'alphaMode': mat.get('alphaMode', 'OPAQUE'),
+                          'doubleSided': mat.get('doubleSided', False),
+                          'extensions': mat.get('extensions', {})
+                      })
+              return {
+                  'path': str(path), 'bytes': len(data),
+                  'node_count': len(nodes), 'mesh_count': len(meshes),
+                  'material_count': len(materials), 'image_count': len(images),
+                  'records': records
               }
+
+          runtime = parse_glb(Path('app/src/main/assets/models/room/celine_room_v80_final_modular.glb'), 'runtime', 'room_window_drapes')
+          source = parse_glb(Path('source-room/app/src/main/assets/models/möbel/Fenstermitgardinen.glb'), 'source')
+          report = {
+              'canonical_reference': {'path': str(reference), 'bytes': len(reference_bytes)},
+              'runtime': runtime,
+              'immutable_source': source
           }
           out = evidence_dir / 'window-material-audit.json'
           out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
