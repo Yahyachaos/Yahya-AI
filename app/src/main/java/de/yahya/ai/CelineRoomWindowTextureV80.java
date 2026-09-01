@@ -90,14 +90,13 @@ final class CelineRoomWindowTextureV80 {
             bitmap.recycle();
         }
 
-        // Proof #64-#66 kept the exact same large gaps under radically different opaque atlases.
-        // Proof #67 confirmed that a bounded dark backing turns those gaps into coherent night depth.
-        // Proof #69 confirmed broad left/right fill closes the side masses, while the exact reference
-        // still requires two smooth light central sheers over the night opening. Preserve the accepted
-        // backing/side fills and add only that missing central coverage.
+        // Proof #71 confirms the derived night/side/sheer layers are stable but the immutable source
+        // mesh itself still reads as shredded strips. Keep every source byte/transform intact and test
+        // one reversible runtime visibility change only after the derived reference layers exist.
         CelineRoomWindowBackdropV80.apply(view, asset, engine);
         CelineRoomWindowCurtainFillV80.apply(view, asset, engine);
         CelineRoomWindowSheerFillV80.apply(view, asset, engine);
+        CelineRoomWindowSourceVisibilityV80.hide(view, asset);
     }
 
     private static Bitmap balanceDrapeAtlas(Bitmap source) {
@@ -112,9 +111,6 @@ final class CelineRoomWindowTextureV80 {
             float b = Color.blue(color) / 255f;
             float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 
-            // The dark backing now owns night depth. The source strands should therefore read as
-            // fabric in front of that depth, not as another near-black layer. Compress the source
-            // into a warm cream/taupe range while retaining enough local tonal variation for folds.
             float target = luminance < 0.5f
                     ? 0.50f + 0.20f * (luminance / 0.5f)
                     : 0.70f + 0.18f * ((luminance - 0.5f) / 0.5f);
@@ -135,6 +131,7 @@ final class CelineRoomWindowTextureV80 {
     }
 
     static void release(Celine3DView view, Engine engine) {
+        CelineRoomWindowSourceVisibilityV80.release(view);
         CelineRoomWindowSheerFillV80.release(view, engine);
         CelineRoomWindowCurtainFillV80.release(view, engine);
         CelineRoomWindowBackdropV80.release(view, engine);
