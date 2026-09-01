@@ -12,19 +12,20 @@ import java.util.WeakHashMap;
 /**
  * Bounded v80 reference-image layout correction.
  *
- * M1 established the closest stable HOME camera foundation against /Refernzbild.png. M2 now changes
- * only measured furniture placement while keeping source GLB bytes immutable. The foreground table
- * keeps its accepted forward correction and the bed keeps its existing left correction. Proof #85
- * measures the lounge chair around normalized x~0.08..0.24 while the reference target is x~0.21..0.33.
- * With the current fixed M1 camera, that ~0.12-frame horizontal error corresponds to about +0.65 m in
- * parent room X. Move only the derived lounge-chair node and its two embedded chair marker nodes by
- * that amount. Depth/scale/rotation remain unchanged until this isolated horizontal correction is
- * visually measured. Logical 9R metadata remains pending until M2 geometry is accepted.
+ * M1 established the closest stable HOME camera foundation against /Refernzbild.png. M2 changes only
+ * measured derived furniture transforms while keeping source GLB bytes immutable. Proof #85 measured
+ * the lounge chair around normalized x~0.08..0.24 versus target x~0.21..0.33; Proof #86 confirms the
+ * +0.65 m parent-X correction centers it near the reference, but the visible chair width is still about
+ * 0.20 of the viewport versus a ~0.12 target. Keep that accepted horizontal placement and reduce only
+ * the chair's local uniform size by factor 0.60 (effective source scale ~0.30 from 0.50). Post-multiply
+ * the scale so parent translation stays fixed. Chair anchors keep the accepted translated positions and
+ * are not scaled. Depth/rotation remain unchanged until this isolated size correction is measured.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float BED_X_OFFSET_M = -0.45f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
+    static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -81,6 +82,8 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0.0f, 0.0f, true);
+            scaleLocal(asset, transforms,
+                    "room_lounge_chair", LOUNGE_CHAIR_SCALE_FACTOR, true);
             int movedChairMarkers = 0;
             for (String marker : CHAIR_MARKER_NODES) {
                 if (translateParentLocal(asset, transforms,
@@ -96,6 +99,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + "m bedX=" + BED_X_OFFSET_M + "m"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
+                            + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
                             + " sourceGLB=unchanged camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
@@ -122,16 +126,12 @@ final class CelineRoomReferenceLayoutV80 {
             boolean required) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
-            if (required) {
-                throw new IllegalStateException("Reference layout entity missing: " + entityName);
-            }
+            if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
             return false;
         }
         int instance = transforms.getInstance(entity);
         if (instance == 0) {
-            if (required) {
-                throw new IllegalStateException("Reference layout transform missing: " + entityName);
-            }
+            if (required) throw new IllegalStateException("Reference layout transform missing: " + entityName);
             return false;
         }
 
@@ -140,9 +140,34 @@ final class CelineRoomReferenceLayoutV80 {
         float[] adjusted = new float[16];
         Matrix.setIdentityM(translation, 0);
         Matrix.translateM(translation, 0, deltaX, deltaY, deltaZ);
-        // Pre-multiply so the exact delta is expressed in the entity parent's room coordinates and
-        // is not scaled/rotated by the furniture node's existing local transform.
+        // Pre-multiply so the exact delta is expressed in parent room coordinates and is not
+        // scaled/rotated by the furniture node's existing local transform.
         Matrix.multiplyMM(adjusted, 0, translation, 0, base, 0);
+        transforms.setTransform(instance, adjusted);
+        return true;
+    }
+
+    private static boolean scaleLocal(
+            FilamentAsset asset, TransformManager transforms,
+            String entityName, float factor, boolean required) {
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0) {
+            if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
+            return false;
+        }
+        int instance = transforms.getInstance(entity);
+        if (instance == 0) {
+            if (required) throw new IllegalStateException("Reference layout transform missing: " + entityName);
+            return false;
+        }
+
+        float[] base = transforms.getTransform(instance, new float[16]);
+        float[] scale = new float[16];
+        float[] adjusted = new float[16];
+        Matrix.setIdentityM(scale, 0);
+        Matrix.scaleM(scale, 0, factor, factor, factor);
+        // Post-multiply so the node's local basis is uniformly scaled while parent translation stays fixed.
+        Matrix.multiplyMM(adjusted, 0, base, 0, scale, 0);
         transforms.setTransform(instance, adjusted);
         return true;
     }
