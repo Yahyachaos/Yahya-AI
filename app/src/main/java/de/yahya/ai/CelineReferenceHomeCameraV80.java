@@ -11,11 +11,12 @@ import java.util.WeakHashMap;
  * M0 measured the HOME wall/floor boundary near normalized y~0.81 while /Refernzbild.png requires
  * y~0.49. A global room/root Y lift was disproven by direct proof. The first measured-camera solve
  * then placed the eye above the accepted room ceiling; proof #80 therefore looked through the shell.
- * Proof #81 on the shell-safe eye y=1.05 / target y=-1.33 removed that occlusion, but over-corrected
- * the composition: the wall/floor boundary moved to roughly y~0.25 and Celine's head was clipped out
- * of HOME. Keep the proven shell-safe eye fixed and reduce only the downward pitch by raising the HOME
- * target to y=-0.30. This is the single bounded M1 camera correction supported by proof #81; CALL,
- * room-root, furniture, materials, lighting and canonical Celine transforms remain untouched.
+ * Proof #81 established a shell-safe eye and proof #82 reduced the horizon error to roughly y~0.57,
+ * close to the y~0.49 target, but Celine still reaches beyond the viewport top and her apparent width
+ * is about 18% larger than the reference. Preserve the proof #82 pitch and shell-safe eye height, and
+ * increase only HOME eye-to-target Z distance from 4.35 m to 5.15 m (~18%) to correct apparent scene/
+ * subject scale. CALL, room-root, furniture transforms, materials, lighting and canonical Celine
+ * transforms remain untouched.
  *
  * It is invoked from the final pre-render hook, after Celine3DView's legacy camera update, so the
  * frame that is actually rendered has one deterministic measured HOME camera. Existing pinch zoom
@@ -25,7 +26,7 @@ final class CelineReferenceHomeCameraV80 {
     static final float HOME_TARGET_Y = -0.30f;
     static final float HOME_TARGET_Z = -4.0f;
     static final float HOME_EYE_Y_OFFSET_M = 1.05f;
-    static final float HOME_EYE_Z_OFFSET_M = 4.35f;
+    static final float HOME_EYE_Z_OFFSET_M = 5.15f;
     private static final float ZOOM_MIN = 0.55f;
     private static final float ZOOM_MAX = 4.60f;
 
@@ -92,13 +93,13 @@ final class CelineReferenceHomeCameraV80 {
             if (!logged) {
                 logged = true;
                 Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
-                        "M1 gemessene HOME-Kamera · Pitch-Korrektur aktiv",
+                        "M1 gemessene HOME-Kamera · Distanz-Korrektur aktiv",
                         "eye=0," + HOME_EYE_Y_OFFSET_M + ","
                                 + (HOME_TARGET_Z + HOME_EYE_Z_OFFSET_M)
                                 + " target=0," + HOME_TARGET_Y + "," + HOME_TARGET_Z
                                 + " zoom=" + zoom
                                 + " ceilingY=1.25 floorY=-1.55"
-                                + " source=proof81 horizon-overcorrection"
+                                + " source=proof82 apparent-scale/head-clip"
                                 + " CALL=untouched roomRootLift=false");
             }
         }
