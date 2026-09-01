@@ -36,6 +36,13 @@ import java.util.WeakHashMap;
  * Preserve the accepted -2.25 m Z translation, return local X/Y to 1.0 and widen only local Z by 1.45.
  * Parent X/Y, rotation, source GLB and the visual depth marker remain unchanged. Logical interaction
  * metadata remains M3 after visual geometry settles.
+ *
+ * Proof #95 on exact head 02c8533a confirms the calibrated HOME->CALL->HOME proof is structurally green
+ * and the dresser now spans approximately the target left-edge width family, so dresser is frozen. In
+ * the same HOME frame the large plant has approximately target apparent size/height but is clipped hard
+ * against the left viewport edge instead of occupying target normalized x~0.132..0.254. The previously
+ * measured chair correction calibrates roughly +0.65 m world X for this magnitude of horizontal image
+ * displacement, so M2 advances with one bounded large-plant parent-X translation only.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -48,6 +55,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
+    static final float LARGE_PLANT_X_OFFSET_M = 0.65f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -131,6 +139,9 @@ final class CelineRoomReferenceLayoutV80 {
             boolean movedDresserMarker = translateParentLocal(asset, transforms,
                     "dresser_anchor", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, false);
 
+            translateParentLocal(asset, transforms,
+                    "room_plant_large", LARGE_PLANT_X_OFFSET_M, 0.0f, 0.0f, true);
+
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
@@ -148,6 +159,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " dresserZ=" + DRESSER_Z_OFFSET_M + "m"
                             + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
                             + " dresserMarkerMoved=" + movedDresserMarker
+                            + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
