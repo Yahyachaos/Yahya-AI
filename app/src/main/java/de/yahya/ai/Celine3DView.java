@@ -244,7 +244,8 @@ public final class Celine3DView extends FrameLayout {
         resourceLoader.loadResources(asset);
         Celine3DDiagnostics.record(appContext, "REN-312", "GLB Ressourcen geladen", "loadResources OK");
         tameMeshyMaterials();
-        Celine3DDiagnostics.record(appContext, "REN-313", "Runtime-Materialwerte gesetzt", "PBR repair angewendet");
+        Celine3DDiagnostics.record(appContext, "REN-313", "Runtime-Materialwerte gesetzt",
+                "Quell-PBR bewahrt · nur Emissive/Specular repair angewendet");
         asset.releaseSourceData();
 
         normalizeAsset(asset);
@@ -304,14 +305,13 @@ public final class Celine3DView extends FrameLayout {
         try {
             MaterialInstance[] instances = asset.getInstance().getMaterialInstances();
             for (MaterialInstance material : instances) {
-                try { material.setParameter("metallicFactor", 0.0f); } catch (Throwable ignored) {}
-                try { material.setParameter("roughnessFactor", 0.75f); } catch (Throwable ignored) {}
-                try { material.setParameter("baseColorFactor", 1.0f, 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
+                // Preserve the canonical GLB's loaded base-color, metallic, roughness and reflectance
+                // response. v33 explicitly protected these PBR values; flattening every material here
+                // was reintroduced later and is visible in v80 CALL as muddy, low-diversity shading.
                 try { material.setParameter("emissiveFactor", 0.0f, 0.0f, 0.0f); } catch (Throwable ignored) {}
                 try { material.setParameter("emissiveStrength", 0.0f); } catch (Throwable ignored) {}
                 try { material.setParameter("specularFactor", 0.3f); } catch (Throwable ignored) {}
                 try { material.setParameter("specularColorFactor", 1.0f, 1.0f, 1.0f); } catch (Throwable ignored) {}
-                try { material.setParameter("reflectance", 0.5f); } catch (Throwable ignored) {}
             }
         } catch (Throwable e) {
             Celine3DDiagnostics.error(appContext, "REN-395", "Material-Reparatur Exception", e);
