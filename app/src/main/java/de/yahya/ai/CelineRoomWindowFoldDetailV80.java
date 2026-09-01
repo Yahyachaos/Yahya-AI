@@ -27,23 +27,20 @@ import java.util.WeakHashMap;
  * Small derived fold facets for the v80 reference window.
  *
  * Proof #72 validates hiding the shredded source mesh: the window becomes clean but too flat and
- * board-like. Add only shallow, narrow, slightly rotated vertical facets in front of the already
- * accepted side curtains and central sheers. This creates restrained fold light/shadow variation
+ * board-like. Proof #73 then showed that many dark narrow facets read as regular bars instead of fabric.
+ * Keep only a few low-contrast, gently rotated facets to create restrained fold light/shadow variation
  * without changing the source GLB, room transforms, window coverage, Celine, camera or anchors.
  */
 final class CelineRoomWindowFoldDetailV80 {
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.705f;
     private static final float HALF_HEIGHT = 1.03f;
-    private static final float HALF_WIDTH_SIDE = 0.055f;
-    private static final float HALF_WIDTH_SHEER = 0.040f;
+    private static final float HALF_WIDTH_SIDE = 0.060f;
+    private static final float HALF_WIDTH_SHEER = 0.045f;
 
-    private static final float[] SIDE_X = {
-            -0.84f, -0.64f, -0.43f, -0.22f,
-             1.12f,  1.32f,  1.53f,  1.73f
-    };
-    private static final float[] SHEER_X = {0.08f, 0.28f, 0.62f, 0.82f};
-    private static final float[] ANGLES = {9f, -8f, 8f, -9f};
+    private static final float[] SIDE_X = {-0.70f, -0.32f, 1.22f, 1.62f};
+    private static final float[] SHEER_X = {0.20f, 0.70f};
+    private static final float[] ANGLES = {4.5f, -4.0f, 4.0f, -4.5f};
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -77,10 +74,10 @@ final class CelineRoomWindowFoldDetailV80 {
         List<Integer> entities = new ArrayList<>();
         try {
             sideMaterial = MaterialInstance.duplicate(source, "v80-window-side-folds");
-            set4(sideMaterial, "baseColorFactor", 0.37f, 0.29f, 0.23f, 1f);
+            set4(sideMaterial, "baseColorFactor", 0.47f, 0.37f, 0.30f, 1f);
             tuneFabric(sideMaterial);
             sheerMaterial = MaterialInstance.duplicate(source, "v80-window-sheer-folds");
-            set4(sheerMaterial, "baseColorFactor", 0.68f, 0.62f, 0.55f, 1f);
+            set4(sheerMaterial, "baseColorFactor", 0.73f, 0.67f, 0.60f, 1f);
             tuneFabric(sheerMaterial);
 
             sideVertices = createVertices(engine, HALF_WIDTH_SIDE);
@@ -95,7 +92,7 @@ final class CelineRoomWindowFoldDetailV80 {
             }
             for (int i = 0; i < SHEER_X.length; i++) {
                 int entity = createFacet(engine, sheerMaterial, sheerVertices, indices, HALF_WIDTH_SHEER);
-                place(transforms, entity, roomRootTransform, SHEER_X[i], ANGLES[(i + 1) % ANGLES.length] * 0.65f);
+                place(transforms, entity, roomRootTransform, SHEER_X[i], ANGLES[(i + 1) % ANGLES.length] * 0.70f);
                 scene.addEntity(entity);
                 entities.add(entity);
             }
@@ -104,9 +101,9 @@ final class CelineRoomWindowFoldDetailV80 {
                     sideVertices, sheerVertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-144",
-                    "Abgeleitete Vorhangfalten aktiv",
+                    "Subtile abgeleitete Vorhangfalten aktiv",
                     "sideFacets=" + SIDE_X.length + " sheerFacets=" + SHEER_X.length
-                            + " z=" + CENTER_Z + " · shallow rotated fold detail only"
+                            + " z=" + CENTER_Z + " · sparse low-contrast fold detail only"
                             + " · source GLB/coverage/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int entity : entities) destroyEntity(scene, engine, entity);
@@ -121,8 +118,8 @@ final class CelineRoomWindowFoldDetailV80 {
 
     private static void tuneFabric(MaterialInstance material) {
         set1(material, "metallicFactor", 0f);
-        set1(material, "roughnessFactor", 0.95f);
-        set1(material, "reflectance", 0.28f);
+        set1(material, "roughnessFactor", 0.96f);
+        set1(material, "reflectance", 0.26f);
         set3(material, "emissiveFactor", 0f, 0f, 0f);
         set1(material, "emissiveStrength", 0f);
     }
@@ -131,7 +128,7 @@ final class CelineRoomWindowFoldDetailV80 {
                                    VertexBuffer vertices, IndexBuffer indices, float halfWidth) {
         int entity = EntityManager.get().create();
         new RenderableManager.Builder(1)
-                .boundingBox(new Box(0f, 0f, 0f, halfWidth, HALF_HEIGHT, 0.08f))
+                .boundingBox(new Box(0f, 0f, 0f, halfWidth, HALF_HEIGHT, 0.06f))
                 .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vertices, indices)
                 .material(0, material)
                 .castShadows(false)
