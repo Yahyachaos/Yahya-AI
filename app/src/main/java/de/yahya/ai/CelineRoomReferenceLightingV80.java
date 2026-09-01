@@ -54,12 +54,16 @@ final class CelineRoomReferenceLightingV80 {
     private static final float WINDOW_GREEN = 1.00f;
     private static final float WINDOW_BLUE = 1.00f;
 
-    // Proof #59 proved that the first 1.10/1.08/1.05 lift barely moved the dark bed witness. Keep the
-    // exact same texture-preserving material path and increase only this factor far enough to create a
-    // measurable light-upholstery comparison candidate without touching lights, roughness or geometry.
-    private static final float BED_RED = 1.45f;
-    private static final float BED_GREEN = 1.35f;
-    private static final float BED_BLUE = 1.25f;
+    // Proof #60 showed that 1.45/1.35/1.25 did not materially brighten the bed. glTF baseColorFactor is
+    // defined in the 0..1 range, so values above 1 are not a valid way to brighten a dark source texture.
+    // Keep the texture at the maximum valid neutral factor and add only a small bed-local emissive lift;
+    // this preserves the loaded fabric detail and avoids another global-light or texture replacement pass.
+    private static final float BED_RED = 1.00f;
+    private static final float BED_GREEN = 1.00f;
+    private static final float BED_BLUE = 1.00f;
+    private static final float BED_EMISSIVE_RED = 0.08f;
+    private static final float BED_EMISSIVE_GREEN = 0.07f;
+    private static final float BED_EMISSIVE_BLUE = 0.06f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
@@ -133,6 +137,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
                             + " bedFactor=" + BED_RED + "," + BED_GREEN + "," + BED_BLUE
+                            + " bedEmissive=" + BED_EMISSIVE_RED + "," + BED_EMISSIVE_GREEN + "," + BED_EMISSIVE_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
                             + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
         } catch (Throwable error) {
@@ -181,6 +186,13 @@ final class CelineRoomReferenceLightingV80 {
             if (material == null) throw new IllegalStateException("bed material fehlt: " + primitive);
             material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                     BED_RED, BED_GREEN, BED_BLUE, 1.0f);
+            if (material.getMaterial().hasParameter("emissiveFactor")) {
+                material.setParameter("emissiveFactor",
+                        BED_EMISSIVE_RED, BED_EMISSIVE_GREEN, BED_EMISSIVE_BLUE);
+            }
+            if (material.getMaterial().hasParameter("emissiveStrength")) {
+                material.setParameter("emissiveStrength", 1.0f);
+            }
         }
     }
 
