@@ -92,8 +92,11 @@ final class CelineRoomWindowTextureV80 {
 
         // Proof #64-#66 kept the exact same large gaps under radically different opaque atlases.
         // Proof #67 confirmed that a bounded dark backing turns those gaps into coherent night depth.
-        // Keep that geometry repair and tune only the visible drape strands here.
+        // Proof #68 then showed that lifting the atlas changes color but not the ragged sparse silhouette.
+        // Keep the source drapes as front detail and close only the left/right curtain masses with
+        // bounded derived geometry while preserving the central night opening.
         CelineRoomWindowBackdropV80.apply(view, asset, engine);
+        CelineRoomWindowCurtainFillV80.apply(view, asset, engine);
     }
 
     private static Bitmap balanceDrapeAtlas(Bitmap source) {
@@ -131,6 +134,7 @@ final class CelineRoomWindowTextureV80 {
     }
 
     static void release(Celine3DView view, Engine engine) {
+        CelineRoomWindowCurtainFillV80.release(view, engine);
         CelineRoomWindowBackdropV80.release(view, engine);
         Texture texture;
         synchronized (TEXTURES) { texture = TEXTURES.remove(view); }
