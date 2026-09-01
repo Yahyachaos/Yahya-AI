@@ -46,18 +46,18 @@ import java.util.WeakHashMap;
  * total bounded offset is refined to +0.92 m with Y/Z/scale/source bytes unchanged. Proof #99 confirms
  * that horizontal placement around x~0.13..0.24 is now in the target family, so plant X is frozen.
  *
- * Proof #99 exposed the foreground table as the next dominant measured mismatch: apparent width was only
- * ~0.52 viewport versus target 1.00 and visible depth/height ~0.11 versus target ~0.24. Uniform scale 1.90
- * on Proof #100 correctly expands the table to full viewport width, but direct reference comparison shows
- * its near-plane depth now begins around normalized y~0.67 versus target y~0.763, occupying ~0.33 viewport
- * height instead of ~0.24. Therefore retain measured local-X width scale 1.90, restore Y to source scale,
- * and reduce local-Z depth to 1.38 (=1.90 * 0.24/0.33, rounded). Existing table Z offset and camera remain
- * fixed. This is one bounded derived transform correction; source Tischfürlaptop.glb bytes remain unchanged.
+ * Proof #99 exposed the foreground table as the next dominant mismatch. Proof #100 showed uniform 1.90
+ * fixes width but over-expands visible lower-frame depth (~0.33 versus target ~0.24). Proof #101 on
+ * X/Y/Z=1.90/1.00/1.38 keeps the width family but under-expands visible depth to ~0.13. Together with
+ * Proof #99 baseline ~0.11 at source scale, these three measured points isolate local Y as the dominant
+ * remaining projected-height contributor. Linear interpolation between the bounded measured states gives
+ * Y~1.66 for target ~0.24 while retaining X=1.90 and Z=1.38. Existing table Z offset/camera and all other
+ * furniture remain fixed. Source Tischfürlaptop.glb bytes stay unchanged.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float FOREGROUND_TABLE_SCALE_X_FACTOR = 1.90f;
-    static final float FOREGROUND_TABLE_SCALE_Y_FACTOR = 1.00f;
+    static final float FOREGROUND_TABLE_SCALE_Y_FACTOR = 1.66f;
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
     static final float BED_X_OFFSET_M = -0.45f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
