@@ -1,4 +1,4 @@
-name: Celine Room Window Material Audit
+name: Celine Room Window Material Repair
 
 on:
   push:
@@ -9,14 +9,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  audit:
+  repair:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact runtime head
+      - name: Checkout exact repair head
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: true
 
       - name: Checkout immutable window source with LFS
         uses: actions/checkout@v4
@@ -25,150 +28,234 @@ jobs:
           path: source-room
           lfs: true
 
-      - name: Parse runtime and immutable source window materials
+      - name: Generate reference-balanced derived window texture and runtime owner
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --quiet pillow
           python3 <<'PY'
-          import json, struct
+          import io, struct, json
           from pathlib import Path
+          from PIL import Image
 
-          evidence_dir = Path('window-texture-evidence')
-          evidence_dir.mkdir(exist_ok=True)
+          source = Path('source-room/app/src/main/assets/models/möbel/Fenstermitgardinen.glb')
+          data = source.read_bytes()
+          if data[:4] != b'glTF':
+              raise SystemExit('immutable source is not materialized GLB')
+          offset = 12
+          doc = None
+          bin_payload = None
+          while offset + 8 <= len(data):
+              length, ctype = struct.unpack_from('<II', data, offset)
+              offset += 8
+              payload = data[offset:offset + length]
+              offset += length
+              if ctype == 0x4E4F534A:
+                  doc = json.loads(payload.rstrip(b'\x00 \t\r\n').decode('utf-8'))
+              elif ctype == 0x004E4942:
+                  bin_payload = payload
+          if doc is None or bin_payload is None:
+              raise SystemExit('source GLB chunks missing')
+          material = doc['materials'][0]
+          image_index = doc['textures'][material['pbrMetallicRoughness']['baseColorTexture']['index']]['source']
+          image = doc['images'][image_index]
+          view = doc['bufferViews'][image['bufferView']]
+          start = int(view.get('byteOffset', 0))
+          length = int(view['byteLength'])
+          bitmap = Image.open(io.BytesIO(bin_payload[start:start+length])).convert('RGB')
+          if bitmap.size != (2048, 2048):
+              raise SystemExit(f'unexpected source texture size {bitmap.size}')
 
-          reference = Path('Refernzbild.png')
-          reference_bytes = reference.read_bytes()
-          if len(reference_bytes) != 1960774 or reference_bytes[:8] != b'\x89PNG\r\n\x1a\n':
-              raise SystemExit('canonical reference missing or invalid')
-          (evidence_dir / 'Refernzbild.png').write_bytes(reference_bytes)
+          # The immutable Meshy atlas has two dominant islands: clipped white and grey/taupe.
+          # Preserve every UV island and fine detail, but remap only its luminance/chroma into the
+          # warm cream / curtain-brown / dark-night range visible in Refernzbild.png. No geometry,
+          # UV, normal or metallic-roughness data is changed.
+          px = bitmap.load()
+          for y in range(bitmap.height):
+              for x in range(bitmap.width):
+                  r, g, b = px[x, y]
+                  lr, lg, lb = r/255.0, g/255.0, b/255.0
+                  lum = 0.2126*lr + 0.7152*lg + 0.0722*lb
+                  anchors = (
+                      (0.00, (0.06, 0.05, 0.045)),
+                      (0.48, (0.16, 0.12, 0.09)),
+                      (0.62, (0.48, 0.34, 0.24)),
+                      (0.82, (0.72, 0.60, 0.46)),
+                      (1.00, (0.88, 0.82, 0.72)),
+                  )
+                  for i in range(len(anchors)-1):
+                      x0, c0 = anchors[i]
+                      x1, c1 = anchors[i+1]
+                      if lum <= x1 or i == len(anchors)-2:
+                          t = max(0.0, min(1.0, (lum-x0)/(x1-x0)))
+                          base = tuple(c0[j] + (c1[j]-c0[j])*t for j in range(3))
+                          break
+                  detail = ((lr-lum)*0.12, (lg-lum)*0.12, (lb-lum)*0.12)
+                  out = [max(0.0, min(1.0, base[j]+detail[j])) for j in range(3)]
+                  px[x, y] = tuple(int(v*255+0.5) for v in out)
 
-          def parse_glb(path, label, target_node=None):
-              data = path.read_bytes()
-              if data[:4] != b'glTF':
-                  raise SystemExit(f'{label}: invalid GLB magic bytes={len(data)}')
-              version, declared = struct.unpack_from('<II', data, 4)
-              if version != 2 or declared != len(data):
-                  raise SystemExit(f'{label}: invalid GLB header version={version} declared={declared} actual={len(data)}')
-              offset = 12
-              doc = None
-              bin_payload = None
-              while offset + 8 <= len(data):
-                  length, ctype = struct.unpack_from('<II', data, offset)
-                  offset += 8
-                  payload = data[offset:offset + length]
-                  offset += length
-                  if ctype == 0x4E4F534A:
-                      doc = json.loads(payload.rstrip(b'\x00 \t\r\n').decode('utf-8'))
-                  elif ctype == 0x004E4942:
-                      bin_payload = payload
-              if doc is None or bin_payload is None:
-                  raise SystemExit(f'{label}: required GLB chunks missing')
+          bitmap = bitmap.resize((1024, 1024), Image.Resampling.LANCZOS)
+          texture_path = Path('app/src/main/assets/textures/room_window_drapes_reference.jpg')
+          texture_path.parent.mkdir(parents=True, exist_ok=True)
+          bitmap.save(texture_path, format='JPEG', quality=90, optimize=True)
 
-              nodes = doc.get('nodes', [])
-              meshes = doc.get('meshes', [])
-              materials = doc.get('materials', [])
-              textures = doc.get('textures', [])
-              images = doc.get('images', [])
-              samplers = doc.get('samplers', [])
-              buffer_views = doc.get('bufferViews', [])
+          helper = r'''package de.yahya.ai;
 
-              if target_node:
-                  matches = [(i, n) for i, n in enumerate(nodes) if n.get('name') == target_node]
-                  if len(matches) != 1:
-                      raise SystemExit(f'{label}: expected one {target_node} node, found {len(matches)}')
-                  selected_nodes = matches
-              else:
-                  selected_nodes = [(i, n) for i, n in enumerate(nodes) if isinstance(n.get('mesh'), int)]
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
-              def extract_texture(prefix, info):
-                  if not isinstance(info, dict) or 'index' not in info:
-                      return None
-                  ti = info['index']
-                  out = {'texture_index': ti, 'texCoord': info.get('texCoord', 0)}
-                  if not (0 <= ti < len(textures)):
-                      return out
-                  tex = textures[ti]
-                  out['texture'] = tex
-                  si = tex.get('source')
-                  if isinstance(si, int) and 0 <= si < len(images):
-                      image = images[si]
-                      out['image'] = image
-                      bv_index = image.get('bufferView')
-                      if isinstance(bv_index, int) and 0 <= bv_index < len(buffer_views):
-                          bv = buffer_views[bv_index]
-                          start = int(bv.get('byteOffset', 0))
-                          length = int(bv.get('byteLength', 0))
-                          payload = bin_payload[start:start + length]
-                          mime = image.get('mimeType', '')
-                          ext = '.jpg' if mime == 'image/jpeg' else '.png' if mime == 'image/png' else '.bin'
-                          out_path = evidence_dir / f'{prefix}{ext}'
-                          out_path.write_bytes(payload)
-                          out['extracted_path'] = str(out_path)
-                          out['extracted_bytes'] = len(payload)
-                      else:
-                          out['extraction_error'] = f'invalid bufferView {bv_index}'
-                  samp = tex.get('sampler')
-                  if isinstance(samp, int) and 0 <= samp < len(samplers):
-                      out['sampler'] = samplers[samp]
-                  return out
+import com.google.android.filament.Colors;
+import com.google.android.filament.Engine;
+import com.google.android.filament.MaterialInstance;
+import com.google.android.filament.RenderableManager;
+import com.google.android.filament.Texture;
+import com.google.android.filament.TextureSampler;
+import com.google.android.filament.android.TextureHelper;
+import com.google.android.filament.gltfio.FilamentAsset;
 
-              records = []
-              for node_index, node in selected_nodes:
-                  mesh_index = node.get('mesh')
-                  if not isinstance(mesh_index, int) or not (0 <= mesh_index < len(meshes)):
-                      continue
-                  mesh = meshes[mesh_index]
-                  for pi, primitive in enumerate(mesh.get('primitives', [])):
-                      mi = primitive.get('material')
-                      if not isinstance(mi, int) or not (0 <= mi < len(materials)):
-                          continue
-                      mat = materials[mi]
-                      pbr = mat.get('pbrMetallicRoughness', {})
-                      prefix = f'{label}_n{node_index}_p{pi}_m{mi}'
-                      records.append({
-                          'node_index': node_index,
-                          'node_name': node.get('name'),
-                          'node': node,
-                          'mesh_index': mesh_index,
-                          'mesh_name': mesh.get('name'),
-                          'primitive_index': pi,
-                          'material_index': mi,
-                          'material_name': mat.get('name'),
-                          'baseColorFactor': pbr.get('baseColorFactor', [1,1,1,1]),
-                          'metallicFactor': pbr.get('metallicFactor', 1),
-                          'roughnessFactor': pbr.get('roughnessFactor', 1),
-                          'baseColorTexture': extract_texture(prefix + '_base_color', pbr.get('baseColorTexture')),
-                          'metallicRoughnessTexture': extract_texture(prefix + '_metallic_roughness', pbr.get('metallicRoughnessTexture')),
-                          'normalTexture': extract_texture(prefix + '_normal', mat.get('normalTexture')),
-                          'emissiveFactor': mat.get('emissiveFactor', [0,0,0]),
-                          'alphaMode': mat.get('alphaMode', 'OPAQUE'),
-                          'doubleSided': mat.get('doubleSided', False),
-                          'extensions': mat.get('extensions', {})
-                      })
-              return {
-                  'path': str(path), 'bytes': len(data),
-                  'node_count': len(nodes), 'mesh_count': len(meshes),
-                  'material_count': len(materials), 'image_count': len(images),
-                  'records': records
-              }
+import java.io.InputStream;
+import java.util.WeakHashMap;
 
-          runtime = parse_glb(Path('app/src/main/assets/models/room/celine_room_v80_final_modular.glb'), 'runtime', 'room_window_drapes')
-          source = parse_glb(Path('source-room/app/src/main/assets/models/möbel/Fenstermitgardinen.glb'), 'source')
-          report = {
-              'canonical_reference': {'path': str(reference), 'bytes': len(reference_bytes)},
-              'runtime': runtime,
-              'immutable_source': source
-          }
-          out = evidence_dir / 'window-material-audit.json'
-          out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
-          print(out.read_text(encoding='utf-8'))
-          for p in sorted(evidence_dir.iterdir()):
-              print(f'evidence {p.name} bytes={p.stat().st_size}')
+/**
+ * v80 bounded derived-material owner for the single room_window_drapes primitive.
+ *
+ * The immutable Fenstermitgardinen.glb and the optimized room GLB both carry the same high-contrast,
+ * patchy white/taupe Meshy base-color atlas. Reference-room evidence shows that preserving that atlas
+ * verbatim cannot produce the warm cream sheers, brown curtains and dark night separation required by
+ * Refernzbild.png. This owner binds only a derived color-balanced copy that preserves the original UV
+ * islands. Geometry, UVs, normal map, metallic/roughness map and immutable source bytes stay unchanged.
+ */
+final class CelineRoomWindowTextureV80 {
+    private static final String TEXTURE_ASSET = "textures/room_window_drapes_reference.jpg";
+    private static final WeakHashMap<Celine3DView, Texture> TEXTURES = new WeakHashMap<>();
+
+    private CelineRoomWindowTextureV80() {}
+
+    static void apply(Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
+        int entity = asset.getFirstEntityByName("room_window_drapes");
+        if (entity == 0) throw new IllegalStateException("window entity fehlt");
+        RenderableManager manager = engine.getRenderableManager();
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0 || manager.getPrimitiveCount(renderable) != 1) {
+            throw new IllegalStateException("window renderable/primitive ungültig");
+        }
+        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
+        if (material == null || !material.getMaterial().hasParameter("baseColorMap")) {
+            throw new IllegalStateException("window baseColorMap fehlt");
+        }
+
+        synchronized (TEXTURES) {
+            Texture previous = TEXTURES.remove(view);
+            if (previous != null) {
+                try { engine.destroyTexture(previous); } catch (Throwable ignored) {}
+            }
+        }
+
+        Bitmap bitmap;
+        try (InputStream input = view.getContext().getAssets().open(TEXTURE_ASSET)) {
+            bitmap = BitmapFactory.decodeStream(input);
+        }
+        if (bitmap == null) throw new IllegalStateException("window reference texture decode fehlgeschlagen");
+        if (bitmap.getConfig() == Bitmap.Config.HARDWARE) {
+            Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
+            bitmap.recycle();
+            bitmap = copy;
+        }
+
+        Texture texture = new Texture.Builder()
+                .width(bitmap.getWidth())
+                .height(bitmap.getHeight())
+                .levels(1)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.SRGB8_A8)
+                .build(engine);
+        try {
+            TextureHelper.setBitmap(engine, texture, 0, bitmap);
+            engine.flushAndWait();
+            TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
+                    TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.REPEAT);
+            material.setParameter("baseColorMap", texture, sampler);
+            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR, 1f, 1f, 1f, 1f);
+            synchronized (TEXTURES) { TEXTURES.put(view, texture); }
+        } catch (Throwable error) {
+            try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
+            throw error;
+        } finally {
+            bitmap.recycle();
+        }
+    }
+
+    static void release(Celine3DView view, Engine engine) {
+        Texture texture;
+        synchronized (TEXTURES) { texture = TEXTURES.remove(view); }
+        if (texture != null) {
+            try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
+        }
+    }
+}
+'''
+          Path('app/src/main/java/de/yahya/ai/CelineRoomWindowTextureV80.java').write_text(helper, encoding='utf-8')
+
+          lighting_path = Path('app/src/main/java/de/yahya/ai/CelineRoomReferenceLightingV80.java')
+          text = lighting_path.read_text(encoding='utf-8')
+          old_call = '            applyReferenceWindowMaterial(roomAsset, engine);'
+          new_call = '            applyReferenceWindowMaterial(view, roomAsset, engine);'
+          if text.count(old_call) != 1:
+              raise SystemExit('window apply call contract changed')
+          text = text.replace(old_call, new_call)
+
+          old_method = '''    private static void applyReferenceWindowMaterial(FilamentAsset asset, Engine engine) {
+        MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
+        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
+    }
+'''
+          new_method = '''    private static void applyReferenceWindowMaterial(
+            Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
+        CelineRoomWindowTextureV80.apply(view, asset, engine);
+    }
+'''
+          if text.count(old_method) != 1:
+              raise SystemExit('window material method contract changed')
+          text = text.replace(old_method, new_method)
+
+          old_diag = '                            + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE\n'
+          new_diag = old_diag + '                            + " windowTexture=derived_reference_uv_preserved"\n'
+          if text.count(old_diag) != 1:
+              raise SystemExit('window diagnostic contract changed')
+          text = text.replace(old_diag, new_diag)
+
+          old_release = '''            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
+            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
+'''
+          new_release = '''            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
+            CelineRoomWindowTextureV80.release(view, engine);
+            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
+'''
+          if text.count(old_release) != 1:
+              raise SystemExit('detach release contract changed')
+          text = text.replace(old_release, new_release)
+          lighting_path.write_text(text, encoding='utf-8')
           PY
 
-      - name: Upload audit report, textures and canonical reference
-        uses: actions/upload-artifact@v4
-        with:
-          name: celine-room-window-texture-evidence
-          path: window-texture-evidence/
-          if-no-files-found: error
+          git diff --check
+          git diff --stat
+
+      - name: Commit only the bounded derived runtime repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH='auto/celine/v80-human-videochat-presence'
+          git fetch origin "$BRANCH"
+          REMOTE_HEAD="$(git rev-parse "origin/$BRANCH")"
+          if [ "$REMOTE_HEAD" != "$GITHUB_SHA" ]; then
+            echo "single-flight guard: remote advanced to $REMOTE_HEAD; refusing write"
+            exit 2
+          fi
+          git config user.name 'Yahyachaos'
+          git config user.email 'y.al-jadouh@hotmail.de'
+          git add app/src/main/assets/textures/room_window_drapes_reference.jpg \
+                  app/src/main/java/de/yahya/ai/CelineRoomWindowTextureV80.java \
+                  app/src/main/java/de/yahya/ai/CelineRoomReferenceLightingV80.java
+          git commit -m 'polish(v80): replace patchy window drape texture'
+          git push origin "HEAD:$BRANCH"
