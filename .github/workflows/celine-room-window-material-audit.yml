@@ -114,7 +114,7 @@ jobs:
                   else:
                       out['extraction_error'] = f'invalid bufferView {bv_index}'
               samp = tex.get('sampler')
-              if isinstance(samp, int) and 0 <= samp < len(samplers)):
+              if isinstance(samp, int) and 0 <= samp < len(samplers):
                   out['sampler'] = samplers[samp]
               return out
 
