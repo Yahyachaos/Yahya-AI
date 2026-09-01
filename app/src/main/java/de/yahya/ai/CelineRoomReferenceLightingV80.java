@@ -121,7 +121,7 @@ final class CelineRoomReferenceLightingV80 {
             FilamentAsset roomAsset = currentRoomAsset(view);
             if (roomAsset == null) return;
             applyReferenceCeilingMaterial(roomAsset, engine);
-            applyReferenceWindowMaterial(roomAsset, engine);
+            applyReferenceWindowMaterial(view, roomAsset, engine);
             applyReferenceBedMaterial(roomAsset, engine);
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
@@ -137,6 +137,7 @@ final class CelineRoomReferenceLightingV80 {
                             + " indirectIntensity=" + INDIRECT_LUX
                             + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
+                            + " windowTexture=derived_reference_uv_preserved"
                             + " bedFactor=" + BED_RED + "," + BED_GREEN + "," + BED_BLUE
                             + " bedMetallic=" + BED_METALLIC
                             + " bedEmissive=" + BED_EMISSIVE_RED + "," + BED_EMISSIVE_GREEN + "," + BED_EMISSIVE_BLUE
@@ -169,10 +170,9 @@ final class CelineRoomReferenceLightingV80 {
         material.setParameter("reflectance", CEILING_REFLECTANCE);
     }
 
-    private static void applyReferenceWindowMaterial(FilamentAsset asset, Engine engine) {
-        MaterialInstance material = singleMaterial(asset, engine, "room_window_drapes", "window");
-        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
-                WINDOW_RED, WINDOW_GREEN, WINDOW_BLUE, 1.0f);
+    private static void applyReferenceWindowMaterial(
+            Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
+        CelineRoomWindowTextureV80.apply(view, asset, engine);
     }
 
     private static void applyReferenceBedMaterial(FilamentAsset asset, Engine engine) {
@@ -268,6 +268,7 @@ final class CelineRoomReferenceLightingV80 {
             view.removeOnAttachStateChangeListener(this);
             try { scene.removeEntity(current); } catch (Throwable ignored) {}
             try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
+            CelineRoomWindowTextureV80.release(view, engine);
             try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
             synchronized (APPLIED) {
                 APPLIED.remove(view);
