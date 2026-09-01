@@ -33,14 +33,6 @@ final class CelineVideoChatV44 {
     private static final WeakHashMap<Celine3DView, Boolean> CALL_LOCKS = new WeakHashMap<>();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
-    // v80 measured room reconstruction M1: Proof #79 still shows the foreground table as only a
-    // thin, narrow strip and the back-wall/floor junction far too low versus /Refernzbild.png.
-    // Move the HOME eye forward to just behind the derived foreground table and reduce focal length
-    // in the same bounded calibration so Celine's apparent size stays close to the measured target.
-    // This owner is paused for CALL, so accepted CALL zoom/framing remains independently owned.
-    private static final double HOME_REFERENCE_LENS_MM = 21.0;
-    private static final double HOME_REFERENCE_CAMERA_Z = -1.15;
-
     private CelineVideoChatV44() {}
 
     static void ensure(Activity activity, View decor) {
@@ -255,9 +247,9 @@ final class CelineVideoChatV44 {
 
                 int w = Math.max(1, view.getWidth());
                 int h = Math.max(1, view.getHeight());
-                camera.setLensProjection(HOME_REFERENCE_LENS_MM, (double) w / (double) h, 0.05, 1000.0);
+                camera.setLensProjection(38.0, (double) w / (double) h, 0.05, 1000.0);
                 Celine3DDiagnostics.record(activity, "V44-110", "Videochat-Kamera/Raum aktiv",
-                        "transparentSurface=on · lens=" + HOME_REFERENCE_LENS_MM + "mm · stage=" + w + "x" + h);
+                        "transparentSurface=on · lens=38mm · stage=" + w + "x" + h);
             } catch (Throwable e) {
                 Celine3DDiagnostics.error(activity, "V44-198", "Videochat-Präsentation FEHLER", e);
             }
@@ -300,7 +292,7 @@ final class CelineVideoChatV44 {
             double targetZ = -4.0 + z * 0.30;
             double cameraX = x * 0.16;
             double cameraY = 0.56;
-            double cameraZ = HOME_REFERENCE_CAMERA_Z + z * 0.08;
+            double cameraZ = 0.62 + z * 0.08;
             camera.lookAt(cameraX, cameraY, cameraZ,
                     targetX, targetY, targetZ,
                     0.0, 1.0, 0.0);
