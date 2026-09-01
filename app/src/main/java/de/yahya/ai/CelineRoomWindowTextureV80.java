@@ -90,12 +90,12 @@ final class CelineRoomWindowTextureV80 {
             bitmap.recycle();
         }
 
-        // Proof #71 confirms the derived night/side/sheer layers are stable but the immutable source
-        // mesh itself still reads as shredded strips. Keep every source byte/transform intact and test
-        // one reversible runtime visibility change only after the derived reference layers exist.
+        // Proof #72 confirms the sparse source mesh should stay hidden, but the clean derived coverage
+        // is too flat. Preserve all accepted coverage and add only shallow fold facets in front.
         CelineRoomWindowBackdropV80.apply(view, asset, engine);
         CelineRoomWindowCurtainFillV80.apply(view, asset, engine);
         CelineRoomWindowSheerFillV80.apply(view, asset, engine);
+        CelineRoomWindowFoldDetailV80.apply(view, asset, engine);
         CelineRoomWindowSourceVisibilityV80.hide(view, asset);
     }
 
@@ -132,6 +132,7 @@ final class CelineRoomWindowTextureV80 {
 
     static void release(Celine3DView view, Engine engine) {
         CelineRoomWindowSourceVisibilityV80.release(view);
+        CelineRoomWindowFoldDetailV80.release(view, engine);
         CelineRoomWindowSheerFillV80.release(view, engine);
         CelineRoomWindowCurtainFillV80.release(view, engine);
         CelineRoomWindowBackdropV80.release(view, engine);
