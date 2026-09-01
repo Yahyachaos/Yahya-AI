@@ -2,6 +2,7 @@ package de.yahya.ai;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 
 import com.google.android.filament.Colors;
 import com.google.android.filament.Engine;
@@ -61,10 +62,10 @@ final class CelineRoomWindowTextureV80 {
             bitmap = copy;
         }
 
-        Bitmap smoothed = smoothAtlas(bitmap);
-        if (smoothed != bitmap) {
+        Bitmap compressed = compressAtlasContrast(bitmap);
+        if (compressed != bitmap) {
             bitmap.recycle();
-            bitmap = smoothed;
+            bitmap = compressed;
         }
 
         Texture texture = new Texture.Builder()
@@ -90,16 +91,33 @@ final class CelineRoomWindowTextureV80 {
         }
     }
 
-    private static Bitmap smoothAtlas(Bitmap source) {
+    private static Bitmap compressAtlasContrast(Bitmap source) {
         int width = source.getWidth();
         int height = source.getHeight();
-        int reducedWidth = Math.max(48, width / 16);
-        int reducedHeight = Math.max(48, height / 16);
-        if (reducedWidth >= width || reducedHeight >= height) return source;
-        Bitmap reduced = Bitmap.createScaledBitmap(source, reducedWidth, reducedHeight, true);
-        Bitmap smoothed = Bitmap.createScaledBitmap(reduced, width, height, true);
-        if (reduced != source && reduced != smoothed) reduced.recycle();
-        return smoothed;
+        int[] pixels = new int[width * height];
+        source.getPixels(pixels, 0, width, 0, 0, width, height);
+        for (int i = 0; i < pixels.length; i++) {
+            int color = pixels[i];
+            float r = Color.red(color) / 255f;
+            float g = Color.green(color) / 255f;
+            float b = Color.blue(color) / 255f;
+            float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+            float target = luminance < 0.5f
+                    ? 0.24f + 0.36f * (luminance / 0.5f)
+                    : 0.60f + 0.20f * ((luminance - 0.5f) / 0.5f);
+            float nr = clamp01(target + (r - luminance) * 0.35f);
+            float ng = clamp01(target + (g - luminance) * 0.35f);
+            float nb = clamp01(target + (b - luminance) * 0.35f);
+            pixels[i] = Color.argb(Color.alpha(color), Math.round(nr * 255f),
+                    Math.round(ng * 255f), Math.round(nb * 255f));
+        }
+        Bitmap result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        result.setPixels(pixels, 0, width, 0, 0, width, height);
+        return result;
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
     static void release(Celine3DView view, Engine engine) {
