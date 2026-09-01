@@ -40,9 +40,10 @@ import java.util.WeakHashMap;
  * Proof #95 on exact head 02c8533a confirms the calibrated HOME->CALL->HOME proof is structurally green
  * and the dresser now spans approximately the target left-edge width family, so dresser is frozen. In
  * the same HOME frame the large plant has approximately target apparent size/height but is clipped hard
- * against the left viewport edge instead of occupying target normalized x~0.132..0.254. The previously
- * measured chair correction calibrates roughly +0.65 m world X for this magnitude of horizontal image
- * displacement, so M2 advances with one bounded large-plant parent-X translation only.
+ * against the left viewport edge instead of occupying target normalized x~0.132..0.254. Proof #97 after
+ * +0.65 m X moves it substantially toward target but leaves its horizontal span still about 0.05-0.06
+ * viewport-width too far left. The same measured chair calibration implies ~+0.27 m additional X, so the
+ * total bounded offset is refined to +0.92 m with Y/Z/scale/source bytes unchanged.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -55,7 +56,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
-    static final float LARGE_PLANT_X_OFFSET_M = 0.65f;
+    static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
