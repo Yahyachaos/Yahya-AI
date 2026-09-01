@@ -1,0 +1,120 @@
+name: Celine Room Bed Material Audit
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - .github/workflows/celine-room-bed-material-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+
+      - name: Parse room_bed GLB material and texture graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, struct
+          from pathlib import Path
+
+          path = Path('app/src/main/assets/models/room/celine_room_v80_final_modular.glb')
+          data = path.read_bytes()
+          if data[:4] != b'glTF':
+              raise SystemExit('invalid GLB magic')
+          version, declared = struct.unpack_from('<II', data, 4)
+          if version != 2 or declared != len(data):
+              raise SystemExit(f'invalid GLB header version={version} declared={declared} actual={len(data)}')
+
+          offset = 12
+          doc = None
+          while offset + 8 <= len(data):
+              length, ctype = struct.unpack_from('<II', data, offset)
+              offset += 8
+              payload = data[offset:offset + length]
+              offset += length
+              if ctype == 0x4E4F534A:
+                  doc = json.loads(payload.rstrip(b'\x00 \t\r\n').decode('utf-8'))
+                  break
+          if doc is None:
+              raise SystemExit('JSON chunk missing')
+
+          nodes = doc.get('nodes', [])
+          meshes = doc.get('meshes', [])
+          materials = doc.get('materials', [])
+          textures = doc.get('textures', [])
+          images = doc.get('images', [])
+          samplers = doc.get('samplers', [])
+
+          matches = [(i, n) for i, n in enumerate(nodes) if n.get('name') == 'room_bed']
+          if len(matches) != 1:
+              raise SystemExit(f'expected exactly one room_bed node, found {len(matches)}')
+          node_index, node = matches[0]
+          mesh_index = node.get('mesh')
+          if not isinstance(mesh_index, int) or not (0 <= mesh_index < len(meshes)):
+              raise SystemExit(f'room_bed mesh invalid: {mesh_index}')
+          mesh = meshes[mesh_index]
+
+          def tex_info(info):
+              if not isinstance(info, dict) or 'index' not in info:
+                  return None
+              ti = info['index']
+              out = {'texture_index': ti, 'texCoord': info.get('texCoord', 0)}
+              if 0 <= ti < len(textures):
+                  tex = textures[ti]
+                  out['texture'] = tex
+                  si = tex.get('source')
+                  if isinstance(si, int) and 0 <= si < len(images):
+                      out['image'] = images[si]
+                  samp = tex.get('sampler')
+                  if isinstance(samp, int) and 0 <= samp < len(samplers):
+                      out['sampler'] = samplers[samp]
+              return out
+
+          report = {
+              'glb': {'path': str(path), 'bytes': len(data)},
+              'node': {'index': node_index, 'value': node},
+              'mesh': {'index': mesh_index, 'name': mesh.get('name'), 'primitive_count': len(mesh.get('primitives', []))},
+              'primitives': []
+          }
+
+          for pi, primitive in enumerate(mesh.get('primitives', [])):
+              mi = primitive.get('material')
+              entry = {'primitive_index': pi, 'material_index': mi}
+              if isinstance(mi, int) and 0 <= mi < len(materials):
+                  mat = materials[mi]
+                  pbr = mat.get('pbrMetallicRoughness', {})
+                  entry['material_name'] = mat.get('name')
+                  entry['baseColorFactor'] = pbr.get('baseColorFactor', [1,1,1,1])
+                  entry['metallicFactor'] = pbr.get('metallicFactor', 1)
+                  entry['roughnessFactor'] = pbr.get('roughnessFactor', 1)
+                  entry['baseColorTexture'] = tex_info(pbr.get('baseColorTexture'))
+                  entry['metallicRoughnessTexture'] = tex_info(pbr.get('metallicRoughnessTexture'))
+                  entry['normalTexture'] = tex_info(mat.get('normalTexture'))
+                  entry['occlusionTexture'] = tex_info(mat.get('occlusionTexture'))
+                  entry['emissiveTexture'] = tex_info(mat.get('emissiveTexture'))
+                  entry['emissiveFactor'] = mat.get('emissiveFactor', [0,0,0])
+                  entry['alphaMode'] = mat.get('alphaMode', 'OPAQUE')
+                  entry['doubleSided'] = mat.get('doubleSided', False)
+                  entry['extensions'] = mat.get('extensions', {})
+              report['primitives'].append(entry)
+
+          out = Path('bed-material-audit.json')
+          out.write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          print(out.read_text(encoding='utf-8'))
+          PY
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-bed-material-audit
+          path: bed-material-audit.json
+          if-no-files-found: error
