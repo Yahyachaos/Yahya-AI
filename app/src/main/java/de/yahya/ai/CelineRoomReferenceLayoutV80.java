@@ -12,17 +12,25 @@ import java.util.WeakHashMap;
 /**
  * Bounded v80 reference-image layout correction.
  *
- * The baseline production proof showed the foreground table as a fully displayed central slab,
- * while the canonical room reference requires it to behave as a near-camera foreground occluder:
- * only the near surface/edge should enter the bottom of frame. The first +0.70 m candidate moved
- * the table completely out of the HOME frame. This measured midpoint candidate keeps the source
- * GLB immutable and moves only the derived runtime table node +0.35 m toward the fixed +Z viewer.
- * The two embedded table anchor marker nodes move with the same delta so the GLB stays internally
- * coherent; logical 9R anchor/nav metadata remains unchanged until this visual candidate is
- * manually accepted.
+ * The foreground-table correction keeps only the near table edge/surface in the product frame.
+ * Direct manual inspection of the canonical /Refernzbild.png now also proves a larger geometry gap:
+ * the bed must read as the major right-side room mass with its upper/headboard region visible, while
+ * the previous runtime left only a small lower-right bed fragment in frame. Keep the source GLB
+ * immutable and move only the derived runtime bed node 0.45 m left in parent/world-room X. Embedded
+ * bed marker nodes, when present, receive the same delta so the GLB remains internally coherent;
+ * logical 9R metadata remains pending until this visual geometry candidate is accepted.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
+    static final float BED_X_OFFSET_M = -0.45f;
+
+    private static final String[] BED_MARKER_NODES = {
+            "bed_approach_anchor",
+            "bed_edge_sit_anchor",
+            "bed_relax_anchor",
+            "bed_lie_anchor",
+            "bed_exit_anchor"
+    };
 
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED =
             new WeakHashMap<>();
@@ -47,18 +55,29 @@ final class CelineRoomReferenceLayoutV80 {
                 if (APPLIED.get(view) == asset) return;
             }
 
-            translateParentLocalZ(asset, transforms,
-                    "room_foreground_table", FOREGROUND_TABLE_Z_OFFSET_M);
-            translateParentLocalZ(asset, transforms,
-                    "foreground_table_approach_anchor", FOREGROUND_TABLE_Z_OFFSET_M);
-            translateParentLocalZ(asset, transforms,
-                    "foreground_table_lean_anchor", FOREGROUND_TABLE_Z_OFFSET_M);
+            translateParentLocal(asset, transforms,
+                    "room_foreground_table", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
+            translateParentLocal(asset, transforms,
+                    "foreground_table_approach_anchor", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
+            translateParentLocal(asset, transforms,
+                    "foreground_table_lean_anchor", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
+
+            translateParentLocal(asset, transforms,
+                    "room_bed", BED_X_OFFSET_M, 0.0f, 0.0f, true);
+            int movedBedMarkers = 0;
+            for (String marker : BED_MARKER_NODES) {
+                if (translateParentLocal(asset, transforms,
+                        marker, BED_X_OFFSET_M, 0.0f, 0.0f, false)) {
+                    movedBedMarkers++;
+                }
+            }
 
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
-                    "Referenzraum Vordergrundtisch korrigiert",
+                    "Referenzraum Layout korrigiert",
                     "tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
-                            + "m anchorMarkers=sameDelta"
+                            + "m bedX=" + BED_X_OFFSET_M + "m"
+                            + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " sourceGLB=unchanged camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
         } catch (Throwable error) {
@@ -78,26 +97,34 @@ final class CelineRoomReferenceLayoutV80 {
         }
     }
 
-    private static void translateParentLocalZ(
+    private static boolean translateParentLocal(
             FilamentAsset asset, TransformManager transforms,
-            String entityName, float deltaZ) {
+            String entityName, float deltaX, float deltaY, float deltaZ,
+            boolean required) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
-            throw new IllegalStateException("Reference layout entity missing: " + entityName);
+            if (required) {
+                throw new IllegalStateException("Reference layout entity missing: " + entityName);
+            }
+            return false;
         }
         int instance = transforms.getInstance(entity);
         if (instance == 0) {
-            throw new IllegalStateException("Reference layout transform missing: " + entityName);
+            if (required) {
+                throw new IllegalStateException("Reference layout transform missing: " + entityName);
+            }
+            return false;
         }
 
         float[] base = transforms.getTransform(instance, new float[16]);
         float[] translation = new float[16];
         float[] adjusted = new float[16];
         Matrix.setIdentityM(translation, 0);
-        Matrix.translateM(translation, 0, 0.0f, 0.0f, deltaZ);
+        Matrix.translateM(translation, 0, deltaX, deltaY, deltaZ);
         // Pre-multiply so the exact delta is expressed in the entity parent's room coordinates and
-        // is not scaled by the furniture node's existing uniform scale.
+        // is not scaled/rotated by the furniture node's existing local transform.
         Matrix.multiplyMM(adjusted, 0, translation, 0, base, 0);
         transforms.setTransform(instance, adjusted);
+        return true;
     }
 }
