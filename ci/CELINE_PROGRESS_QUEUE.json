@@ -29,25 +29,47 @@
     "block_4R_status": "accepted_and_protected_not_reopened"
   },
   "permanent_future_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5",
-  "checkpoint_note": "Stale Block-12 queue state was causing competing workers to keep reopening the already-repaired CALL transition while the user explicitly redirected v80 to finish whole-room reference realism. Live GitHub was reconciled through 8ae2795. The durable room plan is now canonical for the active visual substep. R1 proof #21 showed real depth improvement after enabling shadows, but Celine/shadow-side fill remained too dark versus /Refernzbild.png. R2 therefore changes only existing indirect-light intensity from 8000 to 10000. Build #883 is the useful exact-runtime build currently queued/in progress; do not start another runtime change before that build and one targeted room proof are evaluated.",
-  "status": "room_reference_realism_r2_build_then_targeted_visual_proof",
-  "latest_runtime_code_head": "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5",
-  "latest_built_runtime_head": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
-  "latest_visually_accepted_runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
-  "last_successful_runtime_fingerprint": "77e5a83bca86e0b114d23a50931a51d5c6824a3666fbca2d8cae29583ceed78f",
+  "current_branch_head_checkpoint": "4ac564eded618acabc47f8d3d1ea3101038abf9b",
+  "checkpoint_note": "Clean v6-loop handoff after manually inspected Room Visual Polish Proof #57. Runtime head 3e8b278 fixes the confirmed v75 1x1 semantic-texture flattening regression while preserving canonical source GLB/rig/geometry and source PBR response. The docs-only handoff checkpoint is newer than the runtime head and must not be treated as a newly built runtime.",
+  "status": "room_reference_realism_continue_after_semantic_texture_repair",
+  "latest_runtime_code_head": "3e8b278434018a2fc57384c4544595e2685e5415",
+  "latest_built_runtime_head": "3e8b278434018a2fc57384c4544595e2685e5415",
+  "latest_visually_accepted_runtime_head": "3e8b278434018a2fc57384c4544595e2685e5415",
+  "visual_acceptance_scope": "PASS_SEMANTIC_TEXTURE_REPAIR_ONLY__WHOLE_ROOM_REFERENCE_STILL_FAIL",
+  "last_successful_runtime_fingerprint": "334d3ba229d8ebd3787c1c07b62a5b18986a60e91e041561e816c8055aec6516",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 880,
-    "run_id": 33420704971,
+    "run_number": 918,
+    "run_id": 33508062611,
     "conclusion": "success",
-    "head_sha": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
-    "runtime_fingerprint": "77e5a83bca86e0b114d23a50931a51d5c6824a3666fbca2d8cae29583ceed78f",
-    "apk_artifact": 9768828195,
-    "apk_artifact_digest": "sha256:44cf978263e1c8c46ecc100598c1cdd0743d62478f19cc24578285b66a03f399",
-    "runtime_fingerprint_artifact": 9768828728,
-    "runtime_fingerprint_artifact_digest": "sha256:6ac8c6ece3c5e01ca29f7289327c57902c90418192f7f914737bc6eb5e42fce9",
-    "note": "Latest completed runtime build before R2. Build #883 is the useful newer exact-runtime build and must be allowed to finish rather than displaced by another runtime write."
+    "head_sha": "3e8b278434018a2fc57384c4544595e2685e5415",
+    "runtime_fingerprint": "334d3ba229d8ebd3787c1c07b62a5b18986a60e91e041561e816c8055aec6516",
+    "apk_artifact": 9800483603,
+    "apk_artifact_digest": "sha256:9515370d8f8682ce4aa3dbb65726ee0ce43e57cf49e3641bde04431a39ae80b1",
+    "runtime_fingerprint_artifact": 9800484014,
+    "runtime_fingerprint_artifact_digest": "sha256:372de9dc7b38f7ac86961b178e8f0769577ec9418eb1ffc368bf1d009c52a3e2",
+    "note": "Exact successful build for the semantic-texture repair runtime. Newer handoff commits are docs-only and should reuse this APK only when the runtime fingerprint matches."
+  },
+  "latest_visual_proof": {
+    "name": "Celine Room Visual Polish Proof",
+    "run_number": 57,
+    "run_id": 33508558589,
+    "proof_head": "3e8b278434018a2fc57384c4544595e2685e5415",
+    "runtime_head": "3e8b278434018a2fc57384c4544595e2685e5415",
+    "runtime_fingerprint": "334d3ba229d8ebd3787c1c07b62a5b18986a60e91e041561e816c8055aec6516",
+    "artifact_id": 9800728444,
+    "artifact_digest": "sha256:46b1fcea56526841d16f0aadefe8d6a537a2ceec9970c6ce1f78d1242520c0ba",
+    "workflow_conclusion": "success",
+    "structural_result": "PASS_HOME_CALL_HOME_CAPTURE",
+    "manual_inspection": "PASS_SEMANTIC_TEXTURE_DETAIL_RESTORED__WHOLE_SCENE_STILL_FAIL_REFERENCE",
+    "visual_acceptance": "PARTIAL_PASS_NOT_FINAL_ROOM_ACCEPTANCE",
+    "evidence": [
+      "home.png, call.png and home-return.png were manually inspected.",
+      "Top rib texture, denim texture and hair detail are visibly restored compared with the flat 1x1-color candidates.",
+      "Logcat confirms REN-313 source PBR preservation, V39-150 canonical 4096x4096 atlas binding to five materials, and V75-160 semantic regions retained without 1x1 rebinding.",
+      "HOME/CALL/HOME stayed structurally stable.",
+      "Celine still reads warmer/oranger than target and the room still has broad flat wall, patchy/washed drapes/window, dark low-detail bed/bedding and weak inhabited-room realism."
+    ]
   },
   "block12_temporal_state": {
     "confirmed_original_failure": "CALL SurfaceView reparent exposed blank/transient clipped frames on accepted Block-11 runtime.",
@@ -56,64 +78,28 @@
     "segmented_structural_proof_number": 16,
     "segmented_structural_proof_artifact": 9767505612,
     "segmented_structural_proof_result": "SUCCESS_STRUCTURAL_MANUAL_FULL_V80_ACCEPTANCE_NOT_CLAIMED",
-    "newer_live_guard_heads": [
-      "ded4aae0555fd96ecfb50df17fe195a04d28679c",
-      "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
-      "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5"
-    ],
     "guard_scope": "CelineSurfaceTransitionGuardV80 lifecycle-only preservation of live Surface pixels; no room-light/material/camera ownership.",
-    "instruction": "Do not perform another speculative Block-12 runtime rewrite while room-reference R2 build/proof is the active exact_next_action. Final temporal acceptance returns only after the room visual target is accepted."
-  },
-  "latest_visual_proof": {
-    "name": "Celine Room Visual Polish Proof",
-    "run_number": 21,
-    "run_id": 33420953532,
-    "proof_head": "0bc382e9feb71d20152311ad31d4b27c9abbc496",
-    "runtime_head": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
-    "runtime_fingerprint": "77e5a83bca86e0b114d23a50931a51d5c6824a3666fbca2d8cae29583ceed78f",
-    "artifact_id": 9768947065,
-    "artifact_digest": "sha256:348ae990596c6bb5d34e8ef47b43f3fe713ee0d7c700ec52d2960b1351664dad",
-    "workflow_conclusion": "success",
-    "structural_result": "PASS_HOME_CALL_HOME_CAPTURE",
-    "manual_inspection": "PARTIAL_PASS_DEPTH_IMPROVED_BUT_CELINE_AND_SHADOW_SIDE_TOO_DARK",
-    "visual_acceptance": "FAIL_R2_FILL_REQUIRED",
-    "evidence": [
-      "Actual home.png/call.png/home-return.png were manually inspected, not inferred from workflow SUCCESS.",
-      "Enabling shadows on the existing directional key produced the first clear grounded furniture/contact depth improvement versus the previous flat room.",
-      "The warm-neutral key removed the prior over-orange R1 candidate.",
-      "Celine and the shadow side are visibly too dark compared with the warm bright reference, especially in CALL, so R1 alone is not a final room-realism PASS.",
-      "The smallest evidence-backed next change is existing indirect-fill intensity only; no material/camera/geometry change is justified yet."
-    ]
+    "instruction": "Do not chase current Block-12 failures until the room whole-scene reference target is accepted. Final temporal acceptance returns only on the final accepted room runtime."
   },
   "room_reference_realism": {
     "authority": "/Refernzbild.png",
     "plan": "docs/celine/room-source/v80-2026-08-28/ROOM_REFERENCE_REALISM_PLAN.md",
-    "r1_first_candidate": {
-      "runtime_head": "febba2a2d8d341b9c39e743200526b8192bc3b07",
-      "proof_run": 33420168962,
-      "proof_number": 20,
-      "artifact": 9768652790,
-      "verdict": "FAIL_OVER_ORANGE_AND_STILL_FLAT"
+    "accepted_recent_baseline": {
+      "runtime_head": "3e8b278434018a2fc57384c4544595e2685e5415",
+      "change": "Preserve canonical V39 texture atlas on the four v75 semantic material regions; remove 1x1 flat-color rebinding. Preserve source PBR base-color/metallic/roughness/reflectance loaded by gltfio.",
+      "build_number": 918,
+      "proof_number": 57,
+      "proof_run": 33508558589,
+      "artifact": 9800728444,
+      "verdict": "PASS_SEMANTIC_TEXTURE_REPAIR__WHOLE_ROOM_STILL_FAIL"
     },
-    "r1_repair": {
-      "runtime_head": "63f805e6f9a6cc6fc57abb3d1853cf47cb8b024a",
-      "directional_color": [1.0, 0.8, 0.66],
-      "directional_intensity_lux": 11000.0,
-      "directional_shadows": true,
-      "proof_run": 33420953532,
-      "proof_number": 21,
-      "artifact": 9768947065,
-      "verdict": "DEPTH_FIX_CONFIRMED_FILL_TOO_DARK"
-    },
-    "r2_candidate": {
-      "runtime_change_head": "7ed89e13deb7b95c70d1ed808d74ee91201d090f",
-      "live_runtime_head_with_reconciled_block12_guard": "8ae27954b808e9b17cf8cdeb753d00e834b8c1b5",
-      "change": "Existing IndirectLight intensity 8000 -> 10000 only; keep current neutral irradiance color for this bounded fill test.",
-      "build_run": 33421441050,
-      "build_number": 883,
-      "state_at_checkpoint": "queued_or_in_progress",
-      "visual_proof": "NOT_STARTED_UNTIL_BUILD_SUCCESS"
-    }
+    "remaining_mismatches": [
+      "Celine skin/hair remain warmer/oranger than desired reference despite restored material detail.",
+      "Broad wall/shell still reads flat.",
+      "Window/drapes remain patchy/washed and low-fidelity.",
+      "Bed/bedding remains dark brown and low-detail.",
+      "Practical-light integration and inhabited-room depth remain weaker than the reference."
+    ]
   },
   "accepted_blocks": {
     "4": "Central layered animation owner",
@@ -133,51 +119,35 @@
     "9R.5-shelf": "Environment destination — shelf",
     "9R.5-lamp": "Environment destination — lamp / reversible localized room light",
     "9R.5": "Environment destinations complete",
-    "room-polish-candidate12-ceiling": "Accepted warm tan/beige isolated ceiling material; criterion-specific, not whole-reference acceptance",
-    "room-polish-candidate13-floor": "Accepted darker less-saturated natural warm-brown floor factor; criterion-specific, not whole-reference acceptance",
+    "room-polish-candidate12-ceiling": "Accepted criterion-specific ceiling material; not whole-reference acceptance",
+    "room-polish-candidate13-floor": "Accepted criterion-specific floor material; not whole-reference acceptance",
+    "room-polish-semantic-texture-repair": "Proof #57 manually accepted restored textured Celine semantic regions; not whole-reference acceptance",
     "10": "Yahya AI launcher identity / exact approved portrait icon",
     "11": "Duplicate product launcher cleanup / Yahya AI sole normal launcher"
   },
   "active_block": {
     "number": 12,
     "name": "Final temporal acceptance gate with user-directed reference-room realism completion before final exact-head gates",
-    "status": "room_reference_realism_r2_active"
+    "status": "room_reference_realism_active_before_final_temporal"
   },
-  "block10_launcher": {
-    "runtime_head": "cc857eac62175c74a7c5615fa6ea68c0b1147ae5",
-    "source_path": "docs/celine/reference/v80/yahya-ai-launcher-source.jpg",
-    "source_copy_sha256": "04d52cfcc5b8c045c3cff306e985746a3137987d270e4a0716c9f442c05d5eb3",
-    "derived_foreground_path": "app/src/main/res/drawable-nodpi/celine_launcher_foreground.jpg",
-    "derived_foreground_sha256": "bce254e98417bfdb79ce1b50a2511d9599fae3355e71e0db6e4b9618c02ec2f6",
-    "adaptive_icon": true,
-    "legacy_fallback": true,
-    "manifest_icon_bound": true,
-    "generated_lookalike_used": false,
-    "installed_launcher_visual_acceptance": "PASS_MANUAL_EMULATOR_APP_DRAWER"
-  },
-  "block11_launcher_cleanup": {
-    "runtime_head": "53451e58b5b02af4a803876b5d89b9230e981145",
-    "normal_launcher_count_for_package": 1,
-    "normal_launcher": "de.yahya.ai/.MainActivity",
-    "manual_installed_verdict": "PASS_ONLY_YAHYA_AI_VISIBLE_IN_APP_DRAWER"
-  },
-  "current_blocker": "No design blocker. The current R2 runtime has not yet received its successful required Android build because useful builds were repeatedly cancelled by competing stale-queue Block-12 writes. Queue is now reconciled to stop that interference. Allow Android Build #883 for the live R2 runtime to finish, then run exactly one targeted room proof and inspect actual frames.",
-  "root_cause": "Whole-room realism lagged because earlier criterion-specific room passes were mistaken for completion and global lighting remained flat. The stale Queue then kept directing other workers back into the CALL transition after Live GitHub had advanced, cancelling useful room builds. Visual evidence now isolates the room problem: directional shadows restore depth; existing indirect fill is insufficient to keep the warm bright reference look without underexposing Celine/shadow-side surfaces.",
-  "exact_next_action": "DO NOT WRITE MORE RUNTIME CODE. Fresh-reconcile the live PR/head and Android Build #883. If the live runtime fingerprint containing R2 (existing IndirectLight intensity 10000) receives a successful Android build with a live APK artifact, trigger exactly one Celine Room Visual Polish Proof against that runtime-equivalent APK. Manually inspect HOME/CALL/HOME against /Refernzbild.png. Record R2 PASS/FAIL. Only after that evidence may the next bounded realism phase be chosen. Do not reopen Block-12 transition code, camera/zoom, materials, geometry, furniture transforms, anchors/actions, Lamp behavior or Celine while this R2 evidence is pending. No merge/release.",
+  "current_blocker": "No external blocker. The semantic-texture regression is fixed and manually proven. Whole-room visual acceptance is still blocked by remaining reference mismatches, especially low-fidelity bed/bedding and window/drapes plus residual warm Celine appearance and flat shell realism.",
+  "root_cause": "The recent CALL low-detail/brown-block regression came from CelineSemanticMaterialsV75 overwriting the canonical texture atlas with 1x1 flat-color textures. Runtime 3e8b278 removes that override and Proof #57 proves texture/detail restoration. The remaining whole-scene mismatch is now primarily room material/detail/lighting integration rather than that semantic texture bug or global key-color alone.",
+  "exact_next_action": "Start with root AGENTS.md and the Mandatory Start Chronology, then fresh-reconcile live PR #111/head/workflows. Preserve runtime 3e8b278 and Proof #57 as the accepted semantic-texture baseline. Continue exactly one bounded room-reference realism change against /Refernzbild.png, prioritizing the largest remaining material/detail mismatch (bed/bedding or window/drapes) after inspecting the exact responsible material path. Do not return to global key-color guessing or flat semantic textures. Runtime change => one Android build + one targeted room proof + manual HOME/CALL/HOME inspection before another runtime write. Only after whole-room reference acceptance run Block 12 final temporal acceptance, then final exact-head gates. No merge/release/new branch/new PR/NavMesh/free navigation.",
   "constraints": [
     "No new branch or PR while PR #111 remains the canonical single-flight strand.",
     "Do not merge or release until room-reference realism, Block 12 temporal acceptance and final exact-head gates are actually satisfied.",
     "Workflow SUCCESS is not visual acceptance where appearance or temporal behavior is under review.",
-    "Do not alter canonical Celine, accepted camera/zoom semantics, room GLB bytes/geometry/transforms, 12 immutable furniture GLBs, accepted anchors/actions or interactive 60,000 lm Lamp behavior without new independent evidence.",
+    "Do not silently swap canonical Celine source GLB, rig or identity.",
+    "Keep the 12 original furniture GLBs immutable source-of-origin assets; derived runtime geometry/transforms may change only when reference evidence requires it.",
+    "Preserve accepted camera/zoom, anchors/actions, lifecycle, voice/lip-sync and interactive 60,000 lm Lamp behavior unless fresh independent evidence requires a bounded change.",
     "Do not start continuous free/NavMesh navigation during v80.",
-    "Do not introduce a second visible room/backdrop or a parallel renderer.",
-    "While R2 build/proof is pending, other workers must not perform speculative Block-12 or room runtime writes."
+    "Do not introduce a second visible room/backdrop or parallel renderer."
   ],
   "roadmap": {
     "stage": 3,
     "stage_name": "avatar_embodiment",
     "current_step": "v80-human-videochat-presence",
-    "current_substep": "room-reference-realism-r2-proof",
+    "current_substep": "room-reference-realism-after-semantic-texture-repair",
     "next_substep_after_reference_acceptance": "block12-final-temporal-acceptance-on-final-room-runtime",
     "next_substep_after_block12_acceptance": "final-exact-head-gates",
     "post_v80_trunk": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
