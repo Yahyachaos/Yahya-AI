@@ -6,6 +6,7 @@ import android.view.Choreographer;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.google.android.filament.Camera;
 import com.google.android.filament.Engine;
 import com.google.android.filament.RenderableManager;
 import com.google.android.filament.gltfio.FilamentAsset;
@@ -27,23 +28,25 @@ import java.util.WeakHashMap;
  * The production glTF is both skinned and morphed after a large normalization scale. Filament's
  * renderable AABB is therefore not trusted for close-camera frustum decisions: culling is disabled
  * only on entities belonging to Celine's FilamentAsset. Depth testing and material back-face
- * culling are untouched. Real emulator evidence showed that the legacy 2.20 zoom is visibly
- * clipped even after culling is fixed because its target stayed at body/room center. v80 keeps the
- * real dolly, adds a bounded face-aware target curve, and raises the effective range only within
- * the measured near-plane clearance. Model/root scale remains untouched.
+ * culling are untouched.
+ *
+ * v80 early-room correction: the user-approved v25 TRUE3D checkpoint is the room/camera authority.
+ * Its 41.1 degree view angle corresponds to the original 32 mm Filament lens. Later generated HOME
+ * 38 mm and CALL 50 mm overrides compressed the perceived room depth, while CALL_DEFAULT_ZOOM 2.80
+ * added a second aggressive dolly. This owner now restores the v25 projection every frame and keeps
+ * the default CALL dolly neutral. Furniture, room geometry, Celine scale and manual pinch bounds are
+ * untouched so the next proof isolates camera projection/framing only.
  */
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 4.60f;
-    static final float CALL_DEFAULT_ZOOM = 2.80f;
-    // Real Candidate #241 proved the 2.80/3.50/4.60 dolly and focus direction, but 1.00 placed
-    // the final face close-up visibly low. Keep the body-center CALL base and use the bounded
-    // intermediate target so the close face remains fully visible and naturally centered.
+    static final float CALL_DEFAULT_ZOOM = 1.00f;
     static final float CALL_BASE_FOCUS_Y = 0.00f;
     static final float FACE_FOCUS_Y = 0.85f;
     static final float TARGET_DISTANCE = 5.0f;
     static final float PRODUCTION_HALF_DEPTH = 0.314f;
     static final float NEAR_PLANE = 0.05f;
+    static final double V25_FOCAL_LENGTH_MM = 32.0;
     static final String CI_ZOOM_FILE = "celine-ci-camera-zoom-v70";
 
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
@@ -147,11 +150,13 @@ final class CelineCameraZoomV70 {
         final Activity activity;
         final View decor;
         final Celine3DView view;
+        final Camera camera;
         final Field zoomField;
         final Field panYField;
         boolean homeZoomLocked;
         boolean wasInCall;
         boolean cullingConfigured;
+        boolean projectionLogged;
         float lastLoggedZoom = Float.NaN;
         float lastClampedRequest = Float.NaN;
 
@@ -159,6 +164,7 @@ final class CelineCameraZoomV70 {
             this.activity = activity;
             this.decor = decor;
             this.view = view;
+            camera = (Camera) field(view, "camera");
             zoomField = Celine3DView.class.getDeclaredField("cameraZoom");
             zoomField.setAccessible(true);
             panYField = Celine3DView.class.getDeclaredField("cameraPanY");
@@ -183,8 +189,8 @@ final class CelineCameraZoomV70 {
                 zoom = CALL_DEFAULT_ZOOM;
                 zoomField.setFloat(view, zoom);
                 Celine3DDiagnostics.record(activity, "V80-210",
-                        "CALL Standardkamera auf Videochat-Framing gesetzt",
-                        "zoom=" + zoom + " · real camera dolly · modelScaleUnchanged=true");
+                        "CALL Standardkamera auf v25 Raumframing gesetzt",
+                        "zoom=" + zoom + " · v25Projection=32mm · modelScaleUnchanged=true");
             } else if (!callNow && wasInCall) {
                 zoom = 1.0f;
                 zoomField.setFloat(view, zoom);
@@ -194,12 +200,14 @@ final class CelineCameraZoomV70 {
             }
             wasInCall = callNow;
 
+            enforceV25Projection();
+
             float focusY = focusY(callNow, zoom);
             panYField.setFloat(view, focusY);
 
             if (callNow) {
                 if (homeZoomLocked) homeZoomLocked = false;
-                logZoomIfChanged(zoom, "CALL face-aware camera");
+                logZoomIfChanged(zoom, "CALL v25 room camera");
                 return;
             }
 
@@ -217,6 +225,19 @@ final class CelineCameraZoomV70 {
                         "zoom=1 · v44 room motion may resume");
             }
             logZoomIfChanged(zoom, homeZoomLocked ? "HOME Celine3DView-only" : "HOME default v44");
+        }
+
+        private void enforceV25Projection() {
+            int width = Math.max(1, view.getWidth());
+            int height = Math.max(1, view.getHeight());
+            camera.setLensProjection(V25_FOCAL_LENGTH_MM,
+                    (double) width / (double) height, NEAR_PLANE, 1000.0);
+            if (!projectionLogged) {
+                projectionLogged = true;
+                Celine3DDiagnostics.record(activity, "V80-212",
+                        "v25 TRUE3D Kameraprojektion aktiv",
+                        "lens=32mm viewAngle~=41.1deg near=0.05 far=1000 · HOME/CALL shared");
+            }
         }
 
         void releaseHomeZoomLock() {
