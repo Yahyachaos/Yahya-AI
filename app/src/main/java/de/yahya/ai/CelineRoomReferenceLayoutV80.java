@@ -21,12 +21,13 @@ import java.util.WeakHashMap;
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
  * - large plant: X +0.92 m
- * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
+ * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
  *
- * Proof #116 confirms the +3.00 m wall-shelf translation moved its center from the far-left
- * x~0.19 to x~0.66, close to the reference center x~0.646. Its visible width remains about
- * 0.22 normalized versus the reference ~0.095, so the next bounded correction preserves the
- * accepted horizontal placement and applies only a source-local X factor of 0.43.
+ * Proof #117 confirms the wall-shelf horizontal geometry is now close to reference: its visible
+ * shelf run is about x~0.590..0.688 versus target x~0.598..0.693. The next larger measured
+ * furniture mismatch is bed width: current major mass is only about x~0.52..0.91 while the target
+ * is x~0.512..1.000. Preserve bed X/Z and change only source-local X scale from 1.17 to 1.47 so
+ * the resulting proof can measure the pivot response before any compensating translation.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -39,7 +40,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
     static final float BED_X_OFFSET_M = -0.75f;
     static final float BED_Z_OFFSET_M = -1.25f;
-    static final float BED_SCALE_X_FACTOR = 1.17f;
+    static final float BED_SCALE_X_FACTOR = 1.47f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
