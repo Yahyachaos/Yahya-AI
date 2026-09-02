@@ -18,6 +18,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float BED_X_OFFSET_M = -0.75f;
     static final float BED_Z_OFFSET_M = -1.25f;
     static final float BED_SCALE_X_FACTOR = 2.20f;
+    static final float BED_SCALE_Z_FACTOR = 0.87f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.30f;
     static final float LOUNGE_CHAIR_Z_OFFSET_M = -1.50f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
@@ -69,7 +70,7 @@ final class CelineRoomReferenceLayoutV80 {
             translateParentLocal(asset, transforms, "foreground_table_lean_anchor", 0f, 0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
 
             translateParentLocal(asset, transforms, "room_bed", BED_X_OFFSET_M, 0f, BED_Z_OFFSET_M, true);
-            scaleLocalXyz(asset, transforms, "room_bed", BED_SCALE_X_FACTOR, 1f, 1f, true);
+            scaleLocalXyz(asset, transforms, "room_bed", BED_SCALE_X_FACTOR, 1f, BED_SCALE_Z_FACTOR, true);
             int movedBedMarkers = 0;
             for (String marker : BED_MARKER_NODES) {
                 if (translateParentLocal(asset, transforms, marker, BED_X_OFFSET_M, 0f, BED_Z_OFFSET_M, false)) movedBedMarkers++;
@@ -105,7 +106,8 @@ final class CelineRoomReferenceLayoutV80 {
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150", "Referenzraum Layout korrigiert",
                     "tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
                             + "m bedX=" + BED_X_OFFSET_M + "m bedZ=" + BED_Z_OFFSET_M + "m"
-                            + " bedScaleX=" + BED_SCALE_X_FACTOR + " bedMarkerNodesMoved=" + movedBedMarkers
+                            + " bedScaleX=" + BED_SCALE_X_FACTOR + " bedScaleZ=" + BED_SCALE_Z_FACTOR
+                            + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m chairZ=" + LOUNGE_CHAIR_Z_OFFSET_M + "m"
                             + " chairYaw=" + LOUNGE_CHAIR_YAW_OFFSET_DEG + " chairScale=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
