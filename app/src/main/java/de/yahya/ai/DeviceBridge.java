@@ -14,7 +14,18 @@ import java.util.Locale;
 
 public class DeviceBridge {
     private final Context c;
-    public DeviceBridge(Context c) { this.c = c; }
+    private final CelineToolCortexG21 toolCortex;
+
+    public DeviceBridge(Context c) {
+        this.c = c;
+        this.toolCortex = new CelineToolCortexG21(new CelineAndroidToolBackend(this));
+    }
+
+    /** App-bound typed allowlisted tool registry for G2 and later brain stages. */
+    public CelineToolRegistry toolRegistry() { return toolCortex; }
+
+    /** Concrete typed view used by focused contracts and later planner integration. */
+    public CelineToolCortexG21 typedToolCortex() { return toolCortex; }
 
     public String status() {
         ActivityManager am = (ActivityManager)c.getSystemService(Context.ACTIVITY_SERVICE);
