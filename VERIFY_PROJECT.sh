@@ -12,6 +12,7 @@ required_files=(
   app/src/main/java/de/yahya/ai/CelineBrain.java
   app/src/main/java/de/yahya/ai/CelineMemoryEngine.java
   app/src/main/java/de/yahya/ai/CelineStructuredMemory.java
+  app/src/main/java/de/yahya/ai/CelineGoalTaskGraph.java
   app/src/main/java/de/yahya/ai/SpeechTextNormalizer.java
   app/src/main/java/de/yahya/ai/SpeechRecognitionIntentFactory.java
   app/src/main/java/de/yahya/ai/SpeechOutputRouter.java
@@ -52,6 +53,10 @@ fi
 
 if [ -f ci/celine_g1_structured_memory_live_contract.py ]; then
   python3 ci/celine_g1_structured_memory_live_contract.py
+fi
+
+if [ -f ci/celine_g1_goal_task_state_test.py ]; then
+  python3 ci/celine_g1_goal_task_state_test.py
 fi
 
 # Checksums are useful for detecting unexpected changes, but legitimate active
