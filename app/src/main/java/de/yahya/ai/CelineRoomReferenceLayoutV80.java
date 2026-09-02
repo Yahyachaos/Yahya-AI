@@ -17,17 +17,20 @@ import java.util.WeakHashMap;
  *
  * Frozen measured placements:
  * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38
- * - lounge chair: X +0.65 m, local scale 0.60
+ * - lounge chair: X +0.65 m, local scale 0.60, local yaw -20 deg
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
- * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
+ * - dresser: Z -2.25 m, local yaw 180 deg
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
  *
- * Direct source-orientation inspection against /Refernzbild.png isolates the remaining two gross
- * furniture-direction errors without reopening the accepted scene: the lounge chair needs a small
- * inward local yaw (-20 deg), while the dresser is showing its source back and must be flipped by
- * 180 deg. This bounded correction changes only those two local orientations; their measured
- * translations/scales and all other furniture, camera, Celine, materials and lighting stay fixed.
+ * Proof #120 is the first exact reference/HOME proof after correcting chair and dresser orientation.
+ * The dresser now faces correctly, but its visible run remains only about normalized x~0.00..0.10
+ * while the exact reference dresser occupies x~0.00..0.18. Both left edges are clipped by the HOME
+ * viewport, so translating the dresser would move the already-correct clipped edge; the measured
+ * correction is width-only. Preserve dresser Z/yaw and increase only source-local Z scale from 1.45
+ * to 2.60 as a bounded response toward the ~1.8x missing visible run. Camera, bed, chair, lamp, rug,
+ * window group, Celine, materials, lighting and all source GLBs remain unchanged until the proof is
+ * inspected against /Refernzbild.png.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -49,7 +52,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FLOOR_LAMP_SCALE_XZ_FACTOR = 0.34f;
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
     static final float DRESSER_Z_OFFSET_M = -2.25f;
-    static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
+    static final float DRESSER_SCALE_Z_FACTOR = 2.60f;
     static final float DRESSER_YAW_OFFSET_DEG = 180.0f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
     static final float RUG_SCALE_FACTOR = 1.45f;
