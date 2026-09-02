@@ -23,11 +23,10 @@ import java.util.WeakHashMap;
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
  *
- * Proof #114 puts the derived window group near the reference horizontal center. Its remaining width
- * mismatch is smaller than the rug footprint error. In Proof #114 HOME the rug spans only about
- * 0.43 viewport-width versus about 0.63 in Refernzbild.png. Apply one bounded uniform local rug scale
- * factor of 1.45 before any smaller window-width or material/light polish. The immutable Teppisch.glb
- * source bytes, camera, Celine, anchors, bed and all other furniture transforms remain unchanged.
+ * Proof #115 puts the rug footprint close to the reference, while direct normalized measurement of
+ * the same HOME frame shows the back-wall shelf around x~0.19 versus target center x~0.646. At the
+ * shared back-wall depth, a bounded +3.00 m parent-local X translation is the next largest measured
+ * geometry correction. Keep shelf scale/materials untouched until the resulting proof is measured.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -51,6 +50,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
     static final float RUG_SCALE_FACTOR = 1.45f;
+    static final float WALL_SHELF_X_OFFSET_M = 3.00f;
     static final float WINDOW_X_OFFSET_M = -85.70f;
 
     private static final String[] BED_MARKER_NODES = {
@@ -149,6 +149,9 @@ final class CelineRoomReferenceLayoutV80 {
                     "room_rug", RUG_SCALE_FACTOR, true);
 
             translateParentLocal(asset, transforms,
+                    "room_wall_shelf_books", WALL_SHELF_X_OFFSET_M, 0.0f, 0.0f, true);
+
+            translateParentLocal(asset, transforms,
                     "room_window_drapes", WINDOW_X_OFFSET_M, 0.0f, 0.0f, true);
 
             synchronized (APPLIED) { APPLIED.put(view, asset); }
@@ -174,6 +177,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " dresserMarkerMoved=" + movedDresserMarker
                             + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
                             + " rugScale=" + RUG_SCALE_FACTOR
+                            + " wallShelfX=+" + WALL_SHELF_X_OFFSET_M + "m"
                             + " windowX=" + WINDOW_X_OFFSET_M + "m"
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
