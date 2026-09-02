@@ -6,23 +6,19 @@ import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * M1 measured HOME camera owner for the reference-room reconstruction.
+ * Reference HOME camera owner for the room reconstruction.
  *
- * M0 measured the HOME wall/floor boundary near normalized y~0.81 while /Refernzbild.png requires
- * y~0.49. A global room/root Y lift was disproven by direct proof. Proof #80 isolated a camera eye
- * above the room ceiling; proof #81 established a shell-safe eye; proof #82 reduced the horizon error
- * but left Celine oversized/clipped. Proof #83 with Z distance 5.15 m restores Celine fully and puts
- * her apparent width near the reference. Proof #84 on target Y -0.45 keeps Celine fully visible and
- * moves the HOME wall/floor boundary to roughly y~0.53..0.54 while the target remains y~0.49. Preserve
- * the proven eye height and 5.15 m apparent-scale solution and apply one same-size bounded pitch step,
- * HOME target Y -0.45 -> -0.60, to close the remaining measured horizon delta. CALL, room-root,
- * furniture transforms, materials, lighting and canonical Celine transforms remain untouched.
+ * The early real-app proof showed that the previous 5.15 m eye offset still framed the room too
+ * tightly: the sideboard/decor and the room depth were not readable together. Yahya explicitly
+ * requested moving the camera farther out before spending more time on detail polish. Keep the
+ * accepted target/pitch and projection owner, but move only the HOME eye one metre farther toward
+ * the viewer. CALL receives the matching distance in CelineCameraZoomV70.
  */
 final class CelineReferenceHomeCameraV80 {
     static final float HOME_TARGET_Y = -0.60f;
     static final float HOME_TARGET_Z = -4.0f;
     static final float HOME_EYE_Y_OFFSET_M = 1.05f;
-    static final float HOME_EYE_Z_OFFSET_M = 5.15f;
+    static final float HOME_EYE_Z_OFFSET_M = 6.15f;
     private static final float ZOOM_MIN = 0.55f;
     private static final float ZOOM_MAX = 4.60f;
 
@@ -44,7 +40,7 @@ final class CelineReferenceHomeCameraV80 {
             driver.apply();
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-169",
-                    "M1 Referenz-HOME-Kamera FEHLER", error);
+                    "Referenz-HOME-Kamera FEHLER", error);
         }
     }
 
@@ -89,14 +85,14 @@ final class CelineReferenceHomeCameraV80 {
             if (!logged) {
                 logged = true;
                 Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
-                        "M1 gemessene HOME-Kamera · finaler Horizont-Schritt aktiv",
+                        "Referenz-HOME-Kamera weiter herausgezogen",
                         "eye=0," + HOME_EYE_Y_OFFSET_M + ","
                                 + (HOME_TARGET_Z + HOME_EYE_Z_OFFSET_M)
                                 + " target=0," + HOME_TARGET_Y + "," + HOME_TARGET_Z
                                 + " zoom=" + zoom
-                                + " ceilingY=1.25 floorY=-1.55"
-                                + " source=proof84 measured-horizon-delta"
-                                + " CALL=untouched roomRootLift=false");
+                                + " eyeOffsetZ=" + HOME_EYE_Z_OFFSET_M
+                                + " reason=early-proof-room-scale-and-dresser-visibility"
+                                + " CALL=matched-separately roomRoot=false");
             }
         }
     }
