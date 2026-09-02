@@ -9,30 +9,7 @@ import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-/**
- * Bounded v80 reference-image layout correction.
- *
- * M1 established the stable HOME camera foundation. M2 changes only measured derived furniture
- * transforms while keeping the 12 source GLBs immutable and canonical Celine separate.
- *
- * Frozen measured placements:
- * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38
- * - lounge chair: X +0.30 m, Z -1.50 m, local scale 0.60, local yaw -20 deg
- * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
- * - dresser: Z -2.25 m, local yaw 180 deg
- * - large plant: X +0.92 m
- * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
- *
- * Proof #124 confirms the accepted chair depth and shows the remaining bounded defect is horizontal:
- * current normalized projection is approximately x 0.19..0.29 versus reference x 0.210..0.327.
- * Preserve chair Z, scale and yaw and move only the derived parent-X correction from +0.17 m to
- * +0.30 m, including the two chair marker nodes. Camera, bed, lamp, dresser, rug, window group,
- * Celine, materials, lighting and all source GLBs remain unchanged until this candidate is proved.
- *
- * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
- * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
- * placement is owned by the derived window layers instead.
- */
+/** Bounded v80 measured room-reference layout correction. */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
     static final float FOREGROUND_TABLE_SCALE_X_FACTOR = 1.90f;
@@ -53,26 +30,20 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_SCALE_Z_FACTOR = 2.60f;
     static final float DRESSER_YAW_OFFSET_DEG = 180.0f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
+    static final float RUG_X_OFFSET_M = 0.40f;
     static final float RUG_SCALE_FACTOR = 1.45f;
     static final float WALL_SHELF_X_OFFSET_M = 3.00f;
     static final float WALL_SHELF_SCALE_X_FACTOR = 0.43f;
     static final float WINDOW_X_OFFSET_M = -85.70f;
 
     private static final String[] BED_MARKER_NODES = {
-            "bed_approach_anchor",
-            "bed_edge_sit_anchor",
-            "bed_relax_anchor",
-            "bed_lie_anchor",
-            "bed_exit_anchor"
+            "bed_approach_anchor", "bed_edge_sit_anchor", "bed_relax_anchor",
+            "bed_lie_anchor", "bed_exit_anchor"
     };
-
     private static final String[] CHAIR_MARKER_NODES = {
-            "chair_approach_anchor",
-            "chair_sit_anchor"
+            "chair_approach_anchor", "chair_sit_anchor"
     };
-
-    private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED =
-            new WeakHashMap<>();
+    private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED = new WeakHashMap<>();
 
     private CelineRoomReferenceLayoutV80() {}
 
@@ -81,7 +52,6 @@ final class CelineRoomReferenceLayoutV80 {
         try {
             Object state = roomState(view);
             if (state == null) return;
-
             Field assetField = state.getClass().getDeclaredField("roomAsset");
             Field transformsField = state.getClass().getDeclaredField("transforms");
             assetField.setAccessible(true);
@@ -89,117 +59,64 @@ final class CelineRoomReferenceLayoutV80 {
             FilamentAsset asset = (FilamentAsset) assetField.get(state);
             TransformManager transforms = (TransformManager) transformsField.get(state);
             if (asset == null || transforms == null) return;
-
             synchronized (APPLIED) {
                 if (APPLIED.get(view) == asset) return;
             }
 
-            translateParentLocal(asset, transforms,
-                    "room_foreground_table", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
-            scaleLocalXyz(asset, transforms, "room_foreground_table",
-                    FOREGROUND_TABLE_SCALE_X_FACTOR,
-                    FOREGROUND_TABLE_SCALE_Y_FACTOR,
-                    FOREGROUND_TABLE_SCALE_Z_FACTOR,
-                    true);
-            translateParentLocal(asset, transforms,
-                    "foreground_table_approach_anchor", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
-            translateParentLocal(asset, transforms,
-                    "foreground_table_lean_anchor", 0.0f, 0.0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
+            translateParentLocal(asset, transforms, "room_foreground_table", 0f, 0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
+            scaleLocalXyz(asset, transforms, "room_foreground_table", FOREGROUND_TABLE_SCALE_X_FACTOR, FOREGROUND_TABLE_SCALE_Y_FACTOR, FOREGROUND_TABLE_SCALE_Z_FACTOR, true);
+            translateParentLocal(asset, transforms, "foreground_table_approach_anchor", 0f, 0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
+            translateParentLocal(asset, transforms, "foreground_table_lean_anchor", 0f, 0f, FOREGROUND_TABLE_Z_OFFSET_M, true);
 
-            translateParentLocal(asset, transforms,
-                    "room_bed", BED_X_OFFSET_M, 0.0f, BED_Z_OFFSET_M, true);
-            scaleLocalXyz(asset, transforms, "room_bed",
-                    BED_SCALE_X_FACTOR, 1.0f, 1.0f, true);
+            translateParentLocal(asset, transforms, "room_bed", BED_X_OFFSET_M, 0f, BED_Z_OFFSET_M, true);
+            scaleLocalXyz(asset, transforms, "room_bed", BED_SCALE_X_FACTOR, 1f, 1f, true);
             int movedBedMarkers = 0;
             for (String marker : BED_MARKER_NODES) {
-                if (translateParentLocal(asset, transforms,
-                        marker, BED_X_OFFSET_M, 0.0f, BED_Z_OFFSET_M, false)) {
-                    movedBedMarkers++;
-                }
+                if (translateParentLocal(asset, transforms, marker, BED_X_OFFSET_M, 0f, BED_Z_OFFSET_M, false)) movedBedMarkers++;
             }
 
-            translateParentLocal(asset, transforms,
-                    "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0.0f, LOUNGE_CHAIR_Z_OFFSET_M, true);
-            rotateLocalYaw(asset, transforms,
-                    "room_lounge_chair", LOUNGE_CHAIR_YAW_OFFSET_DEG, true);
-            scaleLocal(asset, transforms,
-                    "room_lounge_chair", LOUNGE_CHAIR_SCALE_FACTOR, true);
+            translateParentLocal(asset, transforms, "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0f, LOUNGE_CHAIR_Z_OFFSET_M, true);
+            rotateLocalYaw(asset, transforms, "room_lounge_chair", LOUNGE_CHAIR_YAW_OFFSET_DEG, true);
+            scaleLocal(asset, transforms, "room_lounge_chair", LOUNGE_CHAIR_SCALE_FACTOR, true);
             int movedChairMarkers = 0;
             for (String marker : CHAIR_MARKER_NODES) {
-                if (translateParentLocal(asset, transforms,
-                        marker, LOUNGE_CHAIR_X_OFFSET_M, 0.0f, LOUNGE_CHAIR_Z_OFFSET_M, false)) {
-                    movedChairMarkers++;
-                }
+                if (translateParentLocal(asset, transforms, marker, LOUNGE_CHAIR_X_OFFSET_M, 0f, LOUNGE_CHAIR_Z_OFFSET_M, false)) movedChairMarkers++;
             }
 
-            translateParentLocal(asset, transforms,
-                    "room_floor_lamp", FLOOR_LAMP_X_OFFSET_M, 0.0f, FLOOR_LAMP_Z_OFFSET_M, true);
-            scaleLocalXyz(asset, transforms, "room_floor_lamp",
-                    FLOOR_LAMP_SCALE_XZ_FACTOR,
-                    FLOOR_LAMP_SCALE_Y_FACTOR,
-                    FLOOR_LAMP_SCALE_XZ_FACTOR,
-                    true);
-            boolean movedLampMarker = translateParentLocal(asset, transforms,
-                    "lamp_anchor", FLOOR_LAMP_X_OFFSET_M, 0.0f, FLOOR_LAMP_Z_OFFSET_M, false);
+            translateParentLocal(asset, transforms, "room_floor_lamp", FLOOR_LAMP_X_OFFSET_M, 0f, FLOOR_LAMP_Z_OFFSET_M, true);
+            scaleLocalXyz(asset, transforms, "room_floor_lamp", FLOOR_LAMP_SCALE_XZ_FACTOR, FLOOR_LAMP_SCALE_Y_FACTOR, FLOOR_LAMP_SCALE_XZ_FACTOR, true);
+            boolean movedLampMarker = translateParentLocal(asset, transforms, "lamp_anchor", FLOOR_LAMP_X_OFFSET_M, 0f, FLOOR_LAMP_Z_OFFSET_M, false);
 
-            translateParentLocal(asset, transforms,
-                    "room_dresser", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, true);
-            rotateLocalYaw(asset, transforms,
-                    "room_dresser", DRESSER_YAW_OFFSET_DEG, true);
-            scaleLocalXyz(asset, transforms, "room_dresser",
-                    1.0f, 1.0f, DRESSER_SCALE_Z_FACTOR, true);
-            boolean movedDresserMarker = translateParentLocal(asset, transforms,
-                    "dresser_anchor", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, false);
+            translateParentLocal(asset, transforms, "room_dresser", 0f, 0f, DRESSER_Z_OFFSET_M, true);
+            rotateLocalYaw(asset, transforms, "room_dresser", DRESSER_YAW_OFFSET_DEG, true);
+            scaleLocalXyz(asset, transforms, "room_dresser", 1f, 1f, DRESSER_SCALE_Z_FACTOR, true);
+            boolean movedDresserMarker = translateParentLocal(asset, transforms, "dresser_anchor", 0f, 0f, DRESSER_Z_OFFSET_M, false);
 
-            translateParentLocal(asset, transforms,
-                    "room_plant_large", LARGE_PLANT_X_OFFSET_M, 0.0f, 0.0f, true);
+            translateParentLocal(asset, transforms, "room_plant_large", LARGE_PLANT_X_OFFSET_M, 0f, 0f, true);
 
-            scaleLocal(asset, transforms,
-                    "room_rug", RUG_SCALE_FACTOR, true);
+            translateParentLocal(asset, transforms, "room_rug", RUG_X_OFFSET_M, 0f, 0f, true);
+            scaleLocal(asset, transforms, "room_rug", RUG_SCALE_FACTOR, true);
 
-            translateParentLocal(asset, transforms,
-                    "room_wall_shelf_books", WALL_SHELF_X_OFFSET_M, 0.0f, 0.0f, true);
-            scaleLocalXyz(asset, transforms, "room_wall_shelf_books",
-                    WALL_SHELF_SCALE_X_FACTOR, 1.0f, 1.0f, true);
-
-            translateParentLocal(asset, transforms,
-                    "room_window_drapes", WINDOW_X_OFFSET_M, 0.0f, 0.0f, true);
+            translateParentLocal(asset, transforms, "room_wall_shelf_books", WALL_SHELF_X_OFFSET_M, 0f, 0f, true);
+            scaleLocalXyz(asset, transforms, "room_wall_shelf_books", WALL_SHELF_SCALE_X_FACTOR, 1f, 1f, true);
+            translateParentLocal(asset, transforms, "room_window_drapes", WINDOW_X_OFFSET_M, 0f, 0f, true);
 
             synchronized (APPLIED) { APPLIED.put(view, asset); }
-            Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
-                    "Referenzraum Layout korrigiert",
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-150", "Referenzraum Layout korrigiert",
                     "tableZ=+" + FOREGROUND_TABLE_Z_OFFSET_M
-                            + "m tableScaleXYZ=" + FOREGROUND_TABLE_SCALE_X_FACTOR + ","
-                            + FOREGROUND_TABLE_SCALE_Y_FACTOR + ","
-                            + FOREGROUND_TABLE_SCALE_Z_FACTOR
-                            + " bedX=" + BED_X_OFFSET_M + "m"
-                            + " bedZ=" + BED_Z_OFFSET_M + "m"
-                            + " bedScaleXYZ=" + BED_SCALE_X_FACTOR + ",1.0,1.0"
-                            + " bedMarkerNodesMoved=" + movedBedMarkers
-                            + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
-                            + " chairZ=" + LOUNGE_CHAIR_Z_OFFSET_M + "m"
-                            + " chairYaw=" + LOUNGE_CHAIR_YAW_OFFSET_DEG + "deg"
-                            + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
+                            + "m bedX=" + BED_X_OFFSET_M + "m bedZ=" + BED_Z_OFFSET_M + "m"
+                            + " bedScaleX=" + BED_SCALE_X_FACTOR + " bedMarkerNodesMoved=" + movedBedMarkers
+                            + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m chairZ=" + LOUNGE_CHAIR_Z_OFFSET_M + "m"
+                            + " chairYaw=" + LOUNGE_CHAIR_YAW_OFFSET_DEG + " chairScale=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
-                            + " lampX=+" + FLOOR_LAMP_X_OFFSET_M + "m"
-                            + " lampZ=" + FLOOR_LAMP_Z_OFFSET_M + "m"
-                            + " lampScaleXYZ=" + FLOOR_LAMP_SCALE_XZ_FACTOR + ","
-                            + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
-                            + " dresserZ=" + DRESSER_Z_OFFSET_M + "m"
-                            + " dresserYaw=" + DRESSER_YAW_OFFSET_DEG + "deg"
-                            + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
-                            + " dresserMarkerMoved=" + movedDresserMarker
+                            + " lampX=+" + FLOOR_LAMP_X_OFFSET_M + "m lampZ=" + FLOOR_LAMP_Z_OFFSET_M + "m"
+                            + " dresserZ=" + DRESSER_Z_OFFSET_M + "m dresserMarkerMoved=" + movedDresserMarker
                             + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
-                            + " rugScale=" + RUG_SCALE_FACTOR
-                            + " wallShelfX=+" + WALL_SHELF_X_OFFSET_M + "m"
-                            + " wallShelfScaleXYZ=" + WALL_SHELF_SCALE_X_FACTOR + ",1.0,1.0"
-                            + " windowX=" + WINDOW_X_OFFSET_M + "m"
-                            + " sourceGLB=unchanged derivedNonUniformScale=true"
-                            + " camera/Celine=unchanged"
-                            + " logical9Rmetadata=pending_visual_acceptance");
+                            + " rugX=+" + RUG_X_OFFSET_M + "m rugScale=" + RUG_SCALE_FACTOR
+                            + " wallShelfX=+" + WALL_SHELF_X_OFFSET_M + "m windowX=" + WINDOW_X_OFFSET_M + "m"
+                            + " sourceGLB=unchanged camera/Celine=unchanged");
         } catch (Throwable error) {
-            Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
-                    "Referenzraum Layout-Korrektur FEHLER", error);
+            Celine3DDiagnostics.error(view.getContext(), "ROOM-159", "Referenzraum Layout-Korrektur FEHLER", error);
         }
     }
 
@@ -209,15 +126,11 @@ final class CelineRoomReferenceLayoutV80 {
         Object value = statesField.get(null);
         if (!(value instanceof Map)) return null;
         Map<?, ?> states = (Map<?, ?>) value;
-        synchronized (states) {
-            return states.get(view);
-        }
+        synchronized (states) { return states.get(view); }
     }
 
-    private static boolean translateParentLocal(
-            FilamentAsset asset, TransformManager transforms,
-            String entityName, float deltaX, float deltaY, float deltaZ,
-            boolean required) {
+    private static boolean translateParentLocal(FilamentAsset asset, TransformManager transforms, String entityName,
+                                                float deltaX, float deltaY, float deltaZ, boolean required) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
             if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
@@ -228,7 +141,6 @@ final class CelineRoomReferenceLayoutV80 {
             if (required) throw new IllegalStateException("Reference layout transform missing: " + entityName);
             return false;
         }
-
         float[] base = transforms.getTransform(instance, new float[16]);
         float[] translation = new float[16];
         float[] adjusted = new float[16];
@@ -239,9 +151,8 @@ final class CelineRoomReferenceLayoutV80 {
         return true;
     }
 
-    private static boolean rotateLocalYaw(
-            FilamentAsset asset, TransformManager transforms,
-            String entityName, float deltaDegrees, boolean required) {
+    private static boolean rotateLocalYaw(FilamentAsset asset, TransformManager transforms, String entityName,
+                                          float deltaDegrees, boolean required) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
             if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
@@ -252,26 +163,22 @@ final class CelineRoomReferenceLayoutV80 {
             if (required) throw new IllegalStateException("Reference layout transform missing: " + entityName);
             return false;
         }
-
         float[] base = transforms.getTransform(instance, new float[16]);
         float[] yaw = new float[16];
         float[] adjusted = new float[16];
-        Matrix.setRotateM(yaw, 0, deltaDegrees, 0.0f, 1.0f, 0.0f);
+        Matrix.setRotateM(yaw, 0, deltaDegrees, 0f, 1f, 0f);
         Matrix.multiplyMM(adjusted, 0, base, 0, yaw, 0);
         transforms.setTransform(instance, adjusted);
         return true;
     }
 
-    private static boolean scaleLocal(
-            FilamentAsset asset, TransformManager transforms,
-            String entityName, float factor, boolean required) {
+    private static boolean scaleLocal(FilamentAsset asset, TransformManager transforms, String entityName,
+                                      float factor, boolean required) {
         return scaleLocalXyz(asset, transforms, entityName, factor, factor, factor, required);
     }
 
-    private static boolean scaleLocalXyz(
-            FilamentAsset asset, TransformManager transforms,
-            String entityName, float factorX, float factorY, float factorZ,
-            boolean required) {
+    private static boolean scaleLocalXyz(FilamentAsset asset, TransformManager transforms, String entityName,
+                                         float factorX, float factorY, float factorZ, boolean required) {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
             if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
@@ -282,7 +189,6 @@ final class CelineRoomReferenceLayoutV80 {
             if (required) throw new IllegalStateException("Reference layout transform missing: " + entityName);
             return false;
         }
-
         float[] base = transforms.getTransform(instance, new float[16]);
         float[] scale = new float[16];
         float[] adjusted = new float[16];
