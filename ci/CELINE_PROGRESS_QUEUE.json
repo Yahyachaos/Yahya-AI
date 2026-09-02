@@ -5,79 +5,74 @@
   "source_of_truth": "Live GitHub is authoritative. Reconcile actual main, canonical PR/branch, current head, workflows and artifacts before writing.",
   "active_branch": "auto/celine/v80-human-videochat-presence",
   "active_pr": 111,
-  "work_order": "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
-  "amendment": "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md",
-  "room_visual_target_image": "/Refernzbild.png",
-  "room_reference_realism_plan": "docs/celine/room-source/v80-2026-08-28/ROOM_REFERENCE_REALISM_PLAN.md",
-  "measurement_contract": "docs/celine/room-source/v80-2026-08-28/ROOM_RECONSTRUCTION_MEASUREMENTS.md",
-  "room_reference_acceptance": "FAIL_WHOLE_REFERENCE__ZERO_RECOGNIZABLE_DEVIATION_TARGET",
-  "current_branch_head_checkpoint": "0fb1d02ee2602a051b9abc2cc75eb54deb06a227",
-  "checkpoint_kind": "proof_trigger_only_runtime_equivalent_handoff",
-  "status": "room_reconstruction_remeasure_global_composition_before_next_M2_write",
-  "latest_runtime_code_head": "2f4d4a7ce711cac680608bb94b17e712ba0750a0",
-  "latest_built_runtime_head": "2f4d4a7ce711cac680608bb94b17e712ba0750a0",
-  "runtime_fingerprint": "97bb7378fa9abf03df7600f5cde71e75595bf5e3e78dccaf35c6a46ab1451136",
+  "work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
+  "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
+  "protected_historical_work_orders": [
+    "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
+    "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md"
+  ],
+  "user_override_2026_09_02": {
+    "room_status": "FROZEN__OWNER_WILL_BUILD_ROOM_SEPARATELY",
+    "room_runtime_policy": "May remain for compatibility, but no reconstruction, measurement, furniture transform, room camera, material, lighting, window, NavMesh/free-navigation or room proof work unless Yahya explicitly reopens it.",
+    "active_product_direction": "Celine Cognitive OS: own persistent brain, structured memory, goals, world model, verified agency, local neural reasoning, controlled learning, natural bounded autonomy.",
+    "cloud_role": "Optional teacher/reviewer/fallback only. Celine identity, memory, goals, skills, permissions and persistent state are app-owned and must survive provider/model removal."
+  },
+  "current_branch_head_checkpoint": "d5a542ca063d56dca3ac6b299764efbbd0f135f1",
+  "checkpoint_kind": "docs_only_cognitive_os_work_order_activation_parent",
+  "status": "BRAIN_GENERATION_1__G1_0_BASELINE_AND_EVALUATION_CONTRACT_READY",
+  "latest_runtime_code_head": "c92e1326a471fde996d6cd1c1221ad0f0098eb7b",
+  "latest_built_runtime_head": "c92e1326a471fde996d6cd1c1221ad0f0098eb7b",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 986,
-    "run_id": 33581832323,
+    "run_number": 1056,
+    "run_id": 33637276779,
     "conclusion": "success",
-    "apk_artifact": 9828682884,
-    "apk_digest": "sha256:b5f78d0ae56f89f886bda772af31e8514fc27d075a6d40ca2ffd51da8821b839",
-    "fingerprint_artifact": 9828683203,
-    "fingerprint_artifact_digest": "sha256:bda223365320e895b8cae4cbf3fcd2f628a1be9391fe81e4606002ca4b45d2d1"
+    "notes": "Conversation-intelligence continuation/correction/topical-anchor changes compile successfully. Cognitive-OS plan/queue commits are docs-only and require no Android rebuild."
   },
-  "latest_visual_proof": {
-    "workflow": "Celine Room Visual Polish Proof",
-    "run_number": 110,
-    "run_id": 33582009214,
-    "proof_head": "0fb1d02ee2602a051b9abc2cc75eb54deb06a227",
-    "runtime_source_sha": "2f4d4a7ce711cac680608bb94b17e712ba0750a0",
-    "runtime_fingerprint": "97bb7378fa9abf03df7600f5cde71e75595bf5e3e78dccaf35c6a46ab1451136",
-    "artifact": 9828754114,
-    "artifact_digest": "sha256:fc6c408d4a238c7aaf96be4f66dafe2187e805c02fa7249ad9170d662e1f57cd",
-    "workflow_conclusion": "success",
-    "manual_result": "PARTIAL_BOUNDED_PASS_BED_LOCAL_X_IS_CONFIRMED_DEPTH_AXIS_AND_MOVES_FRONT_EDGE_TOWARD_REFERENCE; WHOLE_SCENE_STILL_FAIL",
-    "visual_acceptance": "FAIL_WHOLE_REFERENCE"
+  "protected_celine_visual_state": {
+    "status": "RESTORED_TO_ACCEPTED_BASIS_AND_FROZEN_UNLESS_NEW_INDEPENDENT_EVIDENCE",
+    "accepted_reference_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
+    "restored_renderer_head": "6ab40b288469caca718020eec5e52c12f6cd9d25",
+    "restored_seated_call_head": "566f10607d86b00a7a4fe66eba19e684aaf237e7",
+    "protected_items": [
+      "accepted semantic palette",
+      "accepted Celine illumination",
+      "central PBR response",
+      "canonical identity/rig/morph foundations",
+      "accepted seated CALL lower-body values"
+    ],
+    "current_intelligence_changes_are_nonvisual": true
   },
-  "measured_M2_state": {
-    "frozen": {
-      "foreground_table": "Z +0.35m; scale 1.90/1.66/1.38",
-      "chair": "X +0.65m; scale 0.60",
-      "floor_lamp": "X +0.16m; Z -3.35m; scale X/Z 0.34 Y 0.54",
-      "dresser": "Z -2.25m; scale 1.0/1.0/1.45",
-      "large_plant": "X +0.92m",
-      "bed_X": "-0.75m",
-      "bed_Z": "-1.25m",
-      "bed_local_X_scale": "1.17 candidate direction accepted; not final whole-bed acceptance"
-    },
-    "bed_target_bbox_normalized": "x 0.512..1.000; y 0.312..0.649",
-    "proof109_verdict": "local Z scale 1.17 rejected",
-    "axis_evidence": "canonical assembly room_bed rotation_y_deg=-90 maps immutable source-local X onto room front/back depth axis; source-local Z primarily maps room left/right",
-    "proof110_verdict": "local X scale 1.17 visibly extends bed front/depth in the correct reference direction without breaking headboard orientation; keep this axis choice",
-    "fresh_global_observation": "Direct Proof #110 vs reference shows bed direction improved, but the full HOME composition is still materially wrong: Celine/background framing is too high, bed still lacks target lower depth extent, foreground table begins too high, window/curtain geometry and left/right object composition remain recognizably different. Do not keep scaling the bed in isolation until shared camera/composition delta is remeasured."
-  },
-  "reconstruction_order": [
-    "M0 measured baseline",
-    "M1 shell perspective camera",
-    "M2 furniture transforms",
-    "M3 anchors/actions after geometry settles",
-    "M4 materials/textures",
-    "M5 lighting/shadows",
-    "M6 window/final details",
-    "Block12 temporal acceptance on final room runtime",
-    "final exact-head gates"
+  "completed_before_cognitive_os_activation": [
+    "Room reconstruction explicitly frozen by user; owner will build room separately.",
+    "Celine palette/illumination/PBR and seated CALL drift restored to accepted basis without wholesale rollback.",
+    "ConversationIntelligenceV78 improved for short continuation commands, explicit corrections and topical prior-turn anchoring.",
+    "Self-anchor bug in topical lookup fixed so the current user turn cannot match itself.",
+    "Android Build #1056 on runtime head c92e1326a471fde996d6cd1c1221ad0f0098eb7b succeeded."
   ],
-  "current_blocker": "No external blocker. Fresh Proof #110 changes the evidence: the bed axis is now proven, but multiple objects share a remaining vertical/composition offset, so another isolated bed scale would be lower-value than first remeasuring the current post-M1/post-M2 frame against the reference.",
-  "root_cause": "The previous M0 delta table described Proof #76 before the later camera and furniture corrections. Continuing from those stale deltas risks over-correcting individual furniture. Proof #110 must become the new measured whole-scene baseline before the next runtime write.",
-  "exact_next_action": "Start with AGENTS.md and Mandatory Start Chronology, fresh-reconcile PR #111/head/workflows, then perform a docs/measurement-only remeasure of Proof #110 HOME against its exact bundled reference.png using the established 3D viewport normalization. Record current wall/floor boundary plus current Celine, bed, window, rug and foreground-table boxes/deltas. If several major objects share the same vertical offset, reopen only the bounded M1 camera/target composition owner and correct that shared offset before further furniture scaling. If camera is already within measurement tolerance and the bed alone remains shallow, calibrate exactly one new bed local-X factor from the measured remaining depth ratio. No APK build for the measurement-only step; after the chosen single runtime correction, exactly one Android build and one Room Visual Polish Proof.",
+  "canonical_brain_generations": [
+    "G1 Cognitive Kernel & Persistent Mind",
+    "G2 Agency, World Model & Verified Action",
+    "G3 Celine-Owned Local Neural Brain",
+    "G4 Experience, Skills & Controlled Self-Improvement",
+    "G5 Natural Continuous Celine & Bounded Autonomy"
+  ],
+  "legacy_h0_h13_policy": "The old H0-H13 intelligence trunk remains a requirements/acceptance/technology library only. Its numeric order is superseded by the five Brain Generations mapped in CELINE_COGNITIVE_OS_EXECUTION_ORDER.md.",
+  "current_blocker": "No external blocker. Do not begin large memory/model/tool rewrites before the G1.0 baseline is reproducible.",
+  "root_cause": "The prior queue and active v80 chronology were room/videochat-centric and stale after the user froze the room. The previous intelligence trunk also described H0-H13 as a linear order, while the approved Cognitive OS architecture requires an app-owned central brain first, then persistent mind, verified agency, local neural reasoning, controlled learning and finally natural bounded autonomy.",
+  "exact_next_action": "Execute G1.0 only from ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md: create the baseline intelligence evaluation/audit contract for the current runtime. Cover continuation/correction/topical-reference behavior, memory recall/correction/forget, multi-step reasoning and uncertainty, current device-tool routing/wrong-tool behavior, restart/task-resume gaps, and cloud-call count/latency. Do not yet implement the structured-memory migration, local neural model, new autonomy loop, room work, or a second branch/PR. After G1.0 is reproducible and recorded, proceed single-flight to G1.1 central CelineBrain contracts.",
   "constraints": [
     "No new branch or PR.",
     "No merge or release.",
-    "Keep all 12 original furniture GLBs byte-identical source-of-origin files.",
-    "Derived runtime transforms may change only from measured evidence.",
-    "Preserve canonical Celine identity/rig and unrelated systems.",
-    "Workflow SUCCESS is not visual acceptance.",
-    "No whole-room PASS while recognizable differences to /Refernzbild.png remain."
+    "Strict single-flight: one Brain Generation and one bounded sub-block at a time.",
+    "Room remains frozen unless Yahya explicitly reopens it.",
+    "Preserve canonical Celine identity/rig/morph and restored accepted visual behavior.",
+    "Preserve v77 actual-PCM lip sync and unrelated working voice/lifecycle/updater behavior.",
+    "Do not bind Celine identity, memory or goals permanently to a cloud model/provider.",
+    "Do not use unrestricted free-text UI control; migrate actions to typed tools with permission and verification.",
+    "Do not allow uncontrolled production source-code self-modification.",
+    "Do not run an always-on inference loop that burns battery.",
+    "No generated/synthetic image may be presented as runtime visual proof.",
+    "Follow AGENTS.md Efficiency Fast Path and run only validation relevant to the changed surface."
   ]
 }
