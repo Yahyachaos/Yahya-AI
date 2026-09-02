@@ -19,6 +19,8 @@ required_files=(
   app/src/main/java/de/yahya/ai/CelineContextBrokerG14.java
   app/src/main/java/de/yahya/ai/CelineToolCortexG21.java
   app/src/main/java/de/yahya/ai/CelineAndroidToolBackend.java
+  app/src/main/java/de/yahya/ai/CelinePermissionPolicyG22.java
+  app/src/main/java/de/yahya/ai/CelinePermissionedToolRegistryG22.java
   app/src/main/java/de/yahya/ai/SpeechTextNormalizer.java
   app/src/main/java/de/yahya/ai/SpeechRecognitionIntentFactory.java
   app/src/main/java/de/yahya/ai/SpeechOutputRouter.java
@@ -87,6 +89,14 @@ fi
 
 if [ -f ci/celine_g2_typed_tool_live_contract.py ]; then
   python3 ci/celine_g2_typed_tool_live_contract.py
+fi
+
+if [ -f ci/celine_g2_permission_policy_test.py ]; then
+  python3 ci/celine_g2_permission_policy_test.py
+fi
+
+if [ -f ci/celine_g2_permission_policy_live_contract.py ]; then
+  python3 ci/celine_g2_permission_policy_live_contract.py
 fi
 
 # Checksums are useful for detecting unexpected changes, but legitimate active
