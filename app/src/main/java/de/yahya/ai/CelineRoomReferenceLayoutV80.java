@@ -17,23 +17,17 @@ import java.util.WeakHashMap;
  *
  * Frozen measured placements:
  * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38
- * - lounge chair: X +0.17 m, Z -1.50 m, local scale 0.60, local yaw -20 deg
+ * - lounge chair: X +0.30 m, Z -1.50 m, local scale 0.60, local yaw -20 deg
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local yaw 180 deg
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
  *
- * Proof #123 confirms the final chair depth correction: its normalized vertical projection is now
- * close to the exact reference target, but moving it deeper also pulled its screen projection toward
- * the HOME vanishing region. The current chair center is about x~0.344 versus reference x~0.269.
- * Proof #85 previously calibrated +0.65 m parent-room X to about +0.12 normalized screen X under the
- * same M1 camera. Correcting that calibration for the roughly 0.85 projection shrink caused by the
- * accepted Z -1.50 m depth gives about 0.156 normalized X per meter at the final depth; the measured
- * -0.075 center error therefore requires approximately -0.48 m from the old +0.65 m X correction.
- * Keep chair depth, scale and yaw fixed and set only its derived parent-X correction to +0.17 m,
- * moving its two chair marker nodes by the identical X delta. Camera, bed, lamp, dresser, rug,
- * window group, Celine, materials, lighting and all source GLBs remain unchanged until the next proof
- * is inspected directly against /Refernzbild.png.
+ * Proof #124 confirms the accepted chair depth and shows the remaining bounded defect is horizontal:
+ * current normalized projection is approximately x 0.19..0.29 versus reference x 0.210..0.327.
+ * Preserve chair Z, scale and yaw and move only the derived parent-X correction from +0.17 m to
+ * +0.30 m, including the two chair marker nodes. Camera, bed, lamp, dresser, rug, window group,
+ * Celine, materials, lighting and all source GLBs remain unchanged until this candidate is proved.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -47,7 +41,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float BED_X_OFFSET_M = -0.75f;
     static final float BED_Z_OFFSET_M = -1.25f;
     static final float BED_SCALE_X_FACTOR = 1.47f;
-    static final float LOUNGE_CHAIR_X_OFFSET_M = 0.17f;
+    static final float LOUNGE_CHAIR_X_OFFSET_M = 0.30f;
     static final float LOUNGE_CHAIR_Z_OFFSET_M = -1.50f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float LOUNGE_CHAIR_YAW_OFFSET_DEG = -20.0f;
