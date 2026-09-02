@@ -31,7 +31,10 @@ import java.util.WeakHashMap;
  * parented to the accepted room root; no Celine/camera/anchor/furniture transform is changed.
  */
 final class CelineRoomWindowBackdropV80 {
-    private static final float CENTER_X = 0.45f;
+    // Proof #113 measured the complete visible derived window group ~0.190 viewport-width too far
+    // right. Its 2.84 m backdrop spans ~0.463 of the viewport, giving ~6.13 m/viewport-width.
+    // Apply the resulting measured -1.14 m group translation to this and every derived curtain layer.
+    private static final float CENTER_X = -0.69f;
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.755f;
     private static final float HALF_WIDTH = 1.42f;
@@ -125,8 +128,6 @@ final class CelineRoomWindowBackdropV80 {
                  HALF_WIDTH,  HALF_HEIGHT, 0f,  0f,0f,0f,1f,  1f,1f,1f,1f,  1f,1f,
                 -HALF_WIDTH,  HALF_HEIGHT, 0f,  0f,0f,0f,1f,  1f,1f,1f,1f,  0f,1f,
         };
-        // UV1 mirrors UV0. The standard glTF material can declare both channels even when this
-        // backing material itself does not sample them.
         ByteBuffer raw = ByteBuffer.allocateDirect(4 * stride).order(ByteOrder.nativeOrder());
         FloatBuffer buffer = raw.asFloatBuffer();
         for (int v = 0; v < 4; v++) {

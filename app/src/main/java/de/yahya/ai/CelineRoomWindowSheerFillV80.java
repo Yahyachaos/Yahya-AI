@@ -36,8 +36,9 @@ final class CelineRoomWindowSheerFillV80 {
     private static final float CENTER_Z = -2.730f;
     private static final float HALF_WIDTH = 0.18f;
     private static final float HALF_HEIGHT = 1.06f;
-    private static final float LEFT_CENTER_X = 0.18f;
-    private static final float RIGHT_CENTER_X = 0.72f;
+    // Proof #113 measured group translation: all visible derived window layers move -1.14 m together.
+    private static final float LEFT_CENTER_X = -0.96f;
+    private static final float RIGHT_CENTER_X = -0.42f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
