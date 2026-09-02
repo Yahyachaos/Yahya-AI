@@ -148,7 +148,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void rememberExplicit(String t){String l=t.toLowerCase(Locale.GERMANY);String phrase="merk dir";int p=l.indexOf(phrase);if(p<0){phrase="merke dir";p=l.indexOf(phrase);}if(p>=0){String m=t.substring(Math.min(t.length(),p+phrase.length())).replaceFirst("^[,: ]+","").trim();if(!m.isEmpty())memory.rememberExplicit(m);}}
 
     private void showApiKeyDialog(){EditText k=new EditText(this);k.setHint("sk-...");k.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);k.setText(prefs.getString("api_key",""));new AlertDialog.Builder(this).setTitle("Cloud-KI verbinden").setMessage("Optional. Gerätebefehle funktionieren lokal.").setView(k).setPositiveButton("Speichern",(d,w)->prefs.edit().putString("api_key",k.getText().toString().trim()).apply()).setNegativeButton("Abbrechen",null).show();}
-    private void showMemoryDialog(){String m=memory.inspect();new AlertDialog.Builder(this).setTitle("Celins Gedächtnis").setMessage(m.isEmpty()?"Noch keine dauerhaften Erinnerungen.":m).setPositiveButton("Schließen",null).show();}
+    private void showMemoryDialog(){CelineMemoryControls.show(this,memory);}
     private void confirmDeleteMemory(){new AlertDialog.Builder(this).setTitle("Gedächtnis löschen?").setMessage("Alle lokal gespeicherten Erinnerungen von Celin werden entfernt.").setPositiveButton("Löschen",(d,w)->memory.forgetAll()).setNegativeButton("Abbrechen",null).show();}
 
     private void addUser(String t){addBubble("Du",t,true);} private void addAssistant(String t,boolean speakNow){addBubble("Celin",t,false);status.setText("Bereit");if(speakNow)speak(t);}
