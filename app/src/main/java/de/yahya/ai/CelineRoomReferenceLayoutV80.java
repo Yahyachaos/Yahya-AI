@@ -17,20 +17,21 @@ import java.util.WeakHashMap;
  *
  * Frozen measured placements:
  * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38
- * - lounge chair: X +0.65 m, local scale 0.60, local yaw -20 deg
+ * - lounge chair: X +0.65 m, Z -0.50 m, local scale 0.60, local yaw -20 deg
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local yaw 180 deg
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
  *
- * Proof #120 is the first exact reference/HOME proof after correcting chair and dresser orientation.
- * The dresser now faces correctly, but its visible run remains only about normalized x~0.00..0.10
- * while the exact reference dresser occupies x~0.00..0.18. Both left edges are clipped by the HOME
- * viewport, so translating the dresser would move the already-correct clipped edge; the measured
- * correction is width-only. Preserve dresser Z/yaw and increase only source-local Z scale from 1.45
- * to 2.60 as a bounded response toward the ~1.8x missing visible run. Camera, bed, chair, lamp, rug,
- * window group, Celine, materials, lighting and all source GLBs remain unchanged until the proof is
- * inspected against /Refernzbild.png.
+ * Proof #121 puts the chair around normalized y~0.466..0.627 versus the exact reference target
+ * y~0.365..0.498, while its horizontal placement is already close. Its visible height is therefore
+ * about 0.161 of the viewport versus a ~0.133 target. With the fixed M1 HOME camera, the canonical
+ * chair origin at z=-1.0 and the camera-side geometry yield a projected-depth ratio of ~1.214 for a
+ * -0.50 m parent-room Z move, matching the measured ~1.21 shrink required and moving the chair upward
+ * toward the back-room vanishing region. Preserve X, scale and yaw; move only chair depth and its two
+ * chair marker nodes by the same bounded delta. Camera, bed, lamp, dresser, rug, window group, Celine,
+ * materials, lighting and all source GLBs remain unchanged until the proof is inspected against
+ * /Refernzbild.png.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -45,6 +46,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float BED_Z_OFFSET_M = -1.25f;
     static final float BED_SCALE_X_FACTOR = 1.47f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
+    static final float LOUNGE_CHAIR_Z_OFFSET_M = -0.50f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float LOUNGE_CHAIR_YAW_OFFSET_DEG = -20.0f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
@@ -121,7 +123,7 @@ final class CelineRoomReferenceLayoutV80 {
             }
 
             translateParentLocal(asset, transforms,
-                    "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0.0f, 0.0f, true);
+                    "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0.0f, LOUNGE_CHAIR_Z_OFFSET_M, true);
             rotateLocalYaw(asset, transforms,
                     "room_lounge_chair", LOUNGE_CHAIR_YAW_OFFSET_DEG, true);
             scaleLocal(asset, transforms,
@@ -129,7 +131,7 @@ final class CelineRoomReferenceLayoutV80 {
             int movedChairMarkers = 0;
             for (String marker : CHAIR_MARKER_NODES) {
                 if (translateParentLocal(asset, transforms,
-                        marker, LOUNGE_CHAIR_X_OFFSET_M, 0.0f, 0.0f, false)) {
+                        marker, LOUNGE_CHAIR_X_OFFSET_M, 0.0f, LOUNGE_CHAIR_Z_OFFSET_M, false)) {
                     movedChairMarkers++;
                 }
             }
@@ -179,6 +181,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " bedScaleXYZ=" + BED_SCALE_X_FACTOR + ",1.0,1.0"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
+                            + " chairZ=" + LOUNGE_CHAIR_Z_OFFSET_M + "m"
                             + " chairYaw=" + LOUNGE_CHAIR_YAW_OFFSET_DEG + "deg"
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
