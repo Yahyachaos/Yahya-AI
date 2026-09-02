@@ -13,73 +13,71 @@
   ],
   "user_override_2026_09_02": {
     "room_status": "FROZEN__OWNER_WILL_BUILD_ROOM_SEPARATELY",
-    "room_runtime_policy": "May remain for compatibility, but no reconstruction, measurement, furniture transform, room camera, material, lighting, window, NavMesh/free-navigation or room proof work unless Yahya explicitly reopens it.",
+    "room_runtime_policy": "No room reconstruction, measurement, furniture transform, room camera/material/light/window, NavMesh/free-navigation or room proof unless Yahya explicitly reopens it.",
     "active_product_direction": "Celine Cognitive OS: own persistent brain, structured memory, goals, world model, verified agency, local neural reasoning, controlled learning, natural bounded autonomy.",
-    "cloud_role": "Optional teacher/reviewer/fallback only. Celine identity, memory, goals, skills, permissions and persistent state are app-owned and must survive provider/model removal."
+    "cloud_role": "Optional teacher/reviewer/fallback only. Identity, memory, goals, skills, permissions and persistent state are app-owned."
   },
-  "current_branch_head_checkpoint": "93889ce04bda9b442ac2178b90dcf5ab8f46274f",
-  "checkpoint_kind": "docs_evidence_head_after_generation_1_acceptance_pass",
-  "status": "BRAIN_GENERATION_2__G2_1_TYPED_TOOL_CORTEX_ACTIVE",
-  "latest_runtime_code_head": "af4c572eb18de11cdd731372ccaa41f576904af0",
-  "latest_built_runtime_head": "af4c572eb18de11cdd731372ccaa41f576904af0",
-  "runtime_fingerprint": "a9cd7e0349cca5d51c09adc8912a1a3780aa9f091bce26e18ccd18f5476f8ccb",
+  "current_branch_head_checkpoint": "a0a1635c153a0c3c472f70b4f63584a867b8bb6f",
+  "checkpoint_kind": "docs_evidence_head_after_g2_1_build",
+  "status": "BRAIN_GENERATION_2__G2_2_PERMISSION_POLICY_ACTIVE",
+  "latest_runtime_code_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
+  "latest_built_runtime_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
+  "runtime_fingerprint": "34cd92488762a2dbcea3f167f1c3cce1705edf5147de1ee77c6d7818f6499eb8",
   "g1_status": {
-    "g1_0": "COMPLETE_BUILT",
-    "g1_1": "COMPLETE_BUILT",
-    "g1_2": "COMPLETE_BUILT",
-    "g1_3": "COMPLETE_BUILT",
-    "g1_4": "COMPLETE_BUILT",
-    "g1_5": "COMPLETE_BUILT",
-    "generation_acceptance": "PASS"
-  },
-  "generation_1_acceptance": {
-    "status": "PASS",
-    "exact_head": "12d3c16df13a07646ba73045243fe80a8de7c2e7",
-    "workflow": "Celine G1 Intelligence Baseline",
-    "run_number": 28,
-    "run_id": 33693626168,
-    "artifact_id": 9870964230,
-    "artifact_digest": "sha256:90ff09879b77cb66e66a0763081f3c4b5dc5183752cbcdec9745b0011425615d",
-    "durable_evidence": "ci/evidence/CELINE_G1_GENERATION_ACCEPTANCE_CURRENT.json",
-    "criteria_passed": 7,
-    "contracts_passed": 8,
-    "network_used": false,
-    "conversation_baseline_regressed": false
+    "generation": "COMPLETE_BUILT_ACCEPTED",
+    "acceptance_evidence": "ci/evidence/CELINE_G1_GENERATION_ACCEPTANCE_CURRENT.json"
   },
   "g2_status": {
     "generation": "G2 Agency, World Model & Verified Action",
-    "active_block": "G2.1 Typed Tool Cortex",
-    "g2_1": "ACTIVE",
-    "g2_2": "BLOCKED_ON_G2_1",
+    "active_block": "G2.2 Permission Policy",
+    "g2_1": "COMPLETE_BUILT",
+    "g2_2": "ACTIVE",
     "g2_3": "BLOCKED_ON_G2_2",
     "g2_4": "BLOCKED_ON_G2_3",
     "g2_5": "BLOCKED_ON_G2_4",
     "g2_6": "BLOCKED_ON_G2_5"
   },
-  "g2_1_scope": {
-    "goal": "Wrap existing DeviceBridge/accessibility/notification capabilities as typed allowlisted tools with explicit schemas, preconditions, deterministic result objects and explicit failure states.",
+  "g2_1": {
+    "status": "COMPLETE_BUILT",
+    "runtime_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
+    "evidence": "ci/evidence/CELINE_G2_1_CURRENT.json",
+    "tool_count": 13,
+    "allowlisted": true,
+    "typed_schemas": true,
+    "explicit_preconditions": true,
+    "explicit_failure_states": true,
+    "android_free_provider_independent_core": true,
+    "android_build": {
+      "run_number": 1095,
+      "run_id": 33694671209,
+      "conclusion": "success",
+      "apk_artifact_id": 9871378568,
+      "runtime_fingerprint_artifact_id": 9871379026
+    }
+  },
+  "g2_2_scope": {
+    "goal": "Implement one central CelinePermissionPolicy over typed tools using L0-L3 risk semantics before planner/world-model work begins.",
+    "risk_classes": {
+      "L0": "read-only/local observation",
+      "L1": "reversible local action",
+      "L2": "external communication/state change requiring explicit target and intent",
+      "L3": "money, deletion, credentials/security, irreversible or sensitive action requiring fresh confirmation unless a narrowly defined approved policy exists"
+    },
     "preserve": [
-      "existing working device commands",
-      "G1 app-owned memory/goals/context semantics",
-      "current voice/lifecycle behavior",
-      "room freeze and protected visual state"
+      "G2.1 typed allowlist and failure semantics",
+      "existing working direct device commands while migration remains incremental",
+      "G1 app-owned memory/goals/context",
+      "voice/lifecycle/updater",
+      "room freeze and protected Celine visuals"
     ],
     "exclude": [
-      "permission-policy migration beyond minimal tool metadata",
-      "world-model implementation",
+      "world model",
       "planner/simulator",
       "agent loop",
       "provider/model migration",
-      "unrestricted free-text UI control"
+      "unrestricted UI control"
     ]
   },
-  "canonical_brain_generations": [
-    "G1 Cognitive Kernel & Persistent Mind",
-    "G2 Agency, World Model & Verified Action",
-    "G3 Celine-Owned Local Neural Brain",
-    "G4 Experience, Skills & Controlled Self-Improvement",
-    "G5 Natural Continuous Celine & Bounded Autonomy"
-  ],
-  "current_blocker": "None. Generation 1 acceptance passed and G2.1 is authorized.",
-  "exact_next_action": "Execute G2.1 only. Inventory existing DeviceBridge, PrincessAccessibilityService and notification capabilities; define a typed allowlisted CelineToolRegistry/ToolResult contract around existing working operations without beginning planner/world-model/autonomy work. Add deterministic focused contracts, then exactly one Android build for the bounded runtime integration."
+  "current_blocker": "None. G2.1 is built and G2.2 is authorized.",
+  "exact_next_action": "Execute G2.2 only. Define and test central permission decisions for each typed tool/risk class, explicit target/intent requirements, fresh-confirmation contracts for L3, and deny-by-default behavior for unknown/unapproved operations. Do not begin G2.3 until the permission policy is built and accepted."
 }
