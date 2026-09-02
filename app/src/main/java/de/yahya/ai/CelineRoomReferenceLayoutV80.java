@@ -23,10 +23,10 @@ import java.util.WeakHashMap;
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
  *
- * Proof #115 puts the rug footprint close to the reference, while direct normalized measurement of
- * the same HOME frame shows the back-wall shelf around x~0.19 versus target center x~0.646. At the
- * shared back-wall depth, a bounded +3.00 m parent-local X translation is the next largest measured
- * geometry correction. Keep shelf scale/materials untouched until the resulting proof is measured.
+ * Proof #116 confirms the +3.00 m wall-shelf translation moved its center from the far-left
+ * x~0.19 to x~0.66, close to the reference center x~0.646. Its visible width remains about
+ * 0.22 normalized versus the reference ~0.095, so the next bounded correction preserves the
+ * accepted horizontal placement and applies only a source-local X factor of 0.43.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -51,6 +51,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
     static final float RUG_SCALE_FACTOR = 1.45f;
     static final float WALL_SHELF_X_OFFSET_M = 3.00f;
+    static final float WALL_SHELF_SCALE_X_FACTOR = 0.43f;
     static final float WINDOW_X_OFFSET_M = -85.70f;
 
     private static final String[] BED_MARKER_NODES = {
@@ -150,6 +151,8 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_wall_shelf_books", WALL_SHELF_X_OFFSET_M, 0.0f, 0.0f, true);
+            scaleLocalXyz(asset, transforms, "room_wall_shelf_books",
+                    WALL_SHELF_SCALE_X_FACTOR, 1.0f, 1.0f, true);
 
             translateParentLocal(asset, transforms,
                     "room_window_drapes", WINDOW_X_OFFSET_M, 0.0f, 0.0f, true);
@@ -178,6 +181,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
                             + " rugScale=" + RUG_SCALE_FACTOR
                             + " wallShelfX=+" + WALL_SHELF_X_OFFSET_M + "m"
+                            + " wallShelfScaleXYZ=" + WALL_SHELF_SCALE_X_FACTOR + ",1.0,1.0"
                             + " windowX=" + WINDOW_X_OFFSET_M + "m"
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
