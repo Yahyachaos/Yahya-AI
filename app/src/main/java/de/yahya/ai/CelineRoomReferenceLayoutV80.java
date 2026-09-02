@@ -21,15 +21,16 @@ import java.util.WeakHashMap;
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
  * - large plant: X +0.92 m
- * - bed X: -0.75 m (Proof #105 target-family horizontal placement)
- * - bed Z: -1.25 m (Proof #108 centers the bed depth projection near the target)
+ * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
  *
- * Proof #109 rejected local bed Z scale 1.17: it did not recover the missing screen-space
- * head-to-foot/vertical projection. The canonical assembly manifest proves room_bed has a -90 degree
- * Y rotation. Therefore source-local X, not local Z, maps to the room front/back axis after rotation.
- * This candidate changes exactly one bed projection axis: local X scale 1.17 while resetting local Z
- * to 1.0. Bed X/Z translation, camera, materials, lighting and every other furniture transform remain
- * frozen until the proof is inspected against /Refernzbild.png.
+ * Proof #110 directly confirmed that source-local X is the bed depth axis after the canonical
+ * room_bed -90 degree Y rotation. In the same exact HOME/reference pair, the shell horizon, bed
+ * center/height and foreground-table vertical composition are now close enough that the dominant
+ * remaining geometric mismatch is the window/drapes horizontal placement: current normalized
+ * x~0.357..0.812 versus target x~0.195..0.581, while vertical bounds are already close.
+ *
+ * This bounded candidate therefore changes only room_window_drapes X translation by -1.25 m.
+ * Scale, Y/Z, camera, Celine, bed and every other furniture transform stay frozen until proof.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -48,6 +49,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
+    static final float WINDOW_X_OFFSET_M = -1.25f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -141,6 +143,9 @@ final class CelineRoomReferenceLayoutV80 {
             translateParentLocal(asset, transforms,
                     "room_plant_large", LARGE_PLANT_X_OFFSET_M, 0.0f, 0.0f, true);
 
+            translateParentLocal(asset, transforms,
+                    "room_window_drapes", WINDOW_X_OFFSET_M, 0.0f, 0.0f, true);
+
             synchronized (APPLIED) { APPLIED.put(view, asset); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Referenzraum Layout korrigiert",
@@ -164,6 +169,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
                             + " dresserMarkerMoved=" + movedDresserMarker
                             + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
+                            + " windowX=" + WINDOW_X_OFFSET_M + "m"
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
                             + " logical9Rmetadata=pending_visual_acceptance");
