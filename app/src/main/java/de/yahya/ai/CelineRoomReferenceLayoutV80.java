@@ -23,14 +23,13 @@ import java.util.WeakHashMap;
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
  *
- * Proof #110 directly confirmed that source-local X is the bed depth axis after the canonical
- * room_bed -90 degree Y rotation. In the same exact HOME/reference pair, the shell horizon, bed
- * center/height and foreground-table vertical composition are now close enough that the dominant
- * remaining geometric mismatch is the window/drapes horizontal placement: current normalized
- * x~0.357..0.812 versus target x~0.195..0.581, while vertical bounds are already close.
- *
- * This bounded candidate therefore changes only room_window_drapes X translation by -1.25 m.
- * Scale, Y/Z, camera, Celine, bed and every other furniture transform stay frozen until proof.
+ * Proof #111 measured the first window-X calibration. WINDOW_X_OFFSET_M=-1.25 shifted the
+ * window/drapes about 13 screen pixels left while leaving the vertical projection essentially
+ * unchanged. Proof #110 had the window at normalized x~0.357..0.812; after that calibration the
+ * center is still about +0.181 normalized units right of the target x~0.195..0.581. The measured
+ * response therefore requires a total parent-X offset of about -15.6 in this asset's parent-space
+ * units to correct the remaining center delta. This candidate changes only that one parameter.
+ * Window scale, Y/Z, camera, Celine, bed and every other furniture transform remain frozen.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -49,7 +48,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
-    static final float WINDOW_X_OFFSET_M = -1.25f;
+    static final float WINDOW_X_OFFSET_M = -15.60f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
