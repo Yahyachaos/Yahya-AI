@@ -791,10 +791,10 @@ final class CelineProductionPresenceV80 {
             float gait = homeFrame.gait * legacyHomeGaitScale;
             add(HIPS, 0.0f, 0.0f, home * gait * 0.55f);
             add(HIPS, call * -5.0f, 0.0f, 0.0f);
-            add(LEFT_UP_LEG, home * gait * 5.0f + call * -82.0f,
-                    0.0f, call * 4.0f);
-            add(RIGHT_UP_LEG, home * -gait * 5.0f + call * -82.0f,
-                    0.0f, call * -4.0f);
+            add(LEFT_UP_LEG, home * gait * 5.0f + call * -88.0f,
+                    0.0f, call * 10.0f);
+            add(RIGHT_UP_LEG, home * -gait * 5.0f + call * -88.0f,
+                    0.0f, call * -10.0f);
             add(LEFT_LEG, home * -gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
             add(RIGHT_LEG, home * gait * 2.4f + call * 92.0f, 0.0f, 0.0f);
             add(LEFT_FOOT, call * -8.0f, 0.0f, 0.0f);
