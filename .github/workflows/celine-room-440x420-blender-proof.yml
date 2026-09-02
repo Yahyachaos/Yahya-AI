@@ -1,0 +1,88 @@
+name: Celine Exact Room 440x420 Blender Proof
+
+on:
+  pull_request:
+    types: [synchronize, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celine-room-440x420-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-room-blender:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact PR head with LFS support
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Static exact-room contract
+        run: python3 ci/celine_room_440x420_builder_contract.py
+
+      - name: Materialize pinned canonical furniture sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT='df50816187978cbf5faf818ad484c3f682be7588'
+          SOURCE_DIR='/tmp/celine-room-source'
+          git fetch --no-tags origin "$SOURCE_COMMIT"
+          rm -rf "$SOURCE_DIR"
+          git worktree add --detach "$SOURCE_DIR" "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" lfs install --local
+          git -C "$SOURCE_DIR" lfs pull --include='app/src/main/assets/models/möbel/*.glb' --exclude=''
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('/tmp/celine-room-source/app/src/main/assets/models/möbel')
+          files = sorted(base.glob('*.glb'))
+          if len(files) != 12:
+              raise SystemExit(f'expected exactly 12 materialized source GLBs, got {len(files)}: {[p.name for p in files]}')
+          tiny = [(p.name, p.stat().st_size) for p in files if p.stat().st_size < 100_000_000]
+          if tiny:
+              raise SystemExit(f'unmaterialized or unexpected source files: {tiny}')
+          print('materialized canonical GLBs:', len(files))
+          for p in files:
+              print(p.name, p.stat().st_size)
+          PY
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender
+          blender --version | head -n 2
+
+      - name: Build and validate exact room in real Blender
+        shell: bash
+        env:
+          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-proof
+          blender --background --factory-startup \
+            --python tools/blender/build_celine_room_440x420.py \
+            2>&1 | tee ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > ci-room-proof/metadata.txt
+          printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'dimensions_user_m=4.40x4.20x2.65' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
+
+      - name: Upload deterministic Blender proof log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-440x420-blender-proof
+          path: ci-room-proof/
+          if-no-files-found: warn
+          retention-days: 30
