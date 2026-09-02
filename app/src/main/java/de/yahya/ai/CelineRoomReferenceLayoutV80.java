@@ -22,13 +22,14 @@ import java.util.WeakHashMap;
  * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
  * - large plant: X +0.92 m
  * - bed X: -0.75 m (Proof #106 target-family horizontal placement)
+ * - bed Z: -1.25 m (Proof #108 centers the bed depth projection near the target)
  *
- * Proof #106 places the bed horizontal major mass at about normalized x~0.52..0.97 versus target
- * x~0.512..1.0, so horizontal placement is frozen. The larger remaining bed error is depth: current
- * headboard/major-mass center is roughly 0.09 viewport heights too low/forward relative to the exact
- * reference. This candidate changes only bed parent Z by -1.25 m as a bounded depth calibration and
- * moves the temporary bed marker companions by the same delta. Bed X, scale, rotation, camera,
- * materials, lighting and every other furniture transform remain frozen until this candidate is proved.
+ * Proof #108 on bed Z -1.25 m keeps the bed center close to the target but leaves the visible
+ * bed/headboard vertical projection roughly 15-18% too shallow: current major mass is approximately
+ * normalized y~0.33..0.62 versus target y~0.312..0.649. Translation alone cannot recover that height
+ * without moving the center back down. This candidate therefore changes exactly one remaining bed
+ * projection parameter: local Z scale 1.17. Bed X/Z translation, camera, materials, lighting and every
+ * other furniture transform remain frozen until this candidate is proved.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -37,6 +38,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
     static final float BED_X_OFFSET_M = -0.75f;
     static final float BED_Z_OFFSET_M = -1.25f;
+    static final float BED_SCALE_Z_FACTOR = 1.17f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
@@ -97,6 +99,8 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_bed", BED_X_OFFSET_M, 0.0f, BED_Z_OFFSET_M, true);
+            scaleLocalXyz(asset, transforms, "room_bed",
+                    1.0f, 1.0f, BED_SCALE_Z_FACTOR, true);
             int movedBedMarkers = 0;
             for (String marker : BED_MARKER_NODES) {
                 if (translateParentLocal(asset, transforms,
@@ -146,6 +150,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + FOREGROUND_TABLE_SCALE_Z_FACTOR
                             + " bedX=" + BED_X_OFFSET_M + "m"
                             + " bedZ=" + BED_Z_OFFSET_M + "m"
+                            + " bedScaleXYZ=1.0,1.0," + BED_SCALE_Z_FACTOR
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
