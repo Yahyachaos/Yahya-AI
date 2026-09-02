@@ -5,92 +5,47 @@
   "source_of_truth": "Live GitHub is authoritative. Reconcile actual main, canonical PR/branch, current head, workflows and artifacts before writing.",
   "active_branch": "auto/celine/v80-human-videochat-presence",
   "active_pr": 111,
-  "work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
+  "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
+  "cognitive_work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
   "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "protected_historical_work_orders": [
-    "ci/work-orders/V80_CELINE_HUMAN_VIDEOCHAT_PRESENCE.md",
-    "ci/work-orders/V80_CELINE_INTERACTIVE_ROOM_EMBODIMENT_AMENDMENT.md"
-  ],
-  "user_override_2026_09_02": {
-    "room_status": "REOPENED__EXACT_REBUILD_QUEUED_AFTER_G2_2",
-    "room_runtime_policy": "Do not touch room runtime during active G2.2. Immediately after G2.2 is complete/built/accepted, execute only ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md. Old 6.4 x 5.8 m geometry is forbidden.",
-    "queued_room_work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
-    "active_product_direction": "Finish G2.2 single-flight, then exact Blender room rebuild at 4.40 x 4.20 x 2.65 m before resuming later cognitive generations unless Yahya changes priority again.",
-    "cloud_role": "Optional teacher/reviewer/fallback only. Identity, memory, goals, skills, permissions and persistent state are app-owned."
-  },
-  "current_branch_head_checkpoint": "873750ed4203d7c49842727a967b23e92989e107",
-  "checkpoint_kind": "queued_exact_room_rebuild_while_g2_2_remains_active",
-  "status": "BRAIN_GENERATION_2__G2_2_PERMISSION_POLICY_ACTIVE__ROOM_440x420_QUEUED_NEXT",
-  "latest_runtime_code_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
-  "latest_built_runtime_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
-  "runtime_fingerprint": "34cd92488762a2dbcea3f167f1c3cce1705edf5147de1ee77c6d7818f6499eb8",
+  "current_branch_head_checkpoint": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
+  "checkpoint_kind": "g2_2_complete_built_room_exact_rebuild_now_active",
+  "status": "ROOM_REBUILD_440x420__BLENDER_BUILDER_ACTIVE",
+  "latest_runtime_code_head": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
+  "latest_built_runtime_head": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
+  "runtime_fingerprint": "ddbaee93af8e17b97c5c966c1830d692389fd50a92a0ef3c19381a7b39a548b7",
   "g1_status": {
     "generation": "COMPLETE_BUILT_ACCEPTED",
     "acceptance_evidence": "ci/evidence/CELINE_G1_GENERATION_ACCEPTANCE_CURRENT.json"
   },
   "g2_status": {
     "generation": "G2 Agency, World Model & Verified Action",
-    "active_block": "G2.2 Permission Policy",
     "g2_1": "COMPLETE_BUILT",
-    "g2_2": "ACTIVE",
-    "g2_3": "PAUSED_FOR_QUEUED_ROOM_REBUILD_AFTER_G2_2",
+    "g2_2": "COMPLETE_BUILT",
+    "g2_2_evidence": "ci/evidence/CELINE_G2_2_CURRENT.json",
+    "g2_3": "PAUSED_UNTIL_EXACT_ROOM_REBUILD_COMPLETE",
     "g2_4": "BLOCKED_ON_G2_3",
     "g2_5": "BLOCKED_ON_G2_4",
     "g2_6": "BLOCKED_ON_G2_5"
   },
-  "g2_1": {
-    "status": "COMPLETE_BUILT",
-    "runtime_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
-    "evidence": "ci/evidence/CELINE_G2_1_CURRENT.json",
-    "tool_count": 13,
-    "allowlisted": true,
-    "typed_schemas": true,
-    "explicit_preconditions": true,
-    "explicit_failure_states": true,
-    "android_free_provider_independent_core": true,
-    "android_build": {
-      "run_number": 1095,
-      "run_id": 33694671209,
-      "conclusion": "success",
-      "apk_artifact_id": 9871378568,
-      "runtime_fingerprint_artifact_id": 9871379026
-    }
-  },
-  "g2_2_scope": {
-    "goal": "Implement one central CelinePermissionPolicy over typed tools using L0-L3 risk semantics before planner/world-model work begins.",
-    "risk_classes": {
-      "L0": "read-only/local observation",
-      "L1": "reversible local action",
-      "L2": "external communication/state change requiring explicit target and intent",
-      "L3": "money, deletion, credentials/security, irreversible or sensitive action requiring fresh confirmation unless a narrowly defined approved policy exists"
-    },
-    "preserve": [
-      "G2.1 typed allowlist and failure semantics",
-      "existing working direct device commands while migration remains incremental",
-      "G1 app-owned memory/goals/context",
-      "voice/lifecycle/updater",
-      "protected Celine visual state"
-    ],
-    "exclude": [
-      "world model",
-      "planner/simulator",
-      "agent loop",
-      "provider/model migration",
-      "unrestricted UI control",
-      "room implementation until G2.2 acceptance"
-    ]
-  },
-  "queued_room_rebuild": {
-    "status": "QUEUED_NEXT_AFTER_G2_2",
+  "active_room_rebuild": {
+    "status": "ACTIVE",
     "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
     "dimensions_m": {"x_width": 4.40, "z_depth": 4.20, "y_height": 2.65},
     "origin_user_xyz": [0.0, 0.0, 0.0],
-    "unique_glbs": 12,
-    "instances": 13,
     "root_empty": "room_world_root",
-    "old_6_4_x_5_8_values_forbidden": true,
-    "deliverable": "tools/blender/build_celine_room_440x420.py"
+    "unique_source_glbs": 12,
+    "instances": 13,
+    "source_transport": "Git LFS",
+    "source_branch": "assets/celine-source-persistence",
+    "source_commit": "df50816187978cbf5faf818ad484c3f682be7588",
+    "source_path": "app/src/main/assets/models/möbel/",
+    "source_bridge": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_GITHUB_LFS_BRIDGE.json",
+    "deliverable": "tools/blender/build_celine_room_440x420.py",
+    "old_oversized_geometry_forbidden": true,
+    "image_generation_forbidden": true,
+    "visual_acceptance_requires_real_blender_or_runtime_proof": true
   },
-  "current_blocker": "None. G2.2 is active; exact room rebuild is deliberately queued and must not start early.",
-  "exact_next_action": "Execute G2.2 only. After it is complete/built/accepted, stop cognitive progression and execute ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md as the next single-flight workstream."
+  "current_blocker": "The 12 original GLBs are intentionally stored on pinned Git LFS source commit df50816187978cbf5faf818ad484c3f682be7588 rather than the active implementation branch. Builder must accept the materialized asset directory and fail loudly if any source is missing.",
+  "exact_next_action": "Build and statically validate tools/blender/build_celine_room_440x420.py from the exact room contract. Use only the 12 canonical original GLBs, preserve exact user-space anchors, explicit Y-up to Blender Z-up conversion, grounded child geometry, room_world_root parenting, and deterministic validation. Do not resume G2.3 until this room block is complete."
 }
