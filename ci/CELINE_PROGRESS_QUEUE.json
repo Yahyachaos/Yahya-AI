@@ -17,17 +17,20 @@
     "active_product_direction": "Celine Cognitive OS: own persistent brain, structured memory, goals, world model, verified agency, local neural reasoning, controlled learning, natural bounded autonomy.",
     "cloud_role": "Optional teacher/reviewer/fallback only. Celine identity, memory, goals, skills, permissions and persistent state are app-owned and must survive provider/model removal."
   },
-  "current_branch_head_checkpoint": "a201f0160363c46af0f37665060173df0022ba64",
-  "checkpoint_kind": "docs_ci_g1_0_baseline_recorded_parent",
-  "status": "BRAIN_GENERATION_1__G1_1_CENTRAL_BRAIN_CONTRACTS_READY",
-  "latest_runtime_code_head": "c92e1326a471fde996d6cd1c1221ad0f0098eb7b",
-  "latest_built_runtime_head": "c92e1326a471fde996d6cd1c1221ad0f0098eb7b",
+  "current_branch_head_checkpoint": "0c7dcbbde54fcaec3261848fd491130edd8af91e",
+  "checkpoint_kind": "runtime_g1_1_contracts_built_parent_of_docs_handoff",
+  "status": "BRAIN_GENERATION_1__G1_2_STRUCTURED_MEMORY_READY",
+  "latest_runtime_code_head": "0c7dcbbde54fcaec3261848fd491130edd8af91e",
+  "latest_built_runtime_head": "0c7dcbbde54fcaec3261848fd491130edd8af91e",
+  "runtime_fingerprint": "79cfcc58f32edc37533951aca48b3b88e477814186d5ac4226f2c380e5607738",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 1056,
-    "run_id": 33637276779,
+    "run_number": 1062,
+    "run_id": 33648480852,
     "conclusion": "success",
-    "notes": "Latest actual runtime code remains c92e1326. G1.0 commits are CI/evidence/docs only. Android Build #1059 performed scope detection only; APK build/emulator/release jobs were skipped."
+    "apk_artifact_id": 9853811696,
+    "apk_artifact_digest": "sha256:da92fb0addb651380f0833bc05334ca9151d4c677c46b84148112cdd176387af",
+    "notes": "G1.1 runtime contract change. VERIFY_PROJECT including ci/celine_g1_brain_contract.py passed, Gradle assembleDebug passed, APK uploaded. Draft emulator and release jobs skipped as intended."
   },
   "g1_0_baseline": {
     "status": "COMPLETE_REPRODUCIBLE",
@@ -43,22 +46,33 @@
     "case_count": 23,
     "families": ["conversation", "memory", "reasoning", "tools", "restart", "cloud"],
     "deterministic_probe": "PASS: actual ConversationIntelligenceV78 compiled/executed; normal_start=20, follow_start=12",
-    "summary": {"PASS": 2, "PARTIAL": 4, "GAP": 10, "BASELINE": 1},
-    "key_gaps": [
-      "Flat 7000-character SharedPreferences memory blob; no structured records or supersession.",
-      "Whole memory blob is injected into each free cloud prompt; no relevance retrieval.",
-      "Conversation turns are RAM-only; no durable working-state/task resume.",
-      "MainActivity owns a fixed cloud model/provider request path.",
-      "No central planner/simulator/verifier or app-owned self model.",
-      "Device actions use hard-coded command routing; no typed Tool Cortex or general observe/verify/recover loop.",
-      "Normal free cloud turn contains two Responses API call sites (answer + learnWithAI); online speech can add a third cloud request.",
-      "No dedicated brain/provider latency instrumentation.",
-      "Free conversation remains unavailable offline."
-    ]
+    "summary": {"PASS": 2, "PARTIAL": 4, "GAP": 10, "BASELINE": 1}
+  },
+  "g1_1_contracts": {
+    "status": "COMPLETE_BUILT",
+    "runtime_head": "0c7dcbbde54fcaec3261848fd491130edd8af91e",
+    "evidence": "ci/evidence/CELINE_G1_1_CONTRACTS_CURRENT.json",
+    "contract_test": "ci/celine_g1_brain_contract.py",
+    "central_owner": "app/src/main/java/de/yahya/ai/CelineBrain.java",
+    "interfaces": [
+      "CelineMemory",
+      "CelineWorkingState",
+      "CelineGoalGraph",
+      "CelineContextBroker",
+      "CelineToolRegistry",
+      "CelinePermissionPolicy",
+      "CelineReasoningProvider",
+      "CelineVerifier",
+      "CelineLearningEngine",
+      "CelineAffectState",
+      "CelineResourcePolicy"
+    ],
+    "provider_independent": true,
+    "main_activity_behavior_changed": false
   },
   "ci_efficiency_cleanup": {
     "status": "ACTIVE",
-    "legacy_visual_proofs": "Block 10 and Block 12 jobs are now explicit-marker/workflow_dispatch only, preventing the historical large PR diff from rerunning expensive visual work on normal intelligence commits.",
+    "legacy_visual_proofs": "Block 10 and Block 12 jobs are explicit-marker/workflow_dispatch only for normal intelligence work.",
     "g1_baseline_policy": "G1 baseline is explicit-marker/workflow_dispatch after the initial exact-head baseline; invoke it when an intelligence change needs regression comparison.",
     "markers": ["[run-block10-launcher-proof]", "[run-block12-temporal-proof]", "[run-g1-intelligence-baseline]"]
   },
@@ -77,9 +91,9 @@
     "G5 Natural Continuous Celine & Bounded Autonomy"
   ],
   "legacy_h0_h13_policy": "The old H0-H13 intelligence trunk remains a requirements/acceptance/technology library only. Its numeric order is superseded by the five Brain Generations mapped in CELINE_COGNITIVE_OS_EXECUTION_ORDER.md.",
-  "current_blocker": "No external blocker. G1.0 is complete; proceed only to bounded G1.1 contracts before any structured-memory or provider migration.",
-  "root_cause": "The baseline proves the current app has useful conversation continuity and device capabilities but lacks an app-owned central cognitive owner: memory, provider calls, command routing and live conversation state are still coupled directly to MainActivity or flat storage.",
-  "exact_next_action": "Execute G1.1 only: introduce the minimal app-owned CelineBrain contract layer and stable interfaces for request/result, memory, working state, goal graph, context broker, tool registry, permission policy, reasoning provider, verifier, learning engine, affect state and resource policy. Keep existing MainActivity behavior unchanged in this first contract step; do not yet migrate the flat memory, switch models/providers, add autonomy, or touch room/avatar/voice. Add a focused contract test and run one Android build because app/src runtime inputs will change. After the contracts compile and the focused test passes, record G1.1 evidence before beginning G1.2.",
+  "current_blocker": "No external blocker. G1.1 is complete and built. The remaining G1.2 problem is the legacy flat SharedPreferences memory blob and whole-memory prompt injection.",
+  "root_cause": "Celine now has an app-owned provider-independent central brain contract, but durable memory is still one unstructured text blob in MainActivity with no record types, provenance, timestamps, confidence, importance, privacy scope, expiry, supersession or relevance retrieval.",
+  "exact_next_action": "Execute G1.2 only. Introduce versioned structured Celine memory records/store with semantic/profile/preference, episodic, decision/correction, open-goal/task, procedural/skill and temporary-with-expiry types; include provenance, timestamps, confidence, importance, privacy/scope, explicit-vs-inferred state, expiry and supersession/conflict links. Provide deterministic migration of the existing legacy SharedPreferences memory text without silent data loss, explicit-correction precedence, inspect/correct/forget primitives, and relevance-bounded retrieval so the whole store is not injected into every reasoning request. Keep G1.3 knowledge/goal graph persistence, G2 tools, provider/model migration, autonomy, room/avatar/voice out of this block. Run focused memory tests first and one Android build for runtime changes.",
   "constraints": [
     "No new branch or PR.",
     "No merge or release.",
@@ -88,7 +102,7 @@
     "Preserve canonical Celine identity/rig/morph and restored accepted visual behavior.",
     "Preserve v77 actual-PCM lip sync and unrelated working voice/lifecycle/updater behavior.",
     "Do not bind Celine identity, memory or goals permanently to a cloud model/provider.",
-    "Do not use unrestricted free-text UI control; migrate actions to typed tools with permission and verification.",
+    "Do not use unrestricted free-text UI control; migrate actions to typed tools with permission + verification.",
     "Do not allow uncontrolled production source-code self-modification.",
     "Do not run an always-on inference loop that burns battery.",
     "No generated/synthetic image may be presented as runtime visual proof.",
