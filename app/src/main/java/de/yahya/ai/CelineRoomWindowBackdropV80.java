@@ -31,13 +31,13 @@ import java.util.WeakHashMap;
  * parented to the accepted room root; no Celine/camera/anchor/furniture transform is changed.
  */
 final class CelineRoomWindowBackdropV80 {
-    // Proof #113 measured the complete visible derived window group ~0.190 viewport-width too far
-    // right. Its 2.84 m backdrop spans ~0.463 of the viewport, giving ~6.13 m/viewport-width.
-    // Apply the resulting measured -1.14 m group translation to this and every derived curtain layer.
-    private static final float CENTER_X = -0.69f;
+    // Proof #118 measures the visible derived window at about x=0.148..0.601 versus the canonical
+    // target x=0.195..0.581. Narrow the whole derived window group by 0.8521 around a slightly
+    // right-shifted center. These values are mirrored by curtain/sheer/fold derived layers.
+    private static final float CENTER_X = -0.605f;
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.755f;
-    private static final float HALF_WIDTH = 1.42f;
+    private static final float HALF_WIDTH = 1.210f;
     private static final float HALF_HEIGHT = 1.12f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();

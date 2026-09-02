@@ -34,11 +34,12 @@ import java.util.WeakHashMap;
 final class CelineRoomWindowCurtainFillV80 {
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.735f;
-    private static final float HALF_WIDTH = 0.44f;
+    private static final float HALF_WIDTH = 0.375f;
     private static final float HALF_HEIGHT = 1.08f;
-    // Proof #113 measured group translation: all visible derived window layers move -1.14 m together.
-    private static final float LEFT_CENTER_X = -1.67f;
-    private static final float RIGHT_CENTER_X = 0.29f;
+    // Proof #118: apply the same measured 0.8521 horizontal group scale and +0.085 m center shift
+    // as the derived backdrop, preserving curtain symmetry around the measured group center.
+    private static final float LEFT_CENTER_X = -1.440f;
+    private static final float RIGHT_CENTER_X = 0.230f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 

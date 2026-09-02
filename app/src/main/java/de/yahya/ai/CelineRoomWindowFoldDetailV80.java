@@ -35,12 +35,12 @@ final class CelineRoomWindowFoldDetailV80 {
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.705f;
     private static final float HALF_HEIGHT = 1.03f;
-    private static final float HALF_WIDTH_SIDE = 0.060f;
-    private static final float HALF_WIDTH_SHEER = 0.045f;
+    private static final float HALF_WIDTH_SIDE = 0.051f;
+    private static final float HALF_WIDTH_SHEER = 0.038f;
 
-    // Proof #113 measured group translation: all visible derived window layers move -1.14 m together.
-    private static final float[] SIDE_X = {-1.84f, -1.46f, 0.08f, 0.48f};
-    private static final float[] SHEER_X = {-0.94f, -0.44f};
+    // Proof #118: folds follow the exact same measured horizontal group contraction and center shift.
+    private static final float[] SIDE_X = {-1.585f, -1.261f, 0.051f, 0.392f};
+    private static final float[] SHEER_X = {-0.818f, -0.392f};
     private static final float[] ANGLES = {4.5f, -4.0f, 4.0f, -4.5f};
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
