@@ -205,19 +205,18 @@ public final class Celine3DView extends FrameLayout {
                 .build(engine);
         scene.setSkybox(skybox);
 
-        // v80 room polish: the previous daylight-strength fill clipped the warm shell and
-        // hid the localized floor-lamp state. Keep Celine/camera geometry untouched and move only
-        // the shared scene illumination toward a warm indoor evening baseline.
+        // Room work is frozen. Restore the illumination under which Celine's accepted v79
+        // appearance was visually approved, instead of tinting the shared renderer for a room.
         indirectLight = new IndirectLight.Builder()
-                .irradiance(1, new float[]{1.0f, 1.0f, 1.0f})
-                .intensity(8000.0f)
+                .irradiance(1, new float[]{1.0f, 0.98f, 0.96f})
+                .intensity(7000.0f)
                 .build(engine);
         scene.setIndirectLight(indirectLight);
 
         lightEntity = EntityManager.get().create();
         new LightManager.Builder(LightManager.Type.DIRECTIONAL)
-                .color(1.0f, 0.80f, 0.66f)
-                .intensity(14000.0f)
+                .color(1.0f, 0.96f, 0.92f)
+                .intensity(32000.0f)
                 .direction(-0.28f, -0.55f, -1.0f)
                 .castShadows(false)
                 .build(engine, lightEntity);
