@@ -17,7 +17,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
     static final float BED_X_OFFSET_M = -0.75f;
     static final float BED_Z_OFFSET_M = -1.25f;
-    static final float BED_SCALE_X_FACTOR = 1.47f;
+    static final float BED_SCALE_X_FACTOR = 1.75f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.30f;
     static final float LOUNGE_CHAIR_Z_OFFSET_M = -1.50f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
