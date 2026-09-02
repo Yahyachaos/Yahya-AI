@@ -9,6 +9,7 @@ done
 
 required_files=(
   app/src/main/java/de/yahya/ai/MainActivity.java
+  app/src/main/java/de/yahya/ai/CelineBrain.java
   app/src/main/java/de/yahya/ai/SpeechTextNormalizer.java
   app/src/main/java/de/yahya/ai/SpeechRecognitionIntentFactory.java
   app/src/main/java/de/yahya/ai/SpeechOutputRouter.java
@@ -37,6 +38,10 @@ bash -n SETUP_ANDROIDIDE.sh
 
 if [ -f ci/celine_camera_interaction_contract_v79.py ]; then
   python3 ci/celine_camera_interaction_contract_v79.py
+fi
+
+if [ -f ci/celine_g1_brain_contract.py ]; then
+  python3 ci/celine_g1_brain_contract.py
 fi
 
 # Checksums are useful for detecting unexpected changes, but legitimate active
