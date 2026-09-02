@@ -17,9 +17,9 @@
     "active_product_direction": "Celine Cognitive OS: own persistent brain, structured memory, goals, world model, verified agency, local neural reasoning, controlled learning, natural bounded autonomy.",
     "cloud_role": "Optional teacher/reviewer/fallback only. Celine identity, memory, goals, skills, permissions and persistent state are app-owned and must survive provider/model removal."
   },
-  "current_branch_head_checkpoint": "d5a542ca063d56dca3ac6b299764efbbd0f135f1",
-  "checkpoint_kind": "docs_only_cognitive_os_work_order_activation_parent",
-  "status": "BRAIN_GENERATION_1__G1_0_BASELINE_AND_EVALUATION_CONTRACT_READY",
+  "current_branch_head_checkpoint": "a201f0160363c46af0f37665060173df0022ba64",
+  "checkpoint_kind": "docs_ci_g1_0_baseline_recorded_parent",
+  "status": "BRAIN_GENERATION_1__G1_1_CENTRAL_BRAIN_CONTRACTS_READY",
   "latest_runtime_code_head": "c92e1326a471fde996d6cd1c1221ad0f0098eb7b",
   "latest_built_runtime_head": "c92e1326a471fde996d6cd1c1221ad0f0098eb7b",
   "android_build": {
@@ -27,29 +27,48 @@
     "run_number": 1056,
     "run_id": 33637276779,
     "conclusion": "success",
-    "notes": "Conversation-intelligence continuation/correction/topical-anchor changes compile successfully. Cognitive-OS plan/queue commits are docs-only and require no Android rebuild."
+    "notes": "Latest actual runtime code remains c92e1326. G1.0 commits are CI/evidence/docs only. Android Build #1059 performed scope detection only; APK build/emulator/release jobs were skipped."
+  },
+  "g1_0_baseline": {
+    "status": "COMPLETE_REPRODUCIBLE",
+    "baseline_head": "36a0f8ed2312d44ce65a1c139ef7ef49464e334f",
+    "workflow": "Celine G1 Intelligence Baseline",
+    "run_number": 1,
+    "run_id": 33645992642,
+    "workflow_conclusion": "success",
+    "artifact_id": 9852785460,
+    "artifact_digest": "sha256:913120e2773882492b84f8c8ba71ab1bfcbc19264d2b2d6bee56886f750c7c73",
+    "durable_report": "ci/evidence/CELINE_G1_BASELINE_CURRENT.json",
+    "fixed_cases": "ci/evidence/CELINE_G1_BASELINE_CASES.json",
+    "case_count": 23,
+    "families": ["conversation", "memory", "reasoning", "tools", "restart", "cloud"],
+    "deterministic_probe": "PASS: actual ConversationIntelligenceV78 compiled/executed; normal_start=20, follow_start=12",
+    "summary": {"PASS": 2, "PARTIAL": 4, "GAP": 10, "BASELINE": 1},
+    "key_gaps": [
+      "Flat 7000-character SharedPreferences memory blob; no structured records or supersession.",
+      "Whole memory blob is injected into each free cloud prompt; no relevance retrieval.",
+      "Conversation turns are RAM-only; no durable working-state/task resume.",
+      "MainActivity owns a fixed cloud model/provider request path.",
+      "No central planner/simulator/verifier or app-owned self model.",
+      "Device actions use hard-coded command routing; no typed Tool Cortex or general observe/verify/recover loop.",
+      "Normal free cloud turn contains two Responses API call sites (answer + learnWithAI); online speech can add a third cloud request.",
+      "No dedicated brain/provider latency instrumentation.",
+      "Free conversation remains unavailable offline."
+    ]
+  },
+  "ci_efficiency_cleanup": {
+    "status": "ACTIVE",
+    "legacy_visual_proofs": "Block 10 and Block 12 jobs are now explicit-marker/workflow_dispatch only, preventing the historical large PR diff from rerunning expensive visual work on normal intelligence commits.",
+    "g1_baseline_policy": "G1 baseline is explicit-marker/workflow_dispatch after the initial exact-head baseline; invoke it when an intelligence change needs regression comparison.",
+    "markers": ["[run-block10-launcher-proof]", "[run-block12-temporal-proof]", "[run-g1-intelligence-baseline]"]
   },
   "protected_celine_visual_state": {
     "status": "RESTORED_TO_ACCEPTED_BASIS_AND_FROZEN_UNLESS_NEW_INDEPENDENT_EVIDENCE",
     "accepted_reference_head": "a9bb0a3a0182b7ef5cf1996c9c9e7fa8a7fc23a8",
     "restored_renderer_head": "6ab40b288469caca718020eec5e52c12f6cd9d25",
     "restored_seated_call_head": "566f10607d86b00a7a4fe66eba19e684aaf237e7",
-    "protected_items": [
-      "accepted semantic palette",
-      "accepted Celine illumination",
-      "central PBR response",
-      "canonical identity/rig/morph foundations",
-      "accepted seated CALL lower-body values"
-    ],
     "current_intelligence_changes_are_nonvisual": true
   },
-  "completed_before_cognitive_os_activation": [
-    "Room reconstruction explicitly frozen by user; owner will build room separately.",
-    "Celine palette/illumination/PBR and seated CALL drift restored to accepted basis without wholesale rollback.",
-    "ConversationIntelligenceV78 improved for short continuation commands, explicit corrections and topical prior-turn anchoring.",
-    "Self-anchor bug in topical lookup fixed so the current user turn cannot match itself.",
-    "Android Build #1056 on runtime head c92e1326a471fde996d6cd1c1221ad0f0098eb7b succeeded."
-  ],
   "canonical_brain_generations": [
     "G1 Cognitive Kernel & Persistent Mind",
     "G2 Agency, World Model & Verified Action",
@@ -58,9 +77,9 @@
     "G5 Natural Continuous Celine & Bounded Autonomy"
   ],
   "legacy_h0_h13_policy": "The old H0-H13 intelligence trunk remains a requirements/acceptance/technology library only. Its numeric order is superseded by the five Brain Generations mapped in CELINE_COGNITIVE_OS_EXECUTION_ORDER.md.",
-  "current_blocker": "No external blocker. Do not begin large memory/model/tool rewrites before the G1.0 baseline is reproducible.",
-  "root_cause": "The prior queue and active v80 chronology were room/videochat-centric and stale after the user froze the room. The previous intelligence trunk also described H0-H13 as a linear order, while the approved Cognitive OS architecture requires an app-owned central brain first, then persistent mind, verified agency, local neural reasoning, controlled learning and finally natural bounded autonomy.",
-  "exact_next_action": "Execute G1.0 only from ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md: create the baseline intelligence evaluation/audit contract for the current runtime. Cover continuation/correction/topical-reference behavior, memory recall/correction/forget, multi-step reasoning and uncertainty, current device-tool routing/wrong-tool behavior, restart/task-resume gaps, and cloud-call count/latency. Do not yet implement the structured-memory migration, local neural model, new autonomy loop, room work, or a second branch/PR. After G1.0 is reproducible and recorded, proceed single-flight to G1.1 central CelineBrain contracts.",
+  "current_blocker": "No external blocker. G1.0 is complete; proceed only to bounded G1.1 contracts before any structured-memory or provider migration.",
+  "root_cause": "The baseline proves the current app has useful conversation continuity and device capabilities but lacks an app-owned central cognitive owner: memory, provider calls, command routing and live conversation state are still coupled directly to MainActivity or flat storage.",
+  "exact_next_action": "Execute G1.1 only: introduce the minimal app-owned CelineBrain contract layer and stable interfaces for request/result, memory, working state, goal graph, context broker, tool registry, permission policy, reasoning provider, verifier, learning engine, affect state and resource policy. Keep existing MainActivity behavior unchanged in this first contract step; do not yet migrate the flat memory, switch models/providers, add autonomy, or touch room/avatar/voice. Add a focused contract test and run one Android build because app/src runtime inputs will change. After the contracts compile and the focused test passes, record G1.1 evidence before beginning G1.2.",
   "constraints": [
     "No new branch or PR.",
     "No merge or release.",

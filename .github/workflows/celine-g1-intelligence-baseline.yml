@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   baseline:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-g1-intelligence-baseline]')) }}
     name: G1.0 intelligence baseline
     runs-on: ubuntu-latest
     timeout-minutes: 5
