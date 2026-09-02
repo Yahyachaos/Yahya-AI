@@ -4,13 +4,34 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /** Pure-Java structured memory policy. Persistence is supplied separately on Android. */
 public final class CelineMemoryEngine implements CelineMemory {
+    public static final class ConsolidationReport {
+        public final int expiredRemoved;
+        public final int conflictRemoved;
+        public final int supersededRemoved;
+        public final int duplicateRemoved;
+
+        ConsolidationReport(int expiredRemoved, int conflictRemoved,
+                            int supersededRemoved, int duplicateRemoved) {
+            this.expiredRemoved = Math.max(0, expiredRemoved);
+            this.conflictRemoved = Math.max(0, conflictRemoved);
+            this.supersededRemoved = Math.max(0, supersededRemoved);
+            this.duplicateRemoved = Math.max(0, duplicateRemoved);
+        }
+
+        public int totalRemoved() {
+            return expiredRemoved + conflictRemoved + supersededRemoved + duplicateRemoved;
+        }
+    }
+
     private final List<CelineMemoryItem> records = new ArrayList<>();
 
     public CelineMemoryEngine(List<CelineMemoryItem> initial) {
@@ -74,6 +95,64 @@ public final class CelineMemoryEngine implements CelineMemory {
         }
     }
 
+    /**
+     * Bounded deterministic consolidation. It runs only on explicit memory events/startup,
+     * never as a permanent inference loop.
+     */
+    public synchronized ConsolidationReport consolidate(long nowEpochMs) {
+        long now = nowEpochMs > 0L ? nowEpochMs : System.currentTimeMillis();
+        int expired = 0;
+        for (int i = records.size() - 1; i >= 0; i--) {
+            CelineMemoryItem item = records.get(i);
+            if (item == null || item.id.isEmpty() || item.summary.isEmpty() || item.isExpired(now)) {
+                records.remove(i);
+                expired++;
+            }
+        }
+
+        int conflict = 0;
+        Set<String> conflictLosers = new HashSet<>();
+        Map<String,CelineMemoryItem> byId = byId();
+        for (CelineMemoryItem item : new ArrayList<>(records)) {
+            if (item.conflictWithId.isEmpty()) continue;
+            CelineMemoryItem other = byId.get(item.conflictWithId);
+            if (other == null || item.id.equals(other.id)) continue;
+            CelineMemoryItem winner = stronger(item, other);
+            conflictLosers.add(winner == item ? other.id : item.id);
+        }
+        for (String id : conflictLosers) if (removeById(id)) conflict++;
+
+        int superseded = 0;
+        Set<String> supersededIds = new HashSet<>();
+        byId = byId();
+        for (CelineMemoryItem item : records) {
+            if (!item.supersedesId.isEmpty() && byId.containsKey(item.supersedesId)) {
+                supersededIds.add(item.supersedesId);
+            }
+        }
+        for (String id : supersededIds) if (removeById(id)) superseded++;
+
+        int duplicates = 0;
+        Map<String,CelineMemoryItem> winnerBySummary = new HashMap<>();
+        Set<String> duplicateLosers = new HashSet<>();
+        for (CelineMemoryItem item : records) {
+            String key = normalize(item.summary);
+            if (key.isEmpty()) continue;
+            CelineMemoryItem prior = winnerBySummary.get(key);
+            if (prior == null) {
+                winnerBySummary.put(key, item);
+                continue;
+            }
+            CelineMemoryItem winner = stronger(prior, item);
+            CelineMemoryItem loser = winner == prior ? item : prior;
+            duplicateLosers.add(loser.id);
+            winnerBySummary.put(key, winner);
+        }
+        for (String id : duplicateLosers) if (removeById(id)) duplicates++;
+
+        return new ConsolidationReport(expired, conflict, superseded, duplicates);
+    }
+
     public synchronized List<CelineMemoryItem> snapshot() {
         return Collections.unmodifiableList(new ArrayList<>(records));
     }
@@ -128,6 +207,54 @@ public final class CelineMemoryEngine implements CelineMemory {
         return bestScore > 0 ? bestId : "";
     }
 
+    /** Explicit user correction may replace an older explicit/observed/inferred record. */
+    public synchronized String findCorrectionTarget(CelineMemoryItem incoming) {
+        if (incoming == null) return "";
+        Set<String> incomingTerms = terms(incoming.summary);
+        if (incomingTerms.isEmpty()) return "";
+        List<CelineMemoryItem> active = activeSnapshot();
+        String bestId = "";
+        int bestScore = 0;
+        long bestUpdated = Long.MIN_VALUE;
+        for (CelineMemoryItem existing : active) {
+            int score = overlap(incomingTerms, terms(existing.summary));
+            if (score <= 0) continue;
+            if (existing.type == incoming.type) score += 2;
+            if (score > bestScore || (score == bestScore && existing.updatedAtEpochMs > bestUpdated)) {
+                bestScore = score;
+                bestUpdated = existing.updatedAtEpochMs;
+                bestId = existing.id;
+            }
+        }
+        return bestScore > 0 ? bestId : "";
+    }
+
+    private Map<String,CelineMemoryItem> byId() {
+        Map<String,CelineMemoryItem> out = new HashMap<>();
+        for (CelineMemoryItem item : records) if (item != null && !item.id.isEmpty()) out.put(item.id, item);
+        return out;
+    }
+
+    private static CelineMemoryItem stronger(CelineMemoryItem left, CelineMemoryItem right) {
+        int leftRank = knowledgeRank(left.knowledgeState);
+        int rightRank = knowledgeRank(right.knowledgeState);
+        if (leftRank != rightRank) return leftRank > rightRank ? left : right;
+        int confidence = Double.compare(left.confidence, right.confidence);
+        if (confidence != 0) return confidence > 0 ? left : right;
+        int updated = Long.compare(left.updatedAtEpochMs, right.updatedAtEpochMs);
+        if (updated != 0) return updated > 0 ? left : right;
+        int importance = Double.compare(left.importance, right.importance);
+        if (importance != 0) return importance > 0 ? left : right;
+        return left.id.compareTo(right.id) <= 0 ? left : right;
+    }
+
+    private static int knowledgeRank(CelineMemoryItem.KnowledgeState state) {
+        if (state == CelineMemoryItem.KnowledgeState.EXPLICIT) return 4;
+        if (state == CelineMemoryItem.KnowledgeState.OBSERVED) return 3;
+        if (state == CelineMemoryItem.KnowledgeState.INFERRED) return 2;
+        return 1;
+    }
+
     private void upsert(CelineMemoryItem item) {
         if (item.id.isEmpty() || item.summary.isEmpty()) return;
         removeById(item.id);
@@ -146,11 +273,16 @@ public final class CelineMemoryEngine implements CelineMemory {
         if (!parent.isEmpty() && !parent.equals(id)) forgetChain(parent);
     }
 
-    private void removeById(String id) {
+    private boolean removeById(String id) {
+        boolean removed = false;
         for (int i = records.size() - 1; i >= 0; i--) {
             CelineMemoryItem item = records.get(i);
-            if (item != null && id.equals(item.id)) records.remove(i);
+            if (item != null && id.equals(item.id)) {
+                records.remove(i);
+                removed = true;
+            }
         }
+        return removed;
     }
 
     private static int relevanceScore(Set<String> query, CelineMemoryItem item) {

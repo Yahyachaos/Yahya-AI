@@ -12,27 +12,42 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Android persistence owner for G1.2 structured memory.
+ * Android persistence owner for structured Celine memory.
  *
- * The legacy flat SharedPreferences "memory" string is migrated exactly once into
- * versioned records. A backup is kept until the user explicitly deletes memory.
+ * G1.5 migrates legacy/plain structured memory into AndroidKeyStore-backed AES-GCM
+ * storage. New writes fail closed instead of falling back to plaintext persistence.
  */
 public final class CelineStructuredMemory implements CelineMemory {
     static final int STORE_SCHEMA = 1;
+
+    // Historical plaintext keys are read only for one-time migration compatibility.
     static final String KEY_STORE = "celine_memory_v2_json";
     static final String KEY_MIGRATED = "celine_memory_v2_migrated";
     static final String KEY_LEGACY = "memory";
     static final String KEY_LEGACY_BACKUP = "celine_memory_v2_legacy_backup";
     static final String KEY_CORRUPT_BACKUP = "celine_memory_v2_corrupt_backup";
 
+    // G1.5 protected values. All payload-bearing values under these keys are AES-GCM ciphertext.
+    static final String KEY_PROTECTED_STORE = "celine_memory_g1_5_protected";
+    static final String KEY_PROTECTED_ROLLBACK = "celine_memory_g1_5_rollback";
+    static final String KEY_PROTECTED_LEGACY_BACKUP = "celine_memory_g1_5_legacy_backup";
+    static final String KEY_PROTECTED_CORRUPT_BACKUP = "celine_memory_g1_5_corrupt_backup";
+    static final String KEY_PROTECTED_CIPHERTEXT_BACKUP = "celine_memory_g1_5_ciphertext_backup";
+
     private final SharedPreferences prefs;
+    private final CelineProtectedMemoryStorage protectedStorage;
     private final CelineMemoryEngine engine;
 
     public CelineStructuredMemory(SharedPreferences prefs) {
         if (prefs == null) throw new IllegalArgumentException("prefs must not be null");
         this.prefs = prefs;
+        this.protectedStorage = new CelineProtectedMemoryStorage(prefs);
         this.engine = new CelineMemoryEngine(loadRecords());
+        migratePlaintextStructuredStore();
         migrateLegacyOnce();
+        migratePlaintextBackups();
+        CelineMemoryEngine.ConsolidationReport report = engine.consolidate(System.currentTimeMillis());
+        if (report.totalRemoved() > 0) persistAsync();
     }
 
     @Override
@@ -43,7 +58,7 @@ public final class CelineStructuredMemory implements CelineMemory {
     @Override
     public synchronized void remember(CelineMemoryMutation mutation) {
         engine.remember(mutation);
-        persistAsync();
+        consolidateAndPersist();
     }
 
     public synchronized void rememberExplicit(String text) {
@@ -69,7 +84,7 @@ public final class CelineStructuredMemory implements CelineMemory {
                 target.isEmpty() ? CelineMemoryMutation.Operation.UPSERT : CelineMemoryMutation.Operation.SUPERSEDE,
                 target,
                 item));
-        persistAsync();
+        consolidateAndPersist();
     }
 
     public synchronized void rememberCorrection(String text, String provenance) {
@@ -90,12 +105,12 @@ public final class CelineStructuredMemory implements CelineMemory {
                 0L,
                 "",
                 "");
-        String target = engine.findSupersessionTarget(item);
+        String target = engine.findCorrectionTarget(item);
         engine.remember(new CelineMemoryMutation(
                 target.isEmpty() ? CelineMemoryMutation.Operation.UPSERT : CelineMemoryMutation.Operation.SUPERSEDE,
                 target,
                 item));
-        persistAsync();
+        consolidateAndPersist();
     }
 
     public synchronized void rememberInferred(String text, String provenance) {
@@ -122,7 +137,7 @@ public final class CelineStructuredMemory implements CelineMemory {
             engine.remember(new CelineMemoryMutation(CelineMemoryMutation.Operation.UPSERT, "", item));
             changed = true;
         }
-        if (changed) persistAsync();
+        if (changed) consolidateAndPersist();
     }
 
     public synchronized String promptMemory(String userText, int maxItems) {
@@ -157,29 +172,99 @@ public final class CelineStructuredMemory implements CelineMemory {
         return out.toString();
     }
 
+    /** Active records for user-facing inspect/correct/forget controls. */
+    public synchronized List<CelineMemoryItem> inspectItems() {
+        return engine.activeSnapshot();
+    }
+
+    /** Correct exactly one selected memory without relying on fuzzy free-text replacement. */
+    public synchronized boolean correct(String memoryId, String replacementText) {
+        String id = cleanLine(memoryId);
+        String clean = cleanLine(replacementText);
+        if (id.isEmpty() || clean.isEmpty() || looksSensitive(clean)) return false;
+        CelineMemoryItem existing = findActiveById(id);
+        if (existing == null) return false;
+        long now = System.currentTimeMillis();
+        CelineMemoryItem replacement = new CelineMemoryItem(
+                newId("control-correction"),
+                existing.type,
+                clean,
+                "user_memory_control",
+                CelineMemoryItem.KnowledgeState.EXPLICIT,
+                1.0d,
+                Math.max(0.95d, existing.importance),
+                existing.privacyScope,
+                now,
+                now,
+                existing.expiresAtEpochMs,
+                id,
+                "");
+        engine.remember(new CelineMemoryMutation(CelineMemoryMutation.Operation.SUPERSEDE, id, replacement));
+        consolidateAndPersist();
+        return true;
+    }
+
     public synchronized void forget(String memoryId) {
         String id = cleanLine(memoryId);
         if (id.isEmpty()) return;
         engine.remember(new CelineMemoryMutation(CelineMemoryMutation.Operation.FORGET, id, null));
-        persistAsync();
+        consolidateAndPersist();
+    }
+
+    public synchronized CelineMemoryEngine.ConsolidationReport consolidateNow() {
+        CelineMemoryEngine.ConsolidationReport report = engine.consolidate(System.currentTimeMillis());
+        if (report.totalRemoved() > 0) persistAsync();
+        return report;
+    }
+
+    public boolean protectedStorageAvailable() {
+        return protectedStorage.available();
     }
 
     public synchronized void forgetAll() {
         prefs.edit()
+                .remove(KEY_PROTECTED_STORE)
+                .remove(KEY_PROTECTED_ROLLBACK)
+                .remove(KEY_PROTECTED_LEGACY_BACKUP)
+                .remove(KEY_PROTECTED_CORRUPT_BACKUP)
+                .remove(KEY_PROTECTED_CIPHERTEXT_BACKUP)
                 .remove(KEY_STORE)
                 .remove(KEY_MIGRATED)
                 .remove(KEY_LEGACY)
                 .remove(KEY_LEGACY_BACKUP)
                 .remove(KEY_CORRUPT_BACKUP)
-                .apply();
+                .commit();
+        protectedStorage.destroyKey();
         for (CelineMemoryItem item : new ArrayList<>(engine.snapshot())) {
             engine.remember(new CelineMemoryMutation(CelineMemoryMutation.Operation.FORGET, item.id, null));
         }
     }
 
+    private CelineMemoryItem findActiveById(String id) {
+        for (CelineMemoryItem item : engine.activeSnapshot()) {
+            if (item != null && id.equals(item.id)) return item;
+        }
+        return null;
+    }
+
     private List<CelineMemoryItem> loadRecords() {
-        String raw = prefs.getString(KEY_STORE, "");
-        if (raw == null || raw.trim().isEmpty()) return Collections.emptyList();
+        String raw = "";
+        if (protectedStorage.hasCiphertext(KEY_PROTECTED_STORE)) {
+            try {
+                raw = protectedStorage.read(KEY_PROTECTED_STORE);
+            } catch (Exception invalidCiphertext) {
+                String ciphertext = protectedStorage.rawCiphertext(KEY_PROTECTED_STORE);
+                if (!ciphertext.isEmpty()) {
+                    prefs.edit().putString(KEY_PROTECTED_CIPHERTEXT_BACKUP, ciphertext)
+                            .remove(KEY_PROTECTED_STORE).commit();
+                }
+            }
+        }
+        if (raw.trim().isEmpty()) {
+            String legacyStructured = prefs.getString(KEY_STORE, "");
+            raw = legacyStructured == null ? "" : legacyStructured;
+        }
+        if (raw.trim().isEmpty()) return Collections.emptyList();
         try {
             JSONObject root = new JSONObject(raw);
             if (root.optInt("schema", -1) != STORE_SCHEMA) throw new IllegalStateException("unsupported memory schema");
@@ -194,9 +279,19 @@ public final class CelineStructuredMemory implements CelineMemory {
             }
             return out;
         } catch (Exception invalid) {
-            prefs.edit().putString(KEY_CORRUPT_BACKUP, raw).apply();
+            protectedStorage.write(KEY_PROTECTED_CORRUPT_BACKUP, raw, true);
             return Collections.emptyList();
         }
+    }
+
+    /** Move the G1.2 plaintext JSON store to protected storage and retain an encrypted rollback copy. */
+    private void migratePlaintextStructuredStore() {
+        String plaintext = prefs.getString(KEY_STORE, "");
+        if (plaintext == null || plaintext.trim().isEmpty()) return;
+        boolean rollback = protectedStorage.write(KEY_PROTECTED_ROLLBACK, plaintext, true);
+        boolean active = protectedStorage.hasCiphertext(KEY_PROTECTED_STORE)
+                || protectedStorage.write(KEY_PROTECTED_STORE, serialize(), true);
+        if (rollback && active) prefs.edit().remove(KEY_STORE).commit();
     }
 
     private void migrateLegacyOnce() {
@@ -207,7 +302,7 @@ public final class CelineStructuredMemory implements CelineMemory {
         int index = 0;
         for (String line : legacy.split("\\r?\\n")) {
             String clean = cleanLine(line);
-            if (clean.isEmpty() || engine.containsSummary(clean)) continue;
+            if (clean.isEmpty() || looksSensitive(clean) || engine.containsSummary(clean)) continue;
             CelineMemoryItem item = new CelineMemoryItem(
                     "legacy-" + index + "-" + Integer.toHexString(clean.hashCode()),
                     CelineMemoryType.LEGACY,
@@ -226,17 +321,42 @@ public final class CelineStructuredMemory implements CelineMemory {
             index++;
         }
 
-        SharedPreferences.Editor editor = prefs.edit()
-                .putString(KEY_STORE, serialize())
-                .putBoolean(KEY_MIGRATED, true)
-                .remove(KEY_LEGACY);
-        if (!legacy.trim().isEmpty()) editor.putString(KEY_LEGACY_BACKUP, legacy);
-        // Synchronous commit makes the one-time migration atomic from the app's perspective.
-        editor.commit();
+        boolean backupOk = legacy.trim().isEmpty()
+                || protectedStorage.write(KEY_PROTECTED_LEGACY_BACKUP, legacy, true);
+        boolean storeOk = protectedStorage.write(KEY_PROTECTED_STORE, serialize(), true);
+        if (backupOk && storeOk) {
+            prefs.edit()
+                    .putBoolean(KEY_MIGRATED, true)
+                    .remove(KEY_LEGACY)
+                    .remove(KEY_STORE)
+                    .remove(KEY_LEGACY_BACKUP)
+                    .remove(KEY_CORRUPT_BACKUP)
+                    .commit();
+        }
+    }
+
+    /** Protect any historical plaintext backups left by G1.2 before removing them. */
+    private void migratePlaintextBackups() {
+        migratePlaintextBackup(KEY_LEGACY_BACKUP, KEY_PROTECTED_LEGACY_BACKUP);
+        migratePlaintextBackup(KEY_CORRUPT_BACKUP, KEY_PROTECTED_CORRUPT_BACKUP);
+    }
+
+    private void migratePlaintextBackup(String plaintextKey, String protectedKey) {
+        String raw = prefs.getString(plaintextKey, "");
+        if (raw == null || raw.trim().isEmpty()) return;
+        if (protectedStorage.write(protectedKey, raw, true)) {
+            prefs.edit().remove(plaintextKey).commit();
+        }
+    }
+
+    private void consolidateAndPersist() {
+        engine.consolidate(System.currentTimeMillis());
+        persistAsync();
     }
 
     private void persistAsync() {
-        prefs.edit().putString(KEY_STORE, serialize()).apply();
+        // Privacy fail-closed: protectedStorage never falls back to plaintext writes.
+        protectedStorage.write(KEY_PROTECTED_STORE, serialize(), false);
     }
 
     private String serialize() {

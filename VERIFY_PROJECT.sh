@@ -12,6 +12,7 @@ required_files=(
   app/src/main/java/de/yahya/ai/CelineBrain.java
   app/src/main/java/de/yahya/ai/CelineMemoryEngine.java
   app/src/main/java/de/yahya/ai/CelineStructuredMemory.java
+  app/src/main/java/de/yahya/ai/CelineProtectedMemoryStorage.java
   app/src/main/java/de/yahya/ai/CelineGoalTaskGraph.java
   app/src/main/java/de/yahya/ai/CelineGoalTaskRuntime.java
   app/src/main/java/de/yahya/ai/CelineContextBrokerG14.java
@@ -67,6 +68,10 @@ fi
 
 if [ -f ci/celine_g1_context_broker_test.py ]; then
   python3 ci/celine_g1_context_broker_test.py
+fi
+
+if [ -f ci/celine_g1_memory_privacy_consolidation_test.py ]; then
+  python3 ci/celine_g1_memory_privacy_consolidation_test.py
 fi
 
 # Checksums are useful for detecting unexpected changes, but legitimate active
