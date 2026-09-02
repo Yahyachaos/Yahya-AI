@@ -12,8 +12,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Android persistence owner for G1.2 structured memory plus the bounded G1.3
- * Goal/Task working-state adapter.
+ * Android persistence owner for G1.2 structured memory.
  *
  * The legacy flat SharedPreferences "memory" string is migrated exactly once into
  * versioned records. A backup is kept until the user explicitly deletes memory.
@@ -25,28 +24,13 @@ public final class CelineStructuredMemory implements CelineMemory {
     static final String KEY_LEGACY = "memory";
     static final String KEY_LEGACY_BACKUP = "celine_memory_v2_legacy_backup";
     static final String KEY_CORRUPT_BACKUP = "celine_memory_v2_corrupt_backup";
-    static final String KEY_GOAL_TASK_STATE = "celine_goal_task_state_v1";
 
     private final SharedPreferences prefs;
     private final CelineMemoryEngine engine;
-    private final CelineGoalTaskGraph goalTaskGraph;
 
     public CelineStructuredMemory(SharedPreferences prefs) {
         if (prefs == null) throw new IllegalArgumentException("prefs must not be null");
         this.prefs = prefs;
-        this.goalTaskGraph = new CelineGoalTaskGraph(new CelineGoalTaskGraph.StateStore() {
-            @Override
-            public String read() {
-                return CelineStructuredMemory.this.prefs.getString(KEY_GOAL_TASK_STATE, "");
-            }
-
-            @Override
-            public void write(String value) {
-                CelineStructuredMemory.this.prefs.edit()
-                        .putString(KEY_GOAL_TASK_STATE, value == null ? "" : value)
-                        .apply();
-            }
-        });
         this.engine = new CelineMemoryEngine(loadRecords());
         migrateLegacyOnce();
     }
@@ -66,12 +50,6 @@ public final class CelineStructuredMemory implements CelineMemory {
         String clean = cleanLine(text);
         if (clean.isEmpty() || looksSensitive(clean)) return;
         long now = System.currentTimeMillis();
-
-        // Continuation commands belong to working state, not semantic long-term memory.
-        if (isContinuationIntent(clean)) return;
-        // Be conservative: short device/chat imperatives must not become durable goals.
-        if (looksLikeDurableGoal(clean)) goalTaskGraph.observeUserRequest(clean, now);
-
         CelineMemoryItem item = new CelineMemoryItem(
                 newId("explicit"),
                 classify(clean),
@@ -154,14 +132,6 @@ public final class CelineStructuredMemory implements CelineMemory {
                 new CelineBrainRequest("memory-prompt-" + System.nanoTime(), clean, System.currentTimeMillis()),
                 Math.min(8, maxItems));
         StringBuilder out = new StringBuilder();
-
-        if (isContinuationIntent(clean)) {
-            String workingContext = goalTaskGraph.resumeContext().promptContext();
-            if (!workingContext.isEmpty()) {
-                out.append("AKTIVER_ARBEITSSTAND:\n").append(workingContext);
-            }
-        }
-
         for (CelineMemoryItem item : slice.items) {
             if (item.privacyScope == CelineMemoryPrivacy.LOCAL_SENSITIVE) continue;
             if (out.length() > 0) out.append('\n');
@@ -187,10 +157,6 @@ public final class CelineStructuredMemory implements CelineMemory {
         return out.toString();
     }
 
-    public synchronized CelineGoalTaskGraph goalTaskGraph() {
-        return goalTaskGraph;
-    }
-
     public synchronized void forget(String memoryId) {
         String id = cleanLine(memoryId);
         if (id.isEmpty()) return;
@@ -199,14 +165,12 @@ public final class CelineStructuredMemory implements CelineMemory {
     }
 
     public synchronized void forgetAll() {
-        goalTaskGraph.clear();
         prefs.edit()
                 .remove(KEY_STORE)
                 .remove(KEY_MIGRATED)
                 .remove(KEY_LEGACY)
                 .remove(KEY_LEGACY_BACKUP)
                 .remove(KEY_CORRUPT_BACKUP)
-                .remove(KEY_GOAL_TASK_STATE)
                 .apply();
         for (CelineMemoryItem item : new ArrayList<>(engine.snapshot())) {
             engine.remember(new CelineMemoryMutation(CelineMemoryMutation.Operation.FORGET, item.id, null));
@@ -346,38 +310,6 @@ public final class CelineStructuredMemory implements CelineMemory {
         if (value.contains("entschieden") || value.contains("korrektur") || value.contains("stattdessen"))
             return CelineMemoryType.DECISION_CORRECTION;
         return CelineMemoryType.SEMANTIC;
-    }
-
-    private static boolean isContinuationIntent(String text) {
-        if (CelineGoalTaskGraph.isContinuationRequest(text)) return true;
-        String value = cleanLine(text).toLowerCase(Locale.GERMANY)
-                .replaceAll("[.!?]+$", "").trim();
-        return value.equals("arbeite weiter")
-                || value.equals("weiterarbeiten")
-                || value.equals("mach immer weiter")
-                || value.equals("mache immer weiter")
-                || value.equals("arbeite dort weiter")
-                || value.equals("arbeite da weiter");
-    }
-
-    private static boolean looksLikeDurableGoal(String text) {
-        String value = cleanLine(text).toLowerCase(Locale.GERMANY);
-        if (value.isEmpty() || isContinuationIntent(value)) return false;
-        if (value.startsWith("arbeite ") || value.startsWith("entwickel ") || value.startsWith("entwickle ")
-                || value.startsWith("integrier ") || value.startsWith("integriere ")
-                || value.startsWith("reparier ") || value.startsWith("repariere ")
-                || value.startsWith("ziel ") || value.startsWith("ziel:")) return true;
-        if (value.length() < 18) return false;
-        return value.startsWith("plane ")
-                || value.startsWith("erstelle ")
-                || value.startsWith("bau ")
-                || value.startsWith("baue ")
-                || value.startsWith("wir müssen ")
-                || value.startsWith("wir muessen ")
-                || value.startsWith("ich will ")
-                || value.startsWith("ich möchte ")
-                || value.startsWith("ich moechte ")
-                || value.startsWith("hilf mir ");
     }
 
     private static boolean looksSensitive(String text) {
