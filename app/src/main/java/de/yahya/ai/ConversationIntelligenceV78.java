@@ -70,9 +70,9 @@ final class ConversationIntelligenceV78 {
         }
 
         // If the current message contains actual topic words, keep the most recent
-        // matching user anchor when it still fits the bounded continuation window.
-        // This helps "Und was ist mit der Kamera?" bind to the recent camera topic
-        // instead of only to the immediately preceding assistant wording.
+        // matching prior user anchor when it still fits the bounded continuation window.
+        // The current user turn is already present in MainActivity.messages, so it must
+        // be skipped or it would trivially match itself.
         if (continuation) {
             int topicalAnchor = findTopicalAnchor(turns, userText, start);
             if (topicalAnchor >= 0 && topicalAnchor < start) {
@@ -164,7 +164,15 @@ final class ConversationIntelligenceV78 {
         int floor = Math.max(0, turns.size() - TOPICAL_LOOKBACK_TURNS);
         int best = -1;
         int bestScore = 0;
-        for (int i = turns.size() - 1; i >= floor; i--) {
+        int scanStart = turns.size() - 1;
+        if (scanStart >= 0) {
+            Turn latest = turns.get(scanStart);
+            if ("user".equals(latest.role)
+                    && normalize(latest.content).equals(normalize(userText))) {
+                scanStart--;
+            }
+        }
+        for (int i = scanStart; i >= floor; i--) {
             Turn turn = turns.get(i);
             if (!"user".equals(turn.role) || turn.content.trim().isEmpty()) continue;
             Set<String> priorTerms = topicTerms(turn.content);
