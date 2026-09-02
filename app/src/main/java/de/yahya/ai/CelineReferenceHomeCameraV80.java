@@ -8,17 +8,16 @@ import java.util.WeakHashMap;
 /**
  * Reference HOME camera owner for the room reconstruction.
  *
- * The early real-app proof showed that the previous 5.15 m eye offset still framed the room too
- * tightly: the sideboard/decor and the room depth were not readable together. Yahya explicitly
- * requested moving the camera farther out before spending more time on detail polish. Keep the
- * accepted target/pitch and projection owner, but move only the HOME eye one metre farther toward
- * the viewer. CALL receives the matching distance in CelineCameraZoomV70.
+ * The latest real HOME/CALL proof was compared again against the canonical bedroom reference.
+ * The viewer still sat too close to the room and compressed its depth. Keep the accepted target,
+ * pitch and 32 mm projection, but move the HOME eye farther toward the laptop/viewer side.
+ * CALL receives the matching distance in CelineCameraZoomV70.
  */
 final class CelineReferenceHomeCameraV80 {
     static final float HOME_TARGET_Y = -0.60f;
     static final float HOME_TARGET_Z = -4.0f;
     static final float HOME_EYE_Y_OFFSET_M = 1.05f;
-    static final float HOME_EYE_Z_OFFSET_M = 6.15f;
+    static final float HOME_EYE_Z_OFFSET_M = 7.10f;
     private static final float ZOOM_MIN = 0.55f;
     private static final float ZOOM_MAX = 4.60f;
 
@@ -85,13 +84,13 @@ final class CelineReferenceHomeCameraV80 {
             if (!logged) {
                 logged = true;
                 Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
-                        "Referenz-HOME-Kamera weiter herausgezogen",
+                        "Referenz-HOME-Kamera weiter aus dem Raum gezogen",
                         "eye=0," + HOME_EYE_Y_OFFSET_M + ","
                                 + (HOME_TARGET_Z + HOME_EYE_Z_OFFSET_M)
                                 + " target=0," + HOME_TARGET_Y + "," + HOME_TARGET_Z
                                 + " zoom=" + zoom
                                 + " eyeOffsetZ=" + HOME_EYE_Z_OFFSET_M
-                                + " reason=early-proof-room-scale-and-dresser-visibility"
+                                + " reason=reference-recheck-more-room-depth"
                                 + " CALL=matched-separately roomRoot=false");
             }
         }
