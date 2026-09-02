@@ -28,45 +28,55 @@ final class CelineRoomReferenceLayoutV80 {
     // Deltas/factors are derived only from the immutable assembly base transforms and the
     // machine-readable v25 checkpoint. No later measured-room values are retained.
     private static final float BED_DX = -0.14f;
+    private static final float BED_DY = 0.117594780f;
     private static final float BED_DZ = -1.07f;
     private static final float BED_SCALE = 1.237288136f; // 1.46 / 1.18
     private static final float BED_EXTRA_YAW_DEG = 180.0f; // env leaves 90deg; v25 target is -90deg
 
     private static final float DRESSER_DX = 0.08f;
+    private static final float DRESSER_DY = 0.227985211f;
     private static final float DRESSER_DZ = -1.05f;
     private static final float DRESSER_SCALE = 1.368421053f; // 1.30 / 0.95
 
     private static final float LARGE_PLANT_DX = -0.02f;
+    private static final float LARGE_PLANT_DY = 0.114248327f;
     private static final float LARGE_PLANT_DZ = -1.02f;
     private static final float LARGE_PLANT_SCALE = 1.122448980f; // 1.10 / 0.98
 
     private static final float SMALL_PLANT_DX = -0.03f;
+    private static final float SMALL_PLANT_DY = -0.304679500f;
     private static final float SMALL_PLANT_DZ = -0.13f;
     private static final float SMALL_PLANT_SCALE = 0.50f; // 0.32 / 0.64
 
     private static final float LAMP_DX = -0.07f;
+    private static final float LAMP_DY = -0.285748256f;
     private static final float LAMP_DZ = -4.73f;
     private static final float LAMP_SCALE = 0.651162791f; // 0.56 / 0.86
 
     private static final float NIGHTSTAND_FRONT_DX = -0.11f;
+    private static final float NIGHTSTAND_FRONT_DY = -0.142769062f;
     private static final float NIGHTSTAND_FRONT_DZ = -0.92f;
     private static final float NIGHTSTAND_FRONT_SCALE = 0.765625f; // 0.49 / 0.64
     private static final float NIGHTSTAND_BACK_DX = -0.11f;
+    private static final float NIGHTSTAND_BACK_DY = -0.199876687f;
     private static final float NIGHTSTAND_BACK_DZ = -1.24f;
     private static final float NIGHTSTAND_BACK_SCALE = 0.671875f; // 0.43 / 0.64
     private static final float NIGHTSTAND_EXTRA_YAW_DEG = 90.0f; // env leaves 180deg; v25 target 270deg
 
     private static final float CHAIR_DX = -0.53f;
+    private static final float CHAIR_DY = -0.063262640f;
     private static final float CHAIR_DZ = -2.18f;
     private static final float CHAIR_SCALE = 0.86f; // 0.43 / 0.50
     private static final float CHAIR_YAW_DEG = 25.0f;
 
     private static final float RUG_DX = 0.44f;
+    private static final float RUG_DY = -0.005793429f;
     private static final float RUG_DZ = -1.01f;
     private static final float RUG_SCALE_X = 1.342857143f; // 2.35 / 1.75
     private static final float RUG_SCALE_Y = 0.571428571f; // 1.00 / 1.75
     private static final float RUG_SCALE_Z = 0.937142857f; // 1.64 / 1.75
 
+    private static final float TABLE_DY = 0.246836667f;
     private static final float TABLE_DZ = 1.10f;
     private static final float TABLE_SCALE_X = 1.893939394f; // 1.25 / 0.66
     private static final float TABLE_SCALE_Y = 1.666666667f; // 1.10 / 0.66
@@ -120,7 +130,7 @@ final class CelineRoomReferenceLayoutV80 {
                 scaleLocalXyz(asset, transforms, shell, 1f, 1f, SHELL_DEPTH_SCALE_Z, true);
             }
 
-            translateParentLocal(asset, transforms, "room_bed", BED_DX, 0f, BED_DZ, true);
+            translateParentLocal(asset, transforms, "room_bed", BED_DX, BED_DY, BED_DZ, true);
             rotateLocalYaw(asset, transforms, "room_bed", BED_EXTRA_YAW_DEG, true);
             scaleLocal(asset, transforms, "room_bed", BED_SCALE, true);
             int movedBedMarkers = 0;
@@ -128,33 +138,35 @@ final class CelineRoomReferenceLayoutV80 {
                 if (translateParentLocal(asset, transforms, marker, BED_DX, 0f, BED_DZ, false)) movedBedMarkers++;
             }
 
-            translateParentLocal(asset, transforms, "room_dresser", DRESSER_DX, 0f, DRESSER_DZ, true);
+            translateParentLocal(asset, transforms, "room_dresser", DRESSER_DX, DRESSER_DY, DRESSER_DZ, true);
             scaleLocal(asset, transforms, "room_dresser", DRESSER_SCALE, true);
             boolean movedDresserMarker = translateParentLocal(
                     asset, transforms, "dresser_anchor", DRESSER_DX, 0f, DRESSER_DZ, false);
 
-            translateParentLocal(asset, transforms, "room_plant_large", LARGE_PLANT_DX, 0f, LARGE_PLANT_DZ, true);
+            translateParentLocal(asset, transforms, "room_plant_large",
+                    LARGE_PLANT_DX, LARGE_PLANT_DY, LARGE_PLANT_DZ, true);
             scaleLocal(asset, transforms, "room_plant_large", LARGE_PLANT_SCALE, true);
 
-            translateParentLocal(asset, transforms, "room_plant_small", SMALL_PLANT_DX, 0f, SMALL_PLANT_DZ, true);
+            translateParentLocal(asset, transforms, "room_plant_small",
+                    SMALL_PLANT_DX, SMALL_PLANT_DY, SMALL_PLANT_DZ, true);
             scaleLocal(asset, transforms, "room_plant_small", SMALL_PLANT_SCALE, true);
 
-            translateParentLocal(asset, transforms, "room_floor_lamp", LAMP_DX, 0f, LAMP_DZ, true);
+            translateParentLocal(asset, transforms, "room_floor_lamp", LAMP_DX, LAMP_DY, LAMP_DZ, true);
             scaleLocal(asset, transforms, "room_floor_lamp", LAMP_SCALE, true);
             boolean movedLampMarker = translateParentLocal(
                     asset, transforms, "lamp_anchor", LAMP_DX, 0f, LAMP_DZ, false);
 
             translateParentLocal(asset, transforms, "room_nightstand_front",
-                    NIGHTSTAND_FRONT_DX, 0f, NIGHTSTAND_FRONT_DZ, true);
+                    NIGHTSTAND_FRONT_DX, NIGHTSTAND_FRONT_DY, NIGHTSTAND_FRONT_DZ, true);
             rotateLocalYaw(asset, transforms, "room_nightstand_front", NIGHTSTAND_EXTRA_YAW_DEG, true);
             scaleLocal(asset, transforms, "room_nightstand_front", NIGHTSTAND_FRONT_SCALE, true);
 
             translateParentLocal(asset, transforms, "room_nightstand_back",
-                    NIGHTSTAND_BACK_DX, 0f, NIGHTSTAND_BACK_DZ, true);
+                    NIGHTSTAND_BACK_DX, NIGHTSTAND_BACK_DY, NIGHTSTAND_BACK_DZ, true);
             rotateLocalYaw(asset, transforms, "room_nightstand_back", NIGHTSTAND_EXTRA_YAW_DEG, true);
             scaleLocal(asset, transforms, "room_nightstand_back", NIGHTSTAND_BACK_SCALE, true);
 
-            translateParentLocal(asset, transforms, "room_lounge_chair", CHAIR_DX, 0f, CHAIR_DZ, true);
+            translateParentLocal(asset, transforms, "room_lounge_chair", CHAIR_DX, CHAIR_DY, CHAIR_DZ, true);
             rotateLocalYaw(asset, transforms, "room_lounge_chair", CHAIR_YAW_DEG, true);
             scaleLocal(asset, transforms, "room_lounge_chair", CHAIR_SCALE, true);
             int movedChairMarkers = 0;
@@ -162,10 +174,10 @@ final class CelineRoomReferenceLayoutV80 {
                 if (translateParentLocal(asset, transforms, marker, CHAIR_DX, 0f, CHAIR_DZ, false)) movedChairMarkers++;
             }
 
-            translateParentLocal(asset, transforms, "room_rug", RUG_DX, 0f, RUG_DZ, true);
+            translateParentLocal(asset, transforms, "room_rug", RUG_DX, RUG_DY, RUG_DZ, true);
             scaleLocalXyz(asset, transforms, "room_rug", RUG_SCALE_X, RUG_SCALE_Y, RUG_SCALE_Z, true);
 
-            translateParentLocal(asset, transforms, "room_foreground_table", 0f, 0f, TABLE_DZ, true);
+            translateParentLocal(asset, transforms, "room_foreground_table", 0f, TABLE_DY, TABLE_DZ, true);
             scaleLocalXyz(asset, transforms, "room_foreground_table",
                     TABLE_SCALE_X, TABLE_SCALE_Y, TABLE_SCALE_Z, true);
             translateParentLocal(asset, transforms, "foreground_table_approach_anchor", 0f, 0f, TABLE_DZ, false);
@@ -190,7 +202,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " bedTarget=(1.81,-1.82) yaw=-90 scale=1.46"
                             + " chairTarget=(-2.28,-3.18) yaw=25 scale=0.43"
                             + " tableTargetZ=3.20 windowX=-0.82 shelfX=1.35"
-                            + " nightstandsYaw=270"
+                            + " nightstandsYaw=270 floorContact=v25"
                             + " bedMarkersMoved=" + movedBedMarkers
                             + " chairMarkersMoved=" + movedChairMarkers
                             + " dresserMarkerMoved=" + movedDresserMarker
