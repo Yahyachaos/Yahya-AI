@@ -50,6 +50,10 @@ if [ -f ci/celine_g1_structured_memory_test.py ]; then
   python3 ci/celine_g1_structured_memory_test.py
 fi
 
+if [ -f ci/celine_g1_structured_memory_live_contract.py ]; then
+  python3 ci/celine_g1_structured_memory_live_contract.py
+fi
+
 # Checksums are useful for detecting unexpected changes, but legitimate active
 # development changes them frequently. Report differences without blocking CI.
 if ! sha256sum -c PROJECT_CHECKSUMS.txt; then
