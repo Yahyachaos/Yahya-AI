@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "gate": "Celine Cognitive OS Brain Generation 1 acceptance",
+  "status": "PASS",
+  "network_used": false,
+  "frozen_baseline_head": "36a0f8ed2312d44ce65a1c139ef7ef49464e334f",
+  "current_git_head": "12d3c16df13a07646ba73045243fe80a8de7c2e7",
+  "workflow": {
+    "name": "Celine G1 Intelligence Baseline",
+    "run_number": 28,
+    "run_id": 33693626168,
+    "artifact_id": 9870964230,
+    "artifact_digest": "sha256:90ff09879b77cb66e66a0763081f3c4b5dc5183752cbcdec9745b0011425615d"
+  },
+  "frozen_conversation_sha256": "e871c8911472e70e1e8337836f842e1ffeb846670480f81da1ed9d7afefa88f9",
+  "current_conversation_sha256": "e871c8911472e70e1e8337836f842e1ffeb846670480f81da1ed9d7afefa88f9",
+  "fixed_case_catalog_sha256": "53da128f5a189a925246e5bc9b243aa90ed45121601ae50409645e48f1caa205",
+  "baseline_probe": {
+    "detail": "CELINE_G1_CONVERSATION_PROBE_PASS\nnormal_start=20\nfollow_start=12",
+    "returncode": 0,
+    "status": "PASS"
+  },
+  "criteria": [
+    {"criterion":"g1_0_conversation_baseline_not_regressed","status":"PASS"},
+    {"criterion":"all_g1_1_to_g1_5_contracts_pass","status":"PASS"},
+    {"criterion":"identity_memory_goals_are_app_owned_and_provider_replaceable","status":"PASS"},
+    {"criterion":"restart_task_resume","status":"PASS"},
+    {"criterion":"corrections_supersede_stale_memory","status":"PASS"},
+    {"criterion":"irrelevant_memory_excluded_and_unknown_not_fabricated","status":"PASS"},
+    {"criterion":"memory_privacy_and_user_controls","status":"PASS"}
+  ],
+  "contracts": {
+    "ci/celine_g1_brain_contract.py": "PASS",
+    "ci/celine_g1_structured_memory_test.py": "PASS",
+    "ci/celine_g1_structured_memory_live_contract.py": "PASS",
+    "ci/celine_g1_goal_task_state_test.py": "PASS",
+    "ci/celine_g1_goal_task_live_test.py": "PASS",
+    "ci/celine_g1_context_broker_test.py": "PASS",
+    "ci/celine_g1_memory_privacy_consolidation_test.py": "PASS",
+    "ci/celine_g1_memory_controls_live_contract.py": "PASS"
+  },
+  "scope_note": "G2 planner/tool-agent and G3 local deep-brain gaps are intentionally outside Generation-1 acceptance."
+}
