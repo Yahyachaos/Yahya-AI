@@ -17,9 +17,9 @@
     "active_product_direction": "Celine Cognitive OS: own persistent brain, structured memory, goals, world model, verified agency, local neural reasoning, controlled learning, natural bounded autonomy.",
     "cloud_role": "Optional teacher/reviewer/fallback only. Celine identity, memory, goals, skills, permissions and persistent state are app-owned and must survive provider/model removal."
   },
-  "current_branch_head_checkpoint": "7bb06bd4c61ddc6df64995c6140e30021275aa61",
-  "checkpoint_kind": "ci_only_generation_1_acceptance_runner_ready",
-  "status": "BRAIN_GENERATION_1__ACCEPTANCE_IN_PROGRESS",
+  "current_branch_head_checkpoint": "93889ce04bda9b442ac2178b90dcf5ab8f46274f",
+  "checkpoint_kind": "docs_evidence_head_after_generation_1_acceptance_pass",
+  "status": "BRAIN_GENERATION_2__G2_1_TYPED_TOOL_CORTEX_ACTIVE",
   "latest_runtime_code_head": "af4c572eb18de11cdd731372ccaa41f576904af0",
   "latest_built_runtime_head": "af4c572eb18de11cdd731372ccaa41f576904af0",
   "runtime_fingerprint": "a9cd7e0349cca5d51c09adc8912a1a3780aa9f091bce26e18ccd18f5476f8ccb",
@@ -29,21 +29,48 @@
     "g1_2": "COMPLETE_BUILT",
     "g1_3": "COMPLETE_BUILT",
     "g1_4": "COMPLETE_BUILT",
-    "g1_5": "COMPLETE_BUILT"
+    "g1_5": "COMPLETE_BUILT",
+    "generation_acceptance": "PASS"
   },
   "generation_1_acceptance": {
-    "status": "IN_PROGRESS",
-    "gate": "ci/celine_g1_generation_acceptance.py",
-    "workflow": ".github/workflows/celine-g1-intelligence-baseline.yml",
-    "required_marker": "[run-g1-generation-acceptance]",
-    "criteria": [
-      "frozen G1.0 conversation baseline does not regress",
-      "all G1.1-G1.5 deterministic contracts pass",
-      "identity/memory/goals remain app-owned and provider-replaceable",
-      "restart task resume passes",
-      "explicit corrections supersede stale memory",
-      "irrelevant memory is excluded and UNKNOWN is not fabricated",
-      "protected memory storage and inspect/correct/forget controls remain intact"
+    "status": "PASS",
+    "exact_head": "12d3c16df13a07646ba73045243fe80a8de7c2e7",
+    "workflow": "Celine G1 Intelligence Baseline",
+    "run_number": 28,
+    "run_id": 33693626168,
+    "artifact_id": 9870964230,
+    "artifact_digest": "sha256:90ff09879b77cb66e66a0763081f3c4b5dc5183752cbcdec9745b0011425615d",
+    "durable_evidence": "ci/evidence/CELINE_G1_GENERATION_ACCEPTANCE_CURRENT.json",
+    "criteria_passed": 7,
+    "contracts_passed": 8,
+    "network_used": false,
+    "conversation_baseline_regressed": false
+  },
+  "g2_status": {
+    "generation": "G2 Agency, World Model & Verified Action",
+    "active_block": "G2.1 Typed Tool Cortex",
+    "g2_1": "ACTIVE",
+    "g2_2": "BLOCKED_ON_G2_1",
+    "g2_3": "BLOCKED_ON_G2_2",
+    "g2_4": "BLOCKED_ON_G2_3",
+    "g2_5": "BLOCKED_ON_G2_4",
+    "g2_6": "BLOCKED_ON_G2_5"
+  },
+  "g2_1_scope": {
+    "goal": "Wrap existing DeviceBridge/accessibility/notification capabilities as typed allowlisted tools with explicit schemas, preconditions, deterministic result objects and explicit failure states.",
+    "preserve": [
+      "existing working device commands",
+      "G1 app-owned memory/goals/context semantics",
+      "current voice/lifecycle behavior",
+      "room freeze and protected visual state"
+    ],
+    "exclude": [
+      "permission-policy migration beyond minimal tool metadata",
+      "world-model implementation",
+      "planner/simulator",
+      "agent loop",
+      "provider/model migration",
+      "unrestricted free-text UI control"
     ]
   },
   "canonical_brain_generations": [
@@ -53,6 +80,6 @@
     "G4 Experience, Skills & Controlled Self-Improvement",
     "G5 Natural Continuous Celine & Bounded Autonomy"
   ],
-  "current_blocker": "No implementation blocker. G2 remains blocked only until the Generation 1 acceptance gate records PASS.",
-  "exact_next_action": "Run and record Generation-1 acceptance only. Do not begin G2 until the exact-head acceptance report is PASS."
+  "current_blocker": "None. Generation 1 acceptance passed and G2.1 is authorized.",
+  "exact_next_action": "Execute G2.1 only. Inventory existing DeviceBridge, PrincessAccessibilityService and notification capabilities; define a typed allowlisted CelineToolRegistry/ToolResult contract around existing working operations without beginning planner/world-model/autonomy work. Add deterministic focused contracts, then exactly one Android build for the bounded runtime integration."
 }
