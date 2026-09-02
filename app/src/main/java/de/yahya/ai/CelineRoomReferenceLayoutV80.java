@@ -23,11 +23,11 @@ import java.util.WeakHashMap;
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
  *
- * Proof #117 confirms the wall-shelf horizontal geometry is now close to reference: its visible
- * shelf run is about x~0.590..0.688 versus target x~0.598..0.693. The next larger measured
- * furniture mismatch is bed width: current major mass is only about x~0.52..0.91 while the target
- * is x~0.512..1.000. Preserve bed X/Z and change only source-local X scale from 1.17 to 1.47 so
- * the resulting proof can measure the pivot response before any compensating translation.
+ * Direct source-orientation inspection against /Refernzbild.png isolates the remaining two gross
+ * furniture-direction errors without reopening the accepted scene: the lounge chair needs a small
+ * inward local yaw (-20 deg), while the dresser is showing its source back and must be flipped by
+ * 180 deg. This bounded correction changes only those two local orientations; their measured
+ * translations/scales and all other furniture, camera, Celine, materials and lighting stay fixed.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
  * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
@@ -43,12 +43,14 @@ final class CelineRoomReferenceLayoutV80 {
     static final float BED_SCALE_X_FACTOR = 1.47f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
+    static final float LOUNGE_CHAIR_YAW_OFFSET_DEG = -20.0f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
     static final float FLOOR_LAMP_Z_OFFSET_M = -3.35f;
     static final float FLOOR_LAMP_SCALE_XZ_FACTOR = 0.34f;
     static final float FLOOR_LAMP_SCALE_Y_FACTOR = 0.54f;
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
+    static final float DRESSER_YAW_OFFSET_DEG = 180.0f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
     static final float RUG_SCALE_FACTOR = 1.45f;
     static final float WALL_SHELF_X_OFFSET_M = 3.00f;
@@ -117,6 +119,8 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_lounge_chair", LOUNGE_CHAIR_X_OFFSET_M, 0.0f, 0.0f, true);
+            rotateLocalYaw(asset, transforms,
+                    "room_lounge_chair", LOUNGE_CHAIR_YAW_OFFSET_DEG, true);
             scaleLocal(asset, transforms,
                     "room_lounge_chair", LOUNGE_CHAIR_SCALE_FACTOR, true);
             int movedChairMarkers = 0;
@@ -139,6 +143,8 @@ final class CelineRoomReferenceLayoutV80 {
 
             translateParentLocal(asset, transforms,
                     "room_dresser", 0.0f, 0.0f, DRESSER_Z_OFFSET_M, true);
+            rotateLocalYaw(asset, transforms,
+                    "room_dresser", DRESSER_YAW_OFFSET_DEG, true);
             scaleLocalXyz(asset, transforms, "room_dresser",
                     1.0f, 1.0f, DRESSER_SCALE_Z_FACTOR, true);
             boolean movedDresserMarker = translateParentLocal(asset, transforms,
@@ -170,6 +176,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " bedScaleXYZ=" + BED_SCALE_X_FACTOR + ",1.0,1.0"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
+                            + " chairYaw=" + LOUNGE_CHAIR_YAW_OFFSET_DEG + "deg"
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
                             + " chairMarkerNodesMoved=" + movedChairMarkers
                             + " lampX=+" + FLOOR_LAMP_X_OFFSET_M + "m"
@@ -177,6 +184,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " lampScaleXYZ=" + FLOOR_LAMP_SCALE_XZ_FACTOR + ","
                             + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
                             + " dresserZ=" + DRESSER_Z_OFFSET_M + "m"
+                            + " dresserYaw=" + DRESSER_YAW_OFFSET_DEG + "deg"
                             + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
                             + " dresserMarkerMoved=" + movedDresserMarker
                             + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
@@ -225,6 +233,29 @@ final class CelineRoomReferenceLayoutV80 {
         Matrix.setIdentityM(translation, 0);
         Matrix.translateM(translation, 0, deltaX, deltaY, deltaZ);
         Matrix.multiplyMM(adjusted, 0, translation, 0, base, 0);
+        transforms.setTransform(instance, adjusted);
+        return true;
+    }
+
+    private static boolean rotateLocalYaw(
+            FilamentAsset asset, TransformManager transforms,
+            String entityName, float deltaDegrees, boolean required) {
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0) {
+            if (required) throw new IllegalStateException("Reference layout entity missing: " + entityName);
+            return false;
+        }
+        int instance = transforms.getInstance(entity);
+        if (instance == 0) {
+            if (required) throw new IllegalStateException("Reference layout transform missing: " + entityName);
+            return false;
+        }
+
+        float[] base = transforms.getTransform(instance, new float[16]);
+        float[] yaw = new float[16];
+        float[] adjusted = new float[16];
+        Matrix.setRotateM(yaw, 0, deltaDegrees, 0.0f, 1.0f, 0.0f);
+        Matrix.multiplyMM(adjusted, 0, base, 0, yaw, 0);
         transforms.setTransform(instance, adjusted);
         return true;
     }
