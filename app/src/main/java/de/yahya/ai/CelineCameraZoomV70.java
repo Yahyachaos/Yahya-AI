@@ -17,21 +17,12 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.WeakHashMap;
 
-/**
- * v70 camera zoom safety owner.
- *
- * Celine3DView implements the user's bounded pinch camera. This guard keeps the HOME/CALL camera
- * writers from racing and keeps Celine renderables safe at close zoom.
- *
- * The current room proof keeps the shared 32 mm (~41.1 degree) projection but moves CALL to the
- * same wider spatial read requested for HOME. A neutral CALL zoom of 1.0 still left the viewer about
- * five metres from the target; 0.82 yields about 6.10 m, matching the new 6.15 m HOME eye offset
- * closely enough for direct HOME/CALL room-scale comparison. Celine scale is not changed here.
- */
+/** v70 camera zoom safety owner for HOME/CALL. */
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 4.60f;
-    static final float CALL_DEFAULT_ZOOM = 0.82f;
+    // 5.0 / 0.70 ~= 7.14 m: matches the new 7.10 m HOME reference viewpoint.
+    static final float CALL_DEFAULT_ZOOM = 0.70f;
     static final float CALL_BASE_FOCUS_Y = 0.00f;
     static final float FACE_FOCUS_Y = 0.85f;
     static final float TARGET_DISTANCE = 5.0f;
@@ -175,12 +166,13 @@ final class CelineCameraZoomV70 {
                             "requested=" + requestedZoom + " applied=" + zoom + " safeBounds=" + ZOOM_MIN + ".." + ZOOM_MAX);
                 }
             }
+
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
             if (callNow && !wasInCall && Math.abs(zoom - 1.0f) < 0.05f) {
                 zoom = CALL_DEFAULT_ZOOM;
                 zoomField.setFloat(view, zoom);
                 Celine3DDiagnostics.record(activity, "V80-210",
-                        "CALL Kamera fuer breiteren Raum gesetzt",
+                        "CALL Kamera weiter aus dem Raum gesetzt",
                         "zoom=" + zoom + " distance~=" + (TARGET_DISTANCE / zoom)
                                 + "m · projection=32mm · modelScaleUnchanged=true");
             } else if (!callNow && wasInCall) {
@@ -199,7 +191,7 @@ final class CelineCameraZoomV70 {
 
             if (callNow) {
                 if (homeZoomLocked) homeZoomLocked = false;
-                logZoomIfChanged(zoom, "CALL wide-room camera");
+                logZoomIfChanged(zoom, "CALL farther-room camera");
                 return;
             }
 
