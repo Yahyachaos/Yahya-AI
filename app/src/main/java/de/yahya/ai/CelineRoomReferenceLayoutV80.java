@@ -23,13 +23,15 @@ import java.util.WeakHashMap;
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
  *
- * Proof #112 confirms parent-X moves the window/drapes in the required screen-left direction.
- * The calibrated -15.60 candidate still leaves the visible top-frame center roughly 140 px right
- * of the reference target. Compared with Proof #111, the -14.35 parent-space delta moved the
- * visible window about 29 px left, giving the current large-step calibration used here. Applying
- * that measured response to the remaining center delta yields a total offset near -85.7.
- * This candidate changes only that one horizontal window parameter; scale, Y/Z, camera, Celine,
- * bed and every other furniture transform remain frozen until the next exact proof is inspected.
+ * Proof #114 puts the derived window group near the reference horizontal center. Its remaining width
+ * mismatch is smaller than the rug footprint error. In Proof #114 HOME the rug spans only about
+ * 0.43 viewport-width versus about 0.63 in Refernzbild.png. Apply one bounded uniform local rug scale
+ * factor of 1.45 before any smaller window-width or material/light polish. The immutable Teppisch.glb
+ * source bytes, camera, Celine, anchors, bed and all other furniture transforms remain unchanged.
+ *
+ * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
+ * sparse source entity is currently hidden by CelineRoomWindowSourceVisibilityV80; visible window
+ * placement is owned by the derived window layers instead.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -48,6 +50,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
+    static final float RUG_SCALE_FACTOR = 1.45f;
     static final float WINDOW_X_OFFSET_M = -85.70f;
 
     private static final String[] BED_MARKER_NODES = {
@@ -142,6 +145,9 @@ final class CelineRoomReferenceLayoutV80 {
             translateParentLocal(asset, transforms,
                     "room_plant_large", LARGE_PLANT_X_OFFSET_M, 0.0f, 0.0f, true);
 
+            scaleLocal(asset, transforms,
+                    "room_rug", RUG_SCALE_FACTOR, true);
+
             translateParentLocal(asset, transforms,
                     "room_window_drapes", WINDOW_X_OFFSET_M, 0.0f, 0.0f, true);
 
@@ -167,6 +173,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
                             + " dresserMarkerMoved=" + movedDresserMarker
                             + " largePlantX=+" + LARGE_PLANT_X_OFFSET_M + "m"
+                            + " rugScale=" + RUG_SCALE_FACTOR
                             + " windowX=" + WINDOW_X_OFFSET_M + "m"
                             + " sourceGLB=unchanged derivedNonUniformScale=true"
                             + " camera/Celine=unchanged"
