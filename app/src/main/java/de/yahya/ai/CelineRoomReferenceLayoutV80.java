@@ -23,13 +23,13 @@ import java.util.WeakHashMap;
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.17
  *
- * Proof #111 measured the first window-X calibration. WINDOW_X_OFFSET_M=-1.25 shifted the
- * window/drapes about 13 screen pixels left while leaving the vertical projection essentially
- * unchanged. Proof #110 had the window at normalized x~0.357..0.812; after that calibration the
- * center is still about +0.181 normalized units right of the target x~0.195..0.581. The measured
- * response therefore requires a total parent-X offset of about -15.6 in this asset's parent-space
- * units to correct the remaining center delta. This candidate changes only that one parameter.
- * Window scale, Y/Z, camera, Celine, bed and every other furniture transform remain frozen.
+ * Proof #112 confirms parent-X moves the window/drapes in the required screen-left direction.
+ * The calibrated -15.60 candidate still leaves the visible top-frame center roughly 140 px right
+ * of the reference target. Compared with Proof #111, the -14.35 parent-space delta moved the
+ * visible window about 29 px left, giving the current large-step calibration used here. Applying
+ * that measured response to the remaining center delta yields a total offset near -85.7.
+ * This candidate changes only that one horizontal window parameter; scale, Y/Z, camera, Celine,
+ * bed and every other furniture transform remain frozen until the next exact proof is inspected.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -48,7 +48,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_Z_OFFSET_M = -2.25f;
     static final float DRESSER_SCALE_Z_FACTOR = 1.45f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
-    static final float WINDOW_X_OFFSET_M = -15.60f;
+    static final float WINDOW_X_OFFSET_M = -85.70f;
 
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor",
@@ -163,7 +163,6 @@ final class CelineRoomReferenceLayoutV80 {
                             + " lampZ=" + FLOOR_LAMP_Z_OFFSET_M + "m"
                             + " lampScaleXYZ=" + FLOOR_LAMP_SCALE_XZ_FACTOR + ","
                             + FLOOR_LAMP_SCALE_Y_FACTOR + "," + FLOOR_LAMP_SCALE_XZ_FACTOR
-                            + " lampMarkerMoved=" + movedLampMarker
                             + " dresserZ=" + DRESSER_Z_OFFSET_M + "m"
                             + " dresserScaleXYZ=1.0,1.0," + DRESSER_SCALE_Z_FACTOR
                             + " dresserMarkerMoved=" + movedDresserMarker
