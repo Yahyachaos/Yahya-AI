@@ -10,74 +10,70 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Exact visual transfer of the user-approved v25 TRUE3D room checkpoint.
+ * Runtime room layout rooted in the recovered v25 TRUE3D composition.
  *
- * Sole authorities:
- * - docs/celine/room-v25/v25-room-layout.json
- * - v25 preview sha256 ba5b33d14933b0a685030cc9ebb0e4d66be739ece70e3942cdd2f9d6834c8f9d
- *
- * The previous implementation applied deltas on top of the later v80 combined-room transforms.
- * That preserved later assembly state and produced a visibly different room even when individual
- * target numbers looked correct. This implementation instead writes the v25 parent-node TRS
- * absolutely for every visible furniture instance. The optimized meshes/textures stay unchanged;
- * only their parent transforms are replaced. No later measured-room coordinates participate.
+ * The first real HOME/CALL proof after the absolute transfer showed that the positions/orientations
+ * were finally coherent, but the visible furniture read too small relative to the room/reference and
+ * the foreground table dominated the camera. Yahya explicitly requested a wider camera plus corrected
+ * furniture scale. Positions/yaws remain v25-derived; only bounded object-specific visual scales are
+ * adjusted here. Canonical Celine is never scaled by this class.
  */
 final class CelineRoomReferenceLayoutV80 {
-    // v25 shell: local front +2.95 / local back -4.00 under the locked root world Z -4.00,
+    // v25 shell: local front +2.95 / local back -4.00 under root world Z -4.00,
     // therefore world front -1.05 / world back -8.00 and total depth 6.95 m.
     private static final float SHELL_BACK_Z_OFFSET_M = -1.10f;
     private static final float SHELL_CENTER_Z_OFFSET_M = -0.525f;
     private static final float SHELL_DEPTH_SCALE_Z = 1.198275862f; // 6.95 / 5.80
 
-    // Absolute v25 furniture parent-node TRS. Y values are the v25 renderer's exact floor/contact
-    // placement expressed in room-local coordinates (world floor -1.55 + runtime root Y -1.55).
+    // Object-specific post-proof scale correction. Floor-standing Y values are recomputed from the
+    // same source contact plane so increasing scale does not sink furniture into the floor.
     private static final Spec BED =
-            new Spec("room_bed", 1.81f, 0.613172780f, -1.82f,
-                    1.46f, 1.46f, 1.46f, -90.0f);
+            new Spec("room_bed", 1.81f, 0.663570543f, -1.82f,
+                    1.58f, 1.58f, 1.58f, -90.0f);
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.82f, 0.846802211f, -0.70f,
-                    1.30f, 1.30f, 1.30f, 90.0f);
+            new Spec("room_dresser", -2.82f, 0.990107201f, -0.70f,
+                    1.52f, 1.52f, 1.52f, 90.0f);
     private static final Spec LARGE_PLANT =
-            new Spec("room_plant_large", -2.72f, 1.047276327f, -2.92f,
-                    1.10f, 1.10f, 1.10f, 0.0f);
+            new Spec("room_plant_large", -2.72f, 1.123441878f, -2.92f,
+                    1.18f, 1.18f, 1.18f, 0.0f);
     private static final Spec SMALL_PLANT =
-            new Spec("room_plant_small", 1.72f, 0.304679500f, -2.55f,
-                    0.32f, 0.32f, 0.32f, 0.0f);
+            new Spec("room_plant_small", 1.72f, 0.361806906f, -2.55f,
+                    0.38f, 0.38f, 0.38f, 0.0f);
     private static final Spec LAMP =
-            new Spec("room_floor_lamp", -1.62f, 0.533396744f, -3.18f,
-                    0.56f, 0.56f, 0.56f, 0.0f);
+            new Spec("room_floor_lamp", -1.62f, 0.628646163f, -3.18f,
+                    0.66f, 0.66f, 0.66f, 0.0f);
     private static final Spec NIGHTSTAND_FRONT =
-            new Spec("room_nightstand_front", 2.55f, 0.466378938f, -0.42f,
-                    0.49f, 0.49f, 0.49f, 270.0f);
+            new Spec("room_nightstand_front", 2.55f, 0.523486563f, -0.42f,
+                    0.55f, 0.55f, 0.55f, 270.0f);
     private static final Spec NIGHTSTAND_BACK =
-            new Spec("room_nightstand_back", 2.55f, 0.409271313f, -3.18f,
-                    0.43f, 0.43f, 0.43f, 270.0f);
+            new Spec("room_nightstand_back", 2.55f, 0.475896876f, -3.18f,
+                    0.50f, 0.50f, 0.50f, 270.0f);
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -2.28f, 0.388613360f, -3.18f,
-                    0.43f, 0.43f, 0.43f, 25.0f);
+            new Spec("room_lounge_chair", -2.28f, 0.469951040f, -3.18f,
+                    0.52f, 0.52f, 0.52f, 25.0f);
     private static final Spec RUG =
             new Spec("room_rug", 0.14f, 0.007724571f, -0.91f,
-                    2.35f, 1.00f, 1.64f, 0.0f);
+                    2.55f, 1.00f, 1.78f, 0.0f);
+    // The laptop table is intentionally reduced after proof: it should establish the webcam/viewer
+    // edge, not cover most of the room or hide the dresser/bed.
     private static final Spec TABLE =
-            new Spec("room_foreground_table", 0.0f, 0.617091667f, 3.20f,
-                    1.25f, 1.10f, 0.91f, 0.0f);
+            new Spec("room_foreground_table", 0.0f, 0.516113031f, 3.20f,
+                    1.08f, 0.92f, 0.78f, 0.0f);
     private static final Spec WINDOW =
             new Spec("room_window_drapes", -0.82f, 1.43f, -3.80f,
-                    1.50f, 1.50f, 1.50f, 0.0f);
+                    1.58f, 1.58f, 1.58f, 0.0f);
     private static final Spec SHELF =
             new Spec("room_wall_shelf_books", 1.35f, 2.13f, -3.66f,
-                    0.47f, 0.47f, 0.47f, 0.0f);
+                    0.55f, 0.55f, 0.55f, 0.0f);
     private static final Spec MIRROR =
             new Spec("room_round_mirror", -3.08f, 1.73f, 0.35f,
-                    0.49f, 0.49f, 0.49f, 90.0f);
+                    0.58f, 0.58f, 0.58f, 90.0f);
 
-    private static final Spec[] V25_FURNITURE = {
+    private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
             RUG, NIGHTSTAND_FRONT, NIGHTSTAND_BACK, SMALL_PLANT, TABLE
     };
 
-    // Marker deltas remain data-alignment only. They do not affect the visual proof. They are kept
-    // bounded so previously accepted interaction paths do not silently point to the old furniture.
     private static final String[] BED_MARKER_NODES = {
             "bed_approach_anchor", "bed_edge_sit_anchor", "bed_relax_anchor",
             "bed_lie_anchor", "bed_exit_anchor"
@@ -106,8 +102,6 @@ final class CelineRoomReferenceLayoutV80 {
                 if (APPLIED.get(view) == asset) return;
             }
 
-            // Shell uses the immutable 5.8 m source shell only as geometry. Extend its back edge to
-            // the v25 absolute bounds while keeping the camera/front edge fixed.
             translateParentLocal(asset, transforms, "room_back_wall",
                     0f, 0f, SHELL_BACK_Z_OFFSET_M, true);
             for (String shell : new String[]{
@@ -118,14 +112,12 @@ final class CelineRoomReferenceLayoutV80 {
                         1f, 1f, SHELL_DEPTH_SCALE_Z, true);
             }
 
-            // Critical difference from the rejected transfer: do not read/modify the current
-            // furniture matrices. Replace every visible furniture parent matrix with v25 TRS.
-            for (Spec spec : V25_FURNITURE) {
+            for (Spec spec : ROOM_FURNITURE) {
                 setAbsoluteTrs(asset, transforms, spec, true);
             }
 
-            // Keep interaction markers approximately attached to the same visual objects. These
-            // deltas are from immutable assembly-base anchors to the v25 positions only.
+            // Interaction markers retain their v25 positional alignment. Scale changes do not move
+            // their room anchors; interaction calibration can be revisited only after visual approval.
             int movedBedMarkers = 0;
             for (String marker : BED_MARKER_NODES) {
                 if (translateParentLocal(asset, transforms, marker, -0.14f, 0f, -1.07f, false)) {
@@ -157,22 +149,21 @@ final class CelineRoomReferenceLayoutV80 {
                 APPLIED.put(view, asset);
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
-                    "v25 TRUE3D Absolutlayout aktiv",
-                    "authority=v25-json+preview-ba5b33d14933"
+                    "Raumlayout mit Proof-Skalierung aktiv",
+                    "authority=v25-position-yaw + user-post-proof-scale"
                             + " shellWorldZ=-1.05..-8.00"
                             + " furniture=13 absoluteTRS"
-                            + " bed=(1.81,-1.82) yaw=-90 scale=1.46"
-                            + " chair=(-2.28,-3.18) yaw=25 scale=0.43"
-                            + " tableZ=3.20 window=(-0.82,-3.80) shelf=(1.35,-3.66)"
-                            + " nightstandsYaw=270"
+                            + " bedScale=1.58 dresserScale=1.52 chairScale=0.52"
+                            + " lampScale=0.66 tableScale=1.08/0.92/0.78"
+                            + " windowScale=1.58 shelfScale=0.55 mirrorScale=0.58"
+                            + " canonicalCelineScale=false"
                             + " bedMarkersMoved=" + movedBedMarkers
                             + " chairMarkersMoved=" + movedChairMarkers
                             + " dresserMarkerMoved=" + movedDresserMarker
-                            + " lampMarkerMoved=" + movedLampMarker
-                            + " laterMeasuredRoom=false deltaFurniture=false");
+                            + " lampMarkerMoved=" + movedLampMarker);
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
-                    "v25 TRUE3D Absolutlayout FEHLER", error);
+                    "Raumlayout FEHLER", error);
         }
     }
 
@@ -192,14 +183,14 @@ final class CelineRoomReferenceLayoutV80 {
         int entity = asset.getFirstEntityByName(spec.entityName);
         if (entity == 0) {
             if (required) {
-                throw new IllegalStateException("v25 absolute entity missing: " + spec.entityName);
+                throw new IllegalStateException("room absolute entity missing: " + spec.entityName);
             }
             return;
         }
         int instance = transforms.getInstance(entity);
         if (instance == 0) {
             if (required) {
-                throw new IllegalStateException("v25 absolute transform missing: " + spec.entityName);
+                throw new IllegalStateException("room absolute transform missing: " + spec.entityName);
             }
             return;
         }
@@ -222,14 +213,14 @@ final class CelineRoomReferenceLayoutV80 {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
             if (required) {
-                throw new IllegalStateException("v25 layout entity missing: " + entityName);
+                throw new IllegalStateException("room layout entity missing: " + entityName);
             }
             return false;
         }
         int instance = transforms.getInstance(entity);
         if (instance == 0) {
             if (required) {
-                throw new IllegalStateException("v25 layout transform missing: " + entityName);
+                throw new IllegalStateException("room layout transform missing: " + entityName);
             }
             return false;
         }
@@ -251,14 +242,14 @@ final class CelineRoomReferenceLayoutV80 {
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) {
             if (required) {
-                throw new IllegalStateException("v25 layout entity missing: " + entityName);
+                throw new IllegalStateException("room layout entity missing: " + entityName);
             }
             return false;
         }
         int instance = transforms.getInstance(entity);
         if (instance == 0) {
             if (required) {
-                throw new IllegalStateException("v25 layout transform missing: " + entityName);
+                throw new IllegalStateException("room layout transform missing: " + entityName);
             }
             return false;
         }
