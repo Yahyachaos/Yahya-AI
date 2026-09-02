@@ -128,7 +128,8 @@ public final class CelineToolCortexG21 implements CelineToolRegistry {
         register(descriptor("app.open", "Open one installed app by visible app name.",
                 CelineRiskClass.L1_REVERSIBLE_LOCAL,
                 params(parameter("app_name", ArgumentSlot.TARGET, ParameterType.STRING, true, 120,
-                        "Visible installed app name."))));
+                        "Visible installed app name.")),
+                Collections.<Precondition>emptyList()));
         register(descriptor("ui.click_text", "Click one accessible visible UI target by text.",
                 CelineRiskClass.L2_EXTERNAL_STATE_CHANGE,
                 params(parameter("visible_text", ArgumentSlot.TARGET, ParameterType.STRING, true, 180,
