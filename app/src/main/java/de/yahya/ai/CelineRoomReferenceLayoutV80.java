@@ -21,15 +21,15 @@ import java.util.WeakHashMap;
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local scale 1.0/1.0/1.45
  * - large plant: X +0.92 m
- * - bed X: -0.75 m (Proof #106 target-family horizontal placement)
+ * - bed X: -0.75 m (Proof #105 target-family horizontal placement)
  * - bed Z: -1.25 m (Proof #108 centers the bed depth projection near the target)
  *
- * Proof #108 on bed Z -1.25 m keeps the bed center close to the target but leaves the visible
- * bed/headboard vertical projection roughly 15-18% too shallow: current major mass is approximately
- * normalized y~0.33..0.62 versus target y~0.312..0.649. Translation alone cannot recover that height
- * without moving the center back down. This candidate therefore changes exactly one remaining bed
- * projection parameter: local Z scale 1.17. Bed X/Z translation, camera, materials, lighting and every
- * other furniture transform remain frozen until this candidate is proved.
+ * Proof #109 rejected local bed Z scale 1.17: it did not recover the missing screen-space
+ * head-to-foot/vertical projection. The canonical assembly manifest proves room_bed has a -90 degree
+ * Y rotation. Therefore source-local X, not local Z, maps to the room front/back axis after rotation.
+ * This candidate changes exactly one bed projection axis: local X scale 1.17 while resetting local Z
+ * to 1.0. Bed X/Z translation, camera, materials, lighting and every other furniture transform remain
+ * frozen until the proof is inspected against /Refernzbild.png.
  */
 final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_Z_OFFSET_M = 0.35f;
@@ -38,7 +38,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float FOREGROUND_TABLE_SCALE_Z_FACTOR = 1.38f;
     static final float BED_X_OFFSET_M = -0.75f;
     static final float BED_Z_OFFSET_M = -1.25f;
-    static final float BED_SCALE_Z_FACTOR = 1.17f;
+    static final float BED_SCALE_X_FACTOR = 1.17f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
@@ -100,7 +100,7 @@ final class CelineRoomReferenceLayoutV80 {
             translateParentLocal(asset, transforms,
                     "room_bed", BED_X_OFFSET_M, 0.0f, BED_Z_OFFSET_M, true);
             scaleLocalXyz(asset, transforms, "room_bed",
-                    1.0f, 1.0f, BED_SCALE_Z_FACTOR, true);
+                    BED_SCALE_X_FACTOR, 1.0f, 1.0f, true);
             int movedBedMarkers = 0;
             for (String marker : BED_MARKER_NODES) {
                 if (translateParentLocal(asset, transforms,
@@ -150,7 +150,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + FOREGROUND_TABLE_SCALE_Z_FACTOR
                             + " bedX=" + BED_X_OFFSET_M + "m"
                             + " bedZ=" + BED_Z_OFFSET_M + "m"
-                            + " bedScaleXYZ=1.0,1.0," + BED_SCALE_Z_FACTOR
+                            + " bedScaleXYZ=" + BED_SCALE_X_FACTOR + ",1.0,1.0"
                             + " bedMarkerNodesMoved=" + movedBedMarkers
                             + " chairX=+" + LOUNGE_CHAIR_X_OFFSET_M + "m"
                             + " chairScaleFactor=" + LOUNGE_CHAIR_SCALE_FACTOR
