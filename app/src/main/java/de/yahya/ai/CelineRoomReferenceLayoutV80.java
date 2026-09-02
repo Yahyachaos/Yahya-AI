@@ -30,7 +30,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float DRESSER_SCALE_Z_FACTOR = 2.60f;
     static final float DRESSER_YAW_OFFSET_DEG = 180.0f;
     static final float LARGE_PLANT_X_OFFSET_M = 0.92f;
-    static final float RUG_X_OFFSET_M = -0.40f;
+    static final float RUG_X_OFFSET_M = 0.35f;
     static final float RUG_SCALE_FACTOR = 1.45f;
     static final float WALL_SHELF_X_OFFSET_M = 3.00f;
     static final float WALL_SHELF_SCALE_X_FACTOR = 0.43f;
