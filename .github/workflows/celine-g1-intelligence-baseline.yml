@@ -10,6 +10,7 @@ on:
       - 'app/src/main/java/de/yahya/ai/DeviceBridge.java'
       - 'app/src/main/java/de/yahya/ai/PrincessAccessibilityService.java'
       - 'ci/celine_g1_intelligence_baseline.py'
+      - 'ci/celine_g1_generation_acceptance.py'
       - 'ci/evidence/CELINE_G1_BASELINE_CASES.json'
       - '.github/workflows/celine-g1-intelligence-baseline.yml'
   workflow_dispatch:
@@ -44,4 +45,28 @@ jobs:
         with:
           name: celine-g1-intelligence-baseline-${{ github.event.pull_request.head.sha || github.sha }}
           path: celine-g1-baseline.json
+          if-no-files-found: error
+
+  generation-acceptance:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-g1-generation-acceptance]')) }}
+    name: Generation 1 acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Execute Generation 1 acceptance gate
+        run: python3 ci/celine_g1_generation_acceptance.py --output celine-g1-generation-acceptance.json
+      - name: Upload exact-head Generation 1 acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-g1-generation-acceptance-${{ github.event.pull_request.head.sha || github.sha }}
+          path: celine-g1-generation-acceptance.json
           if-no-files-found: error
