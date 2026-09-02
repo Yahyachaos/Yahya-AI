@@ -227,7 +227,7 @@ public final class Celine3DView extends FrameLayout {
         assetLoader = new AssetLoader(engine, materialProvider, EntityManager.get());
         resourceLoader = new ResourceLoader(engine, true);
         ByteBuffer modelBuffer = readModel(context);
-        Celine3DDiagnostics.record(appContext, "REN-310", "Modellquelle gewählt", Celine3DDiagnostics.modelSnapshot(appContext));
+        Celine3DDiagnostics.record(appContext, "REN-310", "GLB ByteBuffer bereit", modelBuffer.remaining() + " Bytes");
         asset = assetLoader.createAsset(modelBuffer);
         if (asset == null) {
             Celine3DDiagnostics.record(appContext, "REN-398", "gltfio createAsset FEHLER", "asset == null");
