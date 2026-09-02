@@ -17,22 +17,24 @@
     "active_product_direction": "Celine Cognitive OS: own persistent brain, structured memory, goals, world model, verified agency, local neural reasoning, controlled learning, natural bounded autonomy.",
     "cloud_role": "Optional teacher/reviewer/fallback only. Celine identity, memory, goals, skills, permissions and persistent state are app-owned and must survive provider/model removal."
   },
-  "current_branch_head_checkpoint": "0307421a6ff9679def23c8013d021a75f51dd535",
-  "checkpoint_kind": "runtime_g1_3_built_parent_of_docs_handoff",
-  "status": "BRAIN_GENERATION_1__G1_4_SELF_MODEL_ATTENTION_CONTEXT_READY",
-  "latest_runtime_code_head": "0307421a6ff9679def23c8013d021a75f51dd535",
-  "latest_built_runtime_head": "0307421a6ff9679def23c8013d021a75f51dd535",
-  "runtime_fingerprint": "4ba38982c402a6ff3b3e9c8a0a09de45674219db86f2a4e8d9c9198217ae6204",
+  "current_branch_head_checkpoint": "a4e261db366218f83b4841d432a5bad495930ed1",
+  "checkpoint_kind": "ci_only_g1_4_built_parent_before_docs_handoff__runtime_equivalent_to_24211a489c7e5075fa7162b03a2db57b00771905",
+  "status": "BRAIN_GENERATION_1__G1_5_CONSOLIDATION_PRIVACY_CONTROLS_READY",
+  "latest_runtime_code_head": "24211a489c7e5075fa7162b03a2db57b00771905",
+  "latest_built_runtime_head": "24211a489c7e5075fa7162b03a2db57b00771905",
+  "runtime_fingerprint": "2cc457416026ad797d5245d713cdb38f98ba14c9a62fbb6bf1b52ec3cb08146c",
   "android_build": {
     "workflow": "Android Build",
-    "run_number": 1070,
-    "run_id": 33658227649,
+    "run_number": 1073,
+    "run_id": 33662942790,
     "conclusion": "success",
-    "apk_artifact_id": 9857682824,
-    "apk_artifact_digest": "sha256:bbe171e55a9755975db68c6daccdb2a6baf407d153b3c4b1df5eea62da21c6ec",
-    "runtime_fingerprint_artifact_id": 9857683557,
-    "runtime_fingerprint_artifact_digest": "sha256:d26bcba0eba1c7bd1056d7a195df7d1a56500fa74683e1f78035430c1235827d",
-    "notes": "Exact G1.3 live-fix head. VERIFY_PROJECT passed all G1 contracts, Gradle assembleDebug passed, APK and runtime-fingerprint artifacts uploaded. Draft emulator/release jobs skipped as intended. PROJECT_CHECKSUMS mismatches remain non-blocking warnings by repository policy."
+    "workflow_head": "a4e261db366218f83b4841d432a5bad495930ed1",
+    "runtime_equivalent_head": "24211a489c7e5075fa7162b03a2db57b00771905",
+    "apk_artifact_id": 9859480060,
+    "apk_artifact_digest": "sha256:fe63a6daa7c41dded8171ac3da7aabf97e738a5746471a2f0d388a977c3353c0",
+    "runtime_fingerprint_artifact_id": 9859480493,
+    "runtime_fingerprint_artifact_digest": "sha256:179ed78e034905a9a9e6b6c71782b2b9bb3257fb01a425c90684506352ea3630",
+    "notes": "G1.4 runtime is at 24211a489c7e5075fa7162b03a2db57b00771905. Build #1072 failed only because legacy G1.2/G1.3 live tests still required direct MainActivity prompt assembly removed by G1.4. CI-only head a4e261db366218f83b4841d432a5bad495930ed1 aligned those tests without changing runtime inputs. Build #1073 passed VERIFY_PROJECT, assembleDebug and artifact upload. Draft emulator/release jobs skipped as intended."
   },
   "g1_0_baseline": {
     "status": "COMPLETE_REPRODUCIBLE",
@@ -46,29 +48,13 @@
     "durable_report": "ci/evidence/CELINE_G1_BASELINE_CURRENT.json",
     "fixed_cases": "ci/evidence/CELINE_G1_BASELINE_CASES.json",
     "case_count": 23,
-    "families": ["conversation", "memory", "reasoning", "tools", "restart", "cloud"],
-    "deterministic_probe": "PASS: actual ConversationIntelligenceV78 compiled/executed; normal_start=20, follow_start=12",
-    "summary": {"PASS": 2, "PARTIAL": 4, "GAP": 10, "BASELINE": 1}
+    "families": ["conversation", "memory", "reasoning", "tools", "restart", "cloud"]
   },
   "g1_1_contracts": {
     "status": "COMPLETE_BUILT",
     "runtime_head": "0c7dcbbde54fcaec3261848fd491130edd8af91e",
     "evidence": "ci/evidence/CELINE_G1_1_CONTRACTS_CURRENT.json",
-    "contract_test": "ci/celine_g1_brain_contract.py",
     "central_owner": "app/src/main/java/de/yahya/ai/CelineBrain.java",
-    "interfaces": [
-      "CelineMemory",
-      "CelineWorkingState",
-      "CelineGoalGraph",
-      "CelineContextBroker",
-      "CelineToolRegistry",
-      "CelinePermissionPolicy",
-      "CelineReasoningProvider",
-      "CelineVerifier",
-      "CelineLearningEngine",
-      "CelineAffectState",
-      "CelineResourcePolicy"
-    ],
     "provider_independent": true
   },
   "g1_2_structured_memory": {
@@ -93,14 +79,28 @@
     "runtime_bridge": "app/src/main/java/de/yahya/ai/CelineGoalTaskRuntime.java",
     "tests": ["ci/celine_g1_goal_task_state_test.py", "ci/celine_g1_goal_task_live_test.py"],
     "stable_ids": true,
-    "parent_dependency_links": true,
     "restart_resume": true,
-    "active_goal_selection": true,
     "correction_preserves_task_identity": true,
-    "bounded_continuation_context": true,
-    "minimal_entity_graph": true,
     "provider_owned_state": false,
     "hidden_reasoning_persisted": false
+  },
+  "g1_4_self_model_attention_context": {
+    "status": "COMPLETE_BUILT",
+    "runtime_head": "24211a489c7e5075fa7162b03a2db57b00771905",
+    "built_via_ci_head": "a4e261db366218f83b4841d432a5bad495930ed1",
+    "evidence": "ci/evidence/CELINE_G1_4_CURRENT.json",
+    "owner": "app/src/main/java/de/yahya/ai/CelineContextBrokerG14.java",
+    "contract_test": "ci/celine_g1_context_broker_test.py",
+    "knowledge_states": ["KNOWN", "OBSERVED", "INFERRED", "UNKNOWN"],
+    "provenance_freshness_confidence": true,
+    "capability_self_model": true,
+    "attention_filters_irrelevant_memory": true,
+    "stale_observations_excluded": true,
+    "active_goal_task_context_selected": true,
+    "main_activity_direct_cognitive_context_assembly_removed": true,
+    "max_prompt_chars": 2400,
+    "max_selected_facts": 10,
+    "provider_independent": true
   },
   "stale_room_writer_event": {
     "head": "18b68eaad5bb4770cbeec82960c2838bdf19b75a",
@@ -112,7 +112,7 @@
   "ci_efficiency_cleanup": {
     "status": "ACTIVE",
     "legacy_visual_proofs": "Block 10 and Block 12 jobs are explicit-marker/workflow_dispatch only for normal intelligence work.",
-    "g1_baseline_policy": "G1 baseline is explicit-marker/workflow_dispatch after the initial exact-head baseline; invoke it only when an intelligence change needs regression comparison.",
+    "g1_baseline_policy": "G1 baseline is explicit-marker/workflow_dispatch after the initial exact-head baseline; invoke it when Generation-1 acceptance or a specific intelligence regression comparison requires it.",
     "markers": ["[run-block10-launcher-proof]", "[run-block12-temporal-proof]", "[run-g1-intelligence-baseline]"]
   },
   "protected_celine_visual_state": {
@@ -130,7 +130,7 @@
     "G5 Natural Continuous Celine & Bounded Autonomy"
   ],
   "legacy_h0_h13_policy": "The old H0-H13 intelligence trunk remains a requirements/acceptance/technology library only. Its numeric order is superseded by the five Brain Generations mapped in CELINE_COGNITIVE_OS_EXECUTION_ORDER.md.",
-  "current_blocker": "No external blocker. G1.3 is complete and built. The next cognitive gap is that memory, persistent goals and device facts are still assembled by separate paths without one explicit self-model/attention/context authority.",
-  "root_cause": "Celine can now persist memory and resume the correct goal/task, but she does not yet represent her own knowledge state and capability state in one bounded frame, nor rank memory, working state and observations through one Attention/Context Broker. MainActivity still assembles provider context directly.",
-  "exact_next_action": "Execute G1.4 only. Add a provider-independent Self Model + Attention + Context Broker owner that represents known/observed/inferred/unknown state, provenance, freshness, confidence and capability availability; combines only relevant structured memory, active goal/task working state and bounded current observations; and excludes irrelevant/stale context. Integrate it minimally into the existing reasoning request so MainActivity stops independently composing cognitive context. Keep G1.5 consolidation/privacy controls, G2 typed tools/world model/planner, provider/model migration, autonomy, room/avatar/voice out of this block. Run deterministic Android-free context-selection tests first and exactly one Android build for runtime integration."
+  "current_blocker": "No external blocker. G1.4 is complete and built. The remaining Generation-1 gap is durable memory consolidation/privacy control rather than context selection.",
+  "root_cause": "Structured memory already supports bounded retrieval, supersession, expiry and forgetting, but G1.5 still needs one bounded consolidation/privacy-control pass: deterministic conflict/dedup rules, inspect/correct/forget controls over structured records, and Android-appropriate protected storage/migration without turning consolidation into an always-on inference loop.",
+  "exact_next_action": "Execute G1.5 only. Add bounded event-driven memory consolidation and privacy controls around the existing structured-memory store: deterministic dedup/conflict resolution and expiry cleanup, inspect/correct/forget operations that remain user-controllable, and Android-appropriate protected storage/migration. Preserve G1.2/G1.3/G1.4 semantics and provider independence. Do not begin G2 tools/world model/planner, provider/model migration, autonomy, room/avatar/voice work. Run focused Android-free memory/privacy contracts first, then exactly one Android build only if runtime/build inputs change; after G1.5 implementation validate Generation-1 acceptance against the G1.0 baseline before advancing to G2."
 }
