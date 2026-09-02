@@ -26,24 +26,30 @@ for token in [
 ]:
     assert token in runtime_text, f"missing G1.3 runtime behavior: {token}"
 
+# G1.4 moved reasoning-context assembly into CelineContextBrokerG14. G1.3 is
+# still live when MainActivity observes every non-local turn and passes the same
+# persistent graph to the broker as working-state and goal authorities.
 for token in [
     "CelineGoalTaskRuntime goalTaskRuntime",
     "goalTaskRuntime=new CelineGoalTaskRuntime(prefs)",
     "goalTaskRuntime.observeUserText(text)",
-    "goalTaskRuntime.promptContext(userText)",
-    "Persistenter Arbeitszustand",
+    "new CelineContextBrokerG14(memory,goalTaskRuntime.graph(),goalTaskRuntime.graph())",
+    "contextBroker.promptContext(brainRequest,device.status(),!key.isEmpty())",
 ]:
-    assert token in main_text, f"missing G1.3 MainActivity integration: {token}"
+    assert token in main_text, f"missing G1.3 live integration through G1.4 broker: {token}"
+
+assert "goalTaskRuntime.promptContext(userText)" not in main_text, \
+    "MainActivity bypasses G1.4 broker with direct task prompt assembly"
 
 for forbidden in [
-    "chainOfThought",
+    "chainofthought",
     "chain_of_thought",
     "hidden_reasoning",
     "private_reasoning",
 ]:
     assert forbidden not in runtime_text.lower(), f"private reasoning persistence token leaked: {forbidden}"
 
-shared_preferences_stub = r"""
+shared_preferences_stub = r'''
 package android.content;
 public interface SharedPreferences {
     String getString(String key, String defValue);
@@ -53,9 +59,9 @@ public interface SharedPreferences {
         void apply();
     }
 }
-"""
+'''
 
-harness = r"""
+harness = r'''
 package de.yahya.ai;
 
 import android.content.SharedPreferences;
@@ -88,7 +94,6 @@ public final class GoalLiveHarness {
     public static void main(String[] args) {
         Prefs prefs = new Prefs();
         CelineGoalTaskRuntime first = new CelineGoalTaskRuntime(prefs);
-
         CelineGoalTaskGraph.ResumeContext started =
                 first.observeUserText("Arbeite am Projekt Alpha weiter");
         check(started.hasActiveTask, "new goal not captured");
@@ -98,11 +103,9 @@ public final class GoalLiveHarness {
         CelineGoalTaskRuntime afterRestart = new CelineGoalTaskRuntime(prefs);
         String resumedPrompt = afterRestart.promptContext("weiter");
         check(resumedPrompt.contains("Projekt Alpha"), "goal missing after restart");
-        CelineGoalTaskGraph.ResumeContext resumed =
-                afterRestart.observeUserText("weiter");
+        CelineGoalTaskGraph.ResumeContext resumed = afterRestart.observeUserText("weiter");
         check(resumed.goalId.equals(goalId), "goal id changed after restart");
         check(resumed.taskId.equals(taskId), "task id changed after restart");
-
         check(afterRestart.promptContext("Wie geht es dir?").isEmpty(),
                 "unrelated chat received task context");
 
@@ -118,7 +121,7 @@ public final class GoalLiveHarness {
         System.out.println("celine-g1-goal-task-live-contract PASS");
     }
 }
-"""
+'''
 
 with tempfile.TemporaryDirectory(prefix="celine-g13-live-") as td:
     td_path = Path(td)
@@ -129,19 +132,13 @@ with tempfile.TemporaryDirectory(prefix="celine-g13-live-") as td:
     harness_file = td_path / "GoalLiveHarness.java"
     harness_file.write_text(harness, encoding="utf-8")
 
-    subprocess.run(
-        [
-            "javac", "-encoding", "UTF-8", "-d", td,
-            str(stub), str(brain), str(conversation), str(graph), str(runtime), str(harness_file),
-        ],
-        check=True,
-    )
+    subprocess.run([
+        "javac", "-encoding", "UTF-8", "-d", td,
+        str(stub), str(brain), str(conversation), str(graph), str(runtime), str(harness_file),
+    ], check=True)
     result = subprocess.run(
         ["java", "-cp", td, "de.yahya.ai.GoalLiveHarness"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+        check=True, capture_output=True, text=True)
     assert "celine-g1-goal-task-live-contract PASS" in result.stdout
 
 print("celine-g1-goal-task-live-contract PASS")
