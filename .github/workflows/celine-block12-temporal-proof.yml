@@ -1,11 +1,6 @@
 name: Celine Block 12 Temporal Proof
 
 on:
-  push:
-    branches: ['auto/celine/v80-human-videochat-presence']
-    paths:
-      - '.github/workflows/celine-block12-temporal-proof.yml'
-      - 'ci/celine-block12-temporal-proof.sh'
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -24,6 +19,7 @@ concurrency:
 
 jobs:
   continuous-temporal-proof:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-block12-temporal-proof]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

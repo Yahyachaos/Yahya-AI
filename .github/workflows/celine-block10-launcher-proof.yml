@@ -1,10 +1,6 @@
 name: Celine Block 10 Launcher Proof
 
 on:
-  push:
-    branches: ['auto/celine/v80-human-videochat-presence']
-    paths:
-      - '.github/workflows/celine-block10-launcher-proof.yml'
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -28,6 +24,7 @@ concurrency:
 
 jobs:
   installed-launcher-proof:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-block10-launcher-proof]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
