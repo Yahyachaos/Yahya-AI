@@ -17,20 +17,19 @@ import java.util.WeakHashMap;
  *
  * Frozen measured placements:
  * - foreground table: Z +0.35 m, local scale X/Y/Z 1.90/1.66/1.38
- * - lounge chair: X +0.65 m, Z -0.50 m, local scale 0.60, local yaw -20 deg
+ * - lounge chair: X +0.65 m, Z -1.50 m, local scale 0.60, local yaw -20 deg
  * - floor lamp: X +0.16 m, Z -3.35 m, local scale X/Z 0.34 and Y 0.54
  * - dresser: Z -2.25 m, local yaw 180 deg
  * - large plant: X +0.92 m
  * - bed X: -0.75 m, Z: -1.25 m, source-local X scale 1.47
  *
- * Proof #121 puts the chair around normalized y~0.466..0.627 versus the exact reference target
- * y~0.365..0.498, while its horizontal placement is already close. Its visible height is therefore
- * about 0.161 of the viewport versus a ~0.133 target. With the fixed M1 HOME camera, the canonical
- * chair origin at z=-1.0 and the camera-side geometry yield a projected-depth ratio of ~1.214 for a
- * -0.50 m parent-room Z move, matching the measured ~1.21 shrink required and moving the chair upward
- * toward the back-room vanishing region. Preserve X, scale and yaw; move only chair depth and its two
- * chair marker nodes by the same bounded delta. Camera, bed, lamp, dresser, rug, window group, Celine,
- * materials, lighting and all source GLBs remain unchanged until the proof is inspected against
+ * Proof #121 put the chair around normalized y~0.466..0.627. The first measured depth correction
+ * to Z -0.50 m produced Proof #122 at y~0.432..0.583 versus the exact reference target
+ * y~0.365..0.498. That observed -0.034/-0.044 movement for a -0.50 m depth change is now the
+ * empirical calibration: another -1.00 m predicts approximately -0.068/-0.088, matching the
+ * remaining vertical error without changing X, scale or yaw. Move only chair depth and its two chair
+ * marker nodes by the same total offset. Camera, bed, lamp, dresser, rug, window group, Celine,
+ * materials, lighting and all source GLBs remain unchanged until the next proof is inspected against
  * /Refernzbild.png.
  *
  * The legacy room_window_drapes parent-X calibration remains recorded below for provenance, but the
@@ -46,7 +45,7 @@ final class CelineRoomReferenceLayoutV80 {
     static final float BED_Z_OFFSET_M = -1.25f;
     static final float BED_SCALE_X_FACTOR = 1.47f;
     static final float LOUNGE_CHAIR_X_OFFSET_M = 0.65f;
-    static final float LOUNGE_CHAIR_Z_OFFSET_M = -0.50f;
+    static final float LOUNGE_CHAIR_Z_OFFSET_M = -1.50f;
     static final float LOUNGE_CHAIR_SCALE_FACTOR = 0.60f;
     static final float LOUNGE_CHAIR_YAW_OFFSET_DEG = -20.0f;
     static final float FLOOR_LAMP_X_OFFSET_M = 0.16f;
