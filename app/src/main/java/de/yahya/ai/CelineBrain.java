@@ -8,9 +8,9 @@ import java.util.Objects;
 /**
  * App-owned cognitive boundary for Celine.
  *
- * G1.1 intentionally defines ownership and typed contracts before migrating live
- * behavior out of MainActivity. No cloud vendor, Android UI class, room/avatar owner
- * or concrete model belongs in this contract.
+ * G1 defines ownership and typed contracts before all live behavior is migrated
+ * out of MainActivity. No cloud vendor, Android UI class or concrete model belongs
+ * in this contract.
  */
 public final class CelineBrain {
     private final Dependencies dependencies;
@@ -117,14 +117,7 @@ final class CelineBrainFrame {
 }
 
 final class CelineBrainResult {
-    enum Kind {
-        ANSWER,
-        CLARIFICATION_REQUIRED,
-        TOOL_PLAN,
-        BLOCKED,
-        FAILED
-    }
-
+    enum Kind { ANSWER, CLARIFICATION_REQUIRED, TOOL_PLAN, BLOCKED, FAILED }
     final Kind kind;
     final String responseText;
     final double confidence;
@@ -143,68 +136,89 @@ interface CelineMemory {
     void remember(CelineMemoryMutation mutation);
 }
 
+enum CelineMemoryType {
+    SEMANTIC, PROFILE, PREFERENCE, EPISODIC, DECISION_CORRECTION,
+    OPEN_GOAL_TASK, PROCEDURAL_SKILL, TEMPORARY, LEGACY
+}
+
+enum CelineMemoryPrivacy {
+    LOCAL_PRIVATE, LOCAL_SENSITIVE, SHAREABLE_ON_REQUEST
+}
+
 final class CelineMemorySlice {
     final List<CelineMemoryItem> items;
-
     CelineMemorySlice(List<CelineMemoryItem> items) {
         this.items = items == null || items.isEmpty()
                 ? Collections.<CelineMemoryItem>emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(items));
     }
-
     static CelineMemorySlice empty() {
         return new CelineMemorySlice(Collections.<CelineMemoryItem>emptyList());
     }
 }
 
 final class CelineMemoryItem {
-    enum KnowledgeState {
-        OBSERVED,
-        EXPLICIT,
-        INFERRED,
-        UNKNOWN
-    }
+    enum KnowledgeState { OBSERVED, EXPLICIT, INFERRED, UNKNOWN }
 
     final String id;
-    final String type;
+    final CelineMemoryType type;
     final String summary;
     final String provenance;
     final KnowledgeState knowledgeState;
     final double confidence;
+    final double importance;
+    final CelineMemoryPrivacy privacyScope;
+    final long createdAtEpochMs;
     final long updatedAtEpochMs;
+    final long expiresAtEpochMs;
+    final String supersedesId;
+    final String conflictWithId;
 
     CelineMemoryItem(
-            String id,
-            String type,
-            String summary,
-            String provenance,
-            KnowledgeState knowledgeState,
-            double confidence,
-            long updatedAtEpochMs) {
-        this.id = id == null ? "" : id;
-        this.type = type == null ? "" : type;
-        this.summary = summary == null ? "" : summary;
-        this.provenance = provenance == null ? "" : provenance;
+            String id, CelineMemoryType type, String summary, String provenance,
+            KnowledgeState knowledgeState, double confidence, double importance,
+            CelineMemoryPrivacy privacyScope, long createdAtEpochMs, long updatedAtEpochMs,
+            long expiresAtEpochMs, String supersedesId, String conflictWithId) {
+        this.id = clean(id);
+        this.type = Objects.requireNonNull(type, "type");
+        this.summary = clean(summary);
+        this.provenance = clean(provenance);
         this.knowledgeState = Objects.requireNonNull(knowledgeState, "knowledgeState");
-        this.confidence = Math.max(0.0d, Math.min(1.0d, confidence));
+        this.confidence = clampUnit(confidence);
+        this.importance = clampUnit(importance);
+        this.privacyScope = Objects.requireNonNull(privacyScope, "privacyScope");
+        this.createdAtEpochMs = createdAtEpochMs;
         this.updatedAtEpochMs = updatedAtEpochMs;
+        this.expiresAtEpochMs = Math.max(0L, expiresAtEpochMs);
+        this.supersedesId = clean(supersedesId);
+        this.conflictWithId = clean(conflictWithId);
+    }
+
+    boolean isExpired(long nowEpochMs) {
+        return expiresAtEpochMs > 0L && expiresAtEpochMs <= nowEpochMs;
+    }
+
+    CelineMemoryItem withSupersedes(String targetId) {
+        return new CelineMemoryItem(
+                id, type, summary, provenance, knowledgeState, confidence, importance,
+                privacyScope, createdAtEpochMs, updatedAtEpochMs, expiresAtEpochMs,
+                targetId, conflictWithId);
+    }
+
+    private static String clean(String value) { return value == null ? "" : value.trim(); }
+    private static double clampUnit(double value) {
+        return Math.max(0.0d, Math.min(1.0d, value));
     }
 }
 
 final class CelineMemoryMutation {
-    enum Operation {
-        UPSERT,
-        SUPERSEDE,
-        FORGET
-    }
-
+    enum Operation { UPSERT, SUPERSEDE, FORGET }
     final Operation operation;
     final String targetId;
     final CelineMemoryItem item;
-
     CelineMemoryMutation(Operation operation, String targetId, CelineMemoryItem item) {
         this.operation = Objects.requireNonNull(operation, "operation");
-        this.targetId = targetId == null ? "" : targetId;
+        this.targetId = targetId == null ? "" : targetId.trim();
         this.item = item;
     }
 }
@@ -219,54 +233,40 @@ final class CelineWorkingSnapshot {
     final String lastConfirmedStep;
     final String blocker;
     final long updatedAtEpochMs;
-
     CelineWorkingSnapshot(String activeTaskId, String lastConfirmedStep, String blocker, long updatedAtEpochMs) {
         this.activeTaskId = activeTaskId == null ? "" : activeTaskId;
         this.lastConfirmedStep = lastConfirmedStep == null ? "" : lastConfirmedStep;
         this.blocker = blocker == null ? "" : blocker;
         this.updatedAtEpochMs = updatedAtEpochMs;
     }
-
-    static CelineWorkingSnapshot empty() {
-        return new CelineWorkingSnapshot("", "", "", 0L);
-    }
+    static CelineWorkingSnapshot empty() { return new CelineWorkingSnapshot("", "", "", 0L); }
 }
 
-interface CelineGoalGraph {
-    CelineGoalSnapshot activeGoal();
-}
+interface CelineGoalGraph { CelineGoalSnapshot activeGoal(); }
 
 final class CelineGoalSnapshot {
     final String goalId;
     final String objective;
     final String status;
     final String nextAction;
-
     CelineGoalSnapshot(String goalId, String objective, String status, String nextAction) {
         this.goalId = goalId == null ? "" : goalId;
         this.objective = objective == null ? "" : objective;
         this.status = status == null ? "" : status;
         this.nextAction = nextAction == null ? "" : nextAction;
     }
-
-    static CelineGoalSnapshot none() {
-        return new CelineGoalSnapshot("", "", "NONE", "");
-    }
+    static CelineGoalSnapshot none() { return new CelineGoalSnapshot("", "", "NONE", ""); }
 }
 
-interface CelineContextBroker {
-    CelineContextSnapshot collect(CelineBrainRequest request);
-}
+interface CelineContextBroker { CelineContextSnapshot collect(CelineBrainRequest request); }
 
 final class CelineContextSnapshot {
     final List<CelineContextFact> facts;
-
     CelineContextSnapshot(List<CelineContextFact> facts) {
         this.facts = facts == null || facts.isEmpty()
                 ? Collections.<CelineContextFact>emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(facts));
     }
-
     static CelineContextSnapshot empty() {
         return new CelineContextSnapshot(Collections.<CelineContextFact>emptyList());
     }
@@ -277,7 +277,6 @@ final class CelineContextFact {
     final String value;
     final long observedAtEpochMs;
     final boolean fresh;
-
     CelineContextFact(String source, String value, long observedAtEpochMs, boolean fresh) {
         this.source = source == null ? "" : source;
         this.value = value == null ? "" : value;
@@ -295,7 +294,6 @@ final class CelineToolDescriptor {
     final String id;
     final String description;
     final CelineRiskClass riskClass;
-
     CelineToolDescriptor(String id, String description, CelineRiskClass riskClass) {
         this.id = id == null ? "" : id;
         this.description = description == null ? "" : description;
@@ -307,7 +305,6 @@ final class CelineToolIntent {
     final String toolId;
     final String target;
     final String payload;
-
     CelineToolIntent(String toolId, String target, String payload) {
         this.toolId = toolId == null ? "" : toolId;
         this.target = target == null ? "" : target;
@@ -319,7 +316,6 @@ final class CelineToolResult {
     final boolean success;
     final String observedResult;
     final String errorCode;
-
     CelineToolResult(boolean success, String observedResult, String errorCode) {
         this.success = success;
         this.observedResult = observedResult == null ? "" : observedResult;
@@ -327,27 +323,16 @@ final class CelineToolResult {
     }
 }
 
-enum CelineRiskClass {
-    L0_READ_ONLY,
-    L1_REVERSIBLE_LOCAL,
-    L2_EXTERNAL_STATE_CHANGE,
-    L3_HIGH_IMPACT
-}
+enum CelineRiskClass { L0_READ_ONLY, L1_REVERSIBLE_LOCAL, L2_EXTERNAL_STATE_CHANGE, L3_HIGH_IMPACT }
 
 interface CelinePermissionPolicy {
     CelinePermissionDecision evaluate(CelineToolIntent intent, CelineRiskClass riskClass);
 }
 
 final class CelinePermissionDecision {
-    enum State {
-        ALLOW,
-        REQUIRE_CONFIRMATION,
-        DENY
-    }
-
+    enum State { ALLOW, REQUIRE_CONFIRMATION, DENY }
     final State state;
     final String reason;
-
     CelinePermissionDecision(State state, String reason) {
         this.state = Objects.requireNonNull(state, "state");
         this.reason = reason == null ? "" : reason;
@@ -367,7 +352,6 @@ final class CelineVerification {
     final boolean accepted;
     final String evidence;
     final String requiredRecovery;
-
     CelineVerification(boolean accepted, String evidence, String requiredRecovery) {
         this.accepted = accepted;
         this.evidence = evidence == null ? "" : evidence;
@@ -375,16 +359,13 @@ final class CelineVerification {
     }
 }
 
-interface CelineLearningEngine {
-    void observe(CelineLearningEvent event);
-}
+interface CelineLearningEngine { void observe(CelineLearningEvent event); }
 
 final class CelineLearningEvent {
     final String requestId;
     final String outcome;
     final boolean verified;
     final String correction;
-
     CelineLearningEvent(String requestId, String outcome, boolean verified, String correction) {
         this.requestId = requestId == null ? "" : requestId;
         this.outcome = outcome == null ? "" : outcome;
@@ -393,48 +374,27 @@ final class CelineLearningEvent {
     }
 }
 
-interface CelineAffectState {
-    CelineAffectSnapshot snapshot();
-}
+interface CelineAffectState { CelineAffectSnapshot snapshot(); }
 
 final class CelineAffectSnapshot {
     final double valence;
     final double arousal;
     final double warmth;
     final double confidence;
-
     CelineAffectSnapshot(double valence, double arousal, double warmth, double confidence) {
-        this.valence = clampSigned(valence);
-        this.arousal = clampUnit(arousal);
-        this.warmth = clampUnit(warmth);
-        this.confidence = clampUnit(confidence);
-    }
-
-    private static double clampUnit(double value) {
-        return Math.max(0.0d, Math.min(1.0d, value));
-    }
-
-    private static double clampSigned(double value) {
-        return Math.max(-1.0d, Math.min(1.0d, value));
+        this.valence = Math.max(-1.0d, Math.min(1.0d, valence));
+        this.arousal = Math.max(0.0d, Math.min(1.0d, arousal));
+        this.warmth = Math.max(0.0d, Math.min(1.0d, warmth));
+        this.confidence = Math.max(0.0d, Math.min(1.0d, confidence));
     }
 }
 
-interface CelineResourcePolicy {
-    CelineResourceDecision route(CelineBrainRequest request);
-}
+interface CelineResourcePolicy { CelineResourceDecision route(CelineBrainRequest request); }
 
 final class CelineResourceDecision {
-    enum Route {
-        DETERMINISTIC,
-        LOCAL_FAST,
-        LOCAL_DEEP,
-        EXTERNAL_OPTIONAL,
-        UNAVAILABLE
-    }
-
+    enum Route { DETERMINISTIC, LOCAL_FAST, LOCAL_DEEP, EXTERNAL_OPTIONAL, UNAVAILABLE }
     final Route route;
     final String reason;
-
     CelineResourceDecision(Route route, String reason) {
         this.route = Objects.requireNonNull(route, "route");
         this.reason = reason == null ? "" : reason;
