@@ -48,8 +48,7 @@ jobs:
           if-no-files-found: error
 
   generation-acceptance:
-    # Marker-triggered exact-head gate; separate from the frozen G1.0 baseline job.
-    # This comment intentionally changes the workflow after the PR marker is armed.
+    # Exact-head marker-triggered G1 gate. Keep separate from the frozen baseline job.
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '[run-g1-generation-acceptance]')) }}
     name: Generation 1 acceptance
     runs-on: ubuntu-latest
