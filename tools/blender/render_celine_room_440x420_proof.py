@@ -29,6 +29,18 @@ TABLE_CONTRACT_Z = 2.05
 TABLE_CONTRACT_SCALE = 1.10
 TABLE_EFFECTIVE_Z = 1.55
 TABLE_EFFECTIVE_USER_SCALE = (1.45, 0.68, 0.68)  # X, Y-height, Z-depth
+
+# Proof #17 made the room readable enough to isolate the largest remaining
+# occluder: Lampe.glb is projected at roughly half the image height because its
+# exact anchor puts it near the camera. The reference lamp is a small back-left
+# silhouette beside the chair/window. Keep the exact anchor immutable and test
+# only a derived child depth/scale correction before integrating it elsewhere.
+LAMP_ANCHOR_NAME = "room_floor_lamp__anchor"
+LAMP_GEOMETRY_NAME = "room_floor_lamp__geometry"
+LAMP_CONTRACT_Z = 1.05
+LAMP_CONTRACT_SCALE = 0.82
+LAMP_EFFECTIVE_Z = -0.95
+LAMP_GEOMETRY_SCALE_FACTOR = 0.48
 EPS = 5.0e-4
 
 
@@ -81,7 +93,7 @@ def descendant_mesh_world_min_z(geometry_root: bpy.types.Object) -> float:
         for corner in evaluated.bound_box:
             values.append((evaluated.matrix_world @ Vector(corner)).z)
     if not values:
-        fail(f"{TABLE_GEOMETRY_NAME}: no descendant mesh bounding box")
+        fail(f"{geometry_root.name}: no descendant mesh bounding box")
     return min(values)
 
 
@@ -123,6 +135,46 @@ def apply_foreground_table_reference_calibration() -> None:
         f"tableEffectiveZ={TABLE_EFFECTIVE_Z:.2f} "
         f"tableEffectiveScale={sx:.2f}/{sy_height:.2f}/{sz_depth:.2f} "
         f"groundedZ={grounded:.6f} sourceGLBMutated=false anchorMutated=false"
+    )
+
+
+def apply_floor_lamp_reference_calibration() -> None:
+    anchor = bpy.data.objects.get(LAMP_ANCHOR_NAME)
+    geometry = bpy.data.objects.get(LAMP_GEOMETRY_NAME)
+    if anchor is None or geometry is None:
+        fail("floor lamp anchor/geometry missing for measured calibration")
+    if geometry.parent is not anchor:
+        fail("floor lamp geometry is no longer parented to its canonical anchor")
+
+    anchor_scale = tuple(float(v) for v in anchor.scale)
+    if any(abs(v - LAMP_CONTRACT_SCALE) > 1.0e-4 for v in anchor_scale):
+        fail(f"floor lamp anchor scale changed unexpectedly: {anchor_scale}")
+    if abs(float(anchor.location.y) - LAMP_CONTRACT_Z) > 1.0e-4:
+        fail(f"floor lamp anchor depth changed unexpectedly: {anchor.location.y}")
+
+    geometry.scale = (
+        LAMP_GEOMETRY_SCALE_FACTOR,
+        LAMP_GEOMETRY_SCALE_FACTOR,
+        LAMP_GEOMETRY_SCALE_FACTOR,
+    )
+    geometry.location.y = (LAMP_EFFECTIVE_Z - LAMP_CONTRACT_Z) / LAMP_CONTRACT_SCALE
+    bpy.context.view_layer.update()
+
+    min_z = descendant_mesh_world_min_z(geometry)
+    geometry.location.z += (0.0 - min_z) / LAMP_CONTRACT_SCALE
+    bpy.context.view_layer.update()
+    grounded = descendant_mesh_world_min_z(geometry)
+    if abs(grounded) > EPS:
+        fail(f"floor lamp derived calibration lost floor contact: z={grounded:.6f}")
+
+    geometry["reference_calibration"] = "proof17_lamp_depth_scale_trial"
+    geometry["effective_user_z_depth"] = LAMP_EFFECTIVE_Z
+    geometry["geometry_uniform_scale_factor"] = LAMP_GEOMETRY_SCALE_FACTOR
+    print(
+        "CELINE_ROOM_REFERENCE_CALIBRATION "
+        f"lampEffectiveZ={LAMP_EFFECTIVE_Z:.2f} "
+        f"lampGeometryScaleFactor={LAMP_GEOMETRY_SCALE_FACTOR:.2f} "
+        f"groundedZ={grounded:.6f} sourceGLBMutated=false anchorMutated=false proofOnly=true"
     )
 
 
@@ -201,6 +253,7 @@ def main() -> None:
         fail(f"missing required room root {ROOT_NAME}; run builder first")
 
     apply_foreground_table_reference_calibration()
+    apply_floor_lamp_reference_calibration()
     apply_reference_x_handedness(root)
 
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
@@ -236,7 +289,8 @@ def main() -> None:
     print("CELINE_ROOM_440x420_VISUAL_PROOF PASS")
     print(f"Real Blender primary render: {output}")
     print("Confirmed reference X handedness retained on room_world_root; original furniture GLBs and prescribed anchors unchanged.")
-    print("No generated/substitute geometry or post-render image flip was introduced by the visual proof.")
+    print("Proof-only lamp depth/scale calibration retained only for this rendered diagnostic; no source GLB mutation or generated geometry.")
+    print("No post-render image flip was introduced by the visual proof.")
 
 
 if __name__ == "__main__":

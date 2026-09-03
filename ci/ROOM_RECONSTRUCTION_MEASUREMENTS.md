@@ -58,25 +58,57 @@ Measured/visible deltas after Proof #15:
 
 The mirror is the highest-confidence marker because its reference and candidate centers are almost complementary around x=0.5. The bed and other side-specific furniture follow the same direction error. This is larger than a local bed or mirror nudge and must be tested as one global presentation-axis error before changing individual anchors.
 
-## Bounded correction 2 — proof-only X-handedness diagnostic
+## Bounded correction 2 — X-handedness
 
-Keep every source GLB and prescribed furniture anchor untouched and apply a temporary **proof-only X mirror at `room_world_root`** during the real Blender primary render, then restore the root transform immediately after rendering. This tests the measured whole-scene handedness error without yet rewriting the room builder/runtime coordinate contract.
+Proof #16 tested a proof-only X mirror at `room_world_root`. Direct visual inspection confirmed the hypothesis: mirror, bed and side-specific furniture all moved toward the reference sides together. Head `8f57b986d32ad1ee9821ff9cf655d99c1ef2e6f7` then retained that confirmed presentation handedness for the next reconstruction proof while keeping the 12 source GLBs and exact source-anchor metadata unchanged.
+
+## Proof #17 — manually inspected 2026-09-04
+
+- Exact Room 440x420 Blender Proof #17 / run `33804765830`.
+- Exact head: `8f57b986d32ad1ee9821ff9cf655d99c1ef2e6f7`.
+- Artifact: `9917398137`, digest `sha256:355eaee22c3b2a0ea0138b2b92d50bfc50400392ec13811edcb44ffa0dc20016`.
+- Structural result: SUCCESS. Builder reported `CELINE_ROOM_440x420 PASS`; the primary frame and `/Refernzbild.png` are both 1376 x 1100.
+- Manual visual verdict: WHOLE-SCENE FAIL. The X direction is improved, but gross furniture depth/scale remains wrong.
+
+Measured/visible deltas after Proof #17:
+
+| Feature | Reference | Proof #17 | Evidence-backed conclusion |
+|---|---:|---:|---|
+| back-wall / ceiling boundary, center | y ~= 0.08 | y ~= 0.20 | camera/vertical composition remains far off; defer until gross furniture occlusion is reduced |
+| foreground tabletop upper/far band | y ~= 0.78 | y ~= 0.64 | still about 0.14 H too high |
+| round wall mirror | far left, center near x ~= 0.04 | far left | handedness is confirmed; mirror size/height still need later correction |
+| bed mass | right half, begins near x ~= 0.50 | intrudes into center from about x ~= 0.32 | bed placement/scale remains a major later correction |
+| floor lamp projected envelope | small back-left accent, roughly x 0.25..0.29 and y 0.28..0.43 | huge near-camera occluder, roughly x 0.12..0.34 and y 0.37..0.88 | lamp is about 3–4x too dominant in projected height and hides the lounge-chair zone |
+| lounge chair | clearly readable left-middle | largely hidden by the lamp | cannot judge chair until lamp occlusion is removed |
+| right nightstand/furniture | compact at far-right edge | oversized and too far into frame | still wrong, but lamp is the largest isolated occluder first |
+
+The floor lamp is now the best bounded next target because it is independently identifiable, it blocks another required object, and its error is explained by both depth and scale rather than by camera polish. With the fixed proof camera, its current anchor depth is user Z `+1.05`, only about 2.55 m from the camera at Z `+3.60`; the intended back-left reference placement reads near the chair/window zone. Moving only derived child geometry to effective user Z `-0.95` changes camera distance to about 4.55 m. Combining that perspective ratio (`2.55 / 4.55 ~= 0.56`) with a derived geometry scale factor `0.48` predicts about `0.27x` the current projected size, close to the measured target of roughly one quarter to one third of the current lamp height.
+
+## Bounded correction 3 — proof-only floor-lamp depth/scale diagnostic
+
+For the next real Blender proof only:
+
+- keep `room_floor_lamp__anchor` exact and auditable at its current prescribed source contract;
+- keep `Lampe.glb` bytes unchanged;
+- shift only `room_floor_lamp__geometry` to effective user Z depth `-0.95`;
+- apply derived uniform geometry factor `0.48` below the immutable anchor;
+- re-ground the lamp after scaling so its mesh base remains at floor user Y `0.00`;
+- do not change camera, bed, table, chair, nightstands, mirror, window or room shell in the same iteration.
 
 Acceptance for this diagnostic:
 
-- real Blender output only; no post-render image flip and no generated substitute geometry;
-- root transform restored after render; source GLBs and furniture anchors unchanged;
-- reference round mirror must move from the wrong far-right screen location to the intended far-left side;
-- bed/side-specific furniture must move in the same direction toward the reference rather than being individually guessed;
-- if the whole-scene comparison improves, record the result and only then choose the smallest auditable runtime/builder integration;
-- if it worsens the scene, restore the prior proof path and reject the hypothesis.
+- lamp must stop dominating the left foreground and expose the lounge-chair zone;
+- its projected height should approach the reference back-left lamp silhouette instead of occupying roughly half the frame height;
+- no source GLB or canonical source-anchor metadata may change;
+- if the scene improves, integrate the smallest equivalent derived reconstruction/runtime transform and then re-measure the next largest furniture error;
+- if the scene worsens, reject this hypothesis and restore Proof #17 lamp geometry behavior.
 
 ## Iteration order
 
-1. Run exactly one real Blender primary proof for the proof-only X-handedness diagnostic and inspect it directly against `/Refernzbild.png` on the same 1376 x 1100 grid.
-2. If global handedness is confirmed, integrate the smallest auditable derived room presentation transform while preserving the 12 immutable source GLBs and explicit user-space anchor metadata.
-3. Re-measure foreground table vertical band, bed envelope, dresser, chair, mirror and window after the handedness correction; then fix exactly the largest remaining geometric delta.
-4. After gross geometry/perspective/möbelaufstellung becomes meaningfully readable, produce and actually inspect the required early in-app CALL preview.
-5. Camera micro-alignment follows geometry/layout; materials/light/window polish follows camera.
+1. Run exactly one real Blender primary proof for bounded correction 3 and inspect it directly against `/Refernzbild.png` on the same 1376 x 1100 grid.
+2. If lamp depth/scale is confirmed, integrate that derived calibration and re-measure the bed, right nightstand, mirror, table vertical band and chair.
+3. Correct exactly the next largest measured geometric/proportion error; do not begin camera micro-polish while large furniture mismatches remain.
+4. As soon as the gross room geometry/perspective/möbelaufstellung becomes meaningfully readable, produce and actually inspect the required early in-app CALL preview.
+5. Camera/FOV/target micro-alignment follows gross geometry/layout; materials/light/window/detail polish follows camera.
 
 No visual PASS may be recorded while a relevant visible delta remains.
