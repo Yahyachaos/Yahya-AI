@@ -3,9 +3,9 @@
 
 This script assumes tools/blender/build_celine_room_440x420.py has already run in
 this same Blender process. It does not generate or substitute geometry. It only
-adds a proof-only camera, temporarily hides selected room-shell faces to create
-comparison/diagnostic views, renders three images, restores shell visibility,
-and removes the proof camera afterwards.
+adds a proof-only camera, temporarily hides the front room-shell face, renders
+the single reference-comparable primary image required for bounded iteration,
+restores shell visibility, and removes the proof camera afterwards.
 """
 
 from pathlib import Path
@@ -17,7 +17,7 @@ from mathutils import Vector
 ROOT_NAME = "room_world_root"
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
 # Match the authoritative reference pixel grid/aspect ratio so image-space
-# measurements and overlays are meaningful instead of comparing 16:9 to 1.251:1.
+# measurements and overlays are meaningful instead of comparing mismatched grids.
 RENDER_SIZE = (1376, 1100)
 
 
@@ -116,45 +116,29 @@ def main() -> None:
     configure_workbench(scene)
     camera = make_camera()
 
-    # Primary frame is deliberately reference-comparable: reference-native pixel
-    # aspect, near eye-level camera, ceiling and both side walls retained. The
-    # front shell alone is hidden because the camera is just outside the clear
-    # room volume, matching the reference's foreground-table viewpoint. The two
-    # oblique frames remain proof-only diagnostics and never alter room geometry.
-    views = (
-        (
-            "01_front_wide",
-            (0.00, 1.45, 2.60),
-            (0.00, 1.20, -0.30),
-            24.0,
-            ("room_shell_front",),
-        ),
-        (
-            "02_front_left",
-            (-2.80, 3.30, 4.80),
-            (0.00, 0.72, -0.30),
-            31.0,
-            ("room_shell_front", "room_shell_ceiling", "room_shell_left"),
-        ),
-        (
-            "03_front_right",
-            (2.80, 3.30, 4.80),
-            (0.00, 0.72, -0.30),
-            31.0,
-            ("room_shell_front", "room_shell_ceiling", "room_shell_right"),
-        ),
+    # Keep draft iteration deliberately bounded: the primary frame is the only
+    # frame required to compare whole-scene geometry against /Refernzbild.png.
+    # Diagnostic obliques can be restored later only when they answer a specific
+    # unresolved question; rendering them on every geometry iteration previously
+    # exhausted the 60-minute CI budget before any evidence could be inspected.
+    output = render_view(
+        scene,
+        camera,
+        "01_front_wide",
+        (0.00, 1.45, 2.60),
+        (0.00, 1.20, -0.30),
+        24.0,
+        ("room_shell_front",),
     )
 
-    outputs = [render_view(scene, camera, *view) for view in views]
-
     # Proof camera is not part of the room contract and must not persist in the
-    # generated scene after the proof images are written.
+    # generated scene after the proof image is written.
     camera_data = camera.data
     bpy.data.objects.remove(camera, do_unlink=True)
     if camera_data.users == 0:
         bpy.data.cameras.remove(camera_data)
 
-    # Fail closed if a proof-only shell visibility override leaked into the scene.
+    # Fail closed if the proof-only shell visibility override leaked into scene.
     for name in ("room_shell_front", "room_shell_ceiling", "room_shell_left", "room_shell_right"):
         obj = bpy.data.objects.get(name)
         if obj is None:
@@ -163,7 +147,7 @@ def main() -> None:
             fail(f"proof cutaway visibility leaked into generated room: {name}")
 
     print("CELINE_ROOM_440x420_VISUAL_PROOF PASS")
-    print(f"Real Blender renders: {len(outputs)}")
+    print(f"Real Blender primary render: {output}")
     print("Cutaway visibility restored; room geometry and prescribed transforms unchanged.")
     print("No generated/substitute geometry was introduced by the visual proof.")
 

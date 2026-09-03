@@ -85,8 +85,6 @@ jobs:
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420_VISUAL_PROOF PASS' ci-room-proof/blender-room-440x420.log
           test -s ci-room-proof/01_front_wide.png
-          test -s ci-room-proof/02_front_left.png
-          test -s ci-room-proof/03_front_right.png
           test -s Refernzbild.png
           cp Refernzbild.png ci-room-proof/Refernzbild.png
           printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/metadata.txt
@@ -95,7 +93,7 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'visual_proof=real_blender_workbench_three_views_plus_reference' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'visual_proof=real_blender_workbench_reference_grid_primary_view' >> ci-room-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
 
       - name: Upload deterministic Blender proof
