@@ -3,12 +3,11 @@
 
 This script assumes tools/blender/build_celine_room_440x420.py has already run in
 this same Blender process. It does not generate or substitute geometry. During
-bounded reconstruction it may apply explicitly measured proof-only derived
-calibrations below immutable prescribed source anchors, then adds a proof-only
-camera, temporarily hides the front room-shell face, renders the single
-reference-comparable primary image, restores every proof-only transform and
-shell visibility, and removes the proof camera afterwards. Original GLB bytes
-remain untouched.
+bounded reconstruction it may apply explicitly measured derived calibrations
+below immutable prescribed source anchors, then adds a proof camera, temporarily
+hides the front room-shell face, renders the single reference-comparable primary
+image, restores shell visibility, and removes the proof camera afterwards.
+Original GLB bytes remain untouched.
 """
 
 from pathlib import Path
@@ -22,8 +21,8 @@ PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resol
 RENDER_SIZE = (1376, 1100)
 
 # Proof #15 kept the corrected horizontal table coverage while retaining the
-# better #13 depth/height reading. This calibration stays frozen for the next
-# diagnostic so only one additional hypothesis is tested at a time.
+# better #13 depth/height reading. Freeze that measured table calibration while
+# integrating the independently confirmed whole-scene X handedness from #16.
 TABLE_ANCHOR_NAME = "room_foreground_table__anchor"
 TABLE_GEOMETRY_NAME = "room_foreground_table__geometry"
 TABLE_CONTRACT_Z = 2.05
@@ -127,23 +126,18 @@ def apply_foreground_table_reference_calibration() -> None:
     )
 
 
-def apply_proof_only_x_handedness(root: bpy.types.Object):
-    previous_scale = root.scale.copy()
-    if any(abs(abs(float(v)) - 1.0) > 1.0e-4 for v in previous_scale):
-        fail(f"room root has unexpected pre-proof scale: {tuple(previous_scale)}")
-    root.scale.x = -float(root.scale.x)
-    bpy.context.view_layer.update()
-    print("CELINE_ROOM_REFERENCE_ALIGNMENT mirrorX=true proofOnly=true anchorsMutated=false")
-    return previous_scale
-
-
-def restore_proof_only_x_handedness(root: bpy.types.Object, previous_scale) -> None:
-    root.scale = previous_scale
-    bpy.context.view_layer.update()
-    restored = tuple(float(v) for v in root.scale)
-    expected = tuple(float(v) for v in previous_scale)
-    if any(abs(a - b) > 1.0e-6 for a, b in zip(restored, expected)):
-        fail(f"proof-only root X mirror did not restore cleanly: {restored} vs {expected}")
+def apply_reference_x_handedness(root: bpy.types.Object) -> None:
+    scale = tuple(float(v) for v in root.scale)
+    if any(abs(abs(v) - 1.0) > 1.0e-4 for v in scale):
+        fail(f"room root has unexpected pre-alignment scale: {scale}")
+    if scale[0] > 0.0:
+        root.scale.x = -root.scale.x
+        bpy.context.view_layer.update()
+    if float(root.scale.x) >= 0.0:
+        fail(f"reference X handedness did not persist on room root: {tuple(root.scale)}")
+    root["reference_screen_x_mirror"] = True
+    root["reference_handedness_source_proof"] = 16
+    print("CELINE_ROOM_REFERENCE_ALIGNMENT mirrorX=true proofOnly=false persisted=true anchorsMutated=false")
 
 
 def configure_workbench(scene: bpy.types.Scene) -> None:
@@ -206,28 +200,23 @@ def main() -> None:
     if root is None:
         fail(f"missing required room root {ROOT_NAME}; run builder first")
 
-    # Freeze the already inspected table correction, then test exactly one new
-    # whole-scene hypothesis: front-camera screen-space X handedness.
     apply_foreground_table_reference_calibration()
+    apply_reference_x_handedness(root)
 
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     configure_workbench(scene)
     camera = make_camera()
 
-    previous_root_scale = apply_proof_only_x_handedness(root)
-    try:
-        output = render_view(
-            scene,
-            camera,
-            "01_front_wide",
-            (0.00, 1.55, 3.60),
-            (0.00, 0.95, -0.30),
-            24.0,
-            ("room_shell_front",),
-        )
-    finally:
-        restore_proof_only_x_handedness(root, previous_root_scale)
+    output = render_view(
+        scene,
+        camera,
+        "01_front_wide",
+        (0.00, 1.55, 3.60),
+        (0.00, 0.95, -0.30),
+        24.0,
+        ("room_shell_front",),
+    )
 
     camera_data = camera.data
     bpy.data.objects.remove(camera, do_unlink=True)
@@ -241,9 +230,12 @@ def main() -> None:
         if obj.hide_render:
             fail(f"proof cutaway visibility leaked into generated room: {name}")
 
+    if not bool(root.get("reference_screen_x_mirror", False)) or float(root.scale.x) >= 0.0:
+        fail("reference X handedness was not retained after proof render")
+
     print("CELINE_ROOM_440x420_VISUAL_PROOF PASS")
     print(f"Real Blender primary render: {output}")
-    print("Proof-only X mirror restored; original furniture GLBs and prescribed anchors unchanged.")
+    print("Confirmed reference X handedness retained on room_world_root; original furniture GLBs and prescribed anchors unchanged.")
     print("No generated/substitute geometry or post-render image flip was introduced by the visual proof.")
 
 
