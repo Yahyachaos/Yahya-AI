@@ -2,10 +2,12 @@
 """Render deterministic real-Blender visual proof for the exact Celine 4.40 x 4.20 room.
 
 This script assumes tools/blender/build_celine_room_440x420.py has already run in
-this same Blender process. It does not generate or substitute geometry. It only
-adds a proof-only camera, temporarily hides the front room-shell face, renders
-the single reference-comparable primary image required for bounded iteration,
-restores shell visibility, and removes the proof camera afterwards.
+this same Blender process. It does not generate or substitute geometry. During
+bounded reconstruction it may apply an explicitly measured derived calibration
+to furniture geometry below the immutable prescribed source anchor, then adds a
+proof-only camera, temporarily hides the front room-shell face, renders the
+single reference-comparable primary image, restores shell visibility, and
+removes the proof camera afterwards. Original GLB bytes remain untouched.
 """
 
 from pathlib import Path
@@ -19,6 +21,21 @@ PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resol
 # Match the authoritative reference pixel grid/aspect ratio so image-space
 # measurements and overlays are meaningful instead of comparing mismatched grids.
 RENDER_SIZE = (1376, 1100)
+
+# Proof #14 established that the previous uniform table correction solved only
+# horizontal coverage and badly over-occluded the room vertically. Reuse the
+# better #13 depth/height reading while keeping #14's measured projected width:
+# effective source geometry = z-depth 1.55 m, X scale 1.45, height/depth 0.68.
+# The canonical source anchor itself remains at the current exact-contract
+# transform (z=2.05, uniform scale=1.10); only its child geometry root receives
+# this derived calibration, so the source GLB and anchor audit stay immutable.
+TABLE_ANCHOR_NAME = "room_foreground_table__anchor"
+TABLE_GEOMETRY_NAME = "room_foreground_table__geometry"
+TABLE_CONTRACT_Z = 2.05
+TABLE_CONTRACT_SCALE = 1.10
+TABLE_EFFECTIVE_Z = 1.55
+TABLE_EFFECTIVE_USER_SCALE = (1.45, 0.68, 0.68)  # X, Y-height, Z-depth
+EPS = 5.0e-4
 
 
 def fail(message: str) -> None:
@@ -49,6 +66,76 @@ def make_camera() -> bpy.types.Object:
     camera = bpy.data.objects.new("room_440x420_proof_camera", data)
     bpy.context.scene.collection.objects.link(camera)
     return camera
+
+
+def is_descendant(obj: bpy.types.Object, ancestor: bpy.types.Object) -> bool:
+    cursor = obj
+    while cursor is not None:
+        if cursor is ancestor:
+            return True
+        cursor = cursor.parent
+    return False
+
+
+def descendant_mesh_world_min_z(geometry_root: bpy.types.Object) -> float:
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    values = []
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or not is_descendant(obj, geometry_root):
+            continue
+        evaluated = obj.evaluated_get(depsgraph)
+        for corner in evaluated.bound_box:
+            values.append((evaluated.matrix_world @ Vector(corner)).z)
+    if not values:
+        fail(f"{TABLE_GEOMETRY_NAME}: no descendant mesh bounding box")
+    return min(values)
+
+
+def apply_foreground_table_reference_calibration() -> None:
+    anchor = bpy.data.objects.get(TABLE_ANCHOR_NAME)
+    geometry = bpy.data.objects.get(TABLE_GEOMETRY_NAME)
+    if anchor is None or geometry is None:
+        fail("foreground table anchor/geometry missing for measured calibration")
+    if geometry.parent is not anchor:
+        fail("foreground table geometry is no longer parented to its canonical anchor")
+
+    anchor_scale = tuple(float(v) for v in anchor.scale)
+    if any(abs(v - TABLE_CONTRACT_SCALE) > 1.0e-4 for v in anchor_scale):
+        fail(f"foreground table anchor scale changed unexpectedly: {anchor_scale}")
+    if abs(float(anchor.location.y) - TABLE_CONTRACT_Z) > 1.0e-4:
+        fail(f"foreground table anchor depth changed unexpectedly: {anchor.location.y}")
+
+    sx, sy_height, sz_depth = TABLE_EFFECTIVE_USER_SCALE
+    # Blender child scale order follows user X, user Z-depth, user Y-height.
+    geometry.scale = (
+        sx / TABLE_CONTRACT_SCALE,
+        sz_depth / TABLE_CONTRACT_SCALE,
+        sy_height / TABLE_CONTRACT_SCALE,
+    )
+    # Shift the imported source geometry from the trial anchor depth back to the
+    # #13 depth that had the substantially better vertical composition.
+    geometry.location.y = (TABLE_EFFECTIVE_Z - TABLE_CONTRACT_Z) / TABLE_CONTRACT_SCALE
+    bpy.context.view_layer.update()
+
+    # Re-ground after the non-uniform derived scale. Child translation is in the
+    # parent-anchor coordinate system, so divide the world correction by the
+    # immutable uniform anchor scale.
+    min_z = descendant_mesh_world_min_z(geometry)
+    geometry.location.z += (0.0 - min_z) / TABLE_CONTRACT_SCALE
+    bpy.context.view_layer.update()
+    grounded = descendant_mesh_world_min_z(geometry)
+    if abs(grounded) > EPS:
+        fail(f"foreground table derived calibration lost floor contact: z={grounded:.6f}")
+
+    geometry["reference_calibration"] = "proof14_width_plus_proof13_depth_height"
+    geometry["effective_user_z_depth"] = TABLE_EFFECTIVE_Z
+    geometry["effective_user_scale_xyz"] = list(TABLE_EFFECTIVE_USER_SCALE)
+    print(
+        "CELINE_ROOM_REFERENCE_CALIBRATION "
+        f"tableEffectiveZ={TABLE_EFFECTIVE_Z:.2f} "
+        f"tableEffectiveScale={sx:.2f}/{sy_height:.2f}/{sz_depth:.2f} "
+        f"groundedZ={grounded:.6f} sourceGLBMutated=false anchorMutated=false"
+    )
 
 
 def configure_workbench(scene: bpy.types.Scene) -> None:
@@ -111,6 +198,10 @@ def main() -> None:
     if root is None:
         fail(f"missing required room root {ROOT_NAME}; run builder first")
 
+    # One bounded derived furniture correction only. This is deliberately
+    # evaluated before touching the next bed/right-side layout error.
+    apply_foreground_table_reference_calibration()
+
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     configure_workbench(scene)
@@ -118,11 +209,6 @@ def main() -> None:
 
     # Keep draft iteration deliberately bounded: the primary frame is the only
     # frame required to compare whole-scene geometry against /Refernzbild.png.
-    # Proof #11 showed the previous z=2.60 camera placed the foreground table
-    # around y=0.66 of the image versus about y=0.78 in the reference, while the
-    # back-wall/ceiling boundary sat around y=0.21 versus about y=0.08. Move only
-    # the proof camera backward and increase the downward pitch; room geometry and
-    # all prescribed furniture anchors stay untouched for this bounded iteration.
     output = render_view(
         scene,
         camera,
@@ -150,7 +236,7 @@ def main() -> None:
 
     print("CELINE_ROOM_440x420_VISUAL_PROOF PASS")
     print(f"Real Blender primary render: {output}")
-    print("Cutaway visibility restored; room geometry and prescribed transforms unchanged.")
+    print("Cutaway visibility restored; original furniture GLBs and prescribed anchors unchanged.")
     print("No generated/substitute geometry was introduced by the visual proof.")
 
 
