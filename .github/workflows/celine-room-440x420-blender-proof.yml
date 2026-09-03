@@ -80,13 +80,16 @@ jobs:
           test -s ci-room-proof/01_front_wide.png
           test -s ci-room-proof/02_front_left.png
           test -s ci-room-proof/03_front_right.png
+          test -s Refernzbild.png
+          cp Refernzbild.png ci-room-proof/Refernzbild.png
           printf '%s\n' "head_sha=${GITHUB_SHA}" > ci-room-proof/metadata.txt
           printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-proof/metadata.txt
           printf '%s\n' 'dimensions_user_m=4.40x4.20x2.65' >> ci-room-proof/metadata.txt
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'visual_proof=real_blender_workbench_three_views' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'visual_proof=real_blender_workbench_three_views_plus_reference' >> ci-room-proof/metadata.txt
+          sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
 
       - name: Upload deterministic Blender proof
         if: always()
