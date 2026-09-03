@@ -15,7 +15,7 @@ EXPECTED = [
     ("room_nightstand_front", "Nachttisch.glb", (1.85, 0.52, 0.35), 90.0, 0.62, "floor"),
     ("room_lounge_chair", "Sessel.glb", (-1.20, 0.40, -0.70), 15.0, 0.55, "floor"),
     ("room_rug", "Teppisch.glb", (-0.15, 0.012, 0.05), 0.0, 1.45, "rug"),
-    ("room_foreground_table", "Tischfürlaptop.glb", (0.00, 0.36, 1.55), 0.0, 0.68, "floor"),
+    ("room_foreground_table", "Tischfürlaptop.glb", (0.00, 0.36, 2.05), 0.0, 1.10, "floor"),
     ("room_window_drapes", "Fenstermitgardinen.glb", (0.30, 1.10, -1.95), 0.0, 1.35, "wall"),
     ("room_wall_shelf_books", "Hängeboardmitbücher.glb", (-1.40, 1.55, -1.85), 0.0, 0.70, "wall"),
     ("room_round_mirror", "Wandspiegelrund.glb", (-2.15, 1.55, 0.25), 90.0, 0.55, "wall"),

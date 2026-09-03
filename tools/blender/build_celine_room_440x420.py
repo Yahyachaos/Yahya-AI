@@ -70,7 +70,7 @@ INSTANCE_SPECS = [
     {"id": "room_nightstand_front", "file": "Nachttisch.glb", "location": (1.85, 0.52, 0.35), "rotation_y_deg": 90.0, "scale": 0.62, "ground": "floor"},
     {"id": "room_lounge_chair", "file": "Sessel.glb", "location": (-1.20, 0.40, -0.70), "rotation_y_deg": 15.0, "scale": 0.55, "ground": "floor"},
     {"id": "room_rug", "file": "Teppisch.glb", "location": (-0.15, 0.012, 0.05), "rotation_y_deg": 0.0, "scale": 1.45, "ground": "rug"},
-    {"id": "room_foreground_table", "file": "Tischfürlaptop.glb", "location": (0.00, 0.36, 1.55), "rotation_y_deg": 0.0, "scale": 0.68, "ground": "floor"},
+    {"id": "room_foreground_table", "file": "Tischfürlaptop.glb", "location": (0.00, 0.36, 2.05), "rotation_y_deg": 0.0, "scale": 1.10, "ground": "floor"},
     {"id": "room_window_drapes", "file": "Fenstermitgardinen.glb", "location": (0.30, 1.10, -1.95), "rotation_y_deg": 0.0, "scale": 1.35, "ground": "wall"},
     {"id": "room_wall_shelf_books", "file": "Hängeboardmitbücher.glb", "location": (-1.40, 1.55, -1.85), "rotation_y_deg": 0.0, "scale": 0.70, "ground": "wall"},
     {"id": "room_round_mirror", "file": "Wandspiegelrund.glb", "location": (-2.15, 1.55, 0.25), "rotation_y_deg": 90.0, "scale": 0.55, "ground": "wall"},
