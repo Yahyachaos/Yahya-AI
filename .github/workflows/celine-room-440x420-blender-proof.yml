@@ -22,7 +22,12 @@ jobs:
   exact-room-blender:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # The exact-room source set is intentionally very large (12 canonical GLBs,
+    # each materialized from pinned Git LFS). Proof #12 reached the render step
+    # successfully but was cancelled by the previous 60-minute job limit before
+    # the single reference-grid Workbench frame completed. Keep the render itself
+    # unchanged and give this exact proof enough wall-clock budget to finish.
+    timeout-minutes: 90
     steps:
       - name: Checkout exact PR head with LFS support
         uses: actions/checkout@v4
