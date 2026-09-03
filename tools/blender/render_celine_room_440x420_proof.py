@@ -118,15 +118,17 @@ def main() -> None:
 
     # Keep draft iteration deliberately bounded: the primary frame is the only
     # frame required to compare whole-scene geometry against /Refernzbild.png.
-    # Diagnostic obliques can be restored later only when they answer a specific
-    # unresolved question; rendering them on every geometry iteration previously
-    # exhausted the 60-minute CI budget before any evidence could be inspected.
+    # Proof #11 showed the previous z=2.60 camera placed the foreground table
+    # around y=0.66 of the image versus about y=0.78 in the reference, while the
+    # back-wall/ceiling boundary sat around y=0.21 versus about y=0.08. Move only
+    # the proof camera backward and increase the downward pitch; room geometry and
+    # all prescribed furniture anchors stay untouched for this bounded iteration.
     output = render_view(
         scene,
         camera,
         "01_front_wide",
-        (0.00, 1.45, 2.60),
-        (0.00, 1.20, -0.30),
+        (0.00, 1.55, 3.60),
+        (0.00, 0.95, -0.30),
         24.0,
         ("room_shell_front",),
     )
