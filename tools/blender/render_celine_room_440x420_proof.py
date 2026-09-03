@@ -3,11 +3,12 @@
 
 This script assumes tools/blender/build_celine_room_440x420.py has already run in
 this same Blender process. It does not generate or substitute geometry. During
-bounded reconstruction it may apply an explicitly measured derived calibration
-to furniture geometry below the immutable prescribed source anchor, then adds a
-proof-only camera, temporarily hides the front room-shell face, renders the
-single reference-comparable primary image, restores shell visibility, and
-removes the proof camera afterwards. Original GLB bytes remain untouched.
+bounded reconstruction it may apply explicitly measured proof-only derived
+calibrations below immutable prescribed source anchors, then adds a proof-only
+camera, temporarily hides the front room-shell face, renders the single
+reference-comparable primary image, restores every proof-only transform and
+shell visibility, and removes the proof camera afterwards. Original GLB bytes
+remain untouched.
 """
 
 from pathlib import Path
@@ -18,17 +19,11 @@ from mathutils import Vector
 
 ROOT_NAME = "room_world_root"
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
-# Match the authoritative reference pixel grid/aspect ratio so image-space
-# measurements and overlays are meaningful instead of comparing mismatched grids.
 RENDER_SIZE = (1376, 1100)
 
-# Proof #14 established that the previous uniform table correction solved only
-# horizontal coverage and badly over-occluded the room vertically. Reuse the
-# better #13 depth/height reading while keeping #14's measured projected width:
-# effective source geometry = z-depth 1.55 m, X scale 1.45, height/depth 0.68.
-# The canonical source anchor itself remains at the current exact-contract
-# transform (z=2.05, uniform scale=1.10); only its child geometry root receives
-# this derived calibration, so the source GLB and anchor audit stay immutable.
+# Proof #15 kept the corrected horizontal table coverage while retaining the
+# better #13 depth/height reading. This calibration stays frozen for the next
+# diagnostic so only one additional hypothesis is tested at a time.
 TABLE_ANCHOR_NAME = "room_foreground_table__anchor"
 TABLE_GEOMETRY_NAME = "room_foreground_table__geometry"
 TABLE_CONTRACT_Z = 2.05
@@ -106,20 +101,14 @@ def apply_foreground_table_reference_calibration() -> None:
         fail(f"foreground table anchor depth changed unexpectedly: {anchor.location.y}")
 
     sx, sy_height, sz_depth = TABLE_EFFECTIVE_USER_SCALE
-    # Blender child scale order follows user X, user Z-depth, user Y-height.
     geometry.scale = (
         sx / TABLE_CONTRACT_SCALE,
         sz_depth / TABLE_CONTRACT_SCALE,
         sy_height / TABLE_CONTRACT_SCALE,
     )
-    # Shift the imported source geometry from the trial anchor depth back to the
-    # #13 depth that had the substantially better vertical composition.
     geometry.location.y = (TABLE_EFFECTIVE_Z - TABLE_CONTRACT_Z) / TABLE_CONTRACT_SCALE
     bpy.context.view_layer.update()
 
-    # Re-ground after the non-uniform derived scale. Child translation is in the
-    # parent-anchor coordinate system, so divide the world correction by the
-    # immutable uniform anchor scale.
     min_z = descendant_mesh_world_min_z(geometry)
     geometry.location.z += (0.0 - min_z) / TABLE_CONTRACT_SCALE
     bpy.context.view_layer.update()
@@ -136,6 +125,25 @@ def apply_foreground_table_reference_calibration() -> None:
         f"tableEffectiveScale={sx:.2f}/{sy_height:.2f}/{sz_depth:.2f} "
         f"groundedZ={grounded:.6f} sourceGLBMutated=false anchorMutated=false"
     )
+
+
+def apply_proof_only_x_handedness(root: bpy.types.Object):
+    previous_scale = root.scale.copy()
+    if any(abs(abs(float(v)) - 1.0) > 1.0e-4 for v in previous_scale):
+        fail(f"room root has unexpected pre-proof scale: {tuple(previous_scale)}")
+    root.scale.x = -float(root.scale.x)
+    bpy.context.view_layer.update()
+    print("CELINE_ROOM_REFERENCE_ALIGNMENT mirrorX=true proofOnly=true anchorsMutated=false")
+    return previous_scale
+
+
+def restore_proof_only_x_handedness(root: bpy.types.Object, previous_scale) -> None:
+    root.scale = previous_scale
+    bpy.context.view_layer.update()
+    restored = tuple(float(v) for v in root.scale)
+    expected = tuple(float(v) for v in previous_scale)
+    if any(abs(a - b) > 1.0e-6 for a, b in zip(restored, expected)):
+        fail(f"proof-only root X mirror did not restore cleanly: {restored} vs {expected}")
 
 
 def configure_workbench(scene: bpy.types.Scene) -> None:
@@ -198,8 +206,8 @@ def main() -> None:
     if root is None:
         fail(f"missing required room root {ROOT_NAME}; run builder first")
 
-    # One bounded derived furniture correction only. This is deliberately
-    # evaluated before touching the next bed/right-side layout error.
+    # Freeze the already inspected table correction, then test exactly one new
+    # whole-scene hypothesis: front-camera screen-space X handedness.
     apply_foreground_table_reference_calibration()
 
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
@@ -207,26 +215,25 @@ def main() -> None:
     configure_workbench(scene)
     camera = make_camera()
 
-    # Keep draft iteration deliberately bounded: the primary frame is the only
-    # frame required to compare whole-scene geometry against /Refernzbild.png.
-    output = render_view(
-        scene,
-        camera,
-        "01_front_wide",
-        (0.00, 1.55, 3.60),
-        (0.00, 0.95, -0.30),
-        24.0,
-        ("room_shell_front",),
-    )
+    previous_root_scale = apply_proof_only_x_handedness(root)
+    try:
+        output = render_view(
+            scene,
+            camera,
+            "01_front_wide",
+            (0.00, 1.55, 3.60),
+            (0.00, 0.95, -0.30),
+            24.0,
+            ("room_shell_front",),
+        )
+    finally:
+        restore_proof_only_x_handedness(root, previous_root_scale)
 
-    # Proof camera is not part of the room contract and must not persist in the
-    # generated scene after the proof image is written.
     camera_data = camera.data
     bpy.data.objects.remove(camera, do_unlink=True)
     if camera_data.users == 0:
         bpy.data.cameras.remove(camera_data)
 
-    # Fail closed if the proof-only shell visibility override leaked into scene.
     for name in ("room_shell_front", "room_shell_ceiling", "room_shell_left", "room_shell_right"):
         obj = bpy.data.objects.get(name)
         if obj is None:
@@ -236,8 +243,8 @@ def main() -> None:
 
     print("CELINE_ROOM_440x420_VISUAL_PROOF PASS")
     print(f"Real Blender primary render: {output}")
-    print("Cutaway visibility restored; original furniture GLBs and prescribed anchors unchanged.")
-    print("No generated/substitute geometry was introduced by the visual proof.")
+    print("Proof-only X mirror restored; original furniture GLBs and prescribed anchors unchanged.")
+    print("No generated/substitute geometry or post-render image flip was introduced by the visual proof.")
 
 
 if __name__ == "__main__":
