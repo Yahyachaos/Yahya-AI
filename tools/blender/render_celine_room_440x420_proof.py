@@ -4,8 +4,8 @@
 This script assumes tools/blender/build_celine_room_440x420.py has already run in
 this same Blender process. It does not generate or substitute geometry. It only
 adds a proof-only camera, temporarily hides selected room-shell faces to create
-cutaway views, renders three overview images, restores shell visibility, and
-removes the proof camera afterwards.
+comparison/diagnostic views, renders three images, restores shell visibility,
+and removes the proof camera afterwards.
 """
 
 from pathlib import Path
@@ -16,7 +16,9 @@ from mathutils import Vector
 
 ROOT_NAME = "room_world_root"
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
-RENDER_SIZE = (1280, 720)
+# Match the authoritative reference pixel grid/aspect ratio so image-space
+# measurements and overlays are meaningful instead of comparing 16:9 to 1.251:1.
+RENDER_SIZE = (1376, 1100)
 
 
 def fail(message: str) -> None:
@@ -40,7 +42,7 @@ def make_camera() -> bpy.types.Object:
     if existing is not None:
         bpy.data.objects.remove(existing, do_unlink=True)
     data = bpy.data.cameras.new("room_440x420_proof_camera_data")
-    data.lens = 32.0
+    data.lens = 24.0
     data.sensor_width = 36.0
     data.clip_start = 0.05
     data.clip_end = 50.0
@@ -114,18 +116,18 @@ def main() -> None:
     configure_workbench(scene)
     camera = make_camera()
 
-    # Exterior elevated cutaway views deliberately do NOT alter the room contract.
-    # Front wall and ceiling are hidden only while rendering so the exact compact
-    # 4.40 x 4.20 layout can be judged without the foreground table/lamp blocking
-    # most of the frame. Side walls remain visible except for the near wall in the
-    # corresponding oblique view, then all visibility is restored immediately.
+    # Primary frame is deliberately reference-comparable: reference-native pixel
+    # aspect, near eye-level camera, ceiling and both side walls retained. The
+    # front shell alone is hidden because the camera is just outside the clear
+    # room volume, matching the reference's foreground-table viewpoint. The two
+    # oblique frames remain proof-only diagnostics and never alter room geometry.
     views = (
         (
             "01_front_wide",
-            (0.00, 3.60, 5.40),
-            (0.00, 0.72, -0.20),
-            32.0,
-            ("room_shell_front", "room_shell_ceiling"),
+            (0.00, 1.45, 2.60),
+            (0.00, 1.20, -0.30),
+            24.0,
+            ("room_shell_front",),
         ),
         (
             "02_front_left",
