@@ -3,6 +3,12 @@ name: Celine Exact Room 440x420 Blender Proof
 on:
   pull_request:
     types: [synchronize, edited]
+    paths:
+      - '.github/workflows/celine-room-440x420-blender-proof.yml'
+      - 'tools/blender/build_celine_room_440x420.py'
+      - 'tools/blender/render_celine_room_440x420_proof.py'
+      - 'ci/celine_room_440x420_builder_contract.py'
+      - 'Refernzbild.png'
   workflow_dispatch:
 
 permissions:
@@ -68,6 +74,7 @@ jobs:
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
           CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
+          CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
@@ -82,7 +89,7 @@ jobs:
           test -s ci-room-proof/03_front_right.png
           test -s Refernzbild.png
           cp Refernzbild.png ci-room-proof/Refernzbild.png
-          printf '%s\n' "head_sha=${GITHUB_SHA}" > ci-room-proof/metadata.txt
+          printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/metadata.txt
           printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-proof/metadata.txt
           printf '%s\n' 'dimensions_user_m=4.40x4.20x2.65' >> ci-room-proof/metadata.txt
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
