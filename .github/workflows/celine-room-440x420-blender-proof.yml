@@ -57,10 +57,11 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1
+          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
           blender --version | head -n 2
           blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
           ldconfig -p | grep -F 'libEGL.so.1'
+          command -v xvfb-run
 
       - name: Build, validate and render exact room in real Blender
         shell: bash
@@ -70,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
-          blender --background --factory-startup \
+          xvfb-run -a blender --background --factory-startup \
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
