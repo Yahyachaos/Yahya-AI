@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Bounded rug rendered-silhouette correction on the accepted room branch.
+"""Bounded rug floor-plane correction on the accepted room branch.
 
 The prior staged solver remains byte-for-byte in
 solve_celine_room_reference_layout_stage_base.py. This wrapper preserves the
-accepted Proof #104 dresser transform and Proof #111 front-facing grounded chair
+accepted Proof #104 dresser transform and Proof #111 grounded front-facing chair
 transform, then changes only the derived room_rug anchor.
 
-Proof #118 tested the first planar rug correction against the real rendered
-instance-ID silhouette. Its largest remaining error is horizontal width:
-current x=0.224564..0.846657 (width 0.622093) versus the authoritative reference
-target x=0.2055..0.8705 (width 0.665). The rug is therefore still about 6.45%
-too narrow. Its vertical residual is smaller and is deliberately not corrected
-in this same bounded step.
+Proof #121 established a reliable real-rendered rug width checkpoint:
+x=0.20349..0.86773 versus target x=0.2055..0.8705, while the vertical envelope
+remained too high/short at y=0.50818..0.77273 versus target y=0.5205..0.7955.
+The width-only Proof #121 state is therefore calibration evidence but is not yet
+runtime acceptance.
 
-Keep the accepted rug X/depth/yaw and the Proof #118 depth/thickness scales.
-Correct only local X from 1.6871853720 by the measured real-render ratio
-0.665/0.6220930233, yielding 1.8035538584. Preserve local Y/depth
-1.4997197613, local Z/thickness 1.6410156727 and exact floor grounding. Original
-rug GLB bytes remain immutable; no child/proof-only geometry transform is
-introduced. Projected object-AABB acceptance remains diagnostic only; actual
-rendered silhouette remains visual authority.
+Unprojecting those image-space edges through the accepted Blender camera onto
+the rug floor plane z=0.012 gives the next bounded world correction without
+eyeballing: move the anchor +0.207829 m in user depth and +0.013758 m world X,
+reduce local Y/depth span by 0.926761, and compensate perspective width with
+local X 1.7087076. Preserve local Z/thickness 1.6410157, yaw 5.8203125 degrees,
+exact rug floor grounding, all accepted other geometry and the immutable source
+rug GLB bytes. Projected object AABB remains diagnostic only; the real rendered
+instance-ID silhouette is visual authority.
 """
 
 from pathlib import Path
@@ -56,10 +56,10 @@ CHAIR_PARAMS = [
 ]
 
 RUG_PARAMS = [
-    -0.0671875,
-    -0.2953125,
-    1.8035538584164221,
-    1.499719761334807,
+    -0.05342981506564297,
+    -0.08748335231922333,
+    1.7087075584071436,
+    1.3898819933680306,
     1.6410156726837158,
     5.8203125,
 ]
@@ -104,15 +104,15 @@ def _apply_rug_planar(instance_id, params, authority):
     a["reference_solved"] = True
     a["reference_anisotropic_anchor_scale"] = True
     a["reference_visual_fit_authority"] = authority
-    a["reference_rug_visible_bbox_proof111"] = [
-        0.2151162791, 0.8611918605, 0.5036363636, 0.8036363636
-    ]
-    a["reference_rug_visible_bbox_proof118"] = [
-        0.2245639535, 0.8466569767, 0.5081818182, 0.7727272727
+    a["reference_rug_visible_bbox_proof121"] = [
+        0.2034883721, 0.8677325581, 0.5081818182, 0.7727272727
     ]
     a["reference_rug_visible_bbox_target"] = [0.2055, 0.8705, 0.5205, 0.7955]
-    a["reference_rug_width_ratio_proof118"] = 1.0689719626
-    a["reference_rug_largest_residual"] = "width_only_before_next_exact_render"
+    a["reference_rug_floorplane_delta_world_x"] = 0.0137576849
+    a["reference_rug_floorplane_delta_user_depth"] = 0.2078291477
+    a["reference_rug_floorplane_depth_span_ratio"] = 0.9267611384
+    a["reference_rug_floorplane_width_span_ratio"] = 1.0127562666
+    a["reference_rug_largest_residual"] = "vertical_placement_and_depth_span_after_proof121"
     solver.reground(instance_id)
 
 
@@ -135,7 +135,7 @@ def _solve_rug_visible_mask(camera, target):
     _apply_rug_planar(
         "room_rug",
         RUG_PARAMS,
-        "real_instance_id_silhouette_proof118_width_residual",
+        "floor_plane_unprojection_from_real_instance_id_proof121",
     )
     candidate = solver.projected_bbox(camera, "room_rug")
     diagnostic_score = float(
