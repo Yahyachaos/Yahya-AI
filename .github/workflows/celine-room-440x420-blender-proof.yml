@@ -7,6 +7,7 @@ on:
       - '.github/workflows/celine-room-440x420-blender-proof.yml'
       - 'tools/blender/build_celine_room_440x420.py'
       - 'tools/blender/solve_celine_room_reference_layout.py'
+      - 'tools/blender/solve_celine_room_reference_layout_stage.py'
       - 'tools/blender/render_celine_room_440x420_proof.py'
       - 'ci/celine_room_440x420_builder_contract.py'
       - 'ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json'
@@ -90,7 +91,7 @@ jobs:
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
-            --python tools/blender/solve_celine_room_reference_layout.py \
+            --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
