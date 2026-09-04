@@ -59,11 +59,14 @@ for lifecycle in ("install", "onPaused", "onDestroyed"):
         if f"{stale}.{lifecycle}(activity" in application:
             raise SystemExit(f"stale arm writer still installed beside v80: {stale}.{lifecycle}")
 
+# The v80 owner now gates the accepted HOME arm base through homePresence so
+# walking/bed activity can blend it out without introducing a second writer.
+# The proven 29.5/-29.5 and CALL 30.5/-30.5 bases themselves remain unchanged.
 for token in (
     "HOME_ARM_LOOP_NANOS = 5_200_000_000L",
     "CALL_ARM_LOOP_NANOS = 6_100_000_000L",
-    "home * (29.5f",
-    "home * (-29.5f",
+    "homePresence * (29.5f",
+    "homePresence * (-29.5f",
     "call * (30.5f",
     "call * (-30.5f",
     "CelineProductionPresenceV80.install(activity, decor)",
