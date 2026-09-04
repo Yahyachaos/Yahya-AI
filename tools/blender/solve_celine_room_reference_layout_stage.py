@@ -49,9 +49,10 @@ right silhouette releases the measured lamp zone without changing source bytes.
 
 Proof #63 then confirmed that the plant silhouette is close, but the real room
 render still hides most of the floor lamp in the drape/window depth branch. The
-reference clearly shows the lamp shade/stem in front of the drapes while still
-behind the lounge chair. Keep the same measured 2D terms and constrain only the
-lamp depth to the physically visible interval between those two objects.
+reference clearly shows the lamp shade/stem in front of the drapes. Keep the
+same measured 2D terms and constrain only lamp depth enough to stay visibly
+separated from that drape branch; the reference does not require a strict
+lamp-vs-chair world-depth ordering because their silhouettes barely overlap.
 
 Proof #85 confirmed that this depth correction exposes the lamp, but also
 revealed a solver bug: vertical anisotropic trials were projected without
@@ -62,10 +63,14 @@ anisotropic solve so top/width fitting is evaluated on the actual floor contact.
 
 Proof #86 fixed that grounding mismatch and fitted the lamp's reliable top,
 center-X and width terms essentially exactly. The largest remaining
-high-confidence projection error is now the lounge chair: its bbox size is
-already close, but its center-Y is 0.479 versus target 0.438 and the solve is
-saturated at the old user-Z=-1.55 lower depth bound. Let the normal reference
-solver reach the measured back/window zone instead of compensating by scale.
+high-confidence projection error was the lounge chair: its bbox size was close,
+but its center-Y was 0.479 versus target 0.438 and the solve had saturated at
+the old user-Z=-1.55 lower depth bound. Proof #87 widened that depth search and
+improved the chair objective from 4.286 to 1.089, but direct inspection exposed
+a more important error: the source chair is visibly showing its BACK, whereas
+Refernzbild.png clearly shows the seat/front. The bbox-only optimizer had chosen
+the wrong 180-degree orientation branch. Keep the improved depth interval but
+constrain the chair to the opposite front-facing yaw branch.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -142,12 +147,9 @@ solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
     "steps": [0.16, 0.08, 0.12, 0.06, 5.0],
 }
 
-# The reference floor lamp stands behind the lounge chair and visibly in front
-# of the drapes. Proof #63 placed its anchor at user-Z=-2.013 while the drapes
-# solve to about -2.093, leaving only ~8 cm of separation and hiding the lamp in
-# the real render. Keep at least ~25 cm anchor separation from that drape branch
-# by bounding the lamp to user-Z >= -1.84. Only the derived anchor may move; the
-# source GLB is immutable.
+# Proof #63 showed the lamp almost coplanar with the drapes. Keep enough depth
+# separation to expose the lamp in the real render. Only the derived anchor may
+# move; source GLB bytes remain immutable.
 solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "wall": False,
     "bounds": [
@@ -159,18 +161,18 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "steps": [0.10, 0.08, 0.08, 5.0],
 }
 
-# Proof #86: chair target is high-confidence. The current bbox is
-# center_y=0.4792 versus target 0.4380 while width/height are already close, and
-# the solve is exactly saturated at user-Z=-1.55. Widen only the physical depth
-# search toward the back wall so perspective can lift the whole floor-standing
-# chair silhouette without a fake Y offset or source-geometry change.
+# Proof #87 is decisive visual evidence: the near-zero yaw branch exposes the
+# BACK of Sessel.glb, while the reference shows its seat/front. A 180-degree bbox
+# ambiguity therefore exists just like the earlier bed ambiguity. Preserve the
+# widened back-zone depth from #87, but solve only on the opposite front-facing
+# physical yaw branch; never accept bbox equality with the back facing camera.
 solver.SOLVE_LIMITS["room_lounge_chair"] = {
     "wall": False,
     "bounds": [
         (0.30, 1.75),
         (-2.05, -0.05),
         (0.20, 1.30),
-        (-35.0, 50.0),
+        (130.0, 230.0),
     ],
     "steps": [0.25, 0.15, 0.12, 8.0],
 }
