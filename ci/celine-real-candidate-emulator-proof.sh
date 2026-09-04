@@ -31,6 +31,24 @@ wait_for_log() {
   fail "timed out waiting for $label ($needle)"
 }
 
+dump_ui_with_retry() {
+  local remote="$1"
+  local local_file="$2"
+  local label="$3"
+  local attempt
+  for attempt in $(seq 1 8); do
+    if adb shell "rm -f '$remote'; uiautomator dump '$remote' >/dev/null 2>&1; test -s '$remote'" >/dev/null 2>&1 \
+      && adb pull "$remote" "$local_file" >/dev/null 2>&1 \
+      && [[ -s "$local_file" ]]; then
+      echo "Ready: $label UI hierarchy (attempt $attempt)"
+      return 0
+    fi
+    echo "Retry: $label UI hierarchy unavailable (attempt $attempt/8)"
+    sleep 2
+  done
+  fail "$label UI hierarchy unavailable after retries"
+}
+
 [[ -s "$APK" ]] || fail "missing APK: $APK"
 [[ -s "$CANDIDATE" ]] || fail "missing candidate: $CANDIDATE"
 
@@ -63,9 +81,8 @@ wait_for_log 'V80-410' 'central layered HOME presence'
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail "process died before HOME proof"
 
-adb shell uiautomator dump /sdcard/celine-real-home.xml >/dev/null || fail "HOME UI dump failed"
-adb pull /sdcard/celine-real-home.xml real-candidate-home.xml >/dev/null || fail "HOME UI pull failed"
-adb exec-out screencap -p > real-candidate-home.png
+adb exec-out screencap -p > real-candidate-home.png || fail "HOME screenshot failed"
+dump_ui_with_retry /sdcard/celine-real-home.xml real-candidate-home.xml HOME
 
 grep -q 'Celin 3D Ansicht' real-candidate-home.xml || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
@@ -118,9 +135,10 @@ wait_for_log 'V80-420' 'central layered CALL presence'
 
 PID_CALL="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_CALL" ]] || fail "process died opening CALL"
-adb shell uiautomator dump /sdcard/celine-real-call.xml >/dev/null || fail "CALL UI dump failed"
-adb pull /sdcard/celine-real-call.xml real-candidate-call.xml >/dev/null || fail "CALL UI pull failed"
-adb exec-out screencap -p > real-candidate-call.png
+# Capture the real visual checkpoint before querying accessibility. A transient
+# UiTestAutomationBridge null-root must never discard an otherwise valid CALL frame.
+adb exec-out screencap -p > real-candidate-call.png || fail "CALL screenshot failed"
+dump_ui_with_retry /sdcard/celine-real-call.xml real-candidate-call.xml CALL
 grep -q 'Live mit Celin' real-candidate-call.xml || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' real-candidate-call.xml || fail "CALL 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-call.png CALL
@@ -132,9 +150,8 @@ sleep 5
 wait_for_log 'target=HOME eased=true snap=false' 'eased central CALL-to-HOME handoff'
 PID_RETURN="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_RETURN" ]] || fail "process died returning HOME"
-adb shell uiautomator dump /sdcard/celine-real-return.xml >/dev/null || fail "HOME-return UI dump failed"
-adb pull /sdcard/celine-real-return.xml real-candidate-home-return.xml >/dev/null || fail "HOME-return UI pull failed"
-adb exec-out screencap -p > real-candidate-home-return.png
+adb exec-out screencap -p > real-candidate-home-return.png || fail "HOME-return screenshot failed"
+dump_ui_with_retry /sdcard/celine-real-return.xml real-candidate-home-return.xml HOME_RETURN
 grep -q 'Mit Celin' real-candidate-home-return.xml || fail "HOME did not recover"
 grep -q 'Celin 3D Ansicht' real-candidate-home-return.xml || fail "HOME-return 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETURN
