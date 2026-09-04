@@ -25,6 +25,7 @@ TARGETS_PATH = Path(os.environ.get(
 )).resolve()
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
 REFERENCE_RENDER_SIZE = (1376, 1100)
+ROOM_HALF_X = 2.20
 
 ALL_INSTANCE_IDS = [
     "room_bed",
@@ -338,6 +339,32 @@ def projected_bbox(camera, instance_id):
     }
 
 
+def side_wall_fit_penalty(instance_id):
+    """Reject a mathematically good bed bbox that is actually hidden in a side wall.
+
+    Proof #44 made the failure measurable: the solver's unclipped bed projection
+    reached the target/right image edge, while the actual instance-ID render only
+    showed the bed to about x=0.86 because the headboard geometry sat outside the
+    4.40 m clear interior and was occluded by room_shell_right. Keep the source
+    GLB unchanged and constrain the derived anchor so the full bed mesh stays
+    inside the exact +/-2.20 m side-wall planes.
+    """
+    if instance_id != "room_bed":
+        return 0.0
+    geometry = geometry_root(instance_id)
+    xs = []
+    for obj in descendants(geometry):
+        if obj.type != "MESH":
+            continue
+        for corner in obj.bound_box:
+            xs.append(float((obj.matrix_world @ Vector(corner)).x))
+    if not xs:
+        return 1e9
+    min_x, max_x = min(xs), max(xs)
+    overflow = max(0.0, -ROOM_HALF_X - min_x) + max(0.0, max_x - ROOM_HALF_X)
+    return (overflow / 0.01) ** 2
+
+
 def apply_anchor_params(instance_id, params, wall=False, reground_now=True):
     a = anchor(instance_id)
     if wall:
@@ -402,7 +429,7 @@ def solve_instance(camera, instance_id, target):
     # normalized again before its reported bbox/objective is recorded.
     apply_anchor_params(instance_id, p, wall=wall, reground_now=True)
     best_box = projected_bbox(camera, instance_id)
-    best = bbox_objective(best_box, target)
+    best = bbox_objective(best_box, target) + side_wall_fit_penalty(instance_id)
 
     for _ in range(8):
         improved = True
@@ -416,7 +443,7 @@ def solve_instance(camera, instance_id, target):
                     cand[i] = clamp(cand[i] + sign * steps[i], *bounds[i])
                     apply_anchor_params(instance_id, cand, wall=wall, reground_now=False)
                     box = projected_bbox(camera, instance_id)
-                    score = bbox_objective(box, target)
+                    score = bbox_objective(box, target) + side_wall_fit_penalty(instance_id)
                     if score + 1e-8 < best:
                         p, best, best_box, improved = cand, score, box, True
                     else:
@@ -425,7 +452,7 @@ def solve_instance(camera, instance_id, target):
 
     apply_anchor_params(instance_id, p, wall=wall, reground_now=True)
     final_box = projected_bbox(camera, instance_id)
-    final_score = float(bbox_objective(final_box, target))
+    final_score = float(bbox_objective(final_box, target) + side_wall_fit_penalty(instance_id))
     a = anchor(instance_id)
     a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
     a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
