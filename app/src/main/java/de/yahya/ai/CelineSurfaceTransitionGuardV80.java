@@ -30,6 +30,7 @@ final class CelineSurfaceTransitionGuardV80 {
     private static final long SNAPSHOT_INTERVAL_MS = 320L;
     private static final long MIN_READY_MS = 620L;
     private static final int MAX_READY_ATTEMPTS = 48;
+    private static final int RETIRED_SURFACE_UI_FRAMES = 2;
     private static final int POST_REMOVAL_UI_FRAMES = 2;
     private static final WeakHashMap<Celine3DView, Guard> GUARDS = new WeakHashMap<>();
 
@@ -61,6 +62,7 @@ final class CelineSurfaceTransitionGuardV80 {
         ImageView cover;
         boolean snapshotInFlight;
         boolean installed;
+        boolean surfaceHeldInvisible;
         int lastLeft;
         int lastTop;
         int lastWidth;
@@ -96,7 +98,8 @@ final class CelineSurfaceTransitionGuardV80 {
         }
 
         void captureSurfaceFrame() {
-            if (snapshotInFlight || cover != null || !surface.isAttachedToWindow()) return;
+            if (snapshotInFlight || cover != null || surfaceHeldInvisible
+                    || !surface.isAttachedToWindow()) return;
             int width = surface.getWidth();
             int height = surface.getHeight();
             if (width <= 1 || height <= 1) return;
@@ -111,7 +114,8 @@ final class CelineSurfaceTransitionGuardV80 {
             try {
                 PixelCopy.request(surface, bitmap, result -> {
                     snapshotInFlight = false;
-                    if (!installed || cover != null || result != PixelCopy.SUCCESS || bitmap.isRecycled()
+                    if (!installed || cover != null || surfaceHeldInvisible
+                            || result != PixelCopy.SUCCESS || bitmap.isRecycled()
                             || !hasVisibleCelinePixels(bitmap)) {
                         if (!bitmap.isRecycled()) bitmap.recycle();
                         return;
@@ -155,17 +159,83 @@ final class CelineSurfaceTransitionGuardV80 {
                 return;
             }
             installCover();
+            if (cover != null) retireSurfaceLayerBeforeReparent();
         }
 
         @Override public void onViewAttachedToWindow(View v) {
             if (!installed) return;
             main.removeCallbacks(snapshotLoop);
+            if (surfaceHeldInvisible) {
+                releaseReplacementSurfaceAfterRetirement(RETIRED_SURFACE_UI_FRAMES);
+                return;
+            }
             if (cover == null) {
                 main.post(snapshotLoop);
                 return;
             }
             transitionStartedAt = SystemClock.elapsedRealtime();
             main.postDelayed(() -> waitForReady(-1, -1, 0, 0), 140L);
+        }
+
+        /**
+         * A Java detach plus SurfaceHolder destruction is not enough to guarantee that the retired
+         * SurfaceControl layer has disappeared from the next window screenshot. Proof #122 showed a
+         * stale CALL-sized surface still composited behind the recreated HOME surface, yielding a
+         * room-inside-room duplicate even though there was only one Celine3DView constructor.
+         *
+         * Keep the real PixelCopy cover, but explicitly mark the child SurfaceView INVISIBLE while
+         * detached. On reattach we allow two parent UI traversals with no SurfaceView layer before
+         * making the replacement surface visible. This forces the retired compositor layer out of
+         * the hierarchy before Android creates/presents the new HOME/CALL surface. No renderer,
+         * camera, room or model state is changed.
+         */
+        void retireSurfaceLayerBeforeReparent() {
+            try {
+                surface.setVisibility(View.INVISIBLE);
+                surfaceHeldInvisible = true;
+                Celine3DDiagnostics.record(activity, "V80-514",
+                        "Retired SurfaceView vor Reparent explizit ausgeblendet",
+                        "surfaceVisibility=INVISIBLE compositorRetirement=true");
+            } catch (Throwable error) {
+                surfaceHeldInvisible = false;
+                Celine3DDiagnostics.error(activity, "V80-519",
+                        "Retired SurfaceView Ausblendung FEHLER", error);
+            }
+        }
+
+        void releaseReplacementSurfaceAfterRetirement(int uiFramesRemaining) {
+            if (!installed || !surfaceHeldInvisible) return;
+            if (!view.isAttachedToWindow()) {
+                main.postDelayed(
+                        () -> releaseReplacementSurfaceAfterRetirement(uiFramesRemaining), 70L);
+                return;
+            }
+            if (uiFramesRemaining > 0) {
+                view.postOnAnimation(
+                        () -> releaseReplacementSurfaceAfterRetirement(uiFramesRemaining - 1));
+                return;
+            }
+            try {
+                surface.setVisibility(View.VISIBLE);
+                surfaceHeldInvisible = false;
+                transitionStartedAt = SystemClock.elapsedRealtime();
+                Celine3DDiagnostics.record(activity, "V80-515",
+                        "Replacement SurfaceView nach Compositor-Retirement freigegeben",
+                        "retiredUiFrames=" + RETIRED_SURFACE_UI_FRAMES
+                                + " surfaceVisibility=VISIBLE");
+                if (cover == null) {
+                    main.postDelayed(snapshotLoop, 140L);
+                } else {
+                    main.postDelayed(() -> waitForReady(-1, -1, 0, 0), 140L);
+                }
+            } catch (Throwable error) {
+                surfaceHeldInvisible = false;
+                try { surface.setVisibility(View.VISIBLE); } catch (Throwable ignored) {}
+                Celine3DDiagnostics.error(activity, "V80-519",
+                        "Replacement SurfaceView Freigabe FEHLER", error);
+                if (cover != null) main.postDelayed(() -> waitForReady(-1, -1, 0, 0), 140L);
+                else main.post(snapshotLoop);
+            }
         }
 
         void installCover() {
@@ -198,7 +268,7 @@ final class CelineSurfaceTransitionGuardV80 {
 
         void waitForReady(int priorWidth, int priorHeight, int stablePasses, int attempts) {
             if (!installed || cover == null) return;
-            if (!view.isAttachedToWindow()) {
+            if (surfaceHeldInvisible || !view.isAttachedToWindow()) {
                 if (attempts < MAX_READY_ATTEMPTS) {
                     main.postDelayed(() -> waitForReady(priorWidth, priorHeight, 0, attempts + 1), 140L);
                 }
@@ -225,7 +295,8 @@ final class CelineSurfaceTransitionGuardV80 {
         }
 
         void captureReadyTargetFrame(int width, int height, int attempts) {
-            if (cover == null || snapshotInFlight || !surface.isAttachedToWindow()) {
+            if (cover == null || surfaceHeldInvisible || snapshotInFlight
+                    || !surface.isAttachedToWindow()) {
                 main.postDelayed(() -> waitForReady(width, height, 0, attempts + 1), 140L);
                 return;
             }
@@ -276,7 +347,7 @@ final class CelineSurfaceTransitionGuardV80 {
          */
         void waitForCoverFreeDirectFrame(int uiFramesRemaining, int attempts) {
             if (!installed || cover != null) return;
-            if (!view.isAttachedToWindow() || !surface.isAttachedToWindow()
+            if (surfaceHeldInvisible || !view.isAttachedToWindow() || !surface.isAttachedToWindow()
                     || surface.getWidth() <= 1 || surface.getHeight() <= 1 || snapshotInFlight) {
                 retryCoverFreeDirectFrame(uiFramesRemaining, attempts);
                 return;
@@ -299,9 +370,10 @@ final class CelineSurfaceTransitionGuardV80 {
             try {
                 PixelCopy.request(surface, bitmap, result -> {
                     snapshotInFlight = false;
-                    if (!installed || cover != null || !view.isAttachedToWindow()
-                            || !surface.isAttachedToWindow() || result != PixelCopy.SUCCESS
-                            || bitmap.isRecycled() || !hasVisibleCelinePixels(bitmap)) {
+                    if (!installed || cover != null || surfaceHeldInvisible
+                            || !view.isAttachedToWindow() || !surface.isAttachedToWindow()
+                            || result != PixelCopy.SUCCESS || bitmap.isRecycled()
+                            || !hasVisibleCelinePixels(bitmap)) {
                         if (!bitmap.isRecycled()) bitmap.recycle();
                         retryCoverFreeDirectFrame(0, attempts);
                         return;
@@ -311,6 +383,7 @@ final class CelineSurfaceTransitionGuardV80 {
                     Celine3DDiagnostics.record(activity, "V80-512",
                             "Surface-Rebuild auf direkten echten Zielframe freigegeben",
                             "directSurfaceFrameVisible=true stableStage=true v45CoverCleared=true"
+                                    + " retiredSurfaceUiFrames=" + RETIRED_SURFACE_UI_FRAMES
                                     + " coverFreeUiFrames=" + POST_REMOVAL_UI_FRAMES
                                     + " postRemovalPixelCopy=true");
                 }, main);
