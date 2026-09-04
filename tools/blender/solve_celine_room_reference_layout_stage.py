@@ -23,10 +23,12 @@ confirmed the multistart orientation search still lands at the same near-depth
 saturation (user-Z=2.10). Proof #59 then proved that widening depth alone is not
 a safe search: a fresh builder seed converged all the way to user-Z=2.55,
 clipped almost the whole table out of the frame, and regressed the objective
-from 11.489 to 26.004. Keep the widened feasible envelope, but include the exact
-Proof #58 candidate as a non-regression seed and add bounded depth multistarts
-around it so the optimizer can search the useful foreground interval without
-losing the best measured state.
+from 11.489 to 26.004. Proof #60 recovered a numerically exact clipped bbox at
+user-Z=2.37, but direct inspection of the instance-ID render showed the table
+as a strongly diagonal triangular/trapezoid foreground mass. The reference and
+Proof #58 both show the tabletop's far edge approximately horizontal. Preserve
+the widened depth search but constrain the source orientation to that visually
+correct near-frontal yaw branch; bbox equality alone is not visual acceptance.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -115,20 +117,19 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "steps": [0.10, 0.10, 0.08, 5.0],
 }
 
-# Proof #58: yaw multistart improved no further because the table remained
-# saturated at user-Z=2.10 while its top was still 0.739 (target 0.782) and
-# width 0.845 (target 1.000). The open camera-facing side of the room has no
-# front wall; allow this foreground anchor to approach the camera, but keep a
-# conservative 0.32 m anchor clearance from the solved camera at user-Z≈2.87.
+# Proof #60 matched the clipped axis-aligned bbox only by rotating the tabletop
+# to yaw -14.8°, which makes its far edge visibly diagonal. Proof #58's yaw
+# +5.86° keeps that edge approximately horizontal like Refernzbild.png. Search
+# depth/scale freely, but remain on that visually valid near-frontal branch.
 solver.SOLVE_LIMITS["room_foreground_table"] = {
     "wall": False,
     "bounds": [
         (-0.75, 0.75),
         (1.15, 2.55),
         (0.20, 1.80),
-        (-100.0, 100.0),
+        (-2.0, 12.0),
     ],
-    "steps": [0.20, 0.18, 0.15, 15.0],
+    "steps": [0.20, 0.18, 0.15, 2.0],
 }
 
 _base_solve_instance = solver.solve_instance
@@ -151,15 +152,11 @@ def _solve_foreground_table_multistart(camera, target):
 
     # Exact measured candidate from Proof #58. Because the architecture/camera
     # solve is deterministic, retaining this seed makes the widened search
-    # fail-safe: a later multistart can improve it, but cannot regress past it.
+    # fail-safe. The depth multistarts explore the missing foreground interval
+    # while the yaw bounds preserve the directly verified horizontal-edge branch.
     proof58 = [0.30625, 2.10, 0.5199218988418579, 5.859375]
     depth_seeds = [2.10, 2.22, 2.34, 2.46]
-    seeds = [
-        list(original),
-        [original[0], original[1], original[2], 90.0],
-        [original[0], original[1], original[2], -90.0],
-        list(proof58),
-    ]
+    seeds = [list(original), list(proof58)]
     seeds.extend([[proof58[0], depth, proof58[2], proof58[3]] for depth in depth_seeds[1:]])
 
     best = None
@@ -185,6 +182,7 @@ def _solve_foreground_table_multistart(camera, target):
     a["reference_multistart_yaw_seeds_deg"] = [float(seed[3]) for seed in seeds]
     a["reference_multistart_depth_seeds"] = [float(seed[1]) for seed in seeds]
     a["reference_non_regression_seed"] = "proof58_exact_candidate"
+    a["reference_visual_yaw_branch_deg"] = [-2.0, 12.0]
     return best_params, final_box, final_score
 
 
