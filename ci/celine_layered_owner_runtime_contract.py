@@ -114,8 +114,12 @@ planner_order = [planner.index(name) for name in (
 require(planner_order == sorted(planner_order),
         "blink/expression/viseme/gaze planner order changed unexpectedly")
 
+# The sole v80 owner deliberately refined the accepted seated CALL leg pose in
+# 566f106 (thigh pitch -88°, inward roll ±10°) while preserving root/knee/foot
+# and the accepted CALL arm envelope. Keep this aggregate contract aligned with
+# that canonical owner instead of the superseded -82° v70 literal.
 for token in ("CALL_ROOT_DOWN = -0.30f", "CALL_ROOT_FORWARD = 0.12f",
-              "call * -82.0f", "call * 92.0f", "call * -8.0f",
+              "call * -88.0f", "call * 92.0f", "call * -8.0f",
               "call * (30.5f", "call * (-30.5f"):
     require(token in owner, f"accepted CALL seat/arm constant missing: {token}")
 
