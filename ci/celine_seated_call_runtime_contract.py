@@ -38,8 +38,8 @@ required_source = {
     "ROOT_DOWN = -0.30f": "bounded seated root lowering",
     "ROOT_FORWARD = 0.12f": "bounded seated root depth",
     "HIPS_PITCH = -5.0f": "bounded pelvis adjustment",
-    "UPPER_LEG_PITCH = -82.0f": "relaxed seated thigh angle",
-    "UPPER_LEG_INWARD_ROLL = 4.0f": "bounded relaxed seated thigh roll",
+    "UPPER_LEG_PITCH = -82.0f": "legacy v70 relaxed seated thigh angle",
+    "UPPER_LEG_INWARD_ROLL = 4.0f": "legacy v70 bounded relaxed seated thigh roll",
     "LOWER_LEG_PITCH = 92.0f": "credible seated knee angle",
     "FOOT_PITCH = -8.0f": "credible seated foot angle",
     "applyRotation(leftUpLeg, UPPER_LEG_PITCH, 0f, UPPER_LEG_INWARD_ROLL)": "bounded relaxed left thigh convergence",
@@ -78,13 +78,16 @@ for lifecycle in ("install", "onPaused", "onDestroyed"):
     if f"CelineSeatedCallV70.{lifecycle}(activity" in application:
         raise SystemExit(f"v70 seat writer still competes with v80: {lifecycle}")
 
+# The sole v80 production owner intentionally refined the canonical CALL leg pose on
+# 2026-09-02 while keeping root, pelvis, knee and foot semantics unchanged. Validate
+# the current accepted central-owner representation instead of stale pre-fix literals.
 for token in (
     "CALL_ROOT_DOWN = -0.30f",
     "CALL_ROOT_FORWARD = 0.12f",
     "call * -5.0f",
-    "call * -82.0f",
-    "call * 4.0f",
-    "call * -4.0f",
+    "call * -88.0f",
+    "call * 10.0f",
+    "call * -10.0f",
     "call * 92.0f",
     "call * -8.0f",
 ):
@@ -105,10 +108,10 @@ for forbidden_geometry in (
     "addView(", "removeView(", "setLayoutParams(", "setTranslation",
     "requestLayout(", "scrollTo(", "setLensProjection(", "lookAt(",
 ):
-    for owner, content in (("seated owner", source), ("room backdrop", backdrop)):
+    for owner_name, content in (("seated owner", source), ("room backdrop", backdrop)):
         if forbidden_geometry in content:
             raise SystemExit(
-                f"v70 {owner} unexpectedly changes external UI geometry: {forbidden_geometry}"
+                f"v70 {owner_name} unexpectedly changes external UI geometry: {forbidden_geometry}"
             )
 
-print("v70 accepted CALL seat and behind-Filament chair are preserved under the sole v80 owner: PASS")
+print("v70 provenance and current accepted v80 CALL seat are preserved under the sole v80 owner: PASS")
