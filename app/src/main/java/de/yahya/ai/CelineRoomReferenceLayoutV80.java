@@ -10,74 +10,65 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Runtime room layout rooted in the recovered v25 TRUE3D composition.
+ * Runtime application of the measured 4.40 m x 4.20 m reference-room reconstruction.
  *
- * The canonical bedroom reference was rechecked against the real HOME/CALL proof. The viewer needs
- * to sit farther outside the room while the principal furniture must read substantially larger in
- * relation to Celine. Positions/yaws stay v25-derived; this class owns only bounded visual scales.
- * Canonical Celine is never scaled here.
+ * The immutable combined GLB remains only the runtime geometry carrier. Furniture source bytes are
+ * never changed here. The visible shell and the 13 named furniture instances are transformed from
+ * the real Blender reference solve (Proof #63), using the Android/Filament mapping:
+ * Blender/user X -> -Filament X, user height -> Filament Y, user depth -> Filament Z.
+ *
+ * Celine, her rig and her canonical scale are not touched by this owner.
  */
 final class CelineRoomReferenceLayoutV80 {
-    private static final float SHELL_BACK_Z_OFFSET_M = -1.10f;
-    private static final float SHELL_CENTER_Z_OFFSET_M = -0.525f;
-    private static final float SHELL_DEPTH_SCALE_Z = 1.198275862f; // 6.95 / 5.80
+    private static final float ROOM_WIDTH_SCALE_X = 4.40f / 6.40f;
+    private static final float ROOM_DEPTH_SCALE_Z = 4.20f / 5.80f;
+    private static final float ROOM_HEIGHT_SCALE_Y = 2.65f / 2.80f;
 
+    // Proof #63 reference-solved furniture. Floor-standing Y values preserve exact source-floor
+    // contact under the solved scale; wall/tabletop Y values are the solver's explicit user height.
     private static final Spec BED =
-            new Spec("room_bed", 1.81f, 0.831563086f, -1.82f,
-                    1.98f, 1.98f, 1.98f, -90.0f);
+            new Spec("room_bed", 1.025000f, 0.486260f, -0.437500f,
+                    1.157812f, 1.157812f, 1.157812f, -85.000003f);
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.82f, 1.237634001f, -0.70f,
-                    1.90f, 1.90f, 1.90f, 90.0f);
+            new Spec("room_dresser", -2.135313f, 0.470423f, 0.000000f,
+                    0.722188f, 0.722188f, 0.722188f, 87.714844f);
     private static final Spec LARGE_PLANT =
-            new Spec("room_plant_large", -2.72f, 1.380500613f, -2.92f,
-                    1.45f, 1.45f, 1.45f, 0.0f);
+            new Spec("room_plant_large", -2.150000f, 0.982714f, -1.800000f,
+                    0.674688f, 1.032188f, 0.674688f, -15.292969f);
     private static final Spec SMALL_PLANT =
-            new Spec("room_plant_small", 1.72f, 0.457019250f, -2.55f,
-                    0.48f, 0.48f, 0.48f, 0.0f);
+            new Spec("room_plant_small", 2.129375f, 0.572656f, 0.355000f,
+                    0.105625f, 0.105625f, 0.105625f, 21.972656f);
     private static final Spec LAMP =
-            new Spec("room_floor_lamp", -1.62f, 0.781045233f, -3.18f,
-                    0.82f, 0.82f, 0.82f, 0.0f);
+            new Spec("room_floor_lamp", -1.805938f, 0.839534f, -2.013125f,
+                    0.125000f, 0.881406f, 0.125000f, -22.085938f);
     private static final Spec NIGHTSTAND_FRONT =
-            new Spec("room_nightstand_front", 2.55f, 0.647219751f, -0.42f,
-                    0.68f, 0.68f, 0.68f, 270.0f);
+            new Spec("room_nightstand_front", 1.936563f, 0.312902f, 0.550000f,
+                    0.328750f, 0.328750f, 0.328750f, 130.195313f);
     private static final Spec NIGHTSTAND_BACK =
-            new Spec("room_nightstand_back", 2.55f, 0.599630064f, -3.18f,
-                    0.63f, 0.63f, 0.63f, 270.0f);
+            new Spec("room_nightstand_back", 1.600000f, 0.499097f, -0.908438f,
+                    0.524375f, 0.524375f, 0.524375f, 106.699219f);
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -2.28f, 0.587438800f, -3.18f,
-                    0.65f, 0.65f, 0.65f, 25.0f);
+            new Spec("room_lounge_chair", -1.569531f, 0.342861f, -1.550000f,
+                    0.379375f, 0.379375f, 0.379375f, -5.687500f);
     private static final Spec RUG =
-            new Spec("room_rug", 0.14f, 0.007724571f, -0.91f,
-                    2.95f, 1.00f, 2.05f, 0.0f);
-
-    // Keep only a low webcam/desk edge in frame; the reference does not have a table band across
-    // Celine's torso. X remains wide enough to read as a desk, while height/depth are reduced.
+            new Spec("room_rug", 0.067188f, 0.012676f, -0.295313f,
+                    1.641016f, 1.641016f, 1.641016f, 5.820313f);
     private static final Spec TABLE =
-            new Spec("room_foreground_table", 0.0f, 0.403914546f, 3.20f,
-                    1.05f, 0.72f, 0.65f, 0.0f);
-
-    // The reference opening/curtains occupy a much broader rear-wall span than the previous proof.
+            new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.280000f,
+                    0.519922f, 0.519922f, 0.519922f, -2.000000f);
     private static final Spec WINDOW =
-            new Spec("room_window_drapes", -0.82f, 1.43f, -3.80f,
-                    2.25f, 1.85f, 1.85f, 0.0f);
+            new Spec("room_window_drapes", -0.575000f, 1.400000f, -2.092500f,
+                    1.490625f, 1.490625f, 1.490625f, -8.437500f);
     private static final Spec SHELF =
-            new Spec("room_wall_shelf_books", 1.35f, 2.13f, -3.66f,
-                    0.68f, 0.68f, 0.68f, 0.0f);
+            new Spec("room_wall_shelf_books", 1.400000f, 1.894062f, -1.916250f,
+                    0.351875f, 0.351875f, 0.351875f, 5.820313f);
     private static final Spec MIRROR =
-            new Spec("room_round_mirror", -3.08f, 1.73f, 0.35f,
-                    0.72f, 0.72f, 0.72f, 90.0f);
+            new Spec("room_round_mirror", -1.960156f, 1.468750f, 0.565000f,
+                    0.290000f, 0.290000f, 0.290000f, -65.312500f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
             RUG, NIGHTSTAND_FRONT, NIGHTSTAND_BACK, SMALL_PLANT, TABLE
-    };
-
-    private static final String[] BED_MARKER_NODES = {
-            "bed_approach_anchor", "bed_edge_sit_anchor", "bed_relax_anchor",
-            "bed_lie_anchor", "bed_exit_anchor"
-    };
-    private static final String[] CHAIR_MARKER_NODES = {
-            "chair_approach_anchor", "chair_sit_anchor"
     };
 
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED = new WeakHashMap<>();
@@ -100,66 +91,43 @@ final class CelineRoomReferenceLayoutV80 {
                 if (APPLIED.get(view) == asset) return;
             }
 
-            translateParentLocal(asset, transforms, "room_back_wall",
-                    0f, 0f, SHELL_BACK_Z_OFFSET_M, true);
-            for (String shell : new String[]{
-                    "room_floor", "room_left_wall", "room_right_wall", "room_ceiling"}) {
-                translateParentLocal(asset, transforms, shell,
-                        0f, 0f, SHELL_CENTER_Z_OFFSET_M, true);
-                scaleLocalXyz(asset, transforms, shell,
-                        1f, 1f, SHELL_DEPTH_SCALE_Z, true);
-            }
+            // Recompose only the visible shell from the immutable legacy carrier. The original shell
+            // is 6.4 x 5.8 x 2.8 m with its origin at the room centre/floor. Move wall planes to the
+            // exact 4.4 x 4.2 bounds and scale their spans; interaction anchors are not touched here.
+            translateParentLocal(asset, transforms, "room_left_wall", 1.0f, 0f, 0f, true);
+            translateParentLocal(asset, transforms, "room_right_wall", -1.0f, 0f, 0f, true);
+            translateParentLocal(asset, transforms, "room_back_wall", 0f, 0f, 0.8f, true);
+            translateParentLocal(asset, transforms, "room_ceiling", 0f, -0.15f, 0f, true);
+
+            scaleLocalXyz(asset, transforms, "room_floor",
+                    ROOM_WIDTH_SCALE_X, 1f, ROOM_DEPTH_SCALE_Z, true);
+            scaleLocalXyz(asset, transforms, "room_ceiling",
+                    ROOM_WIDTH_SCALE_X, 1f, ROOM_DEPTH_SCALE_Z, true);
+            scaleLocalXyz(asset, transforms, "room_back_wall",
+                    ROOM_WIDTH_SCALE_X, ROOM_HEIGHT_SCALE_Y, 1f, true);
+            scaleLocalXyz(asset, transforms, "room_left_wall",
+                    1f, ROOM_HEIGHT_SCALE_Y, ROOM_DEPTH_SCALE_Z, true);
+            scaleLocalXyz(asset, transforms, "room_right_wall",
+                    1f, ROOM_HEIGHT_SCALE_Y, ROOM_DEPTH_SCALE_Z, true);
 
             for (Spec spec : ROOM_FURNITURE) {
                 setAbsoluteTrs(asset, transforms, spec, true);
             }
 
-            int movedBedMarkers = 0;
-            for (String marker : BED_MARKER_NODES) {
-                if (translateParentLocal(asset, transforms, marker, -0.14f, 0f, -1.07f, false)) {
-                    movedBedMarkers++;
-                }
-            }
-            boolean movedDresserMarker = translateParentLocal(
-                    asset, transforms, "dresser_anchor", 0.08f, 0f, -1.05f, false);
-            boolean movedLampMarker = translateParentLocal(
-                    asset, transforms, "lamp_anchor", -0.07f, 0f, -4.73f, false);
-            int movedChairMarkers = 0;
-            for (String marker : CHAIR_MARKER_NODES) {
-                if (translateParentLocal(asset, transforms, marker, -0.53f, 0f, -2.18f, false)) {
-                    movedChairMarkers++;
-                }
-            }
-            translateParentLocal(asset, transforms,
-                    "foreground_table_approach_anchor", 0f, 0f, 1.10f, false);
-            translateParentLocal(asset, transforms,
-                    "foreground_table_lean_anchor", 0f, 0f, 1.10f, false);
-            translateParentLocal(asset, transforms,
-                    "window_anchor", -1.27f, 0f, -1.097f, false);
-            translateParentLocal(asset, transforms,
-                    "shelf_anchor", 3.40f, 0f, -1.098f, false);
-            translateParentLocal(asset, transforms,
-                    "mirror_anchor", 0.04f, 0f, 0f, false);
-
             synchronized (APPLIED) {
                 APPLIED.put(view, asset);
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
-                    "Raumlayout nach Referenz-Recheck aktiv",
-                    "authority=v25-position-yaw + canonical-reference-scale"
-                            + " shellWorldZ=-1.05..-8.00"
-                            + " furniture=13 absoluteTRS"
-                            + " bedScale=1.98 dresserScale=1.90 chairScale=0.65"
-                            + " lampScale=0.82 tableScale=1.05/0.72/0.65"
-                            + " windowScale=2.25/1.85/1.85 shelfScale=0.68 mirrorScale=0.72"
+                    "4.40x4.20 Referenz-Solverlayout aktiv",
+                    "authority=Refernzbild.png + exact-room Proof#63"
+                            + " shell=4.40x4.20x2.65"
+                            + " furniture=13 referenceSolvedAbsoluteTRS"
+                            + " sourceGLBsMutated=false"
                             + " canonicalCelineScale=false"
-                            + " bedMarkersMoved=" + movedBedMarkers
-                            + " chairMarkersMoved=" + movedChairMarkers
-                            + " dresserMarkerMoved=" + movedDresserMarker
-                            + " lampMarkerMoved=" + movedLampMarker);
+                            + " anchorsChanged=false");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
-                    "Raumlayout FEHLER", error);
+                    "Referenz-Solverlayout FEHLER", error);
         }
     }
 
