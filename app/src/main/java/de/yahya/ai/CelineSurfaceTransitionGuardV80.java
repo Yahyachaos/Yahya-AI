@@ -30,6 +30,7 @@ final class CelineSurfaceTransitionGuardV80 {
     private static final long SNAPSHOT_INTERVAL_MS = 320L;
     private static final long MIN_READY_MS = 620L;
     private static final int MAX_READY_ATTEMPTS = 48;
+    private static final int POST_REMOVAL_UI_FRAMES = 2;
     private static final WeakHashMap<Celine3DView, Guard> GUARDS = new WeakHashMap<>();
 
     private CelineSurfaceTransitionGuardV80() {}
@@ -256,10 +257,7 @@ final class CelineSurfaceTransitionGuardV80 {
                     clearV45TransitionCover();
                     current.animate().alpha(0f).setDuration(130L).withEndAction(() -> {
                         removeCover(true);
-                        main.post(snapshotLoop);
-                        Celine3DDiagnostics.record(activity, "V80-512",
-                                "Surface-Rebuild auf direkten echten Zielframe freigegeben",
-                                "directSurfaceFrameVisible=true stableStage=true v45CoverCleared=true");
+                        waitForCoverFreeDirectFrame(POST_REMOVAL_UI_FRAMES, 0);
                     }).start();
                 }, main);
             } catch (Throwable error) {
@@ -267,6 +265,74 @@ final class CelineSurfaceTransitionGuardV80 {
                 bitmap.recycle();
                 main.postDelayed(() -> waitForReady(width, height, 0, attempts + 1), 160L);
             }
+        }
+
+        /**
+         * V80-512 is a proof/readiness marker, so Java-side removeView() alone is not sufficient.
+         * Proof #1074 captured a stale transition bitmap composited over the returned HOME roughly
+         * 200 ms after removeView while the UI thread was skipping frames. Wait for two actual UI
+         * traversal opportunities after cover removal, then require a fresh direct SurfaceView
+         * PixelCopy before announcing that the cover-free target frame is visible.
+         */
+        void waitForCoverFreeDirectFrame(int uiFramesRemaining, int attempts) {
+            if (!installed || cover != null) return;
+            if (!view.isAttachedToWindow() || !surface.isAttachedToWindow()
+                    || surface.getWidth() <= 1 || surface.getHeight() <= 1 || snapshotInFlight) {
+                retryCoverFreeDirectFrame(uiFramesRemaining, attempts);
+                return;
+            }
+            if (uiFramesRemaining > 0) {
+                view.postOnAnimation(() -> waitForCoverFreeDirectFrame(uiFramesRemaining - 1, attempts));
+                return;
+            }
+
+            int width = surface.getWidth();
+            int height = surface.getHeight();
+            final Bitmap bitmap;
+            try {
+                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            } catch (Throwable error) {
+                retryCoverFreeDirectFrame(0, attempts);
+                return;
+            }
+            snapshotInFlight = true;
+            try {
+                PixelCopy.request(surface, bitmap, result -> {
+                    snapshotInFlight = false;
+                    if (!installed || cover != null || !view.isAttachedToWindow()
+                            || !surface.isAttachedToWindow() || result != PixelCopy.SUCCESS
+                            || bitmap.isRecycled() || !hasVisibleCelinePixels(bitmap)) {
+                        if (!bitmap.isRecycled()) bitmap.recycle();
+                        retryCoverFreeDirectFrame(0, attempts);
+                        return;
+                    }
+                    storeFrame(bitmap);
+                    main.post(snapshotLoop);
+                    Celine3DDiagnostics.record(activity, "V80-512",
+                            "Surface-Rebuild auf direkten echten Zielframe freigegeben",
+                            "directSurfaceFrameVisible=true stableStage=true v45CoverCleared=true"
+                                    + " coverFreeUiFrames=" + POST_REMOVAL_UI_FRAMES
+                                    + " postRemovalPixelCopy=true");
+                }, main);
+            } catch (Throwable error) {
+                snapshotInFlight = false;
+                bitmap.recycle();
+                retryCoverFreeDirectFrame(0, attempts);
+            }
+        }
+
+        void retryCoverFreeDirectFrame(int uiFramesRemaining, int attempts) {
+            if (!installed || cover != null) return;
+            if (attempts >= MAX_READY_ATTEMPTS) {
+                main.post(snapshotLoop);
+                Celine3DDiagnostics.record(activity, "V80-516",
+                        "CALL Surface-Transition Direct-Frame Timeout",
+                        "v80ReadyMarkerSuppressed=true attempts=" + attempts
+                                + " coverRemoved=true");
+                return;
+            }
+            main.postDelayed(
+                    () -> waitForCoverFreeDirectFrame(uiFramesRemaining, attempts + 1), 140L);
         }
 
         boolean hasVisibleCelinePixels(Bitmap bitmap) {
