@@ -12,15 +12,18 @@ corrected the large plant, #51 corrected the small plant from a large
 left-floor object to the measured tiny right-bedside target, #52 fitted the
 wall shelf closely to its measured target, #53 moved the floor-lamp anchor
 toward the back/window zone, #54 moved the rear bedside unit to the correct
-bed-side zone, and #55 moved the dresser onto the deeper measured branch.
-Direct inspection of Proof #55 now leaves the floor lamp as the largest measured
-systematic mismatch. Its full projected bbox is y=0.382..0.519 while the visible
-reference lamp is y=0.273..0.420. The lower pole/base is occluded by the lounge
-chair in Refernzbild.png, so fitting the hidden full-object bottom/height against
-the visible target creates a false local minimum. Fit this grounded source by
-its reliable visible top/center/width while leaving the hidden lower extent free
-to remain behind the chair. Preserve camera, all other solved anchors, source
-GLBs and proof-time geometry.
+bed-side zone, #55 moved the dresser onto the deeper measured branch, and #56
+moved the visible floor-lamp top from y=0.382 to y=0.295 (target y=0.273) by
+fitting the visible, non-occluded landmarks rather than its hidden base.
+
+Proof #56 now leaves the foreground table as the largest measured primary
+composition error: candidate width=0.845 versus target=1.000 and top=0.739
+versus target=0.782. The current solve is pinned at the near depth bound while
+the legacy +/-25 degree yaw window prevents testing the physically distinct
+orientation branch that can make the same source wider on screen without
+forcing it farther toward the camera. Expand only that derived table-anchor yaw
+search; preserve camera, all other solved anchors, source GLBs and proof-time
+geometry.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -82,7 +85,6 @@ solver.SOLVE_LIMITS["room_plant_small"] = {
     "steps": [0.12, 0.18, 0.10, 0.06, 7.5],
 }
 
-# The wall shelf is partially occlusion-free and can use its ordinary full bbox.
 solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
     "wall": True,
     "bounds": [
@@ -136,6 +138,20 @@ def _solve_instance_occlusion_aware(camera, instance_id, target):
 
 solver.solve_instance = _solve_instance_occlusion_aware
 
+# Proof #56: the table is too narrow while already at the near depth bound.
+# Search the alternate yaw branch on the ordinary anchor before considering any
+# anisotropic scaling. The source remains unchanged and grounded.
+solver.SOLVE_LIMITS["room_foreground_table"] = {
+    "wall": False,
+    "bounds": [
+        (-0.75, 0.75),
+        (1.15, 2.10),
+        (0.20, 1.80),
+        (-100.0, 100.0),
+    ],
+    "steps": [0.20, 0.18, 0.15, 15.0],
+}
+
 # The rear bedside source is partly hidden by the bed. Its current target is
 # intentionally coarse vertically; its bounded solve primarily fixes placement.
 solver.SOLVE_LIMITS["room_nightstand_rear"] = {
@@ -149,8 +165,7 @@ solver.SOLVE_LIMITS["room_nightstand_rear"] = {
     "steps": [0.16, 0.18, 0.08, 7.5],
 }
 
-# Proof #54 dresser candidate y=0.491..0.808 while target y=0.420..0.718.
-# Keep the already successful deeper branch from Proof #55.
+# Keep the already successful deeper dresser branch from Proof #55.
 solver.SOLVE_LIMITS["room_dresser"] = {
     "wall": False,
     "bounds": [
