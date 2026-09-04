@@ -9,15 +9,15 @@ by the base solver.
 
 Proof #47 confirmed the mirror, #48/#50 corrected the front nightstand, #49
 corrected the large plant, #51 corrected the small plant from a large
-left-floor object to the measured tiny right-bedside target, and #52 fitted the
-wall shelf closely to its measured target. Direct inspection of Proof #52 and
-`reference_solve.json` now identifies `room_floor_lamp` as the largest measured
-geometric error: candidate bbox center=(0.2713, 0.5035), size=(0.0320, 0.0602)
-versus target center=(0.264, 0.347), size=(0.036, 0.147). The prior semantic
-Z-depth lower bound stops the lamp at -1.55 m, so its grounded base projects far
-too low even though the reference places the floor lamp close to the back/window
-zone. Expand only this normal anchor solve toward the back wall and allow the
-uniform scale needed by the measured height. Preserve camera, all other solved
+left-floor object to the measured tiny right-bedside target, #52 fitted the
+wall shelf closely to its measured target, and #53 moved the floor-lamp anchor
+toward the back/window zone. Direct inspection of Proof #53 now exposes a more
+important visible layout error than further lamp micro-tuning: the unsolved
+`room_nightstand_rear` (the same canonical Nachttisch.glb source, including its
+bedside lamp) still renders as a cyan cabinet/lamp beside the lounge chair on
+the left. `/Refernzbild.png` instead shows that bedside unit behind the bed near
+screen x≈0.70–0.79. Solve that normal derived anchor from the newly recorded,
+explicitly occlusion-qualified target. Preserve camera, all other solved
 anchors, source GLBs and proof-time geometry.
 """
 
@@ -117,12 +117,30 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "steps": [0.10, 0.10, 0.08, 5.0],
 }
 
+# Proof #53 instance-ID evidence shows the rear Nachttisch source still at the
+# lounge-chair/left-window side (projected full bbox about x=0.158..0.288,
+# y=0.332..0.561). The reference shows the same bedside-unit/lamp family behind
+# the bed around x=0.704..0.789. The lower cabinet/legs are occluded by the bed,
+# so the target records that vertical uncertainty explicitly; this bounded solve
+# is primarily the large left/right placement correction and keeps floor contact.
+solver.SOLVE_LIMITS["room_nightstand_rear"] = {
+    "wall": False,
+    "bounds": [
+        (-1.60, -0.30),
+        (-1.80, -0.35),
+        (0.15, 0.80),
+        (45.0, 135.0),
+    ],
+    "steps": [0.16, 0.18, 0.08, 7.5],
+}
+
 for instance_id in (
     "room_round_mirror",
     "room_nightstand_front",
     "room_plant_large",
     "room_plant_small",
     "room_wall_shelf_books",
+    "room_nightstand_rear",
 ):
     if instance_id not in solver.PRIMARY_IDS:
         solver.PRIMARY_IDS.append(instance_id)
