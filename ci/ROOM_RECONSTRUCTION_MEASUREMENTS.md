@@ -84,6 +84,25 @@ Android Build #1197 / run `33908787276` built this runtime head `30c759f71f1d742
 3. Rear nightstand remains lower-confidence because its lower body is bed-occluded. Measure visible evidence before changing it.
 4. Only after primary geometry/layout residuals are small: camera/FOV micro-alignment, then materials/textures/light/shadows/window details/final polish.
 
+## Proof #183 — lifecycle accepted, dominant real-app framing delta isolated
+
+Proof-only head `d5912cf0b1427f3c9f37acfa387f1c980176ac39` reused runtime source `f8338467b77dfbad6a2cc9ab525505c032b08c0f`, fingerprint `1e00a5a9cf761e3698bcced0748164694f997ba6495a6c77c3b7afaf13c8e31b`, from Android Build run `33914454849`. Room Visual Polish Proof #183 / run `33917925872` / artifact `9953944716` completed structurally and its real `home.png`, `call.png` and `home-return.png` were opened manually.
+
+Lifecycle verdict: **PASS for the bounded compositor blocker only**. HOME return now contains exactly one room and one Celine; the nested stale CALL-sized SurfaceView visible in prior Proof #122 is gone. This does not constitute room visual acceptance.
+
+Measured current HOME framing from the real proof:
+- settled HOME SurfaceView: `964 x 761 px` (`REN-324` / pre-CALL `V80-511`).
+- largest warm room/render component within that exact surface: approximately `x=187..798`, `y=272..622`, envelope `612 x 351 px`.
+- occupied fraction: approximately `0.635 W x 0.461 H`; the authoritative reference is an immersive crop that fills essentially the frame, so this global underfill dominates the smaller remaining furniture deltas.
+- the 12 original furniture GLBs and accepted derived furniture TRS are therefore not the first correction target.
+
+Root-cause reconciliation from the same real log and current source:
+- `Celine3DView` applies the accepted exact reconstruction projection every frame: lens `20.846875 mm`; converted runtime eye `(-0.380078125,-0.3265625,-1.1265625)`; target `(-0.0565625,-1.10,-4.30)`.
+- immediately afterward the legacy `CelineReferenceHomeCameraV80` owner is still active (`ROOM-160`) and rewrites HOME to eye `(0,1.05,3.10)`, target `(0,-0.60,-4.00)`, a `7.10 m` dolly branch. This explains the real-app dollhouse composition even though the exact proof camera itself is already present in runtime.
+- bounded correction: retire only that stale second HOME camera write and preserve `Celine3DView` as the single exact camera owner. Do not alter room geometry, accepted furniture TRS, Celine identity/rig or materials in the same step.
+
+After that runtime correction: exactly one Android build, then one real HOME/CALL/HOME proof. Accept the step only if HOME is no longer globally underfilled, CALL remains direct/nonblank, and HOME return remains exactly one room/Celine. Then remeasure reference-vs-runtime object silhouettes before choosing the next largest delta.
+
 ## Iteration rule
 
 For every bounded step: re-read live authority -> confirm single-flight -> measure actual reference/proof -> change one evidenced primary error -> run only the smallest required proof -> open and inspect the actual image -> record target/current/delta -> continue. Solver/proof-only changes require no APK build; each runtime fingerprint change requires exactly one Android build. No visual PASS may be recorded while a relevant visible difference remains.
