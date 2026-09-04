@@ -20,9 +20,13 @@ Proof #57 confirmed that merely widening the foreground-table yaw bounds is not
 enough: coordinate descent stayed in the same yaw≈5.9° local minimum, still
 width=0.845 versus target=1.000 and top=0.739 versus target=0.782. Proof #58
 confirmed the multistart orientation search still lands at the same near-depth
-saturation (user-Z=2.10). The reference table is the clipped foreground band,
-so extend only this anchor's near-camera feasible depth while keeping the
-camera, room shell and source geometry unchanged.
+saturation (user-Z=2.10). Proof #59 then proved that widening depth alone is not
+a safe search: a fresh builder seed converged all the way to user-Z=2.55,
+clipped almost the whole table out of the frame, and regressed the objective
+from 11.489 to 26.004. Keep the widened feasible envelope, but include the exact
+Proof #58 candidate as a non-regression seed and add bounded depth multistarts
+around it so the optimizer can search the useful foreground interval without
+losing the best measured state.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -144,11 +148,20 @@ def _floor_lamp_visible_objective(candidate, target):
 def _solve_foreground_table_multistart(camera, target):
     instance_id = "room_foreground_table"
     original = solver.current_anchor_params(instance_id, wall=False)
+
+    # Exact measured candidate from Proof #58. Because the architecture/camera
+    # solve is deterministic, retaining this seed makes the widened search
+    # fail-safe: a later multistart can improve it, but cannot regress past it.
+    proof58 = [0.30625, 2.10, 0.5199218988418579, 5.859375]
+    depth_seeds = [2.10, 2.22, 2.34, 2.46]
     seeds = [
         list(original),
         [original[0], original[1], original[2], 90.0],
         [original[0], original[1], original[2], -90.0],
+        list(proof58),
     ]
+    seeds.extend([[proof58[0], depth, proof58[2], proof58[3]] for depth in depth_seeds[1:]])
+
     best = None
     for seed in seeds:
         solver.apply_anchor_params(instance_id, seed, wall=False, reground_now=True)
@@ -170,6 +183,8 @@ def _solve_foreground_table_multistart(camera, target):
     a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
     a["reference_screen_objective"] = final_score
     a["reference_multistart_yaw_seeds_deg"] = [float(seed[3]) for seed in seeds]
+    a["reference_multistart_depth_seeds"] = [float(seed[1]) for seed in seeds]
+    a["reference_non_regression_seed"] = "proof58_exact_candidate"
     return best_params, final_box, final_score
 
 
