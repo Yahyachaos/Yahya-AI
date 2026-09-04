@@ -16,14 +16,13 @@ bed-side zone, #55 moved the dresser onto the deeper measured branch, and #56
 moved the visible floor-lamp top from y=0.382 to y=0.295 (target y=0.273) by
 fitting the visible, non-occluded landmarks rather than its hidden base.
 
-Proof #56 now leaves the foreground table as the largest measured primary
-composition error: candidate width=0.845 versus target=1.000 and top=0.739
-versus target=0.782. The current solve is pinned at the near depth bound while
-the legacy +/-25 degree yaw window prevents testing the physically distinct
-orientation branch that can make the same source wider on screen without
-forcing it farther toward the camera. Expand only that derived table-anchor yaw
-search; preserve camera, all other solved anchors, source GLBs and proof-time
-geometry.
+Proof #57 confirmed that merely widening the foreground-table yaw bounds is not
+enough: coordinate descent stayed in the same yaw≈5.9° local minimum, still
+width=0.845 versus target=1.000 and top=0.739 versus target=0.782. Evaluate the
+physically distinct +/-90° source-orientation branches deterministically and
+keep only the lowest ordinary screen-space objective. This is still a normal
+derived anchor solve: no source mutation, no child transform and no proof-time
+geometry correction.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -112,6 +111,20 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "steps": [0.10, 0.10, 0.08, 5.0],
 }
 
+# Proof #57: the table is too narrow while already at the near depth bound.
+# Keep the broad yaw domain and explicitly seed each distinct orientation branch
+# because coordinate descent cannot cross the worse intermediate yaw states.
+solver.SOLVE_LIMITS["room_foreground_table"] = {
+    "wall": False,
+    "bounds": [
+        (-0.75, 0.75),
+        (1.15, 2.10),
+        (0.20, 1.80),
+        (-100.0, 100.0),
+    ],
+    "steps": [0.20, 0.18, 0.15, 15.0],
+}
+
 _base_solve_instance = solver.solve_instance
 _base_bbox_objective = solver.bbox_objective
 
@@ -126,7 +139,41 @@ def _floor_lamp_visible_objective(candidate, target):
     )
 
 
-def _solve_instance_occlusion_aware(camera, instance_id, target):
+def _solve_foreground_table_multistart(camera, target):
+    instance_id = "room_foreground_table"
+    original = solver.current_anchor_params(instance_id, wall=False)
+    seeds = [
+        list(original),
+        [original[0], original[1], original[2], 90.0],
+        [original[0], original[1], original[2], -90.0],
+    ]
+    best = None
+    for seed in seeds:
+        solver.apply_anchor_params(instance_id, seed, wall=False, reground_now=True)
+        result = _base_solve_instance(camera, instance_id, target)
+        if best is None or float(result[2]) < float(best[2]):
+            best = result
+    if best is None:
+        raise RuntimeError("foreground table multistart produced no candidate")
+
+    best_params = list(best[0])
+    solver.apply_anchor_params(instance_id, best_params, wall=False, reground_now=True)
+    final_box = solver.projected_bbox(camera, instance_id)
+    final_score = float(
+        solver.bbox_objective(final_box, target) +
+        solver.side_wall_fit_penalty(instance_id)
+    )
+    a = solver.anchor(instance_id)
+    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
+    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
+    a["reference_screen_objective"] = final_score
+    a["reference_multistart_yaw_seeds_deg"] = [float(seed[3]) for seed in seeds]
+    return best_params, final_box, final_score
+
+
+def _solve_instance_staged(camera, instance_id, target):
+    if instance_id == "room_foreground_table":
+        return _solve_foreground_table_multistart(camera, target)
     if instance_id != "room_floor_lamp":
         return _base_solve_instance(camera, instance_id, target)
     solver.bbox_objective = _floor_lamp_visible_objective
@@ -136,21 +183,7 @@ def _solve_instance_occlusion_aware(camera, instance_id, target):
         solver.bbox_objective = _base_bbox_objective
 
 
-solver.solve_instance = _solve_instance_occlusion_aware
-
-# Proof #56: the table is too narrow while already at the near depth bound.
-# Search the alternate yaw branch on the ordinary anchor before considering any
-# anisotropic scaling. The source remains unchanged and grounded.
-solver.SOLVE_LIMITS["room_foreground_table"] = {
-    "wall": False,
-    "bounds": [
-        (-0.75, 0.75),
-        (1.15, 2.10),
-        (0.20, 1.80),
-        (-100.0, 100.0),
-    ],
-    "steps": [0.20, 0.18, 0.15, 15.0],
-}
+solver.solve_instance = _solve_instance_staged
 
 # The rear bedside source is partly hidden by the bed. Its current target is
 # intentionally coarse vertically; its bounded solve primarily fixes placement.
