@@ -73,7 +73,11 @@ SOLVE_LIMITS = {
     },
     "room_bed": {
         "wall": False,
-        "bounds": [(-2.20, -0.35), (-1.45, 0.55), (0.25, 1.60), (-140.0, -40.0)],
+        # Proof #39 shows the bed envelope can satisfy the 2D bbox while the
+        # tall bed end is still in the foreground. The bbox objective is almost
+        # 180-degree ambiguous, so constrain yaw to the opposite semantic branch:
+        # the tall headboard/end must be toward the back/right wall, not center.
+        "bounds": [(-2.20, -0.35), (-1.45, 0.55), (0.25, 1.60), (40.0, 140.0)],
         "steps": [0.30, 0.30, 0.15, 10.0],
     },
     "room_dresser": {
