@@ -8,15 +8,16 @@ immutable and accepted transforms are written on the normal instance anchors
 by the base solver.
 
 Proof #47 confirmed the mirror against its measured far-left target. Proof #48
-moved the front nightstand from the wrong left edge to the required right-side
-bedside zone. Proof #49 then corrected the large plant's gross side inversion.
-The largest remaining medium-confidence whole-scene error with a clean semantic
-cause is now the front nightstand's depth: its projected bbox is still about
-12% of image height too low because the previous bound allowed it to drift to
-user-Z +1.32 m, implausibly close to the proof camera. Keep it on the right, but
-constrain it to the actual bedside depth band and let the same measured bbox
-solve X/Z/scale/yaw there. Preserve camera, primary furniture, source GLBs and
-all proof-time geometry.
+moved the front nightstand to the right bedside zone, Proof #49 corrected the
+large plant's side inversion, and Proof #50 corrected the front nightstand's
+near-camera depth error (screen objective 35.75 -> 1.71). The largest remaining
+whole-scene side/scale error is now `room_plant_small`: the real candidate puts
+it as a large floor plant left of center while Refernzbild.png shows the small
+plant at the far-right bedside. The builder's generic FLOOR_IDS treatment is the
+confirmed semantic cause: it forces this tabletop object to the floor. Remove
+only that grounding classification and solve an auditable free-height derived
+anchor against the existing measured target. Preserve camera, all already solved
+anchors, source GLBs and proof-time geometry.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -44,14 +45,9 @@ solver.SOLVE_LIMITS["room_round_mirror"] = {
     "steps": [0.05, 0.18, 0.16, 0.08, 5.0],
 }
 
-# Proof #49 reference_solve.json:
-#   candidate center=(0.9500, 0.7251), size=(0.1000, 0.2041)
-#   target    center=(0.9580, 0.6060), size=(0.0840, 0.2000)
-# Horizontal side and projected size are now close, but the object remains far
-# too low. The accepted bed itself solves around user-Z -0.44 m, and this
-# nightstand belongs beside the bed/headboard rather than in the near-camera
-# foreground. Narrow only the semantic depth band; keep the same measured target
-# and uniform derived transform solve.
+# Proof #50: the front nightstand now reaches the intended right bedside band
+# without the previous near-camera drop. Keep the tighter semantic depth bound
+# on every later exact-room render so secondary work cannot regress it.
 solver.SOLVE_LIMITS["room_nightstand_front"] = {
     "wall": False,
     "bounds": [
@@ -77,10 +73,33 @@ solver.SOLVE_LIMITS["room_plant_large"] = {
     "steps": [0.14, 0.18, 0.08, 7.5],
 }
 
+# Proof #50 real projection for room_plant_small:
+#   candidate center=(0.3281, 0.4352), size=(0.1233, 0.2079)
+# Reference target:
+#   center=(0.959, 0.493), size=(0.049, 0.059)
+# Even though the exact foliage edge is low-confidence, the reference-side and
+# tabletop-vs-floor classification are visually unambiguous. Negative user-X is
+# image-right for this solved camera. Treat this one anchor as free-height (the
+# base solver's wall-form parameterization is simply X/Z/Y/scale/yaw here), not
+# as a floor-grounded object. Bounds keep it in the right bedside volume.
+solver.FLOOR_IDS.discard("room_plant_small")
+solver.SOLVE_LIMITS["room_plant_small"] = {
+    "wall": True,
+    "bounds": [
+        (-2.15, -1.30),
+        (-0.95, 0.70),
+        (0.45, 1.30),
+        (0.10, 0.55),
+        (-60.0, 60.0),
+    ],
+    "steps": [0.12, 0.18, 0.10, 0.06, 7.5],
+}
+
 for instance_id in (
     "room_round_mirror",
     "room_nightstand_front",
     "room_plant_large",
+    "room_plant_small",
 ):
     if instance_id not in solver.PRIMARY_IDS:
         solver.PRIMARY_IDS.append(instance_id)
