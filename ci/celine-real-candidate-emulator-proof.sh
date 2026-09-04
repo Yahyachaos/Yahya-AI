@@ -93,7 +93,8 @@ dump_ui_with_retry /sdcard/celine-real-home.xml real-candidate-home.xml HOME
 grep -q 'Celin 3D Ansicht' real-candidate-home.xml || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
-python3 ci/check-celine-person-presence.py real-candidate-home.png HOME
+HOME_PRESENCE_RC=0
+python3 ci/check-celine-person-presence.py real-candidate-home.png HOME || HOME_PRESENCE_RC=$?
 
 # v76 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
@@ -164,7 +165,8 @@ dump_ui_with_retry /sdcard/celine-real-call.xml real-candidate-call.xml CALL
 grep -q 'Live mit Celin' real-candidate-call.xml || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' real-candidate-call.xml || fail "CALL 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-call.png CALL
-python3 ci/check-celine-person-presence.py real-candidate-call.png CALL
+CALL_PRESENCE_RC=0
+python3 ci/check-celine-person-presence.py real-candidate-call.png CALL || CALL_PRESENCE_RC=$?
 
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
 # The SurfaceView transition guard keeps the last real CALL frame above the stage while the HOME
@@ -193,7 +195,8 @@ dump_ui_with_retry /sdcard/celine-real-return.xml real-candidate-home-return.xml
 grep -q 'Mit Celin' real-candidate-home-return.xml || fail "HOME did not recover"
 grep -q 'Celin 3D Ansicht' real-candidate-home-return.xml || fail "HOME-return 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETURN
-python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_RETURN
+HOME_RETURN_PRESENCE_RC=0
+python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_RETURN || HOME_RETURN_PRESENCE_RC=$?
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
@@ -211,5 +214,9 @@ for marker in V80-400 V80-410 V80-420; do
 done
 grep -q 'target=CALL eased=true snap=false' real-candidate-logcat-final.txt || fail "eased CALL entry marker missing"
 grep -q 'target=HOME eased=true snap=false' real-candidate-logcat-final.txt || fail "eased HOME return marker missing"
+
+if (( HOME_PRESENCE_RC != 0 || CALL_PRESENCE_RC != 0 || HOME_RETURN_PRESENCE_RC != 0 )); then
+  fail "person-presence guard failed after complete HOME/CALL/HOME-return capture (HOME=$HOME_PRESENCE_RC CALL=$CALL_PRESENCE_RC HOME_RETURN=$HOME_RETURN_PRESENCE_RC)"
+fi
 
 printf 'PASS packaged v79 blink-localized facial rig + v75 semantic material + v80 central layered HOME/CALL owner: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
