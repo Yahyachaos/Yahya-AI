@@ -56,22 +56,31 @@ tasks.register('generateCeline3DViewV62') {
         String classAnchor = 'public final class Celine3DView extends FrameLayout {'
         String frameAnchor = '                updateLivePose(frameTimeNanos);'
         String visemeAnchor = '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}'
-        String homeLensAnchor = '        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);'
-        String cameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);'
+        String legacyHomeLensAnchor = '        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);'
+        String referenceHomeLensAnchor = '        camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,'
+        String legacyCameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);'
+        String referenceCameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ, 0.0, 1.0, 0.0);'
+        boolean legacyHomeLens = text.contains(legacyHomeLensAnchor)
+        boolean referenceHomeLens = text.contains(referenceHomeLensAnchor)
+        boolean legacyCameraLookAt = text.contains(legacyCameraLookAtAnchor)
+        boolean referenceCameraLookAt = text.contains(referenceCameraLookAtAnchor)
         if (!text.contains(classAnchor)) throw new GradleException('v62 source transform: class anchor missing')
         if (!text.contains(frameAnchor)) throw new GradleException('v62 source transform: frame anchor missing')
         if (!text.contains(visemeAnchor)) throw new GradleException('v62 source transform: viseme anchor missing')
-        if (!text.contains(homeLensAnchor)) throw new GradleException('v64 HOME lens transform: anchor missing')
-        if (!text.contains(cameraLookAtAnchor)) throw new GradleException('v75 reference camera transform: lookAt anchor missing')
+        if (!legacyHomeLens && !referenceHomeLens) throw new GradleException('v64 HOME lens transform: anchor missing')
+        if (!legacyCameraLookAt && !referenceCameraLookAt) throw new GradleException('v75 reference camera transform: lookAt anchor missing')
 
         text = text.replace(classAnchor, 'final class Celine3DView extends FrameLayout {')
         // v80's central production presence owner advances the guarded face runtime as its final
         // renderer-frame layer. Do not inject a second independent face callback here.
         text = text.replace(visemeAnchor,
                 '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
-        text = text.replace(homeLensAnchor,
-                '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
-        text = text.replace(cameraLookAtAnchor, '''        if (Math.abs(v75ReferenceYawDeg) > 0.001f) {
+        if (legacyHomeLens) {
+            text = text.replace(legacyHomeLensAnchor,
+                    '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
+        }
+        if (legacyCameraLookAt) {
+            text = text.replace(legacyCameraLookAtAnchor, '''        if (Math.abs(v75ReferenceYawDeg) > 0.001f) {
             double yaw = Math.toRadians(v75ReferenceYawDeg);
             targetX = 0.0f;
             targetY = 0.0f;
@@ -80,6 +89,7 @@ tasks.register('generateCeline3DViewV62') {
             eyeZ = CAMERA_TARGET_Z + (float) Math.cos(yaw) * distance;
         }
         camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);''')
+        }
 
         int finalBrace = text.lastIndexOf('\n}')
         if (finalBrace <= 0) throw new GradleException('v62 source transform: final class brace missing')
