@@ -8,13 +8,17 @@ immutable and accepted transforms are written on the normal instance anchors
 by the base solver.
 
 Proof #47 confirmed the mirror, #48/#50 corrected the front nightstand, #49
-corrected the large plant, and #51 corrected the small plant from a large
-left-floor object to the measured tiny right-bedside target. The next largest
-clean, directly measured scale mismatch is `room_wall_shelf_books`: Proof #51
-projects it at about 19.4% x 17.0% of the frame while the reference target is
-10.3% x 8.0%, with nearly correct horizontal center. Solve only this wall anchor
-for position/height/scale/yaw against the existing medium-confidence target.
-Preserve camera, already solved anchors, source GLBs and proof-time geometry.
+corrected the large plant, #51 corrected the small plant from a large
+left-floor object to the measured tiny right-bedside target, and #52 fitted the
+wall shelf closely to its measured target. Direct inspection of Proof #52 and
+`reference_solve.json` now identifies `room_floor_lamp` as the largest measured
+geometric error: candidate bbox center=(0.2713, 0.5035), size=(0.0320, 0.0602)
+versus target center=(0.264, 0.347), size=(0.036, 0.147). The prior semantic
+Z-depth lower bound stops the lamp at -1.55 m, so its grounded base projects far
+too low even though the reference places the floor lamp close to the back/window
+zone. Expand only this normal anchor solve toward the back wall and allow the
+uniform scale needed by the measured height. Preserve camera, all other solved
+anchors, source GLBs and proof-time geometry.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -92,6 +96,25 @@ solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
         (-20.0, 20.0),
     ],
     "steps": [0.16, 0.08, 0.12, 0.06, 5.0],
+}
+
+# Proof #52 current floor-lamp projection:
+#   center=(0.2713, 0.5035), size=(0.0320, 0.0602)
+# Reference target:
+#   center=(0.264, 0.347), size=(0.036, 0.147)
+# Its horizontal placement is already close, but the grounded base is far too
+# low because the old Z-depth bound stops at -1.55 m. The reference floor lamp
+# stands in the back/window zone. Extend only the auditable anchor search toward
+# the back wall and allow enough scale to match the measured projected height.
+solver.SOLVE_LIMITS["room_floor_lamp"] = {
+    "wall": False,
+    "bounds": [
+        (1.35, 1.95),
+        (-2.08, -1.35),
+        (0.08, 0.85),
+        (-30.0, 30.0),
+    ],
+    "steps": [0.10, 0.10, 0.08, 5.0],
 }
 
 for instance_id in (
