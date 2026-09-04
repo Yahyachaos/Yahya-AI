@@ -41,8 +41,10 @@ FLOOR_IDS = {
 }
 RUG_IDS = {"room_rug"}
 
-# Semantic bounds are deliberately broad enough to solve from evidence but
-# narrow enough to preserve the obvious room logic visible in the reference.
+# The proof camera sits at positive user-Z depth and looks toward negative
+# user-Z. Therefore positive user-X projects toward image-left and negative
+# user-X toward image-right. Keep semantic X zones in that presentation
+# handedness instead of reintroducing the rejected whole-room mirror.
 # Non-wall params: X, user-Z depth, scale, rotation-Y degrees.
 # Wall params: X, user-Z depth, user-Y height, scale, rotation-Y degrees.
 SOLVE_LIMITS = {
@@ -53,17 +55,17 @@ SOLVE_LIMITS = {
     },
     "room_bed": {
         "wall": False,
-        "bounds": [(0.35, 2.20), (-1.45, 0.55), (0.25, 1.60), (-140.0, -40.0)],
+        "bounds": [(-2.20, -0.35), (-1.45, 0.55), (0.25, 1.60), (-140.0, -40.0)],
         "steps": [0.30, 0.30, 0.15, 10.0],
     },
     "room_dresser": {
         "wall": False,
-        "bounds": [(-2.20, -0.85), (-0.35, 1.45), (0.25, 1.60), (45.0, 135.0)],
+        "bounds": [(0.85, 2.20), (-0.35, 1.45), (0.25, 1.60), (45.0, 135.0)],
         "steps": [0.25, 0.30, 0.15, 10.0],
     },
     "room_lounge_chair": {
         "wall": False,
-        "bounds": [(-1.75, -0.30), (-1.55, -0.05), (0.20, 1.30), (-35.0, 50.0)],
+        "bounds": [(0.30, 1.75), (-1.55, -0.05), (0.20, 1.30), (-35.0, 50.0)],
         "steps": [0.25, 0.25, 0.12, 8.0],
     },
     "room_foreground_table": {
@@ -189,13 +191,15 @@ def project_point(camera, world):
 def solve_camera(camera, targets):
     lt = targets["architecture_landmarks"]["backwall_ceiling_left"]
     rt = targets["architecture_landmarks"]["backwall_ceiling_right"]
-    left_world = Vector((-2.20, -2.10, 2.65))
-    right_world = Vector((2.20, -2.10, 2.65))
+    # With the camera looking from positive user-Z toward the back wall,
+    # positive user-X is image-left and negative user-X is image-right.
+    image_left_world = Vector((2.20, -2.10, 2.65))
+    image_right_world = Vector((-2.20, -2.10, 2.65))
 
     def objective(p):
         configure_camera(camera, p)
-        lx, ly, lz = project_point(camera, left_world)
-        rx, ry, rz = project_point(camera, right_world)
+        lx, ly, lz = project_point(camera, image_left_world)
+        rx, ry, rz = project_point(camera, image_right_world)
         if lz <= 0.0 or rz <= 0.0:
             return 1e9
         err = (
@@ -376,6 +380,7 @@ def main():
         "solved": solved,
         "source_glbs_mutated": False,
         "semantic_bounds_used": True,
+        "screen_handedness": "positive_user_x_projects_image_left_from_positive_user_z_camera",
         "proof_time_hidden_geometry_fix": False,
         "visual_acceptance": "UNASSESSED",
     }
