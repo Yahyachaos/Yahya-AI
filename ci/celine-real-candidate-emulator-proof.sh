@@ -128,14 +128,30 @@ raise SystemExit('call button bounds missing')
 PY
 )"
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL tap coordinates missing"
+# The SurfaceView transition guard deliberately keeps the last direct HOME frame
+# above the reparenting stage until CALL has produced a new stable SurfaceView frame.
+# Record the current release count so the visual CALL proof cannot accidentally
+# capture that stale HOME bridge frame.
+CALL_READY_BEFORE="$(adb logcat -d | grep -c 'V80-512' || true)"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 7
 wait_for_log 'target=CALL eased=true snap=false' 'eased central HOME-to-CALL handoff'
 wait_for_log 'V80-420' 'central layered CALL presence'
+CALL_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+for _ in $(seq 1 25); do
+  if [[ "$CALL_READY_NOW" -gt "$CALL_READY_BEFORE" ]]; then
+    echo "Ready: direct CALL surface frame after HOME"
+    break
+  fi
+  sleep 1
+  CALL_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+done
+[[ "$CALL_READY_NOW" -gt "$CALL_READY_BEFORE" ]] ||
+  fail "CALL SurfaceView did not publish a new direct V80-512 frame after HOME"
 
 PID_CALL="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_CALL" ]] || fail "process died opening CALL"
-# Capture the real visual checkpoint before querying accessibility. A transient
+# Capture the direct CALL frame before querying accessibility. A transient
 # UiTestAutomationBridge null-root must never discard an otherwise valid CALL frame.
 adb exec-out screencap -p > real-candidate-call.png || fail "CALL screenshot failed"
 dump_ui_with_retry /sdcard/celine-real-call.xml real-candidate-call.xml CALL
