@@ -331,10 +331,11 @@ def apply_anchor_params(instance_id, params, wall=False, reground_now=True):
     a["user_uniform_scale"] = float(scale)
     a["reference_solved"] = True
     if reground_now and (instance_id in FLOOR_IDS or instance_id in RUG_IDS):
-        # Re-grounding traverses evaluated mesh bounds and forces two global
-        # dependency-graph updates. X/depth/rotation changes cannot alter the
-        # vertical ground contact, so only pay this cost for scale changes or
-        # final/initial normalization.
+        # Grounding traverses evaluated mesh bounds and forces two global
+        # dependency-graph updates. The coordinate-descent trials therefore
+        # defer it: after the initial normalized ground contact, uniform anchor
+        # scaling preserves zero-grounded floor geometry closely enough for the
+        # screen-space solve, and the accepted state is re-grounded exactly once.
         reground(instance_id)
     else:
         bpy.context.view_layer.update()
@@ -369,11 +370,12 @@ def solve_instance(camera, instance_id, target):
     bounds = cfg["bounds"]
     steps = list(cfg["steps"])
     p = clamp_params_to_bounds(current_anchor_params(instance_id, wall=wall), bounds)
-    apply_anchor_params(instance_id, p, wall=wall)
+    # Normalize the starting geometry once. Trial transforms below deliberately
+    # avoid repeated evaluated-mesh grounding; the final accepted transform is
+    # normalized again before its reported bbox/objective is recorded.
+    apply_anchor_params(instance_id, p, wall=wall, reground_now=True)
     best_box = projected_bbox(camera, instance_id)
     best = bbox_objective(best_box, target)
-    scale_index = 3 if wall else 2
-    needs_grounding = instance_id in FLOOR_IDS or instance_id in RUG_IDS
 
     for _ in range(8):
         improved = True
@@ -385,21 +387,16 @@ def solve_instance(camera, instance_id, target):
                 for sign in (-1.0, 1.0):
                     cand = list(p)
                     cand[i] = clamp(cand[i] + sign * steps[i], *bounds[i])
-                    ground_trial = needs_grounding and i == scale_index
-                    apply_anchor_params(instance_id, cand, wall=wall, reground_now=ground_trial)
+                    apply_anchor_params(instance_id, cand, wall=wall, reground_now=False)
                     box = projected_bbox(camera, instance_id)
                     score = bbox_objective(box, target)
                     if score + 1e-8 < best:
                         p, best, best_box, improved = cand, score, box, True
                     else:
-                        # A rejected scale trial may have changed the geometry
-                        # child offset during regrounding, so restoring the
-                        # accepted scale must reground as well. Positional and
-                        # yaw-only rejects need only one depsgraph update.
-                        apply_anchor_params(instance_id, p, wall=wall, reground_now=ground_trial)
+                        apply_anchor_params(instance_id, p, wall=wall, reground_now=False)
         steps = [s * 0.5 for s in steps]
 
-    apply_anchor_params(instance_id, p, wall=wall)
+    apply_anchor_params(instance_id, p, wall=wall, reground_now=True)
     final_box = projected_bbox(camera, instance_id)
     final_score = float(bbox_objective(final_box, target))
     a = anchor(instance_id)
