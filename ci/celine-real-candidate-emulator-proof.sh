@@ -78,6 +78,12 @@ wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
 wait_for_log 'V80-400' 'central production root/body/head owner binding'
 wait_for_log 'V80-410' 'central layered HOME presence'
 
+# CTL-350 hides the legacy 2D fallback on the UI thread. Its log line is emitted in that same
+# callback, so an immediate SurfaceFlinger screencap can still contain the previous composed frame
+# for one traversal. Capture only after the settled post-activation HOME composition; otherwise the
+# initial HOME metric compares a stale 2D portrait against the real 3D HOME_RETURN frame.
+sleep 2
+
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail "process died before HOME proof"
 
