@@ -145,9 +145,25 @@ python3 ci/check-real-celine-render.py real-candidate-call.png CALL
 python3 ci/check-celine-person-presence.py real-candidate-call.png CALL
 
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
+# The SurfaceView transition guard keeps the last real CALL frame above the stage while the HOME
+# surface/room is rebuilt. Do not capture that intentionally stale bridge frame as HOME evidence;
+# wait for a NEW V80-512 after the return, which means the cover has been replaced by a direct,
+# stable target SurfaceView frame.
+RETURN_READY_BEFORE="$(adb logcat -d | grep -c 'V80-512' || true)"
 adb shell input keyevent 4
 sleep 5
 wait_for_log 'target=HOME eased=true snap=false' 'eased central CALL-to-HOME handoff'
+RETURN_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+for _ in $(seq 1 25); do
+  if [[ "$RETURN_READY_NOW" -gt "$RETURN_READY_BEFORE" ]]; then
+    echo "Ready: direct HOME surface frame after CALL"
+    break
+  fi
+  sleep 1
+  RETURN_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+done
+[[ "$RETURN_READY_NOW" -gt "$RETURN_READY_BEFORE" ]] ||
+  fail "HOME SurfaceView did not publish a new direct V80-512 frame after CALL"
 PID_RETURN="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_RETURN" ]] || fail "process died returning HOME"
 adb exec-out screencap -p > real-candidate-home-return.png || fail "HOME-return screenshot failed"
