@@ -6,19 +6,20 @@ solve_celine_room_reference_layout_stage_base.py. This wrapper preserves the
 accepted Proof #104 dresser transform and Proof #111 front-facing grounded chair
 transform, then changes only the derived room_rug anchor.
 
-Real Proof #111 instance-ID evidence gives the rug silhouette approximately
-x=0.215116..0.861919, y=0.503636..0.804545. The authoritative reference target
-is x=0.2055..0.8705, y=0.5205..0.7955. The occupied rug is therefore about
-2.81% too narrow and 9.42% too tall in image space. Projected object-AABB
-acceptance is diagnostic only; actual rendered silhouette remains visual
-authority.
+Proof #118 tested the first planar rug correction against the real rendered
+instance-ID silhouette. Its largest remaining error is horizontal width:
+current x=0.224564..0.846657 (width 0.622093) versus the authoritative reference
+target x=0.2055..0.8705 (width 0.665). The rug is therefore still about 6.45%
+too narrow. Its vertical residual is smaller and is deliberately not corrected
+in this same bounded step.
 
-Keep the accepted rug X/depth/yaw branch and solve only the planar footprint
-from the measured rendered ratios. Starting from uniform scale 1.6410156727:
-local X becomes 1.6871853720 (= old * 0.665/0.6468023) and local Y/depth becomes
-1.4997197613 (= old * 0.275/0.3009091). Preserve local Z/thickness scale
-1.6410156727 and exact floor grounding. Original rug GLB bytes remain immutable;
-no child/proof-only geometry transform is introduced.
+Keep the accepted rug X/depth/yaw and the Proof #118 depth/thickness scales.
+Correct only local X from 1.6871853720 by the measured real-render ratio
+0.665/0.6220930233, yielding 1.8035538584. Preserve local Y/depth
+1.4997197613, local Z/thickness 1.6410156727 and exact floor grounding. Original
+rug GLB bytes remain immutable; no child/proof-only geometry transform is
+introduced. Projected object-AABB acceptance remains diagnostic only; actual
+rendered silhouette remains visual authority.
 """
 
 from pathlib import Path
@@ -57,7 +58,7 @@ CHAIR_PARAMS = [
 RUG_PARAMS = [
     -0.0671875,
     -0.2953125,
-    1.6871853720104666,
+    1.8035538584164221,
     1.499719761334807,
     1.6410156726837158,
     5.8203125,
@@ -104,11 +105,14 @@ def _apply_rug_planar(instance_id, params, authority):
     a["reference_anisotropic_anchor_scale"] = True
     a["reference_visual_fit_authority"] = authority
     a["reference_rug_visible_bbox_proof111"] = [
-        0.2151162791, 0.8619186047, 0.5036363636, 0.8045454545
+        0.2151162791, 0.8611918605, 0.5036363636, 0.8036363636
+    ]
+    a["reference_rug_visible_bbox_proof118"] = [
+        0.2245639535, 0.8466569767, 0.5081818182, 0.7727272727
     ]
     a["reference_rug_visible_bbox_target"] = [0.2055, 0.8705, 0.5205, 0.7955]
-    a["reference_rug_width_ratio"] = 1.0281348314
-    a["reference_rug_height_ratio"] = 0.9138972810
+    a["reference_rug_width_ratio_proof118"] = 1.0689719626
+    a["reference_rug_largest_residual"] = "width_only_before_next_exact_render"
     solver.reground(instance_id)
 
 
@@ -131,7 +135,7 @@ def _solve_rug_visible_mask(camera, target):
     _apply_rug_planar(
         "room_rug",
         RUG_PARAMS,
-        "real_instance_id_silhouette_proof111",
+        "real_instance_id_silhouette_proof118_width_residual",
     )
     candidate = solver.projected_bbox(camera, "room_rug")
     diagnostic_score = float(
