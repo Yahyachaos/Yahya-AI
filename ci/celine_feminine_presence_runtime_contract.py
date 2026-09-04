@@ -74,12 +74,14 @@ for lifecycle in ("install", "onPaused", "onDestroyed"):
     if f"CelineFemininePresenceV72.{lifecycle}(activity" in application:
         raise SystemExit(f"v72 static writer still installed beside v73: {lifecycle}")
 
+# The sole v80 owner preserves the accepted v73 HOME posture through homeProcedural,
+# which fades that same envelope during walking/bed activity so those layers do not fight.
 for token in (
-    "home * (-2.0f + 0.10f * second)",
-    "home * (-3.5f + 0.12f * wave)",
-    "home * (6.0f + 0.18f * wave)",
-    "home * (-1.2f - 0.10f * wave - 0.03f * second)",
-    "home * (-0.6f - 0.08f * wave + 0.02f * second)",
+    "homeProcedural * (-2.0f + 0.10f * second)",
+    "homeProcedural * (-3.5f + 0.12f * wave)",
+    "homeProcedural * (6.0f + 0.18f * wave)",
+    "homeProcedural * (-1.2f - 0.10f * wave - 0.03f * second)",
+    "homeProcedural * (-0.6f - 0.08f * wave + 0.02f * second)",
 ):
     if token not in owner:
         raise SystemExit(f"v80 central owner does not preserve accepted v73 posture: {token}")
