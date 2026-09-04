@@ -23,12 +23,11 @@ final class CelineCallUpperBodyPresenceV55 {
     private static final float CALL_SPINE01_PITCH = 1.60f;
     private static final float CALL_SPINE02_PITCH = 1.20f;
 
-    // Proof #1053 showed that the exact HOME reference distance still crops Celine's complete head
-    // in the much taller CALL stage. Keep the room/reference camera itself untouched and move only
-    // Celine's CALL overlay camera to the bounded far edge. With Celine3DView's CALL base 0.70 this
-    // yields normalizedZoom ~= 0.786, preserving the room perspective while restoring a real head-
-    // through-feet CALL composition for the mandatory early preview.
-    private static final float CALL_REFERENCE_ENTRY_ZOOM = 0.55f;
+    // Room-rebuild CALL checkpoints must use the same Proof #63 reference camera as HOME instead of
+    // the old farther-room portrait override. Celine3DView's CALL base is 0.70, so entering CALL at
+    // 0.70 yields normalizedZoom == 1.0: exact reference eye/target/FOV while leaving Celine's rig,
+    // model scale and the room/furniture transforms untouched.
+    private static final float CALL_REFERENCE_ENTRY_ZOOM = 0.70f;
 
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
     private CelineCallUpperBodyPresenceV55() {}
@@ -168,7 +167,7 @@ final class CelineCallUpperBodyPresenceV55 {
                 setCameraZoom(view, CALL_REFERENCE_ENTRY_ZOOM);
                 Celine3DDiagnostics.record(activity, "V80-CALL-CAM-110", "CALL Referenzkamera gerahmt",
                         "entryZoom=" + CALL_REFERENCE_ENTRY_ZOOM + " previousZoom=" + preCallCameraZoom
-                                + " · portrait-stage far framing");
+                                + " · exact Proof#63 reference framing");
             }
             wasInCall = true;
 
