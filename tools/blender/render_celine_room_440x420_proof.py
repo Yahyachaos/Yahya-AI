@@ -25,26 +25,46 @@ RENDER_SIZE = (1376, 1100)
 
 
 def fail(message: str) -> None:
-    print("CELINE_ROOM_440x420_RENDER_PROOF FAIL")
+    print("CELINE_ROOM_440x420_RENDER_PROOF FAIL", flush=True)
     raise RuntimeError(message)
 
 
 def configure_workbench(scene: bpy.types.Scene) -> None:
+    """Configure a geometry-first proof render that stays exact-grid but avoids costly polish.
+
+    The room rebuild is still in geometry/perspective acceptance. Shadows, cavity,
+    outlines and high-sample viewport AA add substantial software-OpenGL cost on
+    the canonical ~1.5 GiB furniture set without changing any solved geometry.
+    Keep the actual imported meshes/camera/transforms, but render them with the
+    lightest deterministic Workbench presentation needed for silhouette/layout
+    comparison against the reference.
+    """
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = RENDER_SIZE[0]
     scene.render.resolution_y = RENDER_SIZE[1]
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGB"
+    scene.render.image_settings.color_depth = "8"
     scene.render.film_transparent = False
 
     shading = scene.display.shading
     shading.light = "STUDIO"
     shading.color_type = "MATERIAL"
-    shading.show_shadows = True
-    shading.show_cavity = True
-    shading.cavity_type = "WORLD"
-    shading.curvature_ridge_factor = 1.5
-    shading.curvature_valley_factor = 1.2
+    shading.show_shadows = False
+    shading.show_cavity = False
+    if hasattr(shading, "show_specular_highlight"):
+        shading.show_specular_highlight = False
+    if hasattr(shading, "show_outline"):
+        shading.show_outline = False
+
+    # Blender 4.x supports FXAA for Workbench output. Avoid multi-sample render
+    # passes while preserving the exact 1376x1100 comparison grid.
+    if hasattr(scene.display, "render_aa"):
+        try:
+            scene.display.render_aa = "FXAA"
+        except TypeError:
+            scene.display.render_aa = "OFF"
 
 
 def set_cutaway_visibility(hidden_names):
@@ -72,7 +92,13 @@ def render_primary(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
         scene.camera = camera
         out = PROOF_DIR / "01_front_wide.png"
         scene.render.filepath = str(out)
+        print(
+            f"CELINE_ROOM_440x420_RENDER_BEGIN engine={scene.render.engine} "
+            f"size={RENDER_SIZE[0]}x{RENDER_SIZE[1]} shadows=false cavity=false",
+            flush=True,
+        )
         bpy.ops.render.render(write_still=True)
+        print("CELINE_ROOM_440x420_RENDER_END", flush=True)
         if not out.exists() or out.stat().st_size < 10_000:
             fail(f"render missing or unexpectedly small: {out}")
         return out
@@ -85,6 +111,9 @@ def write_structural_metadata(output: Path, root: bpy.types.Object, camera: bpy.
         "render": output.name,
         "reference": REFERENCE.name,
         "render_size": list(RENDER_SIZE),
+        "render_mode": "geometry_first_workbench_fast",
+        "shadows": False,
+        "cavity": False,
         "proof_time_geometry_mutation": False,
         "proof_time_root_mirror": False,
         "proof_time_camera_mutation": False,
@@ -131,10 +160,10 @@ def main() -> None:
         if obj.hide_render:
             fail(f"proof cutaway visibility leaked into generated room: {name}")
 
-    print("CELINE_ROOM_440x420_RENDER_PROOF PASS")
-    print(f"Real Blender primary render: {output}")
-    print("proofTimeGeometryMutation=false proofTimeRootMirror=false proofTimeCameraMutation=false")
-    print("visualAcceptance=UNASSESSED")
+    print("CELINE_ROOM_440x420_RENDER_PROOF PASS", flush=True)
+    print(f"Real Blender primary render: {output}", flush=True)
+    print("proofTimeGeometryMutation=false proofTimeRootMirror=false proofTimeCameraMutation=false", flush=True)
+    print("visualAcceptance=UNASSESSED", flush=True)
 
 
 if __name__ == "__main__":
@@ -142,6 +171,6 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         if "CELINE_ROOM_440x420_RENDER_PROOF FAIL" not in str(exc):
-            print("CELINE_ROOM_440x420_RENDER_PROOF FAIL")
-            print(str(exc))
+            print("CELINE_ROOM_440x420_RENDER_PROOF FAIL", flush=True)
+            print(str(exc), flush=True)
         raise
