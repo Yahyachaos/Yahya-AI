@@ -52,6 +52,13 @@ render still hides most of the floor lamp in the drape/window depth branch. The
 reference clearly shows the lamp shade/stem in front of the drapes while still
 behind the lounge chair. Keep the same measured 2D terms and constrain only the
 lamp depth to the physically visible interval between those two objects.
+
+Proof #85 confirmed that this depth correction exposes the lamp, but also
+revealed a solver bug: vertical anisotropic trials were projected without
+re-grounding and only re-grounded after the search. The accepted final bbox
+therefore differed from the objective the search thought it was optimizing.
+Re-ground every floor-lamp trial exactly like the already-correct large-plant
+anisotropic solve so top/width fitting is evaluated on the actual floor contact.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -226,13 +233,15 @@ def _solve_floor_lamp_anisotropic(camera, target):
                 for sign in (-1.0, 1.0):
                     cand = list(p)
                     cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
-                    _apply_floor_lamp_params(cand, reground_now=False)
+                    # Vertical anisotropic scale changes the grounded offset, so
+                    # every candidate must be evaluated after actual re-grounding.
+                    _apply_floor_lamp_params(cand, reground_now=True)
                     box = solver.projected_bbox(camera, instance_id)
                     score = _floor_lamp_visible_objective(box, target)
                     if score + 1e-8 < best:
                         p, best, best_box, improved = cand, score, box, True
                     else:
-                        _apply_floor_lamp_params(p, reground_now=False)
+                        _apply_floor_lamp_params(p, reground_now=True)
         steps = [s * 0.5 for s in steps]
 
     _apply_floor_lamp_params(p, reground_now=True)
@@ -242,7 +251,7 @@ def _solve_floor_lamp_anisotropic(camera, target):
     a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
     a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
     a["reference_screen_objective"] = final_score
-    a["reference_floor_lamp_fit_terms"] = "center_x,top,width; depth visibility bound ahead of drapes"
+    a["reference_floor_lamp_fit_terms"] = "center_x,top,width; depth visibility bound ahead of drapes; every trial regrounded"
     a["reference_floor_lamp_depth_visibility_min_user_z"] = -1.84
     return p, final_box, final_score
 
