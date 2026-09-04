@@ -71,6 +71,15 @@ a more important error: the source chair is visibly showing its BACK, whereas
 Refernzbild.png clearly shows the seat/front. The bbox-only optimizer had chosen
 the wrong 180-degree orientation branch. Keep the improved depth interval but
 constrain the chair to the opposite front-facing yaw branch.
+
+Proof #88 confirmed that front-facing chair branch in the real render. Its bbox
+remains close (center-Y 0.459 versus 0.438; width 0.120 versus 0.116), while the
+largest remaining primary visual delta is now the bed. The bed bottom is already
+essentially exact at 0.651 versus target 0.652 and width is close at 0.493 versus
+0.498, but its top is too low at 0.370 versus 0.323 and height is only 0.281
+versus 0.329. Solve an auditable grounded vertical anchor scale independently
+from the horizontal footprint so the top can rise without widening the bed or
+mutating the immutable source GLB.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -193,6 +202,81 @@ solver.SOLVE_LIMITS["room_foreground_table"] = {
 }
 
 _base_solve_instance = solver.solve_instance
+
+
+def _apply_bed_anisotropic_params(params):
+    instance_id = "room_bed"
+    x, z_depth, horizontal_scale, vertical_scale, rot = params
+    a = solver.anchor(instance_id)
+    audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
+    user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
+    a.location.x = float(x)
+    a.location.y = float(z_depth)
+    a.rotation_mode = "XYZ"
+    a.rotation_euler.z = math.radians(-float(rot))
+    a.scale = (float(horizontal_scale), float(horizontal_scale), float(vertical_scale))
+    a["user_location_xyz"] = [float(a.location.x), float(user_y), float(a.location.y)]
+    a["user_rotation_y_deg"] = float(rot)
+    if "user_uniform_scale" in a:
+        del a["user_uniform_scale"]
+    a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
+    a["reference_solved"] = True
+    a["reference_anisotropic_anchor_scale"] = True
+    solver.reground(instance_id)
+
+
+def _solve_bed_anisotropic(camera, target):
+    instance_id = "room_bed"
+    # Proof #88 leaves bed bottom/width nearly exact while its top is 0.047 too
+    # low. Seed the proven horizontal placement and split only vertical scale;
+    # grounded scaling then raises the headboard/top while retaining floor contact.
+    p = [-1.025, -0.4375, 1.1578125, 1.35, -85.0]
+    bounds = [
+        (-1.35, -0.70),
+        (-0.85, 0.10),
+        (1.00, 1.32),
+        (1.10, 1.60),
+        (-105.0, -65.0),
+    ]
+    steps = [0.10, 0.10, 0.04, 0.06, 4.0]
+    p = solver.clamp_params_to_bounds(p, bounds)
+    _apply_bed_anisotropic_params(p)
+    best_box = solver.projected_bbox(camera, instance_id)
+    best = solver.bbox_objective(best_box, target) + solver.side_wall_fit_penalty(instance_id)
+
+    for _ in range(8):
+        improved = True
+        guard = 0
+        while improved and guard < 80:
+            guard += 1
+            improved = False
+            for i in range(len(p)):
+                for sign in (-1.0, 1.0):
+                    cand = list(p)
+                    cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
+                    # Vertical anisotropic scale changes the grounded offset, so
+                    # every candidate must be scored after exact re-grounding.
+                    _apply_bed_anisotropic_params(cand)
+                    box = solver.projected_bbox(camera, instance_id)
+                    score = solver.bbox_objective(box, target) + solver.side_wall_fit_penalty(instance_id)
+                    if score + 1e-8 < best:
+                        p, best, best_box, improved = cand, score, box, True
+                    else:
+                        _apply_bed_anisotropic_params(p)
+        steps = [s * 0.5 for s in steps]
+
+    _apply_bed_anisotropic_params(p)
+    final_box = solver.projected_bbox(camera, instance_id)
+    final_score = float(
+        solver.bbox_objective(final_box, target) +
+        solver.side_wall_fit_penalty(instance_id)
+    )
+    a = solver.anchor(instance_id)
+    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
+    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
+    a["reference_screen_objective"] = final_score
+    a["reference_bed_fit_terms"] = "full_bbox_with_independent_horizontal_vertical_scale; every trial regrounded"
+    return p, final_box, final_score
 
 
 def _floor_lamp_visible_objective(candidate, target):
@@ -394,6 +478,8 @@ def _solve_foreground_table_multistart(camera, target):
 
 
 def _solve_instance_staged(camera, instance_id, target):
+    if instance_id == "room_bed":
+        return _solve_bed_anisotropic(camera, target)
     if instance_id == "room_foreground_table":
         return _solve_foreground_table_multistart(camera, target)
     if instance_id == "room_floor_lamp":
