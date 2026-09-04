@@ -29,10 +29,22 @@ as a strongly diagonal triangular/trapezoid foreground mass. The reference and
 Proof #58 both show the tabletop's far edge approximately horizontal. Preserve
 the widened depth search but constrain the source orientation to that visually
 correct near-frontal yaw branch; bbox equality alone is not visual acceptance.
+
+Proof #61 then made the largest remaining raw visible delta explicit: the
+canonical floor-lamp top was close vertically, but its projected width was
+0.1066 versus the measured 0.0360. A uniform anchor scale cannot independently
+match the source lamp's height and narrow reference silhouette. Keep the source
+GLB bytes untouched and solve an auditable anisotropic *anchor* scale for this
+one instance: horizontal X/Y footprint and vertical Z height are optimized
+independently, with floor contact preserved. This is runtime layout state, not a
+proof-time geometry mutation.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+import math
+
+import bpy
 
 BASE_SOLVER = Path(__file__).with_name("solve_celine_room_reference_layout.py")
 
@@ -104,8 +116,9 @@ solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
 
 # The reference floor lamp stands behind the lounge chair. Its lower pole/base is
 # intentionally occluded, so only the visible top/center/width are reliable fit
-# terms. Keep the source grounded and search the normal derived anchor near the
-# back/window zone; do not move child geometry or apply proof-time transforms.
+# terms. The staged custom solve below preserves ground contact while allowing
+# horizontal footprint and vertical height to differ at the normal instance
+# anchor. The immutable source GLB itself is never edited.
 solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "wall": False,
     "bounds": [
@@ -133,7 +146,6 @@ solver.SOLVE_LIMITS["room_foreground_table"] = {
 }
 
 _base_solve_instance = solver.solve_instance
-_base_bbox_objective = solver.bbox_objective
 
 
 def _floor_lamp_visible_objective(candidate, target):
@@ -142,8 +154,81 @@ def _floor_lamp_visible_objective(candidate, target):
     return (
         ((candidate["center_x"] - float(target["center_x"])) / 0.020) ** 2 +
         ((candidate["top"] - float(target["top"])) / 0.018) ** 2 +
-        ((candidate["width"] - float(target["width"])) / 0.050) ** 2
+        ((candidate["width"] - float(target["width"])) / 0.025) ** 2
     )
+
+
+def _apply_floor_lamp_params(params, reground_now=True):
+    instance_id = "room_floor_lamp"
+    x, z_depth, horizontal_scale, vertical_scale, rot = params
+    a = solver.anchor(instance_id)
+    audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
+    user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
+    a.location.x = float(x)
+    a.location.y = float(z_depth)
+    a.rotation_mode = "XYZ"
+    a.rotation_euler.z = math.radians(-float(rot))
+    a.scale = (float(horizontal_scale), float(horizontal_scale), float(vertical_scale))
+    a["user_location_xyz"] = [float(a.location.x), float(user_y), float(a.location.y)]
+    a["user_rotation_y_deg"] = float(rot)
+    if "user_uniform_scale" in a:
+        del a["user_uniform_scale"]
+    a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
+    a["reference_solved"] = True
+    a["reference_anisotropic_anchor_scale"] = True
+    if reground_now:
+        solver.reground(instance_id)
+    else:
+        bpy.context.view_layer.update()
+
+
+def _solve_floor_lamp_anisotropic(camera, target):
+    instance_id = "room_floor_lamp"
+    # Proof #61 supplies a deterministic location/yaw/height seed. Its uniform
+    # 0.73 scale already placed the top near target; only the horizontal
+    # silhouette needs strong compression. Search around that measured state.
+    p = [1.8078125, -2.08, 0.25, 0.73, -19.9609375]
+    bounds = [
+        (1.35, 1.95),
+        (-2.08, -1.35),
+        (0.10, 0.55),
+        (0.50, 1.10),
+        (-30.0, 30.0),
+    ]
+    steps = [0.08, 0.08, 0.05, 0.06, 4.0]
+    p = solver.clamp_params_to_bounds(p, bounds)
+    _apply_floor_lamp_params(p, reground_now=True)
+    best_box = solver.projected_bbox(camera, instance_id)
+    best = _floor_lamp_visible_objective(best_box, target)
+
+    for _ in range(8):
+        improved = True
+        guard = 0
+        while improved and guard < 80:
+            guard += 1
+            improved = False
+            for i in range(len(p)):
+                for sign in (-1.0, 1.0):
+                    cand = list(p)
+                    cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
+                    _apply_floor_lamp_params(cand, reground_now=False)
+                    box = solver.projected_bbox(camera, instance_id)
+                    score = _floor_lamp_visible_objective(box, target)
+                    if score + 1e-8 < best:
+                        p, best, best_box, improved = cand, score, box, True
+                    else:
+                        _apply_floor_lamp_params(p, reground_now=False)
+        steps = [s * 0.5 for s in steps]
+
+    _apply_floor_lamp_params(p, reground_now=True)
+    final_box = solver.projected_bbox(camera, instance_id)
+    final_score = float(_floor_lamp_visible_objective(final_box, target))
+    a = solver.anchor(instance_id)
+    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
+    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
+    a["reference_screen_objective"] = final_score
+    a["reference_floor_lamp_fit_terms"] = "center_x,top,width"
+    return p, final_box, final_score
 
 
 def _solve_foreground_table_multistart(camera, target):
@@ -189,13 +274,9 @@ def _solve_foreground_table_multistart(camera, target):
 def _solve_instance_staged(camera, instance_id, target):
     if instance_id == "room_foreground_table":
         return _solve_foreground_table_multistart(camera, target)
-    if instance_id != "room_floor_lamp":
-        return _base_solve_instance(camera, instance_id, target)
-    solver.bbox_objective = _floor_lamp_visible_objective
-    try:
-        return _base_solve_instance(camera, instance_id, target)
-    finally:
-        solver.bbox_objective = _base_bbox_objective
+    if instance_id == "room_floor_lamp":
+        return _solve_floor_lamp_anisotropic(camera, target)
+    return _base_solve_instance(camera, instance_id, target)
 
 
 solver.solve_instance = _solve_instance_staged
