@@ -31,6 +31,7 @@ PRIMARY_IDS = [
     "room_bed",
     "room_dresser",
     "room_lounge_chair",
+    "room_floor_lamp",
     "room_foreground_table",
     "room_rug",
 ]
@@ -68,6 +69,11 @@ SOLVE_LIMITS = {
         "wall": False,
         "bounds": [(0.30, 1.75), (-1.55, -0.05), (0.20, 1.30), (-35.0, 50.0)],
         "steps": [0.25, 0.25, 0.12, 8.0],
+    },
+    "room_floor_lamp": {
+        "wall": False,
+        "bounds": [(0.55, 1.70), (-1.55, -0.15), (0.08, 0.55), (-30.0, 30.0)],
+        "steps": [0.20, 0.20, 0.06, 5.0],
     },
     "room_foreground_table": {
         "wall": False,
