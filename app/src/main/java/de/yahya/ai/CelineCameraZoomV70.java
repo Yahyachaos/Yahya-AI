@@ -282,7 +282,15 @@ final class CelineCameraZoomV70 {
             float progress = clamp((zoom - 1.0f) / (ZOOM_MAX - 1.0f), 0.0f, 1.0f);
             float eased = progress * progress * (3.0f - 2.0f * progress);
             float base = callNow ? CALL_BASE_FOCUS_Y : 0.0f;
-            return base + (FACE_FOCUS_Y - base) * eased;
+            float desiredFocusY = base + (FACE_FOCUS_Y - base) * eased;
+            if (callNow && zoom > 1.0f) {
+                // The reference room camera targets y=-1.10 and Celine3DView converts cameraPanY
+                // with a 0.28 factor. For close CALL zooms, translate the old avatar-focus curve
+                // into that reference coordinate system so the dolly approaches Celine instead
+                // of the bed/floor. Keep the far/default CALL preview untouched for room judging.
+                return (1.10f + desiredFocusY) / 0.28f;
+            }
+            return desiredFocusY;
         }
 
         private void logZoomIfChanged(float zoom, String owner) {
