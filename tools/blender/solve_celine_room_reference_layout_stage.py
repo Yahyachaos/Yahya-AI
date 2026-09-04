@@ -46,6 +46,12 @@ completely. The measured plant is only 0.115 wide versus the current 0.155 while
 its height is already slightly short. The next bounded correction therefore
 fits the large plant with independent horizontal/vertical anchor scale so its
 right silhouette releases the measured lamp zone without changing source bytes.
+
+Proof #63 then confirmed that the plant silhouette is close, but the real room
+render still hides most of the floor lamp in the drape/window depth branch. The
+reference clearly shows the lamp shade/stem in front of the drapes while still
+behind the lounge chair. Keep the same measured 2D terms and constrain only the
+lamp depth to the physically visible interval between those two objects.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -122,20 +128,21 @@ solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
     "steps": [0.16, 0.08, 0.12, 0.06, 5.0],
 }
 
-# The reference floor lamp stands behind the lounge chair. Its lower pole/base is
-# intentionally occluded, so only the visible top/center/width are reliable fit
-# terms. The staged custom solve below preserves ground contact while allowing
-# horizontal footprint and vertical height to differ at the normal instance
-# anchor. The immutable source GLB itself is never edited.
+# The reference floor lamp stands behind the lounge chair and visibly in front
+# of the drapes. Proof #63 placed its anchor at user-Z=-2.013 while the drapes
+# solve to about -2.093, leaving only ~8 cm of separation and hiding the lamp in
+# the real render. Keep at least ~25 cm anchor separation from that drape branch
+# by bounding the lamp to user-Z >= -1.84; the chair remains farther forward at
+# about -1.55. Only the derived anchor may move; the source GLB is immutable.
 solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "wall": False,
     "bounds": [
         (1.35, 1.95),
-        (-2.08, -1.35),
+        (-1.84, -1.35),
         (0.08, 0.85),
         (-30.0, 30.0),
     ],
-    "steps": [0.10, 0.10, 0.08, 5.0],
+    "steps": [0.10, 0.08, 0.08, 5.0],
 }
 
 # Proof #60 matched the clipped axis-aligned bbox only by rotating the tabletop
@@ -192,18 +199,18 @@ def _apply_floor_lamp_params(params, reground_now=True):
 
 def _solve_floor_lamp_anisotropic(camera, target):
     instance_id = "room_floor_lamp"
-    # Proof #61 supplies a deterministic location/yaw/height seed. Its uniform
-    # 0.73 scale already placed the top near target; only the horizontal
-    # silhouette needs strong compression. Search around that measured state.
-    p = [1.8078125, -2.08, 0.25, 0.73, -19.9609375]
+    # Proof #63 supplies the last measured X/yaw/scale state, but its depth was
+    # visibly too close to the drapes. Seed directly on the new visibility bound
+    # and let the same center-x/top/width terms re-fit the remaining dimensions.
+    p = [1.8078125, -1.84, 0.25, 0.73, -19.9609375]
     bounds = [
         (1.35, 1.95),
-        (-2.08, -1.35),
+        (-1.84, -1.35),
         (0.10, 0.55),
         (0.50, 1.10),
         (-30.0, 30.0),
     ]
-    steps = [0.08, 0.08, 0.05, 0.06, 4.0]
+    steps = [0.08, 0.06, 0.05, 0.06, 4.0]
     p = solver.clamp_params_to_bounds(p, bounds)
     _apply_floor_lamp_params(p, reground_now=True)
     best_box = solver.projected_bbox(camera, instance_id)
@@ -235,7 +242,8 @@ def _solve_floor_lamp_anisotropic(camera, target):
     a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
     a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
     a["reference_screen_objective"] = final_score
-    a["reference_floor_lamp_fit_terms"] = "center_x,top,width"
+    a["reference_floor_lamp_fit_terms"] = "center_x,top,width; depth visibility bound ahead of drapes"
+    a["reference_floor_lamp_depth_visibility_min_user_z"] = -1.84
     return p, final_box, final_score
 
 
