@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Render deterministic real-Blender visual proof for the exact Celine 4.40 x 4.20 room.
+"""Render the actual Celine room scene without proof-time geometry hacks.
 
 This script assumes tools/blender/build_celine_room_440x420.py has already run in
-this same Blender process. It does not generate or substitute geometry. During
-bounded reconstruction it may apply explicitly measured derived calibrations
-below immutable prescribed source anchors, then adds a proof camera, temporarily
-hides the front room-shell face, renders the single reference-comparable primary
-image, restores shell visibility, and removes the proof camera afterwards.
-Original GLB bytes remain untouched.
+this Blender process. It may hide the front shell for the camera cutaway, but it
+must not move/scale/mirror furniture or room_world_root. Visual acceptance is a
+separate manual/reference-comparison decision; this script reports structural
+render success only.
 """
 
 from pathlib import Path
+import json
 import os
 
 import bpy
@@ -18,34 +17,12 @@ from mathutils import Vector
 
 ROOT_NAME = "room_world_root"
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
+REFERENCE = Path(os.environ.get("CELINE_ROOM_REFERENCE", "Refernzbild.png")).resolve()
 RENDER_SIZE = (1376, 1100)
-
-# Proof #15 kept the corrected horizontal table coverage while retaining the
-# better #13 depth/height reading. Freeze that measured table calibration while
-# integrating the independently confirmed whole-scene X handedness from #16.
-TABLE_ANCHOR_NAME = "room_foreground_table__anchor"
-TABLE_GEOMETRY_NAME = "room_foreground_table__geometry"
-TABLE_CONTRACT_Z = 2.05
-TABLE_CONTRACT_SCALE = 1.10
-TABLE_EFFECTIVE_Z = 1.55
-TABLE_EFFECTIVE_USER_SCALE = (1.45, 0.68, 0.68)  # X, Y-height, Z-depth
-
-# Proof #17 made the room readable enough to isolate the largest remaining
-# occluder: Lampe.glb is projected at roughly half the image height because its
-# exact anchor puts it near the camera. The reference lamp is a small back-left
-# silhouette beside the chair/window. Keep the exact anchor immutable and test
-# only a derived child depth/scale correction before integrating it elsewhere.
-LAMP_ANCHOR_NAME = "room_floor_lamp__anchor"
-LAMP_GEOMETRY_NAME = "room_floor_lamp__geometry"
-LAMP_CONTRACT_Z = 1.05
-LAMP_CONTRACT_SCALE = 0.82
-LAMP_EFFECTIVE_Z = -0.95
-LAMP_GEOMETRY_SCALE_FACTOR = 0.48
-EPS = 5.0e-4
 
 
 def fail(message: str) -> None:
-    print("CELINE_ROOM_440x420_VISUAL_PROOF FAIL")
+    print("CELINE_ROOM_440x420_RENDER_PROOF FAIL")
     raise RuntimeError(message)
 
 
@@ -72,124 +49,6 @@ def make_camera() -> bpy.types.Object:
     camera = bpy.data.objects.new("room_440x420_proof_camera", data)
     bpy.context.scene.collection.objects.link(camera)
     return camera
-
-
-def is_descendant(obj: bpy.types.Object, ancestor: bpy.types.Object) -> bool:
-    cursor = obj
-    while cursor is not None:
-        if cursor is ancestor:
-            return True
-        cursor = cursor.parent
-    return False
-
-
-def descendant_mesh_world_min_z(geometry_root: bpy.types.Object) -> float:
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    values = []
-    for obj in bpy.data.objects:
-        if obj.type != "MESH" or not is_descendant(obj, geometry_root):
-            continue
-        evaluated = obj.evaluated_get(depsgraph)
-        for corner in evaluated.bound_box:
-            values.append((evaluated.matrix_world @ Vector(corner)).z)
-    if not values:
-        fail(f"{geometry_root.name}: no descendant mesh bounding box")
-    return min(values)
-
-
-def apply_foreground_table_reference_calibration() -> None:
-    anchor = bpy.data.objects.get(TABLE_ANCHOR_NAME)
-    geometry = bpy.data.objects.get(TABLE_GEOMETRY_NAME)
-    if anchor is None or geometry is None:
-        fail("foreground table anchor/geometry missing for measured calibration")
-    if geometry.parent is not anchor:
-        fail("foreground table geometry is no longer parented to its canonical anchor")
-
-    anchor_scale = tuple(float(v) for v in anchor.scale)
-    if any(abs(v - TABLE_CONTRACT_SCALE) > 1.0e-4 for v in anchor_scale):
-        fail(f"foreground table anchor scale changed unexpectedly: {anchor_scale}")
-    if abs(float(anchor.location.y) - TABLE_CONTRACT_Z) > 1.0e-4:
-        fail(f"foreground table anchor depth changed unexpectedly: {anchor.location.y}")
-
-    sx, sy_height, sz_depth = TABLE_EFFECTIVE_USER_SCALE
-    geometry.scale = (
-        sx / TABLE_CONTRACT_SCALE,
-        sz_depth / TABLE_CONTRACT_SCALE,
-        sy_height / TABLE_CONTRACT_SCALE,
-    )
-    geometry.location.y = (TABLE_EFFECTIVE_Z - TABLE_CONTRACT_Z) / TABLE_CONTRACT_SCALE
-    bpy.context.view_layer.update()
-
-    min_z = descendant_mesh_world_min_z(geometry)
-    geometry.location.z += (0.0 - min_z) / TABLE_CONTRACT_SCALE
-    bpy.context.view_layer.update()
-    grounded = descendant_mesh_world_min_z(geometry)
-    if abs(grounded) > EPS:
-        fail(f"foreground table derived calibration lost floor contact: z={grounded:.6f}")
-
-    geometry["reference_calibration"] = "proof14_width_plus_proof13_depth_height"
-    geometry["effective_user_z_depth"] = TABLE_EFFECTIVE_Z
-    geometry["effective_user_scale_xyz"] = list(TABLE_EFFECTIVE_USER_SCALE)
-    print(
-        "CELINE_ROOM_REFERENCE_CALIBRATION "
-        f"tableEffectiveZ={TABLE_EFFECTIVE_Z:.2f} "
-        f"tableEffectiveScale={sx:.2f}/{sy_height:.2f}/{sz_depth:.2f} "
-        f"groundedZ={grounded:.6f} sourceGLBMutated=false anchorMutated=false"
-    )
-
-
-def apply_floor_lamp_reference_calibration() -> None:
-    anchor = bpy.data.objects.get(LAMP_ANCHOR_NAME)
-    geometry = bpy.data.objects.get(LAMP_GEOMETRY_NAME)
-    if anchor is None or geometry is None:
-        fail("floor lamp anchor/geometry missing for measured calibration")
-    if geometry.parent is not anchor:
-        fail("floor lamp geometry is no longer parented to its canonical anchor")
-
-    anchor_scale = tuple(float(v) for v in anchor.scale)
-    if any(abs(v - LAMP_CONTRACT_SCALE) > 1.0e-4 for v in anchor_scale):
-        fail(f"floor lamp anchor scale changed unexpectedly: {anchor_scale}")
-    if abs(float(anchor.location.y) - LAMP_CONTRACT_Z) > 1.0e-4:
-        fail(f"floor lamp anchor depth changed unexpectedly: {anchor.location.y}")
-
-    geometry.scale = (
-        LAMP_GEOMETRY_SCALE_FACTOR,
-        LAMP_GEOMETRY_SCALE_FACTOR,
-        LAMP_GEOMETRY_SCALE_FACTOR,
-    )
-    geometry.location.y = (LAMP_EFFECTIVE_Z - LAMP_CONTRACT_Z) / LAMP_CONTRACT_SCALE
-    bpy.context.view_layer.update()
-
-    min_z = descendant_mesh_world_min_z(geometry)
-    geometry.location.z += (0.0 - min_z) / LAMP_CONTRACT_SCALE
-    bpy.context.view_layer.update()
-    grounded = descendant_mesh_world_min_z(geometry)
-    if abs(grounded) > EPS:
-        fail(f"floor lamp derived calibration lost floor contact: z={grounded:.6f}")
-
-    geometry["reference_calibration"] = "proof17_lamp_depth_scale_trial"
-    geometry["effective_user_z_depth"] = LAMP_EFFECTIVE_Z
-    geometry["geometry_uniform_scale_factor"] = LAMP_GEOMETRY_SCALE_FACTOR
-    print(
-        "CELINE_ROOM_REFERENCE_CALIBRATION "
-        f"lampEffectiveZ={LAMP_EFFECTIVE_Z:.2f} "
-        f"lampGeometryScaleFactor={LAMP_GEOMETRY_SCALE_FACTOR:.2f} "
-        f"groundedZ={grounded:.6f} sourceGLBMutated=false anchorMutated=false proofOnly=true"
-    )
-
-
-def apply_reference_x_handedness(root: bpy.types.Object) -> None:
-    scale = tuple(float(v) for v in root.scale)
-    if any(abs(abs(v) - 1.0) > 1.0e-4 for v in scale):
-        fail(f"room root has unexpected pre-alignment scale: {scale}")
-    if scale[0] > 0.0:
-        root.scale.x = -root.scale.x
-        bpy.context.view_layer.update()
-    if float(root.scale.x) >= 0.0:
-        fail(f"reference X handedness did not persist on room root: {tuple(root.scale)}")
-    root["reference_screen_x_mirror"] = True
-    root["reference_handedness_source_proof"] = 16
-    print("CELINE_ROOM_REFERENCE_ALIGNMENT mirrorX=true proofOnly=false persisted=true anchorsMutated=false")
 
 
 def configure_workbench(scene: bpy.types.Scene) -> None:
@@ -228,23 +87,37 @@ def restore_visibility(previous):
             obj.hide_render = hidden
 
 
-def render_view(scene: bpy.types.Scene, camera: bpy.types.Object, name: str,
-                camera_user, target_user, lens: float, hidden_shell_names) -> Path:
-    previous = set_cutaway_visibility(hidden_shell_names)
+def render_primary(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
+    previous = set_cutaway_visibility(("room_shell_front",))
     try:
-        camera.location = user_to_blender(*camera_user)
-        camera.data.lens = lens
-        point_camera(camera, user_to_blender(*target_user))
+        # This is a neutral starting camera only. Reference-constrained camera
+        # solving belongs in the builder/layout calibration, not hidden here.
+        camera.location = user_to_blender(0.00, 1.55, 3.60)
+        camera.data.lens = 24.0
+        point_camera(camera, user_to_blender(0.00, 0.95, -0.30))
         scene.camera = camera
-        out = PROOF_DIR / f"{name}.png"
+        out = PROOF_DIR / "01_front_wide.png"
         scene.render.filepath = str(out)
         bpy.ops.render.render(write_still=True)
         if not out.exists() or out.stat().st_size < 10_000:
             fail(f"render missing or unexpectedly small: {out}")
-        print(f"REAL_BLENDER_RENDER {name} {out.stat().st_size} bytes")
         return out
     finally:
         restore_visibility(previous)
+
+
+def write_structural_metadata(output: Path, root: bpy.types.Object) -> None:
+    payload = {
+        "render": output.name,
+        "reference": REFERENCE.name,
+        "render_size": list(RENDER_SIZE),
+        "proof_time_geometry_mutation": False,
+        "proof_time_root_mirror": False,
+        "root_scale": [float(v) for v in root.scale],
+        "visual_acceptance": "UNASSESSED",
+        "note": "Structural render success is not visual acceptance. Compare actual output against Refernzbild.png.",
+    }
+    (PROOF_DIR / "render-proof.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -252,24 +125,20 @@ def main() -> None:
     if root is None:
         fail(f"missing required room root {ROOT_NAME}; run builder first")
 
-    apply_foreground_table_reference_calibration()
-    apply_floor_lamp_reference_calibration()
-    apply_reference_x_handedness(root)
+    # Fail closed if a historical proof-only root mirror leaked into the actual
+    # scene. Handedness must be solved in the builder/layout contract.
+    if float(root.scale.x) < 0.0 or float(root.scale.y) < 0.0 or float(root.scale.z) < 0.0:
+        fail(f"negative root scale detected; proof-time/global mirroring is forbidden: {tuple(root.scale)}")
+
+    if not REFERENCE.is_file():
+        fail(f"missing canonical reference image: {REFERENCE}")
 
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     configure_workbench(scene)
     camera = make_camera()
-
-    output = render_view(
-        scene,
-        camera,
-        "01_front_wide",
-        (0.00, 1.55, 3.60),
-        (0.00, 0.95, -0.30),
-        24.0,
-        ("room_shell_front",),
-    )
+    output = render_primary(scene, camera)
+    write_structural_metadata(output, root)
 
     camera_data = camera.data
     bpy.data.objects.remove(camera, do_unlink=True)
@@ -283,21 +152,17 @@ def main() -> None:
         if obj.hide_render:
             fail(f"proof cutaway visibility leaked into generated room: {name}")
 
-    if not bool(root.get("reference_screen_x_mirror", False)) or float(root.scale.x) >= 0.0:
-        fail("reference X handedness was not retained after proof render")
-
-    print("CELINE_ROOM_440x420_VISUAL_PROOF PASS")
+    print("CELINE_ROOM_440x420_RENDER_PROOF PASS")
     print(f"Real Blender primary render: {output}")
-    print("Confirmed reference X handedness retained on room_world_root; original furniture GLBs and prescribed anchors unchanged.")
-    print("Proof-only lamp depth/scale calibration retained only for this rendered diagnostic; no source GLB mutation or generated geometry.")
-    print("No post-render image flip was introduced by the visual proof.")
+    print("proofTimeGeometryMutation=false proofTimeRootMirror=false")
+    print("visualAcceptance=UNASSESSED")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        if "CELINE_ROOM_440x420_VISUAL_PROOF FAIL" not in str(exc):
-            print("CELINE_ROOM_440x420_VISUAL_PROOF FAIL")
+        if "CELINE_ROOM_440x420_RENDER_PROOF FAIL" not in str(exc):
+            print("CELINE_ROOM_440x420_RENDER_PROOF FAIL")
             print(str(exc))
         raise
