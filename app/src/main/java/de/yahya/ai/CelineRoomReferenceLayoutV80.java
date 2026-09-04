@@ -55,8 +55,8 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_lounge_chair", -1.699219f, 0.565723f, -2.050000f,
                     0.455615f, 0.625973f, 0.455615f, 170.375000f);
     private static final Spec RUG =
-            new Spec("room_rug", 0.067188f, 0.012676f, -0.295313f,
-                    1.641016f, 1.641016f, 1.641016f, 5.820313f);
+            new Spec("room_rug", 0.053430f, 0.012676f, -0.087483f,
+                    1.708708f, 1.641016f, 1.389882f, 5.820313f);
     private static final Spec TABLE =
             new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.280000f,
                     0.519922f, 0.519922f, 0.519922f, -2.000000f);
