@@ -99,21 +99,51 @@ def descendants(root: bpy.types.Object):
 
 
 def set_cutaway_visibility(hidden_names):
+    """Hide the camera-side shell for both offline and Workbench visibility paths.
+
+    Proof #41's instance-owner pass proved the dominant central slab is uncolored
+    room-shell geometry, not furniture. The intended front-shell cutaway used
+    only hide_render, which the headless Workbench path did not remove from the
+    actual image. Preserve/restore every visibility flag and hide it in both the
+    render and viewport paths so the cutaway is real while scene geometry stays
+    untouched.
+    """
     previous = {}
     for name in hidden_names:
         obj = bpy.data.objects.get(name)
         if obj is None:
             fail(f"missing proof cutaway shell object: {name}")
-        previous[name] = obj.hide_render
+        try:
+            hidden_in_view = bool(obj.hide_get())
+        except (AttributeError, RuntimeError):
+            hidden_in_view = False
+        previous[name] = {
+            "hide_render": bool(obj.hide_render),
+            "hide_viewport": bool(obj.hide_viewport),
+            "hide_set": hidden_in_view,
+        }
         obj.hide_render = True
+        obj.hide_viewport = True
+        try:
+            obj.hide_set(True)
+        except (AttributeError, RuntimeError):
+            pass
+    bpy.context.view_layer.update()
     return previous
 
 
 def restore_visibility(previous):
-    for name, hidden in previous.items():
+    for name, state in previous.items():
         obj = bpy.data.objects.get(name)
-        if obj is not None:
-            obj.hide_render = hidden
+        if obj is None:
+            continue
+        obj.hide_viewport = bool(state["hide_viewport"])
+        try:
+            obj.hide_set(bool(state["hide_set"]))
+        except (AttributeError, RuntimeError):
+            pass
+        obj.hide_render = bool(state["hide_render"])
+    bpy.context.view_layer.update()
 
 
 def render_primary(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
