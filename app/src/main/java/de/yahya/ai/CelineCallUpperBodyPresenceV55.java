@@ -23,6 +23,13 @@ final class CelineCallUpperBodyPresenceV55 {
     private static final float CALL_SPINE01_PITCH = 1.60f;
     private static final float CALL_SPINE02_PITCH = 1.20f;
 
+    // The reference-room camera already supplies the correct perspective. CALL used to enter with
+    // cameraZoom=1.0 while Celine3DView applies CALL_REFERENCE_BASE_ZOOM=0.70, effectively moving
+    // the avatar camera 30% closer and cropping Celine's head. Enter CALL at the base zoom instead,
+    // which makes normalizedZoom=1.0 and preserves the exact reference-camera distance. This only
+    // touches Celine's overlay camera; the independently rendered room camera remains unchanged.
+    private static final float CALL_REFERENCE_ENTRY_ZOOM = 0.70f;
+
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
     private CelineCallUpperBodyPresenceV55() {}
 
@@ -127,6 +134,7 @@ final class CelineCallUpperBodyPresenceV55 {
         boolean logged;
         boolean disabled;
         boolean wasInCall;
+        float preCallCameraZoom = Float.NaN;
 
         Driver(Activity activity, Celine3DView view) throws Exception {
             this.activity = activity;
@@ -154,6 +162,13 @@ final class CelineCallUpperBodyPresenceV55 {
                 if (wasInCall) restore();
                 wasInCall = false;
                 return;
+            }
+            if (!wasInCall) {
+                preCallCameraZoom = cameraZoom(view);
+                setCameraZoom(view, CALL_REFERENCE_ENTRY_ZOOM);
+                Celine3DDiagnostics.record(activity, "V80-CALL-CAM-110", "CALL Referenzkamera gerahmt",
+                        "entryZoom=" + CALL_REFERENCE_ENTRY_ZOOM + " previousZoom=" + preCallCameraZoom
+                                + " normalizedZoom=1.0");
             }
             wasInCall = true;
 
@@ -217,7 +232,14 @@ final class CelineCallUpperBodyPresenceV55 {
                 try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
             }
             try { animator.updateBoneMatrices(); } catch (Throwable ignored) {}
+            restoreCameraZoom();
             logged = false;
+        }
+
+        private void restoreCameraZoom() {
+            if (Float.isNaN(preCallCameraZoom)) return;
+            setCameraZoom(view, preCallCameraZoom);
+            preCallCameraZoom = Float.NaN;
         }
 
         private void restore(Bone bone) { if (bone != null) transforms.setTransform(bone.instance, bone.base); }
@@ -284,6 +306,24 @@ final class CelineCallUpperBodyPresenceV55 {
             if (value instanceof Number) return Math.max(0f, Math.min(1f, ((Number) value).floatValue()));
         } catch (Throwable ignored) {}
         return 0f;
+    }
+
+    private static float cameraZoom(Celine3DView view) {
+        try {
+            Object value = field(view, "cameraZoom");
+            if (value instanceof Number) return ((Number) value).floatValue();
+        } catch (Throwable ignored) {}
+        return 1.0f;
+    }
+
+    private static void setCameraZoom(Celine3DView view, float zoom) {
+        try {
+            Field f = Celine3DView.class.getDeclaredField("cameraZoom");
+            f.setAccessible(true);
+            f.setFloat(view, zoom);
+        } catch (Throwable e) {
+            throw new IllegalStateException("CALL cameraZoom konnte nicht gesetzt werden", e);
+        }
     }
 
     private static Object field(Object target, String name) throws Exception {
