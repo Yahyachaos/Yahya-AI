@@ -23,6 +23,27 @@ PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resol
 REFERENCE = Path(os.environ.get("CELINE_ROOM_REFERENCE", "Refernzbild.png")).resolve()
 RENDER_SIZE = (1376, 1100)
 
+# Deterministic instance colors are diagnostic only. Proof #40 confirmed that a
+# dominant smooth central slab survives the bed-yaw flip, but the normal gray
+# Workbench render cannot identify which overlapping source instance owns it.
+# This second real-Blender pass changes only viewport display color, restores it
+# afterwards, and never changes geometry, transforms, camera or source bytes.
+INSTANCE_COLORS = {
+    "room_bed": (0.95, 0.10, 0.10, 1.0),
+    "room_dresser": (0.10, 0.70, 0.15, 1.0),
+    "room_plant_large": (0.30, 0.90, 0.20, 1.0),
+    "room_plant_small": (0.95, 0.85, 0.10, 1.0),
+    "room_floor_lamp": (1.00, 0.45, 0.05, 1.0),
+    "room_nightstand_rear": (0.05, 0.85, 0.90, 1.0),
+    "room_nightstand_front": (0.10, 0.35, 0.95, 1.0),
+    "room_lounge_chair": (0.90, 0.10, 0.85, 1.0),
+    "room_rug": (0.55, 0.15, 0.85, 1.0),
+    "room_foreground_table": (0.95, 0.35, 0.60, 1.0),
+    "room_window_drapes": (0.10, 0.75, 0.65, 1.0),
+    "room_wall_shelf_books": (0.80, 0.55, 0.10, 1.0),
+    "room_round_mirror": (0.25, 0.25, 0.25, 1.0),
+}
+
 
 def fail(message: str) -> None:
     print("CELINE_ROOM_440x420_RENDER_PROOF FAIL", flush=True)
@@ -67,6 +88,16 @@ def configure_workbench(scene: bpy.types.Scene) -> None:
             scene.display.render_aa = "OFF"
 
 
+def descendants(root: bpy.types.Object):
+    out = []
+    stack = list(root.children)
+    while stack:
+        obj = stack.pop()
+        out.append(obj)
+        stack.extend(list(obj.children))
+    return out
+
+
 def set_cutaway_visibility(hidden_names):
     previous = {}
     for name in hidden_names:
@@ -106,15 +137,64 @@ def render_primary(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
         restore_visibility(previous)
 
 
-def write_structural_metadata(output: Path, root: bpy.types.Object, camera: bpy.types.Object) -> None:
+def render_instance_id(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
+    """Render deterministic per-instance colors without changing scene geometry."""
+    previous_cutaway = set_cutaway_visibility(("room_shell_front",))
+    previous_color_type = scene.display.shading.color_type
+    previous_colors = {}
+    try:
+        for instance_id, color in INSTANCE_COLORS.items():
+            geometry = bpy.data.objects.get(f"{instance_id}__geometry")
+            if geometry is None:
+                fail(f"missing geometry root for instance-id diagnostic: {instance_id}")
+            for obj in descendants(geometry):
+                if obj.type != "MESH":
+                    continue
+                previous_colors[obj.name] = tuple(float(v) for v in obj.color)
+                obj.color = color
+
+        scene.display.shading.color_type = "OBJECT"
+        scene.camera = camera
+        out = PROOF_DIR / "02_instance_id.png"
+        scene.render.filepath = str(out)
+        print("CELINE_ROOM_INSTANCE_ID_RENDER_BEGIN", flush=True)
+        bpy.ops.render.render(write_still=True)
+        print("CELINE_ROOM_INSTANCE_ID_RENDER_END", flush=True)
+        if not out.exists() or out.stat().st_size < 10_000:
+            fail(f"instance-id render missing or unexpectedly small: {out}")
+        mapping = {
+            instance_id: [float(v) for v in color]
+            for instance_id, color in INSTANCE_COLORS.items()
+        }
+        (PROOF_DIR / "instance_id_colors.json").write_text(
+            json.dumps(mapping, indent=2) + "\n", encoding="utf-8"
+        )
+        return out
+    finally:
+        for name, color in previous_colors.items():
+            obj = bpy.data.objects.get(name)
+            if obj is not None:
+                obj.color = color
+        scene.display.shading.color_type = previous_color_type
+        restore_visibility(previous_cutaway)
+
+
+def write_structural_metadata(
+    output: Path,
+    instance_id_output: Path,
+    root: bpy.types.Object,
+    camera: bpy.types.Object,
+) -> None:
     payload = {
         "render": output.name,
+        "instance_id_render": instance_id_output.name,
         "reference": REFERENCE.name,
         "render_size": list(RENDER_SIZE),
         "render_mode": "geometry_first_workbench_fast",
         "shadows": False,
         "cavity": False,
         "proof_time_geometry_mutation": False,
+        "proof_time_appearance_diagnostic_only": True,
         "proof_time_root_mirror": False,
         "proof_time_camera_mutation": False,
         "root_scale": [float(v) for v in root.scale],
@@ -126,7 +206,7 @@ def write_structural_metadata(output: Path, root: bpy.types.Object, camera: bpy.
             "reference_solved": bool(camera.get("reference_solved", False)),
         },
         "visual_acceptance": "UNASSESSED",
-        "note": "Structural render success is not visual acceptance. Compare actual output against Refernzbild.png.",
+        "note": "Structural render success is not visual acceptance. Compare actual output against Refernzbild.png; 02_instance_id.png is diagnostic color only.",
     }
     (PROOF_DIR / "render-proof.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -151,7 +231,8 @@ def main() -> None:
     scene = bpy.context.scene
     configure_workbench(scene)
     output = render_primary(scene, camera)
-    write_structural_metadata(output, root, camera)
+    instance_id_output = render_instance_id(scene, camera)
+    write_structural_metadata(output, instance_id_output, root, camera)
 
     for name in ("room_shell_front", "room_shell_ceiling", "room_shell_left", "room_shell_right"):
         obj = bpy.data.objects.get(name)
@@ -162,6 +243,7 @@ def main() -> None:
 
     print("CELINE_ROOM_440x420_RENDER_PROOF PASS", flush=True)
     print(f"Real Blender primary render: {output}", flush=True)
+    print(f"Real Blender instance-id diagnostic: {instance_id_output}", flush=True)
     print("proofTimeGeometryMutation=false proofTimeRootMirror=false proofTimeCameraMutation=false", flush=True)
     print("visualAcceptance=UNASSESSED", flush=True)
 
