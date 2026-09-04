@@ -8,9 +8,9 @@
   "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
   "cognitive_work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
   "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
-  "checkpoint_kind": "g2_2_complete_built_room_exact_rebuild_now_active",
-  "status": "ROOM_REBUILD_440x420__BLENDER_BUILDER_ACTIVE",
+  "current_branch_head_checkpoint": "0b7d00ceea321ec9d9b34636fa3f79602799b458",
+  "checkpoint_kind": "reference_constrained_room_rebuild_projection_solver_active",
+  "status": "ROOM_REBUILD_440x420__REFERENCE_CONSTRAINED_SOLVE_ACTIVE",
   "latest_runtime_code_head": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
   "latest_built_runtime_head": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
   "runtime_fingerprint": "ddbaee93af8e17b97c5c966c1830d692389fd50a92a0ef3c19381a7b39a548b7",
@@ -29,8 +29,7 @@
     "g2_6": "BLOCKED_ON_G2_5"
   },
   "active_room_rebuild": {
-    "status": "ACTIVE",
-    "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
+    "status": "ACTIVE_REFERENCE_CONSTRAINED",
     "dimensions_m": {"x_width": 4.40, "z_depth": 4.20, "y_height": 2.65},
     "origin_user_xyz": [0.0, 0.0, 0.0],
     "root_empty": "room_world_root",
@@ -40,12 +39,27 @@
     "source_branch": "assets/celine-source-persistence",
     "source_commit": "df50816187978cbf5faf818ad484c3f682be7588",
     "source_path": "app/src/main/assets/models/möbel/",
-    "source_bridge": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_GITHUB_LFS_BRIDGE.json",
-    "deliverable": "tools/blender/build_celine_room_440x420.py",
+    "source_glbs_immutable": true,
     "old_oversized_geometry_forbidden": true,
     "image_generation_forbidden": true,
-    "visual_acceptance_requires_real_blender_or_runtime_proof": true
+    "reference_image": "Refernzbild.png",
+    "reference_grid_px": [1376, 1100],
+    "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+    "projection_solver": "tools/blender/solve_celine_room_reference_layout.py",
+    "clean_renderer": "tools/blender/render_celine_room_440x420_proof.py",
+    "legacy_fixed_transforms_status": "REJECTED_LEGACY_LAYOUT",
+    "proof_time_geometry_hacks_forbidden": true,
+    "structural_success_is_visual_acceptance": false
   },
-  "current_blocker": "The 12 original GLBs are intentionally stored on pinned Git LFS source commit df50816187978cbf5faf818ad484c3f682be7588 rather than the active implementation branch. Builder must accept the materialized asset directory and fail loudly if any source is missing.",
-  "exact_next_action": "Build and statically validate tools/blender/build_celine_room_440x420.py from the exact room contract. Use only the 12 canonical original GLBs, preserve exact user-space anchors, explicit Y-up to Blender Z-up conversion, grounded child geometry, room_world_root parenting, and deterministic validation. Do not resume G2.3 until this room block is complete."
+  "latest_room_proof": {
+    "run_number": 18,
+    "run_id": 33819148956,
+    "artifact_id": 9917837298,
+    "head_sha": "c10bc360b17b8a1d837407b9db4b4223d33cf435",
+    "workflow_conclusion": "success",
+    "manual_visual_verdict": "FAIL_REJECTED_AS_REBUILD_BASELINE",
+    "reason": "Whole-scene composition, furniture placement, projected scale and depth materially disagree with Refernzbild.png; bed/table/free-space relationship is fundamentally wrong."
+  },
+  "current_blocker": "No conceptual blocker remains. The old fixed transform contract and proof-time table/lamp/X-mirror hacks were removed from authority. The new projection solver must now run in real Blender against all 12 materialized source GLBs and its actual output must be manually inspected.",
+  "exact_next_action": "Wait for or locate the first exact-head real Blender run that executes builder -> reference projection solver -> clean renderer on projection-solver head 0b7d00ceea321ec9d9b34636fa3f79602799b458. If it fails technically, fix only the confirmed solver/workflow cause. If it succeeds, download the artifact, inspect 01_front_wide.png directly against Refernzbild.png and reference_solve.json, record VISUAL PASS/FAIL, then change only the largest remaining measured systematic error. Do not resume legacy one-object microfixing and do not resume G2.3."
 }
