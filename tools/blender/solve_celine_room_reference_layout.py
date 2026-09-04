@@ -189,8 +189,8 @@ def point_camera(camera, target):
 
 
 def configure_camera(camera, params):
-    cam_x, cam_h, target_x, target_h, lens = params
-    camera.location = (cam_x, 3.60, cam_h)
+    cam_x, cam_z, cam_h, target_x, target_h, lens = params
+    camera.location = (cam_x, cam_z, cam_h)
     camera.data.lens = lens
     point_camera(camera, Vector((target_x, -0.30, target_h)))
     bpy.context.view_layer.update()
@@ -201,36 +201,77 @@ def project_point(camera, world):
     return float(co.x), float(1.0 - co.y), float(co.z)
 
 
-def solve_camera(camera, targets):
-    lt = targets["architecture_landmarks"]["backwall_ceiling_left"]
-    rt = targets["architecture_landmarks"]["backwall_ceiling_right"]
+def line_x_at_y(p1, p2, target_y=0.0):
+    x1, y1 = p1
+    x2, y2 = p2
+    dy = y2 - y1
+    if abs(dy) < 1.0e-8:
+        return None
+    return x1 + (target_y - y1) * (x2 - x1) / dy
+
+
+def camera_architecture_projection(camera):
     # With the camera looking from positive user-Z toward the back wall,
     # positive user-X is image-left and negative user-X is image-right.
-    image_left_world = Vector((2.20, -2.10, 2.65))
-    image_right_world = Vector((-2.20, -2.10, 2.65))
+    left_back = Vector((2.20, -2.10, 2.65))
+    right_back = Vector((-2.20, -2.10, 2.65))
+    left_front = Vector((2.20, 2.10, 2.65))
+    right_front = Vector((-2.20, 2.10, 2.65))
+    lbx, lby, lbz = project_point(camera, left_back)
+    rbx, rby, rbz = project_point(camera, right_back)
+    lfx, lfy, lfz = project_point(camera, left_front)
+    rfx, rfy, rfz = project_point(camera, right_front)
+    if min(lbz, rbz, lfz, rfz) <= 0.0:
+        return None
+    left_top_x = line_x_at_y((lbx, lby), (lfx, lfy))
+    right_top_x = line_x_at_y((rbx, rby), (rfx, rfy))
+    if left_top_x is None or right_top_x is None:
+        return None
+    return {
+        "backwall_ceiling_left": {"x": lbx, "y": lby},
+        "backwall_ceiling_right": {"x": rbx, "y": rby},
+        "left_ceiling_side_top_frame_x": float(left_top_x),
+        "right_ceiling_side_top_frame_x": float(right_top_x),
+    }
+
+
+def solve_camera(camera, targets):
+    landmarks = targets["architecture_landmarks"]
+    lt = landmarks["backwall_ceiling_left"]
+    rt = landmarks["backwall_ceiling_right"]
+    left_top = landmarks["left_ceiling_side_top_frame"]
+    right_top = landmarks["right_ceiling_side_top_frame"]
 
     def objective(p):
         configure_camera(camera, p)
-        lx, ly, lz = project_point(camera, image_left_world)
-        rx, ry, rz = project_point(camera, image_right_world)
-        if lz <= 0.0 or rz <= 0.0:
+        projection = camera_architecture_projection(camera)
+        if projection is None:
             return 1e9
+        lp = projection["backwall_ceiling_left"]
+        rp = projection["backwall_ceiling_right"]
         err = (
-            ((lx - float(lt["x"])) / 0.018) ** 2 +
-            ((ly - float(lt["y"])) / 0.018) ** 2 +
-            ((rx - float(rt["x"])) / 0.018) ** 2 +
-            ((ry - float(rt["y"])) / 0.018) ** 2
+            ((lp["x"] - float(lt["x"])) / 0.018) ** 2 +
+            ((lp["y"] - float(lt["y"])) / 0.018) ** 2 +
+            ((rp["x"] - float(rt["x"])) / 0.018) ** 2 +
+            ((rp["y"] - float(rt["y"])) / 0.018) ** 2 +
+            ((projection["left_ceiling_side_top_frame_x"] - float(left_top["x"])) / 0.018) ** 2 +
+            ((projection["right_ceiling_side_top_frame_x"] - float(right_top["x"])) / 0.018) ** 2
         )
         err += 0.025 * (
-            (p[0] / 0.70) ** 2 + ((p[1] - 1.55) / 0.65) ** 2 +
-            (p[2] / 0.70) ** 2 + ((p[3] - 0.95) / 0.65) ** 2 +
-            ((p[4] - 24.0) / 10.0) ** 2
+            (p[0] / 0.70) ** 2 + ((p[1] - 3.60) / 0.90) ** 2 +
+            ((p[2] - 1.55) / 0.65) ** 2 + (p[3] / 0.70) ** 2 +
+            ((p[4] - 0.95) / 0.65) ** 2 + ((p[5] - 24.0) / 10.0) ** 2
         )
         return err
 
-    p = [0.0, 1.55, 0.0, 0.95, 24.0]
-    bounds = [(-0.90, 0.90), (1.0, 2.2), (-0.90, 0.90), (0.45, 1.50), (18.0, 36.0)]
-    steps = [0.25, 0.20, 0.20, 0.16, 3.0]
+    # Seed from the last architecture-only solve. This is only a deterministic
+    # optimizer starting point; the new side-wall landmarks remain authoritative.
+    p = [0.55, 3.60, 1.65, 0.08, 0.48, 23.80]
+    bounds = [
+        (-0.90, 0.90), (2.30, 4.60), (1.0, 2.2),
+        (-0.90, 0.90), (0.45, 1.50), (18.0, 36.0),
+    ]
+    steps = [0.25, 0.25, 0.20, 0.20, 0.16, 3.0]
     best = objective(p)
     for _ in range(8):
         improved = True
@@ -397,14 +438,19 @@ def main():
         print(f"REFERENCE_SOLVE {instance_id} objective={score:.5f} candidate={candidate}")
 
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
+    architecture_projection = camera_architecture_projection(camera)
+    if architecture_projection is None:
+        fail("final solved camera cannot project required architecture landmarks")
+
     result = {
-        "schema": "celine-room-reference-solve/v2",
+        "schema": "celine-room-reference-solve/v3",
         "projection_render_size": list(REFERENCE_RENDER_SIZE),
         "projection_pixel_aspect": [1.0, 1.0],
         "camera": {
             "name": CAMERA_NAME,
-            "params_cam_x_cam_height_target_x_target_height_lens": [float(v) for v in cam_params],
+            "params_cam_x_cam_z_cam_height_target_x_target_height_lens": [float(v) for v in cam_params],
             "objective": float(cam_error),
+            "architecture_projection": architecture_projection,
         },
         "solved": solved,
         "source_glbs_mutated": False,

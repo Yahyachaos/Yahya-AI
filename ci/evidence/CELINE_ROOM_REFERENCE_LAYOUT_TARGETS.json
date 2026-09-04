@@ -17,7 +17,15 @@
     "backwall_ceiling_left": {"x": 0.190, "y": 0.078, "confidence": "high"},
     "backwall_ceiling_right": {"x": 0.748, "y": 0.098, "confidence": "high"},
     "left_backwall_edge_top": {"x": 0.190, "y": 0.078, "confidence": "high"},
-    "right_backwall_edge_top": {"x": 0.748, "y": 0.098, "confidence": "high"}
+    "right_backwall_edge_top": {"x": 0.748, "y": 0.098, "confidence": "high"},
+    "left_ceiling_side_top_frame": {
+      "x": 0.115, "y": 0.000, "confidence": "high",
+      "notes": "Measured from the visible left wall/ceiling seam extrapolated to the top frame on the canonical reference."
+    },
+    "right_ceiling_side_top_frame": {
+      "x": 0.888, "y": 0.000, "confidence": "high",
+      "notes": "Measured from the visible right wall/ceiling seam extrapolated to the top frame on the canonical reference."
+    }
   },
   "targets": {
     "room_window_drapes": {
