@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Render the actual Celine room scene without proof-time geometry hacks.
+"""Render the actual reference-solved Celine room without proof-time geometry hacks.
 
-This script assumes tools/blender/build_celine_room_440x420.py has already run in
-this Blender process. It may hide the front shell for the camera cutaway, but it
-must not move/scale/mirror furniture or room_world_root. Visual acceptance is a
-separate manual/reference-comparison decision; this script reports structural
-render success only.
+Expected execution order in one Blender process:
+1) build_celine_room_440x420.py
+2) solve_celine_room_reference_layout.py
+3) this renderer
+
+The renderer may hide the front shell for the camera cutaway, but it must not
+move/scale/mirror furniture, room_world_root, or the solved reference camera.
+Visual acceptance is separate from structural render success.
 """
 
 from pathlib import Path
@@ -13,9 +16,9 @@ import json
 import os
 
 import bpy
-from mathutils import Vector
 
 ROOT_NAME = "room_world_root"
+CAMERA_NAME = "room_440x420_reference_camera"
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
 REFERENCE = Path(os.environ.get("CELINE_ROOM_REFERENCE", "Refernzbild.png")).resolve()
 RENDER_SIZE = (1376, 1100)
@@ -24,31 +27,6 @@ RENDER_SIZE = (1376, 1100)
 def fail(message: str) -> None:
     print("CELINE_ROOM_440x420_RENDER_PROOF FAIL")
     raise RuntimeError(message)
-
-
-def user_to_blender(x: float, y_height: float, z_depth: float) -> Vector:
-    return Vector((x, z_depth, y_height))
-
-
-def point_camera(camera: bpy.types.Object, target: Vector) -> None:
-    direction = target - camera.location
-    if direction.length < 1e-6:
-        fail("proof camera target is coincident with camera position")
-    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-
-
-def make_camera() -> bpy.types.Object:
-    existing = bpy.data.objects.get("room_440x420_proof_camera")
-    if existing is not None:
-        bpy.data.objects.remove(existing, do_unlink=True)
-    data = bpy.data.cameras.new("room_440x420_proof_camera_data")
-    data.lens = 24.0
-    data.sensor_width = 36.0
-    data.clip_start = 0.05
-    data.clip_end = 50.0
-    camera = bpy.data.objects.new("room_440x420_proof_camera", data)
-    bpy.context.scene.collection.objects.link(camera)
-    return camera
 
 
 def configure_workbench(scene: bpy.types.Scene) -> None:
@@ -90,11 +68,7 @@ def restore_visibility(previous):
 def render_primary(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
     previous = set_cutaway_visibility(("room_shell_front",))
     try:
-        # This is a neutral starting camera only. Reference-constrained camera
-        # solving belongs in the builder/layout calibration, not hidden here.
-        camera.location = user_to_blender(0.00, 1.55, 3.60)
-        camera.data.lens = 24.0
-        point_camera(camera, user_to_blender(0.00, 0.95, -0.30))
+        # IMPORTANT: no camera mutation here. The solver owns the reference camera.
         scene.camera = camera
         out = PROOF_DIR / "01_front_wide.png"
         scene.render.filepath = str(out)
@@ -106,14 +80,22 @@ def render_primary(scene: bpy.types.Scene, camera: bpy.types.Object) -> Path:
         restore_visibility(previous)
 
 
-def write_structural_metadata(output: Path, root: bpy.types.Object) -> None:
+def write_structural_metadata(output: Path, root: bpy.types.Object, camera: bpy.types.Object) -> None:
     payload = {
         "render": output.name,
         "reference": REFERENCE.name,
         "render_size": list(RENDER_SIZE),
         "proof_time_geometry_mutation": False,
         "proof_time_root_mirror": False,
+        "proof_time_camera_mutation": False,
         "root_scale": [float(v) for v in root.scale],
+        "camera": {
+            "name": camera.name,
+            "location": [float(v) for v in camera.location],
+            "rotation_euler": [float(v) for v in camera.rotation_euler],
+            "lens_mm": float(camera.data.lens),
+            "reference_solved": bool(camera.get("reference_solved", False)),
+        },
         "visual_acceptance": "UNASSESSED",
         "note": "Structural render success is not visual acceptance. Compare actual output against Refernzbild.png.",
     }
@@ -124,11 +106,14 @@ def main() -> None:
     root = bpy.data.objects.get(ROOT_NAME)
     if root is None:
         fail(f"missing required room root {ROOT_NAME}; run builder first")
+    if any(float(v) < 0.0 for v in root.scale):
+        fail(f"negative root scale detected; global/proof mirroring is forbidden: {tuple(root.scale)}")
 
-    # Fail closed if a historical proof-only root mirror leaked into the actual
-    # scene. Handedness must be solved in the builder/layout contract.
-    if float(root.scale.x) < 0.0 or float(root.scale.y) < 0.0 or float(root.scale.z) < 0.0:
-        fail(f"negative root scale detected; proof-time/global mirroring is forbidden: {tuple(root.scale)}")
+    camera = bpy.data.objects.get(CAMERA_NAME)
+    if camera is None or camera.type != "CAMERA":
+        fail(f"missing solved reference camera {CAMERA_NAME}; run reference solver first")
+    if not bool(camera.get("reference_solved", False)):
+        fail(f"camera {CAMERA_NAME} is not marked reference_solved")
 
     if not REFERENCE.is_file():
         fail(f"missing canonical reference image: {REFERENCE}")
@@ -136,14 +121,8 @@ def main() -> None:
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     configure_workbench(scene)
-    camera = make_camera()
     output = render_primary(scene, camera)
-    write_structural_metadata(output, root)
-
-    camera_data = camera.data
-    bpy.data.objects.remove(camera, do_unlink=True)
-    if camera_data.users == 0:
-        bpy.data.cameras.remove(camera_data)
+    write_structural_metadata(output, root, camera)
 
     for name in ("room_shell_front", "room_shell_ceiling", "room_shell_left", "room_shell_right"):
         obj = bpy.data.objects.get(name)
@@ -154,7 +133,7 @@ def main() -> None:
 
     print("CELINE_ROOM_440x420_RENDER_PROOF PASS")
     print(f"Real Blender primary render: {output}")
-    print("proofTimeGeometryMutation=false proofTimeRootMirror=false")
+    print("proofTimeGeometryMutation=false proofTimeRootMirror=false proofTimeCameraMutation=false")
     print("visualAcceptance=UNASSESSED")
 
 
