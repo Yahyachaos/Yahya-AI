@@ -1,167 +1,147 @@
-# Celine Room Rebuild — exact 4.40 m × 4.20 m contract
+# Celine Room Rebuild — reference-constrained 4.40 m × 4.20 m contract
 
-Status: **QUEUED AFTER G2.2 PERMISSION POLICY**. Do not start this room implementation before G2.2 is complete/built/accepted. This work order explicitly reopens room work after the earlier room freeze, but only under the exact constraints below.
+Status: **ACTIVE — Proof #18 visually rejected; reference-constrained rebuild required**.
 
 ## Absolute source of truth
 
-Old room values such as **6.4 m × 5.8 m are forbidden**. Do not reuse, scale from, or infer from the old oversized room.
-
-New clear interior dimensions:
+The room clear interior remains exactly:
 
 - user X / width: **4.40 m**
 - user Z / depth: **4.20 m**
 - user Y / height: **2.65 m**
-- user coordinate system: X = left/right, Y = height, Z = front/back
-- room origin: center of floor at user `(0, 0, 0)`
+- user origin: center of floor at `(0,0,0)`
+- Blender mapping: user `(X,Y_height,Z_depth)` -> Blender `(X,Z_depth,Y_height)`
 - 1 Blender Unit = 1 meter
+- root Empty: `room_world_root`
 
-Blender native axes are Z-up. The required bpy builder must therefore convert the user coordinate system explicitly instead of accidentally treating user Y as Blender Y. Required conversion:
+Old oversized room values such as 6.4 m × 5.8 m remain forbidden.
 
-- user `(X, Y_height, Z_depth)` -> Blender `(X, Z_depth, Y_height)`
-- user rotation around vertical **Y** -> Blender rotation around vertical **Z** with the sign required by that mapping
+## Canonical immutable inputs
 
-The script must store the exact user-space transform values as auditable custom properties on each asset anchor even when native Blender coordinates differ.
+The following remain protected and must not be replaced or mutated:
 
-## Architecture
+- exactly 12 canonical original furniture GLBs / 13 instances;
+- source branch `assets/celine-source-persistence`;
+- source commit `df50816187978cbf5faf818ad484c3f682be7588`;
+- source path `app/src/main/assets/models/möbel/`;
+- original GLB bytes/hashes;
+- no substitute geometry and no image generation.
 
-Create an Empty named exactly:
+## Proof #18 manual visual verdict
 
-`room_world_root`
+Exact Room Blender Proof #18 on head `c10bc360b17b8a1d837407b9db4b4223d33cf435`, run `33819148956`, artifact `9917837298`, is **VISUAL FAIL — REJECTED AS REBUILD BASELINE**.
 
-All furniture instances must be descendants of this Empty. Use one dedicated asset-anchor Empty per furniture instance if needed to preserve exact prescribed placement while source GLB transforms are baked.
+Structural workflow SUCCESS is not visual acceptance. The actual render materially disagrees with `/Refernzbild.png` in whole-scene composition, furniture placement, projected scale and depth. In particular the bed, table, free central space and several secondary objects are globally wrong. Do not continue by applying another isolated lamp/bed/table tweak to Proof #18.
 
-After each GLB import:
+## Superseded layout contract
 
-1. apply all imported source object transforms (`location`, `rotation`, `scale`);
-2. parent the imported geometry under its instance anchor;
-3. parent the instance anchor under `room_world_root`;
-4. put the exact prescribed user-space Location / Rotation-Y / uniform Scale on the instance anchor;
-5. never modify the source GLB files.
+The previously prescribed furniture Location / Rotation-Y / Scale values are now classified as `REJECTED_LEGACY_LAYOUT` because real Blender evidence proved that enforcing them does not reproduce the visual reference.
 
-For floor-standing assets, preserve the exact anchor transform and correct only child geometry relative to the anchor so the asset base touches the floor without floating or penetration. Do not move the prescribed anchor to fake grounding. Wall-mounted/window assets are not floor-grounded.
+They may remain in Git history for audit, but they are no longer visual acceptance truth and must not be enforced by `ci/celine_room_440x420_builder_contract.py`.
 
-## Exact furniture instances
+The new accepted furniture transforms must be solved from the visual reference and stored explicitly/auditably on each instance anchor. Do not preserve a knowingly false anchor and hide the correction inside child geometry.
 
-### `Bett.glb`
-- Location: `(1.35, 0.42, -0.55)`
-- Rotation Y: `-90°`
-- Scale: `1.05`
-- floor-standing: yes
+## Reference-constrained reconstruction
 
-### `GroßeKomode.glb`
-- Location: `(-1.95, 0.55, 0.25)`
-- Rotation Y: `90°`
-- Scale: `0.92`
-- floor-standing: yes
+`/Refernzbild.png` is the canonical visual composition target.
 
-### `Großepflanzemittopf.glb`
-- Location: `(-1.85, 0.85, -1.35)`
-- Rotation Y: `0°`
-- Scale: `0.95`
-- floor-standing: yes
+Before changing furniture transforms, measure the reference on its exact 1376 × 1100 grid and record machine-readable screen-space targets in `ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json`.
 
-### `Kleinepflanzemittopf.glb`
-- Location: `(1.20, 0.52, -1.70)`
-- Rotation Y: `0°`
-- Scale: `0.62`
-- floor-standing: yes
+At minimum capture reliable normalized landmarks / bounding boxes for:
 
-### `Lampe.glb`
-- Location: `(-1.05, 0.72, 1.05)`
-- Rotation Y: `0°`
-- Scale: `0.82`
-- floor-standing: yes
+- room/back-wall/ceiling composition;
+- window/drapes;
+- bed;
+- large dresser;
+- lounge chair;
+- foreground table;
+- mirror;
+- visible nightstand(s), plants, rug, floor lamp and wall shelf where boundaries are reliable.
 
-### `Nachttisch.glb` — rear instance
-- Location: `(1.85, 0.52, -1.35)`
-- Rotation Y: `90°`
-- Scale: `0.62`
-- floor-standing: yes
+For each reliable visible object record normalized left/right/top/bottom/center/width/height. Mark uncertain measurements as uncertain rather than inventing precision.
 
-### `Nachttisch.glb` — front instance
-- Location: `(1.85, 0.52, 0.35)`
-- Rotation Y: `90°`
-- Scale: `0.62`
-- floor-standing: yes
+## Solve order
 
-### `Sessel.glb`
-- Location: `(-1.20, 0.40, -0.70)`
-- Rotation Y: `15°`
-- Scale: `0.55`
-- floor-standing: yes
+Work coarse-to-fine and do not return to one-object trial-and-error.
 
-### `Teppisch.glb`
-- Location: `(-0.15, 0.012, 0.05)`
-- Rotation Y: `0°`
-- Scale: `1.45`
-- contact rule: base must resolve to approximately user Y `0.012`, not zero
+### Phase A — architecture and camera
 
-### `Tischfürlaptop.glb`
-- Location: `(0.00, 0.36, 1.55)`
-- Rotation Y: `0°`
-- Scale: `0.68`
-- floor-standing: yes
+Use only room shell + window/drapes + proof camera to match the reference architecture first. Solve camera position, height, target and FOV/lens from independent architectural landmarks. Do not tune camera to compensate for a wrong bed.
 
-### `Fenstermitgardinen.glb`
-- Location: `(0.30, 1.10, -1.95)`
-- Rotation Y: `0°`
-- Scale: `1.35`
-- floor-standing: no
+### Phase B — primary composition anchors
 
-### `Hängeboardmitbücher.glb`
-- Location: `(-1.40, 1.55, -1.85)`
-- Rotation Y: `0°`
-- Scale: `0.70`
-- floor-standing: no
+With architecture/camera frozen, solve these first:
 
-### `Wandspiegelrund.glb`
-- Location: `(-2.15, 1.55, 0.25)`
-- Rotation Y: `90°`
-- Scale: `0.55`
-- floor-standing: no
+1. bed
+2. large dresser
+3. lounge chair
+4. foreground table
+5. rug
 
-There are **12 unique source GLBs and 13 furniture instances** because `Nachttisch.glb` is instantiated twice.
+Use actual imported GLB bounds/landmarks and Blender camera projection to compare projected 2D positions/sizes against the measured reference targets.
 
-## Room shell
+### Phase C — secondary objects
 
-Create floor, ceiling and all four room walls from the new clear interior dimensions.
+Only after the primary composition is coherent, solve nightstands, mirror, plants, floor lamp and wall shelf.
 
-Required clear interior limits:
+## Projection-based fitting
 
-- X: `-2.20 .. +2.20`
-- user Z/depth: `-2.10 .. +2.10`
-- user Y/height: `0.00 .. 2.65`
+Do not guess positions by repeated renders. Use Blender camera projection (`world_to_camera_view` or equivalent) to compute candidate screen-space bounds and minimize the delta to the reference targets. Coarse-to-fine solve order per object:
 
-The back/window wall must visually resolve at approximately user Z `-2.05`. If solid wall thickness is used, place thickness outward so it does **not** reduce the 4.40 × 4.20 × 2.65 clear interior volume. A 0.10 m wall thickness is acceptable as an implementation detail when its inner face remains on the specified clear boundary. Left/right inner wall faces must remain at user X `-2.20` and `+2.20`.
+1. X/Z position
+2. rotation-Y
+3. scale
+4. mounting height for wall objects where applicable
 
-Floor top surface must be user Y `0.00`. Ceiling inner surface must be user Y `2.65`.
+Floor-standing objects must remain grounded. Source GLB files remain unchanged.
 
-## Mandatory bpy deliverable
+## Proof renderer rule
 
-Create one complete executable Blender Python file, target path:
+`tools/blender/render_celine_room_440x420_proof.py` must render the actual builder scene. The normal comparison path may not apply hidden proof-time furniture transforms, table/lamp calibration hacks, or whole-room X mirroring.
 
-`tools/blender/build_celine_room_440x420.py`
+If handedness is wrong, fix the builder/layout once and render that actual state.
 
-It must:
+Structural render success and visual acceptance must be distinct.
 
-- hard-code the new 4.40 × 4.20 × 2.65 room contract;
-- never reference old 6.4 m / 5.8 m values;
-- accept one explicit GLB asset directory near the top of the file;
-- fail loudly with a complete missing-file list if any of the 12 unique GLBs is absent;
-- clear only the scene content owned by this builder, not arbitrary user data;
-- create `room_world_root`;
-- create floor, ceiling and walls from the exact new dimensions;
-- import all 12 unique GLBs and create all 13 prescribed instances;
-- apply imported source transforms;
-- preserve exact prescribed user-space anchor transforms;
-- ground only the floor-standing assets while preserving their anchors;
-- keep the rug base approximately 0.012 m above the floor;
-- parent every furniture instance below `room_world_root`;
-- include validation that checks room dimensions, instance count, asset names, anchor transforms, floor contact and wall-mounted exclusions;
-- print a deterministic PASS/FAIL summary at the end.
+## Required evidence
 
-Do not generate substitute furniture, do not replace source GLBs, do not auto-scale from bounding-box guesses, and do not use the old room runtime as geometric authority.
+A useful real-Blender geometry checkpoint must emit at least:
 
-## Acceptance
+- `01_front_wide.png`
+- `Refernzbild.png`
+- `reference_overlay.png`
+- `layout_error.json`
+- `metadata.txt`
+- Blender log
 
-Room work is accepted only when the generated Blender scene matches this contract and visual inspection confirms the intended tight/cozy proportions. A script success message alone is not visual acceptance.
+The overlay and delta report must be generated from the actual candidate render on the exact 1376 × 1100 comparison grid.
+
+## Acceptance gates
+
+A checkpoint is not an accepted basis unless the whole composition is coherent and direct visual inspection agrees.
+
+Target tolerances for reliable landmarks:
+
+- architecture landmarks: about <= 1.5–3% of image width/height;
+- primary furniture centers: about <= 2%;
+- primary projected width/height: about <= 3–5%.
+
+These numerical gates never override an obvious visual mismatch.
+
+The scene must visibly satisfy the reference composition: bed on the right, dresser on the left, chair left/middle, window in the background, substantial open central area, foreground table only at the lower image edge rather than blocking the room, mirror on the left, and no secondary object dominating through implausible scale/depth.
+
+## Early in-app checkpoint
+
+As soon as architecture, perspective and the primary composition anchors are meaningfully aligned, produce and inspect an early real in-app CALL preview before final materials/light/detail polish. If the CALL view is visibly wrong, return to the geometry solve.
+
+## Efficiency / single-flight
+
+Follow root `AGENTS.md` and `ci/CELINE_VALIDATION_POLICY.md`.
+
+No new branch, no new PR, no merge, no release, no NavMesh/free navigation, and no resumed G2.3 until this room rebuild is genuinely accepted.
+
+Operational loop:
+
+`RECONCILE -> ONE BOUNDED CHANGE -> SMALLEST CHECK -> REAL PROOF -> ACTUAL VISUAL INSPECTION -> RECORD TRUTH -> NEXT STEP`
+
+No visual PASS may be recorded while a relevant visible delta remains.
