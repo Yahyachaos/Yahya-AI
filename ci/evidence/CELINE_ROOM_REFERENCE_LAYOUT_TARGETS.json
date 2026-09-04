@@ -83,6 +83,12 @@
       "center_x": 0.662, "center_y": 0.215, "width": 0.103, "height": 0.080,
       "confidence": "medium"
     },
+    "room_nightstand_rear": {
+      "left": 0.704, "right": 0.789, "top": 0.322, "bottom": 0.522,
+      "center_x": 0.7465, "center_y": 0.422, "width": 0.085, "height": 0.200,
+      "confidence": "low",
+      "notes": "Rear/left bedside Nachttisch.glb is visible behind the bed around the bedside lamp. Top and horizontal envelope are measured from the reference; the bed occludes the lower cabinet/legs, so bottom/height are coarse floor-contact extrapolations and must not override direct visual inspection."
+    },
     "room_nightstand_front": {
       "left": 0.916, "right": 1.000, "top": 0.506, "bottom": 0.706,
       "center_x": 0.958, "center_y": 0.606, "width": 0.084, "height": 0.200,
