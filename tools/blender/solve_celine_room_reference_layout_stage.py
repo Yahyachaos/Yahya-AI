@@ -10,14 +10,15 @@ by the base solver.
 Proof #47 confirmed the mirror, #48/#50 corrected the front nightstand, #49
 corrected the large plant, #51 corrected the small plant from a large
 left-floor object to the measured tiny right-bedside target, #52 fitted the
-wall shelf closely to its measured target, and #53 moved the floor-lamp anchor
-toward the back/window zone. Direct inspection of Proof #53 now exposes a more
-important visible layout error than further lamp micro-tuning: the unsolved
-`room_nightstand_rear` (the same canonical Nachttisch.glb source, including its
-bedside lamp) still renders as a cyan cabinet/lamp beside the lounge chair on
-the left. `/Refernzbild.png` instead shows that bedside unit behind the bed near
-screen x≈0.70–0.79. Solve that normal derived anchor from the newly recorded,
-explicitly occlusion-qualified target. Preserve camera, all other solved
+wall shelf closely to its measured target, #53 moved the floor-lamp anchor
+toward the back/window zone, and #54 moved the rear bedside unit from the wrong
+left-chair zone to the correct bed-side zone. Proof #54 now leaves the dresser
+as the largest unambiguous primary composition error: candidate vertical bbox
+is y=0.491..0.808 versus reference y=0.420..0.718. Its current derived depth is
++0.606 m (toward the camera), which makes the grounded dresser project far too
+low. Constrain the normal dresser anchor to the deeper half of its physically
+valid left-wall zone so the solver can solve the coupled depth/scale branch
+instead of remaining in that local minimum. Preserve camera, all other solved
 anchors, source GLBs and proof-time geometry.
 """
 
@@ -132,6 +133,22 @@ solver.SOLVE_LIMITS["room_nightstand_rear"] = {
         (45.0, 135.0),
     ],
     "steps": [0.16, 0.18, 0.08, 7.5],
+}
+
+# Proof #54 dresser candidate y=0.491..0.808 while target y=0.420..0.718.
+# The horizontal bbox is already close (0.000..0.191 versus 0.000..0.184), so
+# do not move the camera or distort source geometry. The current +0.606 m depth
+# is the wrong coupled projection branch. Force the ordinary anchor solve behind
+# the room center and let uniform scale/yaw re-fit the measured bbox there.
+solver.SOLVE_LIMITS["room_dresser"] = {
+    "wall": False,
+    "bounds": [
+        (0.85, 2.20),
+        (-0.90, 0.00),
+        (0.25, 1.60),
+        (45.0, 135.0),
+    ],
+    "steps": [0.18, 0.16, 0.12, 7.5],
 }
 
 for instance_id in (
