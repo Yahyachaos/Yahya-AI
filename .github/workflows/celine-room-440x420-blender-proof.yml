@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/celine-room-440x420-blender-proof.yml'
       - 'tools/blender/build_celine_room_440x420.py'
+      - 'tools/blender/solve_celine_room_reference_layout.py'
       - 'tools/blender/render_celine_room_440x420_proof.py'
       - 'ci/celine_room_440x420_builder_contract.py'
       - 'ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json'
@@ -70,23 +71,27 @@ jobs:
           ldconfig -p | grep -F 'libEGL.so.1'
           command -v xvfb-run
 
-      - name: Build, validate and render exact room in real Blender
+      - name: Build, solve and render exact room in real Blender
         shell: bash
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
           CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
           CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
+          CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
           CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
           xvfb-run -a blender --background --factory-startup \
             --python tools/blender/build_celine_room_440x420.py \
+            --python tools/blender/solve_celine_room_reference_layout.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
+          test -s ci-room-proof/reference_solve.json
           test -s ci-room-proof/01_front_wide.png
           test -s ci-room-proof/render-proof.json
           test -s Refernzbild.png
@@ -97,6 +102,7 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
 
