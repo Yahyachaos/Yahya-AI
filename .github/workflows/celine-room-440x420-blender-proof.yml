@@ -82,7 +82,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
+          # --factory-startup creates Blender's stock Cube/Camera/Light. They are not
+          # part of the canonical room and Proof #42 exposed the stock Cube as the
+          # dominant unclassified central slab. Remove only those exact factory
+          # startup objects before the builder runs; no room/furniture transform is
+          # changed and the rendered scene remains the actual builder output.
           xvfb-run -a blender --background --factory-startup \
+            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/solve_celine_room_reference_layout.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
