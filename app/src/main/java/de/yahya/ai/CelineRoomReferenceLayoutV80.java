@@ -14,7 +14,7 @@ import java.util.WeakHashMap;
  *
  * The immutable combined GLB remains only the runtime geometry carrier. Furniture source bytes are
  * never changed here. The visible shell and the 13 named furniture instances are transformed from
- * the real Blender reference solve (accepted through Proof #88), using the Android/Filament mapping:
+ * the real Blender reference solve (accepted through Proof #92), using the Android/Filament mapping:
  * Blender/user X -> -Filament X, user height -> Filament Y, user depth -> Filament Z.
  *
  * Celine, her rig and her canonical scale are not touched by this owner.
@@ -24,13 +24,14 @@ final class CelineRoomReferenceLayoutV80 {
     private static final float ROOM_DEPTH_SCALE_Z = 4.20f / 5.80f;
     private static final float ROOM_HEIGHT_SCALE_Y = 2.65f / 2.80f;
 
-    // Proof #88 accepted reference-solved furniture checkpoint. Only the floor-lamp grounding/depth
-    // correction and the front-facing lounge-chair branch advance from the prior runtime checkpoint.
-    // Floor-standing Y values preserve exact source-floor contact under each solved vertical scale;
-    // wall/tabletop Y values are the solver's explicit user height.
+    // Proof #92 accepted reference-solved furniture checkpoint. The floor-lamp grounding/depth and
+    // front-facing lounge-chair branch remain from Proof #88; Proof #92 adds the grounded anisotropic
+    // bed solve. The immutable Bett.glb pivot-to-floor offset is preserved under its vertical scale.
+    // Floor-standing Y values preserve exact source-floor contact; wall/tabletop Y values remain the
+    // solver's explicit user height.
     private static final Spec BED =
-            new Spec("room_bed", 1.025000f, 0.486260f, -0.437500f,
-                    1.157812f, 1.157812f, 1.157812f, -85.000003f);
+            new Spec("room_bed", 1.030469f, 0.620523f, -0.387500f,
+                    1.123125f, 1.477500f, 1.123125f, -84.437500f);
     private static final Spec DRESSER =
             new Spec("room_dresser", -2.135313f, 0.470423f, 0.000000f,
                     0.722188f, 0.722188f, 0.722188f, 87.714844f);
@@ -121,7 +122,7 @@ final class CelineRoomReferenceLayoutV80 {
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "4.40x4.20 Referenz-Solverlayout aktiv",
-                    "authority=Refernzbild.png + exact-room Proof#88"
+                    "authority=Refernzbild.png + exact-room Proof#92"
                             + " shell=4.40x4.20x2.65"
                             + " furniture=13 referenceSolvedAbsoluteTRS"
                             + " sourceGLBsMutated=false"
