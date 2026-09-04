@@ -1,211 +1,41 @@
 #!/usr/bin/env python3
-"""Staged extension of the canonical reference-constrained room solver.
+"""Proof #93 bounded dresser extension for the canonical staged room solver.
 
-This module deliberately reuses the canonical projection solver instead of
-applying proof-time furniture transforms. It adds only measured secondary
-objects to the same auditable screen-space solve. Source GLB bytes remain
-immutable and accepted transforms are written on the normal instance anchors
-by the base solver.
+The prior staged solver is preserved byte-for-byte in
+solve_celine_room_reference_layout_stage_base.py. This wrapper loads that exact
+stage without executing its final solver.main(), then adds one measured change:
+a grounded anisotropic anchor solve for room_dresser.
 
-Proof #47 confirmed the mirror, #48/#50 corrected the front nightstand, #49
-corrected the large plant, #51 corrected the small plant from a large
-left-floor object to the measured tiny right-bedside target, #52 fitted the
-wall shelf closely to its measured target, #53 moved the floor-lamp anchor
-toward the back/window zone, #54 moved the rear bedside unit to the correct
-bed-side zone, #55 moved the dresser onto the deeper measured branch, and #56
-moved the visible floor-lamp top from y=0.382 to y=0.295 (target y=0.273) by
-fitting the visible, non-occluded landmarks rather than its hidden base.
-
-Proof #57 confirmed that merely widening the foreground-table yaw bounds is not
-enough: coordinate descent stayed in the same yaw≈5.9° local minimum, still
-width=0.845 versus target=1.000 and top=0.739 versus target=0.782. Proof #58
-confirmed the multistart orientation search still lands at the same near-depth
-saturation (user-Z=2.10). Proof #59 then proved that widening depth alone is not
-a safe search: a fresh builder seed converged all the way to user-Z=2.55,
-clipped almost the whole table out of the frame, and regressed the objective
-from 11.489 to 26.004. Proof #60 recovered a numerically exact clipped bbox at
-user-Z=2.37, but direct inspection of the instance-ID render showed the table
-as a strongly diagonal triangular/trapezoid foreground mass. The reference and
-Proof #58 both show the tabletop's far edge approximately horizontal. Preserve
-the widened depth search but constrain the source orientation to that visually
-correct near-frontal yaw branch; bbox equality alone is not visual acceptance.
-
-Proof #61 then made the largest remaining raw visible delta explicit: the
-canonical floor-lamp top was close vertically, but its projected width was
-0.1066 versus the measured 0.0360. A uniform anchor scale cannot independently
-match the source lamp's height and narrow reference silhouette. Keep the source
-GLB bytes untouched and solve an auditable anisotropic *anchor* scale for this
-one instance: horizontal X/Y footprint and vertical Z height are optimized
-independently, with floor contact preserved. This is runtime layout state, not a
-proof-time geometry mutation.
-
-Proof #62 matched the lamp's unoccluded projected width, but direct inspection
-of the real instance-ID render showed why numeric bbox equality is insufficient:
-the still-too-wide large-plant canopy covered the now-narrow lamp almost
-completely. The measured plant is only 0.115 wide versus the current 0.155 while
-its height is already slightly short. The next bounded correction therefore
-fits the large plant with independent horizontal/vertical anchor scale so its
-right silhouette releases the measured lamp zone without changing source bytes.
-
-Proof #63 then confirmed that the plant silhouette is close, but the real room
-render still hides most of the floor lamp in the drape/window depth branch. The
-reference clearly shows the lamp shade/stem in front of the drapes. Keep the
-same measured 2D terms and constrain only lamp depth enough to stay visibly
-separated from that drape branch; the reference does not require a strict
-lamp-vs-chair world-depth ordering because their silhouettes barely overlap.
-
-Proof #85 confirmed that this depth correction exposes the lamp, but also
-revealed a solver bug: vertical anisotropic trials were projected without
-re-grounding and only re-grounded after the search. The accepted final bbox
-therefore differed from the objective the search thought it was optimizing.
-Re-ground every floor-lamp trial exactly like the already-correct large-plant
-anisotropic solve so top/width fitting is evaluated on the actual floor contact.
-
-Proof #86 fixed that grounding mismatch and fitted the lamp's reliable top,
-center-X and width terms essentially exactly. The largest remaining
-high-confidence projection error was the lounge chair: its bbox size was close,
-but its center-Y was 0.479 versus target 0.438 and the solve had saturated at
-the old user-Z=-1.55 lower depth bound. Proof #87 widened that depth search and
-improved the chair objective from 4.286 to 1.089, but direct inspection exposed
-a more important error: the source chair is visibly showing its BACK, whereas
-Refernzbild.png clearly shows the seat/front. The bbox-only optimizer had chosen
-the wrong 180-degree orientation branch. Keep the improved depth interval but
-constrain the chair to the opposite front-facing yaw branch.
-
-Proof #88 confirmed that front-facing chair branch in the real render. Its bbox
-remains close (center-Y 0.459 versus 0.438; width 0.120 versus 0.116), while the
-largest remaining primary visual delta is now the bed. The bed bottom is already
-essentially exact at 0.651 versus target 0.652 and width is close at 0.493 versus
-0.498, but its top is too low at 0.370 versus 0.323 and height is only 0.281
-versus 0.329. Solve an auditable grounded vertical anchor scale independently
-from the horizontal footprint so the top can rise without widening the bed or
-mutating the immutable source GLB.
+Proof #92 (head fe8fc5bbb6c741410bfd0b4c26fd6766b818bd63) measured the dresser at
+left/right/top/bottom = 0.000/0.183361/0.387747/0.737558 against the authoritative
+Refernzbild.png target 0.000/0.184/0.420/0.718. Horizontal coverage is already
+essentially exact, while projected height is 0.349811 versus 0.298 (+0.051811,
+about +17.4%). A uniform scale cannot reduce that vertical error without
+regressing the accepted width. Solve horizontal footprint and vertical height
+independently on the normal instance anchor, re-grounding every trial. Source
+Kommode.glb bytes remain immutable; no proof-time hidden geometry is introduced.
 """
 
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import math
 
-import bpy
-
-BASE_SOLVER = Path(__file__).with_name("solve_celine_room_reference_layout.py")
-
-spec = spec_from_file_location("celine_room_reference_solver_base", BASE_SOLVER)
-if spec is None or spec.loader is None:
-    raise RuntimeError(f"cannot load canonical room solver: {BASE_SOLVER}")
-solver = module_from_spec(spec)
-spec.loader.exec_module(solver)
-
-solver.SOLVE_LIMITS["room_round_mirror"] = {
-    "wall": True,
-    "bounds": [
-        (1.95, 2.20),
-        (-0.60, 0.85),
-        (0.85, 2.15),
-        (0.15, 0.85),
-        (-115.0, -65.0),
-    ],
-    "steps": [0.05, 0.18, 0.16, 0.08, 5.0],
+STAGE_BASE = Path(__file__).with_name("solve_celine_room_reference_layout_stage_base.py")
+source = STAGE_BASE.read_text(encoding="utf-8")
+sentinel = "\nsolver.main()\n"
+if not source.endswith(sentinel):
+    raise RuntimeError("canonical staged solver no longer ends with solver.main(); reconcile wrapper")
+source = source[:-len(sentinel)] + "\n"
+namespace = {
+    "__file__": str(STAGE_BASE),
+    "__name__": "celine_room_reference_layout_stage_base",
 }
-
-solver.SOLVE_LIMITS["room_nightstand_front"] = {
-    "wall": False,
-    "bounds": [
-        (-2.15, -1.15),
-        (-1.10, 0.55),
-        (0.15, 0.80),
-        (45.0, 135.0),
-    ],
-    "steps": [0.12, 0.18, 0.08, 7.5],
-}
-
-solver.SOLVE_LIMITS["room_plant_large"] = {
-    "wall": False,
-    "bounds": [
-        (1.05, 2.15),
-        (-1.80, -0.20),
-        (0.45, 1.30),
-        (-45.0, 45.0),
-    ],
-    "steps": [0.14, 0.18, 0.08, 7.5],
-}
-
-# The reference small plant is a tabletop/bedside object, not floor-standing.
-solver.FLOOR_IDS.discard("room_plant_small")
-solver.SOLVE_LIMITS["room_plant_small"] = {
-    "wall": True,
-    "bounds": [
-        (-2.15, -1.30),
-        (-0.95, 0.70),
-        (0.45, 1.30),
-        (0.10, 0.55),
-        (-60.0, 60.0),
-    ],
-    "steps": [0.12, 0.18, 0.10, 0.06, 7.5],
-}
-
-solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
-    "wall": True,
-    "bounds": [
-        (-1.90, -0.45),
-        (-2.08, -1.65),
-        (1.20, 2.35),
-        (0.15, 0.65),
-        (-20.0, 20.0),
-    ],
-    "steps": [0.16, 0.08, 0.12, 0.06, 5.0],
-}
-
-# Proof #63 showed the lamp almost coplanar with the drapes. Keep enough depth
-# separation to expose the lamp in the real render. Only the derived anchor may
-# move; source GLB bytes remain immutable.
-solver.SOLVE_LIMITS["room_floor_lamp"] = {
-    "wall": False,
-    "bounds": [
-        (1.35, 1.95),
-        (-1.84, -1.35),
-        (0.08, 0.85),
-        (-30.0, 30.0),
-    ],
-    "steps": [0.10, 0.08, 0.08, 5.0],
-}
-
-# Proof #87 is decisive visual evidence: the near-zero yaw branch exposes the
-# BACK of Sessel.glb, while the reference shows its seat/front. A 180-degree bbox
-# ambiguity therefore exists just like the earlier bed ambiguity. Preserve the
-# widened back-zone depth from #87, but solve only on the opposite front-facing
-# physical yaw branch; never accept bbox equality with the back facing camera.
-solver.SOLVE_LIMITS["room_lounge_chair"] = {
-    "wall": False,
-    "bounds": [
-        (0.30, 1.75),
-        (-2.05, -0.05),
-        (0.20, 1.30),
-        (130.0, 230.0),
-    ],
-    "steps": [0.25, 0.15, 0.12, 8.0],
-}
-
-# Proof #60 matched the clipped axis-aligned bbox only by rotating the tabletop
-# to yaw -14.8°, which makes its far edge visibly diagonal. Proof #58's yaw
-# +5.86° keeps that edge approximately horizontal like Refernzbild.png. Search
-# depth/scale freely, but remain on that visually valid near-frontal branch.
-solver.SOLVE_LIMITS["room_foreground_table"] = {
-    "wall": False,
-    "bounds": [
-        (-0.75, 0.75),
-        (1.15, 2.55),
-        (0.20, 1.80),
-        (-2.0, 12.0),
-    ],
-    "steps": [0.20, 0.18, 0.15, 2.0],
-}
-
-_base_solve_instance = solver.solve_instance
+exec(compile(source, str(STAGE_BASE), "exec"), namespace)
+solver = namespace["solver"]
+_previous_dispatch = solver.solve_instance
 
 
-def _apply_bed_anisotropic_params(params):
-    instance_id = "room_bed"
+def _apply_dresser_anisotropic_params(params):
+    instance_id = "room_dresser"
     x, z_depth, horizontal_scale, vertical_scale, rot = params
     a = solver.anchor(instance_id)
     audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
@@ -222,27 +52,25 @@ def _apply_bed_anisotropic_params(params):
     a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
     a["reference_solved"] = True
     a["reference_anisotropic_anchor_scale"] = True
+    # Vertical anchor scale changes the source pivot-to-floor offset. Score only
+    # actual grounded candidates, matching the corrected lamp/bed solve contract.
     solver.reground(instance_id)
 
 
-def _solve_bed_anisotropic(camera, target):
-    instance_id = "room_bed"
-    # Proof #88 leaves bed bottom/width nearly exact while its top is 0.047 too
-    # low. Seed the proven horizontal placement and split only vertical scale;
-    # grounded scaling then raises the headboard/top while retaining floor contact.
-    p = [-1.025, -0.4375, 1.1578125, 1.35, -85.0]
+def _solve_dresser_from_seed(camera, target, seed):
+    p = list(seed)
     bounds = [
-        (-1.35, -0.70),
-        (-0.85, 0.10),
-        (1.00, 1.32),
-        (1.10, 1.60),
-        (-105.0, -65.0),
+        (1.70, 2.20),
+        (-0.70, 0.10),
+        (0.58, 0.92),
+        (0.45, 0.80),
+        (70.0, 105.0),
     ]
-    steps = [0.10, 0.10, 0.04, 0.06, 4.0]
+    steps = [0.08, 0.08, 0.035, 0.035, 3.0]
     p = solver.clamp_params_to_bounds(p, bounds)
-    _apply_bed_anisotropic_params(p)
-    best_box = solver.projected_bbox(camera, instance_id)
-    best = solver.bbox_objective(best_box, target) + solver.side_wall_fit_penalty(instance_id)
+    _apply_dresser_anisotropic_params(p)
+    best_box = solver.projected_bbox(camera, "room_dresser")
+    best = solver.bbox_objective(best_box, target) + solver.side_wall_fit_penalty("room_dresser")
 
     for _ in range(8):
         improved = True
@@ -254,277 +82,58 @@ def _solve_bed_anisotropic(camera, target):
                 for sign in (-1.0, 1.0):
                     cand = list(p)
                     cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
-                    # Vertical anisotropic scale changes the grounded offset, so
-                    # every candidate must be scored after exact re-grounding.
-                    _apply_bed_anisotropic_params(cand)
-                    box = solver.projected_bbox(camera, instance_id)
-                    score = solver.bbox_objective(box, target) + solver.side_wall_fit_penalty(instance_id)
+                    _apply_dresser_anisotropic_params(cand)
+                    box = solver.projected_bbox(camera, "room_dresser")
+                    score = solver.bbox_objective(box, target) + solver.side_wall_fit_penalty("room_dresser")
                     if score + 1e-8 < best:
                         p, best, best_box, improved = cand, score, box, True
                     else:
-                        _apply_bed_anisotropic_params(p)
+                        _apply_dresser_anisotropic_params(p)
         steps = [s * 0.5 for s in steps]
 
-    _apply_bed_anisotropic_params(p)
-    final_box = solver.projected_bbox(camera, instance_id)
+    _apply_dresser_anisotropic_params(p)
+    final_box = solver.projected_bbox(camera, "room_dresser")
     final_score = float(
-        solver.bbox_objective(final_box, target) +
-        solver.side_wall_fit_penalty(instance_id)
+        solver.bbox_objective(final_box, target)
+        + solver.side_wall_fit_penalty("room_dresser")
     )
-    a = solver.anchor(instance_id)
-    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
-    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
-    a["reference_screen_objective"] = final_score
-    a["reference_bed_fit_terms"] = "full_bbox_with_independent_horizontal_vertical_scale; every trial regrounded"
     return p, final_box, final_score
 
 
-def _floor_lamp_visible_objective(candidate, target):
-    if candidate is None:
-        return 1e9
-    return (
-        ((candidate["center_x"] - float(target["center_x"])) / 0.020) ** 2 +
-        ((candidate["top"] - float(target["top"])) / 0.018) ** 2 +
-        ((candidate["width"] - float(target["width"])) / 0.025) ** 2
-    )
-
-
-def _apply_floor_lamp_params(params, reground_now=True):
-    instance_id = "room_floor_lamp"
-    x, z_depth, horizontal_scale, vertical_scale, rot = params
-    a = solver.anchor(instance_id)
-    audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
-    user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
-    a.location.x = float(x)
-    a.location.y = float(z_depth)
-    a.rotation_mode = "XYZ"
-    a.rotation_euler.z = math.radians(-float(rot))
-    a.scale = (float(horizontal_scale), float(horizontal_scale), float(vertical_scale))
-    a["user_location_xyz"] = [float(a.location.x), float(user_y), float(a.location.y)]
-    a["user_rotation_y_deg"] = float(rot)
-    if "user_uniform_scale" in a:
-        del a["user_uniform_scale"]
-    a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
-    a["reference_solved"] = True
-    a["reference_anisotropic_anchor_scale"] = True
-    if reground_now:
-        solver.reground(instance_id)
-    else:
-        bpy.context.view_layer.update()
-
-
-def _solve_floor_lamp_anisotropic(camera, target):
-    instance_id = "room_floor_lamp"
-    # Proof #63 supplies the last measured X/yaw/scale state, but its depth was
-    # visibly too close to the drapes. Seed directly on the visibility bound and
-    # let the same center-x/top/width terms re-fit the remaining dimensions.
-    p = [1.8078125, -1.84, 0.25, 0.73, -19.9609375]
-    bounds = [
-        (1.35, 1.95),
-        (-1.84, -1.35),
-        (0.10, 0.55),
-        (0.50, 1.10),
-        (-30.0, 30.0),
+def _solve_dresser_anisotropic(camera, target):
+    # Preserve Proof #92 as an explicit non-regression seed and add the measured
+    # vertical-ratio seed (0.7221875 * 0.298 / 0.349811 ~= 0.6153). Coordinate
+    # descent then solves depth/position/footprint around both grounded branches.
+    proof92_uniform = [2.1353125, 0.0, 0.7221875166893006, 0.7221875166893006, 87.71484625447816]
+    measured_vertical = [2.1353125, 0.0, 0.7221875166893006, 0.6153, 87.71484625447816]
+    candidates = [
+        _solve_dresser_from_seed(camera, target, proof92_uniform),
+        _solve_dresser_from_seed(camera, target, measured_vertical),
     ]
-    steps = [0.08, 0.06, 0.05, 0.06, 4.0]
-    p = solver.clamp_params_to_bounds(p, bounds)
-    _apply_floor_lamp_params(p, reground_now=True)
-    best_box = solver.projected_bbox(camera, instance_id)
-    best = _floor_lamp_visible_objective(best_box, target)
-
-    for _ in range(8):
-        improved = True
-        guard = 0
-        while improved and guard < 80:
-            guard += 1
-            improved = False
-            for i in range(len(p)):
-                for sign in (-1.0, 1.0):
-                    cand = list(p)
-                    cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
-                    # Vertical anisotropic scale changes the grounded offset, so
-                    # every candidate must be evaluated after actual re-grounding.
-                    _apply_floor_lamp_params(cand, reground_now=True)
-                    box = solver.projected_bbox(camera, instance_id)
-                    score = _floor_lamp_visible_objective(box, target)
-                    if score + 1e-8 < best:
-                        p, best, best_box, improved = cand, score, box, True
-                    else:
-                        _apply_floor_lamp_params(p, reground_now=True)
-        steps = [s * 0.5 for s in steps]
-
-    _apply_floor_lamp_params(p, reground_now=True)
-    final_box = solver.projected_bbox(camera, instance_id)
-    final_score = float(_floor_lamp_visible_objective(final_box, target))
-    a = solver.anchor(instance_id)
+    best = min(candidates, key=lambda item: float(item[2]))
+    params = list(best[0])
+    _apply_dresser_anisotropic_params(params)
+    final_box = solver.projected_bbox(camera, "room_dresser")
+    final_score = float(
+        solver.bbox_objective(final_box, target)
+        + solver.side_wall_fit_penalty("room_dresser")
+    )
+    a = solver.anchor("room_dresser")
     a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
     a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
     a["reference_screen_objective"] = final_score
-    a["reference_floor_lamp_fit_terms"] = "center_x,top,width; depth visibility bound ahead of drapes; every trial regrounded"
-    a["reference_floor_lamp_depth_visibility_min_user_z"] = -1.84
-    return p, final_box, final_score
-
-
-def _apply_large_plant_params(params):
-    instance_id = "room_plant_large"
-    x, z_depth, horizontal_scale, vertical_scale, rot = params
-    a = solver.anchor(instance_id)
-    audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
-    user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
-    a.location.x = float(x)
-    a.location.y = float(z_depth)
-    a.rotation_mode = "XYZ"
-    a.rotation_euler.z = math.radians(-float(rot))
-    a.scale = (float(horizontal_scale), float(horizontal_scale), float(vertical_scale))
-    a["user_location_xyz"] = [float(a.location.x), float(user_y), float(a.location.y)]
-    a["user_rotation_y_deg"] = float(rot)
-    if "user_uniform_scale" in a:
-        del a["user_uniform_scale"]
-    a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
-    a["reference_solved"] = True
-    a["reference_anisotropic_anchor_scale"] = True
-    solver.reground(instance_id)
-
-
-def _solve_large_plant_anisotropic(camera, target):
-    instance_id = "room_plant_large"
-    # Proof #62: current bbox width=0.155 versus target=0.115 while height is
-    # slightly short. Preserve the already-good location/yaw and solve only the
-    # horizontal-vs-vertical scale split. Every trial is re-grounded because a
-    # non-uniform Z scale does not retain the uniform-scale grounding invariant.
-    fixed_x = 2.15
-    fixed_z = -1.80
-    fixed_rot = -15.29296875
-    p = [0.70, 1.02]
-    bounds = [(0.45, 0.95), (0.80, 1.25)]
-    steps = [0.06, 0.06]
-
-    def apply(scales):
-        params = [fixed_x, fixed_z, scales[0], scales[1], fixed_rot]
-        _apply_large_plant_params(params)
-        return params
-
-    params = apply(p)
-    best_box = solver.projected_bbox(camera, instance_id)
-    best = solver.bbox_objective(best_box, target)
-    for _ in range(7):
-        improved = True
-        guard = 0
-        while improved and guard < 40:
-            guard += 1
-            improved = False
-            for i in range(2):
-                for sign in (-1.0, 1.0):
-                    cand = list(p)
-                    cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
-                    apply(cand)
-                    box = solver.projected_bbox(camera, instance_id)
-                    score = solver.bbox_objective(box, target)
-                    if score + 1e-8 < best:
-                        p, best, best_box, improved = cand, score, box, True
-                    else:
-                        apply(p)
-        steps = [s * 0.5 for s in steps]
-
-    params = apply(p)
-    final_box = solver.projected_bbox(camera, instance_id)
-    final_score = float(solver.bbox_objective(final_box, target))
-    a = solver.anchor(instance_id)
-    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
-    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
-    a["reference_screen_objective"] = final_score
-    a["reference_plant_fit_terms"] = "full_bbox_with_independent_horizontal_vertical_scale"
+    a["reference_dresser_fit_terms"] = (
+        "full_bbox_with_independent_horizontal_vertical_scale; every trial regrounded; "
+        "proof92_uniform_non_regression_seed"
+    )
     return params, final_box, final_score
 
 
-def _solve_foreground_table_multistart(camera, target):
-    instance_id = "room_foreground_table"
-    original = solver.current_anchor_params(instance_id, wall=False)
-
-    # Exact measured candidate from Proof #58. Because the architecture/camera
-    # solve is deterministic, retaining this seed makes the widened search
-    # fail-safe. The depth multistarts explore the missing foreground interval
-    # while the yaw bounds preserve the directly verified horizontal-edge branch.
-    proof58 = [0.30625, 2.10, 0.5199218988418579, 5.859375]
-    depth_seeds = [2.10, 2.22, 2.34, 2.46]
-    seeds = [list(original), list(proof58)]
-    seeds.extend([[proof58[0], depth, proof58[2], proof58[3]] for depth in depth_seeds[1:]])
-
-    best = None
-    for seed in seeds:
-        solver.apply_anchor_params(instance_id, seed, wall=False, reground_now=True)
-        result = _base_solve_instance(camera, instance_id, target)
-        if best is None or float(result[2]) < float(best[2]):
-            best = result
-    if best is None:
-        raise RuntimeError("foreground table multistart produced no candidate")
-
-    best_params = list(best[0])
-    solver.apply_anchor_params(instance_id, best_params, wall=False, reground_now=True)
-    final_box = solver.projected_bbox(camera, instance_id)
-    final_score = float(
-        solver.bbox_objective(final_box, target) +
-        solver.side_wall_fit_penalty(instance_id)
-    )
-    a = solver.anchor(instance_id)
-    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
-    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
-    a["reference_screen_objective"] = final_score
-    a["reference_multistart_yaw_seeds_deg"] = [float(seed[3]) for seed in seeds]
-    a["reference_multistart_depth_seeds"] = [float(seed[1]) for seed in seeds]
-    a["reference_non_regression_seed"] = "proof58_exact_candidate"
-    a["reference_visual_yaw_branch_deg"] = [-2.0, 12.0]
-    return best_params, final_box, final_score
+def _solve_instance_proof93(camera, instance_id, target):
+    if instance_id == "room_dresser":
+        return _solve_dresser_anisotropic(camera, target)
+    return _previous_dispatch(camera, instance_id, target)
 
 
-def _solve_instance_staged(camera, instance_id, target):
-    if instance_id == "room_bed":
-        return _solve_bed_anisotropic(camera, target)
-    if instance_id == "room_foreground_table":
-        return _solve_foreground_table_multistart(camera, target)
-    if instance_id == "room_floor_lamp":
-        return _solve_floor_lamp_anisotropic(camera, target)
-    if instance_id == "room_plant_large":
-        return _solve_large_plant_anisotropic(camera, target)
-    return _base_solve_instance(camera, instance_id, target)
-
-
-solver.solve_instance = _solve_instance_staged
-
-# The rear bedside source is partly hidden by the bed. Its current target is
-# intentionally coarse vertically; its bounded solve primarily fixes placement.
-solver.SOLVE_LIMITS["room_nightstand_rear"] = {
-    "wall": False,
-    "bounds": [
-        (-1.60, -0.30),
-        (-1.80, -0.35),
-        (0.15, 0.80),
-        (45.0, 135.0),
-    ],
-    "steps": [0.16, 0.18, 0.08, 7.5],
-}
-
-# Keep the already successful deeper dresser branch from Proof #55.
-solver.SOLVE_LIMITS["room_dresser"] = {
-    "wall": False,
-    "bounds": [
-        (0.85, 2.20),
-        (-0.90, 0.00),
-        (0.25, 1.60),
-        (45.0, 135.0),
-    ],
-    "steps": [0.18, 0.16, 0.12, 7.5],
-}
-
-for instance_id in (
-    "room_round_mirror",
-    "room_nightstand_front",
-    "room_plant_large",
-    "room_plant_small",
-    "room_wall_shelf_books",
-    "room_nightstand_rear",
-):
-    if instance_id not in solver.PRIMARY_IDS:
-        solver.PRIMARY_IDS.append(instance_id)
-
+solver.solve_instance = _solve_instance_proof93
 solver.main()

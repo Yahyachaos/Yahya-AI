@@ -1,114 +1,82 @@
 # Celine Room Reconstruction Measurement Contract
 
-Authority: `/Refernzbild.png` on the active canonical v80 branch. This document records image-space evidence and bounded transform decisions so room reconstruction does not regress into eyeballing.
+Authority: `/Refernzbild.png` on the active canonical v80 branch. This is the current reproducible image-space reconstruction contract. Structural CI success is never visual acceptance. The 12 original furniture GLBs remain immutable source-of-origin files; only derived instance anchors/runtime TRS may change.
 
-## Proof baseline
+## Current canonical evidence
 
-- Baseline real-Blender proof: Exact Room 440x420 Blender Proof #13.
-- Baseline head: `3de5afc7e894b305ebd7021ece9d43753189934c`.
-- Grid: 1376 x 1100, exactly matching the reference grid.
-- Proof camera: user `(0.00, 1.55, 3.60)`, target `(0.00, 0.95, -0.30)`, 24 mm / 36 mm sensor.
-- Visual verdict: WHOLE-SCENE FAIL. A green Blender workflow is structural evidence only, not visual acceptance.
+### Exact room proof baseline — Proof #92
 
-## Normalized image measurements (x/W, y/H)
+- Workflow: `Celine Exact Room 440x420 Blender Proof` #92, run `33898105968`.
+- Exact proof head: `fe8fc5bbb6c741410bfd0b4c26fd6766b818bd63`.
+- Artifact: `9946757642`.
+- Reference/proof grid: exactly `1376 x 1100`.
+- Room shell: `4.40 x 4.20 x 2.65 m`.
+- Source authority: 12 GLBs from pinned commit `df50816187978cbf5faf818ad484c3f682be7588`; 13 instances because the nightstand source is instanced twice.
+- Camera solve `[cam_x, cam_z, height, target_x, target_height, lens_mm]`:
+  `[0.380078125, 2.8734375, 1.2234375, 0.0565625, 0.45, 20.846875]`.
+- Camera architecture objective: `0.25394842276012974`.
+- Manual verdict: **WHOLE-SCENE FAIL / reconstruction still active**. Proof #92 is the accepted measured geometry checkpoint, not final visual acceptance.
 
-| Feature | Reference target | Proof #13 current | Delta / decision |
-|---|---:|---:|---|
-| back-wall / ceiling boundary, center | y ~= 0.08 | y ~= 0.20 | still ~+0.12 too low; do not camera-polish until gross furniture layout is corrected |
-| foreground tabletop visible top band | y ~= 0.78 | y ~= 0.64 | table begins ~0.14 too high in frame |
-| foreground tabletop horizontal coverage | >= 0.95 W (cropped by both sides) | ~= 0.47 W | candidate is less than half the required apparent width |
-| bed visible envelope | right half, roughly x 0.50..1.00 | central/right, roughly x 0.25..0.75 | bed group is displaced left and obstructs room center |
-| right nightstand zone | x ~= 0.91..1.00 | large right furniture mass starts ~= 0.72 | right-side furniture scale/assignment remains wrong |
-| lounge chair | left-middle, x ~= 0.21..0.33 | not cleanly readable in intended silhouette | blocked/miscomposed; defer until larger foreground/bed errors are reduced |
-| window / drapes | central-left, broad opening x ~= 0.24..0.59 | central, x ~= 0.30..0.63 | coarse position is nearer than furniture, defer micro-correction |
+### Early in-app HOME/CALL checkpoint — Real Candidate #1077
 
-These measurements are deliberately coarse until each major occluder is corrected. Re-measure from the next real proof rather than carrying guessed deltas forward.
+- Exact runtime head: `125111b435907ff963b5fa4b72df9423ebd7a096`.
+- Runtime fingerprint: `a023f48987202505f78ab229faadda017d6d2ca74f31dfa760ebf1ea8bd941aa`.
+- Android Build #1189: SUCCESS; APK sha256 `8c718e370b4ce0999334ba31ab14e6827e650c360fd9e2ebaf860496f22d617f`.
+- Real Candidate run #1077: workflow conclusion FAILURE only because the later outer 300 s multiview stage timed out with exit 124.
+- The required early lifecycle evidence itself completed before that timeout: initial HOME, CALL, HOME-return and same-process lifecycle checks all passed structurally.
+- Direct image inspection of `real-candidate-home.png`, `real-candidate-call.png` and `real-candidate-home-return.png` confirms the earlier nested/stale extra room frame on HOME return is gone. HOME return shows one direct room/Celine scene again.
+- This satisfies the mandatory early CALL checkpoint for coarse room assessment, but the visible room still differs materially from `/Refernzbild.png`; no room PASS is claimed.
 
-## Bounded correction 1 — foreground table
+## Proof #92 measured target/current/delta table
 
-Evidence: Proof #13 shows `Tischfürlaptop.glb` occupying only about 47% of frame width and starting around y=0.64, while the reference foreground table is a near-full-width cropped strip whose top starts around y=0.78. With the proof camera fixed for this iteration, the highest-confidence correction is to bring the canonical derived table instance toward the front/camera and increase its derived uniform scale. The original GLB bytes remain untouched.
+All values are normalized image coordinates on the same 1376 x 1100 grid. Delta is `current - target`.
 
-Approved trial transform for Proof #14:
+| Instance | Confidence | Target center `(x,y)` / size `(w,h)` | Proof #92 center `(x,y)` / size `(w,h)` | Delta `(cx,cy,w,h)` | Decision |
+|---|---|---|---|---|---|
+| window / drapes | high | `(0.397,0.282) / (0.383,0.391)` | `(0.397034,0.282075) / (0.382996,0.391057)` | `(+0.000034,+0.000075,-0.000004,+0.000057)` | projection effectively exact; preserve |
+| bed | medium | `(0.749,0.488) / (0.498,0.329)` | `(0.749064,0.488066) / (0.497836,0.329116)` | `(+0.000064,+0.000066,-0.000164,+0.000116)` | Proof #92 anisotropic bed solve accepted; preserve |
+| dresser | high | `(0.092,0.569) / (0.184,0.298)` | `(0.091681,0.562652) / (0.183361,0.349811)` | `(-0.000319,-0.006348,-0.000639,+0.051811)` | **largest remaining high-confidence visible proportion error: ~17.4% too tall while width is already exact** |
+| lounge chair | high | `(0.275,0.438) / (0.116,0.140)` | `(0.276245,0.458918) / (0.119737,0.137465)` | `(+0.001245,+0.020918,+0.003737,-0.002535)` | front-facing branch confirmed; still ~0.021 H too low |
+| foreground table | high | `(0.500,0.891) / (1.000,0.218)` | `(0.500000,0.890993) / (1.000000,0.218014)` | `(0.000000,-0.000007,0.000000,+0.000014)` | projection exact on verified near-frontal yaw branch; preserve |
+| rug | medium | `(0.538,0.658) / (0.665,0.275)` | `(0.538189,0.654296) / (0.657215,0.303103)` | `(+0.000189,-0.003704,-0.007785,+0.028103)` | vertically ~0.028 H too large; later than dresser |
+| round mirror | high | `(0.039,0.216) / (0.078,0.242)` | `(0.038982,0.216078) / (0.077963,0.241759)` | `(-0.000018,+0.000078,-0.000037,-0.000241)` | effectively exact; preserve |
+| front nightstand | medium | `(0.958,0.606) / (0.084,0.200)` | `(0.949395,0.582305) / (0.101210,0.202482)` | `(-0.008605,-0.023695,+0.017210,+0.002482)` | clearly visible, too far left/wide and ~0.024 H high; later correction |
+| large plant | medium | `(0.190,0.370) / (0.115,0.330)` | `(0.196649,0.370397) / (0.119822,0.333129)` | `(+0.006649,+0.000397,+0.004822,+0.003129)` | close; preserve until larger errors gone |
+| small plant | low | `(0.959,0.493) / (0.049,0.059)` | `(0.958952,0.492947) / (0.048986,0.058966)` | `(-0.000048,-0.000053,-0.000014,-0.000034)` | numerically exact but low-confidence/occluded; do not polish now |
+| wall shelf/books | medium | `(0.662,0.215) / (0.103,0.080)` | `(0.662097,0.215112) / (0.096666,0.087065)` | `(+0.000097,+0.000112,-0.006334,+0.007065)` | close; later |
+| rear nightstand | low | `(0.7465,0.422) / (0.085,0.200)` | `(0.732630,0.463889) / (0.094731,0.199622)` | `(-0.013870,+0.041889,+0.009731,-0.000378)` | largest raw bbox objective, but lower cabinet is bed-occluded and target bottom/height are explicitly coarse; do not let this low-confidence extrapolation outrank directly visible high-confidence dresser error |
 
-- `room_foreground_table.location`: `(0.00, 0.36, 1.55)` -> `(0.00, 0.36, 2.05)`
-- `room_foreground_table.scale`: `0.68` -> `1.10`
-- rotation unchanged at `0 deg`
-- source remains immutable `Tischfürlaptop.glb` from pinned commit `df50816187978cbf5faf818ad484c3f682be7588`
+Floor-lamp note: Proof #92 candidate center-X/top/width match the high-confidence visible terms essentially exactly (`dx ~= -0.000010`, `dtop ~= +0.000021`, `dwidth ~= +0.000002`). Its full unoccluded source bbox bottom extends below the measured visible lamp envelope because drapes/scene occlusion make the reference bottom unreliable. The canonical lamp objective intentionally uses center-X/top/width and must not be replaced by blind full-bbox equality.
 
-Proof #14 showed that this uniform correction achieved the needed horizontal coverage but over-occluded the room vertically. Proof #15 therefore kept the measured wide projection as a derived child calibration while returning the effective table geometry to z-depth `1.55` and effective user scale `(1.45, 0.68, 0.68)` for X / height / depth. Original GLB bytes remained untouched.
+## Current ranked visual correction order
 
-## Proof #15 — manually inspected 2026-09-03
+1. **Dresser vertical proportion** — high-confidence and directly visible. Proof #92 width is already within `0.000639 W`, but height is `+0.051811 H` (~17.4%) too large. Uniform scale is therefore structurally incapable of matching both dimensions. Next proof must split horizontal footprint from vertical height on the normal grounded dresser anchor.
+2. Lounge-chair vertical placement — high-confidence, front orientation already corrected, center-Y `+0.020918 H` too low.
+3. Front nightstand — medium-confidence but clearly visible; center-Y `-0.023695 H`, width `+0.017210 W`.
+4. Rug vertical envelope — medium-confidence, height `+0.028103 H`.
+5. Rear nightstand — raw numeric error is larger, but its target is low-confidence and partially bed-occluded. Use real visible silhouette evidence before changing its floor-extrapolated bbox.
+6. Only after remaining primary geometry errors are small: camera/FOV micro-alignment, then materials/textures/light/shadows/window detail/final polish.
 
-- Exact Room 440x420 Blender Proof #15 / run `33800454371`.
-- Exact head: `27beefe23d4e5537b4319f3a88d1ef1eb58c1850`.
-- Artifact: `9911173760`, digest `sha256:69ef51bdddc70c885b10ccb9d3ea3781a052225944727b133a1037ea469e7c13`.
-- Structural result: SUCCESS. All 12 pinned original GLBs materialized; builder reported `CELINE_ROOM_440x420 PASS`; the reference-comparable Blender primary image was rendered on the exact 1376 x 1100 grid.
-- Manual visual verdict: WHOLE-SCENE FAIL.
+## Bounded correction 4 — Proof #93 dresser anisotropic anchor solve
 
-Measured/visible deltas after Proof #15:
+Evidence-backed hypothesis: `Kommode.glb` is already at essentially the correct projected horizontal span, but a uniform anchor scale leaves it about 17.4% too tall. The next exact-room proof may change **only the derived dresser anchor solve**:
 
-| Feature | Reference | Proof #15 | Evidence-backed conclusion |
-|---|---:|---:|---|
-| foreground table horizontal coverage | >= 0.95 W, cropped at both sides | approximately full width | horizontal table coverage is substantially improved |
-| foreground table upper/far visible band | y ~= 0.78 | y ~= 0.64 | still about 0.14 H too high; not accepted |
-| round wall mirror | far left wall, center near x ~= 0.04 | far right wall, center near x ~= 0.96 | near-exact screen-space X inversion |
-| bed mass | right half, x roughly 0.50..1.00 | central/left, x roughly 0.25..0.75 | same X-direction mismatch as mirror |
-| dresser/left-side mass | left side in reference | corresponding side-specific mass resolves on the opposite side / is obscured | same global handedness error must be tested before per-object X nudges |
-| window | central-left | central/right-biased under current front-camera handedness | secondary to the global X-direction mismatch |
+- preserve all 12 original furniture GLB bytes;
+- preserve room shell, camera solve, bed, window, foreground table, lamp, plants, chair, rug, mirror, shelf and both nightstands for this bounded iteration;
+- solve dresser anchor X/depth/yaw plus independent horizontal and vertical scale;
+- re-ground every anisotropic candidate before scoring so the objective measures the actual floor-contact state;
+- include Proof #92 uniform dresser state as an explicit non-regression seed;
+- measure full dresser bbox against the high-confidence target `left/right/top/bottom = 0.000/0.184/0.420/0.718`;
+- no proof-time child-geometry offset, hidden mesh, source edit or negative whole-room mirror is allowed.
 
-The mirror is the highest-confidence marker because its reference and candidate centers are almost complementary around x=0.5. The bed and other side-specific furniture follow the same direction error. This is larger than a local bed or mirror nudge and must be tested as one global presentation-axis error before changing individual anchors.
+Acceptance for Proof #93:
 
-## Bounded correction 2 — X-handedness
+- `01_front_wide.png` must be opened and compared directly with `/Refernzbild.png`;
+- dresser must visibly retain its correct left-side width while reducing the excessive vertical mass;
+- `reference_solve.json` must report a lower dresser objective than Proof #92 (`1.174884729302439`) without regressing already accepted primary geometry;
+- if visually confirmed, propagate only the accepted derived dresser TRS into `CelineRoomReferenceLayoutV80.java`, then perform exactly one Android build for the new runtime fingerprint and the smallest relevant real in-app visual proof;
+- if the dresser worsens despite a lower bbox objective, reject the numerical result and preserve Proof #92 runtime state.
 
-Proof #16 tested a proof-only X mirror at `room_world_root`. Direct visual inspection confirmed the hypothesis: mirror, bed and side-specific furniture all moved toward the reference sides together. Head `8f57b986d32ad1ee9821ff9cf655d99c1ef2e6f7` then retained that confirmed presentation handedness for the next reconstruction proof while keeping the 12 source GLBs and exact source-anchor metadata unchanged.
+## Iteration rule
 
-## Proof #17 — manually inspected 2026-09-04
-
-- Exact Room 440x420 Blender Proof #17 / run `33804765830`.
-- Exact head: `8f57b986d32ad1ee9821ff9cf655d99c1ef2e6f7`.
-- Artifact: `9917398137`, digest `sha256:355eaee22c3b2a0ea0138b2b92d50bfc50400392ec13811edcb44ffa0dc20016`.
-- Structural result: SUCCESS. Builder reported `CELINE_ROOM_440x420 PASS`; the primary frame and `/Refernzbild.png` are both 1376 x 1100.
-- Manual visual verdict: WHOLE-SCENE FAIL. The X direction is improved, but gross furniture depth/scale remains wrong.
-
-Measured/visible deltas after Proof #17:
-
-| Feature | Reference | Proof #17 | Evidence-backed conclusion |
-|---|---:|---:|---|
-| back-wall / ceiling boundary, center | y ~= 0.08 | y ~= 0.20 | camera/vertical composition remains far off; defer until gross furniture occlusion is reduced |
-| foreground tabletop upper/far band | y ~= 0.78 | y ~= 0.64 | still about 0.14 H too high |
-| round wall mirror | far left, center near x ~= 0.04 | far left | handedness is confirmed; mirror size/height still need later correction |
-| bed mass | right half, begins near x ~= 0.50 | intrudes into center from about x ~= 0.32 | bed placement/scale remains a major later correction |
-| floor lamp projected envelope | small back-left accent, roughly x 0.25..0.29 and y 0.28..0.43 | huge near-camera occluder, roughly x 0.12..0.34 and y 0.37..0.88 | lamp is about 3–4x too dominant in projected height and hides the lounge-chair zone |
-| lounge chair | clearly readable left-middle | largely hidden by the lamp | cannot judge chair until lamp occlusion is removed |
-| right nightstand/furniture | compact at far-right edge | oversized and too far into frame | still wrong, but lamp is the largest isolated occluder first |
-
-The floor lamp is now the best bounded next target because it is independently identifiable, it blocks another required object, and its error is explained by both depth and scale rather than by camera polish. With the fixed proof camera, its current anchor depth is user Z `+1.05`, only about 2.55 m from the camera at Z `+3.60`; the intended back-left reference placement reads near the chair/window zone. Moving only derived child geometry to effective user Z `-0.95` changes camera distance to about 4.55 m. Combining that perspective ratio (`2.55 / 4.55 ~= 0.56`) with a derived geometry scale factor `0.48` predicts about `0.27x` the current projected size, close to the measured target of roughly one quarter to one third of the current lamp height.
-
-## Bounded correction 3 — proof-only floor-lamp depth/scale diagnostic
-
-For the next real Blender proof only:
-
-- keep `room_floor_lamp__anchor` exact and auditable at its current prescribed source contract;
-- keep `Lampe.glb` bytes unchanged;
-- shift only `room_floor_lamp__geometry` to effective user Z depth `-0.95`;
-- apply derived uniform geometry factor `0.48` below the immutable anchor;
-- re-ground the lamp after scaling so its mesh base remains at floor user Y `0.00`;
-- do not change camera, bed, table, chair, nightstands, mirror, window or room shell in the same iteration.
-
-Acceptance for this diagnostic:
-
-- lamp must stop dominating the left foreground and expose the lounge-chair zone;
-- its projected height should approach the reference back-left lamp silhouette instead of occupying roughly half the frame height;
-- no source GLB or canonical source-anchor metadata may change;
-- if the scene improves, integrate the smallest equivalent derived reconstruction/runtime transform and then re-measure the next largest furniture error;
-- if the scene worsens, reject this hypothesis and restore Proof #17 lamp geometry behavior.
-
-## Iteration order
-
-1. Run exactly one real Blender primary proof for bounded correction 3 and inspect it directly against `/Refernzbild.png` on the same 1376 x 1100 grid.
-2. If lamp depth/scale is confirmed, integrate that derived calibration and re-measure the bed, right nightstand, mirror, table vertical band and chair.
-3. Correct exactly the next largest measured geometric/proportion error; do not begin camera micro-polish while large furniture mismatches remain.
-4. As soon as the gross room geometry/perspective/möbelaufstellung becomes meaningfully readable, produce and actually inspect the required early in-app CALL preview.
-5. Camera/FOV/target micro-alignment follows gross geometry/layout; materials/light/window/detail polish follows camera.
-
-No visual PASS may be recorded while a relevant visible delta remains.
+For each bounded change: re-read live authority -> confirm single-flight -> measure -> change one evidenced primary error -> run only the smallest required proof -> inspect the actual image -> document target/current/delta -> continue to the next largest visible error. Do not declare completion while a relevant visible difference remains.
