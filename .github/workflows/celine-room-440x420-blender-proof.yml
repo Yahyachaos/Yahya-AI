@@ -8,6 +8,7 @@ on:
       - 'tools/blender/build_celine_room_440x420.py'
       - 'tools/blender/render_celine_room_440x420_proof.py'
       - 'ci/celine_room_440x420_builder_contract.py'
+      - 'ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json'
       - 'Refernzbild.png'
   workflow_dispatch:
 
@@ -22,11 +23,6 @@ jobs:
   exact-room-blender:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
     runs-on: ubuntu-latest
-    # The exact-room source set is intentionally very large (12 canonical GLBs,
-    # each materialized from pinned Git LFS). Proof #12 reached the render step
-    # successfully but was cancelled by the previous 60-minute job limit before
-    # the single reference-grid Workbench frame completed. Keep the render itself
-    # unchanged and give this exact proof enough wall-clock budget to finish.
     timeout-minutes: 90
     steps:
       - name: Checkout exact PR head with LFS support
@@ -79,6 +75,7 @@ jobs:
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
           CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
+          CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
           CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
@@ -88,8 +85,10 @@ jobs:
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
-          grep -F 'CELINE_ROOM_440x420_VISUAL_PROOF PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
           test -s ci-room-proof/01_front_wide.png
+          test -s ci-room-proof/render-proof.json
           test -s Refernzbild.png
           cp Refernzbild.png ci-room-proof/Refernzbild.png
           printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/metadata.txt
@@ -98,7 +97,7 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'visual_proof=real_blender_workbench_reference_grid_primary_view' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
 
       - name: Upload deterministic Blender proof
