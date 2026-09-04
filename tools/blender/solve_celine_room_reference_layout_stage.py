@@ -11,15 +11,16 @@ Proof #47 confirmed the mirror, #48/#50 corrected the front nightstand, #49
 corrected the large plant, #51 corrected the small plant from a large
 left-floor object to the measured tiny right-bedside target, #52 fitted the
 wall shelf closely to its measured target, #53 moved the floor-lamp anchor
-toward the back/window zone, and #54 moved the rear bedside unit from the wrong
-left-chair zone to the correct bed-side zone. Proof #54 now leaves the dresser
-as the largest unambiguous primary composition error: candidate vertical bbox
-is y=0.491..0.808 versus reference y=0.420..0.718. Its current derived depth is
-+0.606 m (toward the camera), which makes the grounded dresser project far too
-low. Constrain the normal dresser anchor to the deeper half of its physically
-valid left-wall zone so the solver can solve the coupled depth/scale branch
-instead of remaining in that local minimum. Preserve camera, all other solved
-anchors, source GLBs and proof-time geometry.
+toward the back/window zone, #54 moved the rear bedside unit to the correct
+bed-side zone, and #55 moved the dresser onto the deeper measured branch.
+Direct inspection of Proof #55 now leaves the floor lamp as the largest measured
+systematic mismatch. Its full projected bbox is y=0.382..0.519 while the visible
+reference lamp is y=0.273..0.420. The lower pole/base is occluded by the lounge
+chair in Refernzbild.png, so fitting the hidden full-object bottom/height against
+the visible target creates a false local minimum. Fit this grounded source by
+its reliable visible top/center/width while leaving the hidden lower extent free
+to remain behind the chair. Preserve camera, all other solved anchors, source
+GLBs and proof-time geometry.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -81,12 +82,7 @@ solver.SOLVE_LIMITS["room_plant_small"] = {
     "steps": [0.12, 0.18, 0.10, 0.06, 7.5],
 }
 
-# Proof #51 current wall-shelf projection:
-#   center=(0.6668, 0.2661), size=(0.1935, 0.1696)
-# Reference target:
-#   center=(0.662, 0.215), size=(0.103, 0.080)
-# The shelf is visibly about twice the intended projected size. Keep it on the
-# back/right wall band and solve the normal derived anchor; no child/proof hack.
+# The wall shelf is partially occlusion-free and can use its ordinary full bbox.
 solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
     "wall": True,
     "bounds": [
@@ -99,14 +95,10 @@ solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
     "steps": [0.16, 0.08, 0.12, 0.06, 5.0],
 }
 
-# Proof #52 current floor-lamp projection:
-#   center=(0.2713, 0.5035), size=(0.0320, 0.0602)
-# Reference target:
-#   center=(0.264, 0.347), size=(0.036, 0.147)
-# Its horizontal placement is already close, but the grounded base is far too
-# low because the old Z-depth bound stops at -1.55 m. The reference floor lamp
-# stands in the back/window zone. Extend only the auditable anchor search toward
-# the back wall and allow enough scale to match the measured projected height.
+# The reference floor lamp stands behind the lounge chair. Its lower pole/base is
+# intentionally occluded, so only the visible top/center/width are reliable fit
+# terms. Keep the source grounded and search the normal derived anchor near the
+# back/window zone; do not move child geometry or apply proof-time transforms.
 solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "wall": False,
     "bounds": [
@@ -118,12 +110,34 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "steps": [0.10, 0.10, 0.08, 5.0],
 }
 
-# Proof #53 instance-ID evidence shows the rear Nachttisch source still at the
-# lounge-chair/left-window side (projected full bbox about x=0.158..0.288,
-# y=0.332..0.561). The reference shows the same bedside-unit/lamp family behind
-# the bed around x=0.704..0.789. The lower cabinet/legs are occluded by the bed,
-# so the target records that vertical uncertainty explicitly; this bounded solve
-# is primarily the large left/right placement correction and keeps floor contact.
+_base_solve_instance = solver.solve_instance
+_base_bbox_objective = solver.bbox_objective
+
+
+def _floor_lamp_visible_objective(candidate, target):
+    if candidate is None:
+        return 1e9
+    return (
+        ((candidate["center_x"] - float(target["center_x"])) / 0.020) ** 2 +
+        ((candidate["top"] - float(target["top"])) / 0.018) ** 2 +
+        ((candidate["width"] - float(target["width"])) / 0.050) ** 2
+    )
+
+
+def _solve_instance_occlusion_aware(camera, instance_id, target):
+    if instance_id != "room_floor_lamp":
+        return _base_solve_instance(camera, instance_id, target)
+    solver.bbox_objective = _floor_lamp_visible_objective
+    try:
+        return _base_solve_instance(camera, instance_id, target)
+    finally:
+        solver.bbox_objective = _base_bbox_objective
+
+
+solver.solve_instance = _solve_instance_occlusion_aware
+
+# The rear bedside source is partly hidden by the bed. Its current target is
+# intentionally coarse vertically; its bounded solve primarily fixes placement.
 solver.SOLVE_LIMITS["room_nightstand_rear"] = {
     "wall": False,
     "bounds": [
@@ -136,10 +150,7 @@ solver.SOLVE_LIMITS["room_nightstand_rear"] = {
 }
 
 # Proof #54 dresser candidate y=0.491..0.808 while target y=0.420..0.718.
-# The horizontal bbox is already close (0.000..0.191 versus 0.000..0.184), so
-# do not move the camera or distort source geometry. The current +0.606 m depth
-# is the wrong coupled projection branch. Force the ordinary anchor solve behind
-# the room center and let uniform scale/yaw re-fit the measured bbox there.
+# Keep the already successful deeper branch from Proof #55.
 solver.SOLVE_LIMITS["room_dresser"] = {
     "wall": False,
     "bounds": [
