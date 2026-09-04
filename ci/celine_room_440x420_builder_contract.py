@@ -5,20 +5,24 @@ import ast
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "tools/blender/build_celine_room_440x420.py"
 
-EXPECTED = [
-    ("room_bed", "Bett.glb", (1.35, 0.42, -0.55), -90.0, 1.05, "floor"),
-    ("room_dresser", "GroßeKomode.glb", (-1.95, 0.55, 0.25), 90.0, 0.92, "floor"),
-    ("room_plant_large", "Großepflanzemittopf.glb", (-1.85, 0.85, -1.35), 0.0, 0.95, "floor"),
-    ("room_plant_small", "Kleinepflanzemittopf.glb", (1.20, 0.52, -1.70), 0.0, 0.62, "floor"),
-    ("room_floor_lamp", "Lampe.glb", (-1.05, 0.72, 1.05), 0.0, 0.82, "floor"),
-    ("room_nightstand_rear", "Nachttisch.glb", (1.85, 0.52, -1.35), 90.0, 0.62, "floor"),
-    ("room_nightstand_front", "Nachttisch.glb", (1.85, 0.52, 0.35), 90.0, 0.62, "floor"),
-    ("room_lounge_chair", "Sessel.glb", (-1.20, 0.40, -0.70), 15.0, 0.55, "floor"),
-    ("room_rug", "Teppisch.glb", (-0.15, 0.012, 0.05), 0.0, 1.45, "rug"),
-    ("room_foreground_table", "Tischfürlaptop.glb", (0.00, 0.36, 2.05), 0.0, 1.10, "floor"),
-    ("room_window_drapes", "Fenstermitgardinen.glb", (0.30, 1.10, -1.95), 0.0, 1.35, "wall"),
-    ("room_wall_shelf_books", "Hängeboardmitbücher.glb", (-1.40, 1.55, -1.85), 0.0, 0.70, "wall"),
-    ("room_round_mirror", "Wandspiegelrund.glb", (-2.15, 1.55, 0.25), 90.0, 0.55, "wall"),
+# Proof #18 visually rejected the previous fixed transform table. This contract
+# now protects source identity, room dimensions, instance identity and required
+# builder behavior while allowing reference-constrained layout transforms to be
+# solved from Refernzbild.png.
+EXPECTED_IDENTITIES = [
+    ("room_bed", "Bett.glb", "floor"),
+    ("room_dresser", "GroßeKomode.glb", "floor"),
+    ("room_plant_large", "Großepflanzemittopf.glb", "floor"),
+    ("room_plant_small", "Kleinepflanzemittopf.glb", "floor"),
+    ("room_floor_lamp", "Lampe.glb", "floor"),
+    ("room_nightstand_rear", "Nachttisch.glb", "floor"),
+    ("room_nightstand_front", "Nachttisch.glb", "floor"),
+    ("room_lounge_chair", "Sessel.glb", "floor"),
+    ("room_rug", "Teppisch.glb", "rug"),
+    ("room_foreground_table", "Tischfürlaptop.glb", "floor"),
+    ("room_window_drapes", "Fenstermitgardinen.glb", "wall"),
+    ("room_wall_shelf_books", "Hängeboardmitbücher.glb", "wall"),
+    ("room_round_mirror", "Wandspiegelrund.glb", "wall"),
 ]
 
 EXPECTED_SOURCES = {
@@ -74,12 +78,19 @@ def main():
 
     instances = values.get("INSTANCE_SPECS")
     require(isinstance(instances, list) and len(instances) == 13, "must contain exactly 13 furniture instances")
-    actual = [
-        (row["id"], row["file"], tuple(row["location"]), float(row["rotation_y_deg"]), float(row["scale"]), row["ground"])
-        for row in instances
-    ]
-    require(actual == EXPECTED, "one or more exact furniture transforms differ from the approved contract")
-    require(sum(1 for row in actual if row[1] == "Nachttisch.glb") == 2, "Nachttisch.glb must be instantiated exactly twice")
+    actual_identities = [(row["id"], row["file"], row["ground"]) for row in instances]
+    require(actual_identities == EXPECTED_IDENTITIES, "instance identity/source/grounding contract mismatch")
+    require(sum(1 for row in actual_identities if row[1] == "Nachttisch.glb") == 2, "Nachttisch.glb must be instantiated exactly twice")
+
+    # Layout values are intentionally not compared against the rejected legacy
+    # transform table. They must remain explicit and finite so solved reference
+    # transforms stay auditable on the anchors.
+    for row in instances:
+        require("location" in row and len(row["location"]) == 3, f"{row['id']}: explicit location required")
+        require("rotation_y_deg" in row, f"{row['id']}: explicit rotation_y_deg required")
+        require("scale" in row and float(row["scale"]) > 0.0, f"{row['id']}: positive explicit scale required")
+        require(all(abs(float(v)) < 1000.0 for v in row["location"]), f"{row['id']}: non-finite/unreasonable location")
+        require(abs(float(row["rotation_y_deg"])) < 10000.0, f"{row['id']}: unreasonable rotation")
 
     function_names = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
     for name in (
@@ -104,11 +115,9 @@ def main():
     for token in required_tokens:
         require(token in text, f"required exact-builder behavior missing: {token}")
 
-    # The superseded oversized geometry must never re-enter this builder.
     for forbidden in ("6.4", "6.40", "5.8", "5.80"):
         require(forbidden not in text, f"forbidden old oversized-room value found: {forbidden}")
 
-    # Shell contract is encoded around exact half extents and outward wall thickness.
     require('half_x = ROOM_WIDTH_X / 2.0' in text, "half-width shell contract missing")
     require('half_depth = ROOM_DEPTH_Z / 2.0' in text, "half-depth shell contract missing")
     require('ROOM_HEIGHT_Y + t / 2.0' in text, "ceiling thickness must extend outward")
@@ -116,6 +125,7 @@ def main():
     require('-half_depth - t / 2.0' in text and 'half_depth + t / 2.0' in text, "front/back wall thickness must extend outward")
 
     print("celine-room-440x420-builder-contract PASS")
+    print("layout_transform_policy=reference_constrained legacy_fixed_transforms_enforced=false")
 
 
 if __name__ == "__main__":
