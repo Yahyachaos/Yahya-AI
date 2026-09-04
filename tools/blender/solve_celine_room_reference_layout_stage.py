@@ -38,6 +38,14 @@ GLB bytes untouched and solve an auditable anisotropic *anchor* scale for this
 one instance: horizontal X/Y footprint and vertical Z height are optimized
 independently, with floor contact preserved. This is runtime layout state, not a
 proof-time geometry mutation.
+
+Proof #62 matched the lamp's unoccluded projected width, but direct inspection
+of the real instance-ID render showed why numeric bbox equality is insufficient:
+the still-too-wide large-plant canopy covered the now-narrow lamp almost
+completely. The measured plant is only 0.115 wide versus the current 0.155 while
+its height is already slightly short. The next bounded correction therefore
+fits the large plant with independent horizontal/vertical anchor scale so its
+right silhouette releases the measured lamp zone without changing source bytes.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -231,6 +239,78 @@ def _solve_floor_lamp_anisotropic(camera, target):
     return p, final_box, final_score
 
 
+def _apply_large_plant_params(params):
+    instance_id = "room_plant_large"
+    x, z_depth, horizontal_scale, vertical_scale, rot = params
+    a = solver.anchor(instance_id)
+    audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
+    user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
+    a.location.x = float(x)
+    a.location.y = float(z_depth)
+    a.rotation_mode = "XYZ"
+    a.rotation_euler.z = math.radians(-float(rot))
+    a.scale = (float(horizontal_scale), float(horizontal_scale), float(vertical_scale))
+    a["user_location_xyz"] = [float(a.location.x), float(user_y), float(a.location.y)]
+    a["user_rotation_y_deg"] = float(rot)
+    if "user_uniform_scale" in a:
+        del a["user_uniform_scale"]
+    a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
+    a["reference_solved"] = True
+    a["reference_anisotropic_anchor_scale"] = True
+    solver.reground(instance_id)
+
+
+def _solve_large_plant_anisotropic(camera, target):
+    instance_id = "room_plant_large"
+    # Proof #62: current bbox width=0.155 versus target=0.115 while height is
+    # slightly short. Preserve the already-good location/yaw and solve only the
+    # horizontal-vs-vertical scale split. Every trial is re-grounded because a
+    # non-uniform Z scale does not retain the uniform-scale grounding invariant.
+    fixed_x = 2.15
+    fixed_z = -1.80
+    fixed_rot = -15.29296875
+    p = [0.70, 1.02]
+    bounds = [(0.45, 0.95), (0.80, 1.25)]
+    steps = [0.06, 0.06]
+
+    def apply(scales):
+        params = [fixed_x, fixed_z, scales[0], scales[1], fixed_rot]
+        _apply_large_plant_params(params)
+        return params
+
+    params = apply(p)
+    best_box = solver.projected_bbox(camera, instance_id)
+    best = solver.bbox_objective(best_box, target)
+    for _ in range(7):
+        improved = True
+        guard = 0
+        while improved and guard < 40:
+            guard += 1
+            improved = False
+            for i in range(2):
+                for sign in (-1.0, 1.0):
+                    cand = list(p)
+                    cand[i] = solver.clamp(cand[i] + sign * steps[i], *bounds[i])
+                    apply(cand)
+                    box = solver.projected_bbox(camera, instance_id)
+                    score = solver.bbox_objective(box, target)
+                    if score + 1e-8 < best:
+                        p, best, best_box, improved = cand, score, box, True
+                    else:
+                        apply(p)
+        steps = [s * 0.5 for s in steps]
+
+    params = apply(p)
+    final_box = solver.projected_bbox(camera, instance_id)
+    final_score = float(solver.bbox_objective(final_box, target))
+    a = solver.anchor(instance_id)
+    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
+    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
+    a["reference_screen_objective"] = final_score
+    a["reference_plant_fit_terms"] = "full_bbox_with_independent_horizontal_vertical_scale"
+    return params, final_box, final_score
+
+
 def _solve_foreground_table_multistart(camera, target):
     instance_id = "room_foreground_table"
     original = solver.current_anchor_params(instance_id, wall=False)
@@ -276,6 +356,8 @@ def _solve_instance_staged(camera, instance_id, target):
         return _solve_foreground_table_multistart(camera, target)
     if instance_id == "room_floor_lamp":
         return _solve_floor_lamp_anisotropic(camera, target)
+    if instance_id == "room_plant_large":
+        return _solve_large_plant_anisotropic(camera, target)
     return _base_solve_instance(camera, instance_id, target)
 
 
