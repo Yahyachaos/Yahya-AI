@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Reference-constrained screen-space layout solve for the Celine room.
 
-Runs after build_celine_room_440x420.py in the same Blender process. It does not
-mutate source GLBs. It adjusts auditable instance anchors and a dedicated proof
-camera so projected scene geometry approaches measured targets from
-Refernzbild.png before the expensive render is produced.
+Runs after build_celine_room_440x420.py in the same Blender process. Source GLBs
+remain immutable. The solver changes only auditable instance anchors and a
+reference camera, using measured targets from Refernzbild.png. Semantic room
+constraints bound the optimization so scale/depth ambiguity cannot produce a
+mathematically matching but physically absurd layout.
 """
 
 from pathlib import Path
@@ -40,6 +41,43 @@ FLOOR_IDS = {
 }
 RUG_IDS = {"room_rug"}
 
+# Semantic bounds are deliberately broad enough to solve from evidence but
+# narrow enough to preserve the obvious room logic visible in the reference.
+# Non-wall params: X, user-Z depth, scale, rotation-Y degrees.
+# Wall params: X, user-Z depth, user-Y height, scale, rotation-Y degrees.
+SOLVE_LIMITS = {
+    "room_window_drapes": {
+        "wall": True,
+        "bounds": [(-0.65, 0.65), (-2.10, -1.72), (0.65, 1.55), (0.55, 2.10), (-20.0, 20.0)],
+        "steps": [0.20, 0.08, 0.15, 0.15, 5.0],
+    },
+    "room_bed": {
+        "wall": False,
+        "bounds": [(0.35, 2.20), (-1.45, 0.55), (0.25, 1.60), (-140.0, -40.0)],
+        "steps": [0.30, 0.30, 0.15, 10.0],
+    },
+    "room_dresser": {
+        "wall": False,
+        "bounds": [(-2.20, -0.85), (-0.35, 1.45), (0.25, 1.60), (45.0, 135.0)],
+        "steps": [0.25, 0.30, 0.15, 10.0],
+    },
+    "room_lounge_chair": {
+        "wall": False,
+        "bounds": [(-1.75, -0.30), (-1.55, -0.05), (0.20, 1.30), (-35.0, 50.0)],
+        "steps": [0.25, 0.25, 0.12, 8.0],
+    },
+    "room_foreground_table": {
+        "wall": False,
+        "bounds": [(-0.65, 0.65), (1.25, 2.10), (0.20, 1.80), (-25.0, 25.0)],
+        "steps": [0.20, 0.18, 0.15, 5.0],
+    },
+    "room_rug": {
+        "wall": False,
+        "bounds": [(-0.70, 0.45), (-0.45, 0.85), (0.45, 2.20), (-20.0, 20.0)],
+        "steps": [0.20, 0.20, 0.15, 5.0],
+    },
+}
+
 
 def fail(message):
     print("CELINE_ROOM_REFERENCE_SOLVE FAIL")
@@ -54,14 +92,14 @@ def load_targets():
     if not TARGETS_PATH.is_file():
         fail(f"missing reference target file: {TARGETS_PATH}")
     data = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
-    if data.get("reference", {}).get("width_px") != 1376 or data.get("reference", {}).get("height_px") != 1100:
+    ref = data.get("reference", {})
+    if ref.get("width_px") != 1376 or ref.get("height_px") != 1100:
         fail("reference target grid must be exactly 1376x1100")
     return data
 
 
 def descendants(root):
-    out = []
-    stack = list(root.children)
+    out, stack = [], list(root.children)
     while stack:
         obj = stack.pop()
         out.append(obj)
@@ -137,7 +175,7 @@ def point_camera(camera, target):
 
 def configure_camera(camera, params):
     cam_x, cam_h, target_x, target_h, lens = params
-    camera.location = (cam_x, 3.60, cam_h)  # Blender (X, user-Z, user-Y)
+    camera.location = (cam_x, 3.60, cam_h)
     camera.data.lens = lens
     point_camera(camera, Vector((target_x, -0.30, target_h)))
     bpy.context.view_layer.update()
@@ -149,9 +187,8 @@ def project_point(camera, world):
 
 
 def solve_camera(camera, targets):
-    left_t = targets["architecture_landmarks"]["backwall_ceiling_left"]
-    right_t = targets["architecture_landmarks"]["backwall_ceiling_right"]
-    # Back-wall top inside corners in Blender coordinates.
+    lt = targets["architecture_landmarks"]["backwall_ceiling_left"]
+    rt = targets["architecture_landmarks"]["backwall_ceiling_right"]
     left_world = Vector((-2.20, -2.10, 2.65))
     right_world = Vector((2.20, -2.10, 2.65))
 
@@ -162,20 +199,21 @@ def solve_camera(camera, targets):
         if lz <= 0.0 or rz <= 0.0:
             return 1e9
         err = (
-            ((lx - float(left_t["x"])) / 0.02) ** 2 +
-            ((ly - float(left_t["y"])) / 0.02) ** 2 +
-            ((rx - float(right_t["x"])) / 0.02) ** 2 +
-            ((ry - float(right_t["y"])) / 0.02) ** 2
+            ((lx - float(lt["x"])) / 0.018) ** 2 +
+            ((ly - float(lt["y"])) / 0.018) ** 2 +
+            ((rx - float(rt["x"])) / 0.018) ** 2 +
+            ((ry - float(rt["y"])) / 0.018) ** 2
         )
-        # Light regularization prevents underdetermined extreme cameras.
-        err += 0.02 * ((p[0] / 0.75) ** 2 + ((p[1] - 1.55) / 0.75) ** 2 +
-                       (p[2] / 0.75) ** 2 + ((p[3] - 0.95) / 0.75) ** 2 +
-                       ((p[4] - 24.0) / 12.0) ** 2)
+        err += 0.025 * (
+            (p[0] / 0.70) ** 2 + ((p[1] - 1.55) / 0.65) ** 2 +
+            (p[2] / 0.70) ** 2 + ((p[3] - 0.95) / 0.65) ** 2 +
+            ((p[4] - 24.0) / 10.0) ** 2
+        )
         return err
 
     p = [0.0, 1.55, 0.0, 0.95, 24.0]
-    bounds = [(-1.0, 1.0), (0.9, 2.3), (-1.0, 1.0), (0.35, 1.65), (16.0, 42.0)]
-    steps = [0.30, 0.25, 0.25, 0.20, 4.0]
+    bounds = [(-0.90, 0.90), (1.0, 2.2), (-0.90, 0.90), (0.45, 1.50), (18.0, 36.0)]
+    steps = [0.25, 0.20, 0.20, 0.16, 3.0]
     best = objective(p)
     for _ in range(8):
         improved = True
@@ -200,25 +238,18 @@ def projected_bbox(camera, instance_id):
         if obj.type != "MESH":
             continue
         for corner in obj.bound_box:
-            world = obj.matrix_world @ Vector(corner)
-            x, y, z = project_point(camera, world)
+            x, y, z = project_point(camera, obj.matrix_world @ Vector(corner))
             if z <= 0.0:
                 return None
-            xs.append(x)
-            ys.append(y)
+            xs.append(x); ys.append(y)
     if not xs:
         return None
-    # Compare visible image envelope; reference boxes may be edge-clipped.
-    left = clamp(min(xs), 0.0, 1.0)
-    right = clamp(max(xs), 0.0, 1.0)
-    top = clamp(min(ys), 0.0, 1.0)
-    bottom = clamp(max(ys), 0.0, 1.0)
+    left, right = clamp(min(xs), 0.0, 1.0), clamp(max(xs), 0.0, 1.0)
+    top, bottom = clamp(min(ys), 0.0, 1.0), clamp(max(ys), 0.0, 1.0)
     return {
         "left": left, "right": right, "top": top, "bottom": bottom,
-        "center_x": (left + right) * 0.5,
-        "center_y": (top + bottom) * 0.5,
-        "width": max(0.0, right - left),
-        "height": max(0.0, bottom - top),
+        "center_x": (left + right) * 0.5, "center_y": (top + bottom) * 0.5,
+        "width": max(0.0, right - left), "height": max(0.0, bottom - top),
     }
 
 
@@ -230,9 +261,8 @@ def apply_anchor_params(instance_id, params, wall=False):
         user_y = y_height
     else:
         x, z_depth, scale, rot = params
-        # Preserve the anchor's audit Y-height/origin component; grounding makes
-        # the actual floor contact explicit at child geometry level.
-        user_y = float(a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])[1])
+        audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
+        user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
         a.location.x = x
         a.location.y = z_depth
     a.rotation_mode = "XYZ"
@@ -257,24 +287,24 @@ def current_anchor_params(instance_id, wall=False):
 def bbox_objective(candidate, target):
     if candidate is None:
         return 1e9
-    # Centers are more important than exact silhouette sizes in this first solve.
     return (
-        ((candidate["center_x"] - float(target["center_x"])) / 0.02) ** 2 +
-        ((candidate["center_y"] - float(target["center_y"])) / 0.02) ** 2 +
-        ((candidate["width"] - float(target["width"])) / 0.05) ** 2 +
-        ((candidate["height"] - float(target["height"])) / 0.05) ** 2
+        ((candidate["center_x"] - float(target["center_x"])) / 0.020) ** 2 +
+        ((candidate["center_y"] - float(target["center_y"])) / 0.020) ** 2 +
+        ((candidate["width"] - float(target["width"])) / 0.050) ** 2 +
+        ((candidate["height"] - float(target["height"])) / 0.050) ** 2
     )
 
 
-def solve_instance(camera, instance_id, target, wall=False):
-    p = current_anchor_params(instance_id, wall=wall)
-    if wall:
-        bounds = [(-2.3, 2.3), (-2.1, 2.1), (0.2, 2.6), (0.08, 3.0), (-180.0, 180.0)]
-        steps = [0.45, 0.45, 0.25, 0.25, 20.0]
-    else:
-        bounds = [(-2.3, 2.3), (-2.1, 2.1), (0.08, 3.0), (-180.0, 180.0)]
-        steps = [0.45, 0.45, 0.25, 20.0]
+def clamp_params_to_bounds(params, bounds):
+    return [clamp(float(value), *bound) for value, bound in zip(params, bounds)]
 
+
+def solve_instance(camera, instance_id, target):
+    cfg = SOLVE_LIMITS[instance_id]
+    wall = bool(cfg["wall"])
+    bounds = cfg["bounds"]
+    steps = list(cfg["steps"])
+    p = clamp_params_to_bounds(current_anchor_params(instance_id, wall=wall), bounds)
     apply_anchor_params(instance_id, p, wall=wall)
     best_box = projected_bbox(camera, instance_id)
     best = bbox_objective(best_box, target)
@@ -282,7 +312,7 @@ def solve_instance(camera, instance_id, target, wall=False):
     for _ in range(8):
         improved = True
         guard = 0
-        while improved and guard < 100:
+        while improved and guard < 80:
             guard += 1
             improved = False
             for i in range(len(p)):
@@ -300,11 +330,12 @@ def solve_instance(camera, instance_id, target, wall=False):
 
     apply_anchor_params(instance_id, p, wall=wall)
     final_box = projected_bbox(camera, instance_id)
+    final_score = float(bbox_objective(final_box, target))
     a = anchor(instance_id)
     a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
     a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
-    a["reference_screen_objective"] = float(bbox_objective(final_box, target))
-    return p, final_box, float(bbox_objective(final_box, target))
+    a["reference_screen_objective"] = final_score
+    return p, final_box, final_score
 
 
 def main():
@@ -325,12 +356,7 @@ def main():
         target = targets["targets"].get(instance_id)
         if target is None:
             fail(f"missing target for {instance_id}")
-        params, candidate, score = solve_instance(
-            camera,
-            instance_id,
-            target,
-            wall=(instance_id == "room_window_drapes"),
-        )
+        params, candidate, score = solve_instance(camera, instance_id, target)
         solved[instance_id] = {
             "params": [float(v) for v in params],
             "candidate_bbox": candidate,
@@ -341,7 +367,7 @@ def main():
 
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     result = {
-        "schema": "celine-room-reference-solve/v1",
+        "schema": "celine-room-reference-solve/v2",
         "camera": {
             "name": CAMERA_NAME,
             "params_cam_x_cam_height_target_x_target_height_lens": [float(v) for v in cam_params],
@@ -349,6 +375,7 @@ def main():
         },
         "solved": solved,
         "source_glbs_mutated": False,
+        "semantic_bounds_used": True,
         "proof_time_hidden_geometry_fix": False,
         "visual_acceptance": "UNASSESSED",
     }
