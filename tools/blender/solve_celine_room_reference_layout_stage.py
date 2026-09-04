@@ -18,11 +18,11 @@ fitting the visible, non-occluded landmarks rather than its hidden base.
 
 Proof #57 confirmed that merely widening the foreground-table yaw bounds is not
 enough: coordinate descent stayed in the same yaw≈5.9° local minimum, still
-width=0.845 versus target=1.000 and top=0.739 versus target=0.782. Evaluate the
-physically distinct +/-90° source-orientation branches deterministically and
-keep only the lowest ordinary screen-space objective. This is still a normal
-derived anchor solve: no source mutation, no child transform and no proof-time
-geometry correction.
+width=0.845 versus target=1.000 and top=0.739 versus target=0.782. Proof #58
+confirmed the multistart orientation search still lands at the same near-depth
+saturation (user-Z=2.10). The reference table is the clipped foreground band,
+so extend only this anchor's near-camera feasible depth while keeping the
+camera, room shell and source geometry unchanged.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -111,14 +111,16 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "steps": [0.10, 0.10, 0.08, 5.0],
 }
 
-# Proof #57: the table is too narrow while already at the near depth bound.
-# Keep the broad yaw domain and explicitly seed each distinct orientation branch
-# because coordinate descent cannot cross the worse intermediate yaw states.
+# Proof #58: yaw multistart improved no further because the table remained
+# saturated at user-Z=2.10 while its top was still 0.739 (target 0.782) and
+# width 0.845 (target 1.000). The open camera-facing side of the room has no
+# front wall; allow this foreground anchor to approach the camera, but keep a
+# conservative 0.32 m anchor clearance from the solved camera at user-Z≈2.87.
 solver.SOLVE_LIMITS["room_foreground_table"] = {
     "wall": False,
     "bounds": [
         (-0.75, 0.75),
-        (1.15, 2.10),
+        (1.15, 2.55),
         (0.20, 1.80),
         (-100.0, 100.0),
     ],
