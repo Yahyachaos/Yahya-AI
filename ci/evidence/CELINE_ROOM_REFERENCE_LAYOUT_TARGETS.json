@@ -1,0 +1,105 @@
+{
+  "schema": "celine-room-reference-layout-targets/v1",
+  "reference": {
+    "path": "Refernzbild.png",
+    "width_px": 1376,
+    "height_px": 1100,
+    "coordinate_convention": "normalized image coordinates, origin top-left, x rightward, y downward"
+  },
+  "status": "INITIAL_MANUAL_REFERENCE_MEASUREMENT__REFINE_WITH_PROJECTION_SOLVE",
+  "rules": {
+    "visual_reference_is_authoritative": true,
+    "legacy_fixed_furniture_transforms_are_authoritative": false,
+    "uncertain_bounds_must_not_be_treated_as_exact": true,
+    "structural_workflow_success_is_visual_acceptance": false
+  },
+  "architecture_landmarks": {
+    "backwall_ceiling_left": {"x": 0.190, "y": 0.078, "confidence": "high"},
+    "backwall_ceiling_right": {"x": 0.748, "y": 0.098, "confidence": "high"},
+    "left_backwall_edge_top": {"x": 0.190, "y": 0.078, "confidence": "high"},
+    "right_backwall_edge_top": {"x": 0.748, "y": 0.098, "confidence": "high"}
+  },
+  "targets": {
+    "room_window_drapes": {
+      "left": 0.205, "right": 0.588, "top": 0.086, "bottom": 0.477,
+      "center_x": 0.397, "center_y": 0.282, "width": 0.383, "height": 0.391,
+      "confidence": "high",
+      "notes": "Includes curtain envelope used as architecture/camera marker."
+    },
+    "room_bed": {
+      "left": 0.500, "right": 0.998, "top": 0.323, "bottom": 0.652,
+      "center_x": 0.749, "center_y": 0.488, "width": 0.498, "height": 0.329,
+      "confidence": "medium",
+      "notes": "Visible bed mass including headboard/mattress/blanket envelope; partly occluded by Celine in reference."
+    },
+    "room_dresser": {
+      "left": 0.000, "right": 0.184, "top": 0.420, "bottom": 0.718,
+      "center_x": 0.092, "center_y": 0.569, "width": 0.184, "height": 0.298,
+      "confidence": "high"
+    },
+    "room_lounge_chair": {
+      "left": 0.217, "right": 0.333, "top": 0.368, "bottom": 0.508,
+      "center_x": 0.275, "center_y": 0.438, "width": 0.116, "height": 0.140,
+      "confidence": "high"
+    },
+    "room_foreground_table": {
+      "left": 0.000, "right": 1.000, "top": 0.782, "bottom": 1.000,
+      "center_x": 0.500, "center_y": 0.891, "width": 1.000, "height": 0.218,
+      "confidence": "high",
+      "notes": "Only the near foreground/table band should dominate the bottom edge; it must not bisect the room mid-frame."
+    },
+    "room_round_mirror": {
+      "left": 0.000, "right": 0.078, "top": 0.095, "bottom": 0.337,
+      "center_x": 0.039, "center_y": 0.216, "width": 0.078, "height": 0.242,
+      "confidence": "high",
+      "notes": "Mirror is clipped by left image edge in the reference."
+    },
+    "room_rug": {
+      "left": 0.205, "right": 0.870, "top": 0.520, "bottom": 0.795,
+      "center_x": 0.538, "center_y": 0.658, "width": 0.665, "height": 0.275,
+      "confidence": "medium",
+      "notes": "Partly occluded by Celine/bed/table."
+    },
+    "room_plant_large": {
+      "left": 0.132, "right": 0.247, "top": 0.205, "bottom": 0.535,
+      "center_x": 0.190, "center_y": 0.370, "width": 0.115, "height": 0.330,
+      "confidence": "medium"
+    },
+    "room_floor_lamp": {
+      "left": 0.246, "right": 0.282, "top": 0.273, "bottom": 0.420,
+      "center_x": 0.264, "center_y": 0.347, "width": 0.036, "height": 0.147,
+      "confidence": "high"
+    },
+    "room_wall_shelf_books": {
+      "left": 0.610, "right": 0.713, "top": 0.175, "bottom": 0.255,
+      "center_x": 0.662, "center_y": 0.215, "width": 0.103, "height": 0.080,
+      "confidence": "medium"
+    },
+    "room_nightstand_front": {
+      "left": 0.916, "right": 1.000, "top": 0.506, "bottom": 0.706,
+      "center_x": 0.958, "center_y": 0.606, "width": 0.084, "height": 0.200,
+      "confidence": "medium",
+      "notes": "Right nightstand is clipped by the right edge."
+    },
+    "room_plant_small": {
+      "left": 0.934, "right": 0.983, "top": 0.463, "bottom": 0.522,
+      "center_x": 0.959, "center_y": 0.493, "width": 0.049, "height": 0.059,
+      "confidence": "low",
+      "notes": "Small right-side plant; partially blended with nightstand/bed edge."
+    }
+  },
+  "primary_solve_order": [
+    "room_window_drapes",
+    "room_bed",
+    "room_dresser",
+    "room_lounge_chair",
+    "room_foreground_table",
+    "room_rug"
+  ],
+  "acceptance_guidance": {
+    "architecture_center_or_edge_error_fraction": 0.025,
+    "primary_center_error_fraction": 0.02,
+    "primary_projected_size_error_fraction": 0.05,
+    "manual_visual_inspection_required": true
+  }
+}
