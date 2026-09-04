@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
-"""Proof #103 dresser visible-silhouette depth/height refinement.
+"""Proof #104 dresser visible-silhouette interpolation refinement.
 
 The prior staged solver remains byte-for-byte in
 solve_celine_room_reference_layout_stage_base.py. This wrapper loads it without
 running the final main() and changes only the derived room_dresser anchor.
 
-Proof #101 proved projected object-AABB corners are not a valid dresser visual
-proxy. Proof #102 therefore calibrated from the real rendered instance-ID mask
-and improved the visible cabinet from Proof #92 bbox
-x=0.000000..0.167273, y=0.463148..0.721565 to Proof #102
-x=0.000000..0.173091, y=0.442220..0.731574 against the authoritative target
-x=0.000000..0.184000, y=0.420000..0.718000.
+Proof #102 and Proof #103 bracket the authoritative rendered dresser silhouette
+on the same exact camera/reference grid:
 
-The remaining error is now primarily depth/vertical projection: the grounded
-bottom is +0.01357 H too low and the clipped right edge is -0.01091 W too far
-left. With the fixed Proof #92 camera, translating the same left-side world
-branch from user-Z 0.00 to -0.14 predicts roughly -0.0137 H at the floor and
-+0.011 W at the visible right edge, addressing both errors together. Because a
-deeper grounded object shrinks vertically, raise only vertical anchor scale from
-0.8328094 to 0.8827092 so the post-depth visible height remains near the measured
-0.298 target. Preserve Proof #102 horizontal scale, X and yaw. Original
-Kommode.glb bytes remain immutable and no child/proof-only geometry transform is
-introduced.
+Proof #102: right=0.173091, top=0.442220, bottom=0.731574, height=0.289354
+Proof #103: right=0.181091, top=0.402184, bottom=0.708826, height=0.306642
+Target:     right=0.184000, top=0.420000, bottom=0.718000, height=0.298000
+
+A 0.55 interpolation between the two measured depth/vertical-scale states lands
+at user-Z=-0.077 and vertical scale=0.8602543, predicting top~=0.4202,
+bottom~=0.7191 and height~=0.2989. At that same depth the visible right edge is
+predicted ~=0.17749, so increase only horizontal scale by 0.184/0.17749 to
+0.8235394. Keep Proof #92 X/yaw. This is a bounded derived-anchor correction
+from two real rendered instance-ID masks, not eyeballing or projected-AABB
+acceptance. Original Kommode.glb bytes remain immutable; no child/proof-only
+geometry transform is introduced.
 """
 
 from pathlib import Path
@@ -43,9 +41,9 @@ _previous_dispatch = solver.solve_instance
 
 DRESSER_PARAMS = [
     2.1353125,                 # Proof #92 user X
-    -0.14,                     # bounded deeper correction from Proof #102 mask delta
-    0.7944062683582307,        # Proof #102 measured horizontal mask scale
-    0.8827092055304706,        # depth-compensated visible-height scale
+    -0.077,                    # interpolated Proof #102/#103 depth
+    0.8235393808004019,        # visible-mask horizontal correction
+    0.8602542716363035,        # interpolated visible-height scale
     87.71484625447816,         # Proof #92 user yaw
 ]
 
@@ -68,11 +66,11 @@ def _apply_dresser_visible_mask_calibration(params):
     a["user_scale_xyz"] = [float(horizontal_scale), float(horizontal_scale), float(vertical_scale)]
     a["reference_solved"] = True
     a["reference_anisotropic_anchor_scale"] = True
-    a["reference_dresser_visual_fit_authority"] = "real_instance_id_mask_proof102"
+    a["reference_dresser_visual_fit_authority"] = "real_instance_id_masks_proof102_proof103_interpolation"
     a["reference_dresser_visible_bbox_proof102"] = [0.0, 0.1730909091, 0.4422202002, 0.7315741583]
+    a["reference_dresser_visible_bbox_proof103"] = [0.0, 0.1810909091, 0.4021838035, 0.7088262056]
     a["reference_dresser_visible_bbox_target"] = [0.0, 0.184, 0.420, 0.718]
-    a["reference_dresser_depth_delta_user_z"] = -0.14
-    a["reference_dresser_vertical_depth_compensation"] = 1.0599174985
+    a["reference_dresser_interpolation_fraction"] = 0.55
     solver.reground(instance_id)
 
 
@@ -92,11 +90,11 @@ def _solve_dresser_visible_mask_calibrated(camera, target):
     return params, candidate, diagnostic_score
 
 
-def _solve_instance_proof103(camera, instance_id, target):
+def _solve_instance_proof104(camera, instance_id, target):
     if instance_id == "room_dresser":
         return _solve_dresser_visible_mask_calibrated(camera, target)
     return _previous_dispatch(camera, instance_id, target)
 
 
-solver.solve_instance = _solve_instance_proof103
+solver.solve_instance = _solve_instance_proof104
 solver.main()
