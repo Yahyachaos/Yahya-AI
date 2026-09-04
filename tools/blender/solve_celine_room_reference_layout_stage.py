@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
-"""Proof #105 bounded lounge-chair rendered-silhouette correction.
+"""Bounded rug rendered-silhouette correction on the accepted room branch.
 
 The prior staged solver remains byte-for-byte in
 solve_celine_room_reference_layout_stage_base.py. This wrapper preserves the
-accepted Proof #104 dresser transform and changes only the derived
-room_lounge_chair anchor.
+accepted Proof #104 dresser transform and Proof #111 front-facing grounded chair
+transform, then changes only the derived room_rug anchor.
 
-Real Proof #104 instance-ID evidence gives the front-facing chair silhouette
-x=0.222384..0.330669, y=0.418182..0.524545. The authoritative reference target
-is x=0.217..0.333, y=0.368..0.508. Horizontal footprint is already close, while
-the occupied chair body is visibly too low and too short. Projected object-AABB
-acceptance is not used because Proof #101 established that empty source-box
-corners can disagree with the real visible silhouette.
+Real Proof #111 instance-ID evidence gives the rug silhouette approximately
+x=0.215116..0.861919, y=0.503636..0.804545. The authoritative reference target
+is x=0.2055..0.8705, y=0.5205..0.7955. The occupied rug is therefore about
+2.81% too narrow and 9.42% too tall in image space. Projected object-AABB
+acceptance is diagnostic only; actual rendered silhouette remains visual
+authority.
 
-Keep the accepted X/depth/yaw branch and split scale only. Horizontal scale is
-multiplied by target_width/current_visible_width (0.116/0.108285) to 0.4556153.
-For the vertical axis, preserve real floor contact and scale from the current
-visible bottom to the target visible top: (0.524545-0.368)/0.106364, yielding
-0.6259728. This intentionally uses the visible seat/arm/leg envelope rather than
-forcing the coarse target bottom onto a grounded object. Original chair GLB
-bytes remain immutable; no child/proof-only geometry transform is introduced.
+Keep the accepted rug X/depth/yaw branch and solve only the planar footprint
+from the measured rendered ratios. Starting from uniform scale 1.6410156727:
+local X becomes 1.6871853720 (= old * 0.665/0.6468023) and local Y/depth becomes
+1.4997197613 (= old * 0.275/0.3009091). Preserve local Z/thickness scale
+1.6410156727 and exact floor grounding. Original rug GLB bytes remain immutable;
+no child/proof-only geometry transform is introduced.
 """
 
 from pathlib import Path
@@ -55,6 +54,15 @@ CHAIR_PARAMS = [
     170.375,
 ]
 
+RUG_PARAMS = [
+    -0.0671875,
+    -0.2953125,
+    1.6871853720104666,
+    1.499719761334807,
+    1.6410156726837158,
+    5.8203125,
+]
+
 
 def _apply_anisotropic(instance_id, params, authority):
     x, z_depth, horizontal_scale, vertical_scale, rot = params
@@ -77,6 +85,33 @@ def _apply_anisotropic(instance_id, params, authority):
     solver.reground(instance_id)
 
 
+def _apply_rug_planar(instance_id, params, authority):
+    x, z_depth, scale_x, scale_depth, scale_vertical, rot = params
+    a = solver.anchor(instance_id)
+    audit = a.get("user_location_xyz", [0.0, float(a.location.z), 0.0])
+    user_y = float(audit[1]) if len(audit) == 3 else float(a.location.z)
+    a.location.x = float(x)
+    a.location.y = float(z_depth)
+    a.rotation_mode = "XYZ"
+    a.rotation_euler.z = math.radians(-float(rot))
+    a.scale = (float(scale_x), float(scale_depth), float(scale_vertical))
+    a["user_location_xyz"] = [float(a.location.x), float(user_y), float(a.location.y)]
+    a["user_rotation_y_deg"] = float(rot)
+    if "user_uniform_scale" in a:
+        del a["user_uniform_scale"]
+    a["user_scale_xyz"] = [float(scale_x), float(scale_depth), float(scale_vertical)]
+    a["reference_solved"] = True
+    a["reference_anisotropic_anchor_scale"] = True
+    a["reference_visual_fit_authority"] = authority
+    a["reference_rug_visible_bbox_proof111"] = [
+        0.2151162791, 0.8619186047, 0.5036363636, 0.8045454545
+    ]
+    a["reference_rug_visible_bbox_target"] = [0.2055, 0.8705, 0.5205, 0.7955]
+    a["reference_rug_width_ratio"] = 1.0281348314
+    a["reference_rug_height_ratio"] = 0.9138972810
+    solver.reground(instance_id)
+
+
 def _solve_fixed_visible_mask(camera, instance_id, target, params, authority):
     _apply_anisotropic(instance_id, params, authority)
     candidate = solver.projected_bbox(camera, instance_id)
@@ -92,7 +127,26 @@ def _solve_fixed_visible_mask(camera, instance_id, target, params, authority):
     return list(params), candidate, diagnostic_score
 
 
-def _solve_instance_proof105(camera, instance_id, target):
+def _solve_rug_visible_mask(camera, target):
+    _apply_rug_planar(
+        "room_rug",
+        RUG_PARAMS,
+        "real_instance_id_silhouette_proof111",
+    )
+    candidate = solver.projected_bbox(camera, "room_rug")
+    diagnostic_score = float(
+        solver.bbox_objective(candidate, target)
+        + solver.side_wall_fit_penalty("room_rug")
+    )
+    a = solver.anchor("room_rug")
+    a["reference_target_center_xy"] = [float(target["center_x"]), float(target["center_y"])]
+    a["reference_target_size_wh"] = [float(target["width"]), float(target["height"])]
+    a["reference_screen_objective"] = diagnostic_score
+    a["reference_screen_objective_role"] = "diagnostic_only_real_rendered_silhouette_is_visual_authority"
+    return list(RUG_PARAMS), candidate, diagnostic_score
+
+
+def _solve_instance_rug_bounded(camera, instance_id, target):
     if instance_id == "room_dresser":
         a = solver.anchor(instance_id)
         a["reference_dresser_visible_bbox_target"] = [0.0, 0.184, 0.420, 0.718]
@@ -105,8 +159,8 @@ def _solve_instance_proof105(camera, instance_id, target):
         )
     if instance_id == "room_lounge_chair":
         a = solver.anchor(instance_id)
-        a["reference_chair_visible_bbox_proof104"] = [
-            0.2223837209, 0.3306686047, 0.4181818182, 0.5245454545
+        a["reference_chair_visible_bbox_proof111"] = [
+            0.2136627907, 0.3335755814, 0.3727272727, 0.5272727273
         ]
         a["reference_chair_visible_bbox_target"] = [0.217, 0.333, 0.368, 0.508]
         return _solve_fixed_visible_mask(
@@ -114,10 +168,12 @@ def _solve_instance_proof105(camera, instance_id, target):
             instance_id,
             target,
             CHAIR_PARAMS,
-            "real_instance_id_silhouette_proof104",
+            "accepted_real_instance_id_silhouette_proof111",
         )
+    if instance_id == "room_rug":
+        return _solve_rug_visible_mask(camera, target)
     return _previous_dispatch(camera, instance_id, target)
 
 
-solver.solve_instance = _solve_instance_proof105
+solver.solve_instance = _solve_instance_rug_bounded
 solver.main()
