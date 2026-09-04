@@ -7,17 +7,14 @@ objects to the same auditable screen-space solve. Source GLB bytes remain
 immutable and accepted transforms are written on the normal instance anchors
 by the base solver.
 
-Proof #47 confirmed the mirror against its measured far-left target. Proof #48
-moved the front nightstand to the right bedside zone, Proof #49 corrected the
-large plant's side inversion, and Proof #50 corrected the front nightstand's
-near-camera depth error (screen objective 35.75 -> 1.71). The largest remaining
-whole-scene side/scale error is now `room_plant_small`: the real candidate puts
-it as a large floor plant left of center while Refernzbild.png shows the small
-plant at the far-right bedside. The builder's generic FLOOR_IDS treatment is the
-confirmed semantic cause: it forces this tabletop object to the floor. Remove
-only that grounding classification and solve an auditable free-height derived
-anchor against the existing measured target. Preserve camera, all already solved
-anchors, source GLBs and proof-time geometry.
+Proof #47 confirmed the mirror, #48/#50 corrected the front nightstand, #49
+corrected the large plant, and #51 corrected the small plant from a large
+left-floor object to the measured tiny right-bedside target. The next largest
+clean, directly measured scale mismatch is `room_wall_shelf_books`: Proof #51
+projects it at about 19.4% x 17.0% of the frame while the reference target is
+10.3% x 8.0%, with nearly correct horizontal center. Solve only this wall anchor
+for position/height/scale/yaw against the existing medium-confidence target.
+Preserve camera, already solved anchors, source GLBs and proof-time geometry.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -31,8 +28,6 @@ if spec is None or spec.loader is None:
 solver = module_from_spec(spec)
 spec.loader.exec_module(solver)
 
-# Positive user-X projects toward image-left for the solved reference camera.
-# Keep the mirror on the physical +X side wall and facing into the room.
 solver.SOLVE_LIMITS["room_round_mirror"] = {
     "wall": True,
     "bounds": [
@@ -45,9 +40,6 @@ solver.SOLVE_LIMITS["room_round_mirror"] = {
     "steps": [0.05, 0.18, 0.16, 0.08, 5.0],
 }
 
-# Proof #50: the front nightstand now reaches the intended right bedside band
-# without the previous near-camera drop. Keep the tighter semantic depth bound
-# on every later exact-room render so secondary work cannot regress it.
 solver.SOLVE_LIMITS["room_nightstand_front"] = {
     "wall": False,
     "bounds": [
@@ -59,9 +51,6 @@ solver.SOLVE_LIMITS["room_nightstand_front"] = {
     "steps": [0.12, 0.18, 0.08, 7.5],
 }
 
-# Proof #48 -> #49 corrected the large plant's gross side inversion. Keep it
-# solved against the same measured medium-confidence target on every later
-# exact-room render so subsequent secondary-object work cannot regress it.
 solver.SOLVE_LIMITS["room_plant_large"] = {
     "wall": False,
     "bounds": [
@@ -73,15 +62,7 @@ solver.SOLVE_LIMITS["room_plant_large"] = {
     "steps": [0.14, 0.18, 0.08, 7.5],
 }
 
-# Proof #50 real projection for room_plant_small:
-#   candidate center=(0.3281, 0.4352), size=(0.1233, 0.2079)
-# Reference target:
-#   center=(0.959, 0.493), size=(0.049, 0.059)
-# Even though the exact foliage edge is low-confidence, the reference-side and
-# tabletop-vs-floor classification are visually unambiguous. Negative user-X is
-# image-right for this solved camera. Treat this one anchor as free-height (the
-# base solver's wall-form parameterization is simply X/Z/Y/scale/yaw here), not
-# as a floor-grounded object. Bounds keep it in the right bedside volume.
+# The reference small plant is a tabletop/bedside object, not floor-standing.
 solver.FLOOR_IDS.discard("room_plant_small")
 solver.SOLVE_LIMITS["room_plant_small"] = {
     "wall": True,
@@ -95,11 +76,30 @@ solver.SOLVE_LIMITS["room_plant_small"] = {
     "steps": [0.12, 0.18, 0.10, 0.06, 7.5],
 }
 
+# Proof #51 current wall-shelf projection:
+#   center=(0.6668, 0.2661), size=(0.1935, 0.1696)
+# Reference target:
+#   center=(0.662, 0.215), size=(0.103, 0.080)
+# The shelf is visibly about twice the intended projected size. Keep it on the
+# back/right wall band and solve the normal derived anchor; no child/proof hack.
+solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
+    "wall": True,
+    "bounds": [
+        (-1.90, -0.45),
+        (-2.08, -1.65),
+        (1.20, 2.35),
+        (0.15, 0.65),
+        (-20.0, 20.0),
+    ],
+    "steps": [0.16, 0.08, 0.12, 0.06, 5.0],
+}
+
 for instance_id in (
     "room_round_mirror",
     "room_nightstand_front",
     "room_plant_large",
     "room_plant_small",
+    "room_wall_shelf_books",
 ):
     if instance_id not in solver.PRIMARY_IDS:
         solver.PRIMARY_IDS.append(instance_id)
