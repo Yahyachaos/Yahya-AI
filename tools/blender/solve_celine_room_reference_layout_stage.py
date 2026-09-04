@@ -8,12 +8,15 @@ immutable and accepted transforms are written on the normal instance anchors
 by the base solver.
 
 Proof #47 confirmed the mirror against its measured far-left target. Proof #48
-then moved the front nightstand from the wrong left edge to the required right
-bedside zone. The largest remaining medium-or-higher-confidence whole-scene
-screen-space mismatch is now `room_plant_large`: it is still right of center
-while Refernzbild.png places the tall plant on the left beside the dresser/
-chair/window group. Solve that single cross-room error next while preserving
-the already solved camera and furniture anchors.
+moved the front nightstand from the wrong left edge to the required right-side
+bedside zone. Proof #49 then corrected the large plant's gross side inversion.
+The largest remaining medium-confidence whole-scene error with a clean semantic
+cause is now the front nightstand's depth: its projected bbox is still about
+12% of image height too low because the previous bound allowed it to drift to
+user-Z +1.32 m, implausibly close to the proof camera. Keep it on the right, but
+constrain it to the actual bedside depth band and let the same measured bbox
+solve X/Z/scale/yaw there. Preserve camera, primary furniture, source GLBs and
+all proof-time geometry.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -41,34 +44,35 @@ solver.SOLVE_LIMITS["room_round_mirror"] = {
     "steps": [0.05, 0.18, 0.16, 0.08, 5.0],
 }
 
-# Proof #47 -> #48 corrected the gross horizontal nightstand inversion.
-# Keep it in the right bedside zone and continue solving it against the same
-# measured bbox on every exact-room render so later changes cannot regress it.
+# Proof #49 reference_solve.json:
+#   candidate center=(0.9500, 0.7251), size=(0.1000, 0.2041)
+#   target    center=(0.9580, 0.6060), size=(0.0840, 0.2000)
+# Horizontal side and projected size are now close, but the object remains far
+# too low. The accepted bed itself solves around user-Z -0.44 m, and this
+# nightstand belongs beside the bed/headboard rather than in the near-camera
+# foreground. Narrow only the semantic depth band; keep the same measured target
+# and uniform derived transform solve.
 solver.SOLVE_LIMITS["room_nightstand_front"] = {
     "wall": False,
     "bounds": [
         (-2.15, -1.15),
-        (-0.20, 1.35),
+        (-1.10, 0.55),
         (0.15, 0.80),
         (45.0, 135.0),
     ],
     "steps": [0.12, 0.18, 0.08, 7.5],
 }
 
-# Proof #48 current large-plant projection is approximately:
-#   center=(0.7431, 0.3863), size=(0.1705, 0.3112)
-# Reference target (medium confidence):
-#   center=(0.190, 0.370), size=(0.115, 0.330)
-# This is a gross side inversion rather than a micro-size defect. Positive
-# user-X is the reference-left side for this camera. The plant remains a floor
-# object; the base solver re-grounds the accepted derived anchor exactly.
+# Proof #48 -> #49 corrected the large plant's gross side inversion. Keep it
+# solved against the same measured medium-confidence target on every later
+# exact-room render so subsequent secondary-object work cannot regress it.
 solver.SOLVE_LIMITS["room_plant_large"] = {
     "wall": False,
     "bounds": [
-        (1.05, 2.15),     # left dresser/chair/window side
-        (-1.80, -0.20),   # back/left room depth band
-        (0.45, 1.30),     # uniform derived scale
-        (-45.0, 45.0),    # plant yaw has no semantic facing requirement
+        (1.05, 2.15),
+        (-1.80, -0.20),
+        (0.45, 1.30),
+        (-45.0, 45.0),
     ],
     "steps": [0.14, 0.18, 0.08, 7.5],
 }
