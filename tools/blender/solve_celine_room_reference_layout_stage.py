@@ -59,6 +59,13 @@ re-grounding and only re-grounded after the search. The accepted final bbox
 therefore differed from the objective the search thought it was optimizing.
 Re-ground every floor-lamp trial exactly like the already-correct large-plant
 anisotropic solve so top/width fitting is evaluated on the actual floor contact.
+
+Proof #86 fixed that grounding mismatch and fitted the lamp's reliable top,
+center-X and width terms essentially exactly. The largest remaining
+high-confidence projection error is now the lounge chair: its bbox size is
+already close, but its center-Y is 0.479 versus target 0.438 and the solve is
+saturated at the old user-Z=-1.55 lower depth bound. Let the normal reference
+solver reach the measured back/window zone instead of compensating by scale.
 """
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -139,8 +146,8 @@ solver.SOLVE_LIMITS["room_wall_shelf_books"] = {
 # of the drapes. Proof #63 placed its anchor at user-Z=-2.013 while the drapes
 # solve to about -2.093, leaving only ~8 cm of separation and hiding the lamp in
 # the real render. Keep at least ~25 cm anchor separation from that drape branch
-# by bounding the lamp to user-Z >= -1.84; the chair remains farther forward at
-# about -1.55. Only the derived anchor may move; the source GLB is immutable.
+# by bounding the lamp to user-Z >= -1.84. Only the derived anchor may move; the
+# source GLB is immutable.
 solver.SOLVE_LIMITS["room_floor_lamp"] = {
     "wall": False,
     "bounds": [
@@ -150,6 +157,22 @@ solver.SOLVE_LIMITS["room_floor_lamp"] = {
         (-30.0, 30.0),
     ],
     "steps": [0.10, 0.08, 0.08, 5.0],
+}
+
+# Proof #86: chair target is high-confidence. The current bbox is
+# center_y=0.4792 versus target 0.4380 while width/height are already close, and
+# the solve is exactly saturated at user-Z=-1.55. Widen only the physical depth
+# search toward the back wall so perspective can lift the whole floor-standing
+# chair silhouette without a fake Y offset or source-geometry change.
+solver.SOLVE_LIMITS["room_lounge_chair"] = {
+    "wall": False,
+    "bounds": [
+        (0.30, 1.75),
+        (-2.05, -0.05),
+        (0.20, 1.30),
+        (-35.0, 50.0),
+    ],
+    "steps": [0.25, 0.15, 0.12, 8.0],
 }
 
 # Proof #60 matched the clipped axis-aligned bbox only by rotating the tabletop
@@ -207,8 +230,8 @@ def _apply_floor_lamp_params(params, reground_now=True):
 def _solve_floor_lamp_anisotropic(camera, target):
     instance_id = "room_floor_lamp"
     # Proof #63 supplies the last measured X/yaw/scale state, but its depth was
-    # visibly too close to the drapes. Seed directly on the new visibility bound
-    # and let the same center-x/top/width terms re-fit the remaining dimensions.
+    # visibly too close to the drapes. Seed directly on the visibility bound and
+    # let the same center-x/top/width terms re-fit the remaining dimensions.
     p = [1.8078125, -1.84, 0.25, 0.73, -19.9609375]
     bounds = [
         (1.35, 1.95),
