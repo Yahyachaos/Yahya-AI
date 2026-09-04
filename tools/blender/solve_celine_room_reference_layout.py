@@ -2,7 +2,7 @@
 """Reference-constrained screen-space layout solve for the Celine room.
 
 Runs after build_celine_room_440x420.py in the same Blender process. Source GLBs
-remain immutable. The solver changes auditable derived instance transforms and a
+remain immutable. The solver changes only auditable instance anchors and a
 reference camera, using measured targets from Refernzbild.png. Semantic room
 constraints bound the optimization so scale/depth ambiguity cannot produce a
 mathematically matching but physically absurd layout.
@@ -25,6 +25,22 @@ TARGETS_PATH = Path(os.environ.get(
 )).resolve()
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
 REFERENCE_RENDER_SIZE = (1376, 1100)
+
+ALL_INSTANCE_IDS = [
+    "room_bed",
+    "room_dresser",
+    "room_plant_large",
+    "room_plant_small",
+    "room_floor_lamp",
+    "room_nightstand_rear",
+    "room_nightstand_front",
+    "room_lounge_chair",
+    "room_rug",
+    "room_foreground_table",
+    "room_window_drapes",
+    "room_wall_shelf_books",
+    "room_round_mirror",
+]
 
 PRIMARY_IDS = [
     "room_window_drapes",
@@ -140,23 +156,6 @@ def anchor(instance_id):
     if obj is None:
         fail(f"missing anchor for {instance_id}")
     return obj
-
-
-def apply_source_axis_calibrations():
-    """Apply auditable derived orientation fixes without mutating source GLBs.
-
-    Proof #37 exposed Teppisch.glb as the dominant central vertical slab: its
-    fringed edge is visibly upright even though the semantic instance is a rug.
-    The source's visible/front normal points along +Y in the imported basis, so
-    +90 degrees around local X maps that face to +Z and lays the rug on the floor.
-    This calibration lives on the instance geometry root only; source bytes stay
-    immutable and the anchor solver still owns position/yaw/scale.
-    """
-    rug = geometry_root("room_rug")
-    rug.rotation_mode = "XYZ"
-    rug.rotation_euler = (math.radians(90.0), 0.0, 0.0)
-    rug["reference_source_axis_alignment_xyz_deg"] = [90.0, 0.0, 0.0]
-    bpy.context.view_layer.update()
 
 
 def mesh_min_world_z(geometry):
@@ -437,7 +436,6 @@ def main():
         fail(f"negative root scale is forbidden; solve handedness in anchors: {tuple(root.scale)}")
 
     targets = load_targets()
-    apply_source_axis_calibrations()
     configure_reference_projection(bpy.context.scene)
     camera = make_camera()
     cam_params, cam_error = solve_camera(camera, targets)
@@ -463,6 +461,11 @@ def main():
     if architecture_projection is None:
         fail("final solved camera cannot project required architecture landmarks")
 
+    all_instance_projected_bboxes = {
+        instance_id: projected_bbox(camera, instance_id)
+        for instance_id in ALL_INSTANCE_IDS
+    }
+
     result = {
         "schema": "celine-room-reference-solve/v3",
         "projection_render_size": list(REFERENCE_RENDER_SIZE),
@@ -474,8 +477,8 @@ def main():
             "architecture_projection": architecture_projection,
         },
         "solved": solved,
+        "all_instance_projected_bboxes": all_instance_projected_bboxes,
         "source_glbs_mutated": False,
-        "source_axis_calibrations": {"room_rug": [90.0, 0.0, 0.0]},
         "semantic_bounds_used": True,
         "screen_handedness": "positive_user_x_projects_image_left_from_positive_user_z_camera",
         "proof_time_hidden_geometry_fix": False,
