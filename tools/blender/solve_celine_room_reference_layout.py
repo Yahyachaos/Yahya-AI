@@ -24,6 +24,7 @@ TARGETS_PATH = Path(os.environ.get(
     "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
 )).resolve()
 PROOF_DIR = Path(os.environ.get("CELINE_ROOM_PROOF_DIR", "ci-room-proof")).resolve()
+REFERENCE_RENDER_SIZE = (1376, 1100)
 
 PRIMARY_IDS = [
     "room_window_drapes",
@@ -95,9 +96,21 @@ def load_targets():
         fail(f"missing reference target file: {TARGETS_PATH}")
     data = json.loads(TARGETS_PATH.read_text(encoding="utf-8"))
     ref = data.get("reference", {})
-    if ref.get("width_px") != 1376 or ref.get("height_px") != 1100:
+    if ref.get("width_px") != REFERENCE_RENDER_SIZE[0] or ref.get("height_px") != REFERENCE_RENDER_SIZE[1]:
         fail("reference target grid must be exactly 1376x1100")
     return data
+
+
+def configure_reference_projection(scene):
+    # world_to_camera_view uses the scene render aspect. Solve on the exact same
+    # 1376x1100 square-pixel grid that the renderer and measured reference use;
+    # otherwise mathematically good normalized targets are evaluated against a
+    # different projection and the actual proof cannot match the solve JSON.
+    scene.render.resolution_x = REFERENCE_RENDER_SIZE[0]
+    scene.render.resolution_y = REFERENCE_RENDER_SIZE[1]
+    scene.render.resolution_percentage = 100
+    scene.render.pixel_aspect_x = 1.0
+    scene.render.pixel_aspect_y = 1.0
 
 
 def descendants(root):
@@ -363,6 +376,7 @@ def main():
         fail(f"negative root scale is forbidden; solve handedness in anchors: {tuple(root.scale)}")
 
     targets = load_targets()
+    configure_reference_projection(bpy.context.scene)
     camera = make_camera()
     cam_params, cam_error = solve_camera(camera, targets)
     camera["reference_solved"] = True
@@ -385,6 +399,8 @@ def main():
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     result = {
         "schema": "celine-room-reference-solve/v2",
+        "projection_render_size": list(REFERENCE_RENDER_SIZE),
+        "projection_pixel_aspect": [1.0, 1.0],
         "camera": {
             "name": CAMERA_NAME,
             "params_cam_x_cam_height_target_x_target_height_lens": [float(v) for v in cam_params],
