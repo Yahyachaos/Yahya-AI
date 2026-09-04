@@ -14,7 +14,7 @@ import java.util.WeakHashMap;
  *
  * The immutable combined GLB remains only the runtime geometry carrier. Furniture source bytes are
  * never changed here. The visible shell and the 13 named furniture instances are transformed from
- * the real Blender reference solve (Proof #63), using the Android/Filament mapping:
+ * the real Blender reference solve (accepted through Proof #88), using the Android/Filament mapping:
  * Blender/user X -> -Filament X, user height -> Filament Y, user depth -> Filament Z.
  *
  * Celine, her rig and her canonical scale are not touched by this owner.
@@ -24,8 +24,10 @@ final class CelineRoomReferenceLayoutV80 {
     private static final float ROOM_DEPTH_SCALE_Z = 4.20f / 5.80f;
     private static final float ROOM_HEIGHT_SCALE_Y = 2.65f / 2.80f;
 
-    // Proof #63 reference-solved furniture. Floor-standing Y values preserve exact source-floor
-    // contact under the solved scale; wall/tabletop Y values are the solver's explicit user height.
+    // Proof #88 accepted reference-solved furniture checkpoint. Only the floor-lamp grounding/depth
+    // correction and the front-facing lounge-chair branch advance from the prior runtime checkpoint.
+    // Floor-standing Y values preserve exact source-floor contact under each solved vertical scale;
+    // wall/tabletop Y values are the solver's explicit user height.
     private static final Spec BED =
             new Spec("room_bed", 1.025000f, 0.486260f, -0.437500f,
                     1.157812f, 1.157812f, 1.157812f, -85.000003f);
@@ -39,8 +41,8 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_plant_small", 2.129375f, 0.572656f, 0.355000f,
                     0.105625f, 0.105625f, 0.105625f, 21.972656f);
     private static final Spec LAMP =
-            new Spec("room_floor_lamp", -1.805938f, 0.839534f, -2.013125f,
-                    0.125000f, 0.881406f, 0.125000f, -22.085938f);
+            new Spec("room_floor_lamp", -1.714063f, 0.755149f, -1.707344f,
+                    0.125000f, 0.792813f, 0.125000f, -20.710938f);
     private static final Spec NIGHTSTAND_FRONT =
             new Spec("room_nightstand_front", 1.936563f, 0.312902f, 0.550000f,
                     0.328750f, 0.328750f, 0.328750f, 130.195313f);
@@ -48,8 +50,8 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_nightstand_back", 1.600000f, 0.499097f, -0.908438f,
                     0.524375f, 0.524375f, 0.524375f, 106.699219f);
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -1.569531f, 0.342861f, -1.550000f,
-                    0.379375f, 0.379375f, 0.379375f, -5.687500f);
+            new Spec("room_lounge_chair", -1.699219f, 0.384377f, -2.050000f,
+                    0.425313f, 0.425313f, 0.425313f, 170.375000f);
     private static final Spec RUG =
             new Spec("room_rug", 0.067188f, 0.012676f, -0.295313f,
                     1.641016f, 1.641016f, 1.641016f, 5.820313f);
@@ -119,7 +121,7 @@ final class CelineRoomReferenceLayoutV80 {
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "4.40x4.20 Referenz-Solverlayout aktiv",
-                    "authority=Refernzbild.png + exact-room Proof#63"
+                    "authority=Refernzbild.png + exact-room Proof#88"
                             + " shell=4.40x4.20x2.65"
                             + " furniture=13 referenceSolvedAbsoluteTRS"
                             + " sourceGLBsMutated=false"
