@@ -1107,7 +1107,7 @@ final class CelineProductionPresenceV80 {
             float y = (layerMask & LAYER_BASE) == 0 ? 0.0f
                     : home * (homeBob + roomFloorY) + call * CALL_ROOT_DOWN;
             float z = (layerMask & LAYER_BASE) == 0 ? 0.0f
-                    : home * homeZ + call * CALL_ROOT_FORWARD;
+                    : home * (homeZ + talkAnchor.localZ) + call * CALL_ROOT_FORWARD;
             float yaw = (layerMask & LAYER_BASE) == 0 ? 0.0f : home * homeYaw;
             float bedPitch = (layerMask & LAYER_BASE) == 0 ? 0.0f
                     : home * bedPose.rootPitch();
