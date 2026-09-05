@@ -24,19 +24,15 @@ final class CelineRoomReferenceLayoutV80 {
     private static final float ROOM_DEPTH_SCALE_Z = 4.20f / 5.80f;
     private static final float ROOM_HEIGHT_SCALE_Y = 2.65f / 2.80f;
 
-    // Proof #111 accepted reference-solved furniture checkpoint. Proof #92's grounded anisotropic
-    // bed and separated floor lamp remain unchanged. Proof #104 contributes the rendered-silhouette
-    // calibrated dresser transform. Real in-app CALL Proof #1130 supersedes the Blender-only carrier
-    // assumption for the chair: on the exact 1016x813 stage its visible envelope is approximately
-    // x=0.159..0.296, y=0.310..0.523 versus Refernzbild.png target x=0.217..0.333,
-    // y=0.368..0.508. Correct only the derived runtime chair TRS: shrink its horizontal/vertical
-    // carrier silhouette by the measured ratios, move the grounded instance right to the target
-    // center, preserve accepted depth/yaw, and preserve source bytes. Original source GLBs remain
-    // unchanged. Floor-standing Y values preserve the immutable source pivot-to-floor offset under
-    // each accepted vertical scale; wall/tabletop Y values remain the solver's explicit user height.
+    // Real in-app CALL Proof #1131 shows the runtime carrier bed at approximately y=0.290..0.688
+    // on the exact 1016x813 stage, while Refernzbild.png requires y=0.323..0.652. Its horizontal
+    // envelope and vertical center are already essentially on target, so correct only the derived
+    // carrier's vertical scale by 0.329/0.398 ~= 0.827. Preserve bed X/depth/yaw, horizontal scale,
+    // source bytes, Celine and camera; do not stack a depth or grounding correction before the next
+    // real HOME/CALL proof.
     private static final Spec BED =
             new Spec("room_bed", 1.030469f, 0.620523f, -0.387500f,
-                    1.123125f, 1.477500f, 1.123125f, -84.437500f);
+                    1.123125f, 1.221400f, 1.123125f, -84.437500f);
 
     // Real in-app CALL Proof #1126 is authoritative over the Blender-only carrier assumption for
     // the Android runtime. On its exact 1016x813 CALL stage the visible dresser envelope measured
@@ -64,6 +60,13 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec NIGHTSTAND_BACK =
             new Spec("room_nightstand_back", 1.600000f, 0.499097f, -0.908438f,
                     0.524375f, 0.524375f, 0.524375f, 106.699219f);
+
+    // Real in-app CALL Proof #1130 measured the legacy runtime carrier chair at approximately
+    // x=0.159..0.296, y=0.310..0.523 versus Refernzbild.png x=0.217..0.333,
+    // y=0.368..0.508. Proof #1131 confirms the bounded correction: the chair is now approximately
+    // x=0.219..0.326 and y=0.386..0.518, placing its dominant body in the reference zone. Preserve
+    // this derived runtime branch while larger room/furniture deltas remain; only a later residual
+    // micro-alignment may revisit it.
     private static final Spec CHAIR =
             new Spec("room_lounge_chair", -1.452000f, 0.371500f, -2.050000f,
                     0.385800f, 0.411000f, 0.385800f, 170.375000f);
