@@ -99,8 +99,17 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec WINDOW =
             new Spec("room_window_drapes", -0.575000f, 1.400000f, -2.092500f,
                     1.490625f, 1.490625f, 1.490625f, -8.437500f);
+
+    // Real Candidate #1145 HOME-return is the cleanest current room checkpoint because Celine has
+    // drifted away from the shelf. On the exact 964x761 HOME stage the visible shelf/objects sit
+    // roughly x=0.636..0.740 with the shelf board around y=0.114..0.181, while Refernzbild.png puts
+    // the shelf at x=0.610..0.713 and its board around y=0.175..0.255. Projected width is already
+    // essentially correct, so do not rescale or rotate it. Same-depth window/shelf projection and
+    // the measured runtime X response support one bounded translation only: about -0.155 m in X and
+    // -0.294 m in height. Preserve depth, scale, yaw, source bytes, camera, Celine and all other
+    // furniture until the next real HOME/CALL proof measures the residual.
     private static final Spec SHELF =
-            new Spec("room_wall_shelf_books", 1.400000f, 1.894062f, -1.916250f,
+            new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
     // Real Candidate #1141 leaves the entire authoritative mirror envelope empty in both HOME and
