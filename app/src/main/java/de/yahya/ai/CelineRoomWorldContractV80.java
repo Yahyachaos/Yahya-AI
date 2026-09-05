@@ -29,13 +29,16 @@ final class CelineRoomWorldContractV80 {
     static final float RUNTIME_OFFSET_Y = -1.55f;
     static final float RUNTIME_OFFSET_Z = -4.0f;
 
-    // Real in-app Candidate #1136 proved that carrying the legacy 6.4x5.8 camera-talk Z=1.15 m
-    // into the exact 4.40x4.20 reconstruction makes ambient HOME Celine roughly 1.6x too large and
-    // clips her upper body. CALL already uses +0.12 m with the accepted camera and is the empirical
-    // reference-depth control. Rebase only the runtime parsed talk anchor; immutable source JSON,
-    // every other anchor and all route destination world-Z values stay unchanged because the
-    // navigator subtracts talk.localZ and the central root owner adds the same talk.localZ back.
-    private static final float RECONSTRUCTION_TALK_LOCAL_Z = 0.12f;
+    // Real in-app Candidate #1139 on the corrected 1.75 m floor-grounded Celine makes the earlier
+    // +0.12 m HOME depth control stale. On the exact 964x761 HOME stage her reliable vertical
+    // silhouette is about 0.524 H versus 0.666 H in Refernzbild.png, with the feet too high in the
+    // frame. With the accepted exact camera (eye Z=-1.1265625) and current root Z=-3.88, pinhole
+    // depth scaling solves the HOME presentation root to about local Z=+0.705 m. Rebase only the
+    // parsed talk anchor; immutable source JSON, furniture TRS, camera/lens, rig/scale and every
+    // non-talk route endpoint stay unchanged because navigator relative-Z algebra cancels this
+    // talk-baseline shift. CALL remains independently at its existing +0.12 m until the next real
+    // HOME/CALL evidence is inspected.
+    private static final float RECONSTRUCTION_TALK_LOCAL_Z = 0.705f;
 
     private static final String ROOM_ID = "celine_room_v80_final_modular";
     private static final String ROOM_SHA256 =
