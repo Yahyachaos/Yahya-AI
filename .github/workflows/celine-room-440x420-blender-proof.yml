@@ -1,0 +1,123 @@
+name: Celine Exact Room 440x420 Blender Proof
+
+on:
+  pull_request:
+    types: [synchronize, edited]
+    paths:
+      - '.github/workflows/celine-room-440x420-blender-proof.yml'
+      - 'tools/blender/build_celine_room_440x420.py'
+      - 'tools/blender/solve_celine_room_reference_layout.py'
+      - 'tools/blender/solve_celine_room_reference_layout_stage.py'
+      - 'tools/blender/render_celine_room_440x420_proof.py'
+      - 'ci/celine_room_440x420_builder_contract.py'
+      - 'ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json'
+      - 'Refernzbild.png'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celine-room-440x420-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-room-blender:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact PR head with LFS support
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Static exact-room contract
+        run: python3 ci/celine_room_440x420_builder_contract.py
+
+      - name: Materialize pinned canonical furniture sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT='df50816187978cbf5faf818ad484c3f682be7588'
+          SOURCE_DIR='/tmp/celine-room-source'
+          git fetch --no-tags origin "$SOURCE_COMMIT"
+          rm -rf "$SOURCE_DIR"
+          git worktree add --detach "$SOURCE_DIR" "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" lfs install --local
+          git -C "$SOURCE_DIR" lfs pull --include='app/src/main/assets/models/möbel/*.glb' --exclude=''
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('/tmp/celine-room-source/app/src/main/assets/models/möbel')
+          files = sorted(base.glob('*.glb'))
+          if len(files) != 12:
+              raise SystemExit(f'expected exactly 12 materialized source GLBs, got {len(files)}: {[p.name for p in files]}')
+          tiny = [(p.name, p.stat().st_size) for p in files if p.stat().st_size < 100_000_000]
+          if tiny:
+              raise SystemExit(f'unmaterialized or unexpected source files: {tiny}')
+          print('materialized canonical GLBs:', len(files))
+          for p in files:
+              print(p.name, p.stat().st_size)
+          PY
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
+          blender --version | head -n 2
+          blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
+          ldconfig -p | grep -F 'libEGL.so.1'
+          command -v xvfb-run
+
+      - name: Build, solve and render exact room in real Blender
+        shell: bash
+        env:
+          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
+          CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
+          CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
+          CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
+          CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-proof
+          # --factory-startup creates Blender's stock Cube/Camera/Light. They are not
+          # part of the canonical room and Proof #42 exposed the stock Cube as the
+          # dominant unclassified central slab. Remove only those exact factory
+          # startup objects before the builder runs; no room/furniture transform is
+          # changed and the rendered scene remains the actual builder output.
+          xvfb-run -a blender --background --factory-startup \
+            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
+            --python tools/blender/build_celine_room_440x420.py \
+            --python tools/blender/solve_celine_room_reference_layout_stage.py \
+            --python tools/blender/render_celine_room_440x420_proof.py \
+            2>&1 | tee ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
+          test -s ci-room-proof/reference_solve.json
+          test -s ci-room-proof/01_front_wide.png
+          test -s ci-room-proof/render-proof.json
+          test -s Refernzbild.png
+          cp Refernzbild.png ci-room-proof/Refernzbild.png
+          printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/metadata.txt
+          printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'dimensions_user_m=4.40x4.20x2.65' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
+          sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
+
+      - name: Upload deterministic Blender proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-440x420-blender-proof
+          path: ci-room-proof/
+          if-no-files-found: warn
+          retention-days: 30

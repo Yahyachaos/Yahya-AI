@@ -1,0 +1,96 @@
+name: Celine Room Visual Polish Proof
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ edited ]
+  push:
+    branches: [ auto/celine/v80-human-videochat-presence ]
+    paths:
+      - ci/room-polish-proof-trigger.txt
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-room-visual-polish-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  room-visual-polish-proof:
+    name: Warm room HOME CALL HOME visual proof
+    if: github.event_name == 'push' || contains(github.event.pull_request.body, '[run-room-polish-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Locate runtime-equivalent Android APK
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: bash ci/celine-find-runtime-apk.sh
+
+      - name: Download runtime-equivalent APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          RUNTIME_FP: ${{ steps.source.outputs.runtime_fingerprint }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk room-polish-proof
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+          sha256sum ci-apk/app-debug.apk | tee room-polish-proof/apk.sha256
+          printf 'proof_head=%s\nruntime_source_sha=%s\nruntime_fingerprint=%s\nandroid_build_run=%s\n' \
+            "$TARGET_SHA" "$SOURCE_SHA" "$RUNTIME_FP" "$RUN_ID" \
+            | tee room-polish-proof/runtime-source.txt
+
+      - name: Export canonical room reference for measured comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Refernzbild.png
+          cp Refernzbild.png room-polish-proof/reference.png
+          sha256sum room-polish-proof/reference.png | tee room-polish-proof/reference.sha256
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Enable KVM permissions
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Capture targeted warm-room evidence
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: bash ci/celine-room-visual-polish-emulator-proof.sh room-polish-proof ci-apk/app-debug.apk
+
+      - name: Upload room visual polish evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-visual-polish-${{ github.event.pull_request.head.sha || github.sha }}
+          path: room-polish-proof/
+          if-no-files-found: warn
+          retention-days: 30

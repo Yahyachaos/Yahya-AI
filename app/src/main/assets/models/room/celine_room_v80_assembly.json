@@ -1,0 +1,363 @@
+{
+  "schema": 1,
+  "status": "prepared_draft_not_runtime_lock",
+  "room_id": "celine_room_v80_final_modular",
+  "world_root": "room_world_root",
+  "coordinate_system": {
+    "x": "left_right",
+    "y": "up",
+    "z": "front_back",
+    "camera_side": "+z",
+    "camera_looks_toward": "-z"
+  },
+  "room_shell_m": {
+    "width": 6.4,
+    "depth": 5.8,
+    "height": 2.8
+  },
+  "viewer": {
+    "type": "laptop_webcam",
+    "camera_side": "+z",
+    "render_laptop": false,
+    "foreground_table_visible": true
+  },
+  "source_contract": {
+    "expected_unique_glbs": 12,
+    "instantiated_scene_objects": 13,
+    "nightstand_source_instances": 2,
+    "library_originals_immutable": true
+  },
+  "objects": [
+    {
+      "id": "room_bed",
+      "logical_name": "bed",
+      "source_glb": "Bett.glb",
+      "source_sha256": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          1.95,
+          0.495578,
+          -0.75
+        ],
+        "rotation_y_deg": -90,
+        "uniform_scale": 1.18
+      },
+      "role": "contact_primary",
+      "runtime_triangle_budget": 40000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_dresser",
+      "logical_name": "dresser",
+      "source_glb": "GroßeKomode.glb",
+      "source_sha256": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -2.9,
+          0.618817,
+          0.35
+        ],
+        "rotation_y_deg": 90,
+        "uniform_scale": 0.95
+      },
+      "role": "environment_interaction",
+      "runtime_triangle_budget": 20000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_plant_large",
+      "logical_name": "large_plant",
+      "source_glb": "Großepflanzemittopf.glb",
+      "source_sha256": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -2.7,
+          0.933028,
+          -1.9
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 0.98
+      },
+      "role": "obstacle_decor",
+      "runtime_triangle_budget": 30000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_plant_small",
+      "logical_name": "small_plant",
+      "source_glb": "Kleinepflanzemittopf.glb",
+      "source_sha256": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          1.75,
+          0.609359,
+          -2.42
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 0.64
+      },
+      "role": "obstacle_decor",
+      "runtime_triangle_budget": 30000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_floor_lamp",
+      "logical_name": "floor_lamp",
+      "source_glb": "Lampe.glb",
+      "source_sha256": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -1.55,
+          0.819145,
+          1.55
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 0.86
+      },
+      "role": "environment_state",
+      "runtime_triangle_budget": 15000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_nightstand_back",
+      "logical_name": "nightstand_back",
+      "source_glb": "Nachttisch.glb",
+      "source_sha256": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          2.66,
+          0.609148,
+          -1.94
+        ],
+        "rotation_y_deg": 90,
+        "uniform_scale": 0.64
+      },
+      "role": "contact_secondary",
+      "runtime_triangle_budget": 20000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": "Nachttisch.glb",
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_nightstand_front",
+      "logical_name": "nightstand_front",
+      "source_glb": "Nachttisch.glb",
+      "source_sha256": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          2.66,
+          0.609148,
+          0.5
+        ],
+        "rotation_y_deg": 90,
+        "uniform_scale": 0.64
+      },
+      "role": "contact_secondary",
+      "runtime_triangle_budget": 20000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": "Nachttisch.glb",
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_lounge_chair",
+      "logical_name": "chair",
+      "source_glb": "Sessel.glb",
+      "source_sha256": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -1.75,
+          0.451876,
+          -1.0
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 0.5
+      },
+      "role": "contact_primary",
+      "runtime_triangle_budget": 30000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_rug",
+      "logical_name": "rug",
+      "source_glb": "Teppisch.glb",
+      "source_sha256": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -0.3,
+          0.013518,
+          0.1
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 1.75
+      },
+      "role": "walkable_decor",
+      "runtime_triangle_budget": 4000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": true
+    },
+    {
+      "id": "room_foreground_table",
+      "logical_name": "foreground_table",
+      "source_glb": "Tischfürlaptop.glb",
+      "source_sha256": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          0.0,
+          0.370255,
+          2.1
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 0.66
+      },
+      "role": "contact_primary",
+      "runtime_triangle_budget": 20000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": null,
+      "walkable": false
+    },
+    {
+      "id": "room_window_drapes",
+      "logical_name": "window_drapes",
+      "source_glb": "Fenstermitgardinen.glb",
+      "source_sha256": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          0.45,
+          1.199832,
+          -2.703
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 1.55
+      },
+      "role": "environment_interaction",
+      "runtime_triangle_budget": 35000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": "back",
+      "walkable": false
+    },
+    {
+      "id": "room_wall_shelf_books",
+      "logical_name": "wall_shelf_books",
+      "source_glb": "Hängeboardmitbücher.glb",
+      "source_sha256": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -2.05,
+          1.74937,
+          -2.562
+        ],
+        "rotation_y_deg": 0,
+        "uniform_scale": 0.72
+      },
+      "role": "environment_interaction",
+      "runtime_triangle_budget": 25000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": "back",
+      "walkable": false
+    },
+    {
+      "id": "room_round_mirror",
+      "logical_name": "round_wall_mirror",
+      "source_glb": "Wandspiegelrund.glb",
+      "source_sha256": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0",
+      "parent": "room_world_root",
+      "transform": {
+        "translation_m": [
+          -3.12,
+          1.75,
+          0.35
+        ],
+        "rotation_y_deg": 90,
+        "uniform_scale": 0.55
+      },
+      "role": "environment_interaction",
+      "runtime_triangle_budget": 12000,
+      "material_policy": "preserve source PBR bindings; use prepared runtime texture tier after proof",
+      "source_immutable": true,
+      "instance_source": null,
+      "wall_mount": "left",
+      "walkable": false
+    }
+  ],
+  "additional_runtime_entities": [
+    {
+      "id": "room_shell",
+      "type": "procedural_or_optimized_shell",
+      "notes": "single warm room shell; replace/evolve blocky room, never stack"
+    },
+    {
+      "id": "celine_portrait",
+      "type": "2d_frame_plane",
+      "notes": "separate 2D frame/plane, not baked into Meshy furniture"
+    },
+    {
+      "id": "floor_lamp_light",
+      "type": "filament_light",
+      "parent": "room_floor_lamp",
+      "notes": "restrained light entity; do not make entire fused material emissive"
+    },
+    {
+      "id": "camera_viewer",
+      "type": "existing_product_camera",
+      "render_mesh": false,
+      "notes": "camera semantics stay accepted; no chase camera"
+    }
+  ],
+  "hard_rules": [
+    "canonical Celine remains separate",
+    "no visible laptop",
+    "exactly one visible room",
+    "do not bake Celine into room",
+    "do not duplicate Nachttisch source bytes",
+    "do not enable object interactions requiring nonexistent discrete source nodes"
+  ]
+}

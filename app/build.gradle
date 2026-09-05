@@ -42,6 +42,11 @@ def celineV79BlinkReport = file("$buildDir/reports/celineV79/blink-localization.
 def celineV79BlinkValidation = file("$buildDir/reports/celineV79/blink-localization-validation.json")
 def celineV79BlinkRepair = rootProject.file('ci/celine_blink_localization_v79.py')
 def celineV79BlinkValidator = rootProject.file('ci/celine_blink_localization_validation_v79.py')
+def celineRoomV80PartDir = file('src/main/room-source')
+def celineRoomV80Parts = (0..3).collect {
+    file("$celineRoomV80PartDir/celine_room_v80_final_modular.glb.part${String.format('%02d', it)}")
+}
+def celineRoomV80Candidate = file('src/main/assets/models/room/celine_room_v80_final_modular.glb')
 
 tasks.register('generateCeline3DViewV62') {
     inputs.file(celineV62Source)
@@ -51,22 +56,31 @@ tasks.register('generateCeline3DViewV62') {
         String classAnchor = 'public final class Celine3DView extends FrameLayout {'
         String frameAnchor = '                updateLivePose(frameTimeNanos);'
         String visemeAnchor = '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) {}'
-        String homeLensAnchor = '        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);'
-        String cameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);'
+        String legacyHomeLensAnchor = '        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);'
+        String referenceHomeLensAnchor = '        camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,'
+        String legacyCameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);'
+        String referenceCameraLookAtAnchor = '        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ, 0.0, 1.0, 0.0);'
+        boolean legacyHomeLens = text.contains(legacyHomeLensAnchor)
+        boolean referenceHomeLens = text.contains(referenceHomeLensAnchor)
+        boolean legacyCameraLookAt = text.contains(legacyCameraLookAtAnchor)
+        boolean referenceCameraLookAt = text.contains(referenceCameraLookAtAnchor)
         if (!text.contains(classAnchor)) throw new GradleException('v62 source transform: class anchor missing')
         if (!text.contains(frameAnchor)) throw new GradleException('v62 source transform: frame anchor missing')
         if (!text.contains(visemeAnchor)) throw new GradleException('v62 source transform: viseme anchor missing')
-        if (!text.contains(homeLensAnchor)) throw new GradleException('v64 HOME lens transform: anchor missing')
-        if (!text.contains(cameraLookAtAnchor)) throw new GradleException('v75 reference camera transform: lookAt anchor missing')
+        if (!legacyHomeLens && !referenceHomeLens) throw new GradleException('v64 HOME lens transform: anchor missing')
+        if (!legacyCameraLookAt && !referenceCameraLookAt) throw new GradleException('v75 reference camera transform: lookAt anchor missing')
 
         text = text.replace(classAnchor, 'final class Celine3DView extends FrameLayout {')
-        text = text.replace(frameAnchor,
-                frameAnchor + '\n                CelineMorphRuntimeV62.onFrame(Celine3DView.this, frameTimeNanos);')
+        // v80's central production presence owner advances the guarded face runtime as its final
+        // renderer-frame layer. Do not inject a second independent face callback here.
         text = text.replace(visemeAnchor,
                 '    public void setViseme(SpeechVisemeAnalyzer.Cue cue) { CelineMorphRuntimeV62.onViseme(this, cue); }')
-        text = text.replace(homeLensAnchor,
-                '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
-        text = text.replace(cameraLookAtAnchor, '''        if (Math.abs(v75ReferenceYawDeg) > 0.001f) {
+        if (legacyHomeLens) {
+            text = text.replace(legacyHomeLensAnchor,
+                    '        camera.setLensProjection(38.0, (double) width / (double) height, 0.05, 1000.0);')
+        }
+        if (legacyCameraLookAt) {
+            text = text.replace(legacyCameraLookAtAnchor, '''        if (Math.abs(v75ReferenceYawDeg) > 0.001f) {
             double yaw = Math.toRadians(v75ReferenceYawDeg);
             targetX = 0.0f;
             targetY = 0.0f;
@@ -75,6 +89,7 @@ tasks.register('generateCeline3DViewV62') {
             eyeZ = CAMERA_TARGET_Z + (float) Math.cos(yaw) * distance;
         }
         camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);''')
+        }
 
         int finalBrace = text.lastIndexOf('\n}')
         if (finalBrace <= 0) throw new GradleException('v62 source transform: final class brace missing')
@@ -245,6 +260,35 @@ tasks.register('validateCelineBlinkLocalizationV79', Exec) {
             '--report', celineV79BlinkValidation.absolutePath
 }
 
+tasks.register('generateCelineRoomV80Final') {
+    inputs.files(celineRoomV80Parts)
+    inputs.file(celineRoomV80Candidate)
+    doLast {
+        celineRoomV80Parts.each { part ->
+            if (!part.isFile() || part.length() != 11645197L) {
+                throw new GradleException("Invalid v80 4R room part: ${part}")
+            }
+        }
+        if (!celineRoomV80Candidate.isFile()) {
+            throw new GradleException("Missing committed v80 4R room: ${celineRoomV80Candidate}")
+        }
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        celineRoomV80Candidate.withInputStream { input ->
+            byte[] buffer = new byte[64 * 1024]
+            int read
+            while ((read = input.read(buffer)) >= 0) {
+                if (read > 0) digest.update(buffer, 0, read)
+            }
+        }
+        String actual = digest.digest().encodeHex().toString()
+        String expected = '25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8'
+        if (celineRoomV80Candidate.length() != 46580788L || actual != expected) {
+            throw new GradleException(
+                    "Invalid committed v80 4R room: bytes=${celineRoomV80Candidate.length()} sha256=${actual}")
+        }
+    }
+}
+
 android {
     namespace 'de.yahya.ai'
     compileSdkVersion 30
@@ -252,7 +296,7 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 80
+        versionCode 81
         versionName '1.0-celin-human-videochat-presence'
     }
     signingConfigs {
@@ -284,6 +328,7 @@ android {
 tasks.named('preBuild').configure {
     dependsOn tasks.named('generateCeline3DViewV62')
     dependsOn tasks.named('validateCelineBlinkLocalizationV79')
+    dependsOn tasks.named('generateCelineRoomV80Final')
 }
 
 dependencies {

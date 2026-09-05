@@ -14,18 +14,20 @@ It defines how to discover the current task safely and efficiently. It intention
 
 For every continuation, maintenance, debugging, implementation, validation, merge, or release task:
 
-1. Read this `AGENTS.md` completely.
-2. Read `ci/CELINE_PROGRESS_QUEUE.json` completely.
-3. From `active`, identify at minimum the active branch, PR, work-order, status, latest runtime-code head, last built runtime head, latest visual proof and PASS/FAIL, blocker/root cause, and `exact_next_action`.
-4. Read the active work-order specified by the queue completely.
-5. Read `ci/CELINE_VALIDATION_POLICY.md` completely.
-6. Read `ci/CELINE_SOURCE_ASSET.json` before any Celine asset/rig/model work.
-7. Fresh-reconcile live GitHub: actual `main`, PR/draft state, actual branch head, commits newer than the queue checkpoint, reviews/comments when relevant, checks/workflow runs, relevant artifacts/evidence, and merge/release state when applicable.
-8. Determine whether another agent or useful workflow is already executing the same Celine step.
-9. Reconcile differences between Queue and Live GitHub before writing.
-10. Only then perform exactly the next necessary bounded action.
+1. Read this `AGENTS.md` completely from the actual live `main`.
+2. Read `ci/CELINE_PROGRESS_QUEUE.json` completely from live `main` as a **bootstrap queue only**. Do not assume that copy is the newest active handoff while an unmerged Celine PR exists.
+3. Immediately fresh-reconcile enough live GitHub state to determine the actual `main` head, all open Celine PRs/branches, their draft/state/head SHAs, and whether exactly one canonical active single-flight strand exists.
+4. If exactly one canonical active Celine PR/branch exists, read `ci/CELINE_PROGRESS_QUEUE.json` completely from that active branch. If that branch queue is newer or more complete than the `main` bootstrap queue, use the active-branch copy as the **working Queue**. Never continue from a stale `main` Queue merely because it was read first. If active-strand identity is ambiguous, reconcile and stop before writing.
+5. From the working Queue `active`, identify at minimum the active branch, PR, work-order, status, latest runtime-code head, last built runtime head, latest visual proof and PASS/FAIL, blocker/root cause, and `exact_next_action`.
+6. Read the active work-order specified by the working Queue completely, including any active amendment it references or that live state requires.
+7. Read `ci/CELINE_VALIDATION_POLICY.md` completely from the active branch when one exists; otherwise use live `main`.
+8. Read `ci/CELINE_SOURCE_ASSET.json` before any Celine asset/rig/model work.
+9. Complete the fresh live-GitHub reconciliation: commits newer than the Queue checkpoint, reviews/comments when relevant, checks/workflow runs, relevant artifacts/evidence, and merge/release state when applicable.
+10. Determine whether another agent or useful workflow is already executing the same Celine step.
+11. Reconcile differences between the working Queue and Live GitHub before writing.
+12. Only then perform exactly the next necessary bounded action.
 
-Never begin implementation merely from remembered state.
+Never begin implementation merely from remembered state. A stale `main` Queue is a bootstrap clue, not authority over a newer canonical active-branch Queue.
 
 ## 3. State precedence
 
@@ -33,13 +35,13 @@ When information conflicts, use this precedence:
 
 1. Live GitHub facts for repository/PR/branch/run/release state.
 2. This `AGENTS.md` for permanent operating rules.
-3. `ci/CELINE_PROGRESS_QUEUE.json` for the intended active strand and handoff.
+3. The **working** `ci/CELINE_PROGRESS_QUEUE.json` resolved by the chronology above for the intended active strand and handoff.
 4. The active work-order for task-specific requirements and acceptance criteria.
 5. `ci/CELINE_VALIDATION_POLICY.md` for validation scope and phase rules.
 6. Canonical manifests/reference documents for protected inputs.
 7. Historical README/docs only as background.
 
-If Queue and Live GitHub disagree, reconcile first. Never overwrite newer live state with an older queue snapshot.
+If Queue and Live GitHub disagree, reconcile first. Never overwrite newer live state with an older queue snapshot. While a canonical Celine PR is unmerged, the `main` Queue may legitimately lag behind; once that active strand is uniquely established, prefer its newer branch Queue as the working handoff.
 
 ## 4. Strict single-flight
 
@@ -246,7 +248,7 @@ Before stopping or handing off, `ci/CELINE_PROGRESS_QUEUE.json` must let a compl
 
 Record as applicable:
 - active branch/PR;
-- actual current branch head;
+- actual current branch head or explicit queue-checkpoint parent when the Queue commit itself is docs-only;
 - runtime fingerprint;
 - latest runtime-code head;
 - latest built runtime head;
@@ -256,7 +258,9 @@ Record as applicable:
 - current blocker/root cause;
 - exactly one clear `exact_next_action`.
 
-Before a queue write: fresh-reconcile main/PR/workflows/release, re-read the actual queue, do not overwrite a newer queue blob, preserve docs-only vs runtime distinctions, and never claim visual acceptance without inspecting evidence.
+Before a queue write: fresh-reconcile main/PR/workflows/release, re-read the actual working Queue from the active branch when one exists, do not overwrite a newer queue blob, preserve docs-only vs runtime distinctions, and never claim visual acceptance without inspecting evidence.
+
+While an active PR is unmerged, write its current handoff Queue on that active branch. The `main` Queue is not expected to become current until merge; this is why every new agent must perform the bootstrap-main → live-PR reconciliation → active-branch-Queue sequence above.
 
 ## 13. Protected behavior principle
 
@@ -267,9 +271,9 @@ Preserve previously validated behavior unless the active work-order requires a m
 Interpret a generic continuation request as:
 
 1. Open/focus `Yahyachaos/Yahya-AI`.
-2. Read this `AGENTS.md`.
-3. Execute the Mandatory Start Chronology.
-4. Fresh-reconcile GitHub and Queue.
+2. Read this `AGENTS.md` from live `main`.
+3. Execute the Mandatory Start Chronology, including the active-branch Queue re-read when an unmerged canonical Celine PR exists.
+4. Fresh-reconcile GitHub and the resolved working Queue.
 5. Resume the one active strand at the true `exact_next_action` using the Efficiency Fast Path.
 6. Do not create a new strand unless the canonical state explicitly requires one.
 
@@ -278,3 +282,20 @@ No prior chat transcript is required if the repository handoff is healthy.
 ## 15. START_HERE.txt
 
 `START_HERE.txt` is only a redirect for humans or agents that open it accidentally. Do not use it as a development-state document. The canonical development entry is this `AGENTS.md`.
+
+## 16. Permanent Human Celine product-direction trunk
+
+The durable long-range plan for Celine's intelligence, memory, bounded autonomy, local/offline speech, owned feminine voice identity, human turn-taking, coherent synthetic emotion, situational awareness, learning/personalization, embodied cognition and final human-quality acceptance lives at:
+
+```text
+ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md
+```
+
+Rules:
+
+- This trunk is **additive**. It never deletes or silently replaces existing accepted roadmap/work-order requirements.
+- Read it when deciding future Celine product direction, when an active Queue/work-order explicitly points to it, or when the current canonical work order has finished and the Queue must select the next long-range phase.
+- It is not authority to start parallel work while another Celine work order/substep is active.
+- Live GitHub, this `AGENTS.md`, the resolved working Queue and the active work-order retain their normal precedence.
+- When activated, execute exactly one earliest unfinished H-phase at a time under the same strict single-flight and validation policy.
+- Model/library names inside the trunk are benchmark candidates, not permanent dependencies; re-check current support, licensing and target-device performance before adoption.

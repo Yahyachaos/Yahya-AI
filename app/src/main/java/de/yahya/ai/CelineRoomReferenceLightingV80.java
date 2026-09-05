@@ -1,0 +1,279 @@
+package de.yahya.ai;
+
+import android.view.View;
+
+import com.google.android.filament.Colors;
+import com.google.android.filament.Engine;
+import com.google.android.filament.EntityManager;
+import com.google.android.filament.IndirectLight;
+import com.google.android.filament.LightManager;
+import com.google.android.filament.MaterialInstance;
+import com.google.android.filament.RenderableManager;
+import com.google.android.filament.Scene;
+import com.google.android.filament.gltfio.FilamentAsset;
+
+import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
+
+/**
+ * v80 reference-realism owner for the bounded reference-room passes.
+ *
+ * R1 evidence rejected the overly orange key and confirmed that directional shadows restore missing
+ * depth. R2 raised indirect fill so Celine and shadow-side surfaces stayed readable. R3 converted the
+ * nearly invisible front-nightstand point light into a focused warm practical aimed at the bed.
+ * R4 neutralized the previously flat yellow ceiling toward the canonical cream/beige reference.
+ *
+ * Proof #52 showed that pushing the directional key all the way to neutral white did not remove Celine's
+ * brown/orange appearance. Proof #54 preserved the loaded source PBR response and passed the structural
+ * HOME/CALL/HOME capture. Proofs #55 and #56 then showed that overriding every Celine material with one
+ * cool-neutral base-color factor barely reduced the cast while regressing CALL detail diversity (44 then
+ * 41 effective colors). Preserve the source-loaded per-material base-color response instead; the remaining
+ * appearance issue must be diagnosed without another global Celine material flattening pass.
+ */
+final class CelineRoomReferenceLightingV80 {
+    private static final float KEY_RED = 1.00f;
+    private static final float KEY_GREEN = 0.95f;
+    private static final float KEY_BLUE = 0.90f;
+    private static final float KEY_LUX = 5000.0f;
+    private static final float INDIRECT_LUX = 8000.0f;
+
+    private static final float CEILING_RED = 0.88f;
+    private static final float CEILING_GREEN = 0.80f;
+    private static final float CEILING_BLUE = 0.72f;
+    private static final float CEILING_ROUGHNESS = 0.92f;
+    private static final float CEILING_REFLECTANCE = 0.38f;
+
+    // Proof #57 restored the canonical Celine atlas and showed that preserving source texture detail
+    // is preferable to broad color overrides. Apply the same bounded principle to the one-primitive
+    // window/drape asset: keep its loaded source PBR/base-color response instead of multiplying it by
+    // the older warm-dark factor that now reads patchy/washed against the room reference.
+    private static final float WINDOW_RED = 1.00f;
+    private static final float WINDOW_GREEN = 1.00f;
+    private static final float WINDOW_BLUE = 1.00f;
+
+    // Proof #60 showed that 1.45/1.35/1.25 did not materially brighten the bed. glTF baseColorFactor is
+    // defined in the 0..1 range, so values above 1 are not a valid way to brighten a dark source texture.
+    // Keep the texture at the maximum valid neutral factor and add only a small bed-local emissive lift;
+    // this preserves the loaded fabric detail and avoids another global-light or texture replacement pass.
+    private static final float BED_RED = 1.00f;
+    private static final float BED_GREEN = 1.00f;
+    private static final float BED_BLUE = 1.00f;
+    private static final float BED_METALLIC = 0.00f;
+    private static final float BED_EMISSIVE_RED = 0.08f;
+    private static final float BED_EMISSIVE_GREEN = 0.07f;
+    private static final float BED_EMISSIVE_BLUE = 0.06f;
+
+    private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
+    private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
+    private static final float PRACTICAL_Z = 0.50f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    private static final float PRACTICAL_DIR_X = -0.43410667f;
+    private static final float PRACTICAL_DIR_Y = -0.47690592f;
+    private static final float PRACTICAL_DIR_Z = -0.76427230f;
+    private static final float PRACTICAL_INNER_RAD = 0.48869219f; // 28 degrees
+    private static final float PRACTICAL_OUTER_RAD = 0.87266463f; // 50 degrees
+    private static final float PRACTICAL_LUMENS = 6000.0f;
+    private static final float PRACTICAL_FALLOFF_M = 3.0f;
+
+    private static final Set<Celine3DView> APPLIED =
+            Collections.newSetFromMap(new WeakHashMap<Celine3DView, Boolean>());
+    private static final WeakHashMap<Celine3DView, PracticalLightState> PRACTICALS =
+            new WeakHashMap<>();
+
+    private CelineRoomReferenceLightingV80() {}
+
+    static void ensure(Celine3DView view) {
+        if (view == null) return;
+
+        CelineRoomReferenceLayoutV80.ensure(view);
+
+        synchronized (APPLIED) {
+            if (APPLIED.contains(view)) return;
+        }
+
+        try {
+            Field engineField = Celine3DView.class.getDeclaredField("engine");
+            Field sceneField = Celine3DView.class.getDeclaredField("scene");
+            Field lightEntityField = Celine3DView.class.getDeclaredField("lightEntity");
+            Field indirectField = Celine3DView.class.getDeclaredField("indirectLight");
+            engineField.setAccessible(true);
+            sceneField.setAccessible(true);
+            lightEntityField.setAccessible(true);
+            indirectField.setAccessible(true);
+
+            Engine engine = (Engine) engineField.get(view);
+            Scene scene = (Scene) sceneField.get(view);
+            int lightEntity = lightEntityField.getInt(view);
+            IndirectLight indirect = (IndirectLight) indirectField.get(view);
+            if (engine == null || scene == null || lightEntity == 0 || indirect == null) return;
+
+            LightManager lights = engine.getLightManager();
+            int instance = lights.getInstance(lightEntity);
+            if (instance == 0) return;
+
+            lights.setColor(instance, KEY_RED, KEY_GREEN, KEY_BLUE);
+            lights.setIntensity(instance, KEY_LUX);
+            lights.setShadowCaster(instance, true);
+            indirect.setIntensity(INDIRECT_LUX);
+
+            FilamentAsset roomAsset = currentRoomAsset(view);
+            if (roomAsset == null) return;
+            applyReferenceCeilingMaterial(roomAsset, engine);
+            applyReferenceWindowMaterial(view, roomAsset, engine);
+            applyReferenceBedMaterial(roomAsset, engine);
+
+            PracticalLightState practical = createPracticalLight(view, engine, scene);
+            synchronized (APPLIED) {
+                APPLIED.add(view);
+                PRACTICALS.put(view, practical);
+            }
+
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
+                    "Referenzraum warm-neutral-key aktiv",
+                    "directionalColor=" + KEY_RED + "," + KEY_GREEN + "," + KEY_BLUE
+                            + " keyIntensity=" + KEY_LUX + " shadows=true"
+                            + " indirectIntensity=" + INDIRECT_LUX
+                            + " ceiling=" + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
+                            + " windowFactor=" + WINDOW_RED + "," + WINDOW_GREEN + "," + WINDOW_BLUE
+                            + " windowTexture=derived_reference_uv_preserved"
+                            + " bedFactor=" + BED_RED + "," + BED_GREEN + "," + BED_BLUE
+                            + " bedMetallic=" + BED_METALLIC
+                            + " bedEmissive=" + BED_EMISSIVE_RED + "," + BED_EMISSIVE_GREEN + "," + BED_EMISSIVE_BLUE
+                            + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
+                            + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
+        } catch (Throwable error) {
+            Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
+                    "Referenzraum warm-neutral-key FEHLER", error);
+        }
+    }
+
+    private static FilamentAsset currentRoomAsset(Celine3DView view) throws Exception {
+        Field statesField = CelineRoomEnvironmentV80.class.getDeclaredField("STATES");
+        statesField.setAccessible(true);
+        Object rawStates = statesField.get(null);
+        if (!(rawStates instanceof Map)) return null;
+        Object state = ((Map<?, ?>) rawStates).get(view);
+        if (state == null) return null;
+        Field roomAssetField = state.getClass().getDeclaredField("roomAsset");
+        roomAssetField.setAccessible(true);
+        return (FilamentAsset) roomAssetField.get(state);
+    }
+
+    private static void applyReferenceCeilingMaterial(FilamentAsset asset, Engine engine) {
+        MaterialInstance material = singleMaterial(asset, engine, "room_ceiling", "ceiling");
+        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                CEILING_RED, CEILING_GREEN, CEILING_BLUE, 1.0f);
+        material.setParameter("metallicFactor", 0.0f);
+        material.setParameter("roughnessFactor", CEILING_ROUGHNESS);
+        material.setParameter("reflectance", CEILING_REFLECTANCE);
+    }
+
+    private static void applyReferenceWindowMaterial(
+            Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
+        CelineRoomWindowTextureV80.apply(view, asset, engine);
+    }
+
+    private static void applyReferenceBedMaterial(FilamentAsset asset, Engine engine) {
+        int entity = asset.getFirstEntityByName("room_bed");
+        if (entity == 0) throw new IllegalStateException("bed entity fehlt");
+        RenderableManager manager = engine.getRenderableManager();
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0) throw new IllegalStateException("bed renderable fehlt");
+        int primitives = manager.getPrimitiveCount(renderable);
+        if (primitives <= 0) throw new IllegalStateException("bed primitives fehlen");
+        for (int primitive = 0; primitive < primitives; primitive++) {
+            MaterialInstance material = manager.getMaterialInstanceAt(renderable, primitive);
+            if (material == null) throw new IllegalStateException("bed material fehlt: " + primitive);
+            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                    BED_RED, BED_GREEN, BED_BLUE, 1.0f);
+            if (material.getMaterial().hasParameter("metallicFactor")) {
+                material.setParameter("metallicFactor", BED_METALLIC);
+            }
+            if (material.getMaterial().hasParameter("emissiveFactor")) {
+                material.setParameter("emissiveFactor",
+                        BED_EMISSIVE_RED, BED_EMISSIVE_GREEN, BED_EMISSIVE_BLUE);
+            }
+            if (material.getMaterial().hasParameter("emissiveStrength")) {
+                material.setParameter("emissiveStrength", 1.0f);
+            }
+        }
+    }
+
+    private static MaterialInstance singleMaterial(
+            FilamentAsset asset, Engine engine, String entityName, String diagnosticName) {
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0) throw new IllegalStateException(diagnosticName + " entity fehlt");
+        RenderableManager manager = engine.getRenderableManager();
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0) throw new IllegalStateException(diagnosticName + " renderable fehlt");
+        if (manager.getPrimitiveCount(renderable) != 1) {
+            throw new IllegalStateException(diagnosticName + " primitive count != 1");
+        }
+        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
+        if (material == null) throw new IllegalStateException(diagnosticName + " material fehlt");
+        return material;
+    }
+
+    private static PracticalLightState createPracticalLight(
+            Celine3DView view, Engine engine, Scene scene) {
+        int entity = EntityManager.get().create();
+        try {
+            new LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
+                    .position(PRACTICAL_X, PRACTICAL_Y, PRACTICAL_Z)
+                    .direction(PRACTICAL_DIR_X, PRACTICAL_DIR_Y, PRACTICAL_DIR_Z)
+                    .spotLightCone(PRACTICAL_INNER_RAD, PRACTICAL_OUTER_RAD)
+                    .color(1.0f, 0.58f, 0.34f)
+                    .intensity(PRACTICAL_LUMENS)
+                    .falloff(PRACTICAL_FALLOFF_M)
+                    .castShadows(false)
+                    .lightChannel(0, true)
+                    .build(engine, entity);
+            scene.addEntity(entity);
+            PracticalLightState state = new PracticalLightState(view, engine, scene, entity);
+            view.addOnAttachStateChangeListener(state);
+            return state;
+        } catch (Throwable error) {
+            try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+            try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+            throw error;
+        }
+    }
+
+    private static final class PracticalLightState implements View.OnAttachStateChangeListener {
+        final Celine3DView view;
+        final Engine engine;
+        final Scene scene;
+        int entity;
+
+        PracticalLightState(Celine3DView view, Engine engine, Scene scene, int entity) {
+            this.view = view;
+            this.engine = engine;
+            this.scene = scene;
+            this.entity = entity;
+        }
+
+        @Override public void onViewAttachedToWindow(View v) {
+        }
+
+        @Override public void onViewDetachedFromWindow(View v) {
+            destroy();
+        }
+
+        void destroy() {
+            int current = entity;
+            if (current == 0) return;
+            entity = 0;
+            view.removeOnAttachStateChangeListener(this);
+            try { scene.removeEntity(current); } catch (Throwable ignored) {}
+            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
+            CelineRoomWindowTextureV80.release(view, engine);
+            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
+            synchronized (APPLIED) {
+                APPLIED.remove(view);
+                PRACTICALS.remove(view);
+            }
+        }
+    }
+}

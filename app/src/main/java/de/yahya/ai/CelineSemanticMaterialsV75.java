@@ -25,9 +25,12 @@ import java.util.WeakHashMap;
  * however, splits the monolithic primitive into four named semantic materials plus canonical skin.
  * Rebinding the canonical atlas to all five instances erases the v75 outfit/hair palette.
  *
- * This owner runs immediately after V39 and touches only the four CelineV75_* material instances.
- * The canonical skin/face material remains completely owned by V39. Older/private models that do
- * not contain the v75 semantic names are a no-op.
+ * Room work is frozen. The accepted v79 appearance also depended on Celine3DView's old shared PBR
+ * normalization. v80 removed that normalization while polishing the room, which left skin/face on
+ * the source PBR response and visibly darker/harder than the accepted proof. This owner therefore
+ * restores only those accepted scalar PBR values on all Celine material instances while preserving
+ * V39 ownership of the canonical skin/face texture and v75 ownership of the four semantic textures.
+ * Older/private models that do not contain the v75 semantic names remain a no-op.
  */
 final class CelineSemanticMaterialsV75 {
     private static final WeakHashMap<Activity, State> STATES = new WeakHashMap<>();
@@ -76,6 +79,20 @@ final class CelineSemanticMaterialsV75 {
                 }
             }
 
+            // Restore the exact scalar PBR response used by the visually accepted v79 renderer.
+            // Texture ownership is intentionally untouched here: V39 still owns skin/face atlas,
+            // while the semantic loop below owns only top/jeans/shoes/hair samplers.
+            for (MaterialInstance instance : instances) {
+                set1(instance, "metallicFactor", 0f);
+                set1(instance, "roughnessFactor", 0.75f);
+                set4(instance, "baseColorFactor", 1f, 1f, 1f, 1f);
+                set3(instance, "emissiveFactor", 0f, 0f, 0f);
+                set1(instance, "emissiveStrength", 0f);
+                set1(instance, "specularFactor", 0.3f);
+                set3(instance, "specularColorFactor", 1f, 1f, 1f);
+                set1(instance, "reflectance", 0.5f);
+            }
+
             TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
                     TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.REPEAT);
             boolean[] seen = new boolean[4];
@@ -89,21 +106,14 @@ final class CelineSemanticMaterialsV75 {
                     throw new IllegalStateException("semantic material has no base-color sampler: " + safeName(instance));
                 }
                 instance.setParameter(samplerName, state.textures[index], sampler);
-                set4(instance, "baseColorFactor", 1f, 1f, 1f, 1f);
-                set1(instance, "metallicFactor", 0f);
-                set1(instance, "roughnessFactor", 0.75f);
-                set3(instance, "emissiveFactor", 0f, 0f, 0f);
-                set1(instance, "emissiveStrength", 0f);
-                set1(instance, "specularFactor", 0.3f);
-                set3(instance, "specularColorFactor", 1f, 1f, 1f);
                 seen[index] = true;
                 bound++;
             }
             for (int i = 0; i < seen.length; i++) {
                 if (!seen[i]) throw new IllegalStateException("missing semantic material index " + i);
             }
-            Celine3DDiagnostics.record(activity, "V75-160", "v75 Semantikfarben nach V39 gebunden",
-                    "materials=" + bound + " · skin/face remains V39 owner · top/jeans/shoes/hair restored");
+            Celine3DDiagnostics.record(activity, "V75-160", "v75 Semantikfarben + akzeptierte PBR-Antwort gebunden",
+                    "materials=" + bound + " · skin/face texture remains V39 owner · accepted v79 scalar PBR restored");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(activity, "V75-199", "v75 Semantikmaterial FEHLER", error);
         }
