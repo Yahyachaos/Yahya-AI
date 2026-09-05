@@ -29,6 +29,14 @@ final class CelineRoomWorldContractV80 {
     static final float RUNTIME_OFFSET_Y = -1.55f;
     static final float RUNTIME_OFFSET_Z = -4.0f;
 
+    // Real in-app Candidate #1136 proved that carrying the legacy 6.4x5.8 camera-talk Z=1.15 m
+    // into the exact 4.40x4.20 reconstruction makes ambient HOME Celine roughly 1.6x too large and
+    // clips her upper body. CALL already uses +0.12 m with the accepted camera and is the empirical
+    // reference-depth control. Rebase only the runtime parsed talk anchor; immutable source JSON,
+    // every other anchor and all route destination world-Z values stay unchanged because the
+    // navigator subtracts talk.localZ and the central root owner adds the same talk.localZ back.
+    private static final float RECONSTRUCTION_TALK_LOCAL_Z = 0.12f;
+
     private static final String ROOM_ID = "celine_room_v80_final_modular";
     private static final String ROOM_SHA256 =
             "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8";
@@ -243,7 +251,9 @@ final class CelineRoomWorldContractV80 {
             JSONObject value = locked.getJSONObject(id);
             JSONArray xz = value.getJSONArray("world_xz_m");
             float x = finite(xz, 0, id + " x");
-            float z = finite(xz, 1, id + " z");
+            float sourceZ = finite(xz, 1, id + " z");
+            float z = "camera_talk_anchor".equals(id)
+                    ? RECONSTRUCTION_TALK_LOCAL_Z : sourceZ;
             float y = value.isNull("world_y_m")
                     ? resolvedContactY(id, bedY, chairY, tableY)
                     : finite(value, "world_y_m");
