@@ -24,20 +24,25 @@ import java.util.WeakHashMap;
  * face. A +0.720 m Z rebase puts every derived layer in front of that wall; real CALL Proof #1126
  * confirms the broad curtains/night field are now actually visible.
  *
- * Proof #1127 is the first exact-camera CALL in which the whole derived group can be measured against
- * Refernzbild.png instead of inferred from hidden geometry. Direct 1016x813 overlay shows the derived
- * outer window/drape envelope at roughly x=0.207..0.734, y=0.091..0.439, while the visible reference
- * envelope is roughly x=0.276..0.721, y=0.086..0.519. The largest remaining window error is therefore
- * a too-far-left outer edge and curtains ending well above the reference floor line; the right/top
- * edges are already close. Refit the base helper span in parent space to x'=1.259*x+0.964 and
- * y'=1.323*y-0.876. This keeps the currently aligned right/top edges while pulling the left edge in
- * and extending the fabric/sheers downward. Internal curtain/sheer/fold separations remain coherent.
- * Source bytes/transforms, furniture, room shell, camera, anchors and Celine remain untouched.
+ * Real CALL Proof #1132 is the current exact-runtime checkpoint. On its 1016x813 stage the derived
+ * window/drape outer vertical edges are approximately x=279/1016=0.275 and x=746/1016=0.734, while
+ * the canonical Refernzbild.png measurement contract requires x=0.205..0.588. The prior Proof #1127
+ * refit accidentally used a shifted comparison envelope (0.276..0.721) instead of the canonical
+ * reference target, so it cannot remain the placement authority.
+ *
+ * Keep the solve reproducible rather than eyeballing it: Proof #1126 with xScale=1/xShift=0 rendered
+ * roughly 0.192..0.462; Proof #1127 with 1.4185/0.867 rendered roughly 0.207..0.734; Proof #1132 with
+ * 1.259/0.964 renders roughly 0.275..0.734. A two-edge affine fit across those three real runtime
+ * checkpoints solves the canonical 0.205..0.588 target at xScale~=1.17955 and xShift~=0.41024.
+ * Change only that measured horizontal group transform. Preserve the current Y/Z correction until
+ * the next real HOME/CALL proof because its top/bottom envelope is already close enough that a second
+ * unmeasured axis correction would stack variables. Source bytes/transforms, furniture, room shell,
+ * camera, anchors and Celine remain untouched.
  */
 final class CelineRoomWindowSourceVisibilityV80 {
     private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.720f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.259f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.964f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.17955f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.41024f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.323f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.876f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
@@ -61,14 +66,14 @@ final class CelineRoomWindowSourceVisibilityV80 {
         scene.remove(entity);
         synchronized (STATES) { STATES.put(view, new State(scene, entity)); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
-                "Derived window gegen echten CALL-Overlay refitted; sparse Quelle ausgeblendet",
+                "Derived window gegen kanonischen CALL-Referenzbbox kalibriert; sparse Quelle ausgeblendet",
                 "entities=" + rebased
                         + " zShift=" + EXACT_ROOM_DERIVED_WINDOW_Z_REBASE
                         + " xScale=" + EXACT_ROOM_DERIVED_WINDOW_X_SCALE
                         + " xShift=" + EXACT_ROOM_DERIVED_WINDOW_X_SHIFT
                         + " yScale=" + EXACT_ROOM_DERIVED_WINDOW_Y_SCALE
                         + " yShift=" + EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT
-                        + " · authority=Refernzbild.png + Proof#1127 overlay"
+                        + " · targetBBoxX=0.205..0.588 authority=Refernzbild.png + Proof#1132"
                         + " · source GLB/transform/Celine/camera/anchors/lamp unchanged");
     }
 
