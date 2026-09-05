@@ -45,6 +45,7 @@ import java.util.WeakHashMap;
 final class CelineVideoCallV45 {
     private static final WeakHashMap<Activity, Session> SESSIONS = new WeakHashMap<>();
     private static final int REQ_CALL_MIC = 145;
+    private static final float CALL_ROOM_REFERENCE_ASPECT = 1280f / 1024f;
 
     private CelineVideoCallV45() {}
 
@@ -433,16 +434,51 @@ final class CelineVideoCallV45 {
             ep.setMargins(dp(5), 0, dp(5), 0);
             controls.addView(endButton, ep);
 
-            FrameLayout stageSlot = new FrameLayout(activity);
-            stageSlot.setTag("v45-stage-slot");
+            FrameLayout stageShell = new FrameLayout(activity);
             LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, 0, 1f);
             slp.setMargins(0, dp(5), 0, dp(7));
-            column.addView(stageSlot, slp);
+            column.addView(stageShell, slp);
+
+            FrameLayout stageSlot = new FrameLayout(activity);
+            stageSlot.setTag("v45-stage-slot");
+            stageShell.addView(stageSlot, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+            stageShell.post(() -> constrainCallStageToReferenceAspect(stageShell, stageSlot));
+
             column.addView(caption, new LinearLayout.LayoutParams(-1, dp(52)));
             column.addView(controls, new LinearLayout.LayoutParams(-1, dp(72)));
 
             content.addView(overlay, new ViewGroup.LayoutParams(-1, -1));
             overlay.requestFocus();
+        }
+
+        void constrainCallStageToReferenceAspect(FrameLayout stageShell, FrameLayout stageSlot) {
+            if (!callActive || stageShell == null || stageSlot == null) return;
+            int shellWidth = stageShell.getWidth();
+            int shellHeight = stageShell.getHeight();
+            if (shellWidth <= 1 || shellHeight <= 1) {
+                main.postDelayed(() -> constrainCallStageToReferenceAspect(stageShell, stageSlot), 60L);
+                return;
+            }
+
+            int targetWidth = shellWidth;
+            int targetHeight = Math.round(targetWidth / CALL_ROOM_REFERENCE_ASPECT);
+            if (targetHeight > shellHeight) {
+                targetHeight = shellHeight;
+                targetWidth = Math.round(targetHeight * CALL_ROOM_REFERENCE_ASPECT);
+            }
+
+            ViewGroup.LayoutParams raw = stageSlot.getLayoutParams();
+            if (!(raw instanceof FrameLayout.LayoutParams)) return;
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) raw;
+            if (lp.width == targetWidth && lp.height == targetHeight && lp.gravity == Gravity.CENTER) return;
+            lp.width = targetWidth;
+            lp.height = targetHeight;
+            lp.gravity = Gravity.CENTER;
+            stageSlot.setLayoutParams(lp);
+            Celine3DDiagnostics.record(activity, "V45-111", "CALL Raumformat an Referenz angepasst",
+                    "shell=" + shellWidth + "x" + shellHeight
+                            + " · stage=" + targetWidth + "x" + targetHeight
+                            + " · aspect=" + CALL_ROOM_REFERENCE_ASPECT);
         }
 
         void reparentStageIntoCall() {
