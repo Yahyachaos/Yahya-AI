@@ -1,0 +1,94 @@
+{
+  "schema": "celine-room-runtime-layout-current/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "reference_grid_px": [1376, 1100],
+    "target_file": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+    "runtime_proof": "real-candidate-call.png",
+    "runtime_head": "28a17fba994fad66d8e3aec4380a7343452e5e40",
+    "runtime_fingerprint": "35e0f74f689d0596775f4d6fb300829da06d0affeec878f747c9b95af60f3990",
+    "android_build": {"run_number": 1238, "run_id": 33970607322, "conclusion": "success"},
+    "real_candidate": {"run_number": 1147, "run_id": 33970607317, "artifact_id": 9970950470, "workflow_conclusion": "failure", "proof_images_present": true},
+    "visual_verdict": "FAIL"
+  },
+  "call_stage": {
+    "screenshot_px": [1080, 1920],
+    "stage_rect_px": {"left": 27, "top": 400, "right": 900, "bottom": 1098},
+    "stage_size_px": [873, 698],
+    "coordinate_convention": "normalized within real in-app CALL room stage; origin top-left",
+    "measurement_method": "direct visual edge measurement on downloaded Real Candidate #1147 CALL proof; uncertain/occluded envelopes are explicitly marked"
+  },
+  "measurements": {
+    "room_window_drapes": {
+      "confidence": "high",
+      "target": {"left": 0.205, "right": 0.588, "top": 0.086, "bottom": 0.477, "center_x": 0.397, "width": 0.383, "height": 0.391},
+      "current": {"left": 0.209, "right": 0.639, "top": 0.095, "bottom": 0.513, "center_x": 0.424, "width": 0.430, "height": 0.418},
+      "delta_current_minus_target": {"left": 0.004, "right": 0.051, "top": 0.009, "bottom": 0.036, "center_x": 0.027, "width": 0.047, "height": 0.027},
+      "verdict": "FAIL_PRIMARY_ARCHITECTURE_ANCHOR__TOO_WIDE_AND_RIGHT"
+    },
+    "room_dresser": {
+      "confidence": "medium",
+      "target": {"left": 0.000, "right": 0.184, "top": 0.420, "bottom": 0.718, "width": 0.184, "height": 0.298},
+      "current": {"left": 0.000, "right": 0.165, "top": 0.403, "bottom": 0.689, "width": 0.165, "height": 0.286},
+      "delta_current_minus_target": {"right": -0.019, "top": -0.017, "bottom": -0.029, "width": -0.019, "height": -0.012},
+      "verdict": "FAIL_RESIDUAL__SLIGHTLY_SMALL_HIGH"
+    },
+    "room_lounge_chair": {
+      "confidence": "high",
+      "target": {"left": 0.217, "right": 0.333, "top": 0.368, "bottom": 0.508, "width": 0.116, "height": 0.140},
+      "current": {"left": 0.220, "right": 0.323, "top": 0.365, "bottom": 0.514, "width": 0.103, "height": 0.149},
+      "delta_current_minus_target": {"left": 0.003, "right": -0.010, "top": -0.003, "bottom": 0.006, "width": -0.013, "height": 0.009},
+      "verdict": "NEAR_TARGET__DEFER_MICRO_ALIGNMENT"
+    },
+    "room_foreground_table": {
+      "confidence": "high",
+      "target": {"top": 0.782, "bottom": 1.000},
+      "current": {"top": 0.785, "bottom": 1.000},
+      "delta_current_minus_target": {"top": 0.003, "bottom": 0.000},
+      "verdict": "NEAR_TARGET"
+    },
+    "room_rug": {
+      "confidence": "medium",
+      "target": {"left": 0.205, "right": 0.870, "top": 0.520, "bottom": 0.795, "width": 0.665, "height": 0.275},
+      "current": {"left": 0.165, "right": 0.880, "top": 0.540, "bottom": 0.825, "width": 0.715, "height": 0.285},
+      "delta_current_minus_target": {"left": -0.040, "right": 0.010, "top": 0.020, "bottom": 0.030, "width": 0.050, "height": 0.010},
+      "verdict": "FAIL_RESIDUAL__TOO_WIDE_LEFT"
+    },
+    "room_bed": {
+      "confidence": "low",
+      "target": {"left": 0.500, "right": 0.998, "top": 0.323, "bottom": 0.652},
+      "current_visible_only": {"left": 0.594, "right": 1.000, "top": 0.314, "bottom": 0.684},
+      "notes": "Celine occludes the bed's left-middle envelope in CALL, so this visible-only box must not drive a transform without an independent clean projection or less-occluded proof.",
+      "verdict": "UNCERTAIN_OCCLUDED__DO_NOT_TUNE_FROM_THIS_BOX"
+    },
+    "room_round_mirror": {
+      "confidence": "high",
+      "target": {"left": 0.000, "right": 0.078, "top": 0.095, "bottom": 0.337},
+      "current": null,
+      "delta": "entire target envelope remains visually empty after +0.193612 m runtime-X move",
+      "verdict": "FAIL__LATEST_MIRROR_X_DIRECTION_DID_NOT_RESTORE_VISIBLE_SILHOUETTE"
+    },
+    "room_wall_shelf_books": {
+      "confidence": "medium",
+      "target": {"left": 0.610, "right": 0.713, "top": 0.175, "bottom": 0.255},
+      "current": {"left": 0.613, "right": 0.712, "top": 0.190, "bottom": 0.234},
+      "delta_current_minus_target": {"left": 0.003, "right": -0.001, "top": 0.015, "bottom": -0.021},
+      "verdict": "NEAR_TARGET__DEFER"
+    }
+  },
+  "largest_reliable_current_error": {
+    "object": "room_window_drapes",
+    "reason": "high-confidence architecture/camera anchor is about +4.7% stage-width too wide and +2.7% stage-width right of the reference center; this exceeds the architecture tolerance and is more reliable than the Celine-occluded bed envelope",
+    "bounded_correction_model": {
+      "horizontal_scale_ratio_target_over_current": 0.891,
+      "current_runtime_sx": 1.490625,
+      "proposed_runtime_sx": 1.328,
+      "screen_center_shift_required": -0.027,
+      "estimated_runtime_x_delta_m": -0.160,
+      "current_runtime_x_m": -0.575,
+      "proposed_runtime_x_m": -0.735,
+      "preserve": ["window sy", "window sz", "window y", "window z", "window yaw", "room shell", "camera", "all other furniture", "12 original furniture GLBs", "Celine identity/rig"]
+    }
+  },
+  "exact_next_action": "Apply only the measured room_window_drapes horizontal correction (runtime X -0.575 -> about -0.735 m and SX 1.490625 -> about 1.328), preserve every unrelated runtime/input, then require exactly one Android build for the new fingerprint and one smallest real HOME->CALL->HOME-return proof. Open CALL and compare window left/right/top/bottom plus whole-room composition before any further runtime write. Do not accept the room while the mirror target remains empty or any larger primary delta remains."
+}
