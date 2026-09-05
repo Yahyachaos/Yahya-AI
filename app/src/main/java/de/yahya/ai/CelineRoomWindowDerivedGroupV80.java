@@ -11,23 +11,34 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Measurement-owned horizontal correction for the derived v80 window layers.
+ * Measurement-owned affine correction for the derived v80 window layers.
  *
  * The immutable room_window_drapes source mesh is intentionally hidden after the derived backdrop,
  * side curtains, sheers and fold facets are created. Therefore moving only room_window_drapes does
- * not move the visible window. Real Candidate #1147 / #1151 on the exact 873x698 CALL stage measure
- * the visible derived group at x=0.209..0.639 (width=0.430, center=0.424), while Refernzbild.png
- * requires x=0.205..0.588 (width=0.383, center=0.397). Keep Y/Z/materials/camera/Celine untouched.
+ * not move the visible window. Real Candidate #1147 / #1151 measured the visible derived group at
+ * x=0.209..0.639 (width=0.430, center=0.424), while Refernzbild.png requires x=0.205..0.588
+ * (width=0.383, center=0.397). The horizontal correction is retained unchanged.
  *
- * The horizontal scale is 0.383/0.430 = 0.89069767. Proof #118 established a local-X projection
- * response of about 0.1588235 viewport/m for this same derived group, so the -0.027 center delta is
- * -0.170 m. The accepted derived group center therefore moves -0.605 -> -0.775 m. This post-create
- * affine correction is applied uniformly to every generated window layer so they cannot drift apart.
+ * Real Candidate #1152 on the exact 1016x813 CALL stage visually proves that horizontal correction:
+ * the top rail now spans about x=0.200..0.586, materially matching the target horizontal envelope.
+ * Its vertical envelope remains about y=0.095..0.513 (height=0.418, center=0.304), versus the
+ * canonical y=0.086..0.477 (height=0.391, center=0.2815). This is now the largest reliable
+ * architecture-anchor delta. Scale the entire derived group vertically by 0.391/0.418=0.9354067
+ * around its authored 1.20 m center, then raise that center by about 0.1206 m. The translation comes
+ * from the same plane's measured projection response: 0.418 viewport / 2.24 m = 0.1866 viewport/m,
+ * so a -0.0225 screen-center delta requires +0.1206 m of room-local height.
+ *
+ * The affine correction is applied uniformly to all generated window entities so backdrop, curtains,
+ * sheers and folds cannot drift apart. Z/materials/camera/Celine/source-GLB bytes remain untouched.
  */
 final class CelineRoomWindowDerivedGroupV80 {
     private static final float OLD_CENTER_X = -0.605f;
     private static final float NEW_CENTER_X = -0.775f;
     private static final float HORIZONTAL_SCALE = 0.89069767f;
+
+    private static final float OLD_CENTER_Y = 1.20f;
+    private static final float NEW_CENTER_Y = 1.3206f;
+    private static final float VERTICAL_SCALE = 0.9354067f;
 
     private static final WeakHashMap<Celine3DView, Boolean> APPLIED = new WeakHashMap<>();
 
@@ -52,12 +63,14 @@ final class CelineRoomWindowDerivedGroupV80 {
 
         synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
-                "Abgeleitete Fenstergruppe horizontal vermessen",
-                "CALL=873x698 currentX=0.209..0.639 targetX=0.205..0.588"
+                "Abgeleitete Fenstergruppe X/Y vermessen",
+                "CALL#1152 currentY=0.095..0.513 targetY=0.086..0.477"
                         + " scaleX=" + HORIZONTAL_SCALE
                         + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
+                        + " scaleY=" + VERTICAL_SCALE
+                        + " centerY=" + OLD_CENTER_Y + "->" + NEW_CENTER_Y
                         + " entities=" + adjusted
-                        + " · Y/Z/materials/camera/Celine/source-GLB unchanged");
+                        + " · Z/materials/camera/Celine/source-GLB unchanged");
     }
 
     static void release(Celine3DView view) {
@@ -110,11 +123,12 @@ final class CelineRoomWindowDerivedGroupV80 {
 
         float[] local = transforms.getTransform(instance, new float[16]);
         local[12] = NEW_CENTER_X + (local[12] - OLD_CENTER_X) * HORIZONTAL_SCALE;
+        local[13] = NEW_CENTER_Y + (local[13] - OLD_CENTER_Y) * VERTICAL_SCALE;
 
         float[] scale = new float[16];
         float[] adjusted = new float[16];
         Matrix.setIdentityM(scale, 0);
-        Matrix.scaleM(scale, 0, HORIZONTAL_SCALE, 1.0f, 1.0f);
+        Matrix.scaleM(scale, 0, HORIZONTAL_SCALE, VERTICAL_SCALE, 1.0f);
         Matrix.multiplyMM(adjusted, 0, local, 0, scale, 0);
         transforms.setTransform(instance, adjusted);
         return 1;
