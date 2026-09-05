@@ -17,15 +17,17 @@ import java.util.WeakHashMap;
  * texture and the derived backing/fill layers change. The exact-room rebuild later compressed the
  * legacy back-wall depth from roughly -2.90 m to -2.10 m, while the four derived window layers kept
  * their legacy -2.755..-2.705 m local Z values. Real in-app visual proof #181 therefore showed a
- * blank back wall even though ROOM-148/149/146/144 all reported active: those derived planes were
- * physically behind the new wall. Rebase only that already-derived window group +0.660 m toward the
- * camera, preserving every internal 20/25/50 mm layer separation and leaving the deepest night plane
- * at -2.095 m, 5 mm in front of the exact -2.100 m back wall. Then hide the known-ragged immutable
- * source drape as before. Source bytes/transforms, furniture, room shell, camera, anchors and Celine
- * remain untouched.
+ * blank back wall even though ROOM-148/149/146/144 all reported active. The first exact-room rebase
+ * of +0.660 m put the derived layer origins at -2.095..-2.045 m, but real exact-camera CALL Proof
+ * #1125 showed only the shallow fold strips: the broad night/curtain/sheer planes were still hidden
+ * inside the physical front face of the thick back-wall mesh. Move the entire already-derived group
+ * another +0.060 m toward the camera. This keeps every accepted 20/25/50 mm internal separation while
+ * putting the deepest night plane at -2.035 m, 10 mm camera-side of the depth where Proof #1125's
+ * -2.045 m fold facets were already visible. Then hide the known-ragged immutable source drape as
+ * before. Source bytes/transforms, furniture, room shell, camera, anchors and Celine remain untouched.
  */
 final class CelineRoomWindowSourceVisibilityV80 {
-    private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.660f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.720f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowSourceVisibilityV80() {}
@@ -47,9 +49,10 @@ final class CelineRoomWindowSourceVisibilityV80 {
         scene.remove(entity);
         synchronized (STATES) { STATES.put(view, new State(scene, entity)); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
-                "Derived window auf exakte Rückwandtiefe rebased; sparse Quelle ausgeblendet",
+                "Derived window vor physische Rückwandfront rebased; sparse Quelle ausgeblendet",
                 "entities=" + rebased + " zShift=" + EXACT_ROOM_DERIVED_WINDOW_Z_REBASE
-                        + " · backdropZ=-2.095 curtainZ=-2.075 sheerZ=-2.070 foldsZ=-2.045"
+                        + " · backdropZ=-2.035 curtainZ=-2.015 sheerZ=-2.010 foldsZ=-1.985"
+                        + " · Proof#1125 fold-visibility threshold cleared"
                         + " · source GLB/transform/Celine/camera/anchors/lamp unchanged");
     }
 
