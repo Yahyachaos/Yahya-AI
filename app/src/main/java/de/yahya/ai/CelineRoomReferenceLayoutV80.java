@@ -82,8 +82,16 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec CHAIR =
             new Spec("room_lounge_chair", -1.452000f, 0.371500f, -2.050000f,
                     0.385800f, 0.411000f, 0.385800f, 170.375000f);
+
+    // Real Candidate #1144 is authoritative for the current Android projection. On its exact
+    // 1016x813 CALL stage the reference rug target is x=0.205..0.870. Across the lower visible
+    // textured bands the reference centers around x=0.543..0.544, while the live rug centers around
+    // x=0.581..0.603, leaving a dominant +0.04..+0.06 stage-width right shift. Measured runtime
+    // chair X response is about 0.18..0.20 stage-width per metre, so apply one bounded -0.25 m
+    // derived X translation only. Preserve rug scale/depth/yaw, source bytes, camera, Celine and all
+    // other furniture until the next real HOME/CALL proof determines the residual.
     private static final Spec RUG =
-            new Spec("room_rug", 0.053430f, 0.012676f, -0.087483f,
+            new Spec("room_rug", -0.196570f, 0.012676f, -0.087483f,
                     1.708708f, 1.641016f, 1.389882f, 5.820313f);
     private static final Spec TABLE =
             new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.280000f,
