@@ -121,11 +121,17 @@ final class CelineRoomReferenceLayoutV80 {
     // exact left wall is x=-2.20 m and the immutable carrier originally sat 0.08 m inside its wall,
     // therefore derived x=-2.12 m. Solving the actual immutable mesh through the accepted exact
     // camera with that mount constraint yields y=1.577235, z=-0.055684, uniform scale=0.418546 and
-    // yaw=107.0247 degrees, projecting to x=0.000..0.078 and y=0.095..0.337. Change only this one
-    // mirror TRS; source bytes, every other furniture instance, camera and Celine remain untouched.
+    // yaw=107.0247 degrees, projecting to x=0.000..0.078 and y=0.095..0.337.
+    // Real Candidate #1155 then proves that this projected envelope is on the intended wall region
+    // but the mirror's visible front is absent from the actual CALL surface. The immutable source was
+    // authored to face inward at +90 degrees on the opposite wall; moving it to the left CALL wall
+    // requires the equivalent opposite-facing yaw branch. A 180-degree front/back flip preserves the
+    // circular projection, mount, scale and position while presenting the source front to the camera.
+    // Change only this yaw; source bytes, every other furniture instance, camera and Celine remain
+    // untouched until the next real HOME/CALL proof decides the result.
     private static final Spec MIRROR =
             new Spec("room_round_mirror", -2.120000f, 1.577235f, -0.055684f,
-                    0.418546f, 0.418546f, 0.418546f, 107.024700f);
+                    0.418546f, 0.418546f, 0.418546f, -72.975300f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
