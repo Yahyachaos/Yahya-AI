@@ -112,26 +112,23 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
-    // Real Candidate #1154 exposes a proof-coordinate bug in the preceding mirror iterations:
-    // V80-511 records the SurfaceView rectangle relative to android.R.id.content, not absolute
-    // screenshot coordinates. The status-bar inset is 63 px, so the real CALL surface is
-    // [32,466]..[1048,1279] (1016x813), not a crop beginning at y=403. Re-measuring on the actual
-    // SurfaceView keeps the reference target x=0..0.078, y=0.095..0.337 and invalidates the prior
-    // off-screen correction logic. Preserve the source mirror's physical wall mounting first: the
-    // exact left wall is x=-2.20 m and the immutable carrier originally sat 0.08 m inside its wall,
-    // therefore derived x=-2.12 m. Solving the actual immutable mesh through the accepted exact
-    // camera with that mount constraint yields y=1.577235, z=-0.055684, uniform scale=0.418546 and
-    // yaw=107.0247 degrees, projecting to x=0.000..0.078 and y=0.095..0.337.
-    // Real Candidate #1155 then proves that this projected envelope is on the intended wall region
-    // but the mirror's visible front is absent from the actual CALL surface. The immutable source was
-    // authored to face inward at +90 degrees on the opposite wall; moving it to the left CALL wall
-    // requires the equivalent opposite-facing yaw branch. A 180-degree front/back flip preserves the
-    // circular projection, mount, scale and position while presenting the source front to the camera.
-    // Change only this yaw; source bytes, every other furniture instance, camera and Celine remain
-    // untouched until the next real HOME/CALL proof decides the result.
+    // Real Candidate #1156 proves that the #1155 180-degree mirror yaw flip has essentially zero
+    // raster effect; its CALL crop differs from #1155 only by live Celine motion/AA and the mirror is
+    // still absent. Inspecting the exact runtime carrier from Build #1247 (immutable room GLB SHA256
+    // 25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8) explains why: the mirror
+    // material is double-sided, while the real 4.40 m shell leaves the left-wall inner face at
+    // x=-2.160 m. At the previous solved TRS, the 26,677 actual mirror vertices extend to x=-2.2550 m,
+    // penetrating the opaque wall by about 9.5 cm; a front/back flip cannot remove that occlusion.
+    // Re-solve the actual immutable mesh through the accepted Proof#63 Filament camera on the exact
+    // 1016x813 CALL stage, constraining the nearest mirror vertex to x=-2.150 m (1 cm inboard of the
+    // wall). The bounded contact solve yields center=(-2.022560,1.557356,0.109521), uniform
+    // scale=0.395038 and preserves yaw=-72.9753. Its full-vertex projection is
+    // x=0.000011..0.077985, y=0.094996..0.337004 versus the reference target
+    // x=0.000..0.078, y=0.095..0.337. Change only this derived mirror placement; source bytes,
+    // every other furniture instance, camera and Celine remain untouched until the next real proof.
     private static final Spec MIRROR =
-            new Spec("room_round_mirror", -2.120000f, 1.577235f, -0.055684f,
-                    0.418546f, 0.418546f, 0.418546f, -72.975300f);
+            new Spec("room_round_mirror", -2.022560f, 1.557356f, 0.109521f,
+                    0.395038f, 0.395038f, 0.395038f, -72.975300f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
