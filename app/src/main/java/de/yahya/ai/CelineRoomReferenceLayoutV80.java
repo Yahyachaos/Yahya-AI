@@ -70,15 +70,14 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
-    // Real Candidate #1159 proves that changing only the source mirror PBR factors still leaves the
-    // exact target envelope empty. Geometry remains independently solved: the immutable 26,677-vertex
-    // mirror projects to x=0.000011..0.077985 / y=0.094996..0.337004 on the exact 1016x813 CALL
-    // surface, remains wall-clear, and culling is already disabled. The remaining bounded hypothesis is
-    // the authored mirror material/render mode itself. Preserve the measured TRS and immutable source
-    // mesh, but bind an opaque duplicate of the already-loaded back-wall material to this one renderable.
+    // Real Candidate #1160 proves that even the opaque wall-material duplicate leaves the exact
+    // mirror target envelope raster-empty. The solved position, yaw and |scale| remain independently
+    // correct, while the opaque donor material is single-sided. Flip only one local scale axis so the
+    // immutable source geometry presents the opposite winding to that opaque material without moving
+    // the solved envelope. Source mesh/material bytes remain untouched.
     private static final Spec MIRROR =
             new Spec("room_round_mirror", -2.022560f, 1.557356f, 0.109521f,
-                    0.395038f, 0.395038f, 0.395038f, -72.975300f);
+                    -0.395038f, 0.395038f, 0.395038f, -72.975300f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
@@ -138,7 +137,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " shell=4.40x4.20x2.65"
                             + " furniture=13 referenceSolvedAbsoluteTRS"
                             + " mirrorFrustumCulling=false"
-                            + " mirrorReferenceMaterial=opaqueWallDuplicate"
+                            + " mirrorReferenceMaterial=opaqueWallDuplicateWindingFlipped"
                             + " sourceGLBsMutated=false"
                             + " canonicalCelineScale=false"
                             + " anchorsChanged=false");
@@ -228,7 +227,7 @@ final class CelineRoomReferenceLayoutV80 {
         Celine3DDiagnostics.record(view.getContext(), "ROOM-151",
                 "Referenzspiegel mit opakem Runtime-Material gebunden",
                 "donor=room_back_wall baseColor=0.12,0.095,0.075 alpha=1"
-                        + " metallic=0 roughness=0.58 reflectance=0.38"
+                        + " metallic=0 roughness=0.58 reflectance=0.38 windingFlipX=true"
                         + " sourceMirrorMaterialPreserved=true sourceGLBMutated=false realtimeReflection=false");
     }
 
