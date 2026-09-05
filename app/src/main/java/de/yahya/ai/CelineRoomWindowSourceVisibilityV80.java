@@ -24,20 +24,22 @@ import java.util.WeakHashMap;
  * face. A +0.720 m Z rebase puts every derived layer in front of that wall; real CALL Proof #1126
  * confirms the broad curtains/night field are now actually visible.
  *
- * The same exact-camera Proof #1126 also gives the next reproducible geometry measurement. In the
- * 1016x813 CALL slot, the now-visible derived window group occupies normalized x~=0.192..0.462 and
- * y~=0.053..0.439, while the reference-solve contract requires x=0.204..0.587 and y=0.075..0.478.
- * Treating this bounded back-wall region as locally affine yields parent-local corrections
- * x'=1.4185*x+0.867 and y'=1.0442*y-0.2295. Applying that single group transform preserves all
- * internal curtain/sheer/fold separations and materials while matching the measured reference bbox.
+ * Proof #1127 is the first exact-camera CALL in which the whole derived group can be measured against
+ * Refernzbild.png instead of inferred from hidden geometry. Direct 1016x813 overlay shows the derived
+ * outer window/drape envelope at roughly x=0.207..0.734, y=0.091..0.439, while the visible reference
+ * envelope is roughly x=0.276..0.721, y=0.086..0.519. The largest remaining window error is therefore
+ * a too-far-left outer edge and curtains ending well above the reference floor line; the right/top
+ * edges are already close. Refit the base helper span in parent space to x'=1.259*x+0.964 and
+ * y'=1.323*y-0.876. This keeps the currently aligned right/top edges while pulling the left edge in
+ * and extending the fabric/sheers downward. Internal curtain/sheer/fold separations remain coherent.
  * Source bytes/transforms, furniture, room shell, camera, anchors and Celine remain untouched.
  */
 final class CelineRoomWindowSourceVisibilityV80 {
     private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.720f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.4185f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.8670f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.0442f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.2295f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.259f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.964f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.323f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.876f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowSourceVisibilityV80() {}
@@ -59,14 +61,14 @@ final class CelineRoomWindowSourceVisibilityV80 {
         scene.remove(entity);
         synchronized (STATES) { STATES.put(view, new State(scene, entity)); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
-                "Derived window gegen exakten CALL-Referenzbbox rebased; sparse Quelle ausgeblendet",
+                "Derived window gegen echten CALL-Overlay refitted; sparse Quelle ausgeblendet",
                 "entities=" + rebased
                         + " zShift=" + EXACT_ROOM_DERIVED_WINDOW_Z_REBASE
                         + " xScale=" + EXACT_ROOM_DERIVED_WINDOW_X_SCALE
                         + " xShift=" + EXACT_ROOM_DERIVED_WINDOW_X_SHIFT
                         + " yScale=" + EXACT_ROOM_DERIVED_WINDOW_Y_SCALE
                         + " yShift=" + EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT
-                        + " · targetBBox=0.204..0.587/0.075..0.478 Proof#1126"
+                        + " · authority=Refernzbild.png + Proof#1127 overlay"
                         + " · source GLB/transform/Celine/camera/anchors/lamp unchanged");
     }
 
@@ -150,8 +152,6 @@ final class CelineRoomWindowSourceVisibilityV80 {
                 EXACT_ROOM_DERIVED_WINDOW_X_SCALE,
                 EXACT_ROOM_DERIVED_WINDOW_Y_SCALE,
                 1.0f);
-        // Parent-space affine correction keeps every child layer/facet coherent: it scales both each
-        // entity basis and its parent-local centre, then adds the measured group translation/rebase.
         Matrix.multiplyMM(adjusted, 0, group, 0, local, 0);
         transforms.setTransform(instance, adjusted);
     }
