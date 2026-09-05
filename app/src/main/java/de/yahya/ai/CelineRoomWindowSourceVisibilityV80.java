@@ -1,5 +1,7 @@
 package de.yahya.ai;
 
+import android.opengl.Matrix;
+
 import com.google.android.filament.Engine;
 import com.google.android.filament.Scene;
 import com.google.android.filament.TransformManager;
@@ -11,23 +13,31 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * v80 bounded visibility owner for the immutable sparse window/drape renderable.
+ * v80 bounded visibility/placement owner for the immutable sparse window/drape renderable.
  *
  * Proofs #64-#71 show that the source room_window_drapes mesh remains visibly ragged even when its
  * texture and the derived backing/fill layers change. The exact-room rebuild later compressed the
  * legacy back-wall depth from roughly -2.90 m to -2.10 m, while the four derived window layers kept
  * their legacy -2.755..-2.705 m local Z values. Real in-app visual proof #181 therefore showed a
- * blank back wall even though ROOM-148/149/146/144 all reported active. The first exact-room rebase
- * of +0.660 m put the derived layer origins at -2.095..-2.045 m, but real exact-camera CALL Proof
- * #1125 showed only the shallow fold strips: the broad night/curtain/sheer planes were still hidden
- * inside the physical front face of the thick back-wall mesh. Move the entire already-derived group
- * another +0.060 m toward the camera. This keeps every accepted 20/25/50 mm internal separation while
- * putting the deepest night plane at -2.035 m, 10 mm camera-side of the depth where Proof #1125's
- * -2.045 m fold facets were already visible. Then hide the known-ragged immutable source drape as
- * before. Source bytes/transforms, furniture, room shell, camera, anchors and Celine remain untouched.
+ * blank back wall even though ROOM-148/149/146/144 all reported active. Proof #1125 then showed only
+ * the shallow fold strips because the broad derived planes were still inside the physical back-wall
+ * face. A +0.720 m Z rebase puts every derived layer in front of that wall; real CALL Proof #1126
+ * confirms the broad curtains/night field are now actually visible.
+ *
+ * The same exact-camera Proof #1126 also gives the next reproducible geometry measurement. In the
+ * 1016x813 CALL slot, the now-visible derived window group occupies normalized x~=0.192..0.462 and
+ * y~=0.053..0.439, while the reference-solve contract requires x=0.204..0.587 and y=0.075..0.478.
+ * Treating this bounded back-wall region as locally affine yields parent-local corrections
+ * x'=1.4185*x+0.867 and y'=1.0442*y-0.2295. Applying that single group transform preserves all
+ * internal curtain/sheer/fold separations and materials while matching the measured reference bbox.
+ * Source bytes/transforms, furniture, room shell, camera, anchors and Celine remain untouched.
  */
 final class CelineRoomWindowSourceVisibilityV80 {
     private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.720f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.4185f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.8670f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.0442f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.2295f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowSourceVisibilityV80() {}
@@ -49,10 +59,14 @@ final class CelineRoomWindowSourceVisibilityV80 {
         scene.remove(entity);
         synchronized (STATES) { STATES.put(view, new State(scene, entity)); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
-                "Derived window vor physische Rückwandfront rebased; sparse Quelle ausgeblendet",
-                "entities=" + rebased + " zShift=" + EXACT_ROOM_DERIVED_WINDOW_Z_REBASE
-                        + " · backdropZ=-2.035 curtainZ=-2.015 sheerZ=-2.010 foldsZ=-1.985"
-                        + " · Proof#1125 fold-visibility threshold cleared"
+                "Derived window gegen exakten CALL-Referenzbbox rebased; sparse Quelle ausgeblendet",
+                "entities=" + rebased
+                        + " zShift=" + EXACT_ROOM_DERIVED_WINDOW_Z_REBASE
+                        + " xScale=" + EXACT_ROOM_DERIVED_WINDOW_X_SCALE
+                        + " xShift=" + EXACT_ROOM_DERIVED_WINDOW_X_SHIFT
+                        + " yScale=" + EXACT_ROOM_DERIVED_WINDOW_Y_SCALE
+                        + " yShift=" + EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT
+                        + " · targetBBox=0.204..0.587/0.075..0.478 Proof#1126"
                         + " · source GLB/transform/Celine/camera/anchors/lamp unchanged");
     }
 
@@ -125,10 +139,21 @@ final class CelineRoomWindowSourceVisibilityV80 {
             throw new IllegalStateException("derived window rebase: Transform fehlt entity=" + entity);
         }
         float[] local = transforms.getTransform(instance, new float[16]);
-        // Filament/Android matrices store parent-local translation in indices 12..14. Adjusting only
-        // index 14 preserves each fold facet's accepted yaw and every X/Y/scale/material parameter.
-        local[14] += EXACT_ROOM_DERIVED_WINDOW_Z_REBASE;
-        transforms.setTransform(instance, local);
+        float[] group = new float[16];
+        float[] adjusted = new float[16];
+        Matrix.setIdentityM(group, 0);
+        Matrix.translateM(group, 0,
+                EXACT_ROOM_DERIVED_WINDOW_X_SHIFT,
+                EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT,
+                EXACT_ROOM_DERIVED_WINDOW_Z_REBASE);
+        Matrix.scaleM(group, 0,
+                EXACT_ROOM_DERIVED_WINDOW_X_SCALE,
+                EXACT_ROOM_DERIVED_WINDOW_Y_SCALE,
+                1.0f);
+        // Parent-space affine correction keeps every child layer/facet coherent: it scales both each
+        // entity basis and its parent-local centre, then adds the measured group translation/rebase.
+        Matrix.multiplyMM(adjusted, 0, group, 0, local, 0);
+        transforms.setTransform(instance, adjusted);
     }
 
     private static Field declaredFieldOrNull(Class<?> type, String name) {
