@@ -119,7 +119,10 @@ final class CelineVideoChatV44 {
         }
 
         ViewGroup.LayoutParams lp = stage.getLayoutParams();
-        if (lp != null) {
+        // HOME owns this legacy fixed stage height. During CALL the v45 reference-aspect slot is
+        // authoritative; resizing its child here made the Filament surface 1016x998 inside a
+        // 1016x813 slot, changing camera aspect/projection and clipping the reference composition.
+        if (lp != null && !isCallLocked(threeD)) {
             float d = Math.max(1f, activity.getResources().getDisplayMetrics().density);
             int screenH = activity.getResources().getDisplayMetrics().heightPixels;
             int target = Math.min(Math.round(455f * d), Math.round(screenH * 0.53f));
