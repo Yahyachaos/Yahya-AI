@@ -33,9 +33,18 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec BED =
             new Spec("room_bed", 1.030469f, 0.620523f, -0.387500f,
                     1.123125f, 1.477500f, 1.123125f, -84.437500f);
+
+    // Real in-app CALL Proof #1126 is authoritative over the Blender-only carrier assumption for
+    // the Android runtime. On its exact 1016x813 CALL stage the visible dresser envelope measured
+    // x=0..143 px and y=343..535 px, while Refernzbild.png requires x=0..187 px and y=341..584 px.
+    // The runtime carrier therefore presents this immutable source instance at only ~77% of the
+    // required horizontal and ~80% of the required vertical silhouette. Correct only the derived
+    // runtime instance scale by the measured ratios (1.298 horizontal, 1.255 vertical); keep its
+    // solved position/yaw and source bytes unchanged. The next real HOME/CALL proof decides whether
+    // a separate grounded depth correction is still necessary; do not stack that unmeasured change.
     private static final Spec DRESSER =
             new Spec("room_dresser", -2.135313f, 0.560357f, -0.077000f,
-                    0.823539f, 0.860254f, 0.823539f, 87.714844f);
+                    1.069137f, 1.079882f, 1.069137f, 87.714844f);
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -2.150000f, 0.982714f, -1.800000f,
                     0.674688f, 1.032188f, 0.674688f, -15.292969f);
