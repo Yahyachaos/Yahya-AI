@@ -96,9 +96,18 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec TABLE =
             new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.280000f,
                     1.031000f, 0.667240f, 0.519922f, -2.000000f);
+
+    // Real Candidate #1147 is the first directly measured real CALL checkpoint for the current
+    // reconstruction contract. On the 873x698 room stage the visible window/drape envelope is about
+    // x=0.209..0.639 (width 0.430, center 0.424), while Refernzbild.png requires x=0.205..0.588
+    // (width 0.383, center 0.397). This high-confidence architecture anchor is therefore about 4.7%
+    // of stage width too wide and 2.7% too far right. Correct only its horizontal footprint: apply
+    // target/current width ratio ~=0.891 to SX and a bounded -0.160 m X translation using the
+    // measured same-depth runtime X response. Preserve Y/Z scale, height/depth, yaw, room shell,
+    // camera, every other furniture transform, source GLB bytes and Celine until the next real proof.
     private static final Spec WINDOW =
-            new Spec("room_window_drapes", -0.575000f, 1.400000f, -2.092500f,
-                    1.490625f, 1.490625f, 1.490625f, -8.437500f);
+            new Spec("room_window_drapes", -0.735000f, 1.400000f, -2.092500f,
+                    1.328000f, 1.490625f, 1.490625f, -8.437500f);
 
     // Real Candidate #1145 HOME-return is the cleanest current room checkpoint because Celine has
     // drifted away from the shelf. On the exact 964x761 HOME stage the visible shelf/objects sit
