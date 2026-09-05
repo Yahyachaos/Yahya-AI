@@ -91,9 +91,15 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec SHELF =
             new Spec("room_wall_shelf_books", 1.400000f, 1.894062f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
+
+    // Real Candidate #1141 leaves the entire authoritative mirror envelope empty in both HOME and
+    // CALL even though exact Proof #111 places this immutable source at x=0..0.07796,
+    // y=0.09520..0.33696. Position/scale already encode that solved envelope. Flip only the
+    // orientation normal by 180 degrees so the one-sided runtime carrier faces the camera while
+    // preserving the same geometric plane, center, scale and screen-space footprint.
     private static final Spec MIRROR =
             new Spec("room_round_mirror", -1.960156f, 1.468750f, 0.565000f,
-                    0.290000f, 0.290000f, 0.290000f, -65.312500f);
+                    0.290000f, 0.290000f, 0.290000f, 114.687500f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
