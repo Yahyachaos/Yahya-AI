@@ -112,17 +112,20 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
-    // Real Candidate #1146 proves the previous 180-degree mirror-normal flip did not restore the
-    // missing runtime silhouette. The source material is double-sided; this is therefore not a
-    // culling/orientation failure. Projecting the actual immutable mirror mesh through the exact
-    // runtime camera places its full derived carrier envelope at about x=-0.053..0.010,
-    // y=0.123..0.336 on the 1016x813 CALL stage, while Refernzbild.png requires a visible mirror at
-    // x=0..0.078, y=0.095..0.337. Move only the derived runtime mirror X by +0.1936 m, which puts
-    // the projected carrier center at target x=0.039. Do not stack scale/height/depth/yaw changes
-    // before a real HOME/CALL proof measures the newly visible silhouette.
+    // Real Candidate #1154 exposes a proof-coordinate bug in the preceding mirror iterations:
+    // V80-511 records the SurfaceView rectangle relative to android.R.id.content, not absolute
+    // screenshot coordinates. The status-bar inset is 63 px, so the real CALL surface is
+    // [32,466]..[1048,1279] (1016x813), not a crop beginning at y=403. Re-measuring on the actual
+    // SurfaceView keeps the reference target x=0..0.078, y=0.095..0.337 and invalidates the prior
+    // off-screen correction logic. Preserve the source mirror's physical wall mounting first: the
+    // exact left wall is x=-2.20 m and the immutable carrier originally sat 0.08 m inside its wall,
+    // therefore derived x=-2.12 m. Solving the actual immutable mesh through the accepted exact
+    // camera with that mount constraint yields y=1.577235, z=-0.055684, uniform scale=0.418546 and
+    // yaw=107.0247 degrees, projecting to x=0.000..0.078 and y=0.095..0.337. Change only this one
+    // mirror TRS; source bytes, every other furniture instance, camera and Celine remain untouched.
     private static final Spec MIRROR =
-            new Spec("room_round_mirror", -1.766544f, 1.468750f, 0.565000f,
-                    0.290000f, 0.290000f, 0.290000f, 114.687500f);
+            new Spec("room_round_mirror", -2.120000f, 1.577235f, -0.055684f,
+                    0.418546f, 0.418546f, 0.418546f, 107.024700f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
