@@ -19,14 +19,16 @@ import java.util.WeakHashMap;
  * x=0.209..0.639 (width=0.430, center=0.424), while Refernzbild.png requires x=0.205..0.588
  * (width=0.383, center=0.397). The horizontal correction is retained unchanged.
  *
- * Real Candidate #1152 on the exact 1016x813 CALL stage visually proves that horizontal correction:
- * the top rail now spans about x=0.200..0.586, materially matching the target horizontal envelope.
- * Its vertical envelope remains about y=0.095..0.513 (height=0.418, center=0.304), versus the
- * canonical y=0.086..0.477 (height=0.391, center=0.2815). This is now the largest reliable
- * architecture-anchor delta. Scale the entire derived group vertically by 0.391/0.418=0.9354067
- * around its authored 1.20 m center, then raise that center by about 0.1206 m. The translation comes
- * from the same plane's measured projection response: 0.418 viewport / 2.24 m = 0.1866 viewport/m,
- * so a -0.0225 screen-center delta requires +0.1206 m of room-local height.
+ * Real Candidate #1153 on the exact 1016x813 CALL stage was opened against the exact repository
+ * Refernzbild.png blob e85c43b5e365982aa862329eecfb31ab502db793. Horizontal alignment is now
+ * materially on target (visible group about x=0.199..0.587 versus target x=0.205..0.588), so X is
+ * frozen. The remaining high-confidence architecture error is vertical: the full derived silhouette
+ * is about y=0.080..0.510 (height=0.430, center=0.295), versus target y=0.086..0.477
+ * (height=0.391, center=0.2815). Refit from the already-proved #1153 transform instead of stacking
+ * an arbitrary micro-tweak: total Y scale = 0.9354067 * 0.391/0.430 = 0.8505675. On the same plane,
+ * the observed 0.430 viewport height across 2*1.12*0.9354067 m gives about 0.20522 viewport/m;
+ * moving the projected center upward by 0.0135 therefore requires +0.06578 m room-local Y, taking
+ * the corrected group center from 1.3206 m to 1.3864 m.
  *
  * The affine correction is applied uniformly to all generated window entities so backdrop, curtains,
  * sheers and folds cannot drift apart. Z/materials/camera/Celine/source-GLB bytes remain untouched.
@@ -37,8 +39,8 @@ final class CelineRoomWindowDerivedGroupV80 {
     private static final float HORIZONTAL_SCALE = 0.89069767f;
 
     private static final float OLD_CENTER_Y = 1.20f;
-    private static final float NEW_CENTER_Y = 1.3206f;
-    private static final float VERTICAL_SCALE = 0.9354067f;
+    private static final float NEW_CENTER_Y = 1.3864f;
+    private static final float VERTICAL_SCALE = 0.8505675f;
 
     private static final WeakHashMap<Celine3DView, Boolean> APPLIED = new WeakHashMap<>();
 
@@ -64,7 +66,7 @@ final class CelineRoomWindowDerivedGroupV80 {
         synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
                 "Abgeleitete Fenstergruppe X/Y vermessen",
-                "CALL#1152 currentY=0.095..0.513 targetY=0.086..0.477"
+                "CALL#1153 currentY=0.080..0.510 targetY=0.086..0.477"
                         + " scaleX=" + HORIZONTAL_SCALE
                         + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
                         + " scaleY=" + VERTICAL_SCALE
