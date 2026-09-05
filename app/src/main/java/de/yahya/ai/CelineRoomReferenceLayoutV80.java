@@ -45,9 +45,19 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec DRESSER =
             new Spec("room_dresser", -2.135313f, 0.560357f, -0.077000f,
                     1.069137f, 1.079882f, 1.069137f, 87.714844f);
+
+    // Real in-app CALL Proof #1134 is the first checkpoint after the canonical window-width close.
+    // On its exact 1016x813 stage the large plant's isolated green silhouette is approximately
+    // x=0.118..0.181, while the Refernzbild.png reconstruction contract requires the plant entity
+    // at x=0.132..0.247. Width is therefore only ~0.063 versus the required ~0.115 (~55%), and the
+    // visible centre is ~0.040 stage-width too far left. Correct this one proven horizontal footprint
+    // error only: x/z footprint scale = 0.674688*(0.115/0.063) ~= 1.23157 and empirical CALL
+    // projection from the already verified chair correction maps +0.040 stage-width to about +0.220 m
+    // Filament X, giving x ~= -1.930. Preserve plant Y scale/height, depth anchor, yaw, source bytes,
+    // camera, Celine and every other furniture instance until the next real HOME/CALL proof.
     private static final Spec LARGE_PLANT =
-            new Spec("room_plant_large", -2.150000f, 0.982714f, -1.800000f,
-                    0.674688f, 1.032188f, 0.674688f, -15.292969f);
+            new Spec("room_plant_large", -1.930000f, 0.982714f, -1.800000f,
+                    1.231573f, 1.032188f, 1.231573f, -15.292969f);
     private static final Spec SMALL_PLANT =
             new Spec("room_plant_small", 2.129375f, 0.572656f, 0.355000f,
                     0.105625f, 0.105625f, 0.105625f, 21.972656f);
