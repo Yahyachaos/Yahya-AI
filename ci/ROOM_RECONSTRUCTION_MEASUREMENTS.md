@@ -103,6 +103,35 @@ Root-cause reconciliation from the same real log and current source:
 
 After that runtime correction: exactly one Android build, then one real HOME/CALL/HOME proof. Accept the step only if HOME is no longer globally underfilled, CALL remains direct/nonblank, and HOME return remains exactly one room/Celine. Then remeasure reference-vs-runtime object silhouettes before choosing the next largest delta.
 
+## Current exact in-app checkpoint — Real Candidate #1136
+
+Live runtime head `b3f4056303a3dce1bb19ed18702ed1a7dbd9f294` (`fix(room): close large plant width residual`) was built once in Android Build #1229 / run `33948858111`. Runtime fingerprint: `bbffc4ae9af3f5796d200d6b944390d1c1dc25c3c08bbc30b78f6a4002758f0b`. APK SHA256: `8b027832712e2e8fecc12eb483a0dcb073a03cb6ced0dd5b4a5fde4e267cfb37`.
+
+Real Candidate #1136 / run `33948858110` / artifact `9964261276` emitted the required initial `real-candidate-home.png`, `real-candidate-call.png` and `real-candidate-home-return.png` before a later diagnostic zoom assertion failed. Those three initial lifecycle images are valid visual evidence and were opened directly. HOME SurfaceView is `964 x 761`; CALL SurfaceView is `1016 x 813`. They are nonblank and contain the current real room/Celine scene.
+
+Canonical visual authority was independently revalidated from the exact source image hash: SHA256 `c5bbbfcffdcf60ac4d59149e21e5860de3b99b5b15864569d489a699dc7986e1`. The proof contract continues to compare on the normalized `1376 x 1100` grid.
+
+Whole-scene visual verdict remains **FAIL**. The room now occupies broadly correct zones, and the foreground table begins near the intended lower image band, but Celine is the dominant composition error before smaller furniture polish:
+
+- HOME: Celine's head/upper torso is clipped by the top of the real 3D Surface and her projected body is grossly larger than the fully visible standing reference person.
+- CALL: Celine is also vertically clipped/high and visually floats over the bed rather than reading as a stable seated/contact composition. CALL is already materially smaller than HOME, which is a useful depth control observation.
+- The current room furniture should not receive another micro-scale/yaw tweak before this global HOME presentation depth mismatch is closed and re-proved.
+
+Exact current source reconciliation explains the HOME/CALL size split without changing Celine's canonical scale or the accepted camera:
+
+- `Celine3DView.normalizeAsset()` places Celine's canonical root base at runtime Z `-4.0`.
+- The one accepted camera owner remains lens `20.846875 mm`, eye Z `-1.1265625`.
+- `CelineProductionPresenceV80.applyRoot()` currently adds legacy `camera_talk_anchor.localZ = +1.15 m` to ambient HOME, putting the standing root near Z `-2.85 m` before its small ambient bob/drift.
+- CALL instead uses `CALL_ROOT_FORWARD = +0.12 m`, putting the root near Z `-3.88 m`.
+- Camera-to-root depth therefore changes from roughly `1.72 m` in HOME to `2.75 m` in CALL. A pinhole projection predicts an approximately `1.6x` HOME scale increase, consistent with the observed top clipping and oversized HOME body.
+- `camera_talk_anchor = 1.15 m` comes from the legacy `6.4 x 5.8 m` world contract, while the active visual room is now the exact `4.40 x 4.20 m` reconstruction. This is now new real-runtime evidence that the talk presentation depth is stale; it is not a reason to resize Celine or retune the camera.
+
+### Next bounded correction
+
+Rebase only the runtime `camera_talk_anchor` presentation Z from legacy `1.15 m` to the empirically validated CALL/reference depth `0.12 m`. Preserve every other anchor coordinate, route endpoint, room/furniture TRS, camera/lens, canonical Celine scale/rig, source GLBs, materials and light. The navigator's relative-Z algebra keeps non-talk destination world-Z endpoints unchanged when only the talk baseline changes; the talk/home start and return become continuous at the new presentation depth.
+
+Then do exactly one Android build for the new runtime fingerprint and exactly one real HOME -> CALL -> HOME-return proof. Open all three real images. Accept only the bounded depth correction if HOME now contains Celine fully at reference-like standing scale without breaking CALL or HOME return. Do not touch CALL vertical/contact or secondary furniture in the same step; whichever remains the largest measured visible delta becomes the next single-flight action.
+
 ## Iteration rule
 
 For every bounded step: re-read live authority -> confirm single-flight -> measure actual reference/proof -> change one evidenced primary error -> run only the smallest required proof -> open and inspect the actual image -> record target/current/delta -> continue. Solver/proof-only changes require no APK build; each runtime fingerprint change requires exactly one Android build. No visual PASS may be recorded while a relevant visible difference remains.
