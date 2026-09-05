@@ -97,6 +97,7 @@ final class CelineRoomWindowTextureV80 {
         CelineRoomWindowSheerFillV80.apply(view, asset, engine);
         CelineRoomWindowFoldDetailV80.apply(view, asset, engine);
         CelineRoomWindowSourceVisibilityV80.hide(view, asset);
+        CelineRoomWindowDerivedGroupV80.apply(view, engine);
     }
 
     private static Bitmap balanceDrapeAtlas(Bitmap source) {
@@ -131,6 +132,7 @@ final class CelineRoomWindowTextureV80 {
     }
 
     static void release(Celine3DView view, Engine engine) {
+        CelineRoomWindowDerivedGroupV80.release(view);
         CelineRoomWindowSourceVisibilityV80.release(view);
         CelineRoomWindowFoldDetailV80.release(view, engine);
         CelineRoomWindowSheerFillV80.release(view, engine);
