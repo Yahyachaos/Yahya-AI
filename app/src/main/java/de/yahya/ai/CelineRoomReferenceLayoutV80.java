@@ -38,13 +38,16 @@ final class CelineRoomReferenceLayoutV80 {
     // the Android runtime. On its exact 1016x813 CALL stage the visible dresser envelope measured
     // x=0..143 px and y=343..535 px, while Refernzbild.png requires x=0..187 px and y=341..584 px.
     // The runtime carrier therefore presents this immutable source instance at only ~77% of the
-    // required horizontal and ~80% of the required vertical silhouette. Correct only the derived
-    // runtime instance scale by the measured ratios (1.298 horizontal, 1.255 vertical); keep its
-    // solved position/yaw and source bytes unchanged. The next real HOME/CALL proof decides whether
-    // a separate grounded depth correction is still necessary; do not stack that unmeasured change.
+    // required horizontal and ~80% of the required vertical silhouette. The derived scale correction
+    // is already applied. Real Candidate #1142 then shows the resulting dominant visible dresser face
+    // as the irregular orange/brown reverse face while the reference requires the clean fluted front.
+    // The projection solver does not search a 180-degree yaw offset, and a front/back flip preserves
+    // the solved anchor/scale while changing only which immutable source face is presented. Flip only
+    // this derived runtime yaw by 180 degrees; source bytes, position, scale, camera and Celine stay
+    // untouched until the next real HOME/CALL proof decides the orientation.
     private static final Spec DRESSER =
             new Spec("room_dresser", -2.135313f, 0.560357f, -0.077000f,
-                    1.069137f, 1.079882f, 1.069137f, 87.714844f);
+                    1.069137f, 1.079882f, 1.069137f, -92.285156f);
 
     // Real in-app CALL Proof #1135 measured the first large-plant correction on the exact 1016x813
     // stage at x=0.110..0.262 (width 0.1516, center 0.1860), while Refernzbild.png requires
