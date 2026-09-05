@@ -24,25 +24,26 @@ import java.util.WeakHashMap;
  * face. A +0.720 m Z rebase puts every derived layer in front of that wall; real CALL Proof #1126
  * confirms the broad curtains/night field are now actually visible.
  *
- * Real CALL Proof #1132 is the current exact-runtime checkpoint. On its 1016x813 stage the derived
- * window/drape outer vertical edges are approximately x=279/1016=0.275 and x=746/1016=0.734, while
- * the canonical Refernzbild.png measurement contract requires x=0.205..0.588. The prior Proof #1127
- * refit accidentally used a shifted comparison envelope (0.276..0.721) instead of the canonical
- * reference target, so it cannot remain the placement authority.
+ * The canonical Refernzbild.png measurement contract requires the visible derived window/drape
+ * envelope at x=0.205..0.588 on the exact 1016x813 CALL stage. Proof #1132 exposed that the prior
+ * #1127 refit had used a shifted comparison envelope and rendered roughly 0.275..0.734. The first
+ * canonical correction (xScale=1.17955, xShift=0.41024) was then verified by real CALL Proof #1133:
+ * it fixes the left edge at about x=0.206, but the slanted outer right curtain still reaches roughly
+ * x=0.64..0.645 instead of 0.588. This remains the largest measured architecture-envelope error.
  *
- * Keep the solve reproducible rather than eyeballing it: Proof #1126 with xScale=1/xShift=0 rendered
- * roughly 0.192..0.462; Proof #1127 with 1.4185/0.867 rendered roughly 0.207..0.734; Proof #1132 with
- * 1.259/0.964 renders roughly 0.275..0.734. A two-edge affine fit across those three real runtime
- * checkpoints solves the canonical 0.205..0.588 target at xScale~=1.17955 and xShift~=0.41024.
+ * Keep the solve reproducible rather than eyeballing it. Runtime checkpoints provide four measured
+ * horizontal transfer samples: #1126 (1/0 -> ~0.192..0.462), #1127
+ * (1.4185/0.867 -> ~0.207..0.734), #1132 (1.259/0.964 -> ~0.275..0.734), and #1133
+ * (1.17955/0.41024 -> ~0.206..0.64..0.645). A least-squares two-edge affine fit across those real
+ * samples solves the canonical 0.205..0.588 envelope at xScale~=1.151 and xShift~=0.356.
  * Change only that measured horizontal group transform. Preserve the current Y/Z correction until
- * the next real HOME/CALL proof because its top/bottom envelope is already close enough that a second
- * unmeasured axis correction would stack variables. Source bytes/transforms, furniture, room shell,
- * camera, anchors and Celine remain untouched.
+ * the next real HOME/CALL proof; source bytes/transforms, furniture, room shell, camera, anchors and
+ * Celine remain untouched.
  */
 final class CelineRoomWindowSourceVisibilityV80 {
     private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.720f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.17955f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.41024f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.151f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.356f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.323f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.876f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
@@ -73,7 +74,7 @@ final class CelineRoomWindowSourceVisibilityV80 {
                         + " xShift=" + EXACT_ROOM_DERIVED_WINDOW_X_SHIFT
                         + " yScale=" + EXACT_ROOM_DERIVED_WINDOW_Y_SCALE
                         + " yShift=" + EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT
-                        + " · targetBBoxX=0.205..0.588 authority=Refernzbild.png + Proof#1132"
+                        + " · targetBBoxX=0.205..0.588 authority=Refernzbild.png + Proof#1133"
                         + " · source GLB/transform/Celine/camera/anchors/lamp unchanged");
     }
 
