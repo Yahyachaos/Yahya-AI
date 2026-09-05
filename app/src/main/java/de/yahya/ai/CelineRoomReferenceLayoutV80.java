@@ -121,16 +121,15 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
-    // Real Candidate #1146 proves the previous 180-degree mirror-normal flip did not restore the
-    // missing runtime silhouette. The source material is double-sided; this is therefore not a
-    // culling/orientation failure. Projecting the actual immutable mirror mesh through the exact
-    // runtime camera places its full derived carrier envelope at about x=-0.053..0.010,
-    // y=0.123..0.336 on the 1016x813 CALL stage, while Refernzbild.png requires a visible mirror at
-    // x=0..0.078, y=0.095..0.337. Move only the derived runtime mirror X by +0.1936 m, which puts
-    // the projected carrier center at target x=0.039. Do not stack scale/height/depth/yaw changes
-    // before a real HOME/CALL proof measures the newly visible silhouette.
+    // Real Candidates #1146/#1147 bound the remaining mirror failure. At the exact pre-move
+    // baseline X=-1.960156 m the projected carrier was just left of frame (x~-0.053..0.010), but
+    // moving derived runtime X +0.193612 m to -1.766544 did not reveal any mirror pixels in the
+    // authoritative target envelope x=0..0.078. That real proof disproves the assumed +X=>screen-right
+    // response. The mirror belongs on the physical left wall, so reflect the failed probe across the
+    // baseline and test the equal opposite displacement: X=-2.153768 m. Preserve Y/Z, scale, yaw,
+    // source bytes, camera, every other room transform and Celine until exactly one fresh proof.
     private static final Spec MIRROR =
-            new Spec("room_round_mirror", -1.766544f, 1.468750f, 0.565000f,
+            new Spec("room_round_mirror", -2.153768f, 1.468750f, 0.565000f,
                     0.290000f, 0.290000f, 0.290000f, 114.687500f);
 
     private static final Spec[] ROOM_FURNITURE = {
