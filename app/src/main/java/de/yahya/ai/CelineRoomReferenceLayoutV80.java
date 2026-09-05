@@ -2,7 +2,9 @@ package de.yahya.ai;
 
 import android.opengl.Matrix;
 
+import com.google.android.filament.Colors;
 import com.google.android.filament.Engine;
+import com.google.android.filament.MaterialInstance;
 import com.google.android.filament.RenderableManager;
 import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.FilamentAsset;
@@ -68,12 +70,12 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
-    // Real Candidate #1157 proves the wall-clear, exact-projection mirror solve is still absent from
-    // the real CALL raster even though its transformed full-vertex bbox lands on the canonical target.
-    // The immutable mirror renderable was authored on the opposite wall and is relocated several metres
-    // after gltfio creates its renderable. Disable frustum culling only for this one relocated renderable
-    // so the next real proof can falsify a stale/incorrect runtime bound without changing geometry,
-    // materials, source bytes, camera, Celine or any other room object.
+    // Real Candidate #1158 falsifies the remaining geometry-side mirror hypotheses: the immutable
+    // 26,677-vertex mesh projects to x=0.000011..0.077985 / y=0.094996..0.337004 on the exact
+    // 1016x813 CALL surface, stays at least 1 cm inboard of the physical left-wall inner face, its
+    // source material is double-sided, and disabling Filament frustum culling still leaves the target
+    // raster empty. Preserve that measured TRS and make only the mirror's already-unique runtime PBR
+    // instance visibly dark/diffuse like Refernzbild.png. Source texture/mesh bytes remain untouched.
     private static final Spec MIRROR =
             new Spec("room_round_mirror", -2.022560f, 1.557356f, 0.109521f,
                     0.395038f, 0.395038f, 0.395038f, -72.975300f);
@@ -123,6 +125,7 @@ final class CelineRoomReferenceLayoutV80 {
                 setAbsoluteTrs(asset, transforms, spec, true);
             }
             disableMirrorFrustumCulling(view, asset);
+            applyMirrorReferenceVisibilityMaterial(view, asset);
 
             synchronized (APPLIED) {
                 APPLIED.put(view, asset);
@@ -133,6 +136,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " shell=4.40x4.20x2.65"
                             + " furniture=13 referenceSolvedAbsoluteTRS"
                             + " mirrorFrustumCulling=false"
+                            + " mirrorReferenceMaterial=darkDiffuseTexturePreserved"
                             + " sourceGLBsMutated=false"
                             + " canonicalCelineScale=false"
                             + " anchorsChanged=false");
@@ -155,16 +159,51 @@ final class CelineRoomReferenceLayoutV80 {
 
     private static void disableMirrorFrustumCulling(Celine3DView view, FilamentAsset asset)
             throws Exception {
-        Field engineField = Celine3DView.class.getDeclaredField("engine");
-        engineField.setAccessible(true);
-        Engine engine = (Engine) engineField.get(view);
-        if (engine == null) throw new IllegalStateException("mirror culling: engine missing");
+        Engine engine = engine(view);
         int entity = asset.getFirstEntityByName(MIRROR.entityName);
         if (entity == 0) throw new IllegalStateException("mirror culling: entity missing");
         RenderableManager renderables = engine.getRenderableManager();
         int instance = renderables.getInstance(entity);
         if (instance == 0) throw new IllegalStateException("mirror culling: renderable missing");
         renderables.setCulling(instance, false);
+    }
+
+    private static void applyMirrorReferenceVisibilityMaterial(
+            Celine3DView view, FilamentAsset asset) throws Exception {
+        Engine engine = engine(view);
+        int entity = asset.getFirstEntityByName(MIRROR.entityName);
+        if (entity == 0) throw new IllegalStateException("mirror material: entity missing");
+        RenderableManager renderables = engine.getRenderableManager();
+        int instance = renderables.getInstance(entity);
+        if (instance == 0) throw new IllegalStateException("mirror material: renderable missing");
+        if (renderables.getPrimitiveCount(instance) != 1) {
+            throw new IllegalStateException("mirror material: primitive count != 1");
+        }
+        MaterialInstance material = renderables.getMaterialInstanceAt(instance, 0);
+        if (material == null) throw new IllegalStateException("mirror material: instance missing");
+        material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                0.18f, 0.15f, 0.12f, 1.0f);
+        if (material.getMaterial().hasParameter("metallicFactor")) {
+            material.setParameter("metallicFactor", 0.0f);
+        }
+        if (material.getMaterial().hasParameter("roughnessFactor")) {
+            material.setParameter("roughnessFactor", 0.50f);
+        }
+        if (material.getMaterial().hasParameter("reflectance")) {
+            material.setParameter("reflectance", 0.40f);
+        }
+        Celine3DDiagnostics.record(view.getContext(), "ROOM-151",
+                "Referenzspiegel PBR sichtbar gebunden",
+                "baseColorFactor=0.18,0.15,0.12 metallic=0 roughness=0.50 reflectance=0.40"
+                        + " sourceTexturePreserved=true sourceGLBMutated=false realtimeReflection=false");
+    }
+
+    private static Engine engine(Celine3DView view) throws Exception {
+        Field engineField = Celine3DView.class.getDeclaredField("engine");
+        engineField.setAccessible(true);
+        Engine engine = (Engine) engineField.get(view);
+        if (engine == null) throw new IllegalStateException("room layout: engine missing");
+        return engine;
     }
 
     private static void setAbsoluteTrs(FilamentAsset asset, TransformManager transforms,
