@@ -21,11 +21,12 @@ import java.util.WeakHashMap;
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 4.60f;
-    // CALL's portrait stage is taller/narrower than HOME. Proof #1054 showed that the previous
-    // 0.70 entry still cropped Celine's head even though the room/reference camera itself was
-    // correct. Use the existing safe far bound only for CALL; Celine3DView normalizes this against
-    // its 0.70 CALL reference base, yielding ~0.786 and preserving the room lens/target contract.
-    static final float CALL_DEFAULT_ZOOM = 0.55f;
+    // The v80 room-rebuild CALL checkpoint must enter on the exact Proof #63 reference camera.
+    // Celine3DView normalizes CALL zoom against its 0.70 reference base, therefore 0.70 is the
+    // only default that yields normalizedZoom == 1.0 and preserves the measured eye/target solve.
+    // The old 0.55 farther-room portrait default moved the eye ~27% away and visibly shrank the
+    // room/Celine before every CALL proof. User/CI zoom remains available after the default entry.
+    static final float CALL_DEFAULT_ZOOM = 0.70f;
     static final float CALL_BASE_FOCUS_Y = 0.00f;
     static final float FACE_FOCUS_Y = 0.85f;
     static final float TARGET_DISTANCE = 5.0f;
@@ -175,9 +176,9 @@ final class CelineCameraZoomV70 {
                 zoom = CALL_DEFAULT_ZOOM;
                 zoomField.setFloat(view, zoom);
                 Celine3DDiagnostics.record(activity, "V80-210",
-                        "CALL Kamera weiter aus dem Raum gesetzt",
-                        "zoom=" + zoom + " distance~=" + (TARGET_DISTANCE / zoom)
-                                + "m · referenceBase=0.70 · modelScaleUnchanged=true");
+                        "CALL Kamera auf exakte Referenzdistanz gesetzt",
+                        "zoom=" + zoom + " · referenceBase=0.70 · normalizedZoom=1.0"
+                                + " · Proof#63 eye/target preserved · modelScaleUnchanged=true");
             } else if (!callNow && wasInCall) {
                 zoom = 1.0f;
                 zoomField.setFloat(view, zoom);
@@ -194,7 +195,7 @@ final class CelineCameraZoomV70 {
 
             if (callNow) {
                 if (homeZoomLocked) homeZoomLocked = false;
-                logZoomIfChanged(zoom, "CALL farther-room camera");
+                logZoomIfChanged(zoom, "CALL reference-room camera");
                 return;
             }
 
