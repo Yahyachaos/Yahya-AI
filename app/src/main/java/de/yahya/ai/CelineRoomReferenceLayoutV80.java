@@ -26,10 +26,14 @@ final class CelineRoomReferenceLayoutV80 {
 
     // Proof #111 accepted reference-solved furniture checkpoint. Proof #92's grounded anisotropic
     // bed and separated floor lamp remain unchanged. Proof #104 contributes the rendered-silhouette
-    // calibrated dresser transform; Proof #111 contributes the rendered-silhouette calibrated,
-    // front-facing grounded chair transform. Original source GLBs remain unchanged. Floor-standing
-    // Y values preserve the immutable source pivot-to-floor offset under each accepted vertical scale;
-    // wall/tabletop Y values remain the solver's explicit user height.
+    // calibrated dresser transform. Real in-app CALL Proof #1130 supersedes the Blender-only carrier
+    // assumption for the chair: on the exact 1016x813 stage its visible envelope is approximately
+    // x=0.159..0.296, y=0.310..0.523 versus Refernzbild.png target x=0.217..0.333,
+    // y=0.368..0.508. Correct only the derived runtime chair TRS: shrink its horizontal/vertical
+    // carrier silhouette by the measured ratios, move the grounded instance right to the target
+    // center, preserve accepted depth/yaw, and preserve source bytes. Original source GLBs remain
+    // unchanged. Floor-standing Y values preserve the immutable source pivot-to-floor offset under
+    // each accepted vertical scale; wall/tabletop Y values remain the solver's explicit user height.
     private static final Spec BED =
             new Spec("room_bed", 1.030469f, 0.620523f, -0.387500f,
                     1.123125f, 1.477500f, 1.123125f, -84.437500f);
@@ -61,8 +65,8 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_nightstand_back", 1.600000f, 0.499097f, -0.908438f,
                     0.524375f, 0.524375f, 0.524375f, 106.699219f);
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -1.699219f, 0.565723f, -2.050000f,
-                    0.455615f, 0.625973f, 0.455615f, 170.375000f);
+            new Spec("room_lounge_chair", -1.452000f, 0.371500f, -2.050000f,
+                    0.385800f, 0.411000f, 0.385800f, 170.375000f);
     private static final Spec RUG =
             new Spec("room_rug", 0.053430f, 0.012676f, -0.087483f,
                     1.708708f, 1.641016f, 1.389882f, 5.820313f);
