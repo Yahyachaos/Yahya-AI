@@ -69,9 +69,16 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec NIGHTSTAND_FRONT =
             new Spec("room_nightstand_front", 2.046130f, 0.296737f, 0.926459f,
                     0.212205f, 0.311766f, 0.935485f, 130.195313f);
+
+    // Real Candidate #1171 visually accepts the exact wall-shelf envelope correction. The rear
+    // nightstand is the next largest measured primary-object delta: current x=0.669204..0.776796 /
+    // y=0.360910..0.552091 versus reference x=0.704..0.789 / y=0.322..0.522. Preserve the accepted
+    // yaw, exact floor contact and Z scale; solve only X/depth plus X/Y scale under the accepted
+    // architecture camera. This transform projects exactly to the canonical envelope while leaving
+    // all source bytes, room shell, camera and Celine unchanged.
     private static final Spec NIGHTSTAND_BACK =
-            new Spec("room_nightstand_back", 1.600000f, 0.499097f, -0.908438f,
-                    0.524375f, 0.524375f, 0.524375f, 106.699219f);
+            new Spec("room_nightstand_back", 2.012802f, 0.594386f, -1.419782f,
+                    0.374178f, 0.624493f, 0.524375f, 106.699219f);
 
     private static final Spec CHAIR =
             new Spec("room_lounge_chair", -1.452000f, 0.371500f, -2.050000f,
