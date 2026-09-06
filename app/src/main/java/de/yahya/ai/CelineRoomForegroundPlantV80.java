@@ -28,13 +28,13 @@ import java.util.WeakHashMap;
 /**
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
- * Real Candidate #1191 freezes the primary dresser envelope. #1189 freezes the foreground plant.
- * #1194 leaves only a smaller right-wall-art residual. #1197 proved that fitting only the candle
- * bounding box was insufficient because the inherited plant yaw/pitch produced a diagonal plank.
- * #1198 proves the corrected upright silhouette but measures x=0.044..0.123/y=0.738..0.943
- * against target x=0.039..0.128/y=0.748..0.928. Preserve its center/orientation and correct only
- * the remaining width/height envelope. Material/flame detail, plant, art, dresser, room shell,
- * camera, Celine, anchors and all 12 immutable source furniture GLBs remain unchanged.
+ * Real Candidate #1199 confirms the current upright candle is within a small residual of its target
+ * and keeps the accepted foreground plant/dresser geometry stable. The remaining high-confidence
+ * derived-geometry delta is the right-wall art: current x=0.859..0.959/y=0.100..0.284 against
+ * target x=0.858..0.969/y=0.076..0.283. Correct only its vertical center/height in this step;
+ * horizontal width/center remain deferred until the next real CALL raster. Material/detail, plant,
+ * candle, dresser, room shell, camera, Celine, anchors and all 12 immutable source furniture GLBs
+ * remain unchanged.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -52,12 +52,14 @@ final class CelineRoomForegroundPlantV80 {
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2616f;
 
-    // #1193 empirical raster solve; #1194 is close enough to freeze while larger geometry exists.
+    // #1199 real CALL raster preserves #1194 x=0.859..0.959 but y=0.100..0.284 versus
+    // target y=0.076..0.283. At fixed plane/orientation, height needs 1.125x and center must move
+    // up by 0.0125 normalized screen-height (~+0.044747 m in local Y). Change only Y/height.
     private static final float RIGHT_ART_CENTER_X = 2.000000f;
-    private static final float RIGHT_ART_CENTER_Y = 1.728041f;
+    private static final float RIGHT_ART_CENTER_Y = 1.772788f;
     private static final float RIGHT_ART_CENTER_Z = 0.207086f;
     private static final float RIGHT_ART_WIDTH = 0.630768f;
-    private static final float RIGHT_ART_HEIGHT = 0.658677f;
+    private static final float RIGHT_ART_HEIGHT = 0.741012f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
     // #1198 upright real CALL raster: x=0.044..0.123/y=0.738..0.943 versus the authoritative
@@ -104,7 +106,8 @@ final class CelineRoomForegroundPlantV80 {
                     "plantTarget=x0.812..1.000/y0.645..0.946"
                             + " plantMeasured1189=x0.807..0.999/y0.641..0.945"
                             + " rightArtTarget=x0.858..0.969/y0.076..0.283"
-                            + " rightArtMeasured1194=x0.859..0.959/y0.100..0.284"
+                            + " rightArtMeasured1199=x0.859..0.959/y0.100..0.284"
+                            + " rightArtVerticalFit=" + RIGHT_ART_CENTER_Y + "," + RIGHT_ART_HEIGHT
                             + " candleTarget=x0.039..0.128/y0.748..0.928"
                             + " candleMeasured1196=x0.047..0.153/y0.740..0.931"
                             + " candleMeasured1197=semanticFailDiagonalPlank"
