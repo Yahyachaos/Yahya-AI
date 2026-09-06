@@ -77,17 +77,16 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
                     0.351875f, 0.351875f, 0.351875f, 5.820313f);
 
-    // Real Candidate #1161 falsifies the winding hypothesis: the negative-X scale still leaves the
-    // reference mirror absent. Re-projecting all 26,677 immutable source vertices with Filament's
-    // actual setLensProjection contract (24 mm vertical sensor), the exact CALL aspect 1016/813,
-    // the accepted 20.846875 mm lens and Proof#63 look-at shows the preceding mirror at
-    // x=-0.100..-0.0065, i.e. entirely left of the SurfaceView. The bounded contact solve below
-    // restores positive uniform scale, keeps the nearest vertex at x=-2.150 m (1 cm inside the
-    // -2.160 m left-wall inner face), and projects the full source mesh to the measured reference
-    // x=0.000..0.078 / y=0.095..0.337. Source mesh/material bytes remain untouched.
+    // Real Candidate #1164 visually accepts the lower foreground table band and exposes the mirror
+    // as the next largest measured envelope error under the accepted architecture camera. The old
+    // mirror transform now projects at x=0.119..0.161 / y=0.177..0.361, while the canonical target
+    // is clipped at x=0.000..0.078 / y=0.095..0.337. Solving the immutable 26,677-vertex source with
+    // the exact Filament camera and a hard left-wall contact constraint keeps its nearest vertex at
+    // user x=-2.150 m (1 cm inside the -2.160 m inner wall) and yields the transform below, whose
+    // visible projection is exactly x=0.000..0.078 / y=0.095..0.337. Source bytes remain untouched.
     private static final Spec MIRROR =
-            new Spec("room_round_mirror", -2.054610f, 1.458353f, -0.520918f,
-                    0.423300f, 0.423300f, 0.423300f, -79.474886f);
+            new Spec("room_round_mirror", -2.099133f, 1.606177f, 0.471762f,
+                    0.406764f, 0.406764f, 0.406764f, -85.984561f);
 
     private static final Spec[] ROOM_FURNITURE = {
             WINDOW, SHELF, MIRROR, BED, DRESSER, LARGE_PLANT, CHAIR, LAMP,
