@@ -72,7 +72,12 @@ final class CelineRoomWindowBackdropV80 {
         boolean sceneAdded = false;
         try {
             material = MaterialInstance.duplicate(source, "v80-window-night-backdrop");
-            set4(material, "baseColorFactor", 0.045f, 0.055f, 0.075f, 1.0f);
+            // Real Candidate #1216 renders this derived night field at exact RGB 10/13/18 in the
+            // canonical CALL crop, while Refernzbild.png measures roughly 25/20/16 in the same dark
+            // glass region. Prior derived-fill material probes track baseColor nearly linearly, so
+            // solve each channel from the measured screen ratio and change only this base-color tuple.
+            // Geometry, emissive response, source drapes, camera, furniture and Celine remain fixed.
+            set4(material, "baseColorFactor", 0.112f, 0.085f, 0.067f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.96f);
             set1(material, "reflectance", 0.22f);
@@ -104,6 +109,7 @@ final class CelineRoomWindowBackdropV80 {
                     "Fenster-Nachtfläche hinter sparse drapes aktiv",
                     "center=" + CENTER_X + "," + CENTER_Y + "," + CENTER_Z
                             + " size=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
+                            + " · measured night-color refit RGB target~=25/20/16"
                             + " · source GLB/UV/anchors/camera unchanged");
         } catch (Throwable error) {
             if (sceneAdded && entity != 0) {
