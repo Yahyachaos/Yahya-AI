@@ -21,13 +21,21 @@ import java.util.WeakHashMap;
 final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 4.60f;
-    // The v80 room-rebuild CALL checkpoint must enter on the exact Proof #63 reference camera.
-    // Celine3DView normalizes CALL zoom against its 0.70 reference base, therefore 0.70 is the
-    // only default that yields normalizedZoom == 1.0 and preserves the measured eye/target solve.
-    // The old 0.55 farther-room portrait default moved the eye ~27% away and visibly shrank the
-    // room/Celine before every CALL proof. User/CI zoom remains available after the default entry.
-    static final float CALL_DEFAULT_ZOOM = 0.70f;
-    static final float CALL_BASE_FOCUS_Y = 0.00f;
+
+    // Real Candidate #1162 makes the remaining global perspective error measurable: the exact
+    // 4.40x4.20 shell reaches the top edge before the back-wall ceiling line, so the reference
+    // ceiling and side-wall wedges disappear. Re-projecting the physical shell through Filament's
+    // 24 mm vertical sensor model against the six high-confidence architecture landmarks gives the
+    // smallest current-camera correction at normalized zoom 0.785714, panX=0.071327 and
+    // panY=-0.192402. HOME uses baseZoom=1.0 and CALL uses baseZoom=0.70, therefore these paired
+    // defaults produce the same architecture camera in both real product surfaces. They leave the
+    // reference lens/eye direction, room dimensions, furniture TRS, Celine scale/rig and source GLBs
+    // unchanged; subsequent visual evidence must decide every furniture delta under this camera.
+    static final float HOME_DEFAULT_ZOOM = 0.7857143f;
+    static final float CALL_DEFAULT_ZOOM = 0.55f;
+    static final float REFERENCE_PAN_X = 0.071327f;
+    static final float REFERENCE_PAN_Y = -0.192402f;
+
     static final float FACE_FOCUS_Y = 0.85f;
     static final float TARGET_DISTANCE = 5.0f;
     static final float PRODUCTION_HALF_DEPTH = 0.314f;
@@ -138,6 +146,7 @@ final class CelineCameraZoomV70 {
         final Celine3DView view;
         final Camera camera;
         final Field zoomField;
+        final Field panXField;
         final Field panYField;
         boolean homeZoomLocked;
         boolean wasInCall;
@@ -153,6 +162,8 @@ final class CelineCameraZoomV70 {
             camera = (Camera) field(view, "camera");
             zoomField = Celine3DView.class.getDeclaredField("cameraZoom");
             zoomField.setAccessible(true);
+            panXField = Celine3DView.class.getDeclaredField("cameraPanX");
+            panXField.setAccessible(true);
             panYField = Celine3DView.class.getDeclaredField("cameraPanY");
             panYField.setAccessible(true);
             disableCelineFrustumCulling();
@@ -172,19 +183,34 @@ final class CelineCameraZoomV70 {
             }
 
             boolean callNow = CelineCallUpperBodyPresenceV55.isCallStage(view);
-            if (callNow && !wasInCall && Math.abs(zoom - 1.0f) < 0.05f) {
+            if (!callNow && !wasInCall && Math.abs(zoom - 1.0f) < 0.05f) {
+                zoom = HOME_DEFAULT_ZOOM;
+                zoomField.setFloat(view, zoom);
+                panXField.setFloat(view, REFERENCE_PAN_X);
+                Celine3DDiagnostics.record(activity, "V80-209",
+                        "HOME Kamera auf Referenzarchitektur gesetzt",
+                        "zoom=" + zoom + " panX=" + REFERENCE_PAN_X + " panY=" + REFERENCE_PAN_Y
+                                + " · normalizedZoom=0.785714 · sourceGeometryUnchanged=true");
+            }
+
+            if (callNow && !wasInCall
+                    && (Math.abs(zoom - HOME_DEFAULT_ZOOM) < 0.05f || Math.abs(zoom - 1.0f) < 0.05f)) {
                 zoom = CALL_DEFAULT_ZOOM;
                 zoomField.setFloat(view, zoom);
+                panXField.setFloat(view, REFERENCE_PAN_X);
                 Celine3DDiagnostics.record(activity, "V80-210",
-                        "CALL Kamera auf exakte Referenzdistanz gesetzt",
-                        "zoom=" + zoom + " · referenceBase=0.70 · normalizedZoom=1.0"
-                                + " · Proof#63 eye/target preserved · modelScaleUnchanged=true");
+                        "CALL Kamera auf Referenzarchitektur gesetzt",
+                        "zoom=" + zoom + " · referenceBase=0.70 · normalizedZoom=0.785714"
+                                + " · panX=" + REFERENCE_PAN_X + " panY=" + REFERENCE_PAN_Y
+                                + " · roomDimensionsUnchanged=true");
             } else if (!callNow && wasInCall) {
-                zoom = 1.0f;
+                zoom = HOME_DEFAULT_ZOOM;
                 zoomField.setFloat(view, zoom);
+                panXField.setFloat(view, REFERENCE_PAN_X);
                 Celine3DDiagnostics.record(activity, "V80-211",
-                        "HOME Kamera nach CALL sicher zurückgesetzt",
-                        "zoom=1.0 · focusY=0.0");
+                        "HOME Referenzarchitektur nach CALL wiederhergestellt",
+                        "zoom=" + HOME_DEFAULT_ZOOM + " · panX=" + REFERENCE_PAN_X
+                                + " · panY=" + REFERENCE_PAN_Y);
             }
             wasInCall = callNow;
 
@@ -195,11 +221,11 @@ final class CelineCameraZoomV70 {
 
             if (callNow) {
                 if (homeZoomLocked) homeZoomLocked = false;
-                logZoomIfChanged(zoom, "CALL reference-room camera");
+                logZoomIfChanged(zoom, "CALL reference-room architecture");
                 return;
             }
 
-            if (Math.abs(zoom - 1.0f) > 0.002f) {
+            if (Math.abs(zoom - HOME_DEFAULT_ZOOM) > 0.002f) {
                 if (!homeZoomLocked) {
                     homeZoomLocked = true;
                     boolean stopped = CelineVideoChatV44.pauseForCall(view);
@@ -209,10 +235,10 @@ final class CelineCameraZoomV70 {
             } else if (homeZoomLocked) {
                 homeZoomLocked = false;
                 CelineVideoChatV44.resumeAfterCall(activity, decor);
-                Celine3DDiagnostics.record(activity, "V70-142", "HOME Defaultkamera wiederhergestellt",
-                        "zoom=1 · v44 room motion may resume");
+                Celine3DDiagnostics.record(activity, "V70-142", "HOME Referenzkamera wiederhergestellt",
+                        "zoom=" + HOME_DEFAULT_ZOOM + " · v44 room motion may resume");
             }
-            logZoomIfChanged(zoom, homeZoomLocked ? "HOME Celine3DView-only" : "HOME default v44");
+            logZoomIfChanged(zoom, homeZoomLocked ? "HOME Celine3DView-only" : "HOME reference architecture");
         }
 
         private void enforceV25Projection() {
@@ -231,8 +257,9 @@ final class CelineCameraZoomV70 {
         void releaseHomeZoomLock() {
             if (!homeZoomLocked && !wasInCall) return;
             homeZoomLocked = false;
-            try { zoomField.setFloat(view, 1.0f); } catch (Throwable ignored) {}
-            try { panYField.setFloat(view, 0.0f); } catch (Throwable ignored) {}
+            try { zoomField.setFloat(view, HOME_DEFAULT_ZOOM); } catch (Throwable ignored) {}
+            try { panXField.setFloat(view, REFERENCE_PAN_X); } catch (Throwable ignored) {}
+            try { panYField.setFloat(view, REFERENCE_PAN_Y); } catch (Throwable ignored) {}
             wasInCall = false;
             try { CelineVideoChatV44.resumeAfterCall(activity, decor); } catch (Throwable ignored) {}
         }
@@ -282,13 +309,12 @@ final class CelineCameraZoomV70 {
         private float focusY(boolean callNow, float zoom) {
             float progress = clamp((zoom - 1.0f) / (ZOOM_MAX - 1.0f), 0.0f, 1.0f);
             float eased = progress * progress * (3.0f - 2.0f * progress);
-            float base = callNow ? CALL_BASE_FOCUS_Y : 0.0f;
-            float desiredFocusY = base + (FACE_FOCUS_Y - base) * eased;
+            float desiredFocusY = REFERENCE_PAN_Y + (FACE_FOCUS_Y - REFERENCE_PAN_Y) * eased;
             if (callNow && zoom > 1.0f) {
                 // The reference room camera targets y=-1.10 and Celine3DView converts cameraPanY
-                // with a 0.28 factor. For close CALL zooms, translate the old avatar-focus curve
-                // into that reference coordinate system so the dolly approaches Celine instead
-                // of the bed/floor. Keep the far/default CALL preview untouched for room judging.
+                // with a 0.28 factor. For close CALL zooms, translate the avatar-focus curve into
+                // that reference coordinate system so the dolly approaches Celine instead of the
+                // bed/floor. Keep the far/default CALL preview untouched for room judging.
                 return (1.10f + desiredFocusY) / 0.28f;
             }
             return desiredFocusY;
