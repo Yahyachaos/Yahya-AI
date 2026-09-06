@@ -31,9 +31,10 @@ import java.util.WeakHashMap;
  * Real Candidate #1184 visually accepts the derived laptop silhouette. The next largest unmistakable
  * geometry omission against Refernzbild.png is the foreground plant: reference envelope is roughly
  * x=0.795..1.000, y=0.655..0.925 on the exact normalized CALL stage, while the same region is empty
- * in #1184. This owner adds only an app-owned pot + foliage silhouette at the accepted near-table
- * depth. It does not move the room shell, camera, Celine, anchors or any of the 12 immutable source
- * furniture GLBs. The next real CALL proof remains authoritative for the raster refit.
+ * in #1184. Real Candidate #1186 proves that the derived pot/stem reach the intended right-foreground
+ * region, but the star-shaped foliage fan is raster-empty while its single-sided donor material renders
+ * the opposite pot winding. Reverse only the foliage fan winding; room shell, camera, Celine, anchors
+ * and all 12 immutable source furniture GLBs remain untouched. The next real CALL proof is authoritative.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANE_YAW_DEG = -6.253965f;
@@ -84,6 +85,7 @@ final class CelineRoomForegroundPlantV80 {
                             + " nearTableDepthZ=" + DEPTH_Z
                             + " foliage=" + FOLIAGE_WIDTH + "x" + FOLIAGE_HEIGHT
                             + " pot=" + POT_TOP_WIDTH + "/" + POT_BOTTOM_WIDTH + "x" + POT_HEIGHT
+                            + " foliageWinding=referenceFront"
                             + " sourceGLBsMutated=false camera/Celine/anchors unchanged");
         } catch (Throwable error) {
             state.destroy();
@@ -100,7 +102,8 @@ final class CelineRoomForegroundPlantV80 {
     private static Part createFoliage(Engine engine, Scene scene, TransformManager transforms,
                                       int parent, MaterialInstance donor) {
         // Star-shaped crown: triangle fan gives a broad leafy silhouette without pretending this is
-        // final material/detail polish. The real proof will drive the next bounded raster refit.
+        // final material/detail polish. #1186 proves the original fan winding was back-facing under
+        // the single-sided donor material, so keep the measured geometry and reverse only the fan.
         float[][] ring = {
                 {-0.12f,-0.50f}, {-0.43f,-0.43f}, {-0.62f,-0.26f}, {-0.90f,-0.18f},
                 {-0.66f, 0.02f}, {-0.82f, 0.22f}, {-0.48f, 0.18f}, {-0.58f, 0.52f},
@@ -118,8 +121,8 @@ final class CelineRoomForegroundPlantV80 {
         for (int i = 0; i < ring.length; i++) {
             int next = (i + 1) % ring.length;
             indices[i * 3] = 0;
-            indices[i * 3 + 1] = (short) (1 + i);
-            indices[i * 3 + 2] = (short) (1 + next);
+            indices[i * 3 + 1] = (short) (1 + next);
+            indices[i * 3 + 2] = (short) (1 + i);
         }
         MaterialInstance material = duplicateSolid(donor, "v80-reference-fg-plant-foliage",
                 0.105f, 0.155f, 0.065f, 1.0f, 0.82f);
