@@ -19,12 +19,13 @@ import java.util.WeakHashMap;
  * the isolated back wall at RGB 120/82/49 (reference 120/83/49), the isolated left wall at
  * RGB 124/83/44 (reference 123/83/43), and the exposed floor witness x=140..200/y=550..590
  * at RGB 77/43/14 (reference 77/43/14). Preserve those accepted tuples.
- * The next broad shell residual is the clean ceiling witness x=450..650/y=15..70: current median
- * RGB 127/113/100 versus reference 152/110/72. The ceiling's existing isolated factor is
- * 1.0/0.88/0.62; applying the measured target/current raster ratios gives the bounded candidate
- * 1.197/0.857/0.446. Roughness/reflectance stay at the existing wall values 0.90/0.38.
- * Each corrected surface receives its own duplicate material; the shared shell donor remains
- * untouched. No source GLB bytes, transforms, camera, furniture or Celine change.
+ * Real Candidate #1225 measured the first isolated ceiling candidate 1.197/0.857/0.446 at
+ * RGB 172/121/62 versus reference 152/110/72 on x=450..650/y=15..70. Combined with the
+ * pre-isolation witness RGB 127/113/100 at factor 1.0/0.88/0.62, per-channel interpolation
+ * gives the bounded second candidate 1.109/0.889/0.492. Roughness/reflectance stay at the
+ * existing wall values 0.90/0.38. Each corrected surface receives its own duplicate material;
+ * the shared shell donor remains untouched. No source GLB bytes, transforms, camera, furniture
+ * or Celine change.
  */
 final class CelineRoomReferenceWallMaterialV80 {
     private static final String RIGHT_ENTITY = "room_right_wall";
@@ -48,9 +49,9 @@ final class CelineRoomReferenceWallMaterialV80 {
     private static final float FLOOR_BLUE = 0.091f;
 
     private static final String CEILING_ENTITY = "room_ceiling";
-    private static final float CEILING_RED = 1.197f;
-    private static final float CEILING_GREEN = 0.857f;
-    private static final float CEILING_BLUE = 0.446f;
+    private static final float CEILING_RED = 1.109f;
+    private static final float CEILING_GREEN = 0.889f;
+    private static final float CEILING_BLUE = 0.492f;
 
     private static final float WALL_ROUGHNESS = 0.90f;
     private static final float WALL_REFLECTANCE = 0.38f;
@@ -103,7 +104,7 @@ final class CelineRoomReferenceWallMaterialV80 {
                             + LEFT_RED + "," + LEFT_GREEN + "," + LEFT_BLUE
                             + " · floor#1224=77/43/14 target=77/43/14 base="
                             + FLOOR_RED + "," + FLOOR_GREEN + "," + FLOOR_BLUE
-                            + " · ceilingCurrent=127/113/100 target=152/110/72 base="
+                            + " · ceiling#1225=172/121/62 target=152/110/72 base="
                             + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " · shared shell/source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
