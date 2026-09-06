@@ -15,18 +15,18 @@ import java.util.WeakHashMap;
 /**
  * Bounded, per-entity material isolation for the exact-room right wall.
  *
- * Real Candidate #1218 on the canonical 1016x813 CALL stage measures a clean right-wall witness at
+ * Real Candidate #1218 on the canonical 1016x813 CALL stage measured a clean right-wall witness at
  * x=760..850/y=100..220 around RGB 125/111/95, while the same Refernzbild.png witness is about
- * 135/96/61. The geometry/camera seams are already accepted, and a global light move would regress
- * ceiling, left wall and bed. Duplicate only room_right_wall's currently bound material(s) so the
- * shared room-shell donor remains untouched, then solve the linear base-color multiplier from the
- * measured screen-channel ratios. No source GLB bytes, transforms, camera, furniture or Celine change.
+ * 135/96/61. Candidate #1219 proved the isolated owner works but the first solve overshot to about
+ * 146/82/36. Interpolating each material factor from the measured #1218 -> #1219 screen response to
+ * the reference target yields 0.927/0.671/0.438. Geometry/camera seams stay accepted, and the shared
+ * room-shell donor remains untouched. No source GLB bytes, transforms, furniture or Celine change.
  */
 final class CelineRoomReferenceWallMaterialV80 {
     private static final String ENTITY = "room_right_wall";
-    private static final float RED = 1.00f;
-    private static final float GREEN = 0.57f;
-    private static final float BLUE = 0.26f;
+    private static final float RED = 0.927f;
+    private static final float GREEN = 0.671f;
+    private static final float BLUE = 0.438f;
     private static final float ROUGHNESS = 0.90f;
     private static final float REFLECTANCE = 0.38f;
 
@@ -70,7 +70,7 @@ final class CelineRoomReferenceWallMaterialV80 {
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
                     "Rechte Referenzwand materialisoliert",
-                    "screenWitnessCurrent~=125/111/95 target~=135/96/61"
+                    "screenWitness#1219~=146/82/36 target~=135/96/61"
                             + " baseColor=" + RED + "," + GREEN + "," + BLUE
                             + " roughness=" + ROUGHNESS + " reflectance=" + REFLECTANCE
                             + " · shared shell/source GLB/transforms/camera/Celine unchanged");
