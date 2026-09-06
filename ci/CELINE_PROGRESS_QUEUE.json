@@ -8,22 +8,22 @@
   "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
   "cognitive_work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
   "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "f199d7999086494cb2536596e32a86fc629b9061",
-  "checkpoint_kind": "docs_only_queue_handoff_parent_runtime_head",
-  "status": "ROOM_REBUILD_440x420__REAL_HOME_CALL_GEOMETRY_ITERATION_ACTIVE",
-  "latest_runtime_code_head": "f199d7999086494cb2536596e32a86fc629b9061",
-  "latest_built_runtime_head": "f199d7999086494cb2536596e32a86fc629b9061",
-  "latest_visually_inspected_runtime_head": "f199d7999086494cb2536596e32a86fc629b9061",
-  "runtime_fingerprint": "8e114ec3d0a7623ed4d6bf80c4a35b1a9f3d181fb9476dba1be02cbc72f0df39",
+  "current_branch_head_checkpoint": "51d41c2789035b89217a525e5995e13957a25222",
+  "checkpoint_kind": "docs_only_truth_reconciliation_after_real_home_call_proof_1179",
+  "status": "ROOM_REBUILD_440x420__REAL_HOME_CALL_RASTER_RECONCILIATION_ACTIVE",
+  "latest_runtime_code_head": "51d41c2789035b89217a525e5995e13957a25222",
+  "latest_built_runtime_head": "51d41c2789035b89217a525e5995e13957a25222",
+  "latest_visually_inspected_runtime_head": "51d41c2789035b89217a525e5995e13957a25222",
+  "runtime_fingerprint": "e44dbd9b2e23c80fc13c415a6bc357f79e9d1273fdab6e71653868794c54aa87",
   "android_build": {
-    "run_number": 1264,
-    "run_id": 34006455864,
+    "run_number": 1270,
+    "run_id": 34012931374,
     "conclusion": "success",
-    "head_sha": "f199d7999086494cb2536596e32a86fc629b9061",
-    "apk_artifact_id": 9981108780,
+    "head_sha": "51d41c2789035b89217a525e5995e13957a25222",
+    "apk_artifact_id": 9983043652,
     "apk_artifact_name": "yahya-ai-debug",
-    "apk_digest": "sha256:cd29d6fd77a99f38882e55a943448934208e5dddada804fd5c98b4575a1d7898",
-    "fingerprint_artifact_id": 9981108943
+    "apk_digest": "sha256:0956090e0daf4d01cf85e3189252514492baaf6c6aefda8b4c8d4312bfaa264a",
+    "fingerprint_artifact_id": 9983043791
   },
   "g1_status": {
     "generation": "COMPLETE_BUILT_ACCEPTED",
@@ -66,64 +66,58 @@
       "call_default_zoom": 0.55,
       "reference_pan_x": 0.071327,
       "reference_pan_y": -0.192402,
-      "lens_mm": 32.0
+      "lens_mm": 32.0,
+      "real_call_stage_px": [1016, 813]
     },
-    "visually_accepted_geometry_steps": [
-      "architecture camera / ceiling and side-wall perspective",
-      "foreground table reference band",
-      "round mirror clipped left-wall envelope",
-      "rug reference envelope",
-      "left dresser reference envelope/front orientation",
-      "bed reference envelope",
-      "front-right nightstand reference envelope",
-      "wall shelf reference envelope",
-      "rear nightstand reference envelope",
-      "window/drapes reference envelope"
+    "accepted_derived_trs_steps_pending_whole_scene_acceptance": [
+      "foreground table",
+      "round mirror",
+      "rug",
+      "left dresser/front orientation",
+      "bed",
+      "front-right nightstand",
+      "wall shelf",
+      "rear nightstand",
+      "large plant",
+      "lounge chair",
+      "floor lamp occlusion-aware TRS",
+      "small plant target-envelope TRS"
     ],
-    "remaining_known_geometry_mismatches": {
-      "room_plant_large": {
-        "current_bbox_norm": [0.166088, 0.287585, 0.209742, 0.517537],
-        "target_bbox_norm": [0.132, 0.247, 0.205, 0.535],
-        "priority": "HIGH_VISIBLE_AREA"
-      },
-      "room_lounge_chair": {
-        "current_bbox_norm": [0.258285, 0.358834, 0.395756, 0.508235],
-        "target_bbox_norm": [0.217, 0.333, 0.368, 0.508],
-        "priority": "HIGH_VISIBLE_AREA"
-      },
-      "room_floor_lamp": {
-        "current_bbox_norm": [0.248077, 0.274199, 0.266750, 0.516300],
-        "target_bbox_norm": [0.246, 0.282, 0.273, 0.420],
-        "priority": "DEFER_UNTIL_PLANT_CHAIR_OCCLUSION_CORRECTED",
-        "note": "Raw lower bbox appears occlusion-dependent; do not blindly force it before neighboring large geometry is corrected."
+    "fresh_raster_findings_proof_1179": {
+      "whole_room_visual_verdict": "FAIL",
+      "call_stage_px": [1016, 813],
+      "window_drapes": {
+        "projection_solver_claimed_bbox_norm": [0.205, 0.588, 0.086, 0.477],
+        "actual_visible_horizontal_bbox_px": [251, 578],
+        "actual_visible_horizontal_bbox_norm": [0.2470, 0.5689],
+        "target_horizontal_bbox_norm": [0.205, 0.588],
+        "actual_visible_top_px": 119,
+        "actual_visible_top_norm": 0.1464,
+        "target_top_norm": 0.086,
+        "verdict": "REOPEN__FULL_MESH_PROJECTION_PASS_DOES_NOT_MATCH_VISIBLE_RASTER",
+        "priority": "LARGEST_RELIABLE_GEOMETRY_DELTA"
       },
       "room_plant_small": {
-        "current_bbox_norm": [0.901971, 0.929165, 0.458508, 0.507479],
-        "target_bbox_norm": [0.934, 0.983, 0.463, 0.522],
-        "priority": "SMALL_AREA_AFTER_LARGE_GEOMETRY"
+        "derived_trs_target_envelope": [0.934, 0.983, 0.463, 0.522],
+        "visible_semantic_verdict": "FAIL__POT_BODY_VISIBLE_BUT_REFERENCE_LEAF_CROWN_NOT_VISIBLE",
+        "classification": "MATERIAL_OR_SUBMESH_VISIBILITY_AFTER_GEOMETRY"
+      },
+      "room_floor_lamp": {
+        "visible_semantic_verdict": "FAIL__SHADE_SILHOUETTE_STILL_DIFFERS_FROM_REFERENCE",
+        "classification": "SECONDARY_AFTER_WINDOW_RASTER_GEOMETRY"
       }
     }
   },
-  "latest_room_blender_baseline": {
-    "run_number": 18,
-    "run_id": 33819148956,
-    "artifact_id": 9917837298,
-    "head_sha": "c10bc360b17b8a1d837407b9db4b4223d33cf435",
-    "workflow_conclusion": "success",
-    "manual_visual_verdict": "FAIL_REJECTED_AS_REBUILD_BASELINE"
-  },
   "latest_real_home_call_proof": {
-    "run_number": 1173,
-    "run_id": 34006455908,
-    "run_attempt": 2,
-    "artifact_id": 9981214543,
-    "artifact_digest": "sha256:1626c2dfbc3a6704e8dd28b870560244466adb5b1d496d87cf0b9c45e892917d",
-    "head_sha": "f199d7999086494cb2536596e32a86fc629b9061",
+    "run_number": 1179,
+    "run_id": 34012931368,
+    "artifact_id": 9983124305,
+    "artifact_digest": "sha256:81558db32a715e751fbeab64fd589c668d354f3be4482d2616f0828a98e9f3c3",
+    "head_sha": "51d41c2789035b89217a525e5995e13957a25222",
     "workflow_conclusion": "failure",
-    "workflow_note": "The broad emulator lifecycle step failed late, but HOME/CALL/HOME-return evidence was captured and uploaded successfully; visual verdict is based on the actual images, not the workflow conclusion.",
-    "manual_visual_verdict": "STEP_PASS_WINDOW_ENVELOPE__WHOLE_ROOM_FAIL",
-    "reason": "Actual CALL evidence was opened against Refernzbild.png. Window/drapes now occupy the canonical measured x=0.205..0.588 / y=0.086..0.477 envelope. The complete room still has visible large-plant/chair and later detail mismatches, so whole-room acceptance is forbidden."
+    "workflow_note": "HOME->CALL->HOME-return and all room screenshots completed successfully. The job failed later in the unrelated zoom checkpoint because 1.20x was not closer than normal CALL; room evidence is valid and was opened manually.",
+    "manual_visual_verdict": "WHOLE_ROOM_FAIL__WINDOW_VISIBLE_RASTER_REOPENED"
   },
-  "current_blocker": "No technical blocker. Whole-room visual acceptance remains FAIL because remaining visible geometry still differs from Refernzbild.png; the largest reliable next region is the left large-plant/lounge-chair zone. Lamp raw bbox is partly occlusion-dependent and should not be independently forced yet.",
-  "exact_next_action": "Fresh-reconcile PR/head and workflows first. Starting from runtime head f199d7999086494cb2536596e32a86fc629b9061, solve room_plant_large from current normalized bbox x=0.166088..0.287585/y=0.209742..0.517537 toward reference x=0.132..0.247/y=0.205..0.535 under the accepted Filament camera, preserving floor contact and yaw unless fresh visual evidence disproves that constraint. Write only that bounded derived TRS correction, then run exactly one Android build and one real HOME->CALL->HOME-return proof and open the actual images against Refernzbild.png. Do not touch the floor lamp until large-plant/chair occlusion is corrected, and do not resume G2.3."
+  "current_blocker": "No technical blocker. Full-mesh projection bounds are not sufficient visual evidence for the window: real CALL raster on exact 1016x813 stage shows its visible drape silhouette too narrow/right and its top too low versus Refernzbild.png. Whole-room acceptance remains forbidden.",
+  "exact_next_action": "Fresh-reconcile PR/head/workflows. Starting from runtime head 51d41c2789035b89217a525e5995e13957a25222, perform one bounded raster-aware room_window_drapes correction using the actual CALL visible silhouette (x=251..578 px / 0.2470..0.5689, top=119 px / 0.1464) toward canonical x=0.205..0.588 and top=0.086 while preserving window depth/yaw, room shell, camera, all other furniture and Celine. Then exactly one Android build and one smallest real HOME->CALL->HOME proof; open the actual images. Do not touch materials/small-plant leaf visibility until this larger geometry mismatch is closed."
 }
