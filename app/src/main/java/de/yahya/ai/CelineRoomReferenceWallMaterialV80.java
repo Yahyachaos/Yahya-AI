@@ -44,9 +44,16 @@ import java.util.WeakHashMap;
  * Real Candidate #1254 confirms the lifecycle correction from #1251 is safe, but the same rug still
  * has strong horizontal banding. Normalized rug-region row-to-row brightness changes average about
  * 2.34 levels versus about 0.69 in the canonical reference. The donor material can still carry its
- * inherited baseColorMap binding, so this bounded candidate binds one neutral 1x1 white runtime map
- * only on the rug replacements. The warm-pile factor, source geometry, accepted TRS and all other
+ * inherited baseColorMap binding, so the next bounded candidate binds one neutral 1x1 white runtime
+ * map only on the rug replacements. The warm-pile factor, source geometry, accepted TRS and all other
  * room materials remain unchanged.
+ *
+ * Real Candidate #1257 rejects baseColorMap variation as the primary cause: the exact real CALL keeps
+ * the same strong horizontal rug bands and the normalized rug-region row-to-row brightness jump moves
+ * from about 2.37 to about 2.41 instead of toward the reference ~0.69. HOME -> CALL -> HOME-return is
+ * lifecycle-clean in one process. The isolated floor donor can still carry an inherited normal map, so
+ * this next bounded candidate keeps all accepted geometry/material factors and disables only the rug
+ * replacement normalScale when that standard glTF material parameter is available.
  *
  * Real Candidate #1251 exposed a detach-order lifecycle defect: the room asset can be released before
  * this material owner receives its view-detach callback. A stored RenderableManager instance handle is
@@ -152,7 +159,7 @@ final class CelineRoomReferenceWallMaterialV80 {
                             + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " · rug#1248=113/88/68 target=152/110/76 base="
                             + RUG_RED + "," + RUG_GREEN + "," + RUG_BLUE
-                            + " donor=isolatedFloor opaque=true solidBaseColorMap=true"
+                            + " donor=isolatedFloor opaque=true solidBaseColorMap=true normalScale=0"
                             + " · source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
             releaseEntry(engine, rug);
@@ -260,6 +267,9 @@ final class CelineRoomReferenceWallMaterialV80 {
                     replacement.setParameter("baseColorMap", solidBaseColor, solidSampler);
                 } else {
                     throw new IllegalStateException(entityName + " material: baseColorMap fehlt");
+                }
+                if (replacement.getMaterial().hasParameter("normalScale")) {
+                    replacement.setParameter("normalScale", 0.0f);
                 }
                 originals.add(original);
                 replacements.add(replacement);
