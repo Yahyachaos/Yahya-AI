@@ -26,10 +26,10 @@ import java.util.WeakHashMap;
  *
  * Proof #64-#66 showed that the large curtain gaps are geometry-driven, not texture alpha. Proof #67
  * then confirmed that the derived night backdrop correctly closes the bright holes, while the source
- * drape mesh itself still reads as ragged vertical strips. Keep the immutable source drapes visible as
- * the detailed front layer, but place two broad warm-fabric panels behind the left/right source strips
- * and in front of the accepted night backdrop. This preserves the central night opening and does not
- * touch Celine, camera, anchors, furniture transforms, source GLB bytes or the interactive lamp.
+ * drape mesh itself still reads as ragged vertical strips. Keep the immutable source drapes hidden and
+ * place two broad warm-fabric panels behind the accepted derived sheer/fold layers and in front of the
+ * accepted night backdrop. This preserves the central night opening and does not touch Celine, camera,
+ * anchors, furniture transforms, source GLB bytes or the interactive lamp.
  */
 final class CelineRoomWindowCurtainFillV80 {
     private static final float CENTER_Y = 1.20f;
@@ -72,11 +72,12 @@ final class CelineRoomWindowCurtainFillV80 {
         boolean[] sceneAdded = new boolean[]{false, false};
         try {
             material = MaterialInstance.duplicate(source, "v80-window-curtain-fill");
-            // Real Candidate #1214 preserves the accepted curtain envelope but exposes the broad
-            // panels at roughly RGB 77/61/48. The same canonical regions in Refernzbild.png are
-            // visibly warmer/darker (~74/44/15 median). Adjust only this derived material response;
-            // geometry, source drapes, sheer partition, camera and room remain unchanged.
-            set4(material, "baseColorFactor", 0.50f, 0.34f, 0.20f, 1.0f);
+            // Real Candidate #1226 preserves the accepted curtain envelope, while two broad outer
+            // witnesses both measure RGB 74/49/28. The combined canonical-reference median for the
+            // same left/right witnesses is RGB 95/59/25. Apply only the measured per-channel response
+            // ratio to the derived curtain fill: 0.50/0.34/0.20 -> 0.642/0.409/0.179. Geometry,
+            // source drapes, sheer partition, backdrop, camera, room and Celine remain unchanged.
+            set4(material, "baseColorFactor", 0.642f, 0.409f, 0.179f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.94f);
             set1(material, "reflectance", 0.28f);
@@ -113,7 +114,8 @@ final class CelineRoomWindowCurtainFillV80 {
                     "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
                             + " y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · warm reference material fit; central opening/source preserved"
+                            + " · #1226 outer current=74/49/28 targetCombined=95/59/25"
+                            + " · material=" + 0.642f + "," + 0.409f + "," + 0.179f
                             + " · source GLB/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
