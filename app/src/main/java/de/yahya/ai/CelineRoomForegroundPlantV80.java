@@ -26,35 +26,35 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * First bounded geometry pass for the large reference plant on the near-right foreground table.
+ * Bounded geometry pass for the large reference plant on the near-right foreground table.
  *
- * Real Candidate #1184 visually accepts the derived laptop silhouette. The reference foreground plant
- * target is x=0.812..1.000, y=0.645..0.946 on the normalized CALL stage. #1186 proved the pot/stem
- * reached the near-right region but the foliage winding was back-facing. #1187 proves the reversed
- * foliage winding is now visible and preserves the rest of the room, but the measured combined plant
- * silhouette is still x=0.779..0.982, y=0.613..0.887 on the exact 1016x813 CALL stage. Its center is
- * therefore about 0.026 frame-width left and 0.046 frame-height high versus the reference. Reprojecting
- * that raster delta through the accepted #1184 foreground plane gives one bounded local translation
- * (+0.043526 X, -0.052292 Y). Preserve foliage/pot size, depth, winding, room shell, camera, Celine,
- * anchors and all 12 immutable source furniture GLBs; the next real CALL proof is authoritative.
+ * Real Candidate #1188 on exact head 8425437 proves the #1187-derived translation fixed the plant
+ * center without disturbing the accepted room: the combined raster is x=0.808..0.999,
+ * y=0.663..0.927 on the exact 1016x813 CALL stage versus target x=0.812..1.000,
+ * y=0.645..0.946. Horizontal error and center error are now negligible; the remaining bounded
+ * geometry delta is vertical extent only (about 0.018H missing above and 0.019H below).
+ * Preserve centers, widths, depth, winding, room shell, camera, Celine, anchors and all 12 immutable
+ * source furniture GLBs. Fit only the foliage/pot heights from the real raster and re-prove CALL.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANE_YAW_DEG = -6.253965f;
     private static final float PLANE_PITCH_DEG = 8.344122f;
     private static final float DEPTH_Z = 3.020114f;
 
-    // Calibrated from the accepted #1184 laptop plane at the same near-table depth and translated from
-    // the real #1187 raster center delta. Do not resize until the translated silhouette is re-proved.
+    // #1188 raster solve: foliage visible y=539..640 px. With the asymmetric crown ring and its
+    // unchanged local center, 0.3038 m projects the crown top to the 0.645 reference edge.
     private static final float FOLIAGE_CENTER_X = 0.129526f;
     private static final float FOLIAGE_CENTER_Y = 0.939708f;
     private static final float FOLIAGE_WIDTH = 0.2650f;
-    private static final float FOLIAGE_HEIGHT = 0.2450f;
+    private static final float FOLIAGE_HEIGHT = 0.3038f;
 
+    // #1188 pot raster y=622..753 px. Keep its proven center and widths; 0.2616 m projects the
+    // lower edge to the 0.946 reference edge while retaining overlap with the enlarged crown.
     private static final float POT_CENTER_X = 0.138526f;
     private static final float POT_CENTER_Y = 0.827708f;
     private static final float POT_TOP_WIDTH = 0.1700f;
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
-    private static final float POT_HEIGHT = 0.2100f;
+    private static final float POT_HEIGHT = 0.2616f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -85,8 +85,8 @@ final class CelineRoomForegroundPlantV80 {
             Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
                     "Referenz-Vordergrundpflanze als bounded derived geometry aktiv",
                     "CALL targetNorm x=0.812..1.000 y=0.645..0.946"
-                            + " measured1187=x0.779..0.982/y0.613..0.887"
-                            + " localTranslate=+0.043526,-0.052292"
+                            + " measured1188=x0.808..0.999/y0.663..0.927"
+                            + " centerAccepted=true verticalEnvelopeRefit=true"
                             + " nearTableDepthZ=" + DEPTH_Z
                             + " foliage=" + FOLIAGE_WIDTH + "x" + FOLIAGE_HEIGHT
                             + " pot=" + POT_TOP_WIDTH + "/" + POT_BOTTOM_WIDTH + "x" + POT_HEIGHT
