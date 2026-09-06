@@ -6,12 +6,13 @@
     "height_px": 1100,
     "coordinate_convention": "normalized image coordinates, origin top-left, x rightward, y downward"
   },
-  "status": "INITIAL_MANUAL_REFERENCE_MEASUREMENT__REFINE_WITH_PROJECTION_SOLVE",
+  "status": "ACTIVE_RASTER_MEASUREMENT__REFERENCE_AUTHORITY",
   "rules": {
     "visual_reference_is_authoritative": true,
     "legacy_fixed_furniture_transforms_are_authoritative": false,
     "uncertain_bounds_must_not_be_treated_as_exact": true,
-    "structural_workflow_success_is_visual_acceptance": false
+    "structural_workflow_success_is_visual_acceptance": false,
+    "largest_visible_geometric_delta_first": true
   },
   "architecture_landmarks": {
     "backwall_ceiling_left": {"x": 0.190, "y": 0.078, "confidence": "high"},
@@ -55,6 +56,36 @@
       "center_x": 0.500, "center_y": 0.891, "width": 1.000, "height": 0.218,
       "confidence": "high",
       "notes": "Only the near foreground/table band should dominate the bottom edge; it must not bisect the room mid-frame."
+    },
+    "room_reference_foreground_laptop": {
+      "left": 0.120, "right": 0.611, "top": 0.627, "bottom": 1.000,
+      "center_x": 0.366, "center_y": 0.814, "width": 0.491, "height": 0.373,
+      "confidence": "high",
+      "notes": "Dominant reference laptop silhouette including clipped lower edge. Exact four-corner solve on the 1016x813 CALL stage is TL=(164.5,689.3), TR=(840.6,696.8), BR=(813.1,812.3), BL=(192.0,812.3); bbox values here are intentionally not used as a substitute for that quadrilateral."
+    },
+    "room_reference_foreground_plant": {
+      "left": 0.812, "right": 1.000, "top": 0.645, "bottom": 0.946,
+      "center_x": 0.906, "center_y": 0.796, "width": 0.188, "height": 0.301,
+      "confidence": "medium",
+      "notes": "Large near-camera potted plant at the foreground-table right edge. It is a separate visible reference object from room_plant_small on the bedside cabinet. Missing entirely in Real Candidate #1184 and therefore the largest currently documented unfilled geometry envelope. Refine the foliage silhouette from real proof rather than treating this first bbox as pixel-exact."
+    },
+    "room_reference_foreground_candle": {
+      "left": 0.039, "right": 0.128, "top": 0.748, "bottom": 0.928,
+      "center_x": 0.084, "center_y": 0.838, "width": 0.089, "height": 0.180,
+      "confidence": "medium",
+      "notes": "Near-camera glass candle on foreground-table left; currently missing. Flame/glow are material/light detail after its coarse geometry envelope exists."
+    },
+    "room_reference_right_wall_art": {
+      "left": 0.858, "right": 0.969, "top": 0.076, "bottom": 0.283,
+      "center_x": 0.914, "center_y": 0.180, "width": 0.111, "height": 0.207,
+      "confidence": "high",
+      "notes": "Large framed artwork on right wall; currently missing."
+    },
+    "room_reference_left_wall_art_pair": {
+      "left": 0.103, "right": 0.155, "top": 0.145, "bottom": 0.334,
+      "center_x": 0.129, "center_y": 0.240, "width": 0.052, "height": 0.189,
+      "confidence": "medium",
+      "notes": "Combined visible envelope of the two narrow framed prints on the left wall; currently missing. Split into per-frame measurements before final detail acceptance."
     },
     "room_round_mirror": {
       "left": 0.000, "right": 0.078, "top": 0.095, "bottom": 0.337,
@@ -102,12 +133,36 @@
       "notes": "Small right-side plant; partially blended with nightstand/bed edge."
     }
   },
+  "latest_real_call_measurement": {
+    "proof": 1184,
+    "head": "46c403adea2bc270ceff0659436902465a52bf26",
+    "stage_px": {"width": 1016, "height": 813},
+    "room_reference_foreground_laptop": {
+      "actual_bbox_px": {"left": 164, "right": 839, "top": 692, "bottom": 812},
+      "target_quad_px": [[164.5,689.3],[840.6,696.8],[813.1,812.3],[192.0,812.3]],
+      "visual_status": "ACCEPTED_GEOMETRY_ENVELOPE"
+    },
+    "room_dresser": {
+      "actual_top_fraction": 0.4600,
+      "actual_bottom_fraction": 0.7282,
+      "target_top_fraction": 0.4200,
+      "target_bottom_fraction": 0.7180,
+      "top_delta_fraction": 0.0400,
+      "bottom_delta_fraction": 0.0102,
+      "center_delta_fraction": 0.0251,
+      "visual_status": "REMAINING_MEASURABLE_DELTA"
+    },
+    "whole_scene_visual_status": "FAIL",
+    "largest_documented_missing_geometry": "room_reference_foreground_plant"
+  },
   "primary_solve_order": [
     "room_window_drapes",
     "room_bed",
+    "room_foreground_table",
+    "room_reference_foreground_laptop",
+    "room_reference_foreground_plant",
     "room_dresser",
     "room_lounge_chair",
-    "room_foreground_table",
     "room_rug"
   ],
   "acceptance_guidance": {
