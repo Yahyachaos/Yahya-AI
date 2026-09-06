@@ -36,6 +36,12 @@ import java.util.WeakHashMap;
  * target witness solves to the bounded warm-pile base 0.936/0.696/0.494. This deliberately removes
  * the source color/alpha map from the render path without modifying source bytes or geometry.
  *
+ * Real Candidate #1251 exposed a detach-order lifecycle defect: the room asset can be released before
+ * this material owner receives its view-detach callback. A stored RenderableManager instance handle is
+ * therefore not safe to mutate during release. Keep the stable entity id and re-resolve the current
+ * renderable instance before restoring originals; if the entity no longer has a renderable component,
+ * only destroy this owner's replacement material instances.
+ *
  * Each corrected surface receives its own duplicate material. No source GLB bytes, transforms,
  * camera, furniture TRS or Celine identity/rig change.
  */
@@ -182,9 +188,9 @@ final class CelineRoomReferenceWallMaterialV80 {
                 replacements.add(replacement);
                 manager.setMaterialInstanceAt(renderable, primitive, replacement);
             }
-            return new Entry(renderable, originals, replacements);
+            return new Entry(entity, renderable, originals, replacements);
         } catch (Throwable error) {
-            Entry partial = new Entry(renderable, originals, replacements);
+            Entry partial = new Entry(entity, renderable, originals, replacements);
             releaseEntry(engine, partial);
             throw error;
         }
@@ -231,9 +237,9 @@ final class CelineRoomReferenceWallMaterialV80 {
                 replacements.add(replacement);
                 manager.setMaterialInstanceAt(renderable, primitive, replacement);
             }
-            return new Entry(renderable, originals, replacements);
+            return new Entry(entity, renderable, originals, replacements);
         } catch (Throwable error) {
-            Entry partial = new Entry(renderable, originals, replacements);
+            Entry partial = new Entry(entity, renderable, originals, replacements);
             releaseEntry(engine, partial);
             throw error;
         }
@@ -242,9 +248,18 @@ final class CelineRoomReferenceWallMaterialV80 {
     private static void releaseEntry(Engine engine, Entry entry) {
         if (engine == null || entry == null) return;
         RenderableManager manager = engine.getRenderableManager();
-        for (int primitive = 0; primitive < entry.originals.size(); primitive++) {
-            try { manager.setMaterialInstanceAt(entry.renderable, primitive, entry.originals.get(primitive)); }
+        int renderable = 0;
+        try { renderable = manager.getInstance(entry.entity); }
+        catch (Throwable ignored) {}
+        if (renderable != 0) {
+            int primitiveCount = 0;
+            try { primitiveCount = manager.getPrimitiveCount(renderable); }
             catch (Throwable ignored) {}
+            int restoreCount = Math.min(primitiveCount, entry.originals.size());
+            for (int primitive = 0; primitive < restoreCount; primitive++) {
+                try { manager.setMaterialInstanceAt(renderable, primitive, entry.originals.get(primitive)); }
+                catch (Throwable ignored) {}
+            }
         }
         for (MaterialInstance replacement : entry.replacements) {
             try { engine.destroyMaterialInstance(replacement); } catch (Throwable ignored) {}
@@ -283,12 +298,14 @@ final class CelineRoomReferenceWallMaterialV80 {
     }
 
     private static final class Entry {
+        final int entity;
         final int renderable;
         final List<MaterialInstance> originals;
         final List<MaterialInstance> replacements;
 
-        Entry(int renderable, List<MaterialInstance> originals,
+        Entry(int entity, int renderable, List<MaterialInstance> originals,
               List<MaterialInstance> replacements) {
+            this.entity = entity;
             this.renderable = renderable;
             this.originals = originals;
             this.replacements = replacements;
