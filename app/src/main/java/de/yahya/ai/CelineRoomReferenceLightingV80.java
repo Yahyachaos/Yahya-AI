@@ -38,11 +38,10 @@ final class CelineRoomReferenceLightingV80 {
     private static final float KEY_GREEN = 0.95f;
     private static final float KEY_BLUE = 0.90f;
     private static final float KEY_LUX = 5000.0f;
-    // Real Candidate #1202 against Refernzbild.png: matched shell/camera landmarks are already in-place,
-    // but the broad ceiling/back-wall fields remain about 30% too bright (reference/current luma roughly
-    // 112/165 and 103/147). Preserve the accepted directional key/color and remove only excess neutral
-    // ambient fill so the room regains the reference's contrast without re-tinting Celine or moving geometry.
-    private static final float INDIRECT_LUX = 4500.0f;
+    // Real Candidate #1205 showed that the #1202 correction overshot: ceiling/back-wall luma fell to
+    // about 92.5/81.7 against reference targets 112/103. Interpolating the measured 8000-lux and
+    // 4500-lux checkpoints places the neutral indirect fill near 5.6k lux; change only that parameter.
+    private static final float INDIRECT_LUX = 5600.0f;
 
     private static final float CEILING_RED = 0.88f;
     private static final float CEILING_GREEN = 0.80f;
