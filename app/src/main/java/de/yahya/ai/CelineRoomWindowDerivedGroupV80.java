@@ -77,12 +77,14 @@ final class CelineRoomWindowDerivedGroupV80 {
         }
 
         // #1183 shows the reference laptop is a separate missing foreground object, not part of the
-        // immutable table source. Create/retry it independently from the already-applied window group
-        // so a laptop failure can never stack the accepted window affine transform.
+        // immutable table source. Both foreground details retry independently from the one-time window
+        // affine correction so any derived-detail failure cannot stack accepted window transforms.
         CelineRoomForegroundLaptopV80.apply(view, engine);
+        CelineRoomForegroundPlantV80.apply(view, engine);
     }
 
     static void release(Celine3DView view) {
+        CelineRoomForegroundPlantV80.release(view);
         CelineRoomForegroundLaptopV80.release(view);
         synchronized (APPLIED) { APPLIED.remove(view); }
     }
