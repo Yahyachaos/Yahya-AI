@@ -34,11 +34,15 @@ import java.util.WeakHashMap;
 final class CelineRoomWindowSheerFillV80 {
     private static final float CENTER_Y = 1.20f;
     private static final float CENTER_Z = -2.730f;
-    private static final float HALF_WIDTH = 0.153f;
+    // Real Candidate #1211 measures the old sheers at about x=344..396 and x=420..473 on the
+    // canonical 1016px CALL stage. Refernzbild.png instead places the two light sheer masses around
+    // x=272..355 and x=470..536 with a dark central opening between them. The existing sheers sit
+    // 5 mm in front of the side-curtain fill, so widening/repositioning only this layer can correct
+    // the visible internal partition while preserving the already-close outer window envelope.
+    private static final float HALF_WIDTH = 0.225f;
     private static final float HALF_HEIGHT = 1.06f;
-    // Proof #118: same measured horizontal group scale/center as backdrop and side curtains.
-    private static final float LEFT_CENTER_X = -0.835f;
-    private static final float RIGHT_CENTER_X = -0.375f;
+    private static final float LEFT_CENTER_X = -1.175f;
+    private static final float RIGHT_CENTER_X = -0.035f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -104,11 +108,11 @@ final class CelineRoomWindowSheerFillV80 {
             State state = new State(scene, entities, material, vertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-146",
-                    "Schmalere zentrale Gardinen-Füllflächen aktiv",
+                    "Referenzkalibrierte zentrale Gardinen-Füllflächen aktiv",
                     "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
                             + " y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · more night depth/source drapes preserved"
+                            + " · real CALL partition refit; outer window/source preserved"
                             + " · source GLB/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
