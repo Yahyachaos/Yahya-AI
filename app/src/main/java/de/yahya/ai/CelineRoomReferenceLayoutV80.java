@@ -63,9 +63,19 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec SMALL_PLANT =
             new Spec("room_plant_small", 2.129375f, 0.572656f, 0.355000f,
                     0.105625f, 0.105625f, 0.105625f, 21.972656f);
+
+    // Real Candidate #1176 visually accepts the exact lounge-chair envelope in HOME and CALL and
+    // exposes the floor lamp as the largest remaining clear geometry mismatch. Its current full
+    // projection is x=0.248077..0.274199 / y=0.266750..0.516300, but the real CALL proof shows the
+    // source shade horizontally crushed and the lower pole rendered in front of the chair. The
+    // reference measures the visible lamp at x=0.246..0.282 with top y=0.273; its lower y=0.420 is
+    // chair-occlusion-dependent. Preserve immutable source bytes, yaw and exact floor contact, move
+    // the lamp behind the accepted chair, and solve equal X/Z scale plus Y scale to the reliable
+    // left/right/top witness. The bounded transform below projects to x=0.246..0.282 / y=0.273..
+    // 0.510 full geometry so the chair, rather than a fake crop, owns the lower visible occlusion.
     private static final Spec LAMP =
-            new Spec("room_floor_lamp", -1.714063f, 0.755149f, -1.707344f,
-                    0.125000f, 0.792813f, 0.125000f, -20.710938f);
+            new Spec("room_floor_lamp", -1.732388f, 0.738777f, -1.900000f,
+                    0.268900f, 0.775624f, 0.268900f, -20.710938f);
 
     // Real Candidate #1169 visually accepts the exact bed-envelope correction. The front-right
     // nightstand is now the largest measured remaining object delta: current x=0.847..0.949 /
@@ -137,7 +147,6 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec SHELF =
             new Spec("room_wall_shelf_books", 1.439041f, 1.844809f, -1.916250f,
                     0.421335f, 0.362738f, 0.351875f, 5.820313f);
-
     // Real Candidate #1164 visually accepts the lower foreground table band and exposes the mirror
     // as the next largest measured envelope error under the accepted architecture camera. The old
     // mirror transform now projects at x=0.119..0.161 / y=0.177..0.361, while the canonical target
