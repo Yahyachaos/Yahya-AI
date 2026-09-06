@@ -41,6 +41,17 @@ final class CelineRoomWindowCurtainFillV80 {
     private static final float LEFT_CENTER_X = -1.440f;
     private static final float RIGHT_CENTER_X = 0.230f;
 
+    // Real Candidate #1245 proves the accepted shared curtain factor produces RGB 95/59/25 on both
+    // broad outer panels, while the exact reference is asymmetric: left 117/75/31, right 88/54/25.
+    // Apply only the measured target/current channel ratios to the previous accepted factor
+    // 0.642/0.409/0.179. Geometry, envelope, Z/order and all other room owners remain unchanged.
+    private static final float LEFT_RED = 0.791f;
+    private static final float LEFT_GREEN = 0.520f;
+    private static final float LEFT_BLUE = 0.222f;
+    private static final float RIGHT_RED = 0.595f;
+    private static final float RIGHT_GREEN = 0.374f;
+    private static final float RIGHT_BLUE = 0.179f;
+
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowCurtainFillV80() {}
@@ -65,24 +76,16 @@ final class CelineRoomWindowCurtainFillV80 {
         int roomRootTransform = transforms.getInstance(asset.getRoot());
         if (roomRootTransform == 0) throw new IllegalStateException("curtain fill: room root transform fehlt");
 
-        MaterialInstance material = null;
+        MaterialInstance[] materials = new MaterialInstance[]{null, null};
         VertexBuffer vertices = null;
         IndexBuffer indices = null;
         int[] entities = new int[]{0, 0};
         boolean[] sceneAdded = new boolean[]{false, false};
         try {
-            material = MaterialInstance.duplicate(source, "v80-window-curtain-fill");
-            // Real Candidate #1226 preserves the accepted curtain envelope, while two broad outer
-            // witnesses both measure RGB 74/49/28. The combined canonical-reference median for the
-            // same left/right witnesses is RGB 95/59/25. Apply only the measured per-channel response
-            // ratio to the derived curtain fill: 0.50/0.34/0.20 -> 0.642/0.409/0.179. Geometry,
-            // source drapes, sheer partition, backdrop, camera, room and Celine remain unchanged.
-            set4(material, "baseColorFactor", 0.642f, 0.409f, 0.179f, 1.0f);
-            set1(material, "metallicFactor", 0.0f);
-            set1(material, "roughnessFactor", 0.94f);
-            set1(material, "reflectance", 0.28f);
-            set3(material, "emissiveFactor", 0.0f, 0.0f, 0.0f);
-            set1(material, "emissiveStrength", 0.0f);
+            materials[0] = MaterialInstance.duplicate(source, "v80-window-curtain-fill-left");
+            materials[1] = MaterialInstance.duplicate(source, "v80-window-curtain-fill-right");
+            tune(materials[0], LEFT_RED, LEFT_GREEN, LEFT_BLUE);
+            tune(materials[1], RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE);
 
             vertices = createVertices(engine);
             indices = createIndices(engine);
@@ -93,7 +96,7 @@ final class CelineRoomWindowCurtainFillV80 {
                 new RenderableManager.Builder(1)
                         .boundingBox(new Box(0f, 0f, 0f, HALF_WIDTH, HALF_HEIGHT, 0.02f))
                         .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vertices, indices)
-                        .material(0, material)
+                        .material(0, materials[i])
                         .castShadows(false)
                         .receiveShadows(true)
                         .culling(false)
@@ -107,16 +110,18 @@ final class CelineRoomWindowCurtainFillV80 {
                 sceneAdded[i] = true;
             }
 
-            State state = new State(scene, entities, material, vertices, indices);
+            State state = new State(scene, entities, materials, vertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-149",
-                    "Breite Vorhang-Füllflächen hinter sparse drapes aktiv",
-                    "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
-                            + " y=" + CENTER_Y + " z=" + CENTER_Z
+                    "Breite Vorhang-Füllflächen links/rechts referenzisoliert",
+                    "left=" + LEFT_CENTER_X + " material=" + LEFT_RED + "," + LEFT_GREEN + "," + LEFT_BLUE
+                            + " target#1245=117/75/31"
+                            + " · right=" + RIGHT_CENTER_X + " material=" + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
+                            + " target#1245=88/54/25"
+                            + " · currentShared#1245=95/59/25"
+                            + " · y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · #1226 outer current=74/49/28 targetCombined=95/59/25"
-                            + " · material=" + 0.642f + "," + 0.409f + "," + 0.179f
-                            + " · source GLB/Celine/camera/anchors/lamp unchanged");
+                            + " · source GLB/window envelope/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
                 if (sceneAdded[i] && entities[i] != 0) {
@@ -129,9 +134,20 @@ final class CelineRoomWindowCurtainFillV80 {
             }
             if (indices != null) try { engine.destroyIndexBuffer(indices); } catch (Throwable ignored) {}
             if (vertices != null) try { engine.destroyVertexBuffer(vertices); } catch (Throwable ignored) {}
-            if (material != null) try { engine.destroyMaterialInstance(material); } catch (Throwable ignored) {}
+            for (MaterialInstance material : materials) {
+                if (material != null) try { engine.destroyMaterialInstance(material); } catch (Throwable ignored) {}
+            }
             throw error;
         }
+    }
+
+    private static void tune(MaterialInstance material, float red, float green, float blue) {
+        set4(material, "baseColorFactor", red, green, blue, 1.0f);
+        set1(material, "metallicFactor", 0.0f);
+        set1(material, "roughnessFactor", 0.94f);
+        set1(material, "reflectance", 0.28f);
+        set3(material, "emissiveFactor", 0.0f, 0.0f, 0.0f);
+        set1(material, "emissiveStrength", 0.0f);
     }
 
     private static VertexBuffer createVertices(Engine engine) {
@@ -192,7 +208,9 @@ final class CelineRoomWindowCurtainFillV80 {
         }
         try { engine.destroyIndexBuffer(state.indices); } catch (Throwable ignored) {}
         try { engine.destroyVertexBuffer(state.vertices); } catch (Throwable ignored) {}
-        try { engine.destroyMaterialInstance(state.material); } catch (Throwable ignored) {}
+        for (MaterialInstance material : state.materials) {
+            try { engine.destroyMaterialInstance(material); } catch (Throwable ignored) {}
+        }
     }
 
     private static Object field(Object target, String name) throws Exception {
@@ -222,15 +240,15 @@ final class CelineRoomWindowCurtainFillV80 {
     private static final class State {
         final Scene scene;
         final int[] entities;
-        final MaterialInstance material;
+        final MaterialInstance[] materials;
         final VertexBuffer vertices;
         final IndexBuffer indices;
 
-        State(Scene scene, int[] entities, MaterialInstance material,
+        State(Scene scene, int[] entities, MaterialInstance[] materials,
               VertexBuffer vertices, IndexBuffer indices) {
             this.scene = scene;
             this.entities = entities;
-            this.material = material;
+            this.materials = materials;
             this.vertices = vertices;
             this.indices = indices;
         }
