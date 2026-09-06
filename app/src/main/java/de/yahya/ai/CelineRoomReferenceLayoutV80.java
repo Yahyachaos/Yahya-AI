@@ -61,13 +61,16 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
 
-    // Real Candidate #1177 leaves the small right-side plant clearly undersized and left of its
-    // reference envelope: current x=0.901971..0.929165 / y=0.458508..0.507479 versus canonical
-    // x=0.934..0.983 / y=0.463..0.522. Preserve yaw and depth; solve only derived screen-anchor X/Y
-    // plus X/Z and Y scale from the measured CALL delta. The 12 source GLBs remain byte-identical.
+    // Real Candidate #1178 proves the first small-plant extrapolation overshot after its simultaneous
+    // scale and screen-anchor change: exact current projection is x=0.962628..1.014003 /
+    // y=0.462999..0.522000 instead of canonical x=0.934..0.983 / y=0.463..0.522. Re-project all
+    // 91,127 immutable source vertices through the exact 1016x813 CALL camera and solve the nonlinear
+    // X/Y + equal X/Z-scale + Y-scale correction together while preserving yaw and depth. Rounded
+    // runtime values below project to x=0.934000..0.983000 / y=0.463000..0.522000. Source GLBs,
+    // room shell, camera, all other furniture, anchors and Celine remain unchanged.
     private static final Spec SMALL_PLANT =
-            new Spec("room_plant_small", 2.559239f, 0.512884f, 0.355000f,
-                    0.190322f, 0.127256f, 0.190322f, 21.972656f);
+            new Spec("room_plant_small", 2.384907f, 0.522728f, 0.355000f,
+                    0.185160f, 0.124451f, 0.185160f, 21.972656f);
 
     // Real Candidate #1176 visually accepts the exact lounge-chair envelope in HOME and CALL and
     // exposes the floor lamp as the largest remaining clear geometry mismatch. Its current full
