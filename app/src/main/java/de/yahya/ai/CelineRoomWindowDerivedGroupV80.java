@@ -81,9 +81,14 @@ final class CelineRoomWindowDerivedGroupV80 {
         // affine correction so any derived-detail failure cannot stack accepted window transforms.
         CelineRoomForegroundLaptopV80.apply(view, engine);
         CelineRoomForegroundPlantV80.apply(view, engine);
+        // Real Candidate #1218 isolates the next largest remaining broad-shell residual to the right
+        // wall. Keep that material correction in the same already-established room post-pass, but let
+        // its own owner duplicate only the right-wall material so no shared shell donor is mutated.
+        CelineRoomReferenceWallMaterialV80.apply(view, engine);
     }
 
     static void release(Celine3DView view) {
+        CelineRoomReferenceWallMaterialV80.release(view);
         CelineRoomForegroundPlantV80.release(view);
         CelineRoomForegroundLaptopV80.release(view);
         synchronized (APPLIED) { APPLIED.remove(view); }
