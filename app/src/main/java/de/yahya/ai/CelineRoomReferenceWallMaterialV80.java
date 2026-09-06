@@ -1,9 +1,15 @@
 package de.yahya.ai;
 
+import android.graphics.Bitmap;
+import android.graphics.Color;
+
 import com.google.android.filament.Colors;
 import com.google.android.filament.Engine;
 import com.google.android.filament.MaterialInstance;
 import com.google.android.filament.RenderableManager;
+import com.google.android.filament.Texture;
+import com.google.android.filament.TextureSampler;
+import com.google.android.filament.android.TextureHelper;
 import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
@@ -33,8 +39,14 @@ import java.util.WeakHashMap;
  * is a dense, continuous warm pile. Preserve the already accepted rug TRS and immutable source GLB,
  * but replace only the runtime rug material with an opaque duplicate of the already-isolated floor
  * material. Using the accepted horizontal floor response (0.474/0.272/0.091 -> 77/43/14), the
- * target witness solves to the bounded warm-pile base 0.936/0.696/0.494. This deliberately removes
- * the source color/alpha map from the render path without modifying source bytes or geometry.
+ * target witness solves to the bounded warm-pile base 0.936/0.696/0.494.
+ *
+ * Real Candidate #1254 confirms the lifecycle correction from #1251 is safe, but the same rug still
+ * has strong horizontal banding. Normalized rug-region row-to-row brightness changes average about
+ * 2.34 levels versus about 0.69 in the canonical reference. The donor material can still carry its
+ * inherited baseColorMap binding, so this bounded candidate binds one neutral 1x1 white runtime map
+ * only on the rug replacements. The warm-pile factor, source geometry, accepted TRS and all other
+ * room materials remain unchanged.
  *
  * Real Candidate #1251 exposed a detach-order lifecycle defect: the room asset can be released before
  * this material owner receives its view-detach callback. A stored RenderableManager instance handle is
@@ -101,6 +113,7 @@ final class CelineRoomReferenceWallMaterialV80 {
         Entry floor = null;
         Entry ceiling = null;
         Entry rug = null;
+        Texture rugSolidBaseColor = null;
         try {
             right = applyEntity(asset, engine, RIGHT_ENTITY,
                     RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE,
@@ -117,11 +130,13 @@ final class CelineRoomReferenceWallMaterialV80 {
             ceiling = applyEntity(asset, engine, CEILING_ENTITY,
                     CEILING_RED, CEILING_GREEN, CEILING_BLUE,
                     WALL_ROUGHNESS, WALL_REFLECTANCE, "ceiling");
+            rugSolidBaseColor = createSolidWhiteTexture(engine);
             rug = applyOpaqueEntityFromDonor(asset, engine, RUG_ENTITY, FLOOR_ENTITY,
                     RUG_RED, RUG_GREEN, RUG_BLUE,
-                    RUG_ROUGHNESS, RUG_REFLECTANCE, "rug-warm-pile");
+                    RUG_ROUGHNESS, RUG_REFLECTANCE, "rug-warm-pile", rugSolidBaseColor);
             synchronized (STATES) {
-                STATES.put(view, new WallState(engine, right, back, left, floor, ceiling, rug));
+                STATES.put(view, new WallState(engine, right, back, left, floor, ceiling, rug,
+                        rugSolidBaseColor));
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
                     "Referenz-Shell und Rug materialisoliert",
@@ -137,10 +152,13 @@ final class CelineRoomReferenceWallMaterialV80 {
                             + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " · rug#1248=113/88/68 target=152/110/76 base="
                             + RUG_RED + "," + RUG_GREEN + "," + RUG_BLUE
-                            + " donor=isolatedFloor opaque=true sourceMapBypassed=true"
+                            + " donor=isolatedFloor opaque=true solidBaseColorMap=true"
                             + " · source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
             releaseEntry(engine, rug);
+            if (rugSolidBaseColor != null) {
+                try { engine.destroyTexture(rugSolidBaseColor); } catch (Throwable ignored) {}
+            }
             releaseEntry(engine, ceiling);
             releaseEntry(engine, floor);
             releaseEntry(engine, left);
@@ -155,6 +173,9 @@ final class CelineRoomReferenceWallMaterialV80 {
         synchronized (STATES) { state = STATES.remove(view); }
         if (state == null) return;
         releaseEntry(state.engine, state.rug);
+        if (state.rugSolidBaseColor != null) {
+            try { state.engine.destroyTexture(state.rugSolidBaseColor); } catch (Throwable ignored) {}
+        }
         releaseEntry(state.engine, state.ceiling);
         releaseEntry(state.engine, state.floor);
         releaseEntry(state.engine, state.left);
@@ -200,7 +221,7 @@ final class CelineRoomReferenceWallMaterialV80 {
                                                      String entityName, String donorEntityName,
                                                      float red, float green, float blue,
                                                      float roughness, float reflectance,
-                                                     String suffix) {
+                                                     String suffix, Texture solidBaseColor) {
         RenderableManager manager = engine.getRenderableManager();
         int entity = asset.getFirstEntityByName(entityName);
         if (entity == 0) throw new IllegalStateException(entityName + " material: entity fehlt");
@@ -224,6 +245,8 @@ final class CelineRoomReferenceWallMaterialV80 {
 
         List<MaterialInstance> originals = new ArrayList<>(count);
         List<MaterialInstance> replacements = new ArrayList<>(count);
+        TextureSampler solidSampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
+                TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
         try {
             for (int primitive = 0; primitive < count; primitive++) {
                 MaterialInstance original = manager.getMaterialInstanceAt(renderable, primitive);
@@ -233,6 +256,11 @@ final class CelineRoomReferenceWallMaterialV80 {
                 MaterialInstance replacement = MaterialInstance.duplicate(
                         donor, "v80-reference-" + suffix + "-" + primitive);
                 tune(replacement, red, green, blue, roughness, reflectance);
+                if (replacement.getMaterial().hasParameter("baseColorMap")) {
+                    replacement.setParameter("baseColorMap", solidBaseColor, solidSampler);
+                } else {
+                    throw new IllegalStateException(entityName + " material: baseColorMap fehlt");
+                }
                 originals.add(original);
                 replacements.add(replacement);
                 manager.setMaterialInstanceAt(renderable, primitive, replacement);
@@ -242,6 +270,28 @@ final class CelineRoomReferenceWallMaterialV80 {
             Entry partial = new Entry(entity, renderable, originals, replacements);
             releaseEntry(engine, partial);
             throw error;
+        }
+    }
+
+    private static Texture createSolidWhiteTexture(Engine engine) {
+        Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        bitmap.eraseColor(Color.WHITE);
+        Texture texture = new Texture.Builder()
+                .width(1)
+                .height(1)
+                .levels(1)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.SRGB8_A8)
+                .build(engine);
+        try {
+            TextureHelper.setBitmap(engine, texture, 0, bitmap);
+            engine.flushAndWait();
+            return texture;
+        } catch (Throwable error) {
+            try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
+            throw error;
+        } finally {
+            bitmap.recycle();
         }
     }
 
@@ -320,9 +370,10 @@ final class CelineRoomReferenceWallMaterialV80 {
         final Entry floor;
         final Entry ceiling;
         final Entry rug;
+        final Texture rugSolidBaseColor;
 
         WallState(Engine engine, Entry right, Entry back, Entry left, Entry floor, Entry ceiling,
-                  Entry rug) {
+                  Entry rug, Texture rugSolidBaseColor) {
             this.engine = engine;
             this.right = right;
             this.back = back;
@@ -330,6 +381,7 @@ final class CelineRoomReferenceWallMaterialV80 {
             this.floor = floor;
             this.ceiling = ceiling;
             this.rug = rug;
+            this.rugSolidBaseColor = rugSolidBaseColor;
         }
     }
 }
