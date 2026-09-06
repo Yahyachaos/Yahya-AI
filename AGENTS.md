@@ -229,6 +229,21 @@ Final exact-head:
 - run the complete exact-head gates required by the work-order;
 - final transitions deliberately rebuild/revalidate even if an older runtime fingerprint exists when policy requires exact-head evidence.
 
+### Final app build / release barrier
+
+A finished app APK, release candidate, final exact-main validation or release must **not** be created while any registered implementation workstream still has active or unfinished worker work.
+
+Before starting any final app build or release sequence:
+
+1. Fresh-reconcile every registered workstream and worker.
+2. Every worker must have ended its current assignment cleanly using section 12.
+3. Every workstream that is intended for that app version must be either **complete/integration-ready** or explicitly excluded from the version by a recorded product decision.
+4. No workstream may remain in `in_progress`, `waiting_for_write`, `uncommitted`, `proof_pending`, `handoff_ambiguous`, or equivalent unfinished state.
+5. All integration-ready heads must be reconciled for ownership conflicts and integrated in a controlled serialized order.
+6. Only after the combined integrated state exists may final exact-head/exact-main validation and a finished APK/release begin.
+
+If two workers are active, **both must finish and hand off cleanly before the finished app is assembled**. A green build from only one workstream is never the final app while another included workstream is unfinished.
+
 Main/release:
 - integrate/merge only reconciled, validated workstream heads;
 - validate the actual merge SHA on main;
@@ -253,10 +268,11 @@ Serialized integration/release:
 
 ```text
 RECONCILE ALL WORKSTREAMS
-→ FINAL EXACT-HEAD
-→ MERGE EXACT VALIDATED HEAD(S) IN CONTROLLED ORDER
-→ EXACT-MAIN VALIDATION
-→ RELEASE / READBACK
+→ VERIFY ALL INCLUDED WORKERS FINISHED / WORKSTREAMS INTEGRATION-READY
+→ INTEGRATE VALIDATED HEADS IN CONTROLLED ORDER
+→ FINAL EXACT-HEAD / EXACT-MAIN
+→ FINISHED APK / RELEASE
+→ READBACK
 → QUEUE RECONCILIATION
 ```
 
