@@ -46,6 +46,9 @@ final class CelineRoomWindowSourceVisibilityV80 {
     private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.356f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.323f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.876f;
+    // Candidate a80dc42 split the accepted single backdrop into two panes. The derived group now
+    // contains 12 entities; keep this rebase guard aligned with CelineRoomWindowDerivedGroupV80.
+    private static final int EXPECTED_DERIVED_ENTITY_COUNT = 12;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowSourceVisibilityV80() {}
@@ -59,9 +62,10 @@ final class CelineRoomWindowSourceVisibilityV80 {
         Scene scene = (Scene) field(view, "scene");
 
         int rebased = rebaseDerivedWindow(view);
-        if (rebased != 11) {
+        if (rebased != EXPECTED_DERIVED_ENTITY_COUNT) {
             throw new IllegalStateException(
-                    "derived exact-room window rebase incomplete: " + rebased + "/11 entities");
+                    "derived exact-room window rebase incomplete: " + rebased + "/"
+                            + EXPECTED_DERIVED_ENTITY_COUNT + " entities");
         }
 
         scene.remove(entity);
