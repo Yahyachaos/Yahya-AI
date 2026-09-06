@@ -13,24 +13,31 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Bounded, per-entity material isolation for the exact-room right wall.
+ * Bounded per-entity material isolation for the exact-room wall planes.
  *
- * Real Candidate #1218 on the canonical 1016x813 CALL stage measured a clean right-wall witness at
- * x=760..850/y=100..220 around RGB 125/111/95, while the same Refernzbild.png witness is about
- * 135/96/61. Candidate #1219 proved the isolated owner works but the first solve overshot to about
- * 146/82/36. Interpolating each material factor from the measured #1218 -> #1219 screen response to
- * the reference target yields 0.927/0.671/0.438. Geometry/camera seams stay accepted, and the shared
- * room-shell donor remains untouched. No source GLB bytes, transforms, furniture or Celine change.
+ * Real Candidate #1220 proves the isolated right-wall solve is raster-exact at the canonical clean
+ * witness: current RGB 135/96/61 equals Refernzbild.png 135/96/61. Preserve that accepted tuple.
+ * The next largest clean wall residual is the back wall at x=600..700/y=270..315: current median
+ * 127/112/96 versus reference 120/83/49. Using the measured response slope from the successful
+ * #1218 -> #1219 -> #1220 right-wall calibration solves the back-wall factor to
+ * 0.813/0.569/0.346. Each wall receives its own duplicate material; the shared shell donor remains
+ * untouched. No source GLB bytes, transforms, camera, furniture or Celine change.
  */
 final class CelineRoomReferenceWallMaterialV80 {
-    private static final String ENTITY = "room_right_wall";
-    private static final float RED = 0.927f;
-    private static final float GREEN = 0.671f;
-    private static final float BLUE = 0.438f;
+    private static final String RIGHT_ENTITY = "room_right_wall";
+    private static final float RIGHT_RED = 0.927f;
+    private static final float RIGHT_GREEN = 0.671f;
+    private static final float RIGHT_BLUE = 0.438f;
+
+    private static final String BACK_ENTITY = "room_back_wall";
+    private static final float BACK_RED = 0.813f;
+    private static final float BACK_GREEN = 0.569f;
+    private static final float BACK_BLUE = 0.346f;
+
     private static final float ROUGHNESS = 0.90f;
     private static final float REFLECTANCE = 0.38f;
 
-    private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
+    private static final WeakHashMap<Celine3DView, WallState> STATES = new WeakHashMap<>();
 
     private CelineRoomReferenceWallMaterialV80() {}
 
@@ -41,14 +48,48 @@ final class CelineRoomReferenceWallMaterialV80 {
         }
 
         FilamentAsset asset = currentRoomAsset(view);
-        if (asset == null) throw new IllegalStateException("right-wall material: room asset fehlt");
-        int entity = asset.getFirstEntityByName(ENTITY);
-        if (entity == 0) throw new IllegalStateException("right-wall material: entity fehlt");
+        if (asset == null) throw new IllegalStateException("reference wall material: room asset fehlt");
+        Entry right = null;
+        Entry back = null;
+        try {
+            right = applyEntity(asset, engine, RIGHT_ENTITY,
+                    RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE, "right");
+            back = applyEntity(asset, engine, BACK_ENTITY,
+                    BACK_RED, BACK_GREEN, BACK_BLUE, "back");
+            synchronized (STATES) {
+                STATES.put(view, new WallState(engine, right, back));
+            }
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
+                    "Referenzwände materialisoliert",
+                    "right#1220=135/96/61 target=135/96/61 base="
+                            + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
+                            + " · backCurrent=127/112/96 target=120/83/49 base="
+                            + BACK_RED + "," + BACK_GREEN + "," + BACK_BLUE
+                            + " · shared shell/source GLB/transforms/camera/Celine unchanged");
+        } catch (Throwable error) {
+            releaseEntry(engine, back);
+            releaseEntry(engine, right);
+            throw error;
+        }
+    }
+
+    static void release(Celine3DView view) {
+        WallState state;
+        synchronized (STATES) { state = STATES.remove(view); }
+        if (state == null) return;
+        releaseEntry(state.engine, state.back);
+        releaseEntry(state.engine, state.right);
+    }
+
+    private static Entry applyEntity(FilamentAsset asset, Engine engine, String entityName,
+                                     float red, float green, float blue, String suffix) {
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0) throw new IllegalStateException(entityName + " material: entity fehlt");
         RenderableManager manager = engine.getRenderableManager();
         int renderable = manager.getInstance(entity);
-        if (renderable == 0) throw new IllegalStateException("right-wall material: renderable fehlt");
+        if (renderable == 0) throw new IllegalStateException(entityName + " material: renderable fehlt");
         int count = manager.getPrimitiveCount(renderable);
-        if (count <= 0) throw new IllegalStateException("right-wall material: primitives fehlen");
+        if (count <= 0) throw new IllegalStateException(entityName + " material: primitives fehlen");
 
         List<MaterialInstance> originals = new ArrayList<>(count);
         List<MaterialInstance> replacements = new ArrayList<>(count);
@@ -56,47 +97,32 @@ final class CelineRoomReferenceWallMaterialV80 {
             for (int primitive = 0; primitive < count; primitive++) {
                 MaterialInstance original = manager.getMaterialInstanceAt(renderable, primitive);
                 if (original == null) {
-                    throw new IllegalStateException("right-wall material: original fehlt " + primitive);
+                    throw new IllegalStateException(entityName + " material: original fehlt " + primitive);
                 }
                 MaterialInstance replacement = MaterialInstance.duplicate(
-                        original, "v80-reference-right-wall-" + primitive);
-                tune(replacement);
+                        original, "v80-reference-" + suffix + "-wall-" + primitive);
+                tune(replacement, red, green, blue);
                 originals.add(original);
                 replacements.add(replacement);
                 manager.setMaterialInstanceAt(renderable, primitive, replacement);
             }
-            synchronized (STATES) {
-                STATES.put(view, new State(engine, renderable, originals, replacements));
-            }
-            Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
-                    "Rechte Referenzwand materialisoliert",
-                    "screenWitness#1219~=146/82/36 target~=135/96/61"
-                            + " baseColor=" + RED + "," + GREEN + "," + BLUE
-                            + " roughness=" + ROUGHNESS + " reflectance=" + REFLECTANCE
-                            + " · shared shell/source GLB/transforms/camera/Celine unchanged");
+            return new Entry(renderable, originals, replacements);
         } catch (Throwable error) {
-            for (int primitive = 0; primitive < originals.size(); primitive++) {
-                try { manager.setMaterialInstanceAt(renderable, primitive, originals.get(primitive)); }
-                catch (Throwable ignored) {}
-            }
-            for (MaterialInstance replacement : replacements) {
-                try { engine.destroyMaterialInstance(replacement); } catch (Throwable ignored) {}
-            }
+            Entry partial = new Entry(renderable, originals, replacements);
+            releaseEntry(engine, partial);
             throw error;
         }
     }
 
-    static void release(Celine3DView view) {
-        State state;
-        synchronized (STATES) { state = STATES.remove(view); }
-        if (state == null) return;
-        RenderableManager manager = state.engine.getRenderableManager();
-        for (int primitive = 0; primitive < state.originals.size(); primitive++) {
-            try { manager.setMaterialInstanceAt(state.renderable, primitive, state.originals.get(primitive)); }
+    private static void releaseEntry(Engine engine, Entry entry) {
+        if (engine == null || entry == null) return;
+        RenderableManager manager = engine.getRenderableManager();
+        for (int primitive = 0; primitive < entry.originals.size(); primitive++) {
+            try { manager.setMaterialInstanceAt(entry.renderable, primitive, entry.originals.get(primitive)); }
             catch (Throwable ignored) {}
         }
-        for (MaterialInstance replacement : state.replacements) {
-            try { state.engine.destroyMaterialInstance(replacement); } catch (Throwable ignored) {}
+        for (MaterialInstance replacement : entry.replacements) {
+            try { engine.destroyMaterialInstance(replacement); } catch (Throwable ignored) {}
         }
     }
 
@@ -114,10 +140,10 @@ final class CelineRoomReferenceWallMaterialV80 {
         return (FilamentAsset) assetField.get(state);
     }
 
-    private static void tune(MaterialInstance material) {
+    private static void tune(MaterialInstance material, float red, float green, float blue) {
         if (material.getMaterial().hasParameter("baseColorFactor")) {
             material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
-                    RED, GREEN, BLUE, 1.0f);
+                    red, green, blue, 1.0f);
         }
         if (material.getMaterial().hasParameter("metallicFactor")) {
             material.setParameter("metallicFactor", 0.0f);
@@ -130,18 +156,28 @@ final class CelineRoomReferenceWallMaterialV80 {
         }
     }
 
-    private static final class State {
-        final Engine engine;
+    private static final class Entry {
         final int renderable;
         final List<MaterialInstance> originals;
         final List<MaterialInstance> replacements;
 
-        State(Engine engine, int renderable, List<MaterialInstance> originals,
+        Entry(int renderable, List<MaterialInstance> originals,
               List<MaterialInstance> replacements) {
-            this.engine = engine;
             this.renderable = renderable;
             this.originals = originals;
             this.replacements = replacements;
+        }
+    }
+
+    private static final class WallState {
+        final Engine engine;
+        final Entry right;
+        final Entry back;
+
+        WallState(Engine engine, Entry right, Entry back) {
+            this.engine = engine;
+            this.right = right;
+            this.back = back;
         }
     }
 }
