@@ -107,9 +107,15 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_window_drapes", -0.735000f, 1.400000f, -2.092500f,
                     1.328000f, 1.490625f, 1.490625f, -8.437500f);
 
+    // Real Candidate #1170 accepts the front-right nightstand correction in both real HOME and CALL.
+    // The wall shelf is now the largest measured remaining object delta: current projection
+    // x=0.593194..0.680099 / y=0.215782..0.293339 versus Refernzbild.png
+    // x=0.610..0.713 / y=0.175..0.255. Keep depth, Z scale and yaw fixed; solve only derived X/Y
+    // and X/Y scale under the accepted architecture camera. This exact transform projects to the
+    // canonical envelope without touching source bytes, room shell, camera or Celine.
     private static final Spec SHELF =
-            new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
-                    0.351875f, 0.351875f, 0.351875f, 5.820313f);
+            new Spec("room_wall_shelf_books", 1.439041f, 1.844809f, -1.916250f,
+                    0.421335f, 0.362738f, 0.351875f, 5.820313f);
 
     // Real Candidate #1164 visually accepts the lower foreground table band and exposes the mirror
     // as the next largest measured envelope error under the accepted architecture camera. The old
