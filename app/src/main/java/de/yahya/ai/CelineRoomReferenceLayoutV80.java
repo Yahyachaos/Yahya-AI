@@ -59,9 +59,16 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec LAMP =
             new Spec("room_floor_lamp", -1.714063f, 0.755149f, -1.707344f,
                     0.125000f, 0.792813f, 0.125000f, -20.710938f);
+
+    // Real Candidate #1169 visually accepts the exact bed-envelope correction. The front-right
+    // nightstand is now the largest measured remaining object delta: current x=0.847..0.949 /
+    // y=0.481..0.648 versus reference visible x=0.916..1.000 / y=0.506..0.706. Keep its accepted
+    // yaw and exact floor contact invariant; solve only X/depth and derived XYZ scale. The immutable
+    // source then projects to x=0.916..1.022 / y=0.506..0.706, so the right edge is naturally clipped
+    // exactly like Refernzbild.png. No other furniture, room shell, camera or Celine state changes.
     private static final Spec NIGHTSTAND_FRONT =
-            new Spec("room_nightstand_front", 1.936563f, 0.312902f, 0.550000f,
-                    0.328750f, 0.328750f, 0.328750f, 130.195313f);
+            new Spec("room_nightstand_front", 2.046130f, 0.296737f, 0.926459f,
+                    0.212205f, 0.311766f, 0.935485f, 130.195313f);
     private static final Spec NIGHTSTAND_BACK =
             new Spec("room_nightstand_back", 1.600000f, 0.499097f, -0.908438f,
                     0.524375f, 0.524375f, 0.524375f, 106.699219f);
