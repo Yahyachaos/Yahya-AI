@@ -13,7 +13,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Bounded per-entity material isolation for the exact-room shell planes.
+ * Bounded per-entity material isolation for the exact-room shell planes and the current largest
+ * reference-material residual.
  *
  * Real Candidate #1224 locks the isolated right wall at RGB 135/96/61 (reference 135/96/61),
  * the isolated back wall at RGB 120/82/49 (reference 120/83/49), the isolated left wall at
@@ -23,9 +24,20 @@ import java.util.WeakHashMap;
  * RGB 172/121/62 versus reference 152/110/72 on x=450..650/y=15..70. Combined with the
  * pre-isolation witness RGB 127/113/100 at factor 1.0/0.88/0.62, per-channel interpolation
  * gives the bounded second candidate 1.109/0.889/0.492. Roughness/reflectance stay at the
- * existing wall values 0.90/0.38. Each corrected surface receives its own duplicate material;
- * the shared shell donor remains untouched. No source GLB bytes, transforms, camera, furniture
- * or Celine change.
+ * existing wall values 0.90/0.38.
+ *
+ * Real Candidate #1248 makes the rug the largest remaining broad semantic/material mismatch.
+ * On the exact 1016x813 CALL stage, the clear left-rug witness x=240..430/y=470..650 is
+ * RGB 113/88/68 while the same normalized reference witness is 152/110/76. More importantly,
+ * the source rug renders as high-contrast horizontal strips with dark gaps whereas Refernzbild.png
+ * is a dense, continuous warm pile. Preserve the already accepted rug TRS and immutable source GLB,
+ * but replace only the runtime rug material with an opaque duplicate of the already-isolated floor
+ * material. Using the accepted horizontal floor response (0.474/0.272/0.091 -> 77/43/14), the
+ * target witness solves to the bounded warm-pile base 0.936/0.696/0.494. This deliberately removes
+ * the source color/alpha map from the render path without modifying source bytes or geometry.
+ *
+ * Each corrected surface receives its own duplicate material. No source GLB bytes, transforms,
+ * camera, furniture TRS or Celine identity/rig change.
  */
 final class CelineRoomReferenceWallMaterialV80 {
     private static final String RIGHT_ENTITY = "room_right_wall";
@@ -53,10 +65,17 @@ final class CelineRoomReferenceWallMaterialV80 {
     private static final float CEILING_GREEN = 0.889f;
     private static final float CEILING_BLUE = 0.492f;
 
+    private static final String RUG_ENTITY = "room_rug";
+    private static final float RUG_RED = 0.936f;
+    private static final float RUG_GREEN = 0.696f;
+    private static final float RUG_BLUE = 0.494f;
+
     private static final float WALL_ROUGHNESS = 0.90f;
     private static final float WALL_REFLECTANCE = 0.38f;
     private static final float FLOOR_ROUGHNESS = 0.62f;
     private static final float FLOOR_REFLECTANCE = 0.45f;
+    private static final float RUG_ROUGHNESS = 0.96f;
+    private static final float RUG_REFLECTANCE = 0.28f;
 
     private static final WeakHashMap<Celine3DView, WallState> STATES = new WeakHashMap<>();
 
@@ -75,6 +94,7 @@ final class CelineRoomReferenceWallMaterialV80 {
         Entry left = null;
         Entry floor = null;
         Entry ceiling = null;
+        Entry rug = null;
         try {
             right = applyEntity(asset, engine, RIGHT_ENTITY,
                     RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE,
@@ -91,11 +111,14 @@ final class CelineRoomReferenceWallMaterialV80 {
             ceiling = applyEntity(asset, engine, CEILING_ENTITY,
                     CEILING_RED, CEILING_GREEN, CEILING_BLUE,
                     WALL_ROUGHNESS, WALL_REFLECTANCE, "ceiling");
+            rug = applyOpaqueEntityFromDonor(asset, engine, RUG_ENTITY, FLOOR_ENTITY,
+                    RUG_RED, RUG_GREEN, RUG_BLUE,
+                    RUG_ROUGHNESS, RUG_REFLECTANCE, "rug-warm-pile");
             synchronized (STATES) {
-                STATES.put(view, new WallState(engine, right, back, left, floor, ceiling));
+                STATES.put(view, new WallState(engine, right, back, left, floor, ceiling, rug));
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
-                    "Referenz-Shell materialisoliert",
+                    "Referenz-Shell und Rug materialisoliert",
                     "right#1224=135/96/61 target=135/96/61 base="
                             + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
                             + " · back#1224=120/82/49 target=120/83/49 base="
@@ -106,8 +129,12 @@ final class CelineRoomReferenceWallMaterialV80 {
                             + FLOOR_RED + "," + FLOOR_GREEN + "," + FLOOR_BLUE
                             + " · ceiling#1225=172/121/62 target=152/110/72 base="
                             + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
-                            + " · shared shell/source GLB/transforms/camera/Celine unchanged");
+                            + " · rug#1248=113/88/68 target=152/110/76 base="
+                            + RUG_RED + "," + RUG_GREEN + "," + RUG_BLUE
+                            + " donor=isolatedFloor opaque=true sourceMapBypassed=true"
+                            + " · source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
+            releaseEntry(engine, rug);
             releaseEntry(engine, ceiling);
             releaseEntry(engine, floor);
             releaseEntry(engine, left);
@@ -121,6 +148,7 @@ final class CelineRoomReferenceWallMaterialV80 {
         WallState state;
         synchronized (STATES) { state = STATES.remove(view); }
         if (state == null) return;
+        releaseEntry(state.engine, state.rug);
         releaseEntry(state.engine, state.ceiling);
         releaseEntry(state.engine, state.floor);
         releaseEntry(state.engine, state.left);
@@ -149,6 +177,55 @@ final class CelineRoomReferenceWallMaterialV80 {
                 }
                 MaterialInstance replacement = MaterialInstance.duplicate(
                         original, "v80-reference-" + suffix + "-" + primitive);
+                tune(replacement, red, green, blue, roughness, reflectance);
+                originals.add(original);
+                replacements.add(replacement);
+                manager.setMaterialInstanceAt(renderable, primitive, replacement);
+            }
+            return new Entry(renderable, originals, replacements);
+        } catch (Throwable error) {
+            Entry partial = new Entry(renderable, originals, replacements);
+            releaseEntry(engine, partial);
+            throw error;
+        }
+    }
+
+    private static Entry applyOpaqueEntityFromDonor(FilamentAsset asset, Engine engine,
+                                                     String entityName, String donorEntityName,
+                                                     float red, float green, float blue,
+                                                     float roughness, float reflectance,
+                                                     String suffix) {
+        RenderableManager manager = engine.getRenderableManager();
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0) throw new IllegalStateException(entityName + " material: entity fehlt");
+        int renderable = manager.getInstance(entity);
+        if (renderable == 0) throw new IllegalStateException(entityName + " material: renderable fehlt");
+        int count = manager.getPrimitiveCount(renderable);
+        if (count <= 0) throw new IllegalStateException(entityName + " material: primitives fehlen");
+
+        int donorEntity = asset.getFirstEntityByName(donorEntityName);
+        if (donorEntity == 0) {
+            throw new IllegalStateException(entityName + " material: donor entity fehlt " + donorEntityName);
+        }
+        int donorRenderable = manager.getInstance(donorEntity);
+        if (donorRenderable == 0 || manager.getPrimitiveCount(donorRenderable) <= 0) {
+            throw new IllegalStateException(entityName + " material: donor renderable fehlt " + donorEntityName);
+        }
+        MaterialInstance donor = manager.getMaterialInstanceAt(donorRenderable, 0);
+        if (donor == null) {
+            throw new IllegalStateException(entityName + " material: donor material fehlt " + donorEntityName);
+        }
+
+        List<MaterialInstance> originals = new ArrayList<>(count);
+        List<MaterialInstance> replacements = new ArrayList<>(count);
+        try {
+            for (int primitive = 0; primitive < count; primitive++) {
+                MaterialInstance original = manager.getMaterialInstanceAt(renderable, primitive);
+                if (original == null) {
+                    throw new IllegalStateException(entityName + " material: original fehlt " + primitive);
+                }
+                MaterialInstance replacement = MaterialInstance.duplicate(
+                        donor, "v80-reference-" + suffix + "-" + primitive);
                 tune(replacement, red, green, blue, roughness, reflectance);
                 originals.add(original);
                 replacements.add(replacement);
@@ -225,14 +302,17 @@ final class CelineRoomReferenceWallMaterialV80 {
         final Entry left;
         final Entry floor;
         final Entry ceiling;
+        final Entry rug;
 
-        WallState(Engine engine, Entry right, Entry back, Entry left, Entry floor, Entry ceiling) {
+        WallState(Engine engine, Entry right, Entry back, Entry left, Entry floor, Entry ceiling,
+                  Entry rug) {
             this.engine = engine;
             this.right = right;
             this.back = back;
             this.left = left;
             this.floor = floor;
             this.ceiling = ceiling;
+            this.rug = rug;
         }
     }
 }
