@@ -56,9 +56,15 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_lounge_chair", -1.452000f, 0.371500f, -2.050000f,
                     0.385800f, 0.411000f, 0.385800f, 170.375000f);
 
+    // Real Candidate #1166 confirms the horizontally corrected window/drapes remain a valid visual
+    // step. The rug is now the largest clear primary-object envelope delta: exact current projection
+    // x=0.252..0.769 / y=0.508..0.764 versus canonical x=0.205..0.870 / y=0.520..0.795.
+    // Solve only the rug's derived X/depth and planar X/Z scales under the accepted architecture
+    // camera; preserve floor Y, vertical scale, yaw and immutable source bytes. This yields the exact
+    // measured reference envelope without touching any other furniture or Celine.
     private static final Spec RUG =
-            new Spec("room_rug", -0.196570f, 0.012676f, -0.087483f,
-                    1.708708f, 1.641016f, 1.389882f, 5.820313f);
+            new Spec("room_rug", -0.047270f, 0.012676f, 0.151025f,
+                    2.128651f, 1.641016f, 1.269665f, 5.820313f);
 
     // Real Candidate #1163 confirms the architecture camera now exposes the reference ceiling
     // perspective, but also makes the foreground table the largest remaining screen-space error:
