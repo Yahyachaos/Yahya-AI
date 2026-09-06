@@ -28,27 +28,30 @@ import java.util.WeakHashMap;
 /**
  * First bounded geometry pass for the large reference plant on the near-right foreground table.
  *
- * Real Candidate #1184 visually accepts the derived laptop silhouette. The next largest unmistakable
- * geometry omission against Refernzbild.png is the foreground plant: reference envelope is roughly
- * x=0.795..1.000, y=0.655..0.925 on the exact normalized CALL stage, while the same region is empty
- * in #1184. Real Candidate #1186 proves that the derived pot/stem reach the intended right-foreground
- * region, but the star-shaped foliage fan is raster-empty while its single-sided donor material renders
- * the opposite pot winding. Reverse only the foliage fan winding; room shell, camera, Celine, anchors
- * and all 12 immutable source furniture GLBs remain untouched. The next real CALL proof is authoritative.
+ * Real Candidate #1184 visually accepts the derived laptop silhouette. The reference foreground plant
+ * target is x=0.812..1.000, y=0.645..0.946 on the normalized CALL stage. #1186 proved the pot/stem
+ * reached the near-right region but the foliage winding was back-facing. #1187 proves the reversed
+ * foliage winding is now visible and preserves the rest of the room, but the measured combined plant
+ * silhouette is still x=0.779..0.982, y=0.613..0.887 on the exact 1016x813 CALL stage. Its center is
+ * therefore about 0.026 frame-width left and 0.046 frame-height high versus the reference. Reprojecting
+ * that raster delta through the accepted #1184 foreground plane gives one bounded local translation
+ * (+0.043526 X, -0.052292 Y). Preserve foliage/pot size, depth, winding, room shell, camera, Celine,
+ * anchors and all 12 immutable source furniture GLBs; the next real CALL proof is authoritative.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANE_YAW_DEG = -6.253965f;
     private static final float PLANE_PITCH_DEG = 8.344122f;
     private static final float DEPTH_Z = 3.020114f;
 
-    // Calibrated from the accepted #1184 laptop plane at the same near-table depth.
-    private static final float FOLIAGE_CENTER_X = 0.0860f;
-    private static final float FOLIAGE_CENTER_Y = 0.9920f;
+    // Calibrated from the accepted #1184 laptop plane at the same near-table depth and translated from
+    // the real #1187 raster center delta. Do not resize until the translated silhouette is re-proved.
+    private static final float FOLIAGE_CENTER_X = 0.129526f;
+    private static final float FOLIAGE_CENTER_Y = 0.939708f;
     private static final float FOLIAGE_WIDTH = 0.2650f;
     private static final float FOLIAGE_HEIGHT = 0.2450f;
 
-    private static final float POT_CENTER_X = 0.0950f;
-    private static final float POT_CENTER_Y = 0.8800f;
+    private static final float POT_CENTER_X = 0.138526f;
+    private static final float POT_CENTER_Y = 0.827708f;
     private static final float POT_TOP_WIDTH = 0.1700f;
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2100f;
@@ -81,7 +84,9 @@ final class CelineRoomForegroundPlantV80 {
             view.addOnAttachStateChangeListener(state);
             Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
                     "Referenz-Vordergrundpflanze als bounded derived geometry aktiv",
-                    "CALL targetNorm x=0.795..1.000 y=0.655..0.925"
+                    "CALL targetNorm x=0.812..1.000 y=0.645..0.946"
+                            + " measured1187=x0.779..0.982/y0.613..0.887"
+                            + " localTranslate=+0.043526,-0.052292"
                             + " nearTableDepthZ=" + DEPTH_Z
                             + " foliage=" + FOLIAGE_WIDTH + "x" + FOLIAGE_HEIGHT
                             + " pot=" + POT_TOP_WIDTH + "/" + POT_BOTTOM_WIDTH + "x" + POT_HEIGHT
@@ -158,7 +163,7 @@ final class CelineRoomForegroundPlantV80 {
         MaterialInstance material = duplicateSolid(donor, "v80-reference-fg-plant-stem",
                 0.10f, 0.075f, 0.045f, 1.0f, 0.90f);
         return createPart(engine, scene, transforms, parent, xy, indices,
-                0.091f, 0.955f, DEPTH_Z + 0.004f, w, h, material);
+                0.134526f, 0.902708f, DEPTH_Z + 0.004f, w, h, material);
     }
 
     private static Part createPart(Engine engine, Scene scene, TransformManager transforms,
