@@ -46,35 +46,44 @@ final class CelineRoomWindowDerivedGroupV80 {
 
     static void apply(Celine3DView view, Engine engine) throws Exception {
         if (view == null || engine == null) return;
+
+        boolean adjustWindow;
         synchronized (APPLIED) {
-            if (APPLIED.containsKey(view)) return;
+            adjustWindow = !APPLIED.containsKey(view);
+        }
+        if (adjustWindow) {
+            TransformManager transforms = engine.getTransformManager();
+            int adjusted = 0;
+            adjusted += adjustState(view, transforms, CelineRoomWindowBackdropV80.class);
+            adjusted += adjustState(view, transforms, CelineRoomWindowCurtainFillV80.class);
+            adjusted += adjustState(view, transforms, CelineRoomWindowSheerFillV80.class);
+            adjusted += adjustState(view, transforms, CelineRoomWindowFoldDetailV80.class);
+            if (adjusted != 11) {
+                throw new IllegalStateException(
+                        "derived window correction expected 11 entities, adjusted=" + adjusted);
+            }
+
+            synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
+                    "Abgeleitete Fenstergruppe rastergenau nachvermessen",
+                    "CALL#1179 visibleX=0.2470..0.5689 targetX=0.205..0.588"
+                            + " visibleTop=0.1464 targetTop=0.086"
+                            + " scaleX=" + HORIZONTAL_SCALE
+                            + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
+                            + " scaleY=" + VERTICAL_SCALE
+                            + " centerY=" + OLD_CENTER_Y + "->" + NEW_CENTER_Y
+                            + " entities=" + adjusted
+                            + " · Z/materials/camera/Celine/source-GLB unchanged");
         }
 
-        TransformManager transforms = engine.getTransformManager();
-        int adjusted = 0;
-        adjusted += adjustState(view, transforms, CelineRoomWindowBackdropV80.class);
-        adjusted += adjustState(view, transforms, CelineRoomWindowCurtainFillV80.class);
-        adjusted += adjustState(view, transforms, CelineRoomWindowSheerFillV80.class);
-        adjusted += adjustState(view, transforms, CelineRoomWindowFoldDetailV80.class);
-        if (adjusted != 11) {
-            throw new IllegalStateException(
-                    "derived window correction expected 11 entities, adjusted=" + adjusted);
-        }
-
-        synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
-        Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
-                "Abgeleitete Fenstergruppe rastergenau nachvermessen",
-                "CALL#1179 visibleX=0.2470..0.5689 targetX=0.205..0.588"
-                        + " visibleTop=0.1464 targetTop=0.086"
-                        + " scaleX=" + HORIZONTAL_SCALE
-                        + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
-                        + " scaleY=" + VERTICAL_SCALE
-                        + " centerY=" + OLD_CENTER_Y + "->" + NEW_CENTER_Y
-                        + " entities=" + adjusted
-                        + " · Z/materials/camera/Celine/source-GLB unchanged");
+        // #1183 shows the reference laptop is a separate missing foreground object, not part of the
+        // immutable table source. Create/retry it independently from the already-applied window group
+        // so a laptop failure can never stack the accepted window affine transform.
+        CelineRoomForegroundLaptopV80.apply(view, engine);
     }
 
     static void release(Celine3DView view) {
+        CelineRoomForegroundLaptopV80.release(view);
         synchronized (APPLIED) { APPLIED.remove(view); }
     }
 
