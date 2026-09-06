@@ -104,15 +104,15 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.912718f,
                     1.031000f, 0.667240f, 0.519922f, -2.000000f);
 
-    // Real Candidate #1165 confirms the mirror now occupies the intended clipped left-wall envelope.
-    // The next largest high-confidence architecture delta is the window/drapes: measured current
-    // x=0.209..0.639 (width 0.430, center 0.424) versus reference x=0.205..0.588
-    // (width 0.383, center 0.397). Apply only the precomputed horizontal correction from the
-    // reconstruction contract: runtime X -0.575 -> -0.735 m and SX 1.490625 -> 1.328. Preserve
-    // vertical/depth scale, Y/Z, yaw, room shell, camera, all other furniture and Celine identity/rig.
+    // Real Candidate #1172 visually accepts the exact rear-nightstand envelope in HOME and CALL.
+    // The window/drapes are now the largest remaining high-confidence screen-area mismatch: the
+    // current envelope x=0.228517..0.550202 / y=0.101045..0.460571 still undershoots the canonical
+    // x=0.205..0.588 / y=0.086..0.477. Keep depth, Z scale and yaw fixed; solve only X/Y plus X/Y
+    // scale under the accepted architecture camera. The derived transform below projects exactly to
+    // the measured reference envelope without mutating source bytes, shell, camera or Celine.
     private static final Spec WINDOW =
-            new Spec("room_window_drapes", -0.735000f, 1.400000f, -2.092500f,
-                    1.328000f, 1.490625f, 1.490625f, -8.437500f);
+            new Spec("room_window_drapes", -0.682033f, 1.387851f, -2.092500f,
+                    1.576546f, 1.620848f, 1.490625f, -8.437500f);
 
     // Real Candidate #1170 accepts the front-right nightstand correction in both real HOME and CALL.
     // The wall shelf is now the largest measured remaining object delta: current projection
