@@ -28,9 +28,15 @@ final class CelineRoomReferenceLayoutV80 {
     private static final float ROOM_DEPTH_SCALE_Z = 4.20f / 5.80f;
     private static final float ROOM_HEIGHT_SCALE_Y = 2.65f / 2.80f;
 
+    // Real Candidate #1168 visually accepts the dresser envelope correction. The bed is now the
+    // largest remaining measured primary-object envelope delta: current x=0.482..0.915 /
+    // y=0.335..0.613 versus reference x=0.500..0.998 / y=0.323..0.652. Solving the immutable bed
+    // source under the accepted architecture camera while keeping yaw and the exact current floor
+    // contact invariant gives the transform below. It projects exactly to the measured reference
+    // envelope without changing room shell, camera, Celine identity/rig or source bytes.
     private static final Spec BED =
-            new Spec("room_bed", 1.030469f, 0.620523f, -0.387500f,
-                    1.123125f, 1.221400f, 1.123125f, -84.437500f);
+            new Spec("room_bed", 1.146877f, 0.660358f, -0.076940f,
+                    1.252188f, 1.316294f, 1.128440f, -84.437500f);
 
     // Real Candidate #1167 visually accepts the exact rug-envelope correction in both HOME and
     // CALL and leaves the left dresser as the largest clear primary-object envelope mismatch.
