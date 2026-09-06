@@ -38,9 +38,14 @@ final class CelineRoomWindowFoldDetailV80 {
     private static final float HALF_WIDTH_SIDE = 0.051f;
     private static final float HALF_WIDTH_SHEER = 0.038f;
 
-    // Proof #118: folds follow the exact same measured horizontal group contraction and center shift.
+    // Proof #118: side folds keep the accepted measured horizontal group contraction/center shift.
     private static final float[] SIDE_X = {-1.585f, -1.261f, 0.051f, 0.392f};
-    private static final float[] SHEER_X = {-0.818f, -0.392f};
+    // Real Candidate #1217 exposes the two sheer folds stranded in the dark opening at about
+    // x=366..389 and x=437..453 after the accepted #1214 sheer-panel refit. The accepted panels are
+    // centered at local X -1.175/-0.035 and render about x=274..363 / 464..536. Align only the two
+    // derived sheer-fold centers with those panel centers; preserve side folds, outer envelope,
+    // materials, source GLB, room/camera, furniture and Celine.
+    private static final float[] SHEER_X = {-1.175f, -0.035f};
     private static final float[] ANGLES = {4.5f, -4.0f, 4.0f, -4.5f};
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
@@ -105,6 +110,7 @@ final class CelineRoomWindowFoldDetailV80 {
                     "Subtile abgeleitete Vorhangfalten aktiv",
                     "sideFacets=" + SIDE_X.length + " sheerFacets=" + SHEER_X.length
                             + " z=" + CENTER_Z + " · sparse low-contrast fold detail only"
+                            + " · sheer folds aligned to accepted panel centers"
                             + " · source GLB/coverage/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int entity : entities) destroyEntity(scene, engine, entity);
