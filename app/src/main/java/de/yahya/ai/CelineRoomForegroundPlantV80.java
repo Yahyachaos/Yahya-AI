@@ -28,12 +28,14 @@ import java.util.WeakHashMap;
 /**
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
- * Real Candidate #1199 confirms the current upright candle is within a small residual of its target
- * and keeps the accepted foreground plant/dresser geometry stable. The remaining high-confidence
- * derived-geometry delta is the right-wall art: current x=0.859..0.959/y=0.100..0.284 against
- * target x=0.858..0.969/y=0.076..0.283. Correct only its vertical center/height in this step;
- * horizontal width/center remain deferred until the next real CALL raster. Material/detail, plant,
- * candle, dresser, room shell, camera, Celine, anchors and all 12 immutable source furniture GLBs
+ * Real Candidate #1200 proves the right-wall art vertical fit at x=0.859..0.963/y=0.075..0.284
+ * against target x=0.858..0.969/y=0.076..0.283. The larger remaining documented missing geometry
+ * is the two narrow framed prints on the left wall. Direct measurement of the canonical
+ * Refernzbild.png gives the visible pair at approximately x=0.103..0.155/y=0.150..0.271. The
+ * accepted CALL camera projection analytically maps two equal wall-anchored panels at local
+ * X=-2.0, Y=1.693847, Z=-0.167611/-0.439817, size 0.259110x0.428704 m to that envelope.
+ * Add only this missing pair in this step. Room shell, furniture TRS, camera, Celine, anchors,
+ * existing derived plant/candle/right-art geometry and all 12 immutable source furniture GLBs
  * remain unchanged.
  */
 final class CelineRoomForegroundPlantV80 {
@@ -52,15 +54,25 @@ final class CelineRoomForegroundPlantV80 {
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2616f;
 
-    // #1199 real CALL raster preserves #1194 x=0.859..0.959 but y=0.100..0.284 versus
-    // target y=0.076..0.283. At fixed plane/orientation, height needs 1.125x and center must move
-    // up by 0.0125 normalized screen-height (~+0.044747 m in local Y). Change only Y/height.
+    // #1200 real CALL raster validates the #1199 vertical solve: x=0.859..0.963/y=0.075..0.284.
+    // Keep this exact geometry frozen while a larger missing reference object is restored.
     private static final float RIGHT_ART_CENTER_X = 2.000000f;
     private static final float RIGHT_ART_CENTER_Y = 1.772788f;
     private static final float RIGHT_ART_CENTER_Z = 0.207086f;
     private static final float RIGHT_ART_WIDTH = 0.630768f;
     private static final float RIGHT_ART_HEIGHT = 0.741012f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
+
+    // Canonical reference raster, measured directly from c5bbbfcf... Refernzbild.png. The older
+    // coarse combined bbox bottom=0.334 over-read plant occlusion; reliable visible frame edges end
+    // around y=0.271. Two equal portrait panels on the left wall reproduce the observed perspective.
+    private static final float LEFT_ART_CENTER_X = -2.000000f;
+    private static final float LEFT_ART_CENTER_Y = 1.693847f;
+    private static final float LEFT_ART_NEAR_CENTER_Z = -0.167611f;
+    private static final float LEFT_ART_FAR_CENTER_Z = -0.439817f;
+    private static final float LEFT_ART_WIDTH = 0.259110f;
+    private static final float LEFT_ART_HEIGHT = 0.428704f;
+    private static final float LEFT_ART_YAW_DEG = 90.0f;
 
     // #1198 upright real CALL raster: x=0.044..0.123/y=0.738..0.943 versus the authoritative
     // target x=0.039..0.128/y=0.748..0.928. Center and front-facing orientation are already right;
@@ -98,6 +110,10 @@ final class CelineRoomForegroundPlantV80 {
             state.parts.add(createPot(engine, scene, transforms, rootTransform, donor));
             state.parts.add(createStem(engine, scene, transforms, rootTransform, donor));
             state.parts.add(createRightWallArt(engine, scene, transforms, rootTransform, donor));
+            addLeftWallArtPanel(state.parts, engine, scene, transforms, rootTransform, donor,
+                    "near", LEFT_ART_NEAR_CENTER_Z);
+            addLeftWallArtPanel(state.parts, engine, scene, transforms, rootTransform, donor,
+                    "far", LEFT_ART_FAR_CENTER_Z);
             state.parts.add(createForegroundCandle(engine, scene, transforms, rootTransform, donor));
             synchronized (STATES) { STATES.put(view, state); }
             view.addOnAttachStateChangeListener(state);
@@ -106,8 +122,12 @@ final class CelineRoomForegroundPlantV80 {
                     "plantTarget=x0.812..1.000/y0.645..0.946"
                             + " plantMeasured1189=x0.807..0.999/y0.641..0.945"
                             + " rightArtTarget=x0.858..0.969/y0.076..0.283"
-                            + " rightArtMeasured1199=x0.859..0.959/y0.100..0.284"
+                            + " rightArtMeasured1200=x0.859..0.963/y0.075..0.284"
                             + " rightArtVerticalFit=" + RIGHT_ART_CENTER_Y + "," + RIGHT_ART_HEIGHT
+                            + " leftArtMeasuredTarget=x0.103..0.155/y0.150..0.271"
+                            + " leftArtFitX=" + LEFT_ART_CENTER_X + " y=" + LEFT_ART_CENTER_Y
+                            + " z=" + LEFT_ART_NEAR_CENTER_Z + "," + LEFT_ART_FAR_CENTER_Z
+                            + " size=" + LEFT_ART_WIDTH + "x" + LEFT_ART_HEIGHT
                             + " candleTarget=x0.039..0.128/y0.748..0.928"
                             + " candleMeasured1196=x0.047..0.153/y0.740..0.931"
                             + " candleMeasured1197=semanticFailDiagonalPlank"
@@ -201,6 +221,34 @@ final class CelineRoomForegroundPlantV80 {
         return createPart(engine, scene, transforms, parent, xy, indices,
                 RIGHT_ART_CENTER_X, RIGHT_ART_CENTER_Y, RIGHT_ART_CENTER_Z,
                 RIGHT_ART_WIDTH, RIGHT_ART_HEIGHT, RIGHT_ART_YAW_DEG, 0.0f, material);
+    }
+
+    private static void addLeftWallArtPanel(
+            List<Part> parts, Engine engine, Scene scene, TransformManager transforms,
+            int parent, MaterialInstance donor, String suffix, float centerZ) {
+        float hw = LEFT_ART_WIDTH * 0.5f;
+        float hh = LEFT_ART_HEIGHT * 0.5f;
+        float[] outer = {-hw, hh, hw, hh, hw, -hh, -hw, -hh};
+        short[] indices = {0, 3, 2, 0, 2, 1};
+        MaterialInstance frame = duplicateSolid(donor,
+                "v80-reference-left-wall-art-" + suffix + "-frame",
+                0.19f, 0.12f, 0.065f, 1.0f, 0.68f);
+        parts.add(createPart(engine, scene, transforms, parent, outer, indices,
+                LEFT_ART_CENTER_X, LEFT_ART_CENTER_Y, centerZ,
+                LEFT_ART_WIDTH, LEFT_ART_HEIGHT, LEFT_ART_YAW_DEG, 0.0f, frame));
+
+        float innerWidth = LEFT_ART_WIDTH * 0.58f;
+        float innerHeight = LEFT_ART_HEIGHT * 0.82f;
+        float ihw = innerWidth * 0.5f;
+        float ihh = innerHeight * 0.5f;
+        float[] inner = {-ihw, ihh, ihw, ihh, ihw, -ihh, -ihw, -ihh};
+        MaterialInstance print = duplicateSolid(donor,
+                "v80-reference-left-wall-art-" + suffix + "-print",
+                0.72f, 0.62f, 0.49f, 1.0f, 0.88f);
+        // Offset 4 mm toward the room interior to avoid coplanar z-fighting with the frame.
+        parts.add(createPart(engine, scene, transforms, parent, inner, indices,
+                LEFT_ART_CENTER_X + 0.004f, LEFT_ART_CENTER_Y, centerZ,
+                innerWidth, innerHeight, LEFT_ART_YAW_DEG, 0.0f, print));
     }
 
     private static Part createForegroundCandle(Engine engine, Scene scene, TransformManager transforms,
