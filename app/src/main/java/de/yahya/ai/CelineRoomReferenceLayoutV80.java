@@ -87,9 +87,16 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_nightstand_back", 2.012802f, 0.594386f, -1.419782f,
                     0.374178f, 0.624493f, 0.524375f, 106.699219f);
 
+    // Real Candidate #1175 visually accepts the exact large-plant envelope in real HOME and CALL.
+    // The lounge chair is now the largest remaining measured geometry delta: current exact
+    // projection x=0.258285..0.358834 / y=0.395756..0.508235 versus Refernzbild.png
+    // x=0.217..0.333 / y=0.368..0.508. Projecting all 51,024 immutable chair source vertices through
+    // the accepted 1016x813 Filament CALL camera while preserving yaw, local floor contact and equal
+    // horizontal X/Z scale solves the bounded TRS below. Rounded runtime values project to the target
+    // envelope within 1e-7 normalized units; no source GLB, shell, camera, plant, lamp or Celine change.
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -1.452000f, 0.371500f, -2.050000f,
-                    0.385800f, 0.411000f, 0.385800f, 170.375000f);
+            new Spec("room_lounge_chair", -1.722376f, 0.457133f, -2.107537f,
+                    0.433192f, 0.505830f, 0.433192f, 170.375000f);
 
     // Real Candidate #1166 confirms the horizontally corrected window/drapes remain a valid visual
     // step. The rug is now the largest clear primary-object envelope delta: exact current projection
