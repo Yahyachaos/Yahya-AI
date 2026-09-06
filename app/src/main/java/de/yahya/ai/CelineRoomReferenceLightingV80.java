@@ -77,11 +77,7 @@ final class CelineRoomReferenceLightingV80 {
     private static final float PRACTICAL_DIR_Z = -0.76427230f;
     private static final float PRACTICAL_INNER_RAD = 0.48869219f; // 28 degrees
     private static final float PRACTICAL_OUTER_RAD = 0.87266463f; // 50 degrees
-    // Real Candidate #1206 with the globally corrected 5.6k indirect fill puts ceiling/back-wall
-    // broad fields near their reference luma, but the bed-side practical pool remains materially
-    // underexposed: right-wall lamp-pool about 87.8 vs 123.5 target and bed/headboard about 72.5 vs
-    // 92.2. Preserve the now-correct global fill and test only a bounded local practical lift.
-    private static final float PRACTICAL_LUMENS = 12000.0f;
+    private static final float PRACTICAL_LUMENS = 6000.0f;
     private static final float PRACTICAL_FALLOFF_M = 3.0f;
 
     private static final Set<Celine3DView> APPLIED =
