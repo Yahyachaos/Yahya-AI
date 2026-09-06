@@ -29,12 +29,11 @@ import java.util.WeakHashMap;
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
  * Real Candidate #1191 freezes the primary dresser envelope. #1189 freezes the foreground plant.
- * #1194 leaves only a smaller right-wall-art residual. #1196 gives the second exact foreground
- * candle raster: x=48..155 / y=602..757 on the 1016x813 CALL stage versus target
- * x=0.039..0.128 / y=0.748..0.928 (about 40..130 / 608..754 px). Use the measured #1195->#1196
- * response to close only this remaining candle center/size residual. Material/flame detail, plant,
- * art, dresser, room shell, camera, Celine, anchors and all 12 immutable source furniture GLBs
- * remain unchanged.
+ * #1194 leaves only a smaller right-wall-art residual. #1197 proves that fitting only the candle
+ * bounding box is insufficient: the inherited plant yaw/pitch turns the supposed glass jar into a
+ * conspicuous diagonal plank in the real CALL raster. Preserve the #1196->#1197 center/size solve,
+ * but correct only the candle silhouette/orientation. Material/flame detail, plant, art, dresser,
+ * room shell, camera, Celine, anchors and all 12 immutable source furniture GLBs remain unchanged.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -60,15 +59,17 @@ final class CelineRoomForegroundPlantV80 {
     private static final float RIGHT_ART_HEIGHT = 0.658677f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
-    // #1195->#1196 empirical response: -0.1045 m X moved the raster center -105.5 px and
-    // +0.0680 m Y moved it -47.5 px. #1196 is 108x156 px centered at (101.5,679.5), while the
-    // target is about 91x147 px centered at (85,681). Shift 16.5 px left / 1.5 px down and scale
-    // only the jar silhouette by 91/108 and 147/156.
+    // #1196 raster envelope solve is retained. #1197 showed that reusing the foreground plant's
+    // orientation makes this otherwise correctly placed envelope read as a long diagonal board.
+    // The reference object is an upright glass candle, so its local billboard must face the camera
+    // without the plant tilt. Keep center/size fixed and change only silhouette/orientation here.
     private static final float CANDLE_CENTER_X = -0.836842f;
     private static final float CANDLE_CENTER_Y = 0.902352f;
     private static final float CANDLE_CENTER_Z = 3.020114f;
     private static final float CANDLE_WIDTH = 0.065150f;
     private static final float CANDLE_HEIGHT = 0.205140f;
+    private static final float CANDLE_YAW_DEG = 0.0f;
+    private static final float CANDLE_PITCH_DEG = 0.0f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -106,10 +107,11 @@ final class CelineRoomForegroundPlantV80 {
                             + " rightArtMeasured1194=x0.859..0.959/y0.100..0.284"
                             + " candleTarget=x0.039..0.128/y0.748..0.928"
                             + " candleMeasured1196=x0.047..0.153/y0.740..0.931"
+                            + " candleMeasured1197=semanticFailDiagonalPlank"
                             + " candleFit=" + CANDLE_CENTER_X + "," + CANDLE_CENTER_Y + ","
                             + CANDLE_CENTER_Z + " size=" + CANDLE_WIDTH + "x" + CANDLE_HEIGHT
-                            + " materialDetailDeferred=true sourceGLBsMutated=false"
-                            + " camera/Celine/anchors unchanged");
+                            + " uprightJarSilhouette=true materialDetailDeferred=true"
+                            + " sourceGLBsMutated=false camera/Celine/anchors unchanged");
         } catch (Throwable error) {
             state.destroy();
             throw error;
@@ -199,21 +201,35 @@ final class CelineRoomForegroundPlantV80 {
 
     private static Part createForegroundCandle(Engine engine, Scene scene, TransformManager transforms,
                                                int parent, MaterialInstance donor) {
-        float hw = CANDLE_WIDTH * 0.5f;
-        float hh = CANDLE_HEIGHT * 0.5f;
-        // Slight jar taper keeps this a geometry silhouette rather than premature material/detail polish.
-        float[] xy = {
-                -hw * 0.84f, hh,
-                 hw * 0.84f, hh,
-                 hw, -hh,
-                -hw, -hh
+        // #1197 showed the old four-corner quad as a diagonal plank. Build a bounded rounded-jar
+        // silhouette instead. Coordinates stay inside the already measured width/height envelope.
+        float[][] ring = {
+                {-0.34f, 0.50f}, { 0.34f, 0.50f},
+                { 0.44f, 0.45f}, { 0.49f, 0.36f},
+                { 0.50f,-0.37f}, { 0.44f,-0.46f},
+                { 0.33f,-0.50f}, {-0.33f,-0.50f},
+                {-0.44f,-0.46f}, {-0.50f,-0.37f},
+                {-0.49f, 0.36f}, {-0.44f, 0.45f}
         };
-        short[] indices = {0, 3, 2, 0, 2, 1};
+        float[] xy = new float[2 + ring.length * 2];
+        xy[0] = 0f;
+        xy[1] = 0f;
+        for (int i = 0; i < ring.length; i++) {
+            xy[2 + i * 2] = ring[i][0] * CANDLE_WIDTH;
+            xy[3 + i * 2] = ring[i][1] * CANDLE_HEIGHT;
+        }
+        short[] indices = new short[ring.length * 3];
+        for (int i = 0; i < ring.length; i++) {
+            int next = (i + 1) % ring.length;
+            indices[i * 3] = 0;
+            indices[i * 3 + 1] = (short) (1 + next);
+            indices[i * 3 + 2] = (short) (1 + i);
+        }
         MaterialInstance material = duplicateSolid(donor, "v80-reference-foreground-candle",
                 0.58f, 0.25f, 0.075f, 1.0f, 0.62f);
         return createPart(engine, scene, transforms, parent, xy, indices,
                 CANDLE_CENTER_X, CANDLE_CENTER_Y, CANDLE_CENTER_Z,
-                CANDLE_WIDTH, CANDLE_HEIGHT, PLANT_YAW_DEG, PLANT_PITCH_DEG, material);
+                CANDLE_WIDTH, CANDLE_HEIGHT, CANDLE_YAW_DEG, CANDLE_PITCH_DEG, material);
     }
 
     private static Part createPart(Engine engine, Scene scene, TransformManager transforms,
