@@ -59,8 +59,15 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec RUG =
             new Spec("room_rug", -0.196570f, 0.012676f, -0.087483f,
                     1.708708f, 1.641016f, 1.389882f, 5.820313f);
+
+    // Real Candidate #1163 confirms the architecture camera now exposes the reference ceiling
+    // perspective, but also makes the foreground table the largest remaining screen-space error:
+    // its top edge projects at y~=0.622 while Refernzbild.png measures y=0.782. Keeping the source
+    // table bytes, X/Y, scale and yaw fixed, the exact Filament projection solves only user-depth
+    // z=2.912718 so the tabletop starts at y=0.782 and remains naturally clipped across both side
+    // edges like the reference foreground band.
     private static final Spec TABLE =
-            new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.280000f,
+            new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.912718f,
                     1.031000f, 0.667240f, 0.519922f, -2.000000f);
     private static final Spec WINDOW =
             new Spec("room_window_drapes", -0.575000f, 1.400000f, -2.092500f,
