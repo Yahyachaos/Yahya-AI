@@ -15,13 +15,14 @@ import java.util.WeakHashMap;
 /**
  * Bounded per-entity material isolation for the exact-room shell planes.
  *
- * Real Candidate #1223 locks the isolated right wall at RGB 135/96/61 (reference 135/96/61),
- * the isolated back wall at RGB 120/82/49 (reference 120/83/49), and the isolated left wall at
- * RGB 124/83/44 (reference 123/83/43) on canonical clean witnesses. Preserve those accepted tuples.
- * The next broad shell residual is the exposed left floor at x=140..200/y=550..590: current median
- * RGB 78/60/46 versus reference 77/43/14. The floor's existing environment factor is
- * 0.48/0.38/0.30; applying the measured target/current raster ratios gives the bounded candidate
- * 0.474/0.272/0.091. Roughness/reflectance stay at the existing floor values 0.62/0.45.
+ * Real Candidate #1224 locks the isolated right wall at RGB 135/96/61 (reference 135/96/61),
+ * the isolated back wall at RGB 120/82/49 (reference 120/83/49), the isolated left wall at
+ * RGB 124/83/44 (reference 123/83/43), and the exposed floor witness x=140..200/y=550..590
+ * at RGB 77/43/14 (reference 77/43/14). Preserve those accepted tuples.
+ * The next broad shell residual is the clean ceiling witness x=450..650/y=15..70: current median
+ * RGB 127/113/100 versus reference 152/110/72. The ceiling's existing isolated factor is
+ * 1.0/0.88/0.62; applying the measured target/current raster ratios gives the bounded candidate
+ * 1.197/0.857/0.446. Roughness/reflectance stay at the existing wall values 0.90/0.38.
  * Each corrected surface receives its own duplicate material; the shared shell donor remains
  * untouched. No source GLB bytes, transforms, camera, furniture or Celine change.
  */
@@ -46,6 +47,11 @@ final class CelineRoomReferenceWallMaterialV80 {
     private static final float FLOOR_GREEN = 0.272f;
     private static final float FLOOR_BLUE = 0.091f;
 
+    private static final String CEILING_ENTITY = "room_ceiling";
+    private static final float CEILING_RED = 1.197f;
+    private static final float CEILING_GREEN = 0.857f;
+    private static final float CEILING_BLUE = 0.446f;
+
     private static final float WALL_ROUGHNESS = 0.90f;
     private static final float WALL_REFLECTANCE = 0.38f;
     private static final float FLOOR_ROUGHNESS = 0.62f;
@@ -67,6 +73,7 @@ final class CelineRoomReferenceWallMaterialV80 {
         Entry back = null;
         Entry left = null;
         Entry floor = null;
+        Entry ceiling = null;
         try {
             right = applyEntity(asset, engine, RIGHT_ENTITY,
                     RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE,
@@ -80,21 +87,27 @@ final class CelineRoomReferenceWallMaterialV80 {
             floor = applyEntity(asset, engine, FLOOR_ENTITY,
                     FLOOR_RED, FLOOR_GREEN, FLOOR_BLUE,
                     FLOOR_ROUGHNESS, FLOOR_REFLECTANCE, "floor");
+            ceiling = applyEntity(asset, engine, CEILING_ENTITY,
+                    CEILING_RED, CEILING_GREEN, CEILING_BLUE,
+                    WALL_ROUGHNESS, WALL_REFLECTANCE, "ceiling");
             synchronized (STATES) {
-                STATES.put(view, new WallState(engine, right, back, left, floor));
+                STATES.put(view, new WallState(engine, right, back, left, floor, ceiling));
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
                     "Referenz-Shell materialisoliert",
-                    "right#1223=135/96/61 target=135/96/61 base="
+                    "right#1224=135/96/61 target=135/96/61 base="
                             + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
-                            + " · back#1223=120/82/49 target=120/83/49 base="
+                            + " · back#1224=120/82/49 target=120/83/49 base="
                             + BACK_RED + "," + BACK_GREEN + "," + BACK_BLUE
-                            + " · left#1223=124/83/44 target=123/83/43 base="
+                            + " · left#1224=124/83/44 target=123/83/43 base="
                             + LEFT_RED + "," + LEFT_GREEN + "," + LEFT_BLUE
-                            + " · floorCurrent=78/60/46 target=77/43/14 base="
+                            + " · floor#1224=77/43/14 target=77/43/14 base="
                             + FLOOR_RED + "," + FLOOR_GREEN + "," + FLOOR_BLUE
+                            + " · ceilingCurrent=127/113/100 target=152/110/72 base="
+                            + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " · shared shell/source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
+            releaseEntry(engine, ceiling);
             releaseEntry(engine, floor);
             releaseEntry(engine, left);
             releaseEntry(engine, back);
@@ -107,6 +120,7 @@ final class CelineRoomReferenceWallMaterialV80 {
         WallState state;
         synchronized (STATES) { state = STATES.remove(view); }
         if (state == null) return;
+        releaseEntry(state.engine, state.ceiling);
         releaseEntry(state.engine, state.floor);
         releaseEntry(state.engine, state.left);
         releaseEntry(state.engine, state.back);
@@ -209,13 +223,15 @@ final class CelineRoomReferenceWallMaterialV80 {
         final Entry back;
         final Entry left;
         final Entry floor;
+        final Entry ceiling;
 
-        WallState(Engine engine, Entry right, Entry back, Entry left, Entry floor) {
+        WallState(Engine engine, Entry right, Entry back, Entry left, Entry floor, Entry ceiling) {
             this.engine = engine;
             this.right = right;
             this.back = back;
             this.left = left;
             this.floor = floor;
+            this.ceiling = ceiling;
         }
     }
 }
