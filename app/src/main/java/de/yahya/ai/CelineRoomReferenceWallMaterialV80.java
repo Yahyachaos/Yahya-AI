@@ -15,12 +15,12 @@ import java.util.WeakHashMap;
 /**
  * Bounded per-entity material isolation for the exact-room wall planes.
  *
- * Real Candidate #1220 proves the isolated right-wall solve is raster-exact at the canonical clean
- * witness: current RGB 135/96/61 equals Refernzbild.png 135/96/61. Preserve that accepted tuple.
- * The next largest clean wall residual is the back wall at x=600..700/y=270..315: current median
- * 127/112/96 versus reference 120/83/49. Using the measured response slope from the successful
- * #1218 -> #1219 -> #1220 right-wall calibration solves the back-wall factor to
- * 0.813/0.569/0.346. Each wall receives its own duplicate material; the shared shell donor remains
+ * Real Candidate #1221 locks the isolated right wall at RGB 135/96/61 (reference 135/96/61)
+ * and the isolated back wall at RGB 120/82/49 (reference 120/83/49) on the canonical clean
+ * witnesses. Preserve those accepted tuples. The next broad shell residual is the left wall at
+ * x=160..200/y=80..220: current median 124/110/94 versus reference 123/83/43. Using the measured
+ * response slope from the accepted right-wall calibration gives the bounded left-wall candidate
+ * 0.853/0.584/0.317. Each wall receives its own duplicate material; the shared shell donor remains
  * untouched. No source GLB bytes, transforms, camera, furniture or Celine change.
  */
 final class CelineRoomReferenceWallMaterialV80 {
@@ -33,6 +33,11 @@ final class CelineRoomReferenceWallMaterialV80 {
     private static final float BACK_RED = 0.813f;
     private static final float BACK_GREEN = 0.569f;
     private static final float BACK_BLUE = 0.346f;
+
+    private static final String LEFT_ENTITY = "room_left_wall";
+    private static final float LEFT_RED = 0.853f;
+    private static final float LEFT_GREEN = 0.584f;
+    private static final float LEFT_BLUE = 0.317f;
 
     private static final float ROUGHNESS = 0.90f;
     private static final float REFLECTANCE = 0.38f;
@@ -51,22 +56,28 @@ final class CelineRoomReferenceWallMaterialV80 {
         if (asset == null) throw new IllegalStateException("reference wall material: room asset fehlt");
         Entry right = null;
         Entry back = null;
+        Entry left = null;
         try {
             right = applyEntity(asset, engine, RIGHT_ENTITY,
                     RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE, "right");
             back = applyEntity(asset, engine, BACK_ENTITY,
                     BACK_RED, BACK_GREEN, BACK_BLUE, "back");
+            left = applyEntity(asset, engine, LEFT_ENTITY,
+                    LEFT_RED, LEFT_GREEN, LEFT_BLUE, "left");
             synchronized (STATES) {
-                STATES.put(view, new WallState(engine, right, back));
+                STATES.put(view, new WallState(engine, right, back, left));
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-152",
                     "Referenzwände materialisoliert",
-                    "right#1220=135/96/61 target=135/96/61 base="
+                    "right#1221=135/96/61 target=135/96/61 base="
                             + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
-                            + " · backCurrent=127/112/96 target=120/83/49 base="
+                            + " · back#1221=120/82/49 target=120/83/49 base="
                             + BACK_RED + "," + BACK_GREEN + "," + BACK_BLUE
+                            + " · leftCurrent=124/110/94 target=123/83/43 base="
+                            + LEFT_RED + "," + LEFT_GREEN + "," + LEFT_BLUE
                             + " · shared shell/source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
+            releaseEntry(engine, left);
             releaseEntry(engine, back);
             releaseEntry(engine, right);
             throw error;
@@ -77,6 +88,7 @@ final class CelineRoomReferenceWallMaterialV80 {
         WallState state;
         synchronized (STATES) { state = STATES.remove(view); }
         if (state == null) return;
+        releaseEntry(state.engine, state.left);
         releaseEntry(state.engine, state.back);
         releaseEntry(state.engine, state.right);
     }
@@ -173,11 +185,13 @@ final class CelineRoomReferenceWallMaterialV80 {
         final Engine engine;
         final Entry right;
         final Entry back;
+        final Entry left;
 
-        WallState(Engine engine, Entry right, Entry back) {
+        WallState(Engine engine, Entry right, Entry back, Entry left) {
             this.engine = engine;
             this.right = right;
             this.back = back;
+            this.left = left;
         }
     }
 }
