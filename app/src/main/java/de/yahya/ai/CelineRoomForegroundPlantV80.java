@@ -29,11 +29,12 @@ import java.util.WeakHashMap;
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
  * Real Candidate #1191 freezes the primary dresser envelope. #1189 freezes the foreground plant.
- * #1194 leaves only a smaller right-wall-art residual while #1195 gives the first exact foreground
- * candle raster: x=154..260 / y=649..805 on the 1016x813 CALL stage versus target
- * x=0.039..0.128 / y=0.748..0.928 (about 40..130 / 608..754 px). Fit only the candle center and
- * silhouette dimensions from that real raster. Material/flame detail, plant, art, dresser, room shell,
- * camera, Celine, anchors and all 12 immutable source furniture GLBs remain unchanged.
+ * #1194 leaves only a smaller right-wall-art residual. #1196 gives the second exact foreground
+ * candle raster: x=48..155 / y=602..757 on the 1016x813 CALL stage versus target
+ * x=0.039..0.128 / y=0.748..0.928 (about 40..130 / 608..754 px). Use the measured #1195->#1196
+ * response to close only this remaining candle center/size residual. Material/flame detail, plant,
+ * art, dresser, room shell, camera, Celine, anchors and all 12 immutable source furniture GLBs
+ * remain unchanged.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -51,7 +52,7 @@ final class CelineRoomForegroundPlantV80 {
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2616f;
 
-    // #1193 empirical raster solve; #1194 is close enough to freeze while a larger missing object exists.
+    // #1193 empirical raster solve; #1194 is close enough to freeze while larger geometry exists.
     private static final float RIGHT_ART_CENTER_X = 2.000000f;
     private static final float RIGHT_ART_CENTER_Y = 1.728041f;
     private static final float RIGHT_ART_CENTER_Z = 0.207086f;
@@ -59,15 +60,15 @@ final class CelineRoomForegroundPlantV80 {
     private static final float RIGHT_ART_HEIGHT = 0.658677f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
-    // #1195 empirical candle solve. The seed produced 107x157 px centered at about (207,727).
-    // The reference target is about 90x146 px centered at (84.8,681.3). At this accepted near-table
-    // plane the seed itself measures ~1169 px/m horizontally and ~672 px/m vertically, so move its
-    // derived center 0.1045 m left and 0.0680 m up while scaling width/height by 0.845/0.932.
-    private static final float CANDLE_CENTER_X = -0.820500f;
-    private static final float CANDLE_CENTER_Y = 0.904500f;
+    // #1195->#1196 empirical response: -0.1045 m X moved the raster center -105.5 px and
+    // +0.0680 m Y moved it -47.5 px. #1196 is 108x156 px centered at (101.5,679.5), while the
+    // target is about 91x147 px centered at (85,681). Shift 16.5 px left / 1.5 px down and scale
+    // only the jar silhouette by 91/108 and 147/156.
+    private static final float CANDLE_CENTER_X = -0.836842f;
+    private static final float CANDLE_CENTER_Y = 0.902352f;
     private static final float CANDLE_CENTER_Z = 3.020114f;
-    private static final float CANDLE_WIDTH = 0.077300f;
-    private static final float CANDLE_HEIGHT = 0.217700f;
+    private static final float CANDLE_WIDTH = 0.065150f;
+    private static final float CANDLE_HEIGHT = 0.205140f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -104,7 +105,7 @@ final class CelineRoomForegroundPlantV80 {
                             + " rightArtTarget=x0.858..0.969/y0.076..0.283"
                             + " rightArtMeasured1194=x0.859..0.959/y0.100..0.284"
                             + " candleTarget=x0.039..0.128/y0.748..0.928"
-                            + " candleMeasured1195=x0.152..0.256/y0.798..0.990"
+                            + " candleMeasured1196=x0.047..0.153/y0.740..0.931"
                             + " candleFit=" + CANDLE_CENTER_X + "," + CANDLE_CENTER_Y + ","
                             + CANDLE_CENTER_Z + " size=" + CANDLE_WIDTH + "x" + CANDLE_HEIGHT
                             + " materialDetailDeferred=true sourceGLBsMutated=false"
