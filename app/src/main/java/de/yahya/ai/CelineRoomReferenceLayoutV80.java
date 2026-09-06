@@ -50,9 +50,16 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_dresser", -2.135313f, 0.470772f, 0.426774f,
                     0.733027f, 0.593359f, 0.967225f, -92.285156f);
 
+    // Real Candidate #1173 visually accepts the window/drapes envelope and leaves the large plant
+    // as the largest remaining high-visible-area geometry delta. Its exact current projection is
+    // x=0.166088..0.287585 / y=0.209742..0.517537 versus Refernzbild.png
+    // x=0.132..0.247 / y=0.205..0.535. Projecting all 45,963 immutable source vertices through the
+    // accepted 1016x813 Filament CALL camera while preserving yaw, local floor contact and equal
+    // horizontal X/Z scale solves the bounded TRS below. It projects to the target envelope within
+    // 1e-7 normalized screen units; no source GLB, room shell, camera, chair, lamp or Celine changes.
     private static final Spec LARGE_PLANT =
-            new Spec("room_plant_large", -1.930000f, 0.982714f, -1.800000f,
-                    1.019000f, 1.032188f, 1.019000f, -15.292969f);
+            new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
+                    0.882475f, 1.026340f, 0.882475f, -15.292969f);
     private static final Spec SMALL_PLANT =
             new Spec("room_plant_small", 2.129375f, 0.572656f, 0.355000f,
                     0.105625f, 0.105625f, 0.105625f, 21.972656f);
