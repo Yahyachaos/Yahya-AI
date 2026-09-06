@@ -87,8 +87,13 @@ final class CelineProductionPresenceV80 {
     private static final String BED_LIE_ANCHOR = "bed_lie_anchor";
     private static final String BED_EXIT_ANCHOR = "bed_exit_anchor";
     private static final String CI_ROOM_ACTION_FILE = "celine-ci-room-action-v9r";
-    private static final float CALL_ROOT_DOWN = -0.30f;
-    private static final float CALL_ROOT_FORWARD = 0.12f;
+    // Real Candidate #1208 exposes the now-dominant CALL composition error after room/camera
+    // convergence: Celine spans roughly y=232..527 in the 1016x813 room stage while the reference
+    // person spans about y=102..643. Projecting that measured silhouette through the accepted
+    // Proof#63 camera solves the CALL-only root translation without touching identity, rig scale,
+    // room geometry, furniture TRS or camera/FOV.
+    private static final float CALL_ROOT_DOWN = 0.02f;
+    private static final float CALL_ROOT_FORWARD = 1.79f;
     private static final long HOME_ARM_LOOP_NANOS = 5_200_000_000L;
     private static final long CALL_ARM_LOOP_NANOS = 6_100_000_000L;
     private static final float MAX_SOCIAL_GAZE_X = 0.12f;
