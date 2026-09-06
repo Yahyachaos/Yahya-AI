@@ -31,10 +31,10 @@ import java.util.WeakHashMap;
  * The accepted foreground plant remains byte-for-byte source-independent. Real Candidate #1191 also
  * proves the primary dresser envelope is now effectively exact: x=0..191 px and y=341..584 px on
  * the 1016x813 CALL stage, i.e. y=0.4194..0.7183 versus target 0.420..0.718. Primary geometry is
- * therefore frozen. The next largest documented missing silhouette is the right-wall artwork at
- * target x=0.858..0.969 / y=0.076..0.283. The artwork below is a geometry-only rectangle solved
- * against the accepted Proof#63 camera and mounted 2 cm inside the 4.40 m right wall. Material and
- * image detail deliberately remain coarse until geometry/camera acceptance.
+ * therefore frozen. Real Candidate #1192 proves the first right-wall-art plane was raster-empty even
+ * though its projected bbox solved the target. The bounded hypothesis is shell occlusion: pull only
+ * this derived plane 18 cm farther inside the physical right wall and re-solve its Y/Z/size so its
+ * target projection remains x=0.858..0.969 / y=0.076..0.283. Material/image detail stays deferred.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -52,13 +52,13 @@ final class CelineRoomForegroundPlantV80 {
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2616f;
 
-    // Exact target projection solve on the right-wall plane x=+2.18 m. Local X of the rectangle is
-    // rotated onto room Z, so the plane follows the physical right wall rather than billboard-facing.
-    private static final float RIGHT_ART_CENTER_X = 2.180000f;
-    private static final float RIGHT_ART_CENTER_Y = 1.660980f;
-    private static final float RIGHT_ART_CENTER_Z = -0.762034f;
-    private static final float RIGHT_ART_WIDTH = 0.709373f;
-    private static final float RIGHT_ART_HEIGHT = 0.758127f;
+    // #1192 visibility correction. x=+2.00 m is safely room-side of the +2.20 m shell face. The
+    // remaining values are an exact reprojection of the unchanged screen target on that parallel plane.
+    private static final float RIGHT_ART_CENTER_X = 2.000000f;
+    private static final float RIGHT_ART_CENTER_Y = 1.589331f;
+    private static final float RIGHT_ART_CENTER_Z = -0.545906f;
+    private static final float RIGHT_ART_WIDTH = 0.671234f;
+    private static final float RIGHT_ART_HEIGHT = 0.695069f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
@@ -96,7 +96,7 @@ final class CelineRoomForegroundPlantV80 {
                             + " rightArtLocal=" + RIGHT_ART_CENTER_X + ","
                             + RIGHT_ART_CENTER_Y + "," + RIGHT_ART_CENTER_Z
                             + " size=" + RIGHT_ART_WIDTH + "x" + RIGHT_ART_HEIGHT
-                            + " wallAligned=true materialDetailDeferred=true"
+                            + " wallAligned=true shellOcclusionRetry=true materialDetailDeferred=true"
                             + " sourceGLBsMutated=false camera/Celine/anchors unchanged");
         } catch (Throwable error) {
             state.destroy();
@@ -177,7 +177,6 @@ final class CelineRoomForegroundPlantV80 {
         float hw = RIGHT_ART_WIDTH * 0.5f;
         float hh = RIGHT_ART_HEIGHT * 0.5f;
         float[] xy = {-hw, hh, hw, hh, hw, -hh, -hw, -hh};
-        // +Z local winding rotated by -90 degrees faces -X toward the accepted Proof#63 camera.
         short[] indices = {0, 3, 2, 0, 2, 1};
         MaterialInstance material = duplicateSolid(donor, "v80-reference-right-wall-art",
                 0.13f, 0.085f, 0.050f, 1.0f, 0.72f);
