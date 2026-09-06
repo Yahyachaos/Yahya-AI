@@ -22,9 +22,19 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec BED =
             new Spec("room_bed", 1.146877f, 0.660358f, -0.076940f,
                     1.252188f, 1.316294f, 1.128440f, -84.437500f);
+
+    // Real Candidate #1182 supplies the first post-window real raster measurement on the exact
+    // 1016x813 CALL surface. The dresser's visible body is x=0.000..0.184 / y=0.476..0.713,
+    // while Refernzbild.png requires x=0.000..0.184 / y=0.420..0.718. The horizontal envelope is
+    // already correct and the bottom is within 0.005H; the remaining dominant dresser error is the
+    // visibly short/high top. The earlier full-mesh AABB solve is not authoritative for Kommode.glb
+    // because empty yawed corners project outside the actual raster. Scale only Y by the measured
+    // 0.298/0.237 height ratio, then use the accepted CALL-camera local Jacobian to move the raster
+    // center upward while compensating the small perspective-induced X drift. Depth, yaw, horizontal
+    // scales and immutable source bytes remain frozen.
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.135313f, 0.470772f, 0.426774f,
-                    0.733027f, 0.593359f, 0.967225f, -92.285156f);
+            new Spec("room_dresser", -2.121313f, 0.517372f, 0.426774f,
+                    0.733027f, 0.746096f, 0.967225f, -92.285156f);
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
@@ -127,6 +137,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " shell=4.40x4.20x2.65"
                             + " furniture=13 referenceSolvedAbsoluteTRS"
                             + " windowRasterAware=true"
+                            + " dresserRasterAware=true"
                             + " mirrorFrustumCulling=false"
                             + " mirrorReferenceMaterial=opaqueWallDuplicate"
                             + " sourceGLBsMutated=false"
