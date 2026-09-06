@@ -32,9 +32,17 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_bed", 1.030469f, 0.620523f, -0.387500f,
                     1.123125f, 1.221400f, 1.123125f, -84.437500f);
 
+    // Real Candidate #1167 visually accepts the exact rug-envelope correction in both HOME and
+    // CALL and leaves the left dresser as the largest clear primary-object envelope mismatch.
+    // Under the accepted Filament architecture camera the current dresser projects at
+    // x=-0.084..0.232 / y=0.315..0.750, while Refernzbild.png measures visible
+    // x=0.000..0.184 / y=0.420..0.718. Keep the already accepted 180-degree front-face yaw and
+    // left-wall X anchor fixed; solve only Y/depth and derived XYZ scale. The transform below
+    // projects to x=-0.100..0.184 / y=0.420..0.718, therefore the visible clipped envelope exactly
+    // matches the reference without changing source bytes, room shell, camera or Celine.
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.135313f, 0.560357f, -0.077000f,
-                    1.069137f, 1.079882f, 1.069137f, -92.285156f);
+            new Spec("room_dresser", -2.135313f, 0.470772f, 0.426774f,
+                    0.733027f, 0.593359f, 0.967225f, -92.285156f);
 
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -1.930000f, 0.982714f, -1.800000f,
