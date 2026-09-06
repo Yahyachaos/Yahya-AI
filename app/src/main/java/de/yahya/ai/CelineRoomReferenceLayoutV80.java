@@ -69,9 +69,16 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec TABLE =
             new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.912718f,
                     1.031000f, 0.667240f, 0.519922f, -2.000000f);
+
+    // Real Candidate #1165 confirms the mirror now occupies the intended clipped left-wall envelope.
+    // The next largest high-confidence architecture delta is the window/drapes: measured current
+    // x=0.209..0.639 (width 0.430, center 0.424) versus reference x=0.205..0.588
+    // (width 0.383, center 0.397). Apply only the precomputed horizontal correction from the
+    // reconstruction contract: runtime X -0.575 -> -0.735 m and SX 1.490625 -> 1.328. Preserve
+    // vertical/depth scale, Y/Z, yaw, room shell, camera, all other furniture and Celine identity/rig.
     private static final Spec WINDOW =
-            new Spec("room_window_drapes", -0.575000f, 1.400000f, -2.092500f,
-                    1.490625f, 1.490625f, 1.490625f, -8.437500f);
+            new Spec("room_window_drapes", -0.735000f, 1.400000f, -2.092500f,
+                    1.328000f, 1.490625f, 1.490625f, -8.437500f);
 
     private static final Spec SHELF =
             new Spec("room_wall_shelf_books", 1.245000f, 1.600000f, -1.916250f,
