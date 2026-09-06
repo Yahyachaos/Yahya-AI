@@ -72,7 +72,11 @@ final class CelineRoomWindowCurtainFillV80 {
         boolean[] sceneAdded = new boolean[]{false, false};
         try {
             material = MaterialInstance.duplicate(source, "v80-window-curtain-fill");
-            set4(material, "baseColorFactor", 0.52f, 0.42f, 0.34f, 1.0f);
+            // Real Candidate #1214 preserves the accepted curtain envelope but exposes the broad
+            // panels at roughly RGB 77/61/48. The same canonical regions in Refernzbild.png are
+            // visibly warmer/darker (~74/44/15 median). Adjust only this derived material response;
+            // geometry, source drapes, sheer partition, camera and room remain unchanged.
+            set4(material, "baseColorFactor", 0.50f, 0.34f, 0.20f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.94f);
             set1(material, "reflectance", 0.28f);
@@ -109,7 +113,7 @@ final class CelineRoomWindowCurtainFillV80 {
                     "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
                             + " y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · central night opening/source drapes preserved"
+                            + " · warm reference material fit; central opening/source preserved"
                             + " · source GLB/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
