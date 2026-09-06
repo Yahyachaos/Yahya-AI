@@ -40,6 +40,10 @@ final class CelineRoomWindowDerivedGroupV80 {
     private static final float NEW_CENTER_Y = 1.753992f;
     private static final float VERTICAL_SCALE = 0.8505675f;
 
+    // The accepted backdrop used to contribute one entity. Candidate a80dc42 intentionally splits
+    // that same accepted backdrop into two panes, so the complete derived window group is now 12.
+    private static final int EXPECTED_DERIVED_ENTITY_COUNT = 12;
+
     private static final WeakHashMap<Celine3DView, Boolean> APPLIED = new WeakHashMap<>();
 
     private CelineRoomWindowDerivedGroupV80() {}
@@ -58,9 +62,10 @@ final class CelineRoomWindowDerivedGroupV80 {
             adjusted += adjustState(view, transforms, CelineRoomWindowCurtainFillV80.class);
             adjusted += adjustState(view, transforms, CelineRoomWindowSheerFillV80.class);
             adjusted += adjustState(view, transforms, CelineRoomWindowFoldDetailV80.class);
-            if (adjusted != 11) {
+            if (adjusted != EXPECTED_DERIVED_ENTITY_COUNT) {
                 throw new IllegalStateException(
-                        "derived window correction expected 11 entities, adjusted=" + adjusted);
+                        "derived window correction expected " + EXPECTED_DERIVED_ENTITY_COUNT
+                                + " entities, adjusted=" + adjusted);
             }
 
             synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
