@@ -72,12 +72,12 @@ final class CelineRoomWindowBackdropV80 {
         boolean sceneAdded = false;
         try {
             material = MaterialInstance.duplicate(source, "v80-window-night-backdrop");
-            // Real Candidate #1216 renders this derived night field at exact RGB 10/13/18 in the
-            // canonical CALL crop, while Refernzbild.png measures roughly 25/20/16 in the same dark
-            // glass region. Prior derived-fill material probes track baseColor nearly linearly, so
-            // solve each channel from the measured screen ratio and change only this base-color tuple.
-            // Geometry, emissive response, source drapes, camera, furniture and Celine remain fixed.
-            set4(material, "baseColorFactor", 0.112f, 0.085f, 0.067f, 1.0f);
+            // Real Candidate #1229 measures the protected central-night witness
+            // x=395..475/y=100..330 at RGB 22/18/16 versus the recovered canonical reference
+            // at about RGB 37/27/20. Apply only the measured per-channel raster response ratio
+            // to the existing baseColor tuple: 0.112/0.085/0.067 -> 0.188/0.128/0.084.
+            // Geometry, emissive response, source drapes/sheers, camera, furniture and Celine remain fixed.
+            set4(material, "baseColorFactor", 0.188f, 0.128f, 0.084f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.96f);
             set1(material, "reflectance", 0.22f);
@@ -109,7 +109,8 @@ final class CelineRoomWindowBackdropV80 {
                     "Fenster-Nachtfläche hinter sparse drapes aktiv",
                     "center=" + CENTER_X + "," + CENTER_Y + "," + CENTER_Z
                             + " size=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · measured night-color refit RGB target~=25/20/16"
+                            + " · #1229 night current=22/18/16 target~=37/27/20"
+                            + " · material=0.188,0.128,0.084"
                             + " · source GLB/UV/anchors/camera unchanged");
         } catch (Throwable error) {
             if (sceneAdded && entity != 0) {
