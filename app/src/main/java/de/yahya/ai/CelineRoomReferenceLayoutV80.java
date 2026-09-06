@@ -44,9 +44,17 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec LAMP =
             new Spec("room_floor_lamp", -1.732388f, 0.738777f, -1.900000f,
                     0.268900f, 0.775624f, 0.268900f, -20.710938f);
+
+    // Real Candidate #1201 is a genuine HOME -> CALL -> HOME-return capture on the exact current
+    // runtime. On its 1016x813 CALL stage the front-right nightstand visible top is about y=449 px
+    // (0.552), while Refernzbild.png requires y=0.506 and the accepted projected floor-contact edge is
+    // y=0.706. The visible vertical span is therefore only about 76.9% of target. Scale Y by the
+    // measured 1.301029 response factor and scale translation Y by the same factor; the established
+    // y/sy=0.951794 floor-contact invariant is preserved, so only the visible height grows upward.
+    // X/Z, horizontal/depth scales, yaw, source GLB bytes, room shell, camera and Celine remain frozen.
     private static final Spec NIGHTSTAND_FRONT =
-            new Spec("room_nightstand_front", 2.046130f, 0.296737f, 0.926459f,
-                    0.212205f, 0.311766f, 0.935485f, 130.195313f);
+            new Spec("room_nightstand_front", 2.046130f, 0.386063f, 0.926459f,
+                    0.212205f, 0.405617f, 0.935485f, 130.195313f);
     private static final Spec NIGHTSTAND_BACK =
             new Spec("room_nightstand_back", 2.012802f, 0.594386f, -1.419782f,
                     0.374178f, 0.624493f, 0.524375f, 106.699219f);
