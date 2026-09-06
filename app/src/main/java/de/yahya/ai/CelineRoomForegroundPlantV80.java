@@ -29,11 +29,11 @@ import java.util.WeakHashMap;
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
  * Real Candidate #1191 freezes the primary dresser envelope. #1189 freezes the foreground plant.
- * #1194 moves the right-wall art close enough to its reference envelope that its residual is smaller
- * than the wholly missing foreground candle. The next largest documented geometry delta is therefore
- * the candle on the near-left foreground table: target x=0.039..0.128 / y=0.748..0.928 on the exact
- * 1016x813 CALL stage. Seed only that silhouette from the accepted near-table plant projection so the
- * next real proof can provide an empirical raster correction. Material/flame detail remains deferred.
+ * #1194 leaves only a smaller right-wall-art residual while #1195 gives the first exact foreground
+ * candle raster: x=154..260 / y=649..805 on the 1016x813 CALL stage versus target
+ * x=0.039..0.128 / y=0.748..0.928 (about 40..130 / 608..754 px). Fit only the candle center and
+ * silhouette dimensions from that real raster. Material/flame detail, plant, art, dresser, room shell,
+ * camera, Celine, anchors and all 12 immutable source furniture GLBs remain unchanged.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -59,15 +59,15 @@ final class CelineRoomForegroundPlantV80 {
     private static final float RIGHT_ART_HEIGHT = 0.658677f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
-    // Foreground candle first-pass geometry from the accepted near-table plant raster. #1189 gives
-    // roughly 0.99k px/m horizontally and 0.63k px/m vertically at this depth. The target candle is
-    // about 90x146 px centered at (84.8,681.3), so seed a 0.0915x0.2335 m warm jar on the same plane.
-    // The next exact proof, not this estimate, is the authority for the bounded correction.
-    private static final float CANDLE_CENTER_X = -0.716000f;
-    private static final float CANDLE_CENTER_Y = 0.836500f;
+    // #1195 empirical candle solve. The seed produced 107x157 px centered at about (207,727).
+    // The reference target is about 90x146 px centered at (84.8,681.3). At this accepted near-table
+    // plane the seed itself measures ~1169 px/m horizontally and ~672 px/m vertically, so move its
+    // derived center 0.1045 m left and 0.0680 m up while scaling width/height by 0.845/0.932.
+    private static final float CANDLE_CENTER_X = -0.820500f;
+    private static final float CANDLE_CENTER_Y = 0.904500f;
     private static final float CANDLE_CENTER_Z = 3.020114f;
-    private static final float CANDLE_WIDTH = 0.091500f;
-    private static final float CANDLE_HEIGHT = 0.233500f;
+    private static final float CANDLE_WIDTH = 0.077300f;
+    private static final float CANDLE_HEIGHT = 0.217700f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -104,7 +104,8 @@ final class CelineRoomForegroundPlantV80 {
                             + " rightArtTarget=x0.858..0.969/y0.076..0.283"
                             + " rightArtMeasured1194=x0.859..0.959/y0.100..0.284"
                             + " candleTarget=x0.039..0.128/y0.748..0.928"
-                            + " candleSeed=" + CANDLE_CENTER_X + "," + CANDLE_CENTER_Y + ","
+                            + " candleMeasured1195=x0.152..0.256/y0.798..0.990"
+                            + " candleFit=" + CANDLE_CENTER_X + "," + CANDLE_CENTER_Y + ","
                             + CANDLE_CENTER_Z + " size=" + CANDLE_WIDTH + "x" + CANDLE_HEIGHT
                             + " materialDetailDeferred=true sourceGLBsMutated=false"
                             + " camera/Celine/anchors unchanged");
