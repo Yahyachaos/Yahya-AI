@@ -23,18 +23,19 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_bed", 1.146877f, 0.660358f, -0.076940f,
                     1.252188f, 1.316294f, 1.128440f, -84.437500f);
 
-    // Real Candidate #1182 supplies the first post-window real raster measurement on the exact
-    // 1016x813 CALL surface. The dresser's visible body is x=0.000..0.184 / y=0.476..0.713,
-    // while Refernzbild.png requires x=0.000..0.184 / y=0.420..0.718. The horizontal envelope is
-    // already correct and the bottom is within 0.005H; the remaining dominant dresser error is the
-    // visibly short/high top. The earlier full-mesh AABB solve is not authoritative for Kommode.glb
-    // because empty yawed corners project outside the actual raster. Scale only Y by the measured
-    // 0.298/0.237 height ratio, then use the accepted CALL-camera local Jacobian to move the raster
-    // center upward while compensating the small perspective-induced X drift. Depth, yaw, horizontal
-    // scales and immutable source bytes remain frozen.
+    // Real Candidate #1184 re-proved the first raster-aware dresser correction on the exact
+    // 1016x813 CALL surface: x stayed in the accepted left envelope, but visible Y remained
+    // 0.4600..0.7282 versus Refernzbild.png 0.4200..0.7180. The previous bounded step provides
+    // an empirical local response: +0.152737 scaleY produced +0.0312H visible height. Closing the
+    // remaining +0.0298H therefore requires +0.145883 scaleY. After removing the prior translation
+    // contribution, that scale change shifts the visible center about +0.01545H downward. Under the
+    // accepted Proof#63 CALL lens, the local screen Jacobian at the dresser is approximately
+    // dx=(+0.31719*dX -0.05828*dY), dy=(-0.01116*dX -0.35234*dY). Move only derived X/Y enough
+    // to cancel that scale-center drift plus the measured +0.0251H center residual while preserving
+    // the horizontal envelope. Depth, yaw, horizontal/depth scales and immutable source bytes freeze.
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.121313f, 0.517372f, 0.426774f,
-                    0.733027f, 0.746096f, 0.967225f, -92.285156f);
+            new Spec("room_dresser", -2.100289f, 0.631792f, 0.426774f,
+                    0.733027f, 0.891979f, 0.967225f, -92.285156f);
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
