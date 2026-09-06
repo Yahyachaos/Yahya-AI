@@ -23,19 +23,18 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_bed", 1.146877f, 0.660358f, -0.076940f,
                     1.252188f, 1.316294f, 1.128440f, -84.437500f);
 
-    // Real Candidate #1184 re-proved the first raster-aware dresser correction on the exact
-    // 1016x813 CALL surface: x stayed in the accepted left envelope, but visible Y remained
-    // 0.4600..0.7282 versus Refernzbild.png 0.4200..0.7180. The previous bounded step provides
-    // an empirical local response: +0.152737 scaleY produced +0.0312H visible height. Closing the
-    // remaining +0.0298H therefore requires +0.145883 scaleY. After removing the prior translation
-    // contribution, that scale change shifts the visible center about +0.01545H downward. Under the
-    // accepted Proof#63 CALL lens, the local screen Jacobian at the dresser is approximately
-    // dx=(+0.31719*dX -0.05828*dY), dy=(-0.01116*dX -0.35234*dY). Move only derived X/Y enough
-    // to cancel that scale-center drift plus the measured +0.0251H center residual while preserving
-    // the horizontal envelope. Depth, yaw, horizontal/depth scales and immutable source bytes freeze.
+    // Real Candidate #1190 gives the next exact 1016x813 CALL raster for the left dresser:
+    // x=0..192 px and y=350..587 px (0.000..0.1890 / 0.4305..0.7220) versus reference
+    // x=0.000..0.184 and y=0.420..0.718. The prior #1189->#1190 step supplies the local visible-edge
+    // response: +0.145883 scaleY expanded visible height by 19 px while the X/Y translation shifted
+    // both edges uniformly. Close only the remaining 5.274 px height residual with +0.040494 scaleY,
+    // then translate Y by +0.038502 m so the empirical top/bottom response lands at the reference
+    // 0.420/0.718 envelope. Keep X frozen because the left edge is clipped at the accepted stage edge
+    // and horizontal color segmentation historically over-reads the documented accepted envelope by
+    // a few pixels. Depth, yaw, horizontal/depth scales and immutable source bytes remain frozen.
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.100289f, 0.631792f, 0.426774f,
-                    0.733027f, 0.891979f, 0.967225f, -92.285156f);
+            new Spec("room_dresser", -2.100289f, 0.670294f, 0.426774f,
+                    0.733027f, 0.932473f, 0.967225f, -92.285156f);
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
