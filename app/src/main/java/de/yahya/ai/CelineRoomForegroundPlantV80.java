@@ -28,13 +28,12 @@ import java.util.WeakHashMap;
 /**
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
- * The accepted foreground plant remains source-independent. Real Candidate #1191 proves the primary
- * dresser envelope effectively exact. Real Candidate #1193 proves the right-wall-art visibility fix
- * worked, but its exact 1016x813 CALL raster is x=801..873 / y=132..259, i.e.
- * 0.7884..0.8593 / 0.1624..0.3186 versus target 0.858..0.969 / 0.076..0.283.
- * Fit an effective local pinhole from those four measured edges, then solve only this plane's Y/Z,
- * width and height on the already visible x=+2.00 m wall plane. Plant, dresser, shell, camera, Celine,
- * anchors and the 12 immutable source GLBs stay frozen. Material/image detail remains deferred.
+ * Real Candidate #1191 freezes the primary dresser envelope. #1189 freezes the foreground plant.
+ * #1194 moves the right-wall art close enough to its reference envelope that its residual is smaller
+ * than the wholly missing foreground candle. The next largest documented geometry delta is therefore
+ * the candle on the near-left foreground table: target x=0.039..0.128 / y=0.748..0.928 on the exact
+ * 1016x813 CALL stage. Seed only that silhouette from the accepted near-table plant projection so the
+ * next real proof can provide an empirical raster correction. Material/flame detail remains deferred.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -52,14 +51,23 @@ final class CelineRoomForegroundPlantV80 {
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2616f;
 
-    // #1193 empirical raster solve. The plane remains safely inside the +2.20 m shell face; only
-    // wall-parallel depth, vertical center and physical rectangle dimensions change to close target.
+    // #1193 empirical raster solve; #1194 is close enough to freeze while a larger missing object exists.
     private static final float RIGHT_ART_CENTER_X = 2.000000f;
     private static final float RIGHT_ART_CENTER_Y = 1.728041f;
     private static final float RIGHT_ART_CENTER_Z = 0.207086f;
     private static final float RIGHT_ART_WIDTH = 0.630768f;
     private static final float RIGHT_ART_HEIGHT = 0.658677f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
+
+    // Foreground candle first-pass geometry from the accepted near-table plant raster. #1189 gives
+    // roughly 0.99k px/m horizontally and 0.63k px/m vertically at this depth. The target candle is
+    // about 90x146 px centered at (84.8,681.3), so seed a 0.0915x0.2335 m warm jar on the same plane.
+    // The next exact proof, not this estimate, is the authority for the bounded correction.
+    private static final float CANDLE_CENTER_X = -0.716000f;
+    private static final float CANDLE_CENTER_Y = 0.836500f;
+    private static final float CANDLE_CENTER_Z = 3.020114f;
+    private static final float CANDLE_WIDTH = 0.091500f;
+    private static final float CANDLE_HEIGHT = 0.233500f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -86,6 +94,7 @@ final class CelineRoomForegroundPlantV80 {
             state.parts.add(createPot(engine, scene, transforms, rootTransform, donor));
             state.parts.add(createStem(engine, scene, transforms, rootTransform, donor));
             state.parts.add(createRightWallArt(engine, scene, transforms, rootTransform, donor));
+            state.parts.add(createForegroundCandle(engine, scene, transforms, rootTransform, donor));
             synchronized (STATES) { STATES.put(view, state); }
             view.addOnAttachStateChangeListener(state);
             Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
@@ -93,12 +102,12 @@ final class CelineRoomForegroundPlantV80 {
                     "plantTarget=x0.812..1.000/y0.645..0.946"
                             + " plantMeasured1189=x0.807..0.999/y0.641..0.945"
                             + " rightArtTarget=x0.858..0.969/y0.076..0.283"
-                            + " rightArtMeasured1193=x0.7884..0.8593/y0.1624..0.3186"
-                            + " rightArtLocal=" + RIGHT_ART_CENTER_X + ","
-                            + RIGHT_ART_CENTER_Y + "," + RIGHT_ART_CENTER_Z
-                            + " size=" + RIGHT_ART_WIDTH + "x" + RIGHT_ART_HEIGHT
-                            + " wallAligned=true rasterSolved=true materialDetailDeferred=true"
-                            + " sourceGLBsMutated=false camera/Celine/anchors unchanged");
+                            + " rightArtMeasured1194=x0.859..0.959/y0.100..0.284"
+                            + " candleTarget=x0.039..0.128/y0.748..0.928"
+                            + " candleSeed=" + CANDLE_CENTER_X + "," + CANDLE_CENTER_Y + ","
+                            + CANDLE_CENTER_Z + " size=" + CANDLE_WIDTH + "x" + CANDLE_HEIGHT
+                            + " materialDetailDeferred=true sourceGLBsMutated=false"
+                            + " camera/Celine/anchors unchanged");
         } catch (Throwable error) {
             state.destroy();
             throw error;
@@ -184,6 +193,25 @@ final class CelineRoomForegroundPlantV80 {
         return createPart(engine, scene, transforms, parent, xy, indices,
                 RIGHT_ART_CENTER_X, RIGHT_ART_CENTER_Y, RIGHT_ART_CENTER_Z,
                 RIGHT_ART_WIDTH, RIGHT_ART_HEIGHT, RIGHT_ART_YAW_DEG, 0.0f, material);
+    }
+
+    private static Part createForegroundCandle(Engine engine, Scene scene, TransformManager transforms,
+                                               int parent, MaterialInstance donor) {
+        float hw = CANDLE_WIDTH * 0.5f;
+        float hh = CANDLE_HEIGHT * 0.5f;
+        // Slight jar taper keeps this a geometry silhouette rather than premature material/detail polish.
+        float[] xy = {
+                -hw * 0.84f, hh,
+                 hw * 0.84f, hh,
+                 hw, -hh,
+                -hw, -hh
+        };
+        short[] indices = {0, 3, 2, 0, 2, 1};
+        MaterialInstance material = duplicateSolid(donor, "v80-reference-foreground-candle",
+                0.58f, 0.25f, 0.075f, 1.0f, 0.62f);
+        return createPart(engine, scene, transforms, parent, xy, indices,
+                CANDLE_CENTER_X, CANDLE_CENTER_Y, CANDLE_CENTER_Z,
+                CANDLE_WIDTH, CANDLE_HEIGHT, PLANT_YAW_DEG, PLANT_PITCH_DEG, material);
     }
 
     private static Part createPart(Engine engine, Scene scene, TransformManager transforms,
