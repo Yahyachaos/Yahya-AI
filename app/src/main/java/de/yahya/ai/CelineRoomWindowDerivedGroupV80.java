@@ -15,31 +15,29 @@ import java.util.WeakHashMap;
  *
  * The immutable room_window_drapes source mesh is intentionally hidden after the derived backdrop,
  * side curtains, sheers and fold facets are created. Therefore moving only room_window_drapes does
- * not move the visible window. Real Candidate #1147 / #1151 measured the visible derived group at
- * x=0.209..0.639 (width=0.430, center=0.424), while Refernzbild.png requires x=0.205..0.588
- * (width=0.383, center=0.397). The horizontal correction is retained unchanged.
+ * not move the visible window. All corrections below are applied uniformly to the generated window
+ * entities so backdrop, curtains, sheers and folds cannot drift apart.
  *
- * Real Candidate #1153 on the exact 1016x813 CALL stage was opened against the exact repository
- * Refernzbild.png blob e85c43b5e365982aa862329eecfb31ab502db793. Horizontal alignment is now
- * materially on target (visible group about x=0.199..0.587 versus target x=0.205..0.588), so X is
- * frozen. The remaining high-confidence architecture error is vertical: the full derived silhouette
- * is about y=0.080..0.510 (height=0.430, center=0.295), versus target y=0.086..0.477
- * (height=0.391, center=0.2815). Refit from the already-proved #1153 transform instead of stacking
- * an arbitrary micro-tweak: total Y scale = 0.9354067 * 0.391/0.430 = 0.8505675. On the same plane,
- * the observed 0.430 viewport height across 2*1.12*0.9354067 m gives about 0.20522 viewport/m;
- * moving the projected center upward by 0.0135 therefore requires +0.06578 m room-local Y, taking
- * the corrected group center from 1.3206 m to 1.3864 m.
+ * Real Candidate #1179 reopened the window after the earlier full-mesh projection solve: on the
+ * exact 1016x813 CALL raster the visible derived silhouette is x=0.2470..0.5689 with top y=0.1464,
+ * while Refernzbild.png requires x=0.205..0.588 and top y=0.086. The source mesh is hidden, so this
+ * is a derived-group raster correction, not a source-GLB transform. Refit from the base group rather
+ * than stacking another post-transform: horizontal scale 0.89069767 * (0.383/0.3219) = 1.05976144.
+ * The visible center must move left from 0.40795 to 0.39650; solving that shift through the accepted
+ * Filament camera while accounting for the simultaneous vertical move gives centerX=-0.89386.
  *
- * The affine correction is applied uniformly to all generated window entities so backdrop, curtains,
- * sheers and folds cannot drift apart. Z/materials/camera/Celine/source-GLB bytes remain untouched.
+ * The current derived backdrop top analytically projects to y=0.1445, matching the measured raster
+ * top 0.1464 closely enough to identify the same owner. Keep the accepted vertical scale 0.8505675
+ * and solve only group Y translation through the exact camera; centerY=1.753992 projects the backdrop
+ * top to y=0.086. Z, materials, camera, Celine and all immutable source-GLB bytes remain untouched.
  */
 final class CelineRoomWindowDerivedGroupV80 {
     private static final float OLD_CENTER_X = -0.605f;
-    private static final float NEW_CENTER_X = -0.775f;
-    private static final float HORIZONTAL_SCALE = 0.89069767f;
+    private static final float NEW_CENTER_X = -0.893860f;
+    private static final float HORIZONTAL_SCALE = 1.05976144f;
 
     private static final float OLD_CENTER_Y = 1.20f;
-    private static final float NEW_CENTER_Y = 1.3864f;
+    private static final float NEW_CENTER_Y = 1.753992f;
     private static final float VERTICAL_SCALE = 0.8505675f;
 
     private static final WeakHashMap<Celine3DView, Boolean> APPLIED = new WeakHashMap<>();
@@ -65,8 +63,9 @@ final class CelineRoomWindowDerivedGroupV80 {
 
         synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
         Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
-                "Abgeleitete Fenstergruppe X/Y vermessen",
-                "CALL#1153 currentY=0.080..0.510 targetY=0.086..0.477"
+                "Abgeleitete Fenstergruppe rastergenau nachvermessen",
+                "CALL#1179 visibleX=0.2470..0.5689 targetX=0.205..0.588"
+                        + " visibleTop=0.1464 targetTop=0.086"
                         + " scaleX=" + HORIZONTAL_SCALE
                         + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
                         + " scaleY=" + VERTICAL_SCALE
