@@ -40,7 +40,8 @@ final class CelineRoomReferenceLightingV80 {
     private static final float KEY_LUX = 5000.0f;
     // Real Candidate #1205 showed that the #1202 correction overshot: ceiling/back-wall luma fell to
     // about 92.5/81.7 against reference targets 112/103. Interpolating the measured 8000-lux and
-    // 4500-lux checkpoints places the neutral indirect fill near 5.6k lux; change only that parameter.
+    // 4500-lux checkpoints places the neutral indirect fill near 5.6k lux; Real Candidate #1208 then
+    // revalidated that interpolation against the real CALL stage, so keep the global fill fixed here.
     private static final float INDIRECT_LUX = 5600.0f;
 
     private static final float CEILING_RED = 0.88f;
@@ -59,15 +60,16 @@ final class CelineRoomReferenceLightingV80 {
 
     // Proof #60 showed that 1.45/1.35/1.25 did not materially brighten the bed. glTF baseColorFactor is
     // defined in the 0..1 range, so values above 1 are not a valid way to brighten a dark source texture.
-    // Keep the texture at the maximum valid neutral factor and add only a small bed-local emissive lift;
-    // this preserves the loaded fabric detail and avoids another global-light or texture replacement pass.
+    // Real Candidate #1208 keeps the global shell exposure close to the reference but leaves the large
+    // bed materially underexposed. Raise only the existing bed-local emissive factor by ~1.5x; preserve
+    // source texture detail, geometry, camera, global key/fill and all non-bed materials.
     private static final float BED_RED = 1.00f;
     private static final float BED_GREEN = 1.00f;
     private static final float BED_BLUE = 1.00f;
     private static final float BED_METALLIC = 0.00f;
-    private static final float BED_EMISSIVE_RED = 0.08f;
-    private static final float BED_EMISSIVE_GREEN = 0.07f;
-    private static final float BED_EMISSIVE_BLUE = 0.06f;
+    private static final float BED_EMISSIVE_RED = 0.12f;
+    private static final float BED_EMISSIVE_GREEN = 0.105f;
+    private static final float BED_EMISSIVE_BLUE = 0.09f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
