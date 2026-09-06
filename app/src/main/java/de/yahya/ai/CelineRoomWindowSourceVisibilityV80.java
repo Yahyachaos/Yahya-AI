@@ -36,16 +36,21 @@ import java.util.WeakHashMap;
  * (1.4185/0.867 -> ~0.207..0.734), #1132 (1.259/0.964 -> ~0.275..0.734), and #1133
  * (1.17955/0.41024 -> ~0.206..0.64..0.645). A least-squares two-edge affine fit across those real
  * samples solves the canonical 0.205..0.588 envelope at xScale~=1.151 and xShift~=0.356.
- * Change only that measured horizontal group transform. Preserve the current Y/Z correction until
- * the next real HOME/CALL proof; source bytes/transforms, furniture, room shell, camera, anchors and
- * Celine remain untouched.
+ *
+ * Real Candidate #1211 revalidated the current exact runtime in the real CALL surface after the
+ * protected seated-CALL rollback. On the normalized 1016x813 stage the derived window spans about
+ * y=0.077..0.500 (roughly 63..407 px), while Refernzbild.png requires y=0.086..0.477
+ * (roughly 70..388 px). Solving the same affine Y transform against those two measured edges gives
+ * yScale~=1.223 and yShift~=-0.704. Change only that measured vertical group transform; preserve the
+ * accepted X/Z solve, internal window layers, source bytes/transforms, furniture, room shell, camera,
+ * anchors and Celine.
  */
 final class CelineRoomWindowSourceVisibilityV80 {
     private static final float EXACT_ROOM_DERIVED_WINDOW_Z_REBASE = 0.720f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_X_SCALE = 1.151f;
     private static final float EXACT_ROOM_DERIVED_WINDOW_X_SHIFT = 0.356f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.323f;
-    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.876f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SCALE = 1.223f;
+    private static final float EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT = -0.704f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowSourceVisibilityV80() {}
@@ -75,6 +80,7 @@ final class CelineRoomWindowSourceVisibilityV80 {
                         + " yScale=" + EXACT_ROOM_DERIVED_WINDOW_Y_SCALE
                         + " yShift=" + EXACT_ROOM_DERIVED_WINDOW_Y_SHIFT
                         + " · targetBBoxX=0.205..0.588 authority=Refernzbild.png + Proof#1133"
+                        + " · targetBBoxY=0.086..0.477 authority=Refernzbild.png + Real#1211"
                         + " · source GLB/transform/Celine/camera/anchors/lamp unchanged");
     }
 
