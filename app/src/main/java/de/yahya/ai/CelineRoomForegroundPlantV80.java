@@ -26,35 +26,40 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Bounded geometry pass for the large reference plant on the near-right foreground table.
+ * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
- * Real Candidate #1188 on exact head 8425437 proves the #1187-derived translation fixed the plant
- * center without disturbing the accepted room: the combined raster is x=0.808..0.999,
- * y=0.663..0.927 on the exact 1016x813 CALL stage versus target x=0.812..1.000,
- * y=0.645..0.946. Horizontal error and center error are now negligible; the remaining bounded
- * geometry delta is vertical extent only (about 0.018H missing above and 0.019H below).
- * Preserve centers, widths, depth, winding, room shell, camera, Celine, anchors and all 12 immutable
- * source furniture GLBs. Fit only the foliage/pot heights from the real raster and re-prove CALL.
+ * The accepted foreground plant remains byte-for-byte source-independent. Real Candidate #1191 also
+ * proves the primary dresser envelope is now effectively exact: x=0..191 px and y=341..584 px on
+ * the 1016x813 CALL stage, i.e. y=0.4194..0.7183 versus target 0.420..0.718. Primary geometry is
+ * therefore frozen. The next largest documented missing silhouette is the right-wall artwork at
+ * target x=0.858..0.969 / y=0.076..0.283. The artwork below is a geometry-only rectangle solved
+ * against the accepted Proof#63 camera and mounted 2 cm inside the 4.40 m right wall. Material and
+ * image detail deliberately remain coarse until geometry/camera acceptance.
  */
 final class CelineRoomForegroundPlantV80 {
-    private static final float PLANE_YAW_DEG = -6.253965f;
-    private static final float PLANE_PITCH_DEG = 8.344122f;
-    private static final float DEPTH_Z = 3.020114f;
+    private static final float PLANT_YAW_DEG = -6.253965f;
+    private static final float PLANT_PITCH_DEG = 8.344122f;
+    private static final float PLANT_DEPTH_Z = 3.020114f;
 
-    // #1188 raster solve: foliage visible y=539..640 px. With the asymmetric crown ring and its
-    // unchanged local center, 0.3038 m projects the crown top to the 0.645 reference edge.
     private static final float FOLIAGE_CENTER_X = 0.129526f;
     private static final float FOLIAGE_CENTER_Y = 0.939708f;
     private static final float FOLIAGE_WIDTH = 0.2650f;
     private static final float FOLIAGE_HEIGHT = 0.3038f;
 
-    // #1188 pot raster y=622..753 px. Keep its proven center and widths; 0.2616 m projects the
-    // lower edge to the 0.946 reference edge while retaining overlap with the enlarged crown.
     private static final float POT_CENTER_X = 0.138526f;
     private static final float POT_CENTER_Y = 0.827708f;
     private static final float POT_TOP_WIDTH = 0.1700f;
     private static final float POT_BOTTOM_WIDTH = 0.1320f;
     private static final float POT_HEIGHT = 0.2616f;
+
+    // Exact target projection solve on the right-wall plane x=+2.18 m. Local X of the rectangle is
+    // rotated onto room Z, so the plane follows the physical right wall rather than billboard-facing.
+    private static final float RIGHT_ART_CENTER_X = 2.180000f;
+    private static final float RIGHT_ART_CENTER_Y = 1.660980f;
+    private static final float RIGHT_ART_CENTER_Z = -0.762034f;
+    private static final float RIGHT_ART_WIDTH = 0.709373f;
+    private static final float RIGHT_ART_HEIGHT = 0.758127f;
+    private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -67,12 +72,12 @@ final class CelineRoomForegroundPlantV80 {
         }
 
         FilamentAsset roomAsset = currentRoomAsset(view);
-        if (roomAsset == null) throw new IllegalStateException("foreground plant: room asset missing");
+        if (roomAsset == null) throw new IllegalStateException("derived room geometry: room asset missing");
         Scene scene = (Scene) field(view, "scene");
-        if (scene == null) throw new IllegalStateException("foreground plant: scene missing");
+        if (scene == null) throw new IllegalStateException("derived room geometry: scene missing");
         TransformManager transforms = engine.getTransformManager();
         int rootTransform = transforms.getInstance(roomAsset.getRoot());
-        if (rootTransform == 0) throw new IllegalStateException("foreground plant: room root transform missing");
+        if (rootTransform == 0) throw new IllegalStateException("derived room geometry: root transform missing");
 
         MaterialInstance donor = firstMaterial(roomAsset, engine, "room_back_wall");
         State state = new State(view, engine, scene);
@@ -80,17 +85,18 @@ final class CelineRoomForegroundPlantV80 {
             state.parts.add(createFoliage(engine, scene, transforms, rootTransform, donor));
             state.parts.add(createPot(engine, scene, transforms, rootTransform, donor));
             state.parts.add(createStem(engine, scene, transforms, rootTransform, donor));
+            state.parts.add(createRightWallArt(engine, scene, transforms, rootTransform, donor));
             synchronized (STATES) { STATES.put(view, state); }
             view.addOnAttachStateChangeListener(state);
             Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
-                    "Referenz-Vordergrundpflanze als bounded derived geometry aktiv",
-                    "CALL targetNorm x=0.812..1.000 y=0.645..0.946"
-                            + " measured1188=x0.808..0.999/y0.663..0.927"
-                            + " centerAccepted=true verticalEnvelopeRefit=true"
-                            + " nearTableDepthZ=" + DEPTH_Z
-                            + " foliage=" + FOLIAGE_WIDTH + "x" + FOLIAGE_HEIGHT
-                            + " pot=" + POT_TOP_WIDTH + "/" + POT_BOTTOM_WIDTH + "x" + POT_HEIGHT
-                            + " foliageWinding=referenceFront"
+                    "Bounded Referenz-Zusatzgeometrie aktiv",
+                    "plantTarget=x0.812..1.000/y0.645..0.946"
+                            + " plantMeasured1189=x0.807..0.999/y0.641..0.945"
+                            + " rightArtTarget=x0.858..0.969/y0.076..0.283"
+                            + " rightArtLocal=" + RIGHT_ART_CENTER_X + ","
+                            + RIGHT_ART_CENTER_Y + "," + RIGHT_ART_CENTER_Z
+                            + " size=" + RIGHT_ART_WIDTH + "x" + RIGHT_ART_HEIGHT
+                            + " wallAligned=true materialDetailDeferred=true"
                             + " sourceGLBsMutated=false camera/Celine/anchors unchanged");
         } catch (Throwable error) {
             state.destroy();
@@ -106,9 +112,6 @@ final class CelineRoomForegroundPlantV80 {
 
     private static Part createFoliage(Engine engine, Scene scene, TransformManager transforms,
                                       int parent, MaterialInstance donor) {
-        // Star-shaped crown: triangle fan gives a broad leafy silhouette without pretending this is
-        // final material/detail polish. #1186 proves the original fan winding was back-facing under
-        // the single-sided donor material, so keep the measured geometry and reverse only the fan.
         float[][] ring = {
                 {-0.12f,-0.50f}, {-0.43f,-0.43f}, {-0.62f,-0.26f}, {-0.90f,-0.18f},
                 {-0.66f, 0.02f}, {-0.82f, 0.22f}, {-0.48f, 0.18f}, {-0.58f, 0.52f},
@@ -117,7 +120,8 @@ final class CelineRoomForegroundPlantV80 {
                 { 0.64f,-0.10f}, { 0.80f,-0.32f}, { 0.40f,-0.24f}, { 0.26f,-0.54f}
         };
         float[] xy = new float[2 + ring.length * 2];
-        xy[0] = 0f; xy[1] = 0f;
+        xy[0] = 0f;
+        xy[1] = 0f;
         for (int i = 0; i < ring.length; i++) {
             xy[2 + i * 2] = ring[i][0] * FOLIAGE_WIDTH * 0.5f;
             xy[3 + i * 2] = ring[i][1] * FOLIAGE_HEIGHT * 0.5f;
@@ -132,8 +136,8 @@ final class CelineRoomForegroundPlantV80 {
         MaterialInstance material = duplicateSolid(donor, "v80-reference-fg-plant-foliage",
                 0.105f, 0.155f, 0.065f, 1.0f, 0.82f);
         return createPart(engine, scene, transforms, parent, xy, indices,
-                FOLIAGE_CENTER_X, FOLIAGE_CENTER_Y, DEPTH_Z,
-                FOLIAGE_WIDTH, FOLIAGE_HEIGHT, material);
+                FOLIAGE_CENTER_X, FOLIAGE_CENTER_Y, PLANT_DEPTH_Z,
+                FOLIAGE_WIDTH, FOLIAGE_HEIGHT, PLANT_YAW_DEG, PLANT_PITCH_DEG, material);
     }
 
     private static Part createPot(Engine engine, Scene scene, TransformManager transforms,
@@ -151,25 +155,42 @@ final class CelineRoomForegroundPlantV80 {
         MaterialInstance material = duplicateSolid(donor, "v80-reference-fg-plant-pot",
                 0.43f, 0.42f, 0.39f, 1.0f, 0.76f);
         return createPart(engine, scene, transforms, parent, xy, indices,
-                POT_CENTER_X, POT_CENTER_Y, DEPTH_Z + 0.002f,
-                POT_TOP_WIDTH, POT_HEIGHT, material);
+                POT_CENTER_X, POT_CENTER_Y, PLANT_DEPTH_Z + 0.002f,
+                POT_TOP_WIDTH, POT_HEIGHT, PLANT_YAW_DEG, PLANT_PITCH_DEG, material);
     }
 
     private static Part createStem(Engine engine, Scene scene, TransformManager transforms,
                                    int parent, MaterialInstance donor) {
-        float w = 0.024f, h = 0.145f;
+        float w = 0.024f;
+        float h = 0.145f;
         float[] xy = {-w/2, h/2, w/2, h/2, w/2, -h/2, -w/2, -h/2};
-        short[] indices = {0,3,2, 0,2,1};
+        short[] indices = {0, 3, 2, 0, 2, 1};
         MaterialInstance material = duplicateSolid(donor, "v80-reference-fg-plant-stem",
                 0.10f, 0.075f, 0.045f, 1.0f, 0.90f);
         return createPart(engine, scene, transforms, parent, xy, indices,
-                0.134526f, 0.902708f, DEPTH_Z + 0.004f, w, h, material);
+                0.134526f, 0.902708f, PLANT_DEPTH_Z + 0.004f,
+                w, h, PLANT_YAW_DEG, PLANT_PITCH_DEG, material);
+    }
+
+    private static Part createRightWallArt(Engine engine, Scene scene, TransformManager transforms,
+                                           int parent, MaterialInstance donor) {
+        float hw = RIGHT_ART_WIDTH * 0.5f;
+        float hh = RIGHT_ART_HEIGHT * 0.5f;
+        float[] xy = {-hw, hh, hw, hh, hw, -hh, -hw, -hh};
+        // +Z local winding rotated by -90 degrees faces -X toward the accepted Proof#63 camera.
+        short[] indices = {0, 3, 2, 0, 2, 1};
+        MaterialInstance material = duplicateSolid(donor, "v80-reference-right-wall-art",
+                0.13f, 0.085f, 0.050f, 1.0f, 0.72f);
+        return createPart(engine, scene, transforms, parent, xy, indices,
+                RIGHT_ART_CENTER_X, RIGHT_ART_CENTER_Y, RIGHT_ART_CENTER_Z,
+                RIGHT_ART_WIDTH, RIGHT_ART_HEIGHT, RIGHT_ART_YAW_DEG, 0.0f, material);
     }
 
     private static Part createPart(Engine engine, Scene scene, TransformManager transforms,
                                    int parent, float[] xy, short[] triangleIndices,
                                    float centerX, float centerY, float centerZ,
                                    float boundsWidth, float boundsHeight,
+                                   float yawDeg, float pitchDeg,
                                    MaterialInstance material) {
         VertexBuffer vertices = null;
         IndexBuffer indices = null;
@@ -194,8 +215,8 @@ final class CelineRoomForegroundPlantV80 {
             float[] local = new float[16];
             Matrix.setIdentityM(local, 0);
             Matrix.translateM(local, 0, centerX, centerY, centerZ);
-            Matrix.rotateM(local, 0, PLANE_YAW_DEG, 0f, 1f, 0f);
-            Matrix.rotateM(local, 0, PLANE_PITCH_DEG, 1f, 0f, 0f);
+            if (yawDeg != 0f) Matrix.rotateM(local, 0, yawDeg, 0f, 1f, 0f);
+            if (pitchDeg != 0f) Matrix.rotateM(local, 0, pitchDeg, 1f, 0f, 0f);
             transforms.create(entity, parent, local);
             scene.addEntity(entity);
             added = true;
@@ -219,11 +240,13 @@ final class CelineRoomForegroundPlantV80 {
         FloatBuffer data = ByteBuffer.allocateDirect(count * stride)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         for (int i = 0; i < count; i++) {
-            float x = xy[i * 2], y = xy[i * 2 + 1];
+            float x = xy[i * 2];
+            float y = xy[i * 2 + 1];
             data.put(x).put(y).put(0f);
             data.put(0f).put(0f).put(0f).put(1f);
             data.put(1f).put(1f).put(1f).put(1f);
-            float u = 0.5f + x; float v = 0.5f + y;
+            float u = 0.5f + x;
+            float v = 0.5f + y;
             data.put(u).put(v).put(u).put(v);
         }
         data.flip();
@@ -290,14 +313,14 @@ final class CelineRoomForegroundPlantV80 {
     private static MaterialInstance firstMaterial(
             FilamentAsset asset, Engine engine, String entityName) {
         int entity = asset.getFirstEntityByName(entityName);
-        if (entity == 0) throw new IllegalStateException("foreground plant donor missing: " + entityName);
+        if (entity == 0) throw new IllegalStateException("derived geometry donor missing: " + entityName);
         RenderableManager renderables = engine.getRenderableManager();
         int renderable = renderables.getInstance(entity);
         if (renderable == 0 || renderables.getPrimitiveCount(renderable) < 1) {
-            throw new IllegalStateException("foreground plant donor renderable missing: " + entityName);
+            throw new IllegalStateException("derived geometry donor renderable missing: " + entityName);
         }
         MaterialInstance material = renderables.getMaterialInstanceAt(renderable, 0);
-        if (material == null) throw new IllegalStateException("foreground plant donor material missing");
+        if (material == null) throw new IllegalStateException("derived geometry donor material missing");
         return material;
     }
 
@@ -312,8 +335,12 @@ final class CelineRoomForegroundPlantV80 {
         final MaterialInstance material;
         final VertexBuffer vertices;
         final IndexBuffer indices;
+
         Part(int entity, MaterialInstance material, VertexBuffer vertices, IndexBuffer indices) {
-            this.entity = entity; this.material = material; this.vertices = vertices; this.indices = indices;
+            this.entity = entity;
+            this.material = material;
+            this.vertices = vertices;
+            this.indices = indices;
         }
     }
 
@@ -323,13 +350,19 @@ final class CelineRoomForegroundPlantV80 {
         final Scene scene;
         final List<Part> parts = new ArrayList<>();
         boolean destroyed;
+
         State(Celine3DView view, Engine engine, Scene scene) {
-            this.view = view; this.engine = engine; this.scene = scene;
+            this.view = view;
+            this.engine = engine;
+            this.scene = scene;
         }
+
         @Override public void onViewAttachedToWindow(View v) {}
+
         @Override public void onViewDetachedFromWindow(View v) {
             CelineRoomForegroundPlantV80.release(view);
         }
+
         void destroy() {
             if (destroyed) return;
             destroyed = true;
