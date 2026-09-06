@@ -29,11 +29,12 @@ import java.util.WeakHashMap;
  * Bounded derived reference geometry that is not available in the immutable furniture source set.
  *
  * Real Candidate #1191 freezes the primary dresser envelope. #1189 freezes the foreground plant.
- * #1194 leaves only a smaller right-wall-art residual. #1197 proves that fitting only the candle
- * bounding box is insufficient: the inherited plant yaw/pitch turns the supposed glass jar into a
- * conspicuous diagonal plank in the real CALL raster. Preserve the #1196->#1197 center/size solve,
- * but correct only the candle silhouette/orientation. Material/flame detail, plant, art, dresser,
- * room shell, camera, Celine, anchors and all 12 immutable source furniture GLBs remain unchanged.
+ * #1194 leaves only a smaller right-wall-art residual. #1197 proved that fitting only the candle
+ * bounding box was insufficient because the inherited plant yaw/pitch produced a diagonal plank.
+ * #1198 proves the corrected upright silhouette but measures x=0.044..0.123/y=0.738..0.943
+ * against target x=0.039..0.128/y=0.748..0.928. Preserve its center/orientation and correct only
+ * the remaining width/height envelope. Material/flame detail, plant, art, dresser, room shell,
+ * camera, Celine, anchors and all 12 immutable source furniture GLBs remain unchanged.
  */
 final class CelineRoomForegroundPlantV80 {
     private static final float PLANT_YAW_DEG = -6.253965f;
@@ -59,15 +60,14 @@ final class CelineRoomForegroundPlantV80 {
     private static final float RIGHT_ART_HEIGHT = 0.658677f;
     private static final float RIGHT_ART_YAW_DEG = -90.0f;
 
-    // #1196 raster envelope solve is retained. #1197 showed that reusing the foreground plant's
-    // orientation makes this otherwise correctly placed envelope read as a long diagonal board.
-    // The reference object is an upright glass candle, so its local billboard must face the camera
-    // without the plant tilt. Keep center/size fixed and change only silhouette/orientation here.
+    // #1198 upright real CALL raster: x=0.044..0.123/y=0.738..0.943 versus the authoritative
+    // target x=0.039..0.128/y=0.748..0.928. Center and front-facing orientation are already right;
+    // widen by the measured 1.1303x factor and shorten by 0.876287x, changing no other geometry.
     private static final float CANDLE_CENTER_X = -0.836842f;
     private static final float CANDLE_CENTER_Y = 0.902352f;
     private static final float CANDLE_CENTER_Z = 3.020114f;
-    private static final float CANDLE_WIDTH = 0.065150f;
-    private static final float CANDLE_HEIGHT = 0.205140f;
+    private static final float CANDLE_WIDTH = 0.073639f;
+    private static final float CANDLE_HEIGHT = 0.179762f;
     private static final float CANDLE_YAW_DEG = 0.0f;
     private static final float CANDLE_PITCH_DEG = 0.0f;
 
@@ -108,6 +108,7 @@ final class CelineRoomForegroundPlantV80 {
                             + " candleTarget=x0.039..0.128/y0.748..0.928"
                             + " candleMeasured1196=x0.047..0.153/y0.740..0.931"
                             + " candleMeasured1197=semanticFailDiagonalPlank"
+                            + " candleMeasured1198=x0.044..0.123/y0.738..0.943"
                             + " candleFit=" + CANDLE_CENTER_X + "," + CANDLE_CENTER_Y + ","
                             + CANDLE_CENTER_Z + " size=" + CANDLE_WIDTH + "x" + CANDLE_HEIGHT
                             + " uprightJarSilhouette=true materialDetailDeferred=true"
@@ -201,8 +202,8 @@ final class CelineRoomForegroundPlantV80 {
 
     private static Part createForegroundCandle(Engine engine, Scene scene, TransformManager transforms,
                                                int parent, MaterialInstance donor) {
-        // #1197 showed the old four-corner quad as a diagonal plank. Build a bounded rounded-jar
-        // silhouette instead. Coordinates stay inside the already measured width/height envelope.
+        // #1198 confirms the upright rounded-jar silhouette. Keep the same center and orientation;
+        // the constants above apply only the measured residual width/height envelope correction.
         float[][] ring = {
                 {-0.34f, 0.50f}, { 0.34f, 0.50f},
                 { 0.44f, 0.45f}, { 0.49f, 0.36f},
