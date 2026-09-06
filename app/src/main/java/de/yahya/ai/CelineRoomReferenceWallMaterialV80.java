@@ -55,6 +55,12 @@ import java.util.WeakHashMap;
  * this next bounded candidate keeps all accepted geometry/material factors and disables only the rug
  * replacement normalScale when that standard glTF material parameter is available.
  *
+ * Real Candidate #1259 rejects normalScale as the primary cause as well: normalized row-to-row rug
+ * brightness remains about 2.38 versus reference ~0.69. The next smallest donor-shading variable is
+ * ambient occlusion, so this bounded candidate additionally sets only the rug replacement aoStrength
+ * to zero when the standard glTF material parameter exists. All accepted geometry/TRS/material factors,
+ * source GLB bytes, camera and Celine remain unchanged.
+ *
  * Real Candidate #1251 exposed a detach-order lifecycle defect: the room asset can be released before
  * this material owner receives its view-detach callback. A stored RenderableManager instance handle is
  * therefore not safe to mutate during release. Keep the stable entity id and re-resolve the current
@@ -159,7 +165,7 @@ final class CelineRoomReferenceWallMaterialV80 {
                             + CEILING_RED + "," + CEILING_GREEN + "," + CEILING_BLUE
                             + " · rug#1248=113/88/68 target=152/110/76 base="
                             + RUG_RED + "," + RUG_GREEN + "," + RUG_BLUE
-                            + " donor=isolatedFloor opaque=true solidBaseColorMap=true normalScale=0"
+                            + " donor=isolatedFloor opaque=true solidBaseColorMap=true normalScale=0 aoStrength=0"
                             + " · source GLB/transforms/camera/Celine unchanged");
         } catch (Throwable error) {
             releaseEntry(engine, rug);
@@ -270,6 +276,9 @@ final class CelineRoomReferenceWallMaterialV80 {
                 }
                 if (replacement.getMaterial().hasParameter("normalScale")) {
                     replacement.setParameter("normalScale", 0.0f);
+                }
+                if (replacement.getMaterial().hasParameter("aoStrength")) {
+                    replacement.setParameter("aoStrength", 0.0f);
                 }
                 originals.add(original);
                 replacements.add(replacement);
