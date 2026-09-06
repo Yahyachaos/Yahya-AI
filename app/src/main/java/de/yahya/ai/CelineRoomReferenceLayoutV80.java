@@ -60,9 +60,14 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
+
+    // Real Candidate #1177 leaves the small right-side plant clearly undersized and left of its
+    // reference envelope: current x=0.901971..0.929165 / y=0.458508..0.507479 versus canonical
+    // x=0.934..0.983 / y=0.463..0.522. Preserve yaw and depth; solve only derived screen-anchor X/Y
+    // plus X/Z and Y scale from the measured CALL delta. The 12 source GLBs remain byte-identical.
     private static final Spec SMALL_PLANT =
-            new Spec("room_plant_small", 2.129375f, 0.572656f, 0.355000f,
-                    0.105625f, 0.105625f, 0.105625f, 21.972656f);
+            new Spec("room_plant_small", 2.559239f, 0.512884f, 0.355000f,
+                    0.190322f, 0.127256f, 0.190322f, 21.972656f);
 
     // Real Candidate #1176 visually accepts the exact lounge-chair envelope in HOME and CALL and
     // exposes the floor lamp as the largest remaining clear geometry mismatch. Its current full
