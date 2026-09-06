@@ -75,7 +75,10 @@ final class CelineRoomWindowSheerFillV80 {
         boolean[] sceneAdded = new boolean[]{false, false};
         try {
             material = MaterialInstance.duplicate(source, "v80-window-sheer-fill");
-            set4(material, "baseColorFactor", 0.78f, 0.72f, 0.64f, 1.0f);
+            // Real Candidate #1214 verifies the corrected partition but renders the broad derived
+            // sheers around RGB 115/104/91. The reference reads distinctly warmer through these
+            // panels. Keep geometry fixed and apply one bounded material-only move toward warm cream.
+            set4(material, "baseColorFactor", 0.78f, 0.62f, 0.48f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.96f);
             set1(material, "reflectance", 0.30f);
@@ -112,7 +115,7 @@ final class CelineRoomWindowSheerFillV80 {
                     "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
                             + " y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · real CALL partition refit; outer window/source preserved"
+                            + " · real CALL partition + warm material refit; outer window/source preserved"
                             + " · source GLB/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
