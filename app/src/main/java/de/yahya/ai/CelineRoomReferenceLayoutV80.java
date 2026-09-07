@@ -31,10 +31,11 @@ final class CelineRoomReferenceLayoutV80 {
     // then translate Y by +0.038502 m so the empirical top/bottom response lands at the reference
     // 0.420/0.718 envelope. Keep X frozen because the left edge is clipped at the accepted stage edge
     // and horizontal color segmentation historically over-reads the documented accepted envelope by
-    // a few pixels. Depth, yaw, horizontal/depth scales and immutable source bytes remain frozen.
+    // a few pixels. User-directed facing correction rotates the dresser exactly 180 degrees while
+    // preserving position, scale, depth and immutable source bytes.
     private static final Spec DRESSER =
             new Spec("room_dresser", -2.100289f, 0.670294f, 0.426774f,
-                    0.733027f, 0.932473f, 0.967225f, -92.285156f);
+                    0.733027f, 0.932473f, 0.967225f, 87.714844f);
     private static final Spec LARGE_PLANT =
             new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
@@ -51,25 +52,26 @@ final class CelineRoomReferenceLayoutV80 {
     // y=0.706. The visible vertical span is therefore only about 76.9% of target. Scale Y by the
     // measured 1.301029 response factor and scale translation Y by the same factor; the established
     // y/sy=0.951794 floor-contact invariant is preserved, so only the visible height grows upward.
-    // X/Z, horizontal/depth scales, yaw, source GLB bytes, room shell, camera and Celine remain frozen.
+    // User-directed facing correction straightens the visible front nightstand against the right wall
+    // by moving yaw from 130.195313 to 90 degrees; X/Z, scale and source GLB bytes remain unchanged.
     private static final Spec NIGHTSTAND_FRONT =
             new Spec("room_nightstand_front", 2.046130f, 0.386063f, 0.926459f,
-                    0.212205f, 0.405617f, 0.935485f, 130.195313f);
+                    0.212205f, 0.405617f, 0.935485f, 90.000000f);
     private static final Spec NIGHTSTAND_BACK =
             new Spec("room_nightstand_back", 2.012802f, 0.594386f, -1.419782f,
                     0.374178f, 0.624493f, 0.524375f, 106.699219f);
 
     // Proof #1262 supplies a fresh high-confidence visible CALL raster for the lounge chair:
     // x=0.214567..0.315945 / y=0.366544..0.509225 versus target x=0.217..0.333 /
-    // y=0.368..0.508. Vertical center/height are already close, so freeze Y/Z, local Y/Z scale,
-    // floor contact and yaw. The remaining reliable error is horizontal: center is 0.009744 too far
+    // y=0.368..0.508. Vertical center/height are already close, so freeze Y/Z, local Y/Z scale
+    // and floor contact. The remaining reliable error is horizontal: center is 0.009744 too far
     // left and visible width is 0.101378 versus 0.116 target. The immutable chair mesh is centered on
     // its local X pivot, so widen only local X by the measured 1.144233 raster ratio and move world X
     // +0.078504 m using the prior chair screen-space response as the bounded first-order correction.
-    // This keeps the accepted depth/proportions and avoids another speculative all-axis rescale.
+    // User-directed facing correction flips the chair exactly 180 degrees so it no longer faces the window.
     private static final Spec CHAIR =
             new Spec("room_lounge_chair", -1.643872f, 0.457133f, -2.107537f,
-                    0.495673f, 0.505830f, 0.433192f, 170.375000f);
+                    0.495673f, 0.505830f, 0.433192f, -9.625000f);
     private static final Spec RUG =
             new Spec("room_rug", -0.047270f, 0.012676f, 0.151025f,
                     2.128651f, 1.641016f, 1.269665f, 5.820313f);
