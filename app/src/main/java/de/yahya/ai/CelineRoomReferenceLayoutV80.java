@@ -36,8 +36,11 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec DRESSER =
             new Spec("room_dresser", -2.100289f, 0.670294f, 0.426774f,
                     0.733027f, 0.932473f, 0.967225f, 87.714844f);
+
+    // User visual review found the large plant clipping the left wall. Move only X inward by
+    // 0.347954 m; preserve Y/Z, scale, yaw and source bytes.
     private static final Spec LARGE_PLANT =
-            new Spec("room_plant_large", -2.067954f, 0.977047f, -1.399038f,
+            new Spec("room_plant_large", -1.720000f, 0.977047f, -1.399038f,
                     0.882475f, 1.026340f, 0.882475f, -15.292969f);
     private static final Spec SMALL_PLANT =
             new Spec("room_plant_small", 2.384907f, 0.522728f, 0.355000f,
@@ -52,25 +55,22 @@ final class CelineRoomReferenceLayoutV80 {
     // y=0.706. The visible vertical span is therefore only about 76.9% of target. Scale Y by the
     // measured 1.301029 response factor and scale translation Y by the same factor; the established
     // y/sy=0.951794 floor-contact invariant is preserved, so only the visible height grows upward.
-    // User-directed facing correction straightens the visible front nightstand against the right wall
-    // by moving yaw from 130.195313 to 90 degrees; X/Z, scale and source GLB bytes remain unchanged.
+    // User visual review requires one further +90 degree turn so the drawer/front face points into
+    // the room; X/Z, scale and source GLB bytes remain unchanged.
     private static final Spec NIGHTSTAND_FRONT =
             new Spec("room_nightstand_front", 2.046130f, 0.386063f, 0.926459f,
-                    0.212205f, 0.405617f, 0.935485f, 90.000000f);
+                    0.212205f, 0.405617f, 0.935485f, 180.000000f);
     private static final Spec NIGHTSTAND_BACK =
             new Spec("room_nightstand_back", 2.012802f, 0.594386f, -1.419782f,
                     0.374178f, 0.624493f, 0.524375f, 106.699219f);
 
     // Proof #1262 supplies a fresh high-confidence visible CALL raster for the lounge chair:
     // x=0.214567..0.315945 / y=0.366544..0.509225 versus target x=0.217..0.333 /
-    // y=0.368..0.508. Vertical center/height are already close, so freeze Y/Z, local Y/Z scale
-    // and floor contact. The remaining reliable error is horizontal: center is 0.009744 too far
-    // left and visible width is 0.101378 versus 0.116 target. The immutable chair mesh is centered on
-    // its local X pivot, so widen only local X by the measured 1.144233 raster ratio and move world X
-    // +0.078504 m using the prior chair screen-space response as the bounded first-order correction.
-    // User-directed facing correction flips the chair exactly 180 degrees so it no longer faces the window.
+    // y=0.368..0.508. The user-approved facing correction flips the chair away from the window.
+    // The resulting CALL proof shows the chair intersecting the back wall, so move only Z forward
+    // by 0.387537 m while preserving X/Y, scale, yaw and immutable source bytes.
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -1.643872f, 0.457133f, -2.107537f,
+            new Spec("room_lounge_chair", -1.643872f, 0.457133f, -1.720000f,
                     0.495673f, 0.505830f, 0.433192f, -9.625000f);
     private static final Spec RUG =
             new Spec("room_rug", -0.047270f, 0.012676f, 0.151025f,
