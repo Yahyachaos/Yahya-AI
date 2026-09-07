@@ -6,8 +6,10 @@ import java.util.Locale;
  * Standalone candidate for the eventual app-owned deterministic persona state.
  *
  * <p>This prototype deliberately owns only persona style state. It has no tool,
- * permission, memory, room/avatar, network, or persistence authority. Promote
- * it into app/src only after shared runtime/version ownership is handed off.</p>
+ * permission, memory, room/avatar, network, or persistence authority. The
+ * snapshot/restore methods are only a deterministic seam for a future app-owned
+ * store. Promote this class into app/src only after shared runtime/version
+ * ownership is handed off.</p>
  */
 public final class CelinePersonaMode {
     public enum InputChannel {
@@ -52,6 +54,25 @@ public final class CelinePersonaMode {
         }
     }
 
+    /** Immutable value for a future app-owned persistence adapter. */
+    public static final class State {
+        private final boolean active;
+        private final int intensity;
+
+        private State(boolean active, int intensity) {
+            this.active = active;
+            this.intensity = intensity;
+        }
+
+        public boolean active() {
+            return active;
+        }
+
+        public int intensity() {
+            return intensity;
+        }
+    }
+
     private boolean active;
     private int intensity;
 
@@ -66,6 +87,34 @@ public final class CelinePersonaMode {
 
     public synchronized int intensity() {
         return intensity;
+    }
+
+    public synchronized State snapshot() {
+        return new State(active, intensity);
+    }
+
+    /**
+     * Restore explicit app-owned persisted state without inferring anything from conversation text.
+     * Invalid/corrupt payloads fail closed to normal mode and return false.
+     */
+    public synchronized boolean restorePersistedState(boolean persistedActive, int persistedIntensity) {
+        if (!persistedActive) {
+            if (persistedIntensity != 0) {
+                reset();
+                return false;
+            }
+            reset();
+            return true;
+        }
+
+        if (persistedIntensity < MIN_INTENSITY || persistedIntensity > MAX_INTENSITY) {
+            reset();
+            return false;
+        }
+
+        active = true;
+        intensity = persistedIntensity;
+        return true;
     }
 
     public synchronized void reset() {
