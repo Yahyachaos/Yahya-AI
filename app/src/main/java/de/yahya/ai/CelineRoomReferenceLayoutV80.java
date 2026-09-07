@@ -58,9 +58,18 @@ final class CelineRoomReferenceLayoutV80 {
     private static final Spec NIGHTSTAND_BACK =
             new Spec("room_nightstand_back", 2.012802f, 0.594386f, -1.419782f,
                     0.374178f, 0.624493f, 0.524375f, 106.699219f);
+
+    // Proof #1262 supplies a fresh high-confidence visible CALL raster for the lounge chair:
+    // x=0.214567..0.315945 / y=0.366544..0.509225 versus target x=0.217..0.333 /
+    // y=0.368..0.508. Vertical center/height are already close, so freeze Y/Z, local Y/Z scale,
+    // floor contact and yaw. The remaining reliable error is horizontal: center is 0.009744 too far
+    // left and visible width is 0.101378 versus 0.116 target. The immutable chair mesh is centered on
+    // its local X pivot, so widen only local X by the measured 1.144233 raster ratio and move world X
+    // +0.078504 m using the prior chair screen-space response as the bounded first-order correction.
+    // This keeps the accepted depth/proportions and avoids another speculative all-axis rescale.
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -1.722376f, 0.457133f, -2.107537f,
-                    0.433192f, 0.505830f, 0.433192f, 170.375000f);
+            new Spec("room_lounge_chair", -1.643872f, 0.457133f, -2.107537f,
+                    0.495673f, 0.505830f, 0.433192f, 170.375000f);
     private static final Spec RUG =
             new Spec("room_rug", -0.047270f, 0.012676f, 0.151025f,
                     2.128651f, 1.641016f, 1.269665f, 5.820313f);
@@ -146,6 +155,7 @@ final class CelineRoomReferenceLayoutV80 {
                             + " furniture=13 referenceSolvedAbsoluteTRS"
                             + " windowRasterAware=true"
                             + " dresserRasterAware=true"
+                            + " chairRasterAware=true"
                             + " mirrorFrustumCulling=false"
                             + " mirrorReferenceMaterial=opaqueWallDuplicate"
                             + " sourceGLBsMutated=false"
