@@ -1,0 +1,144 @@
+{
+  "android_build_run": 34077391574,
+  "apk_sha256": "139ff110c1d1a5b2ddaba07f4d08de3f0d14625d41a3394f22e7692dfd320fe6",
+  "capture": {
+    "call_stage_px": {
+      "bottom": 1279,
+      "height": 813,
+      "left": 32,
+      "right": 1048,
+      "top": 466,
+      "width": 1016
+    },
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "source": "real-candidate-call.png",
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION"
+  },
+  "head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
+  "manual_visual_verdict": "WHOLE_ROOM_FAIL__EXPANDED_VISIBLE_RASTER_BASELINE; LEFT_WALL_ART_PAIR_IS_LARGEST_RELIABLY_MEASURED_NON_STOP_LOSS_RESIDUAL",
+  "measurement_method": {
+    "normalization": "x / 1016, y / 813",
+    "proof_1285_new_measurements": "right/left wall-art envelopes and foreground candle were measured from the actual CALL stage using unambiguous connected visible-raster bounds",
+    "runtime_equivalent_carry_forward": "the seven existing #1270 object measurements are carried unchanged because Proof #1285 uses the exact same runtime fingerprint and runtime-equivalent APK as #1270",
+    "uncertain_or_occluded_objects": "excluded rather than guessed",
+    "expanded_baseline_rule": "this file expands the scored object set and therefore establishes a new baseline; its total score must not be called IMPROVED/REGRESSED against the seven-object #1270 total"
+  },
+  "measurements": {
+    "room_dresser": {
+      "bottom": 0.7183271832718328,
+      "center_x": 0.09153543307086615,
+      "center_y": 0.568880688806888,
+      "height": 0.29889298892988936,
+      "left": 0.0,
+      "right": 0.1830708661417323,
+      "top": 0.4194341943419434,
+      "width": 0.1830708661417323
+    },
+    "room_lounge_chair": {
+      "bottom": 0.5092250922509225,
+      "center_x": 0.2780511811023622,
+      "center_y": 0.4378843788437884,
+      "height": 0.14268142681426815,
+      "left": 0.22145669291338582,
+      "right": 0.3346456692913386,
+      "top": 0.36654366543665434,
+      "width": 0.11318897637795278
+    },
+    "room_plant_large": {
+      "bottom": 0.5350553505535055,
+      "center_x": 0.20669291338582677,
+      "center_y": 0.37023370233702335,
+      "height": 0.3296432964329643,
+      "left": 0.1594488188976378,
+      "right": 0.25393700787401574,
+      "top": 0.2054120541205412,
+      "width": 0.09448818897637795
+    },
+    "room_round_mirror": {
+      "bottom": 0.33456334563345635,
+      "center_x": 0.03887795275590551,
+      "center_y": 0.21586715867158673,
+      "height": 0.23739237392373924,
+      "left": 0.0,
+      "right": 0.07775590551181102,
+      "top": 0.0971709717097171,
+      "width": 0.07775590551181102
+    },
+    "room_rug": {
+      "bottom": 0.7822878228782287,
+      "center_x": 0.53248031496063,
+      "center_y": 0.6611316113161132,
+      "height": 0.24231242312423118,
+      "left": 0.2076771653543307,
+      "right": 0.8572834645669292,
+      "top": 0.5399753997539976,
+      "width": 0.6496062992125985
+    },
+    "room_wall_shelf_books": {
+      "bottom": 0.24354243542435425,
+      "center_x": 0.6609251968503937,
+      "center_y": 0.2097170971709717,
+      "height": 0.06765067650676507,
+      "left": 0.609251968503937,
+      "right": 0.7125984251968503,
+      "top": 0.17589175891758918,
+      "width": 0.10334645669291331
+    },
+    "room_window_drapes": {
+      "bottom": 0.4797047970479705,
+      "center_x": 0.4020669291338583,
+      "center_y": 0.2829043290432903,
+      "height": 0.3936039360393604,
+      "left": 0.21062992125984253,
+      "right": 0.593503937007874,
+      "top": 0.08610086100861008,
+      "width": 0.3828740157480315
+    },
+    "room_reference_left_wall_art_pair": {
+      "bottom": 0.2656826568265683,
+      "center_x": 0.12844488188976378,
+      "center_y": 0.2078720787207872,
+      "height": 0.11562115621156218,
+      "left": 0.10334645669291338,
+      "right": 0.15354330708661418,
+      "top": 0.15006150061500614,
+      "width": 0.050196850393700795
+    },
+    "room_reference_right_wall_art": {
+      "bottom": 0.2829028290282903,
+      "center_x": 0.9104330708661417,
+      "center_y": 0.1789667896678967,
+      "height": 0.20787207872078723,
+      "left": 0.859251968503937,
+      "right": 0.9616141732283464,
+      "top": 0.07503075030750307,
+      "width": 0.10236220472440949
+    },
+    "room_reference_foreground_candle": {
+      "bottom": 0.932349323493235,
+      "center_x": 0.08366141732283465,
+      "center_y": 0.8419434194341944,
+      "height": 0.18081180811808117,
+      "left": 0.04133858267716536,
+      "right": 0.12598425196850394,
+      "top": 0.7515375153751538,
+      "width": 0.08464566929133858
+    }
+  },
+  "proof": 1285,
+  "proof_run": 34085168920,
+  "runtime_fingerprint": "71cb31332b4b3bc66325c6fa7e030b9132bc69e58c376cacd77cf09dc59d56d8",
+  "schema": "celine-room-progress-measurements/v1",
+  "source_measurement_baseline": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1270.json",
+  "excluded_visible_targets": {
+    "room_bed": "partly occluded by Celine; full visible envelope is not reliable enough for this expansion",
+    "room_foreground_table": "back edge is perspective-slanted and partly occluded; a stable full bbox was not established",
+    "room_reference_foreground_laptop": "reference authority is an exact quadrilateral; bbox scoring would be a false substitute",
+    "room_reference_foreground_plant": "lower pot/envelope is occluded by the laptop; foliage-only bounds would under-measure the target",
+    "room_floor_lamp": "narrow/partly blended silhouette was not re-measured reliably in #1285",
+    "room_nightstand_rear": "bed occlusion makes full cabinet bounds unreliable",
+    "room_nightstand_front": "right-edge clipping/bed overlap makes full envelope unreliable",
+    "room_plant_small": "small/low-confidence silhouette is blended with nightstand/bed"
+  }
+}
