@@ -1,0 +1,67 @@
+{
+  "schema": "celine-room-runtime-candidate-prediction/v1",
+  "workstream": "ROOM/SCENE",
+  "source_head": "d7abb38183d703426ba4173ab29c2a3cc4626c2b",
+  "accepted_runtime_code_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
+  "accepted_runtime_fingerprint": "71cb31332b4b3bc66325c6fa7e030b9132bc69e58c376cacd77cf09dc59d56d8",
+  "baseline_proof": {
+    "real_candidate": 1285,
+    "run_id": 34085168920,
+    "measurement_file": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1285_EXPANDED.json"
+  },
+  "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+  "scoreboard_tool": "tools/celine-room-scoreboard.py",
+  "scoreboard_policy": "ci/evidence/CELINE_ROOM_PROGRESS_SCOREBOARD_POLICY.md",
+  "current_target_recompute": {
+    "objects_scored": 10,
+    "weight_sum": 11.0,
+    "total_score": 0.00454316695617541,
+    "minimum_improvement": 0.002
+  },
+  "rug_only_bound": {
+    "object": "room_rug",
+    "raw_score": 0.01278934205718134,
+    "weight": 1.2,
+    "weighted_score": 0.01534721046861761,
+    "maximum_possible_total_score_reduction_if_rug_scored_perfectly": 0.00139520095169251,
+    "can_meet_minimum_improvement_alone": false,
+    "shortfall_to_minimum": 0.00060479904830749
+  },
+  "root_cause_read": {
+    "rejected_smooth_surface_strategy": "A derived smooth top surface can occlude pile relief only if the immutable source room_rug renderable is also removed from visible scene ownership. The previous smooth overlay left the high-relief source pattern visible beneath/around it.",
+    "source_hiding_replacement_is_causally_plausible_for_relief": true,
+    "prediction_gate_problem": "If the replacement preserves the currently accepted visible rug envelope as required by the handoff, the scoreboard envelope error cannot materially improve. Even the impossible best case of making room_rug score exactly zero improves the whole-scene score by only 0.0013952, below the mandatory 0.002 gate.",
+    "immutable_source_glb_bytes_changed": false,
+    "accepted_source_trs_changed": false,
+    "camera_changed": false,
+    "celine_changed": false,
+    "anchors_changed": false
+  },
+  "rejected_before_build": {
+    "candidate": "rug-only source-renderable hide + smooth derived replacement",
+    "decision": "REJECT_BEFORE_BUILD",
+    "reason": "Cannot satisfy the mandatory predicted corrected-expanded score reduction > 0.002, even under a perfect rug-only scoring bound.",
+    "android_build_required": false,
+    "real_home_call_proof_required": false
+  },
+  "known_positive_1295_nonplant_deltas": {
+    "room_window_drapes_total_score_improvement": 0.00036076108379416,
+    "room_lounge_chair_total_score_improvement": 0.00020827274316773844,
+    "room_wall_shelf_books_total_score_improvement": 0.00029869309068173534,
+    "room_reference_right_wall_art_total_score_improvement": 0.00017159921376189307,
+    "room_reference_foreground_candle_total_score_improvement": 0.00019831835650819884,
+    "combined_total_score_improvement": 0.0012376444879137258,
+    "note": "These are like-for-like measured #1285 -> #1295 improvements against the current targets. They were rolled back only because the complete #1295 batch was FLAT and the large-plant strategy regressed."
+  },
+  "next_candidate_requirement": {
+    "decision": "MOVE_OFF_RUG_ONLY_STRATEGY",
+    "required": "A genuinely new causal batch must have a predicted corrected-expanded total-score reduction > 0.002 with margin before any Android build. Do not reuse either rejected large-plant transform strategy. Prefer extracting only independently measured positive #1295 residual corrections and pairing them with one new root-cause correction whose predicted contribution provides the missing margin, while preserving room shell, camera/FOV, Celine, anchors/navigation and immutable source GLBs.",
+    "forbidden": [
+      "another rug-only build",
+      "another room_plant_large X/SX transform iteration",
+      "another room_plant_large X+yaw transform iteration",
+      "shared Core/Persona files",
+      "final merge/release"
+    ]
+  }
+}
