@@ -1,5 +1,5 @@
 {
-  "schema": "celine-adult-persona-acceptance/v1",
+  "schema": "celine-adult-persona-acceptance/v2",
   "issue": 112,
   "work_order": "ci/work-orders/CELINE_ADULT_PERSONA_MODE.md",
   "default_state": {
@@ -12,7 +12,9 @@
     "substring_activation_forbidden": true,
     "model_or_tool_output_activation_forbidden": true,
     "normal_mode_prompt_contribution_must_be_empty": true,
-    "permission_policy_must_not_change": true
+    "permission_policy_must_not_change": true,
+    "persisted_state_must_be_explicit": true,
+    "corrupt_persisted_state_must_fail_closed": true
   },
   "cases": [
     {
@@ -58,6 +60,13 @@
       "initial": {"active": true, "intensity": 2},
       "input": "Normalmodus",
       "expected": {"active": false, "intensity": 0, "command_consumed": true}
+    },
+    {
+      "id": "deactivate-removes-prompt-next-request",
+      "channel": "direct_user",
+      "initial": {"active": true, "intensity": 3},
+      "input": "Nutte aus",
+      "expected": {"active": false, "intensity": 0, "prompt_contribution": ""}
     },
     {
       "id": "no-substring-activation",
@@ -114,6 +123,35 @@
         "must_preserve_privacy_and_memory_policy": true,
         "must_preserve_factual_honesty": true
       }
+    },
+    {
+      "id": "prompt-varies-by-intensity",
+      "operation": "prompt_contribution_compare",
+      "expected": {"intensity_1_2_3_are_distinct": true}
+    },
+    {
+      "id": "persist-roundtrip-active",
+      "operation": "snapshot_restore",
+      "initial": {"active": true, "intensity": 2},
+      "expected": {"restore_accepted": true, "active": true, "intensity": 2}
+    },
+    {
+      "id": "persist-roundtrip-inactive",
+      "operation": "restore_persisted_state",
+      "persisted": {"active": false, "intensity": 0},
+      "expected": {"restore_accepted": true, "active": false, "intensity": 0}
+    },
+    {
+      "id": "persist-corrupt-active-fails-closed",
+      "operation": "restore_persisted_state",
+      "persisted": {"active": true, "intensity": 9},
+      "expected": {"restore_accepted": false, "active": false, "intensity": 0}
+    },
+    {
+      "id": "persist-corrupt-inactive-fails-closed",
+      "operation": "restore_persisted_state",
+      "persisted": {"active": false, "intensity": 2},
+      "expected": {"restore_accepted": false, "active": false, "intensity": 0}
     }
   ]
 }
