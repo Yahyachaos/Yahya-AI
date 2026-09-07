@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-09-07",
+  "workstream": "ROOM/SCENE",
+  "reference_authority": {
+    "path": "/Refernzbild.png",
+    "blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793"
+  },
+  "causal_witness": {
+    "commit_sha": "c6b0313ccfb7af528be0a0b32103c80f35a59457",
+    "purpose": "isolate the missing warm under-shelf wall pool and authorize exactly one bounded room-local runtime candidate"
+  },
+  "accepted_baseline": {
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "geometry_scoreboard_total": 0.004543166956175412
+  },
+  "candidate": {
+    "runtime_commit": "23346cf88b9051d6eb773b8c7c910a8c4abb9ead",
+    "runtime_fingerprint": "10e33fe7eeb9f42c98a06b1a9c97ede393955738bef489afc313086229670ac5",
+    "scope": "one focused warm shelf underlight only; globals, shell, camera/FOV, furniture TRS, materials, Celine and source GLBs unchanged",
+    "android_build": {
+      "number": 1399,
+      "run_id": 34147839671,
+      "result": "PASS",
+      "apk_artifact_id": 10028337407,
+      "apk_digest": "sha256:c368c3644f0698d3feedc49820ac867940186a2849bdb3fa4cbac0e0339d7858"
+    },
+    "real_candidate_proof": {
+      "number": 1353,
+      "run_id": 34147839652,
+      "room_lifecycle_result": "PASS",
+      "sequence": "HOME -> actual CALL -> HOME-return in one process",
+      "evidence_artifact_id": 10028491889,
+      "evidence_digest": "sha256:7a60da80288fb5ed172f05ea8fe5b508cdf6498857c012efdfcf3bb794b62cd9",
+      "workflow_terminal_note": "overall job later fails only on the known unrelated protected legacy zoom assertion after the room proof; this does not supply a room visual PASS by itself and does not invalidate the captured room evidence"
+    }
+  },
+  "under_shelf_roi": {
+    "aligned_call_stage_full_screen": [32, 466, 1048, 1279],
+    "stage_relative_roi": [599, 199, 655, 260],
+    "reference": {
+      "rgb_median": [138, 97, 56],
+      "luma_median": 102.51,
+      "luma_p90": 110.14
+    },
+    "baseline": {
+      "rgb_median": [120, 82, 49],
+      "luma_median": 87.70,
+      "luma_p90": 87.70,
+      "median_error": 14.81,
+      "p90_error": 22.44
+    },
+    "candidate": {
+      "rgb_median": [121, 83, 49],
+      "luma_median": 88.624,
+      "luma_p90": 89.8366,
+      "median_error": 13.886,
+      "p90_error": 20.3034,
+      "median_error_improvement_percent": 6.2390,
+      "p90_error_improvement_percent": 9.5214
+    },
+    "required_error_improvement_percent": 20.0,
+    "nominal_minimum_no_overshoot": {
+      "luma_median": 90.66,
+      "luma_p90": 92.19
+    },
+    "quantitative_result": "FAIL"
+  },
+  "manual_visual_result": {
+    "result": "FAIL",
+    "observations": [
+      "real scene, Celine, shelf/books/window/bed and HOME/CALL framing remained intact",
+      "no blank/stale/wrong-scene proof and no gross washout was observed",
+      "the target warm under-shelf pool was not materially visible versus the committed witness/reference target"
+    ]
+  },
+  "decision": "REJECTED",
+  "stop_loss": "Do not stack further parameter tweaks on this focused shelf-spot strategy. Derive a different room-local causal owner before another runtime build.",
+  "revert": {
+    "commit_sha": "cc3b97c9de0f5b80455a2db44bd7f1da87caae93",
+    "restored_content_blob_sha": "4806b031810c6c7ebddedee7be54faa1e7f0fa29",
+    "result": "accepted pre-candidate lighting content restored"
+  },
+  "scoreboard": {
+    "applicability": "N/A appearance-only candidate; geometry/layout/camera unchanged",
+    "accepted_total": 0.004543166956175412,
+    "decision": "UNCHANGED"
+  },
+  "changed": "candidate shelf underlight was tested, rejected, and reverted; this evidence record was added",
+  "not_changed": "room geometry, camera/FOV, furniture transforms, global key/fill, existing accepted material values, Celine identity/rig, Core workstream, source GLBs, merge/release state",
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR/workflows, reuse the restored accepted runtime fingerprint when confirmed, and without another runtime build derive one different room-local causal owner for the under-shelf residual (or the largest remaining non-stop-loss room appearance delta) from committed proof/reference evidence before authorizing any runtime write."
+}
