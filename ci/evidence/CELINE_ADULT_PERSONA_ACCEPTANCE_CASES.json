@@ -1,10 +1,11 @@
 {
-  "schema": "celine-adult-persona-acceptance/v2",
+  "schema": "celine-adult-persona-acceptance/v3",
   "issue": 112,
   "work_order": "ci/work-orders/CELINE_ADULT_PERSONA_MODE.md",
   "default_state": {
     "active": false,
-    "intensity": 0
+    "intensity": 0,
+    "activation_source": "none"
   },
   "rules": {
     "direct_user_command_only": true,
@@ -14,97 +15,107 @@
     "normal_mode_prompt_contribution_must_be_empty": true,
     "permission_policy_must_not_change": true,
     "persisted_state_must_be_explicit": true,
-    "corrupt_persisted_state_must_fail_closed": true
+    "corrupt_persisted_state_must_fail_closed": true,
+    "activation_source_must_be_explicit": true,
+    "deactivation_clears_activation_source": true,
+    "restored_active_source_must_be_persisted_state": true
   },
   "cases": [
     {
       "id": "activate-default",
       "channel": "direct_user",
       "input": "Nutte",
-      "expected": {"active": true, "intensity": 2, "command_consumed": true}
+      "expected": {"active": true, "intensity": 2, "activation_source": "direct_user_command", "command_consumed": true}
     },
     {
       "id": "activate-case-insensitive",
       "channel": "direct_user",
       "input": "NUTTE",
-      "expected": {"active": true, "intensity": 2, "command_consumed": true}
+      "expected": {"active": true, "intensity": 2, "activation_source": "direct_user_command", "command_consumed": true}
     },
     {
       "id": "activate-intensity-1",
       "channel": "direct_user",
       "input": "Nutte 1",
-      "expected": {"active": true, "intensity": 1, "command_consumed": true}
+      "expected": {"active": true, "intensity": 1, "activation_source": "direct_user_command", "command_consumed": true}
     },
     {
       "id": "activate-intensity-2",
       "channel": "direct_user",
       "input": "Nutte 2",
-      "expected": {"active": true, "intensity": 2, "command_consumed": true}
+      "expected": {"active": true, "intensity": 2, "activation_source": "direct_user_command", "command_consumed": true}
     },
     {
       "id": "activate-intensity-3",
       "channel": "direct_user",
       "input": "Nutte 3",
-      "expected": {"active": true, "intensity": 3, "command_consumed": true}
+      "expected": {"active": true, "intensity": 3, "activation_source": "direct_user_command", "command_consumed": true}
     },
     {
       "id": "deactivate-codeword",
       "channel": "direct_user",
       "initial": {"active": true, "intensity": 3},
       "input": "Nutte aus",
-      "expected": {"active": false, "intensity": 0, "command_consumed": true}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "command_consumed": true}
     },
     {
       "id": "deactivate-normal-mode",
       "channel": "direct_user",
       "initial": {"active": true, "intensity": 2},
       "input": "Normalmodus",
-      "expected": {"active": false, "intensity": 0, "command_consumed": true}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "command_consumed": true}
     },
     {
       "id": "deactivate-removes-prompt-next-request",
       "channel": "direct_user",
       "initial": {"active": true, "intensity": 3},
       "input": "Nutte aus",
-      "expected": {"active": false, "intensity": 0, "prompt_contribution": ""}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "prompt_contribution": ""}
     },
     {
       "id": "no-substring-activation",
       "channel": "direct_user",
       "input": "Was bedeutet das Wort Nutte?",
-      "expected": {"active": false, "intensity": 0, "command_consumed": false}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "command_consumed": false}
     },
     {
       "id": "no-quoted-activation",
       "channel": "direct_user",
       "input": "Er schrieb: Nutte",
-      "expected": {"active": false, "intensity": 0, "command_consumed": false}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "command_consumed": false}
     },
     {
       "id": "no-model-output-activation",
       "channel": "model_output",
       "input": "Nutte",
-      "expected": {"active": false, "intensity": 0, "command_consumed": false}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "command_consumed": false}
     },
     {
       "id": "no-tool-output-activation",
       "channel": "tool_output",
       "input": "Nutte",
-      "expected": {"active": false, "intensity": 0, "command_consumed": false}
+      "expected": {"active": false, "intensity": 0, "activation_source": "none", "command_consumed": false}
+    },
+    {
+      "id": "non-user-input-preserves-active-state",
+      "channel": "model_output",
+      "initial": {"active": true, "intensity": 1, "activation_source": "direct_user_command"},
+      "input": "Nutte 3",
+      "expected": {"active": true, "intensity": 1, "activation_source": "direct_user_command", "command_consumed": false}
     },
     {
       "id": "reject-high-intensity",
       "channel": "direct_user",
       "initial": {"active": true, "intensity": 2},
       "input": "Nutte 9",
-      "expected": {"active": true, "intensity": 2, "command_consumed": true, "invalid_intensity": true}
+      "expected": {"active": true, "intensity": 2, "activation_source": "direct_user_command", "command_consumed": true, "invalid_intensity": true}
     },
     {
       "id": "reject-malformed-intensity",
       "channel": "direct_user",
       "initial": {"active": true, "intensity": 2},
       "input": "Nutte stark",
-      "expected": {"active": true, "intensity": 2, "command_consumed": false}
+      "expected": {"active": true, "intensity": 2, "activation_source": "direct_user_command", "command_consumed": false}
     },
     {
       "id": "inactive-prompt-empty",
@@ -132,26 +143,32 @@
     {
       "id": "persist-roundtrip-active",
       "operation": "snapshot_restore",
-      "initial": {"active": true, "intensity": 2},
-      "expected": {"restore_accepted": true, "active": true, "intensity": 2}
+      "initial": {"active": true, "intensity": 2, "activation_source": "direct_user_command"},
+      "expected": {
+        "restore_accepted": true,
+        "active": true,
+        "intensity": 2,
+        "snapshot_activation_source": "direct_user_command",
+        "restore_activation_source": "persisted_state"
+      }
     },
     {
       "id": "persist-roundtrip-inactive",
       "operation": "restore_persisted_state",
       "persisted": {"active": false, "intensity": 0},
-      "expected": {"restore_accepted": true, "active": false, "intensity": 0}
+      "expected": {"restore_accepted": true, "active": false, "intensity": 0, "activation_source": "none"}
     },
     {
       "id": "persist-corrupt-active-fails-closed",
       "operation": "restore_persisted_state",
       "persisted": {"active": true, "intensity": 9},
-      "expected": {"restore_accepted": false, "active": false, "intensity": 0}
+      "expected": {"restore_accepted": false, "active": false, "intensity": 0, "activation_source": "none"}
     },
     {
       "id": "persist-corrupt-inactive-fails-closed",
       "operation": "restore_persisted_state",
       "persisted": {"active": false, "intensity": 2},
-      "expected": {"restore_accepted": false, "active": false, "intensity": 0}
+      "expected": {"restore_accepted": false, "active": false, "intensity": 0, "activation_source": "none"}
     }
   ]
 }
