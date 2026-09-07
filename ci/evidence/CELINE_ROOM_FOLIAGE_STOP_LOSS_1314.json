@@ -1,0 +1,49 @@
+{
+  "schema": "celine-room-stop-loss/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "baseline_proof": 1285,
+    "first_foliage_proof": 1307,
+    "corrected_foliage_proof": 1314,
+    "corrected_head": "60ac341714e5f67a59cf378f31700a90b3e09626"
+  },
+  "causal_result": {
+    "backface_diagnosis_confirmed": true,
+    "proof": "Reversing the fan winding made the previously invisible generated foliage visibly render in the actual CALL proof.",
+    "remaining_failure": "The visible generated patch is flat/dark and fully contained inside the accepted source-plant silhouette, so it does not create the intended reference-matching left foliage envelope."
+  },
+  "pixel_evidence": {
+    "stage_px": {"width": 1016, "height": 813},
+    "changed_union_px": {"left": 197, "right": 227, "top": 221, "bottom": 378},
+    "dominant_component_px": {"left": 197, "right": 227, "top": 271, "bottom": 378, "pixels": 1388},
+    "changed_union_normalized": {"left": 0.1938976377952756, "right": 0.2234251968503937, "top": 0.27183271832718325, "bottom": 0.46494464944649444},
+    "accepted_source_plant_bbox_px": {"left": 162, "right": 258, "top": 167, "bottom": 435},
+    "accepted_source_plant_bbox_normalized": {"left": 0.1594488188976378, "right": 0.25393700787401574, "top": 0.2054120541205412, "bottom": 0.5350553505535055},
+    "contained_within_source_bbox": true,
+    "new_envelope_extension": false
+  },
+  "score_gate": {
+    "baseline_total_score": 0.004543166956175412,
+    "candidate_total_score": 0.003139360755013663,
+    "whole_scene_improvement": 0.0014038062011617488,
+    "minimum_required": 0.002,
+    "decision": "FLAT_REJECT"
+  },
+  "manual_visual_gate": "FAIL__visible generated foliage is an unnatural flat patch and does not improve the source silhouette toward the reference",
+  "family_status": "STOP_LOSS_FINAL__DERIVED_OR_PROCEDURAL_FOLIAGE",
+  "prohibited_retries": [
+    "same inverse-projected foliage plane with further placement tweaks",
+    "more procedural flat foliage overlays",
+    "plant X/SX transform family from Proof #1274",
+    "plant X/yaw transform family from Proof #1295"
+  ],
+  "protected_state": {
+    "source_glb_bytes_accepted_change": false,
+    "source_plant_trs_accepted_change": false,
+    "room_shell_change": false,
+    "camera_fov_change": false,
+    "celine_identity_or_rig_change": false,
+    "anchors_navigation_change": false
+  },
+  "next_rule": "Revert to exact accepted runtime and expand reliable read-only geometry measurements before choosing a genuinely different causal family."
+}
