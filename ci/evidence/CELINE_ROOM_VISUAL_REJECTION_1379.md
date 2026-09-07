@@ -4,7 +4,7 @@ Status: **VISUAL FAIL / REJECTED AS CONTINUATION BASELINE**
 
 Authority: `/Refernzbild.png` and the user's direct visual verdict on the real in-app CALL proof.
 
-Runtime head: `b209b796dc032b680c50caa4cb2db11253cbc4f0`
+Rejected runtime head: `b209b796dc032b680c50caa4cb2db11253cbc4f0`
 
 Build: Android Build #1423 — SUCCESS
 
