@@ -1,6 +1,6 @@
 # Celine Adult Persona Mode — opt-in contract
 
-Status: **CONTRACT READY — runtime wiring intentionally deferred until shared integration ownership is available**
+Status: **PROTOTYPE READY — runtime promotion blocked until shared runtime/version ownership is explicitly handed off**
 
 Issue: `#112` — Product requirement: opt-in adult flirt mode for Celine.
 
@@ -122,16 +122,32 @@ Required cases:
 12. deactivation removes the contribution on the very next request;
 13. normal conversation/context/memory tests remain unchanged while inactive.
 
+## Current ownership-safe prototype checkpoint
+
+The pure policy is now implemented as an **unwired prototype** at:
+
+- `ci/prototypes/CelinePersonaMode.java`
+- deterministic runner: `ci/celine_persona_mode_contract_test.py`
+
+The prototype implements direct-user-only command parsing, default intensity `2`, bounded intensities `1..3`, deterministic deactivation, invalid numeric intensity rejection while preserving the last valid state, inactive empty prompt contribution, and an active style contribution that explicitly preserves identity, permission policy, privacy/memory boundaries and factual honesty.
+
+The deterministic pure-Java harness passes locally with `javac`/`java` and covers the canonical acceptance-vector IDs in `ci/evidence/CELINE_ADULT_PERSONA_ACCEPTANCE_CASES.json`.
+
+A bounded promotion attempt placed the same class under `app/src/**` at head `52930f417bfe03d6d8b66c0062fc6468bfbd413f`. Android Build #1333 / run `34073197361` correctly stopped **before compilation** at the repository version guard: `versionCode must increase: base=80 head=80`. Because `app/build.gradle` / version metadata are protected shared surfaces and PR #111 actively changes that file, this Core workstream did not bypass the guard or race the room worker. The temporary `app/src` file was immediately reverted at `48575901ab6cc5a11b73bd74ead29da7fee10a08`.
+
+Current final diff therefore has **no `app/src/**` runtime change**. Android Build #1336 / run `34073320019` completed SUCCESS for scope classification with build/emulator/publish correctly skipped.
+
 ## Validation fast path
 
-Contract/docs-only changes:
+Contract/prototype/docs-only changes:
 
 - no Android APK build.
 
-When the standalone runtime persona policy is later added:
+When the standalone runtime persona policy is promoted later:
 
-- run its smallest deterministic contract test first;
-- because `app/src/**` changes the runtime fingerprint, run exactly one required Android build for that coherent persona-policy batch;
+- run `python3 ci/celine_persona_mode_contract_test.py` first;
+- because `app/src/**` changes the runtime fingerprint, the same coordinated ownership window must also satisfy the repository's required versionCode policy;
+- run exactly one required Android build for that coherent persona-policy batch;
 - no room/avatar/video proof unless integration actually changes those surfaces.
 
 When central app wiring/persistence is later integrated:
@@ -143,13 +159,13 @@ When central app wiring/persistence is later integrated:
 
 ## Current blocker
 
-No product-design blocker exists. **Runtime wiring is blocked by ownership/integration state:** the currently useful cognitive runtime lives on PR `#111`, while the room worker owns that active branch and central/shared app integration surfaces. Creating a competing write to `MainActivity`, version metadata, queue, or PR `#111` would violate the controlled-parallel rules.
+No product-design blocker exists. **Runtime promotion is blocked by shared ownership and the repository version gate.** Any `app/src/**` runtime change on this PR requires a higher `versionCode`, but `app/build.gradle` / version metadata are protected shared surfaces and are also changed by active room PR `#111`. Central `MainActivity`/Cognitive-OS wiring is likewise shared. This workstream must not race either surface.
 
-This docs-only contract therefore deliberately advances the requirement without racing the room worker or creating stale runtime evidence.
+The ownership-safe prototype deliberately advances and tests the policy without weakening CI or creating conflicting runtime evidence.
 
 ## exact_next_action
 
-Fresh-reconcile live `main`, PR `#111`, all active workflows and this issue/workstream. Once an explicit non-overlapping runtime ownership window exists, implement the standalone pure persona-state/policy class and deterministic acceptance vectors **without touching central app wiring**, then perform the smallest required runtime build. Central `MainActivity`/persistence wiring remains a later serialized integration step after ownership handoff.
+Fresh-reconcile live `main`, PR `#111`, active workflows and PR `#113`. Once an explicit shared runtime/version ownership handoff exists, promote the already-tested `ci/prototypes/CelinePersonaMode.java` into `app/src/main/java/de/yahya/ai/CelinePersonaMode.java`, satisfy the required coordinated versionCode policy without overwriting newer room/integration state, run `python3 ci/celine_persona_mode_contract_test.py`, then run exactly one Android build. Central `MainActivity`/persistence wiring remains a later serialized integration step unless that same handoff explicitly includes it.
 
 ## Final-app barrier
 
