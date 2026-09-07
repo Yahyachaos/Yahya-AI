@@ -16,13 +16,14 @@
     "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION"
   },
   "head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
-  "manual_visual_verdict": "WHOLE_ROOM_FAIL__EXPANDED_VISIBLE_RASTER_BASELINE; LEFT_WALL_ART_PAIR_IS_LARGEST_RELIABLY_MEASURED_NON_STOP_LOSS_RESIDUAL",
+  "manual_visual_verdict": "WHOLE_ROOM_FAIL__EXPANDED_VISIBLE_RASTER_BASELINE; RUG_STRATEGY_STOP_LOSS; PLANT_IS_LARGEST_NON_STOP_LOSS_RESIDUAL_BUT_PLANT_ONLY_CANNOT_MEET_MINIMUM_IMPROVEMENT",
   "measurement_method": {
     "normalization": "x / 1016, y / 813",
     "proof_1285_new_measurements": "right/left wall-art envelopes and foreground candle were measured from the actual CALL stage using unambiguous connected visible-raster bounds",
     "runtime_equivalent_carry_forward": "the seven existing #1270 object measurements are carried unchanged because Proof #1285 uses the exact same runtime fingerprint and runtime-equivalent APK as #1270",
     "uncertain_or_occluded_objects": "excluded rather than guessed",
-    "expanded_baseline_rule": "this file expands the scored object set and therefore establishes a new baseline; its total score must not be called IMPROVED/REGRESSED against the seven-object #1270 total"
+    "expanded_baseline_rule": "this file expands the scored object set and therefore establishes a new baseline; its total score must not be called IMPROVED/REGRESSED against the seven-object #1270 total",
+    "reference_target_correction": "room_reference_left_wall_art_pair uses direct visible-frame bounds x=0.103..0.155/y=0.150..0.271; older bottom=0.334 over-read overlapping plant foliage"
   },
   "measurements": {
     "room_dresser": {
