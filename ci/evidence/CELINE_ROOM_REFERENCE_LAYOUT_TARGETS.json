@@ -82,10 +82,10 @@
       "notes": "Large framed artwork on right wall; currently missing."
     },
     "room_reference_left_wall_art_pair": {
-      "left": 0.103, "right": 0.155, "top": 0.145, "bottom": 0.334,
-      "center_x": 0.129, "center_y": 0.240, "width": 0.052, "height": 0.189,
+      "left": 0.103, "right": 0.155, "top": 0.150, "bottom": 0.271,
+      "center_x": 0.129, "center_y": 0.2105, "width": 0.052, "height": 0.121,
       "confidence": "medium",
-      "notes": "Combined visible envelope of the two narrow framed prints on the left wall; currently missing. Split into per-frame measurements before final detail acceptance."
+      "notes": "Combined visible envelope of the two narrow framed prints on the left wall. Direct reference re-measurement excludes overlapping plant foliage: the older bottom=0.334 coarse bbox over-read plant occlusion. Reliable visible frame edges end around y=0.271. Split into per-frame measurements before final detail acceptance."
     },
     "room_round_mirror": {
       "left": 0.000, "right": 0.078, "top": 0.095, "bottom": 0.337,
