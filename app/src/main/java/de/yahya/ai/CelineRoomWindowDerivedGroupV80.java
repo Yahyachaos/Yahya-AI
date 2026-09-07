@@ -90,9 +90,15 @@ final class CelineRoomWindowDerivedGroupV80 {
         // wall. Keep that material correction in the same already-established room post-pass, but let
         // its own owner duplicate only the right-wall material so no shared shell donor is mutated.
         CelineRoomReferenceWallMaterialV80.apply(view, engine);
+        // #1259/#1262 prove the remaining rug banding is not controlled by normalScale/aoStrength.
+        // Add the bounded derived smooth surface only after the isolated rug material is installed.
+        CelineRoomReferenceRugSurfaceV80.apply(view, engine);
     }
 
     static void release(Celine3DView view) {
+        // The derived surface duplicates the isolated rug material, so destroy it before that owner's
+        // material instances/solid texture are released.
+        CelineRoomReferenceRugSurfaceV80.release(view);
         CelineRoomReferenceWallMaterialV80.release(view);
         CelineRoomForegroundPlantV80.release(view);
         CelineRoomForegroundLaptopV80.release(view);
