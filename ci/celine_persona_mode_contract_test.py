@@ -26,6 +26,7 @@ REQUIRED_CASE_IDS = {
     "activate-intensity-3",
     "deactivate-codeword",
     "deactivate-normal-mode",
+    "deactivate-removes-prompt-next-request",
     "no-substring-activation",
     "no-quoted-activation",
     "no-model-output-activation",
@@ -34,6 +35,11 @@ REQUIRED_CASE_IDS = {
     "reject-malformed-intensity",
     "inactive-prompt-empty",
     "active-prompt-bounded",
+    "prompt-varies-by-intensity",
+    "persist-roundtrip-active",
+    "persist-roundtrip-inactive",
+    "persist-corrupt-active-fails-closed",
+    "persist-corrupt-inactive-fails-closed",
 }
 
 HARNESS = r'''
@@ -47,6 +53,7 @@ public final class CelinePersonaModeContractTest {
         testFailClosedChannelsAndSubstrings();
         testInvalidIntensity();
         testPromptContribution();
+        testPersistenceSeam();
         System.out.println("CelinePersonaMode contract: PASS");
     }
 
@@ -70,8 +77,10 @@ public final class CelinePersonaModeContractTest {
         CelinePersonaMode m = new CelinePersonaMode();
         m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
         assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte aus"), false, 0, true, false);
+        check(m.promptContribution().isEmpty(), "deactivation removes prompt immediately");
         m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2");
         assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Normalmodus"), false, 0, true, false);
+        check(m.promptContribution().isEmpty(), "normal mode removes prompt immediately");
     }
 
     private static void testFailClosedChannelsAndSubstrings() {
@@ -92,8 +101,53 @@ public final class CelinePersonaModeContractTest {
     private static void testPromptContribution() {
         CelinePersonaMode m = new CelinePersonaMode();
         check(m.promptContribution().isEmpty(), "inactive prompt empty");
+
+        m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 1");
+        String p1 = m.promptContribution();
+        assertBoundedPrompt(p1);
+
+        m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2");
+        String p2 = m.promptContribution();
+        assertBoundedPrompt(p2);
+
         m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
-        String p = m.promptContribution();
+        String p3 = m.promptContribution();
+        assertBoundedPrompt(p3);
+
+        check(!p1.equals(p2), "intensity 1 and 2 prompt differ");
+        check(!p2.equals(p3), "intensity 2 and 3 prompt differ");
+        check(!p1.equals(p3), "intensity 1 and 3 prompt differ");
+    }
+
+    private static void testPersistenceSeam() {
+        CelinePersonaMode source = new CelinePersonaMode();
+        source.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2");
+        CelinePersonaMode.State snapshot = source.snapshot();
+        check(snapshot.active(), "snapshot active");
+        check(snapshot.intensity() == 2, "snapshot intensity");
+
+        CelinePersonaMode restored = new CelinePersonaMode();
+        check(restored.restorePersistedState(snapshot.active(), snapshot.intensity()), "valid active restore accepted");
+        check(restored.isActive(), "active restore state");
+        check(restored.intensity() == 2, "active restore intensity");
+
+        check(restored.restorePersistedState(false, 0), "valid inactive restore accepted");
+        check(!restored.isActive(), "inactive restore state");
+        check(restored.intensity() == 0, "inactive restore intensity");
+        check(restored.promptContribution().isEmpty(), "inactive restore prompt empty");
+
+        restored.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
+        check(!restored.restorePersistedState(true, 9), "corrupt active restore rejected");
+        check(!restored.isActive(), "corrupt active restore fails closed");
+        check(restored.intensity() == 0, "corrupt active restore clears intensity");
+
+        restored.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
+        check(!restored.restorePersistedState(false, 2), "corrupt inactive restore rejected");
+        check(!restored.isActive(), "corrupt inactive restore fails closed");
+        check(restored.intensity() == 0, "corrupt inactive restore clears intensity");
+    }
+
+    private static void assertBoundedPrompt(String p) {
         check(!p.isEmpty(), "active prompt nonempty");
         check(p.contains("normal identity"), "identity preserved");
         check(p.contains("permission policy"), "permission policy preserved");
