@@ -38,10 +38,10 @@ import java.util.WeakHashMap;
  *
  * Witness #1336 then isolated the remaining outer-curtain appearance error: the accepted broad panels
  * have the correct left/right color centers but are nearly spatially constant. Add one smooth generated
- * grayscale fold modulation to these visible panels only. Its median linear multiplier is compensated
- * in the existing accepted baseColor factors, so the #1245 color centers remain the intended center
- * while continuous fabric variation becomes visible. Geometry, sheers, fold facets and backdrop remain
- * untouched by this proving step.
+ * grayscale fold modulation to these visible panels only. Proof #1342 showed that compensating the
+ * accepted LINEAR baseColor factors by the sampled-map median over-brightens both panels by ~24%; keep
+ * the accepted factors unchanged and let the map provide only bounded spatial variation. Geometry,
+ * sheers, fold facets and backdrop remain untouched by this repair.
  */
 final class CelineRoomWindowCurtainFillV80 {
     private static final float CENTER_Y = 1.20f;
@@ -64,10 +64,9 @@ final class CelineRoomWindowCurtainFillV80 {
     private static final float RIGHT_GREEN = 0.374f;
     private static final float RIGHT_BLUE = 0.179f;
 
-    // The generated modulation uses sRGB 0.80..~0.97 with a deterministic median near 0.9085 sRGB,
-    // which Filament samples as ~0.8043 linear. Divide the accepted color factors by that median so
-    // the map adds spatial variation without intentionally moving the already accepted color centers.
-    private static final float MODULATION_MEDIAN_LINEAR = 0.8043f;
+    // The generated modulation uses sRGB 0.80..~0.97. Real Candidate #1342 proved that multiplying
+    // the accepted LINEAR factors by 1/0.8043 moves the rendered medians from 117/75/32 -> 146/94/39
+    // and 88/54/25 -> 110/67/32. Preserve the accepted factors exactly instead of compensating them.
     private static final int MODULATION_WIDTH = 128;
     private static final int MODULATION_HEIGHT = 256;
 
@@ -146,7 +145,7 @@ final class CelineRoomWindowCurtainFillV80 {
                             + " · right=" + RIGHT_CENTER_X + " material=" + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
                             + " target#1245=88/54/25"
                             + " · modulation=" + MODULATION_WIDTH + "x" + MODULATION_HEIGHT
-                            + " medianLinear=" + MODULATION_MEDIAN_LINEAR
+                            + " · no median compensation after #1342 measured overshoot"
                             + " · y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
                             + " · source GLB/window envelope/sheers/Celine/camera/anchors/lamp unchanged");
@@ -172,9 +171,7 @@ final class CelineRoomWindowCurtainFillV80 {
 
     private static void tune(MaterialInstance material, float red, float green, float blue,
                              Texture modulation, TextureSampler sampler) {
-        float compensation = 1.0f / MODULATION_MEDIAN_LINEAR;
-        set4(material, "baseColorFactor", red * compensation, green * compensation,
-                blue * compensation, 1.0f);
+        set4(material, "baseColorFactor", red, green, blue, 1.0f);
         try {
             if (material.getMaterial().hasParameter("baseColorMap")) {
                 material.setParameter("baseColorMap", modulation, sampler);
