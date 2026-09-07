@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Deterministic pure-Java acceptance runner for CelinePersonaMode.
+"""Deterministic pure-Java acceptance runner for the CelinePersonaMode prototype.
 
 This deliberately avoids Android UI, network, room/avatar, and Gradle wiring. It
-compiles the production Java class with javac and executes a temporary harness
-covering the canonical issue #112 acceptance vectors.
+compiles the ownership-safe prototype with javac and executes a temporary harness
+covering the canonical issue #112 acceptance vectors. Promotion into app/src is
+blocked until shared runtime/version ownership is explicitly handed off.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import subprocess
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "app/src/main/java/de/yahya/ai/CelinePersonaMode.java"
+SOURCE = ROOT / "ci/prototypes/CelinePersonaMode.java"
 CASES = ROOT / "ci/evidence/CELINE_ADULT_PERSONA_ACCEPTANCE_CASES.json"
 
 REQUIRED_CASE_IDS = {
@@ -117,7 +118,7 @@ public final class CelinePersonaModeContractTest {
 
 def main() -> int:
     if not SOURCE.is_file():
-        raise SystemExit(f"missing runtime source: {SOURCE}")
+        raise SystemExit(f"missing prototype source: {SOURCE}")
     if not CASES.is_file():
         raise SystemExit(f"missing acceptance vectors: {CASES}")
 
