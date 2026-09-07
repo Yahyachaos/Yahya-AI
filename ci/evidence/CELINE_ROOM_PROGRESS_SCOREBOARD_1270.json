@@ -4,31 +4,11 @@
   "candidate_source": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1270.json",
   "decision": "FLAT",
   "largest_deltas": [
-    {
-      "object": "room_rug",
-      "raw_score": 0.012714070837239754,
-      "weighted_score": 0.015256885004687708
-    },
-    {
-      "object": "room_plant_large",
-      "raw_score": 0.013470189592906544,
-      "weighted_score": 0.010102642194679908
-    },
-    {
-      "object": "room_window_drapes",
-      "raw_score": 0.003976944188361581,
-      "weighted_score": 0.00636311070137853
-    },
-    {
-      "object": "room_lounge_chair",
-      "raw_score": 0.0027897425088261917,
-      "weighted_score": 0.004463588014121907
-    },
-    {
-      "object": "room_wall_shelf_books",
-      "raw_score": 0.005236354209825807,
-      "weighted_score": 0.003927265657369355
-    }
+    {"object": "room_rug", "raw_score": 0.012714070837239754, "weighted_score": 0.015256885004687708},
+    {"object": "room_plant_large", "raw_score": 0.013470189592906544, "weighted_score": 0.010102642194679908},
+    {"object": "room_window_drapes", "raw_score": 0.003976944188361581, "weighted_score": 0.00636311070137853},
+    {"object": "room_lounge_chair", "raw_score": 0.0027897425088261917, "weighted_score": 0.004463588014121907},
+    {"object": "room_wall_shelf_books", "raw_score": 0.005236354209825807, "weighted_score": 0.003927265657369355}
   ],
   "manual_visual_verdict": "WHOLE_ROOM_FAIL__RUG_HORIZONTAL_BANDING_REMAINS; WINDOW_RASTER_CLOSER; LARGE_PLANT_WIDTH_IMPROVED_BUT_CENTER_RESPONSE_NONLINEAR; WHOLE_SCENE_SCORE_BELOW_MATERIAL_IMPROVEMENT_THRESHOLD",
   "objects_missing_or_unusable": [
@@ -70,11 +50,11 @@
     },
     "room_plant_large": {
       "candidate": {"bottom": 0.5350553505535055, "center_x": 0.20669291338582677, "center_y": 0.37023370233702335, "height": 0.3296432964329643, "left": 0.1594488188976378, "right": 0.25393700787401574, "top": 0.2054120541205412, "width": 0.09448818897637795},
-      "center_error": 0.01719450135767368,
+      "center_error": 0.017194501664045726,
       "confidence": "medium",
-      "edge_error": 0.010214022140221401,
+      "edge_error": 0.008713307861425053,
       "raw_score": 0.013470189592906544,
-      "size_error": 0.010433043295328984,
+      "size_error": 0.010434257295328903,
       "target": {"bottom": 0.535, "center_x": 0.1895, "center_y": 0.37, "height": 0.33000000000000007, "left": 0.132, "right": 0.247, "top": 0.205, "width": 0.11499999999999999},
       "weight": 0.75,
       "weighted_score": 0.010102642194679908
@@ -114,11 +94,11 @@
     },
     "room_window_drapes": {
       "candidate": {"bottom": 0.4797047970479705, "center_x": 0.4020669291338583, "center_y": 0.28290432904329044, "height": 0.3936039360393604, "left": 0.21062992125984253, "right": 0.593503937007874, "top": 0.08610086100861008, "width": 0.3828740157480315},
-      "center_error": 0.005741341638521584,
+      "center_error": 0.0057409606568947814,
       "confidence": "high",
-      "edge_error": 0.00272495478903699,
+      "edge_error": 0.0034848790810742755,
       "raw_score": 0.003976944188361581,
-      "size_error": 0.0013649608956954302,
+      "size_error": 0.0013649601456644511,
       "target": {"bottom": 0.477, "center_x": 0.39649999999999996, "center_y": 0.2815, "height": 0.391, "left": 0.205, "right": 0.588, "top": 0.086, "width": 0.383},
       "weight": 1.6,
       "weighted_score": 0.00636311070137853
