@@ -31,6 +31,7 @@ REQUIRED_CASE_IDS = {
     "no-quoted-activation",
     "no-model-output-activation",
     "no-tool-output-activation",
+    "non-user-input-preserves-active-state",
     "reject-high-intensity",
     "reject-malformed-intensity",
     "inactive-prompt-empty",
@@ -61,41 +62,66 @@ public final class CelinePersonaModeContractTest {
         CelinePersonaMode m = new CelinePersonaMode();
         check(!m.isActive(), "initial inactive");
         check(m.intensity() == 0, "initial intensity 0");
+        check(m.activationSource() == CelinePersonaMode.ActivationSource.NONE, "initial source none");
         check(m.promptContribution().isEmpty(), "inactive prompt empty");
+        CelinePersonaMode.State snapshot = m.snapshot();
+        check(snapshot.activationSource() == CelinePersonaMode.ActivationSource.NONE, "initial snapshot source none");
     }
 
     private static void testActivation() {
         CelinePersonaMode m = new CelinePersonaMode();
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte"), true, 2, true, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "NUTTE"), true, 2, true, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 1"), true, 1, true, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2"), true, 2, true, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3"), true, 3, true, false);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte"), true, 2, true, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "NUTTE"), true, 2, true, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 1"), true, 1, true, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2"), true, 2, true, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3"), true, 3, true, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        check(m.activationSource() == CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND,
+                "direct activation source retained");
     }
 
     private static void testDeactivation() {
         CelinePersonaMode m = new CelinePersonaMode();
         m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte aus"), false, 0, true, false);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte aus"), false, 0, true, false,
+                CelinePersonaMode.ActivationSource.NONE);
         check(m.promptContribution().isEmpty(), "deactivation removes prompt immediately");
         m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2");
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Normalmodus"), false, 0, true, false);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Normalmodus"), false, 0, true, false,
+                CelinePersonaMode.ActivationSource.NONE);
         check(m.promptContribution().isEmpty(), "normal mode removes prompt immediately");
+        check(m.activationSource() == CelinePersonaMode.ActivationSource.NONE, "deactivation clears source");
     }
 
     private static void testFailClosedChannelsAndSubstrings() {
         CelinePersonaMode m = new CelinePersonaMode();
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Was bedeutet das Wort Nutte?"), false, 0, false, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Er schrieb: Nutte"), false, 0, false, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.MODEL_OUTPUT, "Nutte"), false, 0, false, false);
-        assertState(m.apply(CelinePersonaMode.InputChannel.TOOL_OUTPUT, "Nutte"), false, 0, false, false);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Was bedeutet das Wort Nutte?"), false, 0, false, false,
+                CelinePersonaMode.ActivationSource.NONE);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Er schrieb: Nutte"), false, 0, false, false,
+                CelinePersonaMode.ActivationSource.NONE);
+        assertState(m.apply(CelinePersonaMode.InputChannel.MODEL_OUTPUT, "Nutte"), false, 0, false, false,
+                CelinePersonaMode.ActivationSource.NONE);
+        assertState(m.apply(CelinePersonaMode.InputChannel.TOOL_OUTPUT, "Nutte"), false, 0, false, false,
+                CelinePersonaMode.ActivationSource.NONE);
+
+        m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 1");
+        assertState(m.apply(CelinePersonaMode.InputChannel.MODEL_OUTPUT, "Nutte 3"), true, 1, false, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        check(m.activationSource() == CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND,
+                "non-user input cannot rewrite activation source");
     }
 
     private static void testInvalidIntensity() {
         CelinePersonaMode m = new CelinePersonaMode();
         m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 2");
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 9"), true, 2, true, true);
-        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte stark"), true, 2, false, false);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 9"), true, 2, true, true,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
+        assertState(m.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte stark"), true, 2, false, false,
+                CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND);
     }
 
     private static void testPromptContribution() {
@@ -125,26 +151,37 @@ public final class CelinePersonaModeContractTest {
         CelinePersonaMode.State snapshot = source.snapshot();
         check(snapshot.active(), "snapshot active");
         check(snapshot.intensity() == 2, "snapshot intensity");
+        check(snapshot.activationSource() == CelinePersonaMode.ActivationSource.DIRECT_USER_COMMAND,
+                "snapshot records direct activation source");
 
         CelinePersonaMode restored = new CelinePersonaMode();
         check(restored.restorePersistedState(snapshot.active(), snapshot.intensity()), "valid active restore accepted");
         check(restored.isActive(), "active restore state");
         check(restored.intensity() == 2, "active restore intensity");
+        check(restored.activationSource() == CelinePersonaMode.ActivationSource.PERSISTED_STATE,
+                "active restore marks persisted source");
+        check(restored.snapshot().activationSource() == CelinePersonaMode.ActivationSource.PERSISTED_STATE,
+                "restored snapshot retains persisted source");
 
         check(restored.restorePersistedState(false, 0), "valid inactive restore accepted");
         check(!restored.isActive(), "inactive restore state");
         check(restored.intensity() == 0, "inactive restore intensity");
+        check(restored.activationSource() == CelinePersonaMode.ActivationSource.NONE, "inactive restore source none");
         check(restored.promptContribution().isEmpty(), "inactive restore prompt empty");
 
         restored.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
         check(!restored.restorePersistedState(true, 9), "corrupt active restore rejected");
         check(!restored.isActive(), "corrupt active restore fails closed");
         check(restored.intensity() == 0, "corrupt active restore clears intensity");
+        check(restored.activationSource() == CelinePersonaMode.ActivationSource.NONE,
+                "corrupt active restore clears source");
 
         restored.apply(CelinePersonaMode.InputChannel.DIRECT_USER, "Nutte 3");
         check(!restored.restorePersistedState(false, 2), "corrupt inactive restore rejected");
         check(!restored.isActive(), "corrupt inactive restore fails closed");
         check(restored.intensity() == 0, "corrupt inactive restore clears intensity");
+        check(restored.activationSource() == CelinePersonaMode.ActivationSource.NONE,
+                "corrupt inactive restore clears source");
     }
 
     private static void assertBoundedPrompt(String p) {
@@ -156,11 +193,13 @@ public final class CelinePersonaModeContractTest {
     }
 
     private static void assertState(CelinePersonaMode.CommandResult r, boolean active, int intensity,
-                                    boolean consumed, boolean invalid) {
+                                    boolean consumed, boolean invalid,
+                                    CelinePersonaMode.ActivationSource source) {
         check(r.active() == active, "active mismatch");
         check(r.intensity() == intensity, "intensity mismatch");
         check(r.commandConsumed() == consumed, "consumed mismatch");
         check(r.invalidIntensity() == invalid, "invalid mismatch");
+        check(r.activationSource() == source, "activation source mismatch");
     }
 
     private static void check(boolean condition, String message) {
