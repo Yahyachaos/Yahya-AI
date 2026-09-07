@@ -17,6 +17,13 @@ import android.view.ViewGroup;
  *
  * v80 prefers CelineRoomEnvironmentV80 when it can be built. This class remains intact as the
  * fail-closed runtime fallback and never draws in parallel with the active Filament room.
+ *
+ * Recovery baseline after the user rejection of Real Candidate #1379: install only the measured
+ * room layout after the source room has loaded. Do not install CelineRoomReferenceLightingV80 here,
+ * because that owner also activates the experimental window replacement stack, source-window hide,
+ * ceiling/bed material overrides and practical light. Keeping those layers out of this checkpoint
+ * restores a bounded shell/camera/source-window architecture baseline without changing geometry,
+ * camera/FOV, furniture transforms, source GLBs or Celine.
  */
 final class CelineRoomBackdropView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -33,7 +40,7 @@ final class CelineRoomBackdropView extends View {
         Celine3DView threeD = findSibling3D();
         if (threeD != null) {
             CelineRoomEnvironmentV80.ensure(getContext(), threeD);
-            CelineRoomReferenceLightingV80.ensure(threeD);
+            CelineRoomReferenceLayoutV80.ensure(threeD);
         }
     }
 
@@ -43,7 +50,7 @@ final class CelineRoomBackdropView extends View {
         Celine3DView threeD = findSibling3D();
         if (threeD != null) {
             CelineRoomEnvironmentV80.ensure(getContext(), threeD);
-            CelineRoomReferenceLightingV80.ensure(threeD);
+            CelineRoomReferenceLayoutV80.ensure(threeD);
         }
         invalidate();
     }
