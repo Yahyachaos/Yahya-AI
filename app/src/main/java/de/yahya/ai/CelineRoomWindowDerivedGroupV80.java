@@ -18,31 +18,26 @@ import java.util.WeakHashMap;
  * not move the visible window. All corrections below are applied uniformly to the generated window
  * entities so backdrop, curtains, sheers and folds cannot drift apart.
  *
- * Real Candidate #1179 reopened the window after the earlier full-mesh projection solve. The first
- * derived-group raster correction deliberately replaced hidden-mesh bounds with visible pixels.
- * Proof #1262/#1266 now supply the stable post-correction residual on the exact 1016x813 CALL stage:
- * x=199..599 px (0.195866..0.589567) and y=61..397 px (0.075031..0.488315), versus canonical
- * x=0.205..0.588 and y=0.086..0.477. The visible center is already vertically correct, while both
- * width and height are slightly oversized and horizontal center remains 0.003783 too far left.
+ * Proof #1285 is the corrected expanded baseline. Its exact 1016x813 CALL window raster is
+ * x=0.210630..0.593504 / y=0.086101..0.479705 versus canonical x=0.205..0.588 /
+ * y=0.086..0.477. Width and vertical placement are already close; the reliable remaining
+ * horizontal residual is a nearly pure -0.005567 normalized center shift.
  *
- * Refit the same base affine owner instead of stacking another transform. Scale X by the measured
- * width ratio 0.383/0.3937008 and scale Y by 0.391/0.4132841. For horizontal translation use the
- * observed #1179 -> #1262 screen/world response of the same owner: the prior -0.288860 m center-X
- * move shifted visible center by -0.0152335 normalized, so +0.0037835 requires +0.071743 m. This is
- * a bounded raster residual correction only. Z, materials, camera, Celine and immutable source-GLB
- * bytes remain untouched.
+ * The same derived-group owner has an observed screen/world response: the prior +0.071743m
+ * center-X move shifted the visible center +0.0093504 normalized (#1266 -> #1285). Refit the same
+ * base affine owner, not a stacked post-transform: -0.0055669 therefore maps to -0.042707m and
+ * NEW_CENTER_X=-0.864824. Existing X/Y scales, center-Y, Z, materials, camera, Celine and immutable
+ * source-GLB bytes remain unchanged.
  */
 final class CelineRoomWindowDerivedGroupV80 {
     private static final float OLD_CENTER_X = -0.605f;
-    private static final float NEW_CENTER_X = -0.822117f;
+    private static final float NEW_CENTER_X = -0.864824f;
     private static final float HORIZONTAL_SCALE = 1.03095712f;
 
     private static final float OLD_CENTER_Y = 1.20f;
     private static final float NEW_CENTER_Y = 1.753992f;
     private static final float VERTICAL_SCALE = 0.80470520f;
 
-    // The accepted backdrop used to contribute one entity. Candidate a80dc42 intentionally splits
-    // that same accepted backdrop into two panes, so the complete derived window group is now 12.
     private static final int EXPECTED_DERIVED_ENTITY_COUNT = 12;
 
     private static final WeakHashMap<Celine3DView, Boolean> APPLIED = new WeakHashMap<>();
@@ -72,8 +67,8 @@ final class CelineRoomWindowDerivedGroupV80 {
             synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
                     "Abgeleitete Fenstergruppe rastergenau nachvermessen",
-                    "CALL#1266 visibleX=0.195866..0.589567 targetX=0.205..0.588"
-                            + " visibleY=0.075031..0.488315 targetY=0.086..0.477"
+                    "CALL#1285 visibleX=0.210630..0.593504 targetX=0.205..0.588"
+                            + " visibleY=0.086101..0.479705 targetY=0.086..0.477"
                             + " scaleX=" + HORIZONTAL_SCALE
                             + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
                             + " scaleY=" + VERTICAL_SCALE
@@ -82,18 +77,10 @@ final class CelineRoomWindowDerivedGroupV80 {
                             + " · Z/materials/camera/Celine/source-GLB unchanged");
         }
 
-        // #1183 shows the reference laptop is a separate missing foreground object, not part of the
-        // immutable table source. Both foreground details retry independently from the one-time window
-        // affine correction so any derived-detail failure cannot stack accepted window transforms.
         CelineRoomForegroundLaptopV80.apply(view, engine);
         CelineRoomForegroundPlantV80.apply(view, engine);
-        // Real Candidate #1218 isolates the next largest remaining broad-shell residual to the right
-        // wall. Keep that material correction in the same already-established room post-pass, but let
-        // its own owner duplicate only the right-wall material so no shared shell donor is mutated.
+        CelineRoomDerivedRasterResidualV80.apply(view, engine);
         CelineRoomReferenceWallMaterialV80.apply(view, engine);
-        // Proof #1266 leaves the large plant as the next reliably separable furniture geometry delta
-        // after the window correction. Apply one conservative, fail-closed visible-raster half-step;
-        // its owner verifies the accepted baseline matrix before writing and touches no shared assets.
         CelineRoomVisibleRasterResidualV80.apply(view, engine);
         // Real Candidate #1264 proves the smooth derived rug surface does not solve the visible
         // horizontal banding (row-jump 2.3925 -> 2.4100 versus reference ~0.69). Keep the immutable
@@ -103,6 +90,7 @@ final class CelineRoomWindowDerivedGroupV80 {
     static void release(Celine3DView view) {
         CelineRoomVisibleRasterResidualV80.release(view);
         CelineRoomReferenceWallMaterialV80.release(view);
+        CelineRoomDerivedRasterResidualV80.release(view);
         CelineRoomForegroundPlantV80.release(view);
         CelineRoomForegroundLaptopV80.release(view);
         synchronized (APPLIED) { APPLIED.remove(view); }
