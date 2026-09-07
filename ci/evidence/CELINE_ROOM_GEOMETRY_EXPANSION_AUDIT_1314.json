@@ -1,0 +1,50 @@
+{
+  "schema": "celine-room-geometry-expansion-audit/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "accepted_proof": 1285,
+    "accepted_runtime_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
+    "accepted_runtime_fingerprint": "71cb31332b4b3bc66325c6fa7e030b9132bc69e58c376cacd77cf09dc59d56d8"
+  },
+  "purpose": "Read-only follow-up required after Proof #1314 STOP-LOSS: determine whether previously unscored large visible geometry can safely authorize another runtime batch before material/light work.",
+  "accepted_call_stage_px": {"width": 1016, "height": 813},
+  "reliable_new_observations": {
+    "room_reference_foreground_plant": {
+      "method": "connected visible-raster component combining the distinctive dark-green foliage and gray pot in the isolated foreground-right ROI",
+      "actual_bbox_px": {"left": 820, "right": 1015, "top": 521, "bottom": 768},
+      "actual_bbox_normalized": {"left": 0.8070866141732284, "right": 0.9990157480314961, "top": 0.6408364083640836, "bottom": 0.9446494464944649},
+      "target_bbox_normalized": {"left": 0.812, "right": 1.0, "top": 0.645, "bottom": 0.946},
+      "raw_score_if_added": 0.0036003909823529774,
+      "weighted_score_if_added": 0.0043204691788235735,
+      "verdict": "ALREADY_CLOSE__NOT_A_HIGH_VALUE_GEOMETRY_CAUSE"
+    },
+    "room_foreground_table": {
+      "method": "visible back-edge scan on unobscured x columns; the perspective edge descends approximately y=678 at far left through y=650 near x=750 and y≈638 near the right visible span",
+      "target_bbox_top_px": 635.766,
+      "representative_min_visible_top_px": 638,
+      "target_top_normalized": 0.782,
+      "representative_actual_top_normalized": 0.7847478474784748,
+      "verdict": "BBOX_TOP_ALREADY_CLOSE__PERSPECTIVE_EDGE_NOT_A_NEW_DOMINANT_DELTA"
+    }
+  },
+  "still_not_safe_for_full_bbox_scoring": {
+    "room_bed": {
+      "reason": "Celine occludes the left blanket/mattress envelope in both the canonical reference and accepted CALL. Unoccluded top/bottom/right landmarks are close, while the visible left blanket edge suggests an orientation/width residual; converting that mixed evidence into one precise full bbox would violate the uncertain-bounds rule.",
+      "observed_partial_landmarks_px": {"visible_left_blanket_edge_approx": 556, "headboard_top_approx": 263, "bed_bottom_approx": 531, "right_clip": 1015},
+      "target_full_bbox_px_approx": {"left": 508.0, "right": 1014.0, "top": 262.6, "bottom": 530.1},
+      "verdict": "LIKELY_REMAINING_WIDTH_OR_YAW_RESIDUAL__NOT_SAFE_TO_RUNTIME_SOLVE_FROM_FULL_BBOX_YET"
+    },
+    "room_reference_foreground_laptop": "Reference authority is the existing exact quadrilateral; bbox scoring remains a false substitute.",
+    "room_floor_lamp": "Chair occlusion prevents a stable full visible bbox.",
+    "room_nightstand_rear": "Bed occlusion prevents a stable full cabinet bbox.",
+    "room_nightstand_front": "Right clipping and bed overlap still prevent a stable full bbox despite the previously accepted vertical solve.",
+    "room_plant_small": "Low-confidence blended silhouette."
+  },
+  "geometry_gate_result": {
+    "new_reliable_high_value_non_stop_loss_batch_found": false,
+    "reason": "The newly separable foreground plant/table observations are already close to reference. Bed may still carry a meaningful width/yaw residual, but its full bbox remains occlusion-constrained and cannot honestly clear the prediction gate yet. Rug and large-plant strategy families are exhausted by documented STOP-LOSS.",
+    "runtime_write_authorized": false,
+    "android_build_required": false
+  },
+  "next_phase_rule": "Do not guess another geometry transform. Move to a bounded room-only material/appearance witness analysis against the canonical reference while keeping shell/camera/Celine/global renderer lighting protected. A future bed transform requires a dedicated partial-landmark/mesh-projection solve rather than a guessed full bbox."
+}
