@@ -91,10 +91,6 @@ final class CelineRoomWindowDerivedGroupV80 {
         // wall. Keep that material correction in the same already-established room post-pass, but let
         // its own owner duplicate only the right-wall material so no shared shell donor is mutated.
         CelineRoomReferenceWallMaterialV80.apply(view, engine);
-        // Proof #1358 authorizes one causally distinct local material response for the clean residual
-        // below the shelf. It must run after the accepted wall owner so the boundary duplicates the
-        // final back-wall PBR/base-map response exactly; it adds no dynamic light or broad wall retune.
-        CelineRoomShelfWallPoolV80.apply(view, engine);
         // Proof #1266 leaves the large plant as the next reliably separable furniture geometry delta
         // after the window correction. Apply one conservative, fail-closed visible-raster half-step;
         // its owner verifies the accepted baseline matrix before writing and touches no shared assets.
@@ -106,7 +102,6 @@ final class CelineRoomWindowDerivedGroupV80 {
 
     static void release(Celine3DView view) {
         CelineRoomVisibleRasterResidualV80.release(view);
-        CelineRoomShelfWallPoolV80.release(view);
         CelineRoomReferenceWallMaterialV80.release(view);
         CelineRoomForegroundPlantV80.release(view);
         CelineRoomForegroundLaptopV80.release(view);
