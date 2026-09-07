@@ -1,5 +1,7 @@
 package de.yahya.ai;
 
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.opengl.Matrix;
 
 import com.google.android.filament.Box;
@@ -10,8 +12,11 @@ import com.google.android.filament.IndexBuffer;
 import com.google.android.filament.MaterialInstance;
 import com.google.android.filament.RenderableManager;
 import com.google.android.filament.Scene;
+import com.google.android.filament.Texture;
+import com.google.android.filament.TextureSampler;
 import com.google.android.filament.TransformManager;
 import com.google.android.filament.VertexBuffer;
+import com.google.android.filament.android.TextureHelper;
 import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
@@ -30,6 +35,13 @@ import java.util.WeakHashMap;
  * place two broad warm-fabric panels behind the accepted derived sheer/fold layers and in front of the
  * accepted night backdrop. This preserves the central night opening and does not touch Celine, camera,
  * anchors, furniture transforms, source GLB bytes or the interactive lamp.
+ *
+ * Witness #1336 then isolated the remaining outer-curtain appearance error: the accepted broad panels
+ * have the correct left/right color centers but are nearly spatially constant. Add one smooth generated
+ * grayscale fold modulation to these visible panels only. Its median linear multiplier is compensated
+ * in the existing accepted baseColor factors, so the #1245 color centers remain the intended center
+ * while continuous fabric variation becomes visible. Geometry, sheers, fold facets and backdrop remain
+ * untouched by this proving step.
  */
 final class CelineRoomWindowCurtainFillV80 {
     private static final float CENTER_Y = 1.20f;
@@ -52,6 +64,13 @@ final class CelineRoomWindowCurtainFillV80 {
     private static final float RIGHT_GREEN = 0.374f;
     private static final float RIGHT_BLUE = 0.179f;
 
+    // The generated modulation uses sRGB 0.80..~0.97 with a deterministic median near 0.9085 sRGB,
+    // which Filament samples as ~0.8043 linear. Divide the accepted color factors by that median so
+    // the map adds spatial variation without intentionally moving the already accepted color centers.
+    private static final float MODULATION_MEDIAN_LINEAR = 0.8043f;
+    private static final int MODULATION_WIDTH = 128;
+    private static final int MODULATION_HEIGHT = 256;
+
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     private CelineRoomWindowCurtainFillV80() {}
@@ -70,6 +89,9 @@ final class CelineRoomWindowCurtainFillV80 {
         }
         MaterialInstance source = renderables.getMaterialInstanceAt(wallRenderable, 0);
         if (source == null) throw new IllegalStateException("curtain fill: source material null");
+        if (!source.getMaterial().hasParameter("baseColorMap")) {
+            throw new IllegalStateException("curtain fill: source baseColorMap fehlt");
+        }
 
         Scene scene = (Scene) field(view, "scene");
         TransformManager transforms = engine.getTransformManager();
@@ -79,13 +101,18 @@ final class CelineRoomWindowCurtainFillV80 {
         MaterialInstance[] materials = new MaterialInstance[]{null, null};
         VertexBuffer vertices = null;
         IndexBuffer indices = null;
+        Texture modulation = null;
         int[] entities = new int[]{0, 0};
         boolean[] sceneAdded = new boolean[]{false, false};
         try {
             materials[0] = MaterialInstance.duplicate(source, "v80-window-curtain-fill-left");
             materials[1] = MaterialInstance.duplicate(source, "v80-window-curtain-fill-right");
-            tune(materials[0], LEFT_RED, LEFT_GREEN, LEFT_BLUE);
-            tune(materials[1], RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE);
+
+            modulation = createFoldModulation(engine);
+            TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
+                    TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
+            tune(materials[0], LEFT_RED, LEFT_GREEN, LEFT_BLUE, modulation, sampler);
+            tune(materials[1], RIGHT_RED, RIGHT_GREEN, RIGHT_BLUE, modulation, sampler);
 
             vertices = createVertices(engine);
             indices = createIndices(engine);
@@ -110,18 +137,19 @@ final class CelineRoomWindowCurtainFillV80 {
                 sceneAdded[i] = true;
             }
 
-            State state = new State(scene, entities, materials, vertices, indices);
+            State state = new State(scene, entities, materials, vertices, indices, modulation);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-149",
-                    "Breite Vorhang-Füllflächen links/rechts referenzisoliert",
+                    "Breite Vorhang-Füllflächen links/rechts mit weicher Faltenmodulation",
                     "left=" + LEFT_CENTER_X + " material=" + LEFT_RED + "," + LEFT_GREEN + "," + LEFT_BLUE
                             + " target#1245=117/75/31"
                             + " · right=" + RIGHT_CENTER_X + " material=" + RIGHT_RED + "," + RIGHT_GREEN + "," + RIGHT_BLUE
                             + " target#1245=88/54/25"
-                            + " · currentShared#1245=95/59/25"
+                            + " · modulation=" + MODULATION_WIDTH + "x" + MODULATION_HEIGHT
+                            + " medianLinear=" + MODULATION_MEDIAN_LINEAR
                             + " · y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · source GLB/window envelope/Celine/camera/anchors/lamp unchanged");
+                            + " · source GLB/window envelope/sheers/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
                 if (sceneAdded[i] && entities[i] != 0) {
@@ -137,17 +165,69 @@ final class CelineRoomWindowCurtainFillV80 {
             for (MaterialInstance material : materials) {
                 if (material != null) try { engine.destroyMaterialInstance(material); } catch (Throwable ignored) {}
             }
+            if (modulation != null) try { engine.destroyTexture(modulation); } catch (Throwable ignored) {}
             throw error;
         }
     }
 
-    private static void tune(MaterialInstance material, float red, float green, float blue) {
-        set4(material, "baseColorFactor", red, green, blue, 1.0f);
+    private static void tune(MaterialInstance material, float red, float green, float blue,
+                             Texture modulation, TextureSampler sampler) {
+        float compensation = 1.0f / MODULATION_MEDIAN_LINEAR;
+        set4(material, "baseColorFactor", red * compensation, green * compensation,
+                blue * compensation, 1.0f);
+        try {
+            if (material.getMaterial().hasParameter("baseColorMap")) {
+                material.setParameter("baseColorMap", modulation, sampler);
+            }
+        } catch (Throwable ignored) {}
         set1(material, "metallicFactor", 0.0f);
         set1(material, "roughnessFactor", 0.94f);
         set1(material, "reflectance", 0.28f);
         set3(material, "emissiveFactor", 0.0f, 0.0f, 0.0f);
         set1(material, "emissiveStrength", 0.0f);
+    }
+
+    private static Texture createFoldModulation(Engine engine) {
+        Bitmap bitmap = Bitmap.createBitmap(MODULATION_WIDTH, MODULATION_HEIGHT, Bitmap.Config.ARGB_8888);
+        int[] pixels = new int[MODULATION_WIDTH * MODULATION_HEIGHT];
+        for (int y = 0; y < MODULATION_HEIGHT; y++) {
+            float v = (y + 0.5f) / MODULATION_HEIGHT;
+            float vertical = 0.985f + 0.015f * (float) Math.cos(Math.PI * (v - 0.15f));
+            for (int x = 0; x < MODULATION_WIDTH; x++) {
+                float u = (x + 0.5f) / MODULATION_WIDTH;
+                float fold = 0.55f
+                        + 0.24f * (float) Math.cos(2.0 * Math.PI * (u + 0.08f))
+                        + 0.13f * (float) Math.cos(4.0 * Math.PI * (u + 0.29f))
+                        + 0.08f * (float) Math.cos(6.0 * Math.PI * (u + 0.17f));
+                fold = clamp01(fold);
+                float srgb = clamp01((0.80f + 0.20f * fold) * vertical);
+                int gray = Math.round(srgb * 255.0f);
+                pixels[y * MODULATION_WIDTH + x] = Color.argb(255, gray, gray, gray);
+            }
+        }
+        bitmap.setPixels(pixels, 0, MODULATION_WIDTH, 0, 0, MODULATION_WIDTH, MODULATION_HEIGHT);
+
+        Texture texture = new Texture.Builder()
+                .width(MODULATION_WIDTH)
+                .height(MODULATION_HEIGHT)
+                .levels(1)
+                .sampler(Texture.Sampler.SAMPLER_2D)
+                .format(Texture.InternalFormat.SRGB8_A8)
+                .build(engine);
+        try {
+            TextureHelper.setBitmap(engine, texture, 0, bitmap);
+            engine.flushAndWait();
+            return texture;
+        } catch (Throwable error) {
+            try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
+            throw error;
+        } finally {
+            bitmap.recycle();
+        }
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
     private static VertexBuffer createVertices(Engine engine) {
@@ -211,6 +291,7 @@ final class CelineRoomWindowCurtainFillV80 {
         for (MaterialInstance material : state.materials) {
             try { engine.destroyMaterialInstance(material); } catch (Throwable ignored) {}
         }
+        try { engine.destroyTexture(state.modulation); } catch (Throwable ignored) {}
     }
 
     private static Object field(Object target, String name) throws Exception {
@@ -243,14 +324,16 @@ final class CelineRoomWindowCurtainFillV80 {
         final MaterialInstance[] materials;
         final VertexBuffer vertices;
         final IndexBuffer indices;
+        final Texture modulation;
 
         State(Scene scene, int[] entities, MaterialInstance[] materials,
-              VertexBuffer vertices, IndexBuffer indices) {
+              VertexBuffer vertices, IndexBuffer indices, Texture modulation) {
             this.scene = scene;
             this.entities = entities;
             this.materials = materials;
             this.vertices = vertices;
             this.indices = indices;
+            this.modulation = modulation;
         }
     }
 }
