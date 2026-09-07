@@ -6,6 +6,8 @@ Authority: `/Refernzbild.png` and the user's direct visual verdict on the real i
 
 Rejected runtime head: `b209b796dc032b680c50caa4cb2db11253cbc4f0`
 
+Current docs-only recovery handoff head: `777ad1beb59142b27e889e8424261c4b3b3dc2f5`
+
 Build: Android Build #1423 — SUCCESS
 
 Real Candidate: #1379 / run `34167990007`; workflow was cancelled during the broader proof sequence, but the exact-head HOME/CALL/HOME-return images were uploaded and are usable for the bounded room visual verdict.
