@@ -129,7 +129,6 @@ final class CelineRoomReferenceLightingV80 {
             applyReferenceCeilingMaterial(roomAsset, engine);
             applyReferenceWindowMaterial(view, roomAsset, engine);
             applyReferenceBedMaterial(roomAsset, engine);
-            CelineRoomLeftWallTextureV80.apply(view, roomAsset, engine);
 
             PracticalLightState practical = createPracticalLight(view, engine, scene);
             synchronized (APPLIED) {
@@ -148,7 +147,6 @@ final class CelineRoomReferenceLightingV80 {
                             + " bedFactor=" + BED_RED + "," + BED_GREEN + "," + BED_BLUE
                             + " bedMetallic=" + BED_METALLIC
                             + " bedEmissive=" + BED_EMISSIVE_RED + "," + BED_EMISSIVE_GREEN + "," + BED_EMISSIVE_BLUE
-                            + " leftWallTexture=bounded_low_frequency_baseColorMap"
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
                             + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
         } catch (Throwable error) {
@@ -276,7 +274,6 @@ final class CelineRoomReferenceLightingV80 {
             view.removeOnAttachStateChangeListener(this);
             try { scene.removeEntity(current); } catch (Throwable ignored) {}
             try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
-            CelineRoomLeftWallTextureV80.release(view, engine);
             CelineRoomWindowTextureV80.release(view, engine);
             try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
             synchronized (APPLIED) {
