@@ -30,15 +30,6 @@ import java.util.WeakHashMap;
  * only two warm-cream central panels behind the immutable source drape detail, preserving visible dark
  * night depth between and around them. No Celine, camera, anchors, furniture transforms or source GLB
  * bytes change.
- *
- * Witness #1343 isolates the remaining sheer error after the outer baseColorMap strategy was rejected:
- * the broad sheers are live material owners, but each is still a single planar four-vertex board.
- * Historical #1217 -> #1218 evidence proves the independent fold-geometry owner changes the real CALL
- * raster, while old Proof #73 already rejected many dark overlay strips as regular bars. Therefore keep
- * the accepted sheer color/envelope and replace only the broad base surface with one very shallow smooth
- * pleated mesh. The pleat depth stays within 6 mm around the accepted Z center, and the tangent frame
- * follows the low-amplitude wave so normal lighting can produce continuous fabric variation without
- * another texture-map experiment or a stack of hard stripe overlays.
  */
 final class CelineRoomWindowSheerFillV80 {
     private static final float CENTER_Y = 1.20f;
@@ -52,15 +43,6 @@ final class CelineRoomWindowSheerFillV80 {
     private static final float HALF_HEIGHT = 1.06f;
     private static final float LEFT_CENTER_X = -1.175f;
     private static final float RIGHT_CENTER_X = -0.035f;
-
-    // Bounded smooth base-sheer pleat from CELINE_ROOM_WINDOW_SHEER_PLEAT_WITNESS_1343.json.
-    // Two waves across each 45 cm panel give broad fabric folds rather than the rejected narrow bars.
-    // Height-dependent amplitude/phase prevents a perfectly repeated extrusion while keeping the exact
-    // X/Y envelope and accepted center Z. 17x9 stays tiny compared with the immutable source assets.
-    private static final int PLEAT_COLUMNS = 17;
-    private static final int PLEAT_ROWS = 9;
-    private static final float PLEAT_CYCLES = 2.0f;
-    private static final float PLEAT_DEPTH = 0.006f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -96,7 +78,6 @@ final class CelineRoomWindowSheerFillV80 {
             // Real Candidate #1214 verifies the corrected partition but renders the broad derived
             // sheers around RGB 115/104/91. The reference reads distinctly warmer through these
             // panels. Keep geometry fixed and apply one bounded material-only move toward warm cream.
-            // The accepted #1216/#1336 factor and resulting ~115/90/68 center stay unchanged here.
             set4(material, "baseColorFactor", 0.78f, 0.62f, 0.48f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.96f);
@@ -104,15 +85,14 @@ final class CelineRoomWindowSheerFillV80 {
             set3(material, "emissiveFactor", 0.0f, 0.0f, 0.0f);
             set1(material, "emissiveStrength", 0.0f);
 
-            vertices = createPleatedVertices(engine);
-            indices = createPleatedIndices(engine);
+            vertices = createVertices(engine);
+            indices = createIndices(engine);
             float[] centers = new float[]{LEFT_CENTER_X, RIGHT_CENTER_X};
             for (int i = 0; i < entities.length; i++) {
                 int entity = EntityManager.get().create();
                 entities[i] = entity;
                 new RenderableManager.Builder(1)
-                        .boundingBox(new Box(0f, 0f, 0f,
-                                HALF_WIDTH, HALF_HEIGHT, PLEAT_DEPTH + 0.004f))
+                        .boundingBox(new Box(0f, 0f, 0f, HALF_WIDTH, HALF_HEIGHT, 0.02f))
                         .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vertices, indices)
                         .material(0, material)
                         .castShadows(false)
@@ -131,15 +111,12 @@ final class CelineRoomWindowSheerFillV80 {
             State state = new State(scene, entities, material, vertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-146",
-                    "Referenzkalibrierte zentrale Gardinen-Füllflächen mit weicher Basisfalte aktiv",
+                    "Referenzkalibrierte zentrale Gardinen-Füllflächen aktiv",
                     "left=" + LEFT_CENTER_X + " right=" + RIGHT_CENTER_X
                             + " y=" + CENTER_Y + " z=" + CENTER_Z
                             + " panel=" + (HALF_WIDTH * 2f) + "x" + (HALF_HEIGHT * 2f)
-                            + " · pleatGrid=" + PLEAT_COLUMNS + "x" + PLEAT_ROWS
-                            + " cycles=" + PLEAT_CYCLES + " depth=" + PLEAT_DEPTH
-                            + " · accepted ~115/90/68 factor preserved"
-                            + " · no baseColorMap retry / no hard overlay-bar expansion"
-                            + " · outer window/source/Celine/camera/anchors/lamp unchanged");
+                            + " · real CALL partition + warm material refit; outer window/source preserved"
+                            + " · source GLB/Celine/camera/anchors/lamp unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
                 if (sceneAdded[i] && entities[i] != 0) {
@@ -157,54 +134,24 @@ final class CelineRoomWindowSheerFillV80 {
         }
     }
 
-    private static VertexBuffer createPleatedVertices(Engine engine) {
+    private static VertexBuffer createVertices(Engine engine) {
         final int stride = 13 * 4;
-        final int vertexCount = PLEAT_COLUMNS * PLEAT_ROWS;
-        FloatBuffer data = ByteBuffer.allocateDirect(vertexCount * stride)
+        float[] data = {
+                -HALF_WIDTH, -HALF_HEIGHT, 0f,  0f,0f,0f,1f,  1f,1f,1f,1f,  0f,0f,
+                 HALF_WIDTH, -HALF_HEIGHT, 0f,  0f,0f,0f,1f,  1f,1f,1f,1f,  1f,0f,
+                 HALF_WIDTH,  HALF_HEIGHT, 0f,  0f,0f,0f,1f,  1f,1f,1f,1f,  1f,1f,
+                -HALF_WIDTH,  HALF_HEIGHT, 0f,  0f,0f,0f,1f,  1f,1f,1f,1f,  0f,1f,
+        };
+        ByteBuffer raw = ByteBuffer.allocateDirect(4 * stride).order(ByteOrder.nativeOrder());
+        FloatBuffer buffer = raw.asFloatBuffer();
+        buffer.put(data).flip();
+
+        FloatBuffer uv1 = ByteBuffer.allocateDirect(4 * 2 * 4)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
-        FloatBuffer uv1 = ByteBuffer.allocateDirect(vertexCount * 2 * 4)
-                .order(ByteOrder.nativeOrder()).asFloatBuffer();
-
-        final float width = HALF_WIDTH * 2.0f;
-        final float wavePerMeter = (float) (2.0 * Math.PI * PLEAT_CYCLES / width);
-        for (int row = 0; row < PLEAT_ROWS; row++) {
-            float v = row / (float) (PLEAT_ROWS - 1);
-            float y = -HALF_HEIGHT + (2.0f * HALF_HEIGHT * v);
-            float heightEnvelope = 0.82f
-                    + 0.18f * (float) Math.cos(Math.PI * (v - 0.35f));
-            float amplitude = PLEAT_DEPTH * heightEnvelope;
-            float phase = 0.22f * (float) Math.sin(Math.PI * (v - 0.5f));
-
-            for (int column = 0; column < PLEAT_COLUMNS; column++) {
-                float u = column / (float) (PLEAT_COLUMNS - 1);
-                float x = -HALF_WIDTH + (width * u);
-                float angle = (float) (2.0 * Math.PI * PLEAT_CYCLES * u) + phase;
-                float z = amplitude * (float) Math.cos(angle);
-
-                // For surface P(x,y)=(x,y,z(x,y)), approximate the front normal with the dominant
-                // x slope. Height-dependent amplitude already changes that slope down the panel.
-                float dzdx = -amplitude * wavePerMeter * (float) Math.sin(angle);
-                float nx = -dzdx;
-                float nz = 1.0f;
-                float invLength = 1.0f / (float) Math.sqrt(nx * nx + nz * nz);
-                nx *= invLength;
-                nz *= invLength;
-                float normalAngleY = (float) Math.atan2(nx, nz);
-                float qy = (float) Math.sin(normalAngleY * 0.5f);
-                float qw = (float) Math.cos(normalAngleY * 0.5f);
-
-                data.put(x).put(y).put(z);
-                data.put(0.0f).put(qy).put(0.0f).put(qw);
-                data.put(1.0f).put(1.0f).put(1.0f).put(1.0f);
-                data.put(u).put(v);
-                uv1.put(u).put(v);
-            }
-        }
-        data.flip();
-        uv1.flip();
+        uv1.put(new float[]{0f,0f, 1f,0f, 1f,1f, 0f,1f}).flip();
 
         VertexBuffer vb = new VertexBuffer.Builder()
-                .vertexCount(vertexCount)
+                .vertexCount(4)
                 .bufferCount(2)
                 .attribute(VertexBuffer.VertexAttribute.POSITION, 0,
                         VertexBuffer.AttributeType.FLOAT3, 0, stride)
@@ -217,29 +164,17 @@ final class CelineRoomWindowSheerFillV80 {
                 .attribute(VertexBuffer.VertexAttribute.UV1, 1,
                         VertexBuffer.AttributeType.FLOAT2, 0, 2 * 4)
                 .build(engine);
-        vb.setBufferAt(engine, 0, data);
+        vb.setBufferAt(engine, 0, buffer);
         vb.setBufferAt(engine, 1, uv1);
         return vb;
     }
 
-    private static IndexBuffer createPleatedIndices(Engine engine) {
-        final int quadCount = (PLEAT_COLUMNS - 1) * (PLEAT_ROWS - 1);
-        final int indexCount = quadCount * 6;
-        ShortBuffer data = ByteBuffer.allocateDirect(indexCount * 2)
+    private static IndexBuffer createIndices(Engine engine) {
+        ShortBuffer data = ByteBuffer.allocateDirect(6 * 2)
                 .order(ByteOrder.nativeOrder()).asShortBuffer();
-        for (int row = 0; row < PLEAT_ROWS - 1; row++) {
-            for (int column = 0; column < PLEAT_COLUMNS - 1; column++) {
-                int topLeft = row * PLEAT_COLUMNS + column;
-                int topRight = topLeft + 1;
-                int bottomLeft = topLeft + PLEAT_COLUMNS;
-                int bottomRight = bottomLeft + 1;
-                data.put((short) topLeft).put((short) topRight).put((short) bottomRight);
-                data.put((short) topLeft).put((short) bottomRight).put((short) bottomLeft);
-            }
-        }
-        data.flip();
+        data.put(new short[]{0, 1, 2, 0, 2, 3}).flip();
         IndexBuffer ib = new IndexBuffer.Builder()
-                .indexCount(indexCount)
+                .indexCount(6)
                 .bufferType(IndexBuffer.Builder.IndexType.USHORT)
                 .build(engine);
         ib.setBuffer(engine, data);
