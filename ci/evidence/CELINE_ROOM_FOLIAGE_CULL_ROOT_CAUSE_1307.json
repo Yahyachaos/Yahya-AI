@@ -1,0 +1,54 @@
+{
+  "schema": "celine-room-root-cause/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "accepted_baseline_proof": 1285,
+    "failed_candidate_proof": 1307,
+    "failed_candidate_head": "fa0df343e1cfab26b8b9c4dc51061028a48fe96a"
+  },
+  "observed_failure": {
+    "runtime_owner_executed": true,
+    "diagnostic": "ROOM-156",
+    "actual_call_result": "derived foliage produced no measurable left-envelope extension; accepted source plant envelope remained unchanged",
+    "score_decision": "FLAT_REJECT",
+    "score_improvement": 0.0014038062011617488
+  },
+  "exact_call_camera": {
+    "focal_length_mm": 20.846875,
+    "reference_eye": [-0.380078125, -0.3265625, -1.1265625],
+    "reference_target": [-0.0565625, -1.10, -4.30],
+    "call_reference_base_zoom": 0.70,
+    "resolved_call_eye_at_reset_zoom_1": [-0.2830234375, -0.55859375, -2.07859375],
+    "resolved_forward_unit": [0.09856333, -0.23563800, -0.96682987]
+  },
+  "failed_augment_geometry": {
+    "local_center": [-1.995771, 0.955592, -1.414942],
+    "yaw_deg": -5.820900,
+    "pitch_deg": -13.629234,
+    "triangle_indices": "center,next,current",
+    "local_front_normal_from_winding": [0.0, 0.0, -1.0],
+    "world_front_normal": [0.09856332, -0.23563801, -0.96682987],
+    "dot_front_normal_vs_camera_forward": 0.99999999,
+    "dot_front_normal_vs_polygon_to_camera": -0.99999999
+  },
+  "material_contract": {
+    "donor_entity": "room_back_wall",
+    "donor_material": "RoomWarmOffWhite",
+    "room_glb_doubleSided_field_present": false,
+    "gltf_default_doubleSided": false,
+    "source_room_plant_large_material_doubleSided": true
+  },
+  "root_cause": "The plane orientation itself matches the CALL camera, but the generated triangle winding exposes the front face in the same direction as the camera forward vector, i.e. away from the camera. The donor wall material is single-sided. Therefore the generated triangles are back-facing from CALL and are rejected before contributing the intended foliage pixels. Renderable frustum-culling settings do not change that material face orientation.",
+  "correction": {
+    "bounded_change": "reverse only the generated fan winding from center,next,current to center,current,next",
+    "expected_front_normal": [-0.09856332, 0.23563801, 0.96682987],
+    "expected_dot_front_normal_vs_polygon_to_camera": 0.99999999,
+    "source_plant_trs_changed": false,
+    "source_glb_bytes_changed": false,
+    "room_shell_changed": false,
+    "camera_fov_changed": false,
+    "celine_changed": false,
+    "anchors_changed": false
+  },
+  "stop_loss_scope": "This proves one implementation defect in the first foliage attempt, so one corrected winding-only foliage attempt is causally distinct and allowed. If the corrected actual CALL still fails to extend the envelope or misses the >=0.002 whole-scene threshold, the entire derived-foliage family becomes STOP-LOSS."
+}
