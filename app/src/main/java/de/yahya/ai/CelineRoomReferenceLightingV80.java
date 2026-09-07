@@ -60,16 +60,16 @@ final class CelineRoomReferenceLightingV80 {
 
     // Proof #60 showed that 1.45/1.35/1.25 did not materially brighten the bed. glTF baseColorFactor is
     // defined in the 0..1 range, so values above 1 are not a valid way to brighten a dark source texture.
-    // Real CALL #1326 accepted the second bounded bed-local emissive step. The committed residual witness
-    // then shows red/green remain materially low while blue is already near target, so this candidate adds
-    // one smaller channel-weighted residual step and deliberately holds blue fixed. Preserve source
-    // texture/detail, geometry, camera, global key/fill and all non-bed materials.
+    // Real CALL #1331 accepted the previous bounded bed-local emissive residual step. The committed
+    // post-1331 causal witness measured the same red/green raster response in duvet and headboard,
+    // with blue already within 2-3 sRGB of reference. Apply exactly one smaller red/green-only residual
+    // step; preserve source texture/detail, geometry, camera, global key/fill and all non-bed materials.
     private static final float BED_RED = 1.00f;
     private static final float BED_GREEN = 1.00f;
     private static final float BED_BLUE = 1.00f;
     private static final float BED_METALLIC = 0.00f;
-    private static final float BED_EMISSIVE_RED = 0.21f;
-    private static final float BED_EMISSIVE_GREEN = 0.18f;
+    private static final float BED_EMISSIVE_RED = 0.245f;
+    private static final float BED_EMISSIVE_GREEN = 0.20f;
     private static final float BED_EMISSIVE_BLUE = 0.12f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
