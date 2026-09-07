@@ -23,24 +23,18 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Derived smooth replacement surface for the immutable source rug.
+ * Derived smooth top surface for the immutable source rug.
  *
  * Real Candidate #1259 and #1262 are raster-equivalent in the canonical rug witness after
  * independently neutralizing normalScale and aoStrength. Their rug ROI differs by only about
  * 0.0004 RGB levels on average, while the strong horizontal gaps remain plainly visible.
- * The optimized room GLB confirms that room_rug is a high-relief source mesh; therefore another
- * material-map tweak cannot fill the actual geometric gaps/facets.
+ * The current optimized room GLB confirms that room_rug is a high-relief source mesh; therefore
+ * another material-map tweak cannot fill the actual geometric gaps/facets.
  *
- * The first smooth-surface candidate (#1264) still showed the source relief because it only added
- * a plane above room_rug and never removed the source renderable from the Scene. This owner fixes
- * that root cause: it creates the derived surface first, then hides only the source room_rug entity.
- * On release the source entity is restored. Teppisch.glb bytes and the accepted source TRS stay
- * untouched; this is a reversible runtime scene-visibility replacement, not a source mutation.
- *
- * Proof #1279 confirmed that hiding the relief removes the zebra banding, but also exposed a
- * derived-plane shading bug: the local +Z normal was rotated +90 degrees around X, which points it
- * toward world -Y. Keep the same symmetric rug footprint while rotating -90 degrees so the normal
- * faces world +Y and receives the intended room light.
+ * Keep Teppisch.glb and the accepted room_rug TRS untouched. This owner adds one thin, smooth,
+ * horizontal derived surface just above the source rug's measured top and uses the already-isolated
+ * rug material. The surface follows the accepted source envelope and yaw, so this bounded candidate
+ * changes only visible pile relief, not room layout, camera, Celine, anchors or source bytes.
  */
 final class CelineRoomReferenceRugSurfaceV80 {
     // Current accepted room_rug TRS from CelineRoomReferenceLayoutV80.
@@ -50,7 +44,6 @@ final class CelineRoomReferenceRugSurfaceV80 {
     private static final float WIDTH_M = 2.732899f;
     private static final float DEPTH_M = 2.412007f;
     private static final float YAW_DEG = 5.820313f;
-    private static final String SOURCE_RUG_ENTITY = "room_rug";
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -66,10 +59,6 @@ final class CelineRoomReferenceRugSurfaceV80 {
         if (asset == null) throw new IllegalStateException("reference rug surface: room asset fehlt");
         Scene scene = (Scene) field(view, "scene");
         if (scene == null) throw new IllegalStateException("reference rug surface: scene fehlt");
-        int sourceRugEntity = asset.getFirstEntityByName(SOURCE_RUG_ENTITY);
-        if (sourceRugEntity == 0) {
-            throw new IllegalStateException("reference rug surface: source room_rug fehlt");
-        }
         TransformManager transforms = engine.getTransformManager();
         int rootTransform = transforms.getInstance(asset.getRoot());
         if (rootTransform == 0) throw new IllegalStateException("reference rug surface: room root fehlt");
@@ -80,7 +69,6 @@ final class CelineRoomReferenceRugSurfaceV80 {
         IndexBuffer indices = null;
         int entity = 0;
         boolean added = false;
-        boolean sourceHidden = false;
         try {
             material = MaterialInstance.duplicate(donor, "v80-reference-rug-smooth-surface");
             if (material.getMaterial().hasParameter("normalScale")) {
@@ -127,34 +115,24 @@ final class CelineRoomReferenceRugSurfaceV80 {
             Matrix.setIdentityM(local, 0);
             Matrix.translateM(local, 0, CENTER_X, CENTER_Y, CENTER_Z);
             Matrix.rotateM(local, 0, YAW_DEG, 0f, 1f, 0f);
-            // Local plane normal is +Z. -90deg around X maps it to world +Y (upward).
-            Matrix.rotateM(local, 0, -90.0f, 1f, 0f, 0f);
+            Matrix.rotateM(local, 0, 90.0f, 1f, 0f, 0f);
             transforms.create(entity, rootTransform, local);
             scene.addEntity(entity);
             added = true;
 
-            // Hide the immutable high-relief source only after the replacement is fully renderable.
-            // This is the missing step in rejected Proof #1264 and is fully reversible on release.
-            scene.remove(sourceRugEntity);
-            sourceHidden = true;
-
-            State state = new State(view, engine, scene, sourceRugEntity,
-                    entity, material, vertices, indices);
+            State state = new State(view, engine, scene, entity, material, vertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             view.addOnAttachStateChangeListener(state);
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-153",
-                    "Referenz-Teppich glatte Ersatzoberfläche aktiv; Reliefquelle ausgeblendet",
+                    "Referenz-Teppich glatte Ableitungsoberfläche aktiv",
                     "source=Teppisch.glb immutable=true acceptedTRS=true"
                             + " center=" + CENTER_X + "," + CENTER_Y + "," + CENTER_Z
                             + " size=" + WIDTH_M + "x" + DEPTH_M
                             + " yaw=" + YAW_DEG
-                            + " sourceEntityHidden=true material=isolatedRug normal=worldUp"
+                            + " sourceReliefOccluded=true material=isolatedRug"
                             + " room/camera/Celine/anchors unchanged");
         } catch (Throwable error) {
-            if (sourceHidden) {
-                try { scene.addEntity(sourceRugEntity); } catch (Throwable ignored) {}
-            }
             if (added && entity != 0) {
                 try { scene.removeEntity(entity); } catch (Throwable ignored) {}
             }
@@ -222,7 +200,7 @@ final class CelineRoomReferenceRugSurfaceV80 {
     }
 
     private static MaterialInstance rugMaterial(FilamentAsset asset, Engine engine) {
-        int entity = asset.getFirstEntityByName(SOURCE_RUG_ENTITY);
+        int entity = asset.getFirstEntityByName("room_rug");
         if (entity == 0) throw new IllegalStateException("reference rug surface: room_rug fehlt");
         RenderableManager manager = engine.getRenderableManager();
         int renderable = manager.getInstance(entity);
@@ -258,19 +236,17 @@ final class CelineRoomReferenceRugSurfaceV80 {
         final Celine3DView view;
         final Engine engine;
         final Scene scene;
-        final int sourceRugEntity;
         int entity;
         MaterialInstance material;
         VertexBuffer vertices;
         IndexBuffer indices;
         boolean destroyed;
 
-        State(Celine3DView view, Engine engine, Scene scene, int sourceRugEntity, int entity,
+        State(Celine3DView view, Engine engine, Scene scene, int entity,
               MaterialInstance material, VertexBuffer vertices, IndexBuffer indices) {
             this.view = view;
             this.engine = engine;
             this.scene = scene;
-            this.sourceRugEntity = sourceRugEntity;
             this.entity = entity;
             this.material = material;
             this.vertices = vertices;
@@ -288,11 +264,6 @@ final class CelineRoomReferenceRugSurfaceV80 {
             if (destroyed) return;
             destroyed = true;
             if (removeListener) view.removeOnAttachStateChangeListener(this);
-
-            // Restore source visibility first while the room asset is still alive when possible.
-            // If the asset was already released, this is safely best-effort like other room owners.
-            try { scene.addEntity(sourceRugEntity); } catch (Throwable ignored) {}
-
             int current = entity;
             entity = 0;
             if (current != 0) {
