@@ -1,0 +1,107 @@
+{
+  "schema": "celine-room-material-causal-witness/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_linked_support": "docs/celine/room-source/v80-2026-08-28/target_room_composition_reference.jpg",
+    "prior_flatness_witness": "ci/evidence/CELINE_ROOM_WINDOW_CURTAIN_FLATNESS_WITNESS_1336.json",
+    "outer_curtain_stop_loss_proof": "ci/evidence/CELINE_ROOM_WINDOW_CURTAIN_MODULATION_PROOF_1343.json",
+    "accepted_geometry_total_score": 0.004543166956175412
+  },
+  "exact_current_truth": {
+    "runtime_code_head": "4ce05b2ef79c933a828346d5b3237ff0b83d40a0",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "android_build_run": 34139237605,
+    "android_build_number": 1389,
+    "real_candidate_run": 34139237603,
+    "real_candidate_number": 1343,
+    "real_candidate_attempt": 2,
+    "current_call": "valid nonblank actual CALL; room HOME->CALL->HOME passed in one process",
+    "current_sheer_median_srgb": [115, 90, 68],
+    "geometry_scoreboard": "unchanged; this witness concerns only within-panel appearance"
+  },
+  "remaining_measured_delta": {
+    "left_sheer_clean": {
+      "roi_stage_px": {"left": 275, "top": 85, "right": 350, "bottom": 220},
+      "current_row_mean_luminance_std": 0.43,
+      "reference_linked_row_mean_luminance_std": 9.00,
+      "current_unique_rgb_count": 4,
+      "reference_linked_unique_rgb_count": 3939
+    },
+    "right_sheer_clean": {
+      "roi_stage_px": {"left": 475, "top": 85, "right": 530, "bottom": 200},
+      "current_row_mean_luminance_std": 1.81,
+      "reference_linked_row_mean_luminance_std": 22.50,
+      "current_unique_rgb_count": 3,
+      "reference_linked_unique_rgb_count": 5039
+    },
+    "manual_visual": "The broad central sheers remain board-like/quantized versus the soft continuous fold shading in Refernzbild.png."
+  },
+  "read_only_owner_evidence": {
+    "broad_sheer_owner": {
+      "class": "CelineRoomWindowSheerFillV80",
+      "current_shape": "one planar four-vertex quad per sheer, shared constant-color duplicated room_back_wall material",
+      "material_factor_path_is_raster_effective": {
+        "before_commit": "68a27837aaed01e9b975539a5294d4f41011c6f6",
+        "before_real_candidate": 1215,
+        "before_clean_sheer_median_srgb": [115, 104, 91],
+        "after_commit": "02cd394b4b6c366fe95760d74730bab76c1a8fa4",
+        "after_real_candidate": 1216,
+        "after_clean_sheer_median_srgb": [115, 90, 68],
+        "finding": "The visible broad-sheer material owner responds to baseColorFactor, so the entity/material path itself is live; the rejected #1343 result is specifically a baseColorMap modulation-path failure, not a hidden/non-rendering sheer owner."
+      }
+    },
+    "independent_fold_geometry_owner": {
+      "class": "CelineRoomWindowFoldDetailV80",
+      "proof_pair": {
+        "before_commit": "5cfae5571cb33e1da42d8d9fc7e482214d2f637c",
+        "before_real_candidate": 1217,
+        "after_commit": "15701ddf9a59f011eb654e942503f3eff71ba565",
+        "after_real_candidate": 1218,
+        "change": "move only the two existing sheer-fold facet centers onto the accepted sheer-panel centers",
+        "left_clean_roi_changed_pixels": 1639,
+        "left_clean_roi_pixel_count": 10125,
+        "right_clean_roi_changed_pixels": 1380,
+        "right_clean_roi_pixel_count": 6325,
+        "max_rgb_channel_delta": 17,
+        "finding": "A derived fold/tangent/material geometry owner is independently raster-effective inside the clean sheer ROIs."
+      },
+      "known_rejected_variant": "Proof #73 already rejected many dark narrow overlay facets because they read as regular bars. Do not repeat that overlay-bar strategy."
+    }
+  },
+  "causal_conclusion": {
+    "root_cause": "Each visible broad sheer is still a flat planar quad with a single tangent frame and constant factor. Texture modulation through the duplicated back-wall baseColorMap path has been stop-loss rejected on the outer panels, while the independent derived fold geometry/material path is demonstrably raster-effective.",
+    "authorized_strategy_family": "SMOOTH_BASE_SHEER_PLEAT_GEOMETRY",
+    "why_independent": "It changes the broad sheer surface/tangent field itself rather than binding or retuning a baseColorMap and avoids the previously rejected many-dark-overlay-bars family."
+  },
+  "bounded_prediction": {
+    "scope": "CelineRoomWindowSheerFillV80 only",
+    "change": "Replace each broad sheer four-vertex plane with one shared low-amplitude subdivided pleated surface. Keep the exact accepted X/Y envelope, centers, Z center and baseColorFactor. Use smooth sinusoidal depth/tangent variation with <= 6 mm depth amplitude and gentle height-dependent amplitude/phase so the surface gains continuous PBR fold shading without hard stripe overlays.",
+    "do_not_change": [
+      "outer curtain fill/material after #1343 stop-loss",
+      "window affine envelope or night backdrop",
+      "existing fold-detail overlay owner",
+      "source GLB/source texture bytes",
+      "room shell/global renderer lights",
+      "bed/furniture TRS or accepted bed material",
+      "camera/FOV",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "Core/Conversation/Persona/Intelligence paths"
+    ],
+    "acceptance_prediction": {
+      "accepted_sheer_color_center_must_remain_close_to_115_90_68": true,
+      "clean_sheer_within_panel_variation_must_materially_increase": true,
+      "manual_sheers_must_read_softer_and_less_board_like": true,
+      "no_new_regular_dark_bar_pattern": true,
+      "window_envelope_night_opening_and_lifecycle_must_remain_intact": true
+    }
+  },
+  "validation_classification": {
+    "this_commit": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD",
+    "next_runtime_candidate": "ONE_ANDROID_BUILD_PLUS_ONE_SMALLEST_REAL_HOME_CALL_HOME_PROOF",
+    "geometry_scoreboard": "PRESERVE_ACCEPTED_2D_ENVELOPE; MATERIAL_APPEARANCE_DECISION"
+  },
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. If Room ownership is still quiet, implement exactly one low-amplitude smooth pleated broad-sheer surface in CelineRoomWindowSheerFillV80 while preserving accepted centers/envelope/color and all protected state; run exactly one Android build and one smallest real HOME->CALL->HOME proof on that fingerprint, open the actual CALL, and keep the candidate only if clean-sheer variation materially improves and manual inspection agrees without color/envelope/lifecycle regression."
+}
