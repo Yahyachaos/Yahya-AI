@@ -18,27 +18,28 @@ import java.util.WeakHashMap;
  * not move the visible window. All corrections below are applied uniformly to the generated window
  * entities so backdrop, curtains, sheers and folds cannot drift apart.
  *
- * Real Candidate #1179 reopened the window after the earlier full-mesh projection solve: on the
- * exact 1016x813 CALL raster the visible derived silhouette is x=0.2470..0.5689 with top y=0.1464,
- * while Refernzbild.png requires x=0.205..0.588 and top y=0.086. The source mesh is hidden, so this
- * is a derived-group raster correction, not a source-GLB transform. Refit from the base group rather
- * than stacking another post-transform: horizontal scale 0.89069767 * (0.383/0.3219) = 1.05976144.
- * The visible center must move left from 0.40795 to 0.39650; solving that shift through the accepted
- * Filament camera while accounting for the simultaneous vertical move gives centerX=-0.89386.
+ * Real Candidate #1179 reopened the window after the earlier full-mesh projection solve. The first
+ * derived-group raster correction deliberately replaced hidden-mesh bounds with visible pixels.
+ * Proof #1262/#1266 now supply the stable post-correction residual on the exact 1016x813 CALL stage:
+ * x=199..599 px (0.195866..0.589567) and y=61..397 px (0.075031..0.488315), versus canonical
+ * x=0.205..0.588 and y=0.086..0.477. The visible center is already vertically correct, while both
+ * width and height are slightly oversized and horizontal center remains 0.003783 too far left.
  *
- * The current derived backdrop top analytically projects to y=0.1445, matching the measured raster
- * top 0.1464 closely enough to identify the same owner. Keep the accepted vertical scale 0.8505675
- * and solve only group Y translation through the exact camera; centerY=1.753992 projects the backdrop
- * top to y=0.086. Z, materials, camera, Celine and all immutable source-GLB bytes remain untouched.
+ * Refit the same base affine owner instead of stacking another transform. Scale X by the measured
+ * width ratio 0.383/0.3937008 and scale Y by 0.391/0.4132841. For horizontal translation use the
+ * observed #1179 -> #1262 screen/world response of the same owner: the prior -0.288860 m center-X
+ * move shifted visible center by -0.0152335 normalized, so +0.0037835 requires +0.071743 m. This is
+ * a bounded raster residual correction only. Z, materials, camera, Celine and immutable source-GLB
+ * bytes remain untouched.
  */
 final class CelineRoomWindowDerivedGroupV80 {
     private static final float OLD_CENTER_X = -0.605f;
-    private static final float NEW_CENTER_X = -0.893860f;
-    private static final float HORIZONTAL_SCALE = 1.05976144f;
+    private static final float NEW_CENTER_X = -0.822117f;
+    private static final float HORIZONTAL_SCALE = 1.03095712f;
 
     private static final float OLD_CENTER_Y = 1.20f;
     private static final float NEW_CENTER_Y = 1.753992f;
-    private static final float VERTICAL_SCALE = 0.8505675f;
+    private static final float VERTICAL_SCALE = 0.80470520f;
 
     // The accepted backdrop used to contribute one entity. Candidate a80dc42 intentionally splits
     // that same accepted backdrop into two panes, so the complete derived window group is now 12.
@@ -71,8 +72,8 @@ final class CelineRoomWindowDerivedGroupV80 {
             synchronized (APPLIED) { APPLIED.put(view, Boolean.TRUE); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-143",
                     "Abgeleitete Fenstergruppe rastergenau nachvermessen",
-                    "CALL#1179 visibleX=0.2470..0.5689 targetX=0.205..0.588"
-                            + " visibleTop=0.1464 targetTop=0.086"
+                    "CALL#1266 visibleX=0.195866..0.589567 targetX=0.205..0.588"
+                            + " visibleY=0.075031..0.488315 targetY=0.086..0.477"
                             + " scaleX=" + HORIZONTAL_SCALE
                             + " centerX=" + OLD_CENTER_X + "->" + NEW_CENTER_X
                             + " scaleY=" + VERTICAL_SCALE
