@@ -1,0 +1,57 @@
+{
+  "schema": "celine-room-batch-prediction/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "baseline_proof": 1285,
+    "baseline_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
+    "baseline_total_score_recomputed_current_targets": 0.004543166956175412,
+    "weight_sum": 11.0,
+    "minimum_improvement": 0.002
+  },
+  "candidate_strategy": {
+    "name": "source-hidden derived rug replacement plus independently proven secondary raster residuals",
+    "new_root_cause": "The rejected smooth rug overlay left the high-relief room_rug source renderable in Scene. The new strategy keeps the immutable source entity/material/TRS alive but removes only that source entity from Scene while a smooth material-duplicated derived replacement is active.",
+    "rug_visible_fit": {
+      "baseline_bbox": {"left": 0.2076771653543307, "right": 0.8572834645669292, "top": 0.5399753997539976, "bottom": 0.7822878228782287},
+      "target_bbox": {"left": 0.205, "right": 0.870, "top": 0.520, "bottom": 0.795},
+      "derived_width_scale": 1.0236969,
+      "derived_depth_scale": 1.1348993,
+      "conservative_predicted_rug_raw_score_ceiling": 0.004
+    },
+    "reused_actual_proof_responses": [
+      "#1295 window center-X correction",
+      "#1295 chair correction",
+      "#1295 shelf correction",
+      "#1295 right-wall-art correction",
+      "#1295 foreground-candle correction"
+    ],
+    "explicitly_excluded": [
+      "#1274 aggressive large-plant X/SX strategy",
+      "#1295 large-plant X/yaw strategy",
+      "rejected smooth-overlay-only rug strategy"
+    ]
+  },
+  "score_prediction": {
+    "baseline_weighted_sum": 0.04997483651792953,
+    "secondary_batch_weighted_sum_with_accepted_plant_restored_and_rug_unchanged": 0.03636074715087853,
+    "secondary_only_predicted_total_score": 0.0033055224682616846,
+    "secondary_only_predicted_improvement": 0.0012376444879137272,
+    "baseline_rug_raw_score": 0.01278934205718134,
+    "rug_weight": 1.2,
+    "conservative_predicted_rug_raw_score": 0.004,
+    "predicted_candidate_total_score": 0.002346685152932811,
+    "predicted_total_improvement": 0.0021964818032426006,
+    "predicted_margin_over_required_improvement": 0.00019648180324260057,
+    "decision": "BUILD_ALLOWED__PREDICTED_IMPROVEMENT_EXCEEDS_0_002_WITH_POSITIVE_MARGIN"
+  },
+  "ownership_guards": {
+    "source_furniture_glb_bytes_mutated": false,
+    "source_rug_trs_mutated": false,
+    "room_shell_mutated": false,
+    "camera_fov_mutated": false,
+    "celine_identity_or_rig_mutated": false,
+    "anchors_or_navigation_mutated": false,
+    "core_persona_paths_mutated": false
+  },
+  "acceptance_rule": "Prediction only authorizes one bounded runtime build/proof. Keep the runtime candidate only if a fresh actual CALL proof scores at least 0.002 better than the recomputed #1285 baseline and manual visual inspection agrees. Otherwise reject/revert the entire candidate."
+}
