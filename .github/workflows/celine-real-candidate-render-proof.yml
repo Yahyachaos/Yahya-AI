@@ -44,6 +44,7 @@ on:
       - 'app/src/main/java/de/yahya/ai/CelineArmPoseV69.java'
       - 'app/src/main/java/de/yahya/ai/YahyaApplication.java'
       - 'app/src/main/java/de/yahya/ai/CelineProductionPresenceV80.java'
+      - 'app/src/main/java/de/yahya/ai/CelineRoomReferenceLightingV80.java'
       - 'ci/celine_facial_morph_validation.py'
       - 'app/src/main/java/de/yahya/ai/CelineMorphRuntimeV62.java'
       - 'app/src/main/java/de/yahya/ai/CelineFacialMotionPlanner.java'
