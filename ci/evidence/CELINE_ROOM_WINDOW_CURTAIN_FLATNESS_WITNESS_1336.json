@@ -1,0 +1,106 @@
+{
+  "schema": "celine-room-material-causal-witness/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_layout_contract": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+    "reference_linked_support": "docs/celine/room-source/v80-2026-08-28/target_room_composition_reference.jpg",
+    "accepted_geometry_total_score": 0.004543166956175412,
+    "geometry_change_proposed": false
+  },
+  "exact_current_proof": {
+    "runtime_code_head": "8e06125b7eac308679990490a23363e09e98748a",
+    "runtime_fingerprint": "eba41c1ffd26a3a26b2eaae9c48f9a9d809050b07383e2f34ed9122806aaacb2",
+    "android_build_run": 34123098995,
+    "android_build_number": 1385,
+    "real_candidate_run": 34123445920,
+    "real_candidate_number": 1336,
+    "real_candidate_attempt": 2,
+    "artifact_id": 10019982140,
+    "artifact_sha256": "96dc05d3f69f5895a0b5e385619cd22c1996f6d1fbc653e5cff0006a717d10c9",
+    "call_capture": "real-candidate-call.png",
+    "stage_origin_full_screenshot_px": {"x": 32, "y": 466},
+    "stage_size_px": {"width": 1016, "height": 813},
+    "capture_status": "VALID_NONBLANK_ACTUAL_CALL"
+  },
+  "protected_accepted_window_truth": {
+    "visible_window_envelope": "accepted raster-affine group from #1262/#1266; do not change",
+    "night_backdrop": "#1232 response 36/26/19 versus canonical 37/27/20; do not change",
+    "left_outer_curtain_median": "#1245-calibrated 117/75/31; preserve",
+    "right_outer_curtain_median": "#1245-calibrated 88/54/25; preserve",
+    "source_window_mesh": "hidden after accepted derived coverage repair; immutable source bytes unchanged",
+    "bed_material": "accepted #1336; unrelated and protected"
+  },
+  "read_only_measurement": {
+    "method": "Normalize the repository reference-linked composition raster to the exact 1016x813 CALL stage and compare clean upper-window ROIs that avoid Celine/furniture occlusion. Color-center truth remains the already accepted canonical #1245/#1232 measurements; the reference-linked raster is used here only to quantify missing within-fabric variation.",
+    "rois_stage_px": {
+      "left_outer_clean": {"left": 215, "top": 85, "right": 270, "bottom": 220},
+      "left_sheer_clean": {"left": 275, "top": 85, "right": 350, "bottom": 220},
+      "right_sheer_clean": {"left": 475, "top": 85, "right": 530, "bottom": 200},
+      "right_outer_clean": {"left": 545, "top": 85, "right": 595, "bottom": 220}
+    },
+    "right_outer_clean": {
+      "current_median_srgb": [88, 54, 25],
+      "current_luminance_std": 1.16,
+      "reference_linked_luminance_std": 16.88,
+      "current_adjacent_column_mean_abs_luminance_delta": 0.10,
+      "reference_linked_adjacent_column_mean_abs_luminance_delta": 6.06,
+      "current_unique_rgb_count": 2,
+      "reference_linked_unique_rgb_count": 2525,
+      "finding": "center color is already accepted, but visible material is nearly spatially constant"
+    },
+    "left_sheer_clean": {
+      "current_median_srgb": [115, 90, 68],
+      "current_row_mean_luminance_std": 0.43,
+      "reference_linked_row_mean_luminance_std": 9.00,
+      "current_unique_rgb_count": 4,
+      "reference_linked_unique_rgb_count": 3939
+    },
+    "right_sheer_clean": {
+      "current_median_srgb": [115, 90, 68],
+      "current_row_mean_luminance_std": 1.81,
+      "reference_linked_row_mean_luminance_std": 22.50,
+      "current_unique_rgb_count": 3,
+      "reference_linked_unique_rgb_count": 5039
+    },
+    "manual_visual": "FAIL_APPEARANCE_DELTA: exact #1336 CALL shows broad flat/blocky window fabric panels and hard stripe boundaries, while Refernzbild.png shows continuous soft curtain/sheers fold shading. Geometry/envelope and night opening are not the cause."
+  },
+  "causal_trace": {
+    "visible_outer_curtains": "CelineRoomWindowCurtainFillV80 duplicates room_back_wall material and applies constant baseColorFactor only; no curtain baseColorMap is bound to these visible broad panels.",
+    "visible_sheers": "CelineRoomWindowSheerFillV80 likewise uses a constant baseColorFactor on broad panels.",
+    "hidden_texture_owner": "CelineRoomWindowTextureV80 binds room_window_drapes_reference.jpg to room_window_drapes, then CelineRoomWindowSourceVisibilityV80 hides that source mesh.",
+    "fold_facets": "CelineRoomWindowFoldDetailV80 adds only six constant-color narrow facets; this can add discrete bars but cannot supply continuous fabric variation.",
+    "root_cause": "The visible derived window coverage is intentionally geometry-clean but materially quantized. The detailed texture path is attached to a hidden source entity, so further hidden-source texture tuning cannot repair the visible broad-panel flatness."
+  },
+  "bounded_prediction": {
+    "candidate_family": "VISIBLE_OUTER_CURTAIN_PROCEDURAL_BASECOLOR_MODULATION",
+    "scope": "CelineRoomWindowCurtainFillV80 only for the first proving step",
+    "change": "Bind one subtle smooth generated grayscale fold/vertical-light modulation baseColorMap to the two visible outer-curtain materials, with factor compensation so the already accepted #1245 left/right median colors remain approximately unchanged.",
+    "do_not_change": [
+      "curtain/window geometry or affine group",
+      "night backdrop",
+      "sheer geometry/material in this first proving step",
+      "fold facet geometry",
+      "source GLB/source texture bytes",
+      "room shell/global renderer lights",
+      "bed/furniture TRS",
+      "camera/FOV",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "Core/Persona paths"
+    ],
+    "acceptance_prediction": {
+      "right_outer_flatness_error_should_materially_drop": true,
+      "accepted_left_right_center_color_should_not_materially_regress": true,
+      "manual_window_should_read_more_like_fabric_and_less_like_flat_boards": true,
+      "no_new_hard_repeating_bar_pattern": true
+    }
+  },
+  "validation_classification": {
+    "this_commit": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD",
+    "next_runtime_candidate": "ONE_ANDROID_BUILD_PLUS_ONE_SMALLEST_REAL_HOME_CALL_HOME_PROOF",
+    "geometry_scoreboard": "UNCHANGED_MATERIAL_ONLY"
+  },
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111 after this witness commit. If ownership remains quiet, implement exactly the bounded visible outer-curtain procedural baseColor modulation in CelineRoomWindowCurtainFillV80, preserving the accepted #1245 color centers and all protected geometry/state; then run exactly one Android build and one smallest real HOME -> CALL -> HOME-return proof, open the actual CALL, and accept only if flatness materially improves without color/envelope/lifecycle regression."
+}
