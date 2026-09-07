@@ -60,16 +60,16 @@ final class CelineRoomReferenceLightingV80 {
 
     // Proof #60 showed that 1.45/1.35/1.25 did not materially brighten the bed. glTF baseColorFactor is
     // defined in the 0..1 range, so values above 1 are not a valid way to brighten a dark source texture.
-    // Real Candidate #1208 keeps the global shell exposure close to the reference but leaves the large
-    // bed materially underexposed. Raise only the existing bed-local emissive factor by ~1.5x; preserve
-    // source texture detail, geometry, camera, global key/fill and all non-bed materials.
+    // Real CALL #1208 -> #1209 proved one bounded bed-local emissive step is materially responsive.
+    // The committed post-#1320 witness projects one equal second step to clear both semantic ROI gates;
+    // preserve source texture/detail, geometry, camera, global key/fill and all non-bed materials.
     private static final float BED_RED = 1.00f;
     private static final float BED_GREEN = 1.00f;
     private static final float BED_BLUE = 1.00f;
     private static final float BED_METALLIC = 0.00f;
-    private static final float BED_EMISSIVE_RED = 0.12f;
-    private static final float BED_EMISSIVE_GREEN = 0.105f;
-    private static final float BED_EMISSIVE_BLUE = 0.09f;
+    private static final float BED_EMISSIVE_RED = 0.16f;
+    private static final float BED_EMISSIVE_GREEN = 0.14f;
+    private static final float BED_EMISSIVE_BLUE = 0.12f;
 
     private static final float PRACTICAL_X = 2.66f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float PRACTICAL_Y = 1.28f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
