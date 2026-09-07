@@ -36,6 +36,11 @@ import java.util.WeakHashMap;
  * that root cause: it creates the derived surface first, then hides only the source room_rug entity.
  * On release the source entity is restored. Teppisch.glb bytes and the accepted source TRS stay
  * untouched; this is a reversible runtime scene-visibility replacement, not a source mutation.
+ *
+ * Proof #1279 confirmed that hiding the relief removes the zebra banding, but also exposed a
+ * derived-plane shading bug: the local +Z normal was rotated +90 degrees around X, which points it
+ * toward world -Y. Keep the same symmetric rug footprint while rotating -90 degrees so the normal
+ * faces world +Y and receives the intended room light.
  */
 final class CelineRoomReferenceRugSurfaceV80 {
     // Current accepted room_rug TRS from CelineRoomReferenceLayoutV80.
@@ -122,7 +127,8 @@ final class CelineRoomReferenceRugSurfaceV80 {
             Matrix.setIdentityM(local, 0);
             Matrix.translateM(local, 0, CENTER_X, CENTER_Y, CENTER_Z);
             Matrix.rotateM(local, 0, YAW_DEG, 0f, 1f, 0f);
-            Matrix.rotateM(local, 0, 90.0f, 1f, 0f, 0f);
+            // Local plane normal is +Z. -90deg around X maps it to world +Y (upward).
+            Matrix.rotateM(local, 0, -90.0f, 1f, 0f, 0f);
             transforms.create(entity, rootTransform, local);
             scene.addEntity(entity);
             added = true;
@@ -143,7 +149,7 @@ final class CelineRoomReferenceRugSurfaceV80 {
                             + " center=" + CENTER_X + "," + CENTER_Y + "," + CENTER_Z
                             + " size=" + WIDTH_M + "x" + DEPTH_M
                             + " yaw=" + YAW_DEG
-                            + " sourceEntityHidden=true material=isolatedRug"
+                            + " sourceEntityHidden=true material=isolatedRug normal=worldUp"
                             + " room/camera/Celine/anchors unchanged");
         } catch (Throwable error) {
             if (sourceHidden) {
