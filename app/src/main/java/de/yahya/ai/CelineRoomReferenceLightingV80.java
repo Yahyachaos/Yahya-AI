@@ -83,25 +83,6 @@ final class CelineRoomReferenceLightingV80 {
     private static final float PRACTICAL_LUMENS = 6000.0f;
     private static final float PRACTICAL_FALLOFF_M = 3.0f;
 
-    // Real Candidate #1353 rejected one single focused shelf spot: its median/p90 error reduction was
-    // only 6.24%/9.52% against the >=20% witness gate, so that causal strategy is under STOP-LOSS and
-    // must not be retuned. Refernzbild.png visibly uses a horizontal under-shelf emitter instead of one
-    // cone. Approximate that different room-local owner as five low-power POINT sources distributed over
-    // the accepted shelf width. This removes directional miss as a cause while preserving shelf TRS,
-    // wall material, global key/fill, camera, Celine and all source GLBs. The line sits just below and
-    // slightly camera-side of the accepted shelf and follows its accepted ~5.82 degree yaw.
-    private static final float SHELF_LINE_CENTER_X =
-            1.439041f + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
-    private static final float SHELF_LINE_Y =
-            1.700000f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-    private static final float SHELF_LINE_CENTER_Z =
-            -1.780000f + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
-    private static final float SHELF_LINE_YAW_COS = 0.994847f;
-    private static final float SHELF_LINE_YAW_SIN = 0.101390f;
-    private static final float[] SHELF_LINE_LOCAL_X = {-0.36f, -0.18f, 0.0f, 0.18f, 0.36f};
-    private static final float SHELF_LINE_POINT_LUMENS = 160.0f;
-    private static final float SHELF_LINE_FALLOFF_M = 0.78f;
-
     private static final Set<Celine3DView> APPLIED =
             Collections.newSetFromMap(new WeakHashMap<Celine3DView, Boolean>());
     private static final WeakHashMap<Celine3DView, PracticalLightState> PRACTICALS =
@@ -167,7 +148,6 @@ final class CelineRoomReferenceLightingV80 {
                             + " bedMetallic=" + BED_METALLIC
                             + " bedEmissive=" + BED_EMISSIVE_RED + "," + BED_EMISSIVE_GREEN + "," + BED_EMISSIVE_BLUE
                             + " practical=front_nightstand_focused_spot@" + PRACTICAL_LUMENS + "lm"
-                            + " shelfUnderlight=distributed_line_5x" + SHELF_LINE_POINT_LUMENS + "lm"
                             + " · source-loaded Celine material response preserved · geometry/camera/rig/source-GLB/60k-lamp unchanged");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-149",
@@ -245,7 +225,6 @@ final class CelineRoomReferenceLightingV80 {
     private static PracticalLightState createPracticalLight(
             Celine3DView view, Engine engine, Scene scene) {
         int entity = EntityManager.get().create();
-        int[] shelfEntities = new int[SHELF_LINE_LOCAL_X.length];
         try {
             new LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
                     .position(PRACTICAL_X, PRACTICAL_Y, PRACTICAL_Z)
@@ -258,36 +237,10 @@ final class CelineRoomReferenceLightingV80 {
                     .lightChannel(0, true)
                     .build(engine, entity);
             scene.addEntity(entity);
-
-            for (int i = 0; i < SHELF_LINE_LOCAL_X.length; i++) {
-                float localX = SHELF_LINE_LOCAL_X[i];
-                float x = SHELF_LINE_CENTER_X + localX * SHELF_LINE_YAW_COS;
-                float z = SHELF_LINE_CENTER_Z - localX * SHELF_LINE_YAW_SIN;
-                int shelfEntity = EntityManager.get().create();
-                shelfEntities[i] = shelfEntity;
-                new LightManager.Builder(LightManager.Type.POINT)
-                        .position(x, SHELF_LINE_Y, z)
-                        .color(1.0f, 0.68f, 0.40f)
-                        .intensity(SHELF_LINE_POINT_LUMENS)
-                        .falloff(SHELF_LINE_FALLOFF_M)
-                        .castShadows(false)
-                        .lightChannel(0, true)
-                        .build(engine, shelfEntity);
-                scene.addEntity(shelfEntity);
-            }
-
-            PracticalLightState state = new PracticalLightState(
-                    view, engine, scene, entity, shelfEntities);
+            PracticalLightState state = new PracticalLightState(view, engine, scene, entity);
             view.addOnAttachStateChangeListener(state);
             return state;
         } catch (Throwable error) {
-            for (int shelfEntity : shelfEntities) {
-                if (shelfEntity == 0) continue;
-                try { scene.removeEntity(shelfEntity); } catch (Throwable ignored) {}
-                try { engine.getLightManager().destroy(shelfEntity); } catch (Throwable ignored) {}
-                try { EntityManager.get().destroy(shelfEntity); } catch (Throwable ignored) {}
-            }
-            try { scene.removeEntity(entity); } catch (Throwable ignored) {}
             try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
             try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
             throw error;
@@ -299,15 +252,12 @@ final class CelineRoomReferenceLightingV80 {
         final Engine engine;
         final Scene scene;
         int entity;
-        int[] shelfEntities;
 
-        PracticalLightState(
-                Celine3DView view, Engine engine, Scene scene, int entity, int[] shelfEntities) {
+        PracticalLightState(Celine3DView view, Engine engine, Scene scene, int entity) {
             this.view = view;
             this.engine = engine;
             this.scene = scene;
             this.entity = entity;
-            this.shelfEntities = shelfEntities;
         }
 
         @Override public void onViewAttachedToWindow(View v) {
@@ -319,25 +269,13 @@ final class CelineRoomReferenceLightingV80 {
 
         void destroy() {
             int current = entity;
-            int[] currentShelfEntities = shelfEntities;
-            if (current == 0 && currentShelfEntities == null) return;
+            if (current == 0) return;
             entity = 0;
-            shelfEntities = null;
             view.removeOnAttachStateChangeListener(this);
-            if (current != 0) {
-                try { scene.removeEntity(current); } catch (Throwable ignored) {}
-                try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
-                try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
-            }
-            if (currentShelfEntities != null) {
-                for (int shelfEntity : currentShelfEntities) {
-                    if (shelfEntity == 0) continue;
-                    try { scene.removeEntity(shelfEntity); } catch (Throwable ignored) {}
-                    try { engine.getLightManager().destroy(shelfEntity); } catch (Throwable ignored) {}
-                    try { EntityManager.get().destroy(shelfEntity); } catch (Throwable ignored) {}
-                }
-            }
+            try { scene.removeEntity(current); } catch (Throwable ignored) {}
+            try { engine.getLightManager().destroy(current); } catch (Throwable ignored) {}
             CelineRoomWindowTextureV80.release(view, engine);
+            try { EntityManager.get().destroy(current); } catch (Throwable ignored) {}
             synchronized (APPLIED) {
                 APPLIED.remove(view);
                 PRACTICALS.remove(view);
