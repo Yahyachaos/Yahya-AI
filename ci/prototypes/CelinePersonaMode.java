@@ -19,6 +19,13 @@ public final class CelinePersonaMode {
         OTHER
     }
 
+    /** Bounded audit source for how the current active state was established. */
+    public enum ActivationSource {
+        NONE,
+        DIRECT_USER_COMMAND,
+        PERSISTED_STATE
+    }
+
     public static final int DEFAULT_INTENSITY = 2;
     public static final int MIN_INTENSITY = 1;
     public static final int MAX_INTENSITY = 3;
@@ -28,13 +35,15 @@ public final class CelinePersonaMode {
         private final boolean invalidIntensity;
         private final boolean active;
         private final int intensity;
+        private final ActivationSource activationSource;
 
         private CommandResult(boolean commandConsumed, boolean invalidIntensity,
-                              boolean active, int intensity) {
+                              boolean active, int intensity, ActivationSource activationSource) {
             this.commandConsumed = commandConsumed;
             this.invalidIntensity = invalidIntensity;
             this.active = active;
             this.intensity = intensity;
+            this.activationSource = activationSource;
         }
 
         public boolean commandConsumed() {
@@ -52,16 +61,22 @@ public final class CelinePersonaMode {
         public int intensity() {
             return intensity;
         }
+
+        public ActivationSource activationSource() {
+            return activationSource;
+        }
     }
 
-    /** Immutable value for a future app-owned persistence adapter. */
+    /** Immutable value for a future app-owned persistence/audit adapter. */
     public static final class State {
         private final boolean active;
         private final int intensity;
+        private final ActivationSource activationSource;
 
-        private State(boolean active, int intensity) {
+        private State(boolean active, int intensity, ActivationSource activationSource) {
             this.active = active;
             this.intensity = intensity;
+            this.activationSource = activationSource;
         }
 
         public boolean active() {
@@ -71,14 +86,18 @@ public final class CelinePersonaMode {
         public int intensity() {
             return intensity;
         }
+
+        public ActivationSource activationSource() {
+            return activationSource;
+        }
     }
 
     private boolean active;
     private int intensity;
+    private ActivationSource activationSource;
 
     public CelinePersonaMode() {
-        active = false;
-        intensity = 0;
+        reset();
     }
 
     public synchronized boolean isActive() {
@@ -89,13 +108,18 @@ public final class CelinePersonaMode {
         return intensity;
     }
 
+    public synchronized ActivationSource activationSource() {
+        return activationSource;
+    }
+
     public synchronized State snapshot() {
-        return new State(active, intensity);
+        return new State(active, intensity, activationSource);
     }
 
     /**
      * Restore explicit app-owned persisted state without inferring anything from conversation text.
-     * Invalid/corrupt payloads fail closed to normal mode and return false.
+     * Invalid/corrupt payloads fail closed to normal mode and return false. A valid active restore is
+     * marked as PERSISTED_STATE instead of replaying any historical activation source.
      */
     public synchronized boolean restorePersistedState(boolean persistedActive, int persistedIntensity) {
         if (!persistedActive) {
@@ -114,12 +138,14 @@ public final class CelinePersonaMode {
 
         active = true;
         intensity = persistedIntensity;
+        activationSource = ActivationSource.PERSISTED_STATE;
         return true;
     }
 
     public synchronized void reset() {
         active = false;
         intensity = 0;
+        activationSource = ActivationSource.NONE;
     }
 
     public synchronized CommandResult apply(InputChannel channel, String input) {
@@ -138,7 +164,7 @@ public final class CelinePersonaMode {
         }
 
         if (equalsIgnoreCase(command, "Nutte")) {
-            activate(DEFAULT_INTENSITY);
+            activate(DEFAULT_INTENSITY, ActivationSource.DIRECT_USER_COMMAND);
             return result(true, false);
         }
 
@@ -149,7 +175,7 @@ public final class CelinePersonaMode {
 
         String suffix = command.substring(6).trim();
         if (suffix.length() == 1 && suffix.charAt(0) >= '1' && suffix.charAt(0) <= '3') {
-            activate(suffix.charAt(0) - '0');
+            activate(suffix.charAt(0) - '0', ActivationSource.DIRECT_USER_COMMAND);
             return result(true, false);
         }
 
@@ -181,16 +207,20 @@ public final class CelinePersonaMode {
                 + "claim biological feelings or consciousness.";
     }
 
-    private void activate(int requestedIntensity) {
+    private void activate(int requestedIntensity, ActivationSource source) {
         if (requestedIntensity < MIN_INTENSITY || requestedIntensity > MAX_INTENSITY) {
             throw new IllegalArgumentException("intensity out of range");
         }
+        if (source == null || source == ActivationSource.NONE) {
+            throw new IllegalArgumentException("activation source required");
+        }
         active = true;
         intensity = requestedIntensity;
+        activationSource = source;
     }
 
     private CommandResult result(boolean consumed, boolean invalid) {
-        return new CommandResult(consumed, invalid, active, intensity);
+        return new CommandResult(consumed, invalid, active, intensity, activationSource);
     }
 
     private static boolean equalsIgnoreCase(String value, String expected) {
