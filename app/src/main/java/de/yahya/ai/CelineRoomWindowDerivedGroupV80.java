@@ -91,17 +91,22 @@ final class CelineRoomWindowDerivedGroupV80 {
         // wall. Keep that material correction in the same already-established room post-pass, but let
         // its own owner duplicate only the right-wall material so no shared shell donor is mutated.
         CelineRoomReferenceWallMaterialV80.apply(view, engine);
+        // Proof #1264 showed that a smooth plane layered above the high-relief rug is insufficient:
+        // the source rug remained visible through the geometric gaps. The replacement owner now creates
+        // the same bounded smooth surface and reversibly removes only room_rug from Scene afterwards.
+        // Apply it after material isolation so the derived surface duplicates the accepted rug material.
+        CelineRoomReferenceRugSurfaceV80.apply(view, engine);
         // Proof #1266 leaves the large plant as the next reliably separable furniture geometry delta
-        // after the window correction. Apply one conservative, fail-closed visible-raster half-step;
-        // its owner verifies the accepted baseline matrix before writing and touches no shared assets.
+        // after the window correction. Keep the accepted conservative, fail-closed half-step; its owner
+        // verifies the accepted baseline matrix before writing and touches no shared assets.
         CelineRoomVisibleRasterResidualV80.apply(view, engine);
-        // Real Candidate #1264 proves the smooth derived rug surface does not solve the visible
-        // horizontal banding (row-jump 2.3925 -> 2.4100 versus reference ~0.69). Keep the immutable
-        // source rug and accepted rug TRS, but do not wire that rejected runtime strategy.
     }
 
     static void release(Celine3DView view) {
         CelineRoomVisibleRasterResidualV80.release(view);
+        // Destroy the derived rug and restore the source entity before releasing the material owner
+        // whose isolated rug material was used as the replacement donor.
+        CelineRoomReferenceRugSurfaceV80.release(view);
         CelineRoomReferenceWallMaterialV80.release(view);
         CelineRoomForegroundPlantV80.release(view);
         CelineRoomForegroundLaptopV80.release(view);
