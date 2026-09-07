@@ -62,9 +62,9 @@
       "conclusion": "the missing spatial response has no source-authored local material owner"
     },
     "different_owner_identified": {
-      "owner": "derived room-local back-wall pool plane using the accepted back-wall PBR shader",
+      "owner": "derived room-local back-wall pool plane using the accepted back-wall PBR shader and base map, with a bounded emissive gradient only on that duplicate",
       "causal_class": "localized spatial material response, not a dynamic light",
-      "reason": "it can alter only the missing proof ROI while preserving accepted global key/fill and broad wall response"
+      "reason": "it can alter only the missing proof ROI while preserving the accepted broad wall baseColorMap, global key/fill and surrounding wall response"
     }
   },
   "authorized_single_bounded_candidate": {
@@ -80,13 +80,15 @@
       "derivation": "proof ROI is about 0.0444 stage-width left of the accepted shelf center; the prior measured CALL horizontal Jacobian is about 0.169 stage-width/m, giving about -0.263 m from shelf x=1.439041 to x≈1.176"
     },
     "material": {
-      "donor": "room_back_wall material shader",
-      "mechanism": "small deterministic baseColorMap gradient on a separate plane; edge response matches accepted broad wall and center takes a conservative half-residual warm lift",
-      "accepted_edge_base_color_factor": [0.813, 0.569, 0.346],
-      "candidate_center_base_color_factor": [0.874, 0.621, 0.371],
-      "center_derivation": "approximately half the RGB residual from baseline 120/82/49 toward reference 138/97/56, chosen to clear the 20% gate without a full-step overshoot",
+      "donor": "final accepted room_back_wall material after the window/post-pass returns",
+      "base_color_map": "inherited unchanged from the accepted back wall duplicate",
+      "mechanism": "64x64 smooth radial emissiveMap on a separate wall plane; black edge gives exact donor response and the center adds only a small warm local pool",
+      "emissive_factor_rgb": [0.05, 0.042, 0.02],
+      "emissive_strength": 1.0,
       "dynamic_light_added": false,
-      "emissive_added": false
+      "base_wall_factor_changed": false,
+      "global_key_or_fill_changed": false,
+      "reason": "a low-amplitude localized emission is causally distinct from the stopped dynamic-light transport family and preserves the proven wall texture at the plane boundary"
     },
     "hard_preserve": [
       "room geometry and accepted furniture TRS",
