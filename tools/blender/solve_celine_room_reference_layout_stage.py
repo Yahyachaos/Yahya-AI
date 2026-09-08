@@ -24,13 +24,16 @@ instance-ID silhouette is visual authority.
 Recovery checkpoint after rejected whole-scene candidate #1379: the solved
 reference camera is intentionally outside the canonical +2.10 m front plane so
 the foreground table can occupy only the lower frame. The front wall is already
-cut away for proof rendering, but the finite canonical ceiling stopped exactly
-at +2.10 m. Real source-PBR proof #458 therefore exposed the dark world above
-that front ceiling edge as two large triangular wedges. Extend only the ceiling
-*outward past the closed front plane* far enough to cover the actual solved
-camera plus a small margin. The clear 4.40 x 4.20 x 2.65 m interior and all six
-canonical boundary planes stay unchanged; this is a camera-facing ceiling
-overhang, not a room-depth change and not a proof-time furniture/material hack.
+cut away for proof rendering, but the finite canonical shell stopped exactly at
++2.10 m. Source-PBR Proof #458 exposed dark world above the front ceiling edge;
+the first ceiling-only overhang removed the center opening but exact fresh-reload
+Proof #460 still exposed two large dark triangular wedges because the left/right
+side walls still ended at +2.10 m. Close the camera-facing cutaway coherently by
+extending the ceiling AND both side-wall slabs to the solved camera plus the same
+small margin. Their canonical interior planes, the clear 4.40 x 4.20 x 2.65 m
+room volume, furniture transforms, materials and proof camera remain unchanged.
+This is shell closure for the actual camera owner, not a proof-time appearance
+or furniture patch.
 """
 
 from pathlib import Path
@@ -79,8 +82,8 @@ RUG_PARAMS = [
 
 CANONICAL_BACK_PLANE_Y = -2.10
 CANONICAL_FRONT_PLANE_Y = 2.10
-REFERENCE_CAMERA_CEILING_MARGIN_M = 0.20
-MAX_CAMERA_CEILING_OVERHANG_M = 1.25
+REFERENCE_CAMERA_SHELL_MARGIN_M = 0.20
+MAX_CAMERA_SHELL_OVERHANG_M = 1.25
 
 
 def _apply_anisotropic(instance_id, params, authority):
@@ -197,54 +200,63 @@ def _solve_instance_rug_bounded(camera, instance_id, target):
     return _previous_dispatch(camera, instance_id, target)
 
 
-def _apply_reference_camera_ceiling_cutaway():
+def _apply_reference_camera_shell_cutaway():
     camera = bpy.data.objects.get(solver.CAMERA_NAME)
     ceiling = bpy.data.objects.get("room_shell_ceiling")
+    left = bpy.data.objects.get("room_shell_left")
+    right = bpy.data.objects.get("room_shell_right")
     root = bpy.data.objects.get(solver.ROOT_NAME)
     if camera is None or camera.type != "CAMERA":
-        raise RuntimeError("clean-baseline ceiling cutaway requires the solved reference camera")
+        raise RuntimeError("clean-baseline shell cutaway requires the solved reference camera")
     if not bool(camera.get("reference_solved", False)):
-        raise RuntimeError("clean-baseline ceiling cutaway refuses an unsolved proof camera")
-    if ceiling is None or not bool(ceiling.get("room_shell", False)):
-        raise RuntimeError("clean-baseline ceiling cutaway requires builder-owned room_shell_ceiling")
+        raise RuntimeError("clean-baseline shell cutaway refuses an unsolved proof camera")
+    for name, obj in (("ceiling", ceiling), ("left", left), ("right", right)):
+        if obj is None or not bool(obj.get("room_shell", False)):
+            raise RuntimeError(f"clean-baseline shell cutaway requires builder-owned {name} shell")
     if root is None:
-        raise RuntimeError("clean-baseline ceiling cutaway requires room_world_root")
+        raise RuntimeError("clean-baseline shell cutaway requires room_world_root")
 
     camera_y = float(camera.location.y)
     if camera_y <= CANONICAL_FRONT_PLANE_Y:
-        # A future camera solve inside the room no longer needs the overhang.
         desired_front = CANONICAL_FRONT_PLANE_Y
     else:
-        desired_front = camera_y + REFERENCE_CAMERA_CEILING_MARGIN_M
+        desired_front = camera_y + REFERENCE_CAMERA_SHELL_MARGIN_M
     overhang = desired_front - CANONICAL_FRONT_PLANE_Y
-    if overhang < -1.0e-6 or overhang > MAX_CAMERA_CEILING_OVERHANG_M:
+    if overhang < -1.0e-6 or overhang > MAX_CAMERA_SHELL_OVERHANG_M:
         raise RuntimeError(
-            f"unsafe solved-camera ceiling overhang {overhang:.4f} m for camera y={camera_y:.4f}"
+            f"unsafe solved-camera shell overhang {overhang:.4f} m for camera y={camera_y:.4f}"
         )
 
     new_depth = desired_front - CANONICAL_BACK_PLANE_Y
-    ceiling.location.y = (CANONICAL_BACK_PLANE_Y + desired_front) * 0.5
-    dims = ceiling.dimensions.copy()
-    dims.y = new_depth
-    ceiling.dimensions = dims
-    ceiling["reference_camera_cutaway"] = True
-    ceiling["canonical_clear_depth_m"] = 4.20
-    ceiling["canonical_back_plane_y"] = CANONICAL_BACK_PLANE_Y
-    ceiling["canonical_front_plane_y"] = CANONICAL_FRONT_PLANE_Y
-    ceiling["camera_cutaway_front_y"] = desired_front
-    ceiling["camera_cutaway_overhang_m"] = overhang
-    ceiling["camera_cutaway_margin_m"] = REFERENCE_CAMERA_CEILING_MARGIN_M
-    root["reference_camera_ceiling_cutaway"] = True
-    root["reference_camera_ceiling_overhang_m"] = overhang
+    new_center_y = (CANONICAL_BACK_PLANE_Y + desired_front) * 0.5
+    for obj in (ceiling, left, right):
+        obj.location.y = new_center_y
+        dims = obj.dimensions.copy()
+        dims.y = new_depth
+        obj.dimensions = dims
+        obj["reference_camera_cutaway"] = True
+        obj["canonical_clear_depth_m"] = 4.20
+        obj["canonical_back_plane_y"] = CANONICAL_BACK_PLANE_Y
+        obj["canonical_front_plane_y"] = CANONICAL_FRONT_PLANE_Y
+        obj["camera_cutaway_front_y"] = desired_front
+        obj["camera_cutaway_overhang_m"] = overhang
+        obj["camera_cutaway_margin_m"] = REFERENCE_CAMERA_SHELL_MARGIN_M
+
+    root["reference_camera_shell_cutaway"] = True
+    root["reference_camera_shell_overhang_m"] = overhang
+    root["reference_camera_shell_extended_members"] = [
+        "room_shell_ceiling", "room_shell_left", "room_shell_right"
+    ]
     bpy.context.view_layer.update()
     print(
-        "CELINE_ROOM_CAMERA_CEILING_CUTAWAY PASS "
+        "CELINE_ROOM_CAMERA_SHELL_CUTAWAY PASS "
         f"camera_y={camera_y:.4f} canonical_front={CANONICAL_FRONT_PLANE_Y:.4f} "
-        f"ceiling_front={desired_front:.4f} overhang={overhang:.4f}",
+        f"shell_front={desired_front:.4f} overhang={overhang:.4f} "
+        "members=ceiling,left,right",
         flush=True,
     )
 
 
 solver.solve_instance = _solve_instance_rug_bounded
 solver.main()
-_apply_reference_camera_ceiling_cutaway()
+_apply_reference_camera_shell_cutaway()
