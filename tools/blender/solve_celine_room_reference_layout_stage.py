@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded rug floor-plane correction on the accepted room branch.
+"""Staged reference-layout solve plus the bounded architecture recovery checkpoint.
 
 The prior staged solver remains byte-for-byte in
 solve_celine_room_reference_layout_stage_base.py. This wrapper preserves the
@@ -20,10 +20,23 @@ local X 1.7087076. Preserve local Z/thickness 1.6410157, yaw 5.8203125 degrees,
 exact rug floor grounding, all accepted other geometry and the immutable source
 rug GLB bytes. Projected object AABB remains diagnostic only; the real rendered
 instance-ID silhouette is visual authority.
+
+Recovery checkpoint after rejected whole-scene candidate #1379: the solved
+reference camera is intentionally outside the canonical +2.10 m front plane so
+the foreground table can occupy only the lower frame. The front wall is already
+cut away for proof rendering, but the finite canonical ceiling stopped exactly
+at +2.10 m. Real source-PBR proof #458 therefore exposed the dark world above
+that front ceiling edge as two large triangular wedges. Extend only the ceiling
+*outward past the closed front plane* far enough to cover the actual solved
+camera plus a small margin. The clear 4.40 x 4.20 x 2.65 m interior and all six
+canonical boundary planes stay unchanged; this is a camera-facing ceiling
+overhang, not a room-depth change and not a proof-time furniture/material hack.
 """
 
 from pathlib import Path
 import math
+
+import bpy
 
 STAGE_BASE = Path(__file__).with_name("solve_celine_room_reference_layout_stage_base.py")
 source = STAGE_BASE.read_text(encoding="utf-8")
@@ -63,6 +76,11 @@ RUG_PARAMS = [
     1.6410156726837158,
     5.8203125,
 ]
+
+CANONICAL_BACK_PLANE_Y = -2.10
+CANONICAL_FRONT_PLANE_Y = 2.10
+REFERENCE_CAMERA_CEILING_MARGIN_M = 0.20
+MAX_CAMERA_CEILING_OVERHANG_M = 1.25
 
 
 def _apply_anisotropic(instance_id, params, authority):
@@ -179,5 +197,54 @@ def _solve_instance_rug_bounded(camera, instance_id, target):
     return _previous_dispatch(camera, instance_id, target)
 
 
+def _apply_reference_camera_ceiling_cutaway():
+    camera = bpy.data.objects.get(solver.CAMERA_NAME)
+    ceiling = bpy.data.objects.get("room_shell_ceiling")
+    root = bpy.data.objects.get(solver.ROOT_NAME)
+    if camera is None or camera.type != "CAMERA":
+        raise RuntimeError("clean-baseline ceiling cutaway requires the solved reference camera")
+    if not bool(camera.get("reference_solved", False)):
+        raise RuntimeError("clean-baseline ceiling cutaway refuses an unsolved proof camera")
+    if ceiling is None or not bool(ceiling.get("room_shell", False)):
+        raise RuntimeError("clean-baseline ceiling cutaway requires builder-owned room_shell_ceiling")
+    if root is None:
+        raise RuntimeError("clean-baseline ceiling cutaway requires room_world_root")
+
+    camera_y = float(camera.location.y)
+    if camera_y <= CANONICAL_FRONT_PLANE_Y:
+        # A future camera solve inside the room no longer needs the overhang.
+        desired_front = CANONICAL_FRONT_PLANE_Y
+    else:
+        desired_front = camera_y + REFERENCE_CAMERA_CEILING_MARGIN_M
+    overhang = desired_front - CANONICAL_FRONT_PLANE_Y
+    if overhang < -1.0e-6 or overhang > MAX_CAMERA_CEILING_OVERHANG_M:
+        raise RuntimeError(
+            f"unsafe solved-camera ceiling overhang {overhang:.4f} m for camera y={camera_y:.4f}"
+        )
+
+    new_depth = desired_front - CANONICAL_BACK_PLANE_Y
+    ceiling.location.y = (CANONICAL_BACK_PLANE_Y + desired_front) * 0.5
+    dims = ceiling.dimensions.copy()
+    dims.y = new_depth
+    ceiling.dimensions = dims
+    ceiling["reference_camera_cutaway"] = True
+    ceiling["canonical_clear_depth_m"] = 4.20
+    ceiling["canonical_back_plane_y"] = CANONICAL_BACK_PLANE_Y
+    ceiling["canonical_front_plane_y"] = CANONICAL_FRONT_PLANE_Y
+    ceiling["camera_cutaway_front_y"] = desired_front
+    ceiling["camera_cutaway_overhang_m"] = overhang
+    ceiling["camera_cutaway_margin_m"] = REFERENCE_CAMERA_CEILING_MARGIN_M
+    root["reference_camera_ceiling_cutaway"] = True
+    root["reference_camera_ceiling_overhang_m"] = overhang
+    bpy.context.view_layer.update()
+    print(
+        "CELINE_ROOM_CAMERA_CEILING_CUTAWAY PASS "
+        f"camera_y={camera_y:.4f} canonical_front={CANONICAL_FRONT_PLANE_Y:.4f} "
+        f"ceiling_front={desired_front:.4f} overhang={overhang:.4f}",
+        flush=True,
+    )
+
+
 solver.solve_instance = _solve_instance_rug_bounded
 solver.main()
+_apply_reference_camera_ceiling_cutaway()
