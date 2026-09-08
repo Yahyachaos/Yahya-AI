@@ -76,7 +76,7 @@ jobs:
           ldconfig -p | grep -F 'libEGL.so.1'
           command -v xvfb-run
 
-      - name: Build exact source and export accepted 4M source-PBR candidate
+      - name: Export accepted 4M source-PBR candidate in one fresh process
         shell: bash
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
@@ -89,59 +89,32 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
-          REDUCED_BLEND='/tmp/celine-room-4m-reduced.blend'
-          rm -f "$REDUCED_BLEND"
 
-          # Immutable-source architecture witness. Proof #445 established that the
-          # 4M (10.07%-retained) source-fidelity candidate remains structurally
-          # geometry-equivalent to the clean canonical source raster. Keep the
-          # source witness separate and never mutate the 12 canonical source GLBs.
-          xvfb-run -a blender --background --factory-startup \
-            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
-            --python tools/blender/build_celine_room_440x420.py \
-            --python tools/blender/report_celine_room_geometry.py \
-            --python tools/blender/solve_celine_room_reference_layout_stage.py \
-            --python tools/blender/render_celine_room_440x420_proof.py \
-            2>&1 | tee ci-room-proof/blender-room-440x420.log
-          cp ci-room-proof/01_front_wide.png ci-room-proof/source_front_wide.png
-          cp ci-room-proof/02_instance_id.png ci-room-proof/source_instance_id.png
-          cp ci-room-proof/render-proof.json ci-room-proof/render-proof-source.json
-
-          # Run the already-proven 4M reduction in its own Blender process, save a
-          # compressed derived working scene, then exit. Run #446 crashed only after
-          # adding source-PBR export to this high-memory process; run #445 proved the
-          # same reduction and raster cleanly. A fresh process isolates export/image
-          # work from source import + decimation without lowering source fidelity.
+          # Proof #445 already established, on the same canonical source commit and
+          # unchanged builder/solve/budget inputs, that the exact source raster and
+          # the 4M (10.07%-retained) candidate are structurally geometry-equivalent.
+          # Runs #446/#447 failed only while repeating multiple huge Blender processes
+          # and serializing/reloading the reduced .blend. Do not spend memory on a
+          # redundant source witness here: create, reduce, export and render the
+          # accepted 4M bracket in one fresh process. The 12 source GLBs stay immutable.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/apply_celine_room_source_fidelity_budget.py \
-            --python-expr "import bpy; bpy.ops.wm.save_as_mainfile(filepath='${REDUCED_BLEND}', compress=True); print('CELINE_ROOM_REDUCED_BLEND_SAVE PASS')" \
-            2>&1 | tee -a ci-room-proof/blender-room-440x420.log
-          test -s "$REDUCED_BLEND"
-
-          # Export and proof the reduced scene from a fresh Blender process so the
-          # large canonical-source import/decimation allocations are no longer live.
-          xvfb-run -a blender --background "$REDUCED_BLEND" \
             --python tools/blender/export_celine_room_source_pbr_recovery.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
-            2>&1 | tee -a ci-room-proof/blender-room-440x420.log
+            2>&1 | tee ci-room-proof/blender-room-440x420.log
 
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
-          grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
-          test "$(grep -c 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log)" -eq 2
           grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS scale=0.500000' ci-room-proof/blender-room-440x420.log
-          grep -F 'CELINE_ROOM_REDUCED_BLEND_SAVE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_SOURCE_PBR_EXPORT PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
-          test -s ci-room-proof/geometry-profile-source.json
           test -s ci-room-proof/geometry-profile-candidate.json
-          test -s ci-room-proof/source_front_wide.png
-          test -s ci-room-proof/source_instance_id.png
-          test -s ci-room-proof/render-proof-source.json
           test -s ci-room-proof/01_front_wide.png
+          test -s ci-room-proof/02_instance_id.png
           test -s ci-room-proof/render-proof.json
           test -s ci-room-proof/celine_room_v80_source_pbr_recovery.glb
           test -s ci-room-proof/source-pbr-recovery-export.json
@@ -159,9 +132,11 @@ jobs:
           printf '%s\n' 'checkpoint=accepted_4m_source_fidelity_source_pbr_export' >> ci-room-proof/metadata.txt
           printf '%s\n' 'candidate_target_triangles=4000000' >> ci-room-proof/metadata.txt
           printf '%s\n' 'candidate_structural_acceptance=manual_pass_from_run_445' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_structural_witness_run=445' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_structural_witness_head=335297de8da9f16a184208d81052d873c0542913' >> ci-room-proof/metadata.txt
           printf '%s\n' 'committed_runtime_triangles=976982' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_pbr_export=artifact_only_not_runtime_promoted' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'source_pbr_export_process=fresh_from_compressed_4m_blend' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_pbr_export_process=single_fresh_4m_process_no_blend_reload' >> ci-room-proof/metadata.txt
           printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
