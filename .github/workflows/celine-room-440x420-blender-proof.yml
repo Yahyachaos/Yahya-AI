@@ -76,7 +76,7 @@ jobs:
           ldconfig -p | grep -F 'libEGL.so.1'
           command -v xvfb-run
 
-      - name: Build exact source and bounded source-fidelity comparison
+      - name: Build exact source and 4M source-fidelity bracket
         shell: bash
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
@@ -84,13 +84,15 @@ jobs:
           CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
           CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
           CELINE_ROOM_RECOVERY_TEXTURE_MAX: '1024'
+          CELINE_ROOM_FIDELITY_BUDGET_SCALE: '0.5'
           CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
 
-          # Exact immutable-source architecture/appearance witness. It gets its own
-          # process so source proof files survive independently of candidate work.
+          # Immutable-source architecture/appearance witness. Proof #443 established
+          # this source raster is geometrically clean and that the 8M (20.1%-retained)
+          # candidate is visually geometry-equivalent. Keep the source process separate.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
@@ -102,12 +104,10 @@ jobs:
           cp ci-room-proof/02_instance_id.png ci-room-proof/source_instance_id.png
           cp ci-room-proof/render-proof.json ci-room-proof/render-proof-source.json
 
-          # Recovery checkpoint: geometry quality must be judged in a real raster
-          # before any GLB export. Run #440 proved that the 8M-triangle bounded scene
-          # was fully produced, then Blender crashed before a candidate raster while
-          # entering the heavy source-PBR export path. Export is deliberately deferred
-          # until the bounded raster itself is manually accepted. This prevents an
-          # export implementation detail from blocking the architecture/appearance gate.
+          # Runtime profiling on the preceding exact head found only 976,982 triangles
+          # (2.46% of the 39,729,529 source-instance triangles), while the 8M bracket
+          # remained clean. Test the same allocation strategy at 4M before exporting or
+          # promoting any derived asset; this is proof-only and source GLBs stay immutable.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
@@ -120,7 +120,7 @@ jobs:
           grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
           test "$(grep -c 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log)" -eq 2
-          grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS scale=0.500000' ci-room-proof/blender-room-440x420.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
           test -s ci-room-proof/geometry-profile-source.json
           test -s ci-room-proof/geometry-profile-candidate.json
@@ -140,9 +140,11 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'checkpoint=canonical_source_vs_bounded_source_fidelity_geometry_raster' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'candidate_target_triangles=8000000' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'source_pbr_export=deferred_until_candidate_raster_manual_acceptance' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'checkpoint=canonical_source_vs_4m_source_fidelity_geometry_raster' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'candidate_target_triangles=4000000' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'previous_clean_candidate_triangles=7999995' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'committed_runtime_triangles=976982' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_pbr_export=deferred_until_4m_candidate_raster_manual_acceptance' >> ci-room-proof/metadata.txt
           printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt

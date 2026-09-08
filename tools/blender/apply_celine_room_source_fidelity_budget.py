@@ -18,12 +18,12 @@ from pathlib import Path
 import bpy
 
 
-# First recovery candidate: retain roughly 8M triangles across the 13 furniture
-# instances. The deliberately generous first pass prioritizes visual source fidelity;
-# size optimization may only follow after the clean appearance checkpoint passes.
-# Keys intentionally use the canonical room instance ids from build_celine_room_440x420.py
-# so the proof budget cannot silently drift from the runtime/layout naming contract.
-TRIANGLE_BUDGETS = {
+# Recovery bracket. Proof #443 established that the 8M candidate below is visually
+# geometry-equivalent to the canonical source raster while the committed Runtime room
+# has only ~0.98M triangles total. CI may scale this exact per-instance allocation down
+# to locate the smallest still-clean source-fidelity budget without changing strategy
+# or mutating the immutable source GLBs.
+BASE_TRIANGLE_BUDGETS = {
     "room_bed": 1_000_000,
     "room_window_drapes": 1_000_000,
     "room_rug": 900_000,
@@ -37,6 +37,24 @@ TRIANGLE_BUDGETS = {
     "room_floor_lamp": 350_000,
     "room_wall_shelf_books": 350_000,
     "room_round_mirror": 300_000,
+}
+
+
+def _budget_scale() -> float:
+    raw = os.environ.get("CELINE_ROOM_FIDELITY_BUDGET_SCALE", "1.0")
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"invalid CELINE_ROOM_FIDELITY_BUDGET_SCALE={raw!r}") from exc
+    if value < 0.125 or value > 1.0:
+        raise RuntimeError(f"unsafe fidelity budget scale {value}; expected 0.125..1.0")
+    return value
+
+
+BUDGET_SCALE = _budget_scale()
+TRIANGLE_BUDGETS = {
+    key: max(1, int(round(value * BUDGET_SCALE)))
+    for key, value in BASE_TRIANGLE_BUDGETS.items()
 }
 
 # Preserve small source submeshes rather than collapsing hardware, leaves, trim or
@@ -60,13 +78,7 @@ def _triangle_count(obj: bpy.types.Object) -> int:
 
 
 def _instance_id(obj: bpy.types.Object) -> str | None:
-    """Resolve a source mesh to the canonical room instance anchor.
-
-    The current builder owns imported furniture through the hierarchy
-    `<room_id>__geometry -> <room_id>__anchor -> room_world_root`. Older proof code
-    looked for a never-created `FurnitureRoot::` prefix, which made every canonical
-    instance appear missing and prevented the source-fidelity comparison from running.
-    """
+    """Resolve a source mesh to the canonical room instance anchor."""
     current = obj
     while current is not None:
         for suffix in ("__geometry", "__anchor"):
@@ -171,6 +183,7 @@ def main() -> None:
         "schema": 1,
         "mode": "proof_only_bounded_source_fidelity_geometry",
         "source_glbs_mutated": False,
+        "budget_scale": BUDGET_SCALE,
         "small_mesh_preserve_threshold_triangles": SMALL_MESH_PRESERVE_TRIANGLES,
         "target_total_triangles": total_budget,
         "before_total_triangles": total_before,
@@ -182,7 +195,6 @@ def main() -> None:
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
-    # Guard against an ineffective or catastrophically over-reduced candidate.
     if total_after >= total_before * 0.90:
         raise RuntimeError(
             f"candidate reduction ineffective: before={total_before} after={total_after}"
@@ -194,7 +206,7 @@ def main() -> None:
 
     print(
         "CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS "
-        f"before={total_before} budget={total_budget} after={total_after} "
+        f"scale={BUDGET_SCALE:.6f} before={total_before} budget={total_budget} after={total_after} "
         f"retained={report['retained_ratio']} sourceGlbsMutated=false visualAcceptance=UNASSESSED"
     )
 
