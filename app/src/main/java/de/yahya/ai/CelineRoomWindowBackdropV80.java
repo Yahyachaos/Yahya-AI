@@ -36,7 +36,11 @@ final class CelineRoomWindowBackdropV80 {
     // Accepted outer backdrop contract from Proof #118.
     private static final float OUTER_CENTER_X = -0.605f;
     private static final float CENTER_Y = 1.20f;
-    private static final float CENTER_Z = -2.755f;
+    // The legacy -2.755m depth came from the pre-rebuild oversized room and now sits ~0.65m behind
+    // the exact 4.20m back wall. The current exact layout moves room_back_wall to about -2.100m and
+    // places room_window_drapes at -2.0925m. Put the night panes in the narrow architecture layer
+    // between wall and source drapes so they are visible as an opening without covering the drapes.
+    private static final float CENTER_Z = -2.097f;
     private static final float OUTER_HALF_WIDTH = 1.210f;
     private static final float HALF_HEIGHT = 1.12f;
 
@@ -132,6 +136,7 @@ final class CelineRoomWindowBackdropV80 {
                     "outer=" + LEFT_EDGE_X + ".." + RIGHT_EDGE_X
                             + " · gap=" + GAP_LEFT_X + ".." + GAP_RIGHT_X
                             + " center=" + GAP_CENTER_X + " width=" + (GAP_HALF_WIDTH * 2f)
+                            + " · z=" + CENTER_Z + " between backWall~-2.100 and sourceDrapes=-2.0925"
                             + " · key=" + RECOVERY_KEY_LUX + "lux"
                             + " · indirect=" + RECOVERY_INDIRECT_LUX + "lux"
                             + " · experimentalWindowTexture/fills/sourceHide=false"
