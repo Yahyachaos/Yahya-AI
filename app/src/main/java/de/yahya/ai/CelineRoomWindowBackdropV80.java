@@ -7,6 +7,8 @@ import com.google.android.filament.Colors;
 import com.google.android.filament.Engine;
 import com.google.android.filament.EntityManager;
 import com.google.android.filament.IndexBuffer;
+import com.google.android.filament.IndirectLight;
+import com.google.android.filament.LightManager;
 import com.google.android.filament.MaterialInstance;
 import com.google.android.filament.RenderableManager;
 import com.google.android.filament.Scene;
@@ -24,14 +26,11 @@ import java.util.WeakHashMap;
 /**
  * Bounded derived geometry repair for the reference window.
  *
- * The immutable source drape mesh is too sparse to provide the reference night opening, so the
- * accepted dark backdrop remains the source of the two night panes. Real Candidate #1232 locks its
- * dark response to RGB 36/26/19 versus reference 37/27/20. Candidate #1235 proved that a separate
- * warm mullion overlay has zero raster effect in the visible center opening even though the entity
- * initializes correctly. Replace only that ineffective overlay strategy by splitting the accepted
- * dark backdrop into two panes with a measured 0.09m center gap. The existing warm back wall then
- * supplies the structural center division without adding a competing foreground renderable.
- * No outer window envelope, source GLB, camera, furniture transform or Celine identity/rig changes.
+ * Recovery after the user-rejected #1379 raster deliberately keeps this owner small: preserve the
+ * source room/window materials, use only the accepted two dark night panes, and normalize the real
+ * renderer's existing key/indirect lights without activating the experimental texture/fill/source-hide
+ * stack, ceiling/bed material overrides or practical light owned by CelineRoomReferenceLightingV80.
+ * Geometry, source GLBs, camera/FOV, furniture transforms and Celine remain untouched.
  */
 final class CelineRoomWindowBackdropV80 {
     // Accepted outer backdrop contract from Proof #118.
@@ -40,6 +39,14 @@ final class CelineRoomWindowBackdropV80 {
     private static final float CENTER_Z = -2.755f;
     private static final float OUTER_HALF_WIDTH = 1.210f;
     private static final float HALF_HEIGHT = 1.12f;
+
+    // Clean recovery lighting: reuse the measured global key/fill values only. No material owner,
+    // source hiding, derived curtain fill, bed emission or practical light is installed here.
+    private static final float RECOVERY_KEY_RED = 1.00f;
+    private static final float RECOVERY_KEY_GREEN = 0.95f;
+    private static final float RECOVERY_KEY_BLUE = 0.90f;
+    private static final float RECOVERY_KEY_LUX = 5000.0f;
+    private static final float RECOVERY_INDIRECT_LUX = 5600.0f;
 
     // Real Candidate #1232 exact mapping: current uninterrupted dark opening is missing the
     // reference vertical window division around CALL-stage x=409..421. The accepted sheer-center
@@ -66,6 +73,8 @@ final class CelineRoomWindowBackdropV80 {
             if (STATES.containsKey(view)) return;
         }
 
+        applyRecoveryNeutralLighting(view, engine);
+
         int wallEntity = asset.getFirstEntityByName("room_back_wall");
         if (wallEntity == 0) throw new IllegalStateException("window backdrop: back wall fehlt");
         RenderableManager renderables = engine.getRenderableManager();
@@ -89,7 +98,8 @@ final class CelineRoomWindowBackdropV80 {
         boolean[] sceneAdded = new boolean[]{false, false};
         try {
             material = MaterialInstance.duplicate(source, "v80-window-night-backdrop");
-            // Real Candidate #1232 accepted this exact response; preserve it on both panes.
+            // Real Candidate #1232 accepted this response for the night opening. Recovery preserves
+            // it without any of the later texture/fill/fold/source-hide appearance stack.
             set4(material, "baseColorFactor", 0.188f, 0.128f, 0.084f, 1.0f);
             set1(material, "metallicFactor", 0.0f);
             set1(material, "roughnessFactor", 0.96f);
@@ -118,14 +128,15 @@ final class CelineRoomWindowBackdropV80 {
             State state = new State(scene, entities, material, leftVertices, rightVertices, indices);
             synchronized (STATES) { STATES.put(view, state); }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-148",
-                    "Fenster-Nachtfläche als zwei Paneele mit gemessenem Mittelspalt aktiv",
+                    "Recovery-Fenster mit neutralem Key/Fill aktiv",
                     "outer=" + LEFT_EDGE_X + ".." + RIGHT_EDGE_X
                             + " · gap=" + GAP_LEFT_X + ".." + GAP_RIGHT_X
                             + " center=" + GAP_CENTER_X + " width=" + (GAP_HALF_WIDTH * 2f)
-                            + " · targetRasterX=409..421"
-                            + " · #1232 night=36/26/19 ref=37/27/20 preserved on both panes"
-                            + " · #1235 separate overlay rejected zero-raster-effect"
-                            + " · source GLB/window envelope/camera/furniture/Celine unchanged");
+                            + " · key=" + RECOVERY_KEY_LUX + "lux"
+                            + " · indirect=" + RECOVERY_INDIRECT_LUX + "lux"
+                            + " · experimentalWindowTexture/fills/sourceHide=false"
+                            + " · ceiling/bed/practical overrides=false"
+                            + " · source GLB/camera/furniture/Celine unchanged");
         } catch (Throwable error) {
             for (int i = 0; i < entities.length; i++) {
                 if (sceneAdded[i] && entities[i] != 0) {
@@ -142,6 +153,25 @@ final class CelineRoomWindowBackdropV80 {
             if (material != null) try { engine.destroyMaterialInstance(material); } catch (Throwable ignored) {}
             throw error;
         }
+    }
+
+    private static void applyRecoveryNeutralLighting(Celine3DView view, Engine engine) throws Exception {
+        Object rawLightEntity = field(view, "lightEntity");
+        if (!(rawLightEntity instanceof Integer)) {
+            throw new IllegalStateException("recovery key light entity fehlt");
+        }
+        int lightEntity = (Integer) rawLightEntity;
+        IndirectLight indirect = (IndirectLight) field(view, "indirectLight");
+        if (lightEntity == 0 || indirect == null) {
+            throw new IllegalStateException("recovery key/indirect light fehlt");
+        }
+        LightManager lights = engine.getLightManager();
+        int light = lights.getInstance(lightEntity);
+        if (light == 0) throw new IllegalStateException("recovery key light instance fehlt");
+        lights.setColor(light, RECOVERY_KEY_RED, RECOVERY_KEY_GREEN, RECOVERY_KEY_BLUE);
+        lights.setIntensity(light, RECOVERY_KEY_LUX);
+        lights.setShadowCaster(light, true);
+        indirect.setIntensity(RECOVERY_INDIRECT_LUX);
     }
 
     private static int createPlane(Engine engine, MaterialInstance material, VertexBuffer vertices,
