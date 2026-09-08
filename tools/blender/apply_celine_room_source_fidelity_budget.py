@@ -8,10 +8,10 @@ to the derived Blender scene so CI can compare source geometry with a mobile-ori
 candidate before any Runtime asset is promoted.
 
 The canonical source scene is extremely dense (~39.7M triangles). After reduction we
-checkpoint and reload the derived scene before the PBR exporter runs. That deliberately
-drops source-scale mesh/undo state from Blender memory while preserving the solved
-transforms, materials and immutable-source provenance. The checkpoint lives only under
-/tmp and is never promoted as a Runtime/source asset.
+checkpoint the derived scene before the PBR exporter runs. The workflow then opens that
+checkpoint in a second fresh Blender process, which drops source-scale mesh/undo state
+without calling open_mainfile from inside a running Python script. The checkpoint lives
+only under /tmp and is never promoted as a Runtime/source asset.
 """
 
 from __future__ import annotations
@@ -157,8 +157,8 @@ def _apply_decimate(obj: bpy.types.Object, ratio: float) -> None:
         obj.select_set(False)
 
 
-def _checkpoint_and_reload(expected_triangles: int) -> None:
-    """Drop source-scale transient state before the PBR export/render phase."""
+def _checkpoint_reduced_scene(expected_triangles: int) -> None:
+    """Persist the reduced scene for a second fresh Blender process."""
     checkpoint = _checkpoint_path()
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     if checkpoint.exists():
@@ -170,6 +170,13 @@ def _checkpoint_and_reload(expected_triangles: int) -> None:
     bpy.context.preferences.edit.use_global_undo = False
     bpy.data.orphans_purge(do_recursive=True)
     gc.collect()
+
+    current_triangles = _scene_triangle_count()
+    if current_triangles != expected_triangles:
+        raise RuntimeError(
+            "reduced scene changed before checkpoint: "
+            f"expected={expected_triangles} current={current_triangles}"
+        )
 
     print(
         "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT start "
@@ -184,21 +191,10 @@ def _checkpoint_and_reload(expected_triangles: int) -> None:
     if not checkpoint.is_file() or checkpoint.stat().st_size == 0:
         raise RuntimeError(f"reduced-scene checkpoint was not written: {checkpoint}")
 
-    bpy.ops.wm.open_mainfile(filepath=str(checkpoint), load_ui=False)
-    bpy.context.preferences.edit.use_global_undo = False
-    bpy.data.orphans_purge(do_recursive=True)
-    gc.collect()
-
-    reloaded_triangles = _scene_triangle_count()
-    if reloaded_triangles != expected_triangles:
-        raise RuntimeError(
-            "reduced-scene checkpoint changed geometry: "
-            f"expected={expected_triangles} reloaded={reloaded_triangles}"
-        )
     print(
         "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT PASS "
-        f"path={checkpoint} bytes={checkpoint.stat().st_size} triangles={reloaded_triangles} "
-        "sourceGlbsMutated=false",
+        f"path={checkpoint} bytes={checkpoint.stat().st_size} triangles={current_triangles} "
+        "sourceGlbsMutated=false reloadOwner=freshWorkflowProcess",
         flush=True,
     )
 
@@ -285,7 +281,7 @@ def main() -> None:
         flush=True,
     )
 
-    _checkpoint_and_reload(total_after)
+    _checkpoint_reduced_scene(total_after)
 
 
 main()
