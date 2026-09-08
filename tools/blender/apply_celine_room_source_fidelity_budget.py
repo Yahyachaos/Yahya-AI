@@ -6,10 +6,17 @@ source GLBs. It runs after the exact source room has been built, solved and rend
 snapshots that source proof, then applies a conservative per-instance triangle budget
 to the derived Blender scene so CI can compare source geometry with a mobile-oriented
 candidate before any Runtime asset is promoted.
+
+The canonical source scene is extremely dense (~39.7M triangles). After reduction we
+checkpoint and reload the derived scene before the PBR exporter runs. That deliberately
+drops source-scale mesh/undo state from Blender memory while preserving the solved
+transforms, materials and immutable-source provenance. The checkpoint lives only under
+/tmp and is never promoted as a Runtime/source asset.
 """
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import shutil
@@ -69,6 +76,14 @@ def _proof_dir() -> Path:
     return path
 
 
+def _checkpoint_path() -> Path:
+    value = os.environ.get(
+        "CELINE_ROOM_FIDELITY_CHECKPOINT",
+        "/tmp/celine-room-source-fidelity-reduced.blend",
+    )
+    return Path(value).resolve()
+
+
 def _triangle_count(obj: bpy.types.Object) -> int:
     if obj.type != "MESH" or obj.data is None:
         return 0
@@ -104,6 +119,14 @@ def _instance_meshes() -> dict[str, list[bpy.types.Object]]:
     return grouped
 
 
+def _scene_triangle_count() -> int:
+    return sum(
+        _triangle_count(obj)
+        for meshes in _instance_meshes().values()
+        for obj in meshes
+    )
+
+
 def _snapshot_source_proof(proof_dir: Path) -> None:
     required = {
         "geometry-profile.json": "geometry-profile-source.json",
@@ -134,7 +157,57 @@ def _apply_decimate(obj: bpy.types.Object, ratio: float) -> None:
         obj.select_set(False)
 
 
+def _checkpoint_and_reload(expected_triangles: int) -> None:
+    """Drop source-scale transient state before the PBR export/render phase."""
+    checkpoint = _checkpoint_path()
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    if checkpoint.exists():
+        checkpoint.unlink()
+
+    # Python-driven modifier_apply operators do not need interactive undo in this
+    # disposable proof process. Keeping undo can retain the original ~39.7M-triangle
+    # meshes and cause the glTF exporter to allocate on top of source-scale state.
+    bpy.context.preferences.edit.use_global_undo = False
+    bpy.data.orphans_purge(do_recursive=True)
+    gc.collect()
+
+    print(
+        "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT start "
+        f"path={checkpoint} triangles={expected_triangles}",
+        flush=True,
+    )
+    bpy.ops.wm.save_as_mainfile(
+        filepath=str(checkpoint),
+        check_existing=False,
+        compress=False,
+    )
+    if not checkpoint.is_file() or checkpoint.stat().st_size == 0:
+        raise RuntimeError(f"reduced-scene checkpoint was not written: {checkpoint}")
+
+    bpy.ops.wm.open_mainfile(filepath=str(checkpoint), load_ui=False)
+    bpy.context.preferences.edit.use_global_undo = False
+    bpy.data.orphans_purge(do_recursive=True)
+    gc.collect()
+
+    reloaded_triangles = _scene_triangle_count()
+    if reloaded_triangles != expected_triangles:
+        raise RuntimeError(
+            "reduced-scene checkpoint changed geometry: "
+            f"expected={expected_triangles} reloaded={reloaded_triangles}"
+        )
+    print(
+        "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT PASS "
+        f"path={checkpoint} bytes={checkpoint.stat().st_size} triangles={reloaded_triangles} "
+        "sourceGlbsMutated=false",
+        flush=True,
+    )
+
+
 def main() -> None:
+    # Disable undo before the first destructive operation on the disposable derived
+    # scene so Blender does not retain full-resolution pre-decimation meshes.
+    bpy.context.preferences.edit.use_global_undo = False
+
     proof_dir = _proof_dir()
     _snapshot_source_proof(proof_dir)
     grouped = _instance_meshes()
@@ -176,7 +249,8 @@ def main() -> None:
         )
         print(
             "CELINE_ROOM_SOURCE_FIDELITY_ITEM "
-            f"instance={instance} before={before} target={budget} after={after} ratio={ratio:.6f}"
+            f"instance={instance} before={before} target={budget} after={after} ratio={ratio:.6f}",
+            flush=True,
         )
 
     report = {
@@ -207,8 +281,11 @@ def main() -> None:
     print(
         "CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS "
         f"scale={BUDGET_SCALE:.6f} before={total_before} budget={total_budget} after={total_after} "
-        f"retained={report['retained_ratio']} sourceGlbsMutated=false visualAcceptance=UNASSESSED"
+        f"retained={report['retained_ratio']} sourceGlbsMutated=false visualAcceptance=UNASSESSED",
+        flush=True,
     )
+
+    _checkpoint_and_reload(total_after)
 
 
 main()
