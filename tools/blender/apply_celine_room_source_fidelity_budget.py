@@ -7,11 +7,12 @@ snapshots that source proof, then applies a conservative per-instance triangle b
 to the derived Blender scene so CI can compare source geometry with a mobile-oriented
 candidate before any Runtime asset is promoted.
 
-The canonical source scene is extremely dense (~39.7M triangles). After reduction we
-checkpoint the derived scene before the PBR exporter runs. The workflow then opens that
-checkpoint in a second fresh Blender process, which drops source-scale mesh/undo state
-without calling open_mainfile from inside a running Python script. The checkpoint lives
-only under /tmp and is never promoted as a Runtime/source asset.
+The canonical source scene is extremely dense (~39.7M triangles). The default behavior
+still supports checkpointing the reduced derived scene, but recovery CI may explicitly
+skip that serialization boundary and continue export/render in the same Blender process.
+That mode exists because Blender 4.0.2 proved unstable both when re-opening the huge
+reduced .blend in-process and when loading it in a fresh process. Skipping the checkpoint
+never changes the immutable source GLBs; it only changes proof-process ownership.
 """
 
 from __future__ import annotations
@@ -58,7 +59,18 @@ def _budget_scale() -> float:
     return value
 
 
+def _checkpoint_mode() -> str:
+    raw = os.environ.get("CELINE_ROOM_FIDELITY_CHECKPOINT_MODE", "save").strip().lower()
+    if raw not in {"save", "skip"}:
+        raise RuntimeError(
+            "invalid CELINE_ROOM_FIDELITY_CHECKPOINT_MODE="
+            f"{raw!r}; expected 'save' or 'skip'"
+        )
+    return raw
+
+
 BUDGET_SCALE = _budget_scale()
+CHECKPOINT_MODE = _checkpoint_mode()
 TRIANGLE_BUDGETS = {
     key: max(1, int(round(value * BUDGET_SCALE)))
     for key, value in BASE_TRIANGLE_BUDGETS.items()
@@ -157,16 +169,8 @@ def _apply_decimate(obj: bpy.types.Object, ratio: float) -> None:
         obj.select_set(False)
 
 
-def _checkpoint_reduced_scene(expected_triangles: int) -> None:
-    """Persist the reduced scene for a second fresh Blender process."""
-    checkpoint = _checkpoint_path()
-    checkpoint.parent.mkdir(parents=True, exist_ok=True)
-    if checkpoint.exists():
-        checkpoint.unlink()
-
-    # Python-driven modifier_apply operators do not need interactive undo in this
-    # disposable proof process. Keeping undo can retain the original ~39.7M-triangle
-    # meshes and cause the glTF exporter to allocate on top of source-scale state.
+def _stabilize_reduced_scene(expected_triangles: int) -> None:
+    """Drop stale undo/orphan state before export or optional checkpointing."""
     bpy.context.preferences.edit.use_global_undo = False
     bpy.data.orphans_purge(do_recursive=True)
     gc.collect()
@@ -174,9 +178,22 @@ def _checkpoint_reduced_scene(expected_triangles: int) -> None:
     current_triangles = _scene_triangle_count()
     if current_triangles != expected_triangles:
         raise RuntimeError(
-            "reduced scene changed before checkpoint: "
+            "reduced scene changed while stabilizing: "
             f"expected={expected_triangles} current={current_triangles}"
         )
+    print(
+        "CELINE_ROOM_SOURCE_FIDELITY_STABILIZE PASS "
+        f"triangles={current_triangles} sourceGlbsMutated=false",
+        flush=True,
+    )
+
+
+def _checkpoint_reduced_scene(expected_triangles: int) -> None:
+    """Persist the reduced scene only when the caller explicitly keeps this boundary."""
+    checkpoint = _checkpoint_path()
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    if checkpoint.exists():
+        checkpoint.unlink()
 
     print(
         "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT start "
@@ -190,6 +207,13 @@ def _checkpoint_reduced_scene(expected_triangles: int) -> None:
     )
     if not checkpoint.is_file() or checkpoint.stat().st_size == 0:
         raise RuntimeError(f"reduced-scene checkpoint was not written: {checkpoint}")
+
+    current_triangles = _scene_triangle_count()
+    if current_triangles != expected_triangles:
+        raise RuntimeError(
+            "reduced scene changed during checkpoint: "
+            f"expected={expected_triangles} current={current_triangles}"
+        )
 
     print(
         "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT PASS "
@@ -254,6 +278,7 @@ def main() -> None:
         "mode": "proof_only_bounded_source_fidelity_geometry",
         "source_glbs_mutated": False,
         "budget_scale": BUDGET_SCALE,
+        "checkpoint_mode": CHECKPOINT_MODE,
         "small_mesh_preserve_threshold_triangles": SMALL_MESH_PRESERVE_TRIANGLES,
         "target_total_triangles": total_budget,
         "before_total_triangles": total_before,
@@ -281,7 +306,16 @@ def main() -> None:
         flush=True,
     )
 
-    _checkpoint_reduced_scene(total_after)
+    _stabilize_reduced_scene(total_after)
+    if CHECKPOINT_MODE == "save":
+        _checkpoint_reduced_scene(total_after)
+    else:
+        print(
+            "CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT SKIP "
+            f"mode=skip triangles={total_after} sourceGlbsMutated=false "
+            "continuationOwner=currentBlenderProcess",
+            flush=True,
+        )
 
 
 main()
