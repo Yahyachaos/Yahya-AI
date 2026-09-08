@@ -79,17 +79,16 @@ final class CelineRoomReferenceLayoutV80 {
             new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.912718f,
                     1.031000f, 0.667240f, 0.519922f, -2.000000f);
 
-    // Real Candidate #1179 supplies fresh raster evidence on the exact 1016x813 CALL surface.
-    // The previous full-mesh projection solve claimed x=0.205..0.588 / y=0.086..0.477, but the
-    // actually visible drape raster was x=251..578 px (0.2470..0.5689), with the reliable visible
-    // top at y=119 px (0.1464) and floor transition near y=409 px (0.5031). Because visible pixels,
-    // not hidden/invisible mesh extrema, are the acceptance authority, solve the raster silhouette
-    // itself. Width/height scale ratios are taken directly from target/current visible envelopes.
-    // X/Y translation uses the accepted CALL-camera Jacobian and the two prior window solve points;
-    // depth, Z scale and yaw remain frozen. This is one bounded derived-TRS correction only.
+    // Recovery Candidate #1400 is the first clean source-PBR raster after removing the destructive
+    // derived window/material/lighting experiments. Its exact 1016x813 CALL stage preserves the
+    // reference shell seams (~0.190 / ~0.748), so shell and proof-camera stay frozen. The reliable
+    // source drape envelope is approximately x=0.441..0.617 / y=0.153..0.565 versus the reference
+    // x=0.205..0.588 / y=0.086..0.477. Correct only the immutable source window root TRS: expand X
+    // by the measured visible-width ratio, shift the root left, lift it, and slightly reduce Y scale.
+    // Depth, Z scale and yaw remain frozen; no derived planes, textures or source-material overrides.
     private static final Spec WINDOW =
-            new Spec("room_window_drapes", -0.702176f, 1.489298f, -2.092500f,
-                    1.876080f, 1.776690f, 1.490625f, -8.437500f);
+            new Spec("room_window_drapes", -1.745000f, 1.780000f, -2.092500f,
+                    4.080000f, 1.690000f, 1.490625f, -8.437500f);
 
     private static final Spec SHELF =
             new Spec("room_wall_shelf_books", 1.439041f, 1.844809f, -1.916250f,
