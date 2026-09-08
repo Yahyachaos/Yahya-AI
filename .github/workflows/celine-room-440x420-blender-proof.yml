@@ -7,6 +7,7 @@ on:
       - '.github/workflows/celine-room-440x420-blender-proof.yml'
       - 'tools/celine-room-texture-only-recovery.py'
       - 'tools/blender/build_celine_room_440x420.py'
+      - 'tools/blender/report_celine_room_geometry.py'
       - 'tools/blender/export_celine_room_source_pbr_recovery.py'
       - 'tools/blender/solve_celine_room_reference_layout.py'
       - 'tools/blender/solve_celine_room_reference_layout_stage.py'
@@ -63,62 +64,41 @@ jobs:
               print(p.name, p.stat().st_size)
           PY
 
-      - name: Install Blender and texture recovery dependencies
+      - name: Install Blender
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends blender python3-numpy python3-pil libegl1 xvfb
+          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
           blender --version | head -n 2
           blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
-          python3 - <<'PY'
-          from PIL import Image
-          print('PIL_OK', Image.__version__)
-          PY
           ldconfig -p | grep -F 'libEGL.so.1'
           command -v xvfb-run
 
-      - name: Build geometry-preserving texture-only recovery sources
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf /tmp/celine-room-recovery-sources
-          mkdir -p ci-room-proof
-          python3 tools/celine-room-texture-only-recovery.py \
-            --source-dir '/tmp/celine-room-source/app/src/main/assets/models/möbel' \
-            --output-dir /tmp/celine-room-recovery-sources \
-            --manifest ci-room-proof/texture-only-recovery.json \
-            --max-edge 1024 \
-            | tee ci-room-proof/texture-only-recovery.log
-          grep -F 'CELINE_ROOM_TEXTURE_ONLY_RECOVERY PASS' ci-room-proof/texture-only-recovery.log
-          test "$(find /tmp/celine-room-recovery-sources -maxdepth 1 -type f -name '*.glb' | wc -l | tr -d ' ')" = '12'
-          test -s ci-room-proof/texture-only-recovery.json
-
-      - name: Build, export clean source-PBR candidate, solve and render
+      - name: Build canonical source geometry, profile, solve and render
         shell: bash
         env:
-          CELINE_ROOM_GLB_DIR: /tmp/celine-room-recovery-sources
+          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
           CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
           CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
           CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
-          CELINE_ROOM_RECOVERY_TEXTURE_MAX: '1024'
           CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          mkdir -p ci-room-proof
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
-            --python tools/blender/export_celine_room_source_pbr_recovery.py \
+            --python tools/blender/report_celine_room_geometry.py \
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
-          grep -F 'CELINE_ROOM_SOURCE_PBR_EXPORT PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
-          test -s ci-room-proof/celine_room_v80_source_pbr_recovery.glb
-          test -s ci-room-proof/source-pbr-recovery-export.json
+          test -s ci-room-proof/geometry-profile.json
           test -s ci-room-proof/reference_solve.json
           test -s ci-room-proof/01_front_wide.png
           test -s ci-room-proof/render-proof.json
@@ -130,13 +110,12 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'recovery_sources=texture_only_non_image_bufferviews_byte_identical_max_edge_1024' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'recovery_export=separate_source_pbr_no_atlas_max_edge_1024' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'checkpoint=canonical_source_geometry_no_runtime_export' >> ci-room-proof/metadata.txt
           printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
 
-      - name: Upload deterministic Blender proof and recovery GLB
+      - name: Upload deterministic Blender proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
