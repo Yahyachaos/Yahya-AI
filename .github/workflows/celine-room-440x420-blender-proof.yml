@@ -98,6 +98,9 @@ jobs:
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
+          cp ci-room-proof/01_front_wide.png ci-room-proof/source_front_wide.png
+          cp ci-room-proof/02_instance_id.png ci-room-proof/source_instance_id.png
+          cp ci-room-proof/render-proof.json ci-room-proof/render-proof-source.json
 
           # Recovery checkpoint: geometry quality must be judged in a real raster
           # before any GLB export. Run #440 proved that the 8M-triangle bounded scene
