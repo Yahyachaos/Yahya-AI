@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: celine-room-440x420-${{ github.event.pull_request.number || github.ref }}
@@ -76,7 +77,32 @@ jobs:
           ldconfig -p | grep -F 'libEGL.so.1'
           command -v xvfb-run
 
-      - name: Export accepted 4M source-PBR candidate with in-process source witness
+      - name: Reuse exact clean source witness from run 449
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-proof
+          rm -rf /tmp/celine-room-source-witness
+          mkdir -p /tmp/celine-room-source-witness
+          gh run download 34240853951 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name celine-room-440x420-blender-proof \
+            --dir /tmp/celine-room-source-witness
+          test -s /tmp/celine-room-source-witness/source_front_wide.png
+          test -s /tmp/celine-room-source-witness/source_instance_id.png
+          test -s /tmp/celine-room-source-witness/render-proof-source.json
+          test -s /tmp/celine-room-source-witness/geometry-profile.json
+          cp /tmp/celine-room-source-witness/source_front_wide.png ci-room-proof/01_front_wide.png
+          cp /tmp/celine-room-source-witness/source_instance_id.png ci-room-proof/02_instance_id.png
+          cp /tmp/celine-room-source-witness/render-proof-source.json ci-room-proof/render-proof.json
+          cp /tmp/celine-room-source-witness/geometry-profile.json ci-room-proof/geometry-profile.json
+          printf '%s\n' 'source_witness_run=449' > ci-room-proof/source-witness-reuse.txt
+          printf '%s\n' 'source_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/source-witness-reuse.txt
+          printf '%s\n' 'reuse_reason=workflow_only_head_change; source/layout/runtime inputs unchanged' >> ci-room-proof/source-witness-reuse.txt
+
+      - name: Export and render accepted 4M source-PBR candidate
         shell: bash
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
@@ -88,22 +114,19 @@ jobs:
           CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          mkdir -p ci-room-proof
 
-          # Run #448 failed before reduction/export because the source-fidelity budget
-          # intentionally snapshots geometry-profile.json + source raster files, while
-          # the previous workflow revision removed the source witness that creates them.
-          # Keep one fresh Blender process, but satisfy that fail-closed contract in the
-          # same scene: build/solve/report/render exact source, snapshot/reduce to the
-          # already accepted 4M bracket, then export and render the derived candidate.
-          # This does not mutate any of the 12 canonical source GLBs and does not add a
-          # second high-memory Blender import process.
+          # Run #449 proved the exact canonical source geometry and source raster clean,
+          # then Blender segfaulted only after that expensive full-source render. This
+          # workflow-only successor reuses that exact source witness and starts one fresh
+          # Blender process with the same immutable 12 GLBs. It reports/solves the current
+          # source scene, reduces it before any new render, exports the already accepted 4M
+          # bracket with source PBR, and renders only the reduced candidate. This is the
+          # Fast-Path equivalent proof route; no runtime/source GLB is mutated here.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/report_celine_room_geometry.py \
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
-            --python tools/blender/render_celine_room_440x420_proof.py \
             --python tools/blender/apply_celine_room_source_fidelity_budget.py \
             --python tools/blender/export_celine_room_source_pbr_recovery.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
@@ -114,7 +137,7 @@ jobs:
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS scale=0.500000' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_SOURCE_PBR_EXPORT PASS' ci-room-proof/blender-room-440x420.log
-          test "$(grep -c 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log)" -eq 2
+          test "$(grep -c 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log)" -eq 1
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
           test -s ci-room-proof/geometry-profile-source.json
           test -s ci-room-proof/geometry-profile-candidate.json
@@ -140,12 +163,12 @@ jobs:
           printf '%s\n' 'checkpoint=accepted_4m_source_fidelity_source_pbr_export' >> ci-room-proof/metadata.txt
           printf '%s\n' 'candidate_target_triangles=4000000' >> ci-room-proof/metadata.txt
           printf '%s\n' 'candidate_structural_acceptance=manual_pass_from_run_445' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'source_structural_witness_run=445' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'source_structural_witness_head=335297de8da9f16a184208d81052d873c0542913' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'current_source_witness=in_process_exact_source_before_reduction' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_structural_witness_run=449' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_structural_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_witness_reuse=runtime_equivalent_workflow_only_successor' >> ci-room-proof/metadata.txt
           printf '%s\n' 'committed_runtime_triangles=976982' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_pbr_export=artifact_only_not_runtime_promoted' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'source_pbr_export_process=single_fresh_process_with_source_snapshot_contract' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_pbr_export_process=reduce_before_render_to_avoid_full_source_render_crash' >> ci-room-proof/metadata.txt
           printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
