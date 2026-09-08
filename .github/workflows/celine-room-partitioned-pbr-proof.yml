@@ -91,6 +91,7 @@ jobs:
           cp /tmp/celine-room-source-witness/source_instance_id.png ci-room-proof/02_instance_id.png
           cp /tmp/celine-room-source-witness/render-proof-source.json ci-room-proof/render-proof.json
           cp /tmp/celine-room-source-witness/geometry-profile.json ci-room-proof/geometry-profile.json
+          cp Refernzbild.png ci-room-proof/Refernzbild.png
           printf '%s\n' 'source_witness_run=449' > ci-room-proof/source-witness-reuse.txt
           printf '%s\n' 'source_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/source-witness-reuse.txt
           printf '%s\n' 'reuse_reason=runtime-equivalent source/layout inputs; this proof isolates the export boundary' >> ci-room-proof/source-witness-reuse.txt
@@ -141,10 +142,176 @@ jobs:
           print('CELINE_ROOM_PARTITIONED_PBR_MANIFEST PASS', data['total_triangles'], data['total_glb_bytes'])
           PY
           printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/partitioned-pbr-metadata.txt
-          printf '%s\n' 'strategy=4M_proven-clean_geometry_partitioned_export_no_reload' >> ci-room-proof/partitioned-pbr-metadata.txt
+          printf '%s\n' 'strategy=4M_proven-clean_geometry_partitioned_export_fresh_reload_render' >> ci-room-proof/partitioned-pbr-metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/partitioned-pbr-metadata.txt
           printf '%s\n' 'runtime_promoted=false' >> ci-room-proof/partitioned-pbr-metadata.txt
           printf '%s\n' 'apk_build_required=false' >> ci-room-proof/partitioned-pbr-metadata.txt
+
+      - name: Fresh-process reload and render partitioned PBR
+        shell: bash
+        env:
+          CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
+        run: |
+          set -euo pipefail
+          cat > /tmp/render_celine_room_partitioned_reload.py <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          import bpy
+          from mathutils import Vector
+
+          PROOF_DIR = Path(os.environ['CELINE_ROOM_PROOF_DIR']).resolve()
+          PART_DIR = PROOF_DIR / 'partitioned-pbr'
+          CAMERA_META = PROOF_DIR / 'render-proof.json'
+          REFERENCE = PROOF_DIR / 'Refernzbild.png'
+          OUTPUT = PROOF_DIR / 'partitioned_reload_front_wide.png'
+          META = PROOF_DIR / 'partitioned-pbr-reload-render.json'
+
+          def fail(message):
+              print('CELINE_ROOM_PARTITIONED_PBR_RELOAD_RENDER FAIL', flush=True)
+              raise RuntimeError(message)
+
+          files = sorted(PART_DIR.glob('*.glb'))
+          if len(files) != 14:
+              fail(f'expected 14 partition GLBs, got {len(files)}')
+          if not CAMERA_META.is_file():
+              fail(f'missing camera witness: {CAMERA_META}')
+          if not REFERENCE.is_file():
+              fail(f'missing reference image: {REFERENCE}')
+
+          for obj in list(bpy.data.objects):
+              bpy.data.objects.remove(obj, do_unlink=True)
+
+          imported = []
+          for path in files:
+              before = set(bpy.data.objects)
+              result = bpy.ops.import_scene.gltf(filepath=str(path))
+              after = set(bpy.data.objects)
+              created = sorted(obj.name for obj in (after - before))
+              if 'FINISHED' not in result or not created:
+                  fail(f'partition import failed: {path.name} result={result} created={created}')
+              imported.append({'file': path.name, 'created_objects': len(created)})
+              print(
+                  f'CELINE_ROOM_PARTITIONED_PBR_RELOAD_ITEM file={path.name} objects={len(created)}',
+                  flush=True,
+              )
+
+          camera_payload = json.loads(CAMERA_META.read_text(encoding='utf-8'))['camera']
+          camera_data = bpy.data.cameras.new('room_440x420_reference_camera_reload')
+          camera = bpy.data.objects.new('room_440x420_reference_camera_reload', camera_data)
+          bpy.context.scene.collection.objects.link(camera)
+          camera.location = tuple(float(v) for v in camera_payload['location'])
+          camera.rotation_euler = tuple(float(v) for v in camera_payload['rotation_euler'])
+          camera.data.lens = float(camera_payload['lens_mm'])
+          camera['reference_solved'] = True
+
+          scene = bpy.context.scene
+          selected_engine = None
+          for engine in ('BLENDER_EEVEE_NEXT', 'BLENDER_EEVEE'):
+              try:
+                  scene.render.engine = engine
+                  selected_engine = engine
+                  break
+              except Exception:
+                  continue
+          if selected_engine is None:
+              fail('no Eevee render engine available')
+
+          scene.render.resolution_x = 1376
+          scene.render.resolution_y = 1100
+          scene.render.resolution_percentage = 100
+          scene.render.image_settings.file_format = 'PNG'
+          scene.render.image_settings.color_mode = 'RGB'
+          scene.render.image_settings.color_depth = '8'
+          scene.render.film_transparent = False
+          scene.camera = camera
+
+          world = scene.world
+          if world is None:
+              world = bpy.data.worlds.new('CELINE_ROOM_PARTITION_RELOAD_WORLD')
+              scene.world = world
+          world.use_nodes = True
+          bg = world.node_tree.nodes.get('Background')
+          if bg is not None:
+              bg.inputs['Color'].default_value = (0.055, 0.055, 0.055, 1.0)
+              bg.inputs['Strength'].default_value = 0.22
+
+          def look_at(obj, target):
+              direction = Vector(target) - obj.location
+              obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+
+          proof_lights = []
+          specs = (
+              ('CELINE_PARTITION_RELOAD_KEY', (0.4, 1.45, 2.45), 680.0, 3.4),
+              ('CELINE_PARTITION_RELOAD_FILL', (-1.75, 0.15, 1.85), 360.0, 2.8),
+              ('CELINE_PARTITION_RELOAD_WINDOW_FILL', (1.25, -1.72, 2.20), 260.0, 2.4),
+          )
+          for name, location, energy, size in specs:
+              data = bpy.data.lights.new(name=name, type='AREA')
+              data.energy = energy
+              data.shape = 'DISK'
+              data.size = size
+              data.color = (1.0, 1.0, 1.0)
+              obj = bpy.data.objects.new(name, data)
+              scene.collection.objects.link(obj)
+              obj.location = location
+              look_at(obj, (0.0, -0.15, 1.0))
+              proof_lights.append(obj)
+
+          front = bpy.data.objects.get('room_shell_front')
+          if front is None:
+              fail('partition reload missing room_shell_front')
+          front.hide_render = True
+          front.hide_viewport = True
+
+          scene.render.filepath = str(OUTPUT)
+          print(
+              f'CELINE_ROOM_PARTITIONED_PBR_RELOAD_RENDER_BEGIN engine={selected_engine} '
+              'size=1376x1100 partitions=14 combinedReload=false sourceBytesImmutable=true',
+              flush=True,
+          )
+          bpy.ops.render.render(write_still=True)
+          if not OUTPUT.is_file() or OUTPUT.stat().st_size < 20_000:
+              fail(f'partition reload render missing or unexpectedly small: {OUTPUT}')
+
+          payload = {
+              'schema': 1,
+              'purpose': 'fresh-process visual checkpoint for partitioned source-fidelity GLB export after combined-export STOP-LOSS',
+              'render': OUTPUT.name,
+              'reference': REFERENCE.name,
+              'render_size': [1376, 1100],
+              'engine': selected_engine,
+              'partition_count': len(files),
+              'partitions': imported,
+              'source_glbs_mutated': False,
+              'runtime_promoted': False,
+              'combined_glb_reload_used': False,
+              'fresh_process_reload_used': True,
+              'proof_time_geometry_mutation': False,
+              'proof_time_camera_mutation': False,
+              'proof_time_neutral_lighting_only': True,
+              'camera': {
+                  'location': [float(v) for v in camera.location],
+                  'rotation_euler': [float(v) for v in camera.rotation_euler],
+                  'lens_mm': float(camera.data.lens),
+              },
+              'visual_acceptance': 'UNASSESSED',
+              'note': 'Manual comparison against Refernzbild.png and the clean source-PBR witness is mandatory; structural success cannot accept this raster.',
+          }
+          META.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
+          print('CELINE_ROOM_PARTITIONED_PBR_RELOAD_RENDER PASS', flush=True)
+          print(f'output={OUTPUT}', flush=True)
+          print('visualAcceptance=UNASSESSED', flush=True)
+          PY
+
+          xvfb-run -a blender --background --factory-startup \
+            --python /tmp/render_celine_room_partitioned_reload.py \
+            2>&1 | tee ci-room-proof/partitioned-pbr-reload.log
+
+          grep -F 'CELINE_ROOM_PARTITIONED_PBR_RELOAD_RENDER PASS' ci-room-proof/partitioned-pbr-reload.log
+          test -s ci-room-proof/partitioned_reload_front_wide.png
+          test -s ci-room-proof/partitioned-pbr-reload-render.json
 
       - name: Upload partitioned source-fidelity proof
         if: always()
