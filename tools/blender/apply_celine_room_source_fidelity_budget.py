@@ -21,20 +21,22 @@ import bpy
 # First recovery candidate: retain roughly 8M triangles across the 13 furniture
 # instances. The deliberately generous first pass prioritizes visual source fidelity;
 # size optimization may only follow after the clean appearance checkpoint passes.
+# Keys intentionally use the canonical room instance ids from build_celine_room_440x420.py
+# so the proof budget cannot silently drift from the runtime/layout naming contract.
 TRIANGLE_BUDGETS = {
-    "bed": 1_000_000,
-    "drapes": 1_000_000,
-    "rug": 900_000,
-    "large_dresser": 800_000,
-    "nightstand_left": 450_000,
-    "nightstand_right": 450_000,
-    "lounge_chair": 700_000,
-    "round_table": 500_000,
-    "large_plant": 650_000,
-    "small_plant": 550_000,
-    "lamp": 350_000,
-    "shelf": 350_000,
-    "mirror": 300_000,
+    "room_bed": 1_000_000,
+    "room_window_drapes": 1_000_000,
+    "room_rug": 900_000,
+    "room_dresser": 800_000,
+    "room_nightstand_front": 450_000,
+    "room_nightstand_rear": 450_000,
+    "room_lounge_chair": 700_000,
+    "room_foreground_table": 500_000,
+    "room_plant_large": 650_000,
+    "room_plant_small": 550_000,
+    "room_floor_lamp": 350_000,
+    "room_wall_shelf_books": 350_000,
+    "room_round_mirror": 300_000,
 }
 
 # Preserve small source submeshes rather than collapsing hardware, leaves, trim or
@@ -58,11 +60,20 @@ def _triangle_count(obj: bpy.types.Object) -> int:
 
 
 def _instance_id(obj: bpy.types.Object) -> str | None:
+    """Resolve a source mesh to the canonical room instance anchor.
+
+    The current builder owns imported furniture through the hierarchy
+    `<room_id>__geometry -> <room_id>__anchor -> room_world_root`. Older proof code
+    looked for a never-created `FurnitureRoot::` prefix, which made every canonical
+    instance appear missing and prevented the source-fidelity comparison from running.
+    """
     current = obj
     while current is not None:
-        prefix = "FurnitureRoot::"
-        if current.name.startswith(prefix):
-            return current.name[len(prefix) :]
+        for suffix in ("__geometry", "__anchor"):
+            if current.name.endswith(suffix):
+                candidate = current.name[: -len(suffix)]
+                if candidate in TRIANGLE_BUDGETS:
+                    return candidate
         current = current.parent
     return None
 
