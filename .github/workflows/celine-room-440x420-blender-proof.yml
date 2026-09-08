@@ -88,16 +88,29 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-room-proof
+
+          # Keep the immutable-source raster in its own Blender process. The 39.7M-triangle
+          # source scene plus a completed render left enough allocator pressure that the
+          # next decimation pass could segfault nondeterministically (run #440). Starting
+          # the bounded candidate from a factory-fresh process preserves the exact proof
+          # files on disk while releasing all source-render GPU/CPU scene memory first.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/report_celine_room_geometry.py \
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
+            2>&1 | tee ci-room-proof/blender-room-440x420.log
+
+          xvfb-run -a blender --background --factory-startup \
+            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
+            --python tools/blender/build_celine_room_440x420.py \
+            --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/apply_celine_room_source_fidelity_budget.py \
             --python tools/blender/export_celine_room_source_pbr_recovery.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
-            2>&1 | tee ci-room-proof/blender-room-440x420.log
+            2>&1 | tee -a ci-room-proof/blender-room-440x420.log
+
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
