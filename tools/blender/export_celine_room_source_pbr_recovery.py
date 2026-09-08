@@ -96,9 +96,13 @@ def export_room():
     if collection is None or root is None or not bool(root.get(OWNED_PROP, False)):
         fail("canonical builder-owned room collection/root missing")
 
-    missing = [name for name in EXPECTED_INSTANCE_ROOTS if bpy.data.objects.get(name) is None]
+    missing = []
+    for instance_id in EXPECTED_INSTANCE_ROOTS:
+        anchor = bpy.data.objects.get(f"{instance_id}__anchor")
+        if anchor is None or not bool(anchor.get(OWNED_PROP, False)):
+            missing.append(instance_id)
     if missing:
-        fail(f"missing canonical instance roots: {missing}")
+        fail(f"missing canonical instance anchors: {missing}")
 
     image_report = resize_owned_images(max_edge)
 
