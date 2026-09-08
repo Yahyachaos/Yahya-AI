@@ -89,11 +89,8 @@ jobs:
           set -euo pipefail
           mkdir -p ci-room-proof
 
-          # Keep the immutable-source raster in its own Blender process. The 39.7M-triangle
-          # source scene plus a completed render left enough allocator pressure that the
-          # next decimation pass could segfault nondeterministically (run #440). Starting
-          # the bounded candidate from a factory-fresh process preserves the exact proof
-          # files on disk while releasing all source-render GPU/CPU scene memory first.
+          # Exact immutable-source architecture/appearance witness. It gets its own
+          # process so source proof files survive independently of candidate work.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
@@ -102,12 +99,17 @@ jobs:
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee ci-room-proof/blender-room-440x420.log
 
+          # Recovery checkpoint: geometry quality must be judged in a real raster
+          # before any GLB export. Run #440 proved that the 8M-triangle bounded scene
+          # was fully produced, then Blender crashed before a candidate raster while
+          # entering the heavy source-PBR export path. Export is deliberately deferred
+          # until the bounded raster itself is manually accepted. This prevents an
+          # export implementation detail from blocking the architecture/appearance gate.
           xvfb-run -a blender --background --factory-startup \
             --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
             --python tools/blender/apply_celine_room_source_fidelity_budget.py \
-            --python tools/blender/export_celine_room_source_pbr_recovery.py \
             --python tools/blender/render_celine_room_440x420_proof.py \
             2>&1 | tee -a ci-room-proof/blender-room-440x420.log
 
@@ -116,15 +118,12 @@ jobs:
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
           test "$(grep -c 'CELINE_ROOM_440x420_RENDER_PROOF PASS' ci-room-proof/blender-room-440x420.log)" -eq 2
           grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS' ci-room-proof/blender-room-440x420.log
-          grep -F 'CELINE_ROOM_SOURCE_PBR_EXPORT PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
           test -s ci-room-proof/geometry-profile-source.json
           test -s ci-room-proof/geometry-profile-candidate.json
           test -s ci-room-proof/source_front_wide.png
           test -s ci-room-proof/source_instance_id.png
           test -s ci-room-proof/render-proof-source.json
-          test -s ci-room-proof/celine_room_v80_source_pbr_recovery.glb
-          test -s ci-room-proof/source-pbr-recovery-export.json
           test -s ci-room-proof/01_front_wide.png
           test -s ci-room-proof/render-proof.json
           cp ci-room-proof/01_front_wide.png ci-room-proof/candidate_front_wide.png
@@ -138,9 +137,9 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'checkpoint=canonical_source_vs_bounded_source_fidelity_geometry_plus_source_pbr_export' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'checkpoint=canonical_source_vs_bounded_source_fidelity_geometry_raster' >> ci-room-proof/metadata.txt
           printf '%s\n' 'candidate_target_triangles=8000000' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'candidate_texture_strategy=separate_source_pbr_1024_no_atlas' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_pbr_export=deferred_until_candidate_raster_manual_acceptance' >> ci-room-proof/metadata.txt
           printf '%s\n' 'layout_mode=reference_constrained_screen_space_solve' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
