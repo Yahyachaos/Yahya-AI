@@ -31,6 +31,19 @@ final class CelineRoomEnvironmentV80 {
     private static final String ROOM_PATH =
             "models/room/celine_room_v80_final_modular.glb";
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
+    // Recovery audit after rejected Real Candidate #1379 and the subsequent alpha/back-face tests:
+    // the derivative room GLB contains 37 trilinear mipmapped samplers over densely packed source
+    // PBR atlases. At proof scale those mip levels can blend texels across UV-island boundaries and
+    // make opaque furniture/drapes look torn or patchy. The repository GLB and all 12 canonical
+    // source-of-origin GLBs stay immutable; only the just-read working buffer is length-preservingly
+    // patched from GL_LINEAR_MIPMAP_LINEAR (9987) to GL_LINEAR (9729) before gltfio parses it.
+    private static final int ROOM_EXPECTED_MIP_SAMPLERS = 37;
+    private static final byte[] ROOM_MIP_FILTER_PATTERN = new byte[] {
+            '"','m','i','n','F','i','l','t','e','r','"',':','9','9','8','7'
+    };
+    private static final byte[] ROOM_LINEAR_FILTER_PATTERN = new byte[] {
+            '"','m','i','n','F','i','l','t','e','r','"',':','9','7','2','9'
+    };
     // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
     // runtime light sits inside its shade, then applies the already locked room root offset.
     private static final float FLOOR_LAMP_LIGHT_X = -1.55f
@@ -205,6 +218,7 @@ final class CelineRoomEnvironmentV80 {
                 CelineRoomWorldContractV80 contract =
                         CelineRoomWorldContractV80.load(context);
                 ByteBuffer source = readAsset(context, ROOM_PATH);
+                int mipSamplerPatches = neutralizeRoomAtlasMipmaps(source);
                 candidate = assetLoader.createAsset(source);
                 if (candidate == null) {
                     throw new IllegalStateException("gltfio konnte " + ROOM_PATH + " nicht laden");
@@ -245,6 +259,15 @@ final class CelineRoomEnvironmentV80 {
                 Celine3DDiagnostics.record(context, "ROOM-115",
                         "4R Möbelorientierung korrigiert",
                         "bed=-90deg nightstands=+90deg; camera/Celine untouched");
+                Celine3DDiagnostics.record(context, "ROOM-125",
+                        "Recovery-UV-Atlas-Mipmaps neutralisiert",
+                        "samplers=" + mipSamplerPatches
+                                + " minFilter=GL_LINEAR"
+                                + " mipmaps=false"
+                                + " runtimeWorkingBufferPatch=true"
+                                + " repositoryRoomAssetMutated=false"
+                                + " sourceFurnitureGlbsMutated=false"
+                                + " sourceTexturePBR=true");
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
                         "entity=" + FLOOR_LAMP_LIGHT_ID
@@ -434,6 +457,50 @@ final class CelineRoomEnvironmentV80 {
                         "Filament-Raum Cleanup FEHLER", error);
             }
         }
+    }
+
+    private static int neutralizeRoomAtlasMipmaps(ByteBuffer source) {
+        if (source == null) throw new IllegalArgumentException("room GLB working buffer fehlt");
+        ByteBuffer glb = source.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+        if (glb.limit() < 20
+                || glb.getInt(0) != 0x46546C67
+                || glb.getInt(4) != 2) {
+            throw new IllegalStateException("room GLB header ungültig");
+        }
+        int jsonLength = glb.getInt(12);
+        int jsonType = glb.getInt(16);
+        int jsonStart = 20;
+        int jsonEnd = jsonStart + jsonLength;
+        if (jsonType != 0x4E4F534A
+                || jsonLength <= 0
+                || jsonEnd < jsonStart
+                || jsonEnd > glb.limit()) {
+            throw new IllegalStateException("room GLB JSON chunk ungültig");
+        }
+
+        int patches = 0;
+        int lastStart = jsonEnd - ROOM_MIP_FILTER_PATTERN.length;
+        for (int offset = jsonStart; offset <= lastStart; offset++) {
+            boolean match = true;
+            for (int i = 0; i < ROOM_MIP_FILTER_PATTERN.length; i++) {
+                if (glb.get(offset + i) != ROOM_MIP_FILTER_PATTERN[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (!match) continue;
+            for (int i = 0; i < ROOM_LINEAR_FILTER_PATTERN.length; i++) {
+                glb.put(offset + i, ROOM_LINEAR_FILTER_PATTERN[i]);
+            }
+            patches++;
+            offset += ROOM_MIP_FILTER_PATTERN.length - 1;
+        }
+        if (patches != ROOM_EXPECTED_MIP_SAMPLERS) {
+            throw new IllegalStateException("room GLB sampler audit changed: patched=" + patches
+                    + " expected=" + ROOM_EXPECTED_MIP_SAMPLERS);
+        }
+        source.position(0);
+        return patches;
     }
 
     private static ByteBuffer readAsset(Context context, String path) throws Exception {
