@@ -1,0 +1,156 @@
+name: Celine Room Partitioned Source-Fidelity Proof
+
+on:
+  pull_request:
+    types: [synchronize, edited]
+    paths:
+      - '.github/workflows/celine-room-partitioned-pbr-proof.yml'
+      - 'tools/blender/build_celine_room_440x420.py'
+      - 'tools/blender/apply_celine_room_source_fidelity_budget.py'
+      - 'tools/blender/export_celine_room_partitioned_pbr_recovery.py'
+      - 'tools/blender/solve_celine_room_reference_layout_stage.py'
+      - 'ci/celine_room_440x420_builder_contract.py'
+      - 'ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json'
+      - 'Refernzbild.png'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-room-partitioned-pbr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  partitioned-source-fidelity:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact PR head with LFS support
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Static exact-room contract
+        run: python3 ci/celine_room_440x420_builder_contract.py
+
+      - name: Materialize pinned canonical furniture sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT='df50816187978cbf5faf818ad484c3f682be7588'
+          SOURCE_DIR='/tmp/celine-room-source'
+          git fetch --no-tags origin "$SOURCE_COMMIT"
+          rm -rf "$SOURCE_DIR"
+          git worktree add --detach "$SOURCE_DIR" "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" lfs install --local
+          git -C "$SOURCE_DIR" lfs pull --include='app/src/main/assets/models/möbel/*.glb' --exclude=''
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('/tmp/celine-room-source/app/src/main/assets/models/möbel')
+          files = sorted(base.glob('*.glb'))
+          if len(files) != 12:
+              raise SystemExit(f'expected 12 materialized source GLBs, got {len(files)}')
+          tiny = [(p.name, p.stat().st_size) for p in files if p.stat().st_size < 100_000_000]
+          if tiny:
+              raise SystemExit(f'unmaterialized source GLBs: {tiny}')
+          print('CELINE_ROOM_PARTITION_SOURCE_MATERIALIZE PASS', len(files))
+          PY
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
+          blender --version | head -n 2
+          blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
+          command -v xvfb-run
+
+      - name: Reuse exact source witness needed by fidelity reducer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-proof
+          rm -rf /tmp/celine-room-source-witness
+          mkdir -p /tmp/celine-room-source-witness
+          gh run download 34240853951 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name celine-room-440x420-blender-proof \
+            --dir /tmp/celine-room-source-witness
+          test -s /tmp/celine-room-source-witness/source_front_wide.png
+          test -s /tmp/celine-room-source-witness/source_instance_id.png
+          test -s /tmp/celine-room-source-witness/render-proof-source.json
+          test -s /tmp/celine-room-source-witness/geometry-profile.json
+          cp /tmp/celine-room-source-witness/source_front_wide.png ci-room-proof/01_front_wide.png
+          cp /tmp/celine-room-source-witness/source_instance_id.png ci-room-proof/02_instance_id.png
+          cp /tmp/celine-room-source-witness/render-proof-source.json ci-room-proof/render-proof.json
+          cp /tmp/celine-room-source-witness/geometry-profile.json ci-room-proof/geometry-profile.json
+          printf '%s\n' 'source_witness_run=449' > ci-room-proof/source-witness-reuse.txt
+          printf '%s\n' 'source_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/source-witness-reuse.txt
+          printf '%s\n' 'reuse_reason=runtime-equivalent source/layout inputs; this proof isolates the export boundary' >> ci-room-proof/source-witness-reuse.txt
+
+      - name: Reduce solved source scene to proven-clean 4M bracket and export bounded partitions
+        shell: bash
+        env:
+          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
+          CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
+          CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
+          CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
+          CELINE_ROOM_FIDELITY_BUDGET_SCALE: '0.5'
+          CELINE_ROOM_FIDELITY_CHECKPOINT_MODE: skip
+          CELINE_ROOM_RECOVERY_TEXTURE_MAX: '1024'
+          CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          # STOP-LOSS strategy switch: runs 451/453/455 proved the single combined GLB
+          # export/reload boundary unstable. The same 4M geometry bracket was already
+          # visually clean in proof #445. Keep that geometry strategy and change only
+          # the export ownership: one shell GLB + one GLB per canonical instance.
+          xvfb-run -a blender --background --factory-startup \
+            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
+            --python tools/blender/build_celine_room_440x420.py \
+            --python tools/blender/solve_celine_room_reference_layout_stage.py \
+            --python tools/blender/apply_celine_room_source_fidelity_budget.py \
+            --python tools/blender/export_celine_room_partitioned_pbr_recovery.py \
+            2>&1 | tee ci-room-proof/partitioned-pbr-blender.log
+
+          grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/partitioned-pbr-blender.log
+          grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/partitioned-pbr-blender.log
+          grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS' ci-room-proof/partitioned-pbr-blender.log
+          grep -F 'CELINE_ROOM_SOURCE_FIDELITY_CHECKPOINT SKIP' ci-room-proof/partitioned-pbr-blender.log
+          grep -F 'CELINE_ROOM_PARTITIONED_PBR_EXPORT PASS' ci-room-proof/partitioned-pbr-blender.log
+          test -s ci-room-proof/geometry-profile-candidate.json
+          test -s ci-room-proof/partitioned-pbr-export.json
+          test "$(find ci-room-proof/partitioned-pbr -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('ci-room-proof/partitioned-pbr-export.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['partition_count'] == 14, data
+          assert data['source_glbs_mutated'] is False, data
+          assert data['runtime_promoted'] is False, data
+          assert data['total_triangles'] >= 3_000_000, data
+          print('CELINE_ROOM_PARTITIONED_PBR_MANIFEST PASS', data['total_triangles'], data['total_glb_bytes'])
+          PY
+          printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/partitioned-pbr-metadata.txt
+          printf '%s\n' 'strategy=4M_proven-clean_geometry_partitioned_export_no_reload' >> ci-room-proof/partitioned-pbr-metadata.txt
+          printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/partitioned-pbr-metadata.txt
+          printf '%s\n' 'runtime_promoted=false' >> ci-room-proof/partitioned-pbr-metadata.txt
+          printf '%s\n' 'apk_build_required=false' >> ci-room-proof/partitioned-pbr-metadata.txt
+
+      - name: Upload partitioned source-fidelity proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-partitioned-pbr-proof
+          path: ci-room-proof/
+          if-no-files-found: warn
+          retention-days: 30
