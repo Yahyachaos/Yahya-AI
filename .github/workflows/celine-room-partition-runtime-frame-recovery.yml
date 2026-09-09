@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='2d8cc9d22cfc9ef385d1e7456dc7e0c14023f3f0'
+          BASE='fcd9c9758e8621d0e583efe16100da4431b9fb49'
           git merge-base --is-ancestor "$BASE" HEAD
           EXTRA="$(git diff --name-only "$BASE" HEAD | grep -Ev '^\.github/workflows/celine-room-partition-runtime-frame-recovery\.yml$' || true)"
           if [ -n "$EXTRA" ]; then
