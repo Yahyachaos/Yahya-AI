@@ -270,7 +270,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
-            set -euo pipefail
+            set -eu
             awk '/^# Lifecycle regression: close CALL/{exit} {print}' ci/celine-real-candidate-emulator-proof.sh > /tmp/celine-room-home-call-proof.sh
             cat >> /tmp/celine-room-home-call-proof.sh <<'ROOMPROOF'
             adb logcat -d > real-candidate-logcat-final.txt
