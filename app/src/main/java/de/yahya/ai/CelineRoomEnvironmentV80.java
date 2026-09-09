@@ -18,6 +18,8 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.WeakHashMap;
 
 /**
@@ -28,8 +30,24 @@ import java.util.WeakHashMap;
  * a fail-closed runtime fallback when this environment cannot be built.
  */
 final class CelineRoomEnvironmentV80 {
-    private static final String ROOM_PATH =
-            "models/room/celine_room_v80_final_modular.glb";
+    private static final String ROOM_PARTITION_BASE = "models/room/source-fidelity/";
+    private static final String ROOM_SHELL_PATH = ROOM_PARTITION_BASE + "room_shell.glb";
+    private static final String[] ROOM_PATHS = {
+            ROOM_SHELL_PATH,
+            ROOM_PARTITION_BASE + "room_bed.glb",
+            ROOM_PARTITION_BASE + "room_dresser.glb",
+            ROOM_PARTITION_BASE + "room_plant_large.glb",
+            ROOM_PARTITION_BASE + "room_plant_small.glb",
+            ROOM_PARTITION_BASE + "room_floor_lamp.glb",
+            ROOM_PARTITION_BASE + "room_nightstand_rear.glb",
+            ROOM_PARTITION_BASE + "room_nightstand_front.glb",
+            ROOM_PARTITION_BASE + "room_lounge_chair.glb",
+            ROOM_PARTITION_BASE + "room_rug.glb",
+            ROOM_PARTITION_BASE + "room_foreground_table.glb",
+            ROOM_PARTITION_BASE + "room_window_drapes.glb",
+            ROOM_PARTITION_BASE + "room_wall_shelf_books.glb",
+            ROOM_PARTITION_BASE + "room_round_mirror.glb"
+    };
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
     // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
     // runtime light sits inside its shade, then applies the already locked room root offset.
@@ -175,7 +193,8 @@ final class CelineRoomEnvironmentV80 {
         final AssetLoader assetLoader;
         final ResourceLoader resourceLoader;
 
-        FilamentAsset roomAsset;
+        final ArrayList<FilamentAsset> roomAssets = new ArrayList<>();
+        FilamentAsset roomShellAsset;
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
         int floorLampLightEntity;
@@ -195,35 +214,45 @@ final class CelineRoomEnvironmentV80 {
         }
 
         synchronized boolean isBuilt() {
-            return roomAsset != null;
+            return roomShellAsset != null && !roomAssets.isEmpty();
         }
 
         synchronized boolean ensureBuilt() {
-            if (roomAsset != null) return true;
-            FilamentAsset candidate = null;
+            if (isBuilt()) return true;
+            ArrayList<FilamentAsset> candidates = new ArrayList<>();
             try {
-                CelineRoomWorldContractV80 contract =
-                        CelineRoomWorldContractV80.load(context);
-                ByteBuffer source = readAsset(context, ROOM_PATH);
-                candidate = assetLoader.createAsset(source);
-                if (candidate == null) {
-                    throw new IllegalStateException("gltfio konnte " + ROOM_PATH + " nicht laden");
+                CelineRoomWorldContractV80 contract = CelineRoomWorldContractV80.load(context);
+                FilamentAsset shell = null;
+                int renderables = 0;
+                for (String roomPath : ROOM_PATHS) {
+                    ByteBuffer source = readAsset(context, roomPath);
+                    FilamentAsset part = assetLoader.createAsset(source);
+                    if (part == null) {
+                        throw new IllegalStateException("gltfio konnte Raum-Partition nicht laden: " + roomPath);
+                    }
+                    try {
+                        resourceLoader.loadResources(part);
+                        part.releaseSourceData();
+                        int partRenderables = countRenderables(part);
+                        if (partRenderables <= 0) {
+                            throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
+                        }
+                        alignRoomRoot(part);
+                        candidates.add(part);
+                        renderables += partRenderables;
+                        if (ROOM_SHELL_PATH.equals(roomPath)) shell = part;
+                    } catch (Throwable error) {
+                        try { assetLoader.destroyAsset(part); } catch (Throwable ignored) {}
+                        throw error;
+                    }
                 }
-                resourceLoader.loadResources(candidate);
-                candidate.releaseSourceData();
+                if (shell == null) throw new IllegalStateException("Room shell partition missing");
+                validateWorldEntities(candidates, contract);
 
-                int renderables = countRenderables(candidate);
-                if (renderables <= 0) {
-                    throw new IllegalStateException("Filament-Raum enthält keine Renderables");
-                }
-
-                alignRoomRoot(candidate);
-                applyUserApprovedFurnitureOrientation(candidate);
-                validateWorldEntities(candidate, contract);
-
-                scene.addEntities(candidate.getEntities());
-                roomAsset = candidate;
-                candidate = null;
+                for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
+                roomAssets.addAll(candidates);
+                candidates.clear();
+                roomShellAsset = shell;
                 worldContract = contract;
                 seatAnchor = new SeatAnchor(
                         0.0f, -0.72f, -4.12f,
@@ -231,20 +260,20 @@ final class CelineRoomEnvironmentV80 {
                         0.0f, 0.0f, 1.0f,
                         1.15f, 0.95f, -1.55f,
                         0.0f, 0.05f, -4.53f,
-                        roomAsset.getRoot());
+                        roomShellAsset.getRoot());
                 createFloorLampLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
-                        "Finaler modularer Filament-Raum aktiv",
-                        "renderables=" + renderables + " path=" + ROOM_PATH
-                                + " sha256=" + contract.roomSha256);
+                        "Source-PBR Filament-Raum aktiv",
+                        "partitions=" + roomAssets.size() + " renderables=" + renderables
+                                + " strategy=4M_partitioned_source_fidelity");
                 Celine3DDiagnostics.record(context, "ROOM-105",
                         "4R Weltvertrag aktiv", contract.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-110",
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
-                Celine3DDiagnostics.record(context, "ROOM-115",
-                        "4R Möbelorientierung korrigiert",
-                        "bed=-90deg nightstands=+90deg; camera/Celine untouched");
+                Celine3DDiagnostics.record(context, "ROOM-116",
+                        "Recovery-Geometrie aktiv",
+                        "combined098M=false partitions14=true sourceGlbsImmutable=true runtimeOrientationOverride=false");
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
                         "entity=" + FLOOR_LAMP_LIGHT_ID
@@ -258,13 +287,14 @@ final class CelineRoomEnvironmentV80 {
                 failureLogged = false;
                 return true;
             } catch (Throwable error) {
-                if (candidate != null) {
+                for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (roomAsset != null || floorLampLightEntity != 0) {
+                if (!roomAssets.isEmpty() || floorLampLightEntity != 0) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
-                    roomAsset = null;
+                    roomAssets.clear();
+                    roomShellAsset = null;
                     seatAnchor = null;
                     worldContract = null;
                 }
@@ -332,24 +362,27 @@ final class CelineRoomEnvironmentV80 {
         }
 
         private void validateWorldEntities(
-                FilamentAsset asset, CelineRoomWorldContractV80 contract) {
-            requireEntity(asset, "room_world_root");
-            requireEntity(asset, "room_floor");
-            requireEntity(asset, "room_bed");
-            requireEntity(asset, "room_lounge_chair");
-            requireEntity(asset, "room_foreground_table");
-            requireEntity(asset, "room_floor_lamp");
-            requireEntity(asset, "room_nightstand_back");
-            requireEntity(asset, "room_nightstand_front");
-            for (String anchorId : contract.anchors.keySet()) {
-                requireEntity(asset, anchorId);
+                List<FilamentAsset> assets, CelineRoomWorldContractV80 contract) {
+            requireEntity(assets, "room_world_root");
+            requireEntity(assets, "room_shell_floor");
+            requireEntity(assets, "room_bed__anchor");
+            requireEntity(assets, "room_dresser__anchor");
+            requireEntity(assets, "room_lounge_chair__anchor");
+            requireEntity(assets, "room_foreground_table__anchor");
+            requireEntity(assets, "room_floor_lamp__anchor");
+            requireEntity(assets, "room_nightstand_rear__anchor");
+            requireEntity(assets, "room_nightstand_front__anchor");
+            requireEntity(assets, "room_window_drapes__anchor");
+            if (contract.anchors.isEmpty()) {
+                throw new IllegalStateException("4R anchor metadata missing");
             }
         }
 
-        private void requireEntity(FilamentAsset asset, String name) {
-            if (asset.getFirstEntityByName(name) == 0) {
-                throw new IllegalStateException("4R Raum-Entity fehlt: " + name);
+        private void requireEntity(List<FilamentAsset> assets, String name) {
+            for (FilamentAsset asset : assets) {
+                if (asset != null && asset.getFirstEntityByName(name) != 0) return;
             }
+            throw new IllegalStateException("Recovery room entity missing: " + name);
         }
 
         private void createFloorLampLight() {
@@ -377,7 +410,7 @@ final class CelineRoomEnvironmentV80 {
         }
 
         synchronized boolean toggleFloorLamp() {
-            if (roomAsset == null || floorLampLightEntity == 0) return false;
+            if (!isBuilt() || floorLampLightEntity == 0) return false;
             LightManager lights = engine.getLightManager();
             int instance = lights.getInstance(floorLampLightEntity);
             if (instance == 0) return false;
@@ -407,28 +440,29 @@ final class CelineRoomEnvironmentV80 {
         }
 
         synchronized void destroyRoom() {
-            FilamentAsset current = roomAsset;
+            ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
             int lampLight = floorLampLightEntity;
-            roomAsset = null;
+            roomAssets.clear();
+            roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            if (current == null && lampLight == 0) return;
+            if (current.isEmpty() && lampLight == 0) return;
             try {
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
                     try { engine.getLightManager().destroy(lampLight); } catch (Throwable ignored) {}
                     try { EntityManager.get().destroy(lampLight); } catch (Throwable ignored) {}
                 }
-                if (current != null) {
-                    for (int entity : current.getEntities()) {
+                for (FilamentAsset asset : current) {
+                    for (int entity : asset.getEntities()) {
                         try { scene.removeEntity(entity); } catch (Throwable ignored) {}
                     }
-                    assetLoader.destroyAsset(current);
+                    assetLoader.destroyAsset(asset);
                 }
                 Celine3DDiagnostics.record(context, "ROOM-130",
-                        "Filament-Raum freigegeben", "detach lifecycle cleanup");
+                        "Filament-Raum freigegeben", "detach lifecycle cleanup partitions=" + current.size());
             } catch (Throwable error) {
                 Celine3DDiagnostics.error(context, "ROOM-198",
                         "Filament-Raum Cleanup FEHLER", error);
