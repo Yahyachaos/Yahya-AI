@@ -49,6 +49,12 @@ final class CelineRoomEnvironmentV80 {
             ROOM_PARTITION_BASE + "room_round_mirror.glb"
     };
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
+    private static final float DEFAULT_DIRECTIONAL_KEY_INTENSITY = 32_000.0f;
+    // Recovery stop-loss pass #2: fully detaching the shared key made the source-PBR room collapse
+    // into darkness. Keep that key, but halve it while this room is active so the window/drapes and
+    // pale source materials retain detail instead of clipping. The original value is restored on
+    // room teardown, so Celine3DView keeps its independent default outside this environment.
+    private static final float ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY = 16_000.0f;
     // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
     // runtime light sits inside its shade, then applies the already locked room root offset.
     private static final float FLOOR_LAMP_LIGHT_X = -1.55f
@@ -199,6 +205,7 @@ final class CelineRoomEnvironmentV80 {
         CelineRoomWorldContractV80 worldContract;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
+        boolean directionalKeyRebalanced;
         boolean listenerInstalled;
         boolean failureLogged;
 
@@ -250,11 +257,11 @@ final class CelineRoomEnvironmentV80 {
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
-      int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
-      if (frontWallEntity == 0) {
-          throw new IllegalStateException("Recovery shell front entity missing");
-      }
-      scene.removeEntity(frontWallEntity);
+                int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
+                if (frontWallEntity == 0) {
+                    throw new IllegalStateException("Recovery shell front entity missing");
+                }
+                scene.removeEntity(frontWallEntity);
                 roomAssets.addAll(candidates);
                 candidates.clear();
                 roomShellAsset = shell;
@@ -266,6 +273,7 @@ final class CelineRoomEnvironmentV80 {
                         1.15f, 0.95f, -1.55f,
                         0.0f, 0.05f, -4.53f,
                         roomShellAsset.getRoot());
+                rebalanceSharedDirectionalKey();
                 createFloorLampLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
@@ -278,7 +286,8 @@ final class CelineRoomEnvironmentV80 {
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true");
+                        "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true directionalKeyIntensity="
+                                + ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
                         "entity=" + FLOOR_LAMP_LIGHT_ID
@@ -295,7 +304,7 @@ final class CelineRoomEnvironmentV80 {
                 for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (!roomAssets.isEmpty() || floorLampLightEntity != 0) {
+                if (!roomAssets.isEmpty() || floorLampLightEntity != 0 || directionalKeyRebalanced) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAssets.clear();
@@ -344,6 +353,7 @@ final class CelineRoomEnvironmentV80 {
             Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
             transforms.setTransform(root, aligned);
         }
+
         private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {
             // The prepared 4R GLB baked the bed with its headboard toward the room center and left
             // the two bedside drawer fronts sideways. Correct only those confirmed orientation
@@ -394,6 +404,38 @@ final class CelineRoomEnvironmentV80 {
                 if (asset != null && asset.getFirstEntityByName(name) != 0) return;
             }
             throw new IllegalStateException("Recovery room entity missing: " + name);
+        }
+
+        private void rebalanceSharedDirectionalKey() throws Exception {
+            int lightEntity = (Integer) field(view, "lightEntity");
+            LightManager lights = engine.getLightManager();
+            int instance = lights.getInstance(lightEntity);
+            if (instance == 0) {
+                throw new IllegalStateException("Recovery directional key instance missing");
+            }
+            lights.setIntensity(instance, ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY);
+            directionalKeyRebalanced = true;
+            Celine3DDiagnostics.record(context, "ROOM-118",
+                    "Recovery-Schluessellicht gebaendigt",
+                    "default=" + DEFAULT_DIRECTIONAL_KEY_INTENSITY
+                            + " room=" + ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY
+                            + " fullDetach=false restoreOnDestroy=true");
+        }
+
+        private void restoreSharedDirectionalKey() {
+            if (!directionalKeyRebalanced) return;
+            directionalKeyRebalanced = false;
+            try {
+                int lightEntity = (Integer) field(view, "lightEntity");
+                LightManager lights = engine.getLightManager();
+                int instance = lights.getInstance(lightEntity);
+                if (instance != 0) {
+                    lights.setIntensity(instance, DEFAULT_DIRECTIONAL_KEY_INTENSITY);
+                }
+            } catch (Throwable error) {
+                Celine3DDiagnostics.error(context, "ROOM-197",
+                        "Recovery-Schluessellicht Restore FEHLER", error);
+            }
         }
 
         private void createFloorLampLight() {
@@ -459,6 +501,7 @@ final class CelineRoomEnvironmentV80 {
             worldContract = null;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            restoreSharedDirectionalKey();
             if (current.isEmpty() && lampLight == 0) return;
             try {
                 if (lampLight != 0) {
