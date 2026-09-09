@@ -1,4 +1,4 @@
-name: Celine Room Window Depth Runtime Recovery
+name: Celine Room Source-PBR Lighting Isolation Recovery
 
 on:
   push:
@@ -12,11 +12,11 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-room-window-depth-runtime-recovery
+  group: celine-room-source-pbr-lighting-isolation-recovery
   cancel-in-progress: false
 
 jobs:
-  promote-window-depth:
+  promote-clean-light-owner:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,181 +25,280 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-          lfs: true
+          lfs: false
 
       - name: Prove bounded single-writer input
         shell: bash
         run: |
           set -euo pipefail
-          BASE='c13f8d051c9ed9ebe93bf8f4d114e13341fa3ded'
+          BASE='77504b3638eaefaf2922e1ad4544e2978d8b8103'
           git merge-base --is-ancestor "$BASE" HEAD
           EXTRA="$(git diff --name-only "$BASE" HEAD | grep -Ev '^\.github/workflows/celine-room-window-depth-runtime-recovery\.yml$' || true)"
           if [ -n "$EXTRA" ]; then
-            echo "Refusing window-depth recovery because another Room writer changed files since $BASE:" >&2
+            echo "Refusing clean-light recovery because another Room writer changed files since $BASE:" >&2
             echo "$EXTRA" >&2
             exit 1
           fi
           echo "ORCHESTRATOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Add derived night-window depth behind immutable source drapes
+      - name: Install one isolated neutral Room light owner and remove stale window reflection owner
         shell: bash
         run: |
           set -euo pipefail
-          WINDOW='app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
-          test -s "$WINDOW"
-          test "$(stat -c '%s' "$WINDOW")" = '18549696'
-          test "$(git hash-object "$WINDOW")" = '8fcc82d71915136ae56b2f024c8d919d8c074493'
-          test "$(sha256sum "$WINDOW" | awk '{print $1}')" = '17c9f6a739acde6e407d55e9a8236c50482cdb4db54defffb5829acc32bf7920'
-
-          python3 - "$WINDOW" <<'PY'
+          ENV='app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java'
+          BACKDROP='app/src/main/java/de/yahya/ai/CelineRoomBackdropView.java'
+          python3 - "$ENV" "$BACKDROP" <<'PY'
           from pathlib import Path
-          import copy, hashlib, json, struct, sys
+          import sys
 
-          path = Path(sys.argv[1])
-          raw = path.read_bytes()
-          assert raw[:4] == b'glTF'
-          version, total = struct.unpack_from('<II', raw, 4)
-          assert version == 2 and total == len(raw)
-          json_len, json_type = struct.unpack_from('<II', raw, 12)
-          assert json_type == 0x4E4F534A
-          json_start, json_end = 20, 20 + json_len
-          doc = json.loads(raw[json_start:json_end].decode('utf-8').rstrip('\x00 \t\r\n'))
-          bin_len, bin_type = struct.unpack_from('<II', raw, json_end)
-          assert bin_type == 0x004E4942
-          bin_start = json_end + 8
-          binary = bytearray(raw[bin_start:bin_start + bin_len])
-          assert len(binary) == bin_len
-          original = copy.deepcopy(doc)
-          original_binary = bytes(binary)
+          env = Path(sys.argv[1])
+          backdrop = Path(sys.argv[2])
+          text = env.read_text(encoding='utf-8')
 
-          anchor = next(i for i, node in enumerate(doc['nodes']) if node.get('name') == 'room_window_drapes__anchor')
-          assert doc['nodes'][anchor].get('children') == [1]
+          def one(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one anchor, found {count}')
+              text = text.replace(old, new, 1)
 
-          # Reference authority shows a dark night window behind the sheers. The immutable
-          # source GLB contains frame+drapes but no depth/glazing plane, so add exactly one
-          # derived 2-triangle architectural backing under the already solved window anchor.
-          # No source mesh/material/texture bytes, camera, shell, furniture transform or light changes.
-          half_w, half_h, local_z = 0.66, 0.52, -0.006
-          positions = [(-half_w, -half_h, local_z), (-half_w, half_h, local_z),
-                       (half_w, half_h, local_z), (half_w, -half_h, local_z)]
-          normals = [(0.0, 0.0, -1.0)] * 4
-          indices = [0, 1, 2, 0, 2, 3]
+          one('''    private static final float DEFAULT_DIRECTIONAL_KEY_INTENSITY = 32_000.0f;
+    // Recovery stop-loss pass #2: fully detaching the shared key made the source-PBR room collapse
+    // into darkness. Keep that key, but halve it while this room is active so the window/drapes and
+    // pale source materials retain detail instead of clipping. The original value is restored on
+    // room teardown, so Celine3DView keeps its independent default outside this environment.
+    private static final float ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY = 16_000.0f;
+''', '''    private static final int ROOM_LIGHT_CHANNEL = 1;
+    // Exact Real Candidate #1503 on the clean 14-partition geometry proved that the remaining
+    // dominant appearance mismatch is renderer ownership: the Room was sharing Celine's accepted
+    // directional key, while the source-PBR Blender checkpoint used one broad neutral camera-facing
+    // fill. Isolate direct Room light on channel 1 instead of mutating Celine's channel-0 key.
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY = 14_000.0f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_X = 0.10f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.24f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.97f;
+''', 'directional constants')
 
-          def pad4(buf):
-              while len(buf) % 4:
-                  buf.append(0)
+          one('''        int floorLampLightEntity;
+        boolean floorLampLightEnabled;
+        boolean directionalKeyRebalanced;
+        boolean listenerInstalled;
+''', '''        int recoveryRoomKeyLightEntity;
+        int floorLampLightEntity;
+        boolean floorLampLightEnabled;
+        boolean listenerInstalled;
+''', 'state light fields')
 
-          def append(payload):
-              pad4(binary)
-              offset = len(binary)
-              binary.extend(payload)
-              return offset, len(payload)
+          one('''                rebalanceSharedDirectionalKey();
+                createFloorLampLight();
+''', '''                configureRoomLightChannels();
+                createRecoveryRoomKeyLight();
+                createFloorLampLight();
+''', 'room light activation')
 
-          pos_off, pos_len = append(b''.join(struct.pack('<3f', *v) for v in positions))
-          nrm_off, nrm_len = append(b''.join(struct.pack('<3f', *v) for v in normals))
-          idx_off, idx_len = append(struct.pack('<6H', *indices))
-          pad4(binary)
+          one('''                if (!roomAssets.isEmpty() || floorLampLightEntity != 0 || directionalKeyRebalanced) {
+''', '''                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0 || floorLampLightEntity != 0) {
+''', 'failure cleanup condition')
 
-          views = doc.setdefault('bufferViews', [])
-          accessors = doc.setdefault('accessors', [])
-          materials = doc.setdefault('materials', [])
-          meshes = doc.setdefault('meshes', [])
-          nodes = doc.setdefault('nodes', [])
+          one('''                    worldContract = null;
+''', '''                    worldContract = null;
+                    recoveryRoomKeyLightEntity = 0;
+''', 'failure light reset')
 
-          pos_view = len(views); views.append({'buffer': 0, 'byteOffset': pos_off, 'byteLength': pos_len, 'target': 34962})
-          nrm_view = len(views); views.append({'buffer': 0, 'byteOffset': nrm_off, 'byteLength': nrm_len, 'target': 34962})
-          idx_view = len(views); views.append({'buffer': 0, 'byteOffset': idx_off, 'byteLength': idx_len, 'target': 34963})
+          one('''                                + "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true directionalKeyIntensity="
+                                + ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY);
+''', '''                                + "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true sharedCelineKeyMutated=false roomLightChannel="
+                                + ROOM_LIGHT_CHANNEL + " neutralKeyIntensity="
+                                + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
+''', 'ROOM-116 diagnostics')
 
-          pos_acc = len(accessors); accessors.append({'bufferView': pos_view, 'byteOffset': 0, 'componentType': 5126,
-              'count': 4, 'type': 'VEC3', 'min': [-half_w, -half_h, local_z], 'max': [half_w, half_h, local_z]})
-          nrm_acc = len(accessors); accessors.append({'bufferView': nrm_view, 'byteOffset': 0, 'componentType': 5126,
-              'count': 4, 'type': 'VEC3', 'min': [0.0, 0.0, -1.0], 'max': [0.0, 0.0, -1.0]})
-          idx_acc = len(accessors); accessors.append({'bufferView': idx_view, 'byteOffset': 0, 'componentType': 5123,
-              'count': 6, 'type': 'SCALAR', 'min': [0], 'max': [3]})
+          start = text.find('        private void rebalanceSharedDirectionalKey() throws Exception {\n')
+          end = text.find('        private void createFloorLampLight() {\n', start)
+          if start < 0 or end < 0:
+              raise SystemExit('shared-key method block anchors missing')
+          replacement = '''        private void configureRoomLightChannels() {
+            RenderableManager renderables = engine.getRenderableManager();
+            int isolated = 0;
+            for (FilamentAsset asset : roomAssets) {
+                if (asset == null) continue;
+                for (int entity : asset.getEntities()) {
+                    if (!renderables.hasComponent(entity)) continue;
+                    int instance = renderables.getInstance(entity);
+                    if (instance == 0) continue;
+                    renderables.setLightChannel(instance, 0, false);
+                    renderables.setLightChannel(instance, ROOM_LIGHT_CHANNEL, true);
+                    isolated++;
+                }
+            }
+            if (isolated <= 0) {
+                throw new IllegalStateException("Recovery Room light-channel isolation found no renderables");
+            }
+            Celine3DDiagnostics.record(context, "ROOM-118",
+                    "Source-PBR Room-Licht isoliert",
+                    "renderables=" + isolated
+                            + " roomChannel=" + ROOM_LIGHT_CHANNEL
+                            + " sharedCelineKeyMutated=false"
+                            + " sourceMaterialsMutated=false");
+        }
 
-          material = len(materials); materials.append({
-              'name': 'CELINE_WindowNightDepth_Background',
-              'pbrMetallicRoughness': {
-                  'baseColorFactor': [0.012, 0.018, 0.024, 1.0],
-                  'metallicFactor': 0.0,
-                  'roughnessFactor': 0.32,
-              },
-              'doubleSided': True,
-              'extras': {'celine_room_derived_architecture': True, 'source_glbs_mutated': False,
-                         'purpose': 'night-window depth backing behind immutable source drapes'},
-          })
-          mesh = len(meshes); meshes.append({
-              'name': 'CELINE_WindowNightDepth_BackgroundMesh',
-              'primitives': [{'attributes': {'POSITION': pos_acc, 'NORMAL': nrm_acc},
-                              'indices': idx_acc, 'material': material, 'mode': 4}],
-              'extras': {'celine_room_derived_architecture': True, 'triangle_count': 2},
-          })
-          node = len(nodes); nodes.append({
-              'name': 'CELINE_WindowNightDepth_Background',
-              'mesh': mesh,
-              'extras': {'celine_room_derived_architecture': True,
-                         'source_window_mesh_unchanged': True,
-                         'source_window_materials_unchanged': True,
-                         'reference_authority': 'Refernzbild.png'},
-          })
-          doc['nodes'][anchor].setdefault('children', []).append(node)
-          doc['buffers'][0]['byteLength'] = len(binary)
+        private void createRecoveryRoomKeyLight() {
+            int entity = EntityManager.get().create();
+            try {
+                new LightManager.Builder(LightManager.Type.DIRECTIONAL)
+                        .color(1.0f, 0.98f, 0.96f)
+                        .intensity(ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY)
+                        .direction(ROOM_RECOVERY_NEUTRAL_KEY_DIR_X,
+                                ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y,
+                                ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z)
+                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, true)
+                        .build(engine, entity);
+                scene.addEntity(entity);
+                recoveryRoomKeyLightEntity = entity;
+                Celine3DDiagnostics.record(context, "ROOM-119",
+                        "Neutraler Source-PBR Room-Key aktiv",
+                        "channel=" + ROOM_LIGHT_CHANNEL
+                                + " intensity=" + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY
+                                + " direction=" + ROOM_RECOVERY_NEUTRAL_KEY_DIR_X + ","
+                                + ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y + ","
+                                + ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z
+                                + " shadows=false cameraFurnitureCelineUnchanged=true");
+            } catch (Throwable error) {
+                try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+                try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+                throw error;
+            }
+        }
 
-          for key in ('bufferViews', 'accessors', 'materials', 'meshes'):
-              old = original.get(key, [])
-              assert doc[key][:len(old)] == old, key
-          for i in range(len(original['nodes'])):
-              if i == anchor:
-                  old_anchor, new_anchor = original['nodes'][i], doc['nodes'][i]
-                  for key, value in old_anchor.items():
-                      if key == 'children':
-                          assert new_anchor[key][:len(value)] == value
-                      else:
-                          assert new_anchor[key] == value
-              else:
-                  assert doc['nodes'][i] == original['nodes'][i]
-          assert bytes(binary[:len(original_binary)]) == original_binary
+'''
+          text = text[:start] + replacement + text[end:]
 
-          json_bytes = json.dumps(doc, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
-          json_chunk = json_bytes + b' ' * ((-len(json_bytes)) % 4)
-          if len(binary) % 4:
-              binary.extend(b'\x00' * ((-len(binary)) % 4))
-          doc['buffers'][0]['byteLength'] = len(binary)
-          json_bytes = json.dumps(doc, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
-          json_chunk = json_bytes + b' ' * ((-len(json_bytes)) % 4)
-          total = 12 + 8 + len(json_chunk) + 8 + len(binary)
-          out = bytearray(b'glTF' + struct.pack('<II', 2, total))
-          out += struct.pack('<II', len(json_chunk), 0x4E4F534A) + json_chunk
-          out += struct.pack('<II', len(binary), 0x004E4942) + bytes(binary)
-          assert len(out) == total
-          path.write_bytes(out)
+          one('''                        .castShadows(false)
+                        .lightChannel(0, true)
+                        .build(engine, entity);
+''', '''                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, false)
+                        .build(engine, entity);
+''', 'floor lamp channel build')
 
-          reread = path.read_bytes()
-          assert hashlib.sha256(reread).hexdigest() == 'c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5'
-          assert len(reread) == 18551108
-          jl, jt = struct.unpack_from('<II', reread, 12)
-          assert jt == 0x4E4F534A
-          final = json.loads(reread[20:20+jl].decode('utf-8').rstrip('\x00 \t\r\n'))
-          assert final['nodes'][anchor]['children'][-1] == node
-          assert final['nodes'][node]['name'] == 'CELINE_WindowNightDepth_Background'
-          assert final['meshes'][mesh]['extras']['triangle_count'] == 2
-          print('CELINE_ROOM_WINDOW_DEPTH_PATCH PASS sourceBytesImmutable=true derivedTriangles=2')
+          one('''            lights.setLightChannel(instance, 0, next);
+''', '''            lights.setLightChannel(instance, ROOM_LIGHT_CHANNEL, next);
+''', 'floor lamp channel toggle')
+
+          one('''            int lampLight = floorLampLightEntity;
+            roomAssets.clear();
+''', '''            int roomKeyLight = recoveryRoomKeyLightEntity;
+            int lampLight = floorLampLightEntity;
+            roomAssets.clear();
+''', 'destroy light capture')
+
+          one('''            floorLampLightEntity = 0;
+            floorLampLightEnabled = false;
+            restoreSharedDirectionalKey();
+            if (current.isEmpty() && lampLight == 0) return;
+''', '''            recoveryRoomKeyLightEntity = 0;
+            floorLampLightEntity = 0;
+            floorLampLightEnabled = false;
+            if (current.isEmpty() && roomKeyLight == 0 && lampLight == 0) return;
+''', 'destroy light reset')
+
+          one('''            try {
+                if (lampLight != 0) {
+''', '''            try {
+                if (roomKeyLight != 0) {
+                    try { scene.removeEntity(roomKeyLight); } catch (Throwable ignored) {}
+                    try { engine.getLightManager().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                    try { EntityManager.get().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                }
+                if (lampLight != 0) {
+''', 'destroy room key')
+
+          stale = (
+              'ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY',
+              'DEFAULT_DIRECTIONAL_KEY_INTENSITY',
+              'directionalKeyRebalanced',
+              'rebalanceSharedDirectionalKey',
+              'restoreSharedDirectionalKey',
+          )
+          for token in stale:
+              if token in text:
+                  raise SystemExit(f'stale shared-key owner remains: {token}')
+          for token in (
+              'renderables.setLightChannel(instance, 0, false);',
+              'renderables.setLightChannel(instance, ROOM_LIGHT_CHANNEL, true);',
+              '.lightChannel(0, false)',
+              '.lightChannel(ROOM_LIGHT_CHANNEL, true)',
+              'lights.setLightChannel(instance, ROOM_LIGHT_CHANNEL, next);',
+              'sharedCelineKeyMutated=false',
+          ):
+              if token not in text:
+                  raise SystemExit(f'missing clean-light invariant: {token}')
+          env.write_text(text, encoding='utf-8')
+
+          b = backdrop.read_text(encoding='utf-8')
+          for imp in (
+              'import com.google.android.filament.Engine;\n',
+              'import com.google.android.filament.gltfio.FilamentAsset;\n',
+              'import java.lang.reflect.Field;\n',
+              'import java.util.Map;\n',
+          ):
+              if b.count(imp) != 1:
+                  raise SystemExit(f'backdrop import anchor missing: {imp.strip()}')
+              b = b.replace(imp, '', 1)
+
+          old = '''    @Override protected void onDetachedFromWindow() {
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null) releaseRecoveryWindowBackdrop(threeD);
+        super.onDetachedFromWindow();
+    }
+'''
+          new = '''    @Override protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+    }
+'''
+          if b.count(old) != 1:
+              raise SystemExit('backdrop detach anchor missing')
+          b = b.replace(old, new, 1)
+
+          start = b.find('    private void activateRecoveryRoom(Celine3DView threeD) {\n')
+          end = b.find('    @Override protected void onDraw(Canvas canvas) {\n', start)
+          if start < 0 or end < 0:
+              raise SystemExit('backdrop recovery method block anchors missing')
+          clean = '''    private void activateRecoveryRoom(Celine3DView threeD) {
+        if (!CelineRoomEnvironmentV80.ensure(getContext(), threeD)) return;
+        // Partition-aware architecture validation plus the isolated neutral Room light are the sole
+        // recovery owners. Do not reflect the removed singular roomAsset field and do not stack a
+        // second window material/plane/texture owner over the source-PBR window partition.
+        CelineRoomReferenceLayoutV80.ensure(threeD);
+    }
+
+'''
+          b = b[:start] + clean + b[end:]
+          for token in ('roomAsset(threeD)', 'Recovery-Nachtfenster FEHLER', 'getDeclaredField("roomAsset")'):
+              if token in b:
+                  raise SystemExit(f'stale runtime window owner remains: {token}')
+          backdrop.write_text(b, encoding='utf-8')
+          print('CELINE_ROOM_SOURCE_PBR_LIGHTING_ISOLATION_PATCH PASS')
           PY
 
-          test "$(sha256sum "$WINDOW" | awk '{print $1}')" = 'c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5'
-          test "$(stat -c '%s' "$WINDOW")" = '18551108'
+          grep -F 'sharedCelineKeyMutated=false' "$ENV"
+          grep -F 'ROOM_LIGHT_CHANNEL' "$ENV"
+          grep -F 'lights.setLightChannel(instance, ROOM_LIGHT_CHANNEL, next)' "$ENV"
+          ! grep -Fq 'Recovery-Nachtfenster FEHLER' "$BACKDROP"
+          ! grep -Fq 'getDeclaredField("roomAsset")' "$BACKDROP"
+          test "$(git diff --name-only | wc -l)" -eq 2
 
-      - name: Commit and publish only the bounded Room asset
+      - name: Commit and publish exactly one bounded Room runtime batch
         shell: bash
         run: |
           set -euo pipefail
-          WINDOW='app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
-          test "$(git diff --name-only | wc -l)" -eq 1
-          test "$(git diff --name-only)" = "$WINDOW"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$WINDOW"
-          git commit -m 'room: add reference night-window depth backing'
+          git add app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java \
+                  app/src/main/java/de/yahya/ai/CelineRoomBackdropView.java
+          git commit -m 'room: isolate clean source-pbr light owner'
           RUNTIME_SHA="$(git rev-parse HEAD)"
           git fetch --no-tags origin auto/celine/v80-human-videochat-presence
           REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
@@ -208,4 +307,4 @@ jobs:
             exit 1
           fi
           git push origin HEAD:auto/celine/v80-human-videochat-presence
-          echo "CELINE_ROOM_WINDOW_DEPTH_RUNTIME_PROMOTION PASS runtime=$RUNTIME_SHA sourceGlbsMutated=false furnitureTransformsMutated=false cameraMutated=false lightingMutated=false"
+          echo "CELINE_ROOM_SOURCE_PBR_LIGHTING_ISOLATION_PROMOTION PASS runtime=$RUNTIME_SHA sourceGLBsMutated=false materialsMutated=false furnitureTransformsMutated=false cameraMutated=false sharedCelineKeyMutated=false"
