@@ -32,9 +32,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SCRIPT='ci/celine-room-promote-partitioned-runtime.sh'
-          sed -i 's/if (roomAsset == null || floorLampLightEntity == 0) return false;/if (!isBuilt() || floorLampLightEntity == 0) return false;/' "$SCRIPT"
-          grep -F 'if (!isBuilt() || floorLampLightEntity == 0) return false;' "$SCRIPT"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('ci/celine-room-promote-partitioned-runtime.sh')
+          text = path.read_text(encoding='utf-8')
+          old = '            if (roomAsset == null || floorLampLightEntity == 0) return false;'
+          new = '            if (!isBuilt() || floorLampLightEntity == 0) return false;'
+          if old not in text:
+              raise SystemExit('lamp toggle compatibility anchor missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          grep -F 'if (!isBuilt() || floorLampLightEntity == 0) return false;' ci/celine-room-promote-partitioned-runtime.sh
 
       - name: Prepare exact partitioned Room runtime candidate
         shell: bash
