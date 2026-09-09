@@ -18,26 +18,29 @@ import java.util.WeakHashMap;
  * shell/window/material ownership neutral and applies exactly one measured Primary Furniture batch
  * for bed, dresser, lounge chair, foreground table and rug. Secondary objects stay source-authored.
  *
- * The values below are the latest real-CALL-tuned runtime measurements from the pre-recovery solver
- * history, not acceptance of any rejected whole-scene raster. They are promoted together so the five
- * coupled silhouettes can be judged as one batch against /Refernzbild.png rather than micro-patched.
+ * The five targets originate from the latest real-CALL-tuned pre-partition solver history. The clean
+ * partition runtime adds one shared 180-degree Y frame at every partition root, so those old child-
+ * local targets cannot be copied verbatim: partition-local X/Z are negated and partition-local yaw
+ * is oldYaw-180 degrees. Scale and Y are unchanged. The actual exported transform owners are the
+ * canonical __anchor nodes. This preserves the same intended world-space batch without mutating any
+ * of the 12 immutable source GLBs or reintroducing the rejected combined-room export path.
  */
 final class CelineRoomReferenceLayoutV80 {
     private static final Spec BED =
-            new Spec("room_bed", 1.146877f, 0.660358f, -0.076940f,
-                    1.252188f, 1.316294f, 1.128440f, -84.437500f);
+            new Spec("room_bed__anchor", -1.146877f, 0.660358f, 0.076940f,
+                    1.252188f, 1.316294f, 1.128440f, 95.562500f);
     private static final Spec DRESSER =
-            new Spec("room_dresser", -2.100289f, 0.670294f, 0.426774f,
-                    0.733027f, 0.932473f, 0.967225f, 87.714844f);
+            new Spec("room_dresser__anchor", 2.100289f, 0.670294f, -0.426774f,
+                    0.733027f, 0.932473f, 0.967225f, -92.285156f);
     private static final Spec CHAIR =
-            new Spec("room_lounge_chair", -1.643872f, 0.457133f, -1.720000f,
-                    0.495673f, 0.505830f, 0.433192f, -9.625000f);
+            new Spec("room_lounge_chair__anchor", 1.643872f, 0.457133f, 1.720000f,
+                    0.495673f, 0.505830f, 0.433192f, 170.375000f);
     private static final Spec TABLE =
-            new Spec("room_foreground_table", -0.251563f, 0.291672f, 2.912718f,
-                    1.031000f, 0.667240f, 0.519922f, -2.000000f);
+            new Spec("room_foreground_table__anchor", 0.251563f, 0.291672f, -2.912718f,
+                    1.031000f, 0.667240f, 0.519922f, 178.000000f);
     private static final Spec RUG =
-            new Spec("room_rug", -0.047270f, 0.012676f, 0.151025f,
-                    2.128651f, 1.641016f, 1.269665f, 5.820313f);
+            new Spec("room_rug__anchor", 0.047270f, 0.012676f, -0.151025f,
+                    2.128651f, 1.641016f, 1.269665f, -174.179687f);
     private static final Spec[] PRIMARY = { BED, DRESSER, CHAIR, TABLE, RUG };
 
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED = new WeakHashMap<>();
@@ -120,6 +123,8 @@ final class CelineRoomReferenceLayoutV80 {
                             + " proofCameraOwner=Celine3DView unchanged=true"
                             + " sourceWindowPBR=true windowTransformOverride=false"
                             + " primaryBatch=bed,dresser,lounge-chair,foreground-table,rug"
+                            + " primaryOwners=partitionAnchors"
+                            + " primaryFrame=sharedYaw180Mapped"
                             + " dresserFrontConstraintPreserved=true"
                             + " chairAwayFromWindowConstraintPreserved=true"
                             + " secondaryTransformsUnchanged=true"
