@@ -82,7 +82,11 @@ cp "$PROOF_ROOT"/partitioned-pbr/*.glb "$TARGET"/
 test "$(find "$TARGET" -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
 
 # Candidate #1379 and later real CALL evidence rejected this aggressive combined derivative.
-git rm -f app/src/main/assets/models/room/celine_room_v80_final_modular.glb
+# Keep the legacy combined file only because the existing Room build generator still declares it as an input.
+# The promoted runtime loader below must not reference it; the 14 source-fidelity partitions are the active Room runtime.
+LEGACY_COMBINED='app/src/main/assets/models/room/celine_room_v80_final_modular.glb'
+test -s "$LEGACY_COMBINED"
+git diff --exit-code -- "$LEGACY_COMBINED"
 
 python3 - "$JAVA" <<'PY'
 from pathlib import Path
