@@ -260,6 +260,27 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
+      - name: Prepare bounded HOME CALL proof script
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '/^# Lifecycle regression: close CALL/{exit} {print}' ci/celine-real-candidate-emulator-proof.sh > /tmp/celine-room-home-call-proof.sh
+          cat >> /tmp/celine-room-home-call-proof.sh <<'ROOMPROOF'
+          adb logcat -d > real-candidate-logcat-final.txt
+          if grep -Eq 'V80-499|V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+            fail "runtime error detected across bounded HOME/CALL room proof"
+          fi
+          for marker in V80-400 V80-410 V80-420; do
+            grep -q "$marker" real-candidate-logcat-final.txt || fail "v80 central-owner HOME/CALL marker missing: $marker"
+          done
+          grep -q 'target=CALL eased=true snap=false' real-candidate-logcat-final.txt || fail "eased CALL entry marker missing"
+          if (( HOME_PRESENCE_RC != 0 || CALL_PRESENCE_RC != 0 )); then
+            fail "person-presence guard failed after bounded HOME/CALL capture (HOME=$HOME_PRESENCE_RC CALL=$CALL_PRESENCE_RC)"
+          fi
+          printf 'PASS bounded room HOME/CALL proof: bytes=%s sha=%s pid_home=%s pid_call=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL"
+          ROOMPROOF
+          chmod +x /tmp/celine-room-home-call-proof.sh
+
       - name: Run exactly one HOME CALL room proof
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -269,25 +290,7 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: |
-            set -eu
-            awk '/^# Lifecycle regression: close CALL/{exit} {print}' ci/celine-real-candidate-emulator-proof.sh > /tmp/celine-room-home-call-proof.sh
-            cat >> /tmp/celine-room-home-call-proof.sh <<'ROOMPROOF'
-            adb logcat -d > real-candidate-logcat-final.txt
-            if grep -Eq 'V80-499|V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
-              fail "runtime error detected across bounded HOME/CALL room proof"
-            fi
-            for marker in V80-400 V80-410 V80-420; do
-              grep -q "$marker" real-candidate-logcat-final.txt || fail "v80 central-owner HOME/CALL marker missing: $marker"
-            done
-            grep -q 'target=CALL eased=true snap=false' real-candidate-logcat-final.txt || fail "eased CALL entry marker missing"
-            if (( HOME_PRESENCE_RC != 0 || CALL_PRESENCE_RC != 0 )); then
-              fail "person-presence guard failed after bounded HOME/CALL capture (HOME=$HOME_PRESENCE_RC CALL=$CALL_PRESENCE_RC)"
-            fi
-            printf 'PASS bounded room HOME/CALL proof: bytes=%s sha=%s pid_home=%s pid_call=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL"
-            ROOMPROOF
-            chmod +x /tmp/celine-room-home-call-proof.sh
-            timeout 240s bash /tmp/celine-room-home-call-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-frame-proof/celine-packaged.glb
+          script: timeout 240s bash /tmp/celine-room-home-call-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-frame-proof/celine-packaged.glb
 
       - name: Collect exact runtime frame proof evidence
         if: always()
