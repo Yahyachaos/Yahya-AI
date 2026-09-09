@@ -81,7 +81,7 @@ jobs:
           print('CELINE_ROOM_PARTITION_BYTES PASS', data['total_triangles'], data['total_glb_bytes'])
           PY
 
-      - name: Install source-fidelity partitions and repair shared runtime frame
+      - name: Install source-fidelity partitions and repair shell camera parity
         shell: bash
         run: |
           set -euo pipefail
@@ -126,17 +126,57 @@ jobs:
               '',
           ]
           text=text[:start]+'\n'.join(lines)+text[end:]
+
+          # The validated Blender reload deliberately hid room_shell_front before rendering. Run #4
+          # proved the runtime loaded that same opaque double-sided front wall and therefore showed
+          # only the foreground table against a flat brown rectangle. Preserve the immutable shell
+          # partition bytes and mirror the proof visibility contract by removing only that renderable
+          # from the Filament Scene. All furniture/source PBR/camera/window bytes stay untouched.
+          old_add='                for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());\n'
+          new_add='''                for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
+                int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
+                if (frontWallEntity == 0) {
+                    throw new IllegalStateException("Recovery shell front entity missing");
+                }
+                scene.removeEntity(frontWallEntity);
+'''
+          if old_add not in text:
+              raise SystemExit('partition scene-add anchor missing')
+          text=text.replace(old_add,new_add,1)
           text=text.replace(
               '"combined098M=false partitions14=true sourceGlbsImmutable=true runtimeOrientationOverride=false"',
-              '"combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180"',
+              '"combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true"',
               1,
           )
           path.write_text(text,encoding='utf-8')
           PY
-          grep -F 'sharedRootYawDeg=180' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          grep -F 'sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           grep -F 'Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          grep -F 'scene.removeEntity(frontWallEntity);' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           ! grep -Fq 'applyUserApprovedFurnitureOrientation(candidate)' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           ! grep -Fq 'celine_room_v80_final_modular.glb' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+
+      - name: Prove source-proof shell visibility parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show 950ca2f0e256a9108ee00b19cfcf49f9923ae8f5:.github/workflows/celine-room-partitioned-pbr-proof.yml | grep -F "front.hide_render = True"
+          git show 950ca2f0e256a9108ee00b19cfcf49f9923ae8f5:.github/workflows/celine-room-partitioned-pbr-proof.yml | grep -F "front.hide_viewport = True"
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          path=Path('/tmp/celine-room-partition-proof/partitioned-pbr/room_shell.glb')
+          data=path.read_bytes()
+          assert data[:4] == b'glTF'
+          json_len, json_type=struct.unpack_from('<II',data,12)
+          assert json_type == 0x4E4F534A
+          payload=json.loads(data[20:20+json_len].decode('utf-8').rstrip('\x00 \t\r\n'))
+          names={str(node.get('name','')) for node in payload.get('nodes',[])}
+          assert 'room_shell_front' in names, sorted(names)
+          mats=payload.get('materials',[])
+          assert any(bool(m.get('doubleSided',False)) for m in mats), mats
+          print('CELINE_ROOM_FRONT_WALL_ROOT_CAUSE PASS', 'room_shell_front', 'doubleSidedMaterial=true')
+          PY
 
       - name: Prove shared root frame equals the actual Proof 63 camera owner
         shell: bash
@@ -171,11 +211,11 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/src/main/assets/models/room/source-fidelity app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           git status --short
-          git commit -m 'room: align source-fidelity partitions to proof camera frame'
+          git commit -m 'room: align source partitions and hide proof-front wall'
           RUNTIME_SHA="$(git rev-parse HEAD)"
           echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
           mkdir -p ci-room-runtime-frame-proof
-          printf 'runtime_sha=%s\norchestrator_sha=%s\npartition_proof_run=34314848738\npartition_count=14\nsource_glbs_mutated=false\nshared_root_yaw_deg=180\n' "$RUNTIME_SHA" "$ORCHESTRATOR_SHA" > ci-room-runtime-frame-proof/runtime-validation.txt
+          printf 'runtime_sha=%s\norchestrator_sha=%s\npartition_proof_run=34314848738\npartition_count=14\nsource_glbs_mutated=false\nshared_root_yaw_deg=180\nfront_wall_hidden=true\nsource_window_pbr=true\n' "$RUNTIME_SHA" "$ORCHESTRATOR_SHA" > ci-room-runtime-frame-proof/runtime-validation.txt
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -220,7 +260,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Run exactly one HOME CALL HOME room proof
+      - name: Run exactly one HOME CALL room proof
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -229,7 +269,25 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 300s bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-frame-proof/celine-packaged.glb
+          script: |
+            set -euo pipefail
+            awk '/^# Lifecycle regression: close CALL/{exit} {print}' ci/celine-real-candidate-emulator-proof.sh > /tmp/celine-room-home-call-proof.sh
+            cat >> /tmp/celine-room-home-call-proof.sh <<'ROOMPROOF'
+            adb logcat -d > real-candidate-logcat-final.txt
+            if grep -Eq 'V80-499|V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+              fail "runtime error detected across bounded HOME/CALL room proof"
+            fi
+            for marker in V80-400 V80-410 V80-420; do
+              grep -q "$marker" real-candidate-logcat-final.txt || fail "v80 central-owner HOME/CALL marker missing: $marker"
+            done
+            grep -q 'target=CALL eased=true snap=false' real-candidate-logcat-final.txt || fail "eased CALL entry marker missing"
+            if (( HOME_PRESENCE_RC != 0 || CALL_PRESENCE_RC != 0 )); then
+              fail "person-presence guard failed after bounded HOME/CALL capture (HOME=$HOME_PRESENCE_RC CALL=$CALL_PRESENCE_RC)"
+            fi
+            printf 'PASS bounded room HOME/CALL proof: bytes=%s sha=%s pid_home=%s pid_call=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL"
+            ROOMPROOF
+            chmod +x /tmp/celine-room-home-call-proof.sh
+            timeout 240s bash /tmp/celine-room-home-call-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-frame-proof/celine-packaged.glb
 
       - name: Collect exact runtime frame proof evidence
         if: always()
@@ -237,10 +295,10 @@ jobs:
         run: |
           set -u
           mkdir -p ci-room-runtime-frame-proof
-          for f in real-candidate-home.png real-candidate-call.png real-candidate-home-return.png real-candidate-logcat.txt real-candidate-logcat-home.txt real-candidate-logcat-final.txt real-candidate-prefs.xml; do
+          for f in real-candidate-home.png real-candidate-call.png real-candidate-logcat.txt real-candidate-logcat-home.txt real-candidate-logcat-final.txt real-candidate-prefs.xml; do
             [ -e "$f" ] && cp "$f" ci-room-runtime-frame-proof/ || true
           done
-          printf 'workflow_run_id=%s\nworkflow_run_number=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_NUMBER" >> ci-room-runtime-frame-proof/runtime-validation.txt
+          printf 'workflow_run_id=%s\nworkflow_run_number=%s\nproof_scope=HOME_CALL_ONLY\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_NUMBER" >> ci-room-runtime-frame-proof/runtime-validation.txt
 
       - name: Upload bounded runtime frame proof
         if: always()
