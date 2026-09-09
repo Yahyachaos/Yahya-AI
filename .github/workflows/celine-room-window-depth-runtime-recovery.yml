@@ -1,0 +1,211 @@
+name: Celine Room Window Depth Runtime Recovery
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-room-window-depth-runtime-recovery.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: celine-room-window-depth-runtime-recovery
+  cancel-in-progress: false
+
+jobs:
+  promote-window-depth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact orchestration head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Prove bounded single-writer input
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='c13f8d051c9ed9ebe93bf8f4d114e13341fa3ded'
+          git merge-base --is-ancestor "$BASE" HEAD
+          EXTRA="$(git diff --name-only "$BASE" HEAD | grep -Ev '^\.github/workflows/celine-room-window-depth-runtime-recovery\.yml$' || true)"
+          if [ -n "$EXTRA" ]; then
+            echo "Refusing window-depth recovery because another Room writer changed files since $BASE:" >&2
+            echo "$EXTRA" >&2
+            exit 1
+          fi
+          echo "ORCHESTRATOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Add derived night-window depth behind immutable source drapes
+        shell: bash
+        run: |
+          set -euo pipefail
+          WINDOW='app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
+          test -s "$WINDOW"
+          test "$(stat -c '%s' "$WINDOW")" = '18549696'
+          test "$(git hash-object "$WINDOW")" = '8fcc82d71915136ae56b2f024c8d919d8c074493'
+          test "$(sha256sum "$WINDOW" | awk '{print $1}')" = '17c9f6a739acde6e407d55e9a8236c50482cdb4db54defffb5829acc32bf7920'
+
+          python3 - "$WINDOW" <<'PY'
+          from pathlib import Path
+          import copy, hashlib, json, struct, sys
+
+          path = Path(sys.argv[1])
+          raw = path.read_bytes()
+          assert raw[:4] == b'glTF'
+          version, total = struct.unpack_from('<II', raw, 4)
+          assert version == 2 and total == len(raw)
+          json_len, json_type = struct.unpack_from('<II', raw, 12)
+          assert json_type == 0x4E4F534A
+          json_start, json_end = 20, 20 + json_len
+          doc = json.loads(raw[json_start:json_end].decode('utf-8').rstrip('\x00 \t\r\n'))
+          bin_len, bin_type = struct.unpack_from('<II', raw, json_end)
+          assert bin_type == 0x004E4942
+          bin_start = json_end + 8
+          binary = bytearray(raw[bin_start:bin_start + bin_len])
+          assert len(binary) == bin_len
+          original = copy.deepcopy(doc)
+          original_binary = bytes(binary)
+
+          anchor = next(i for i, node in enumerate(doc['nodes']) if node.get('name') == 'room_window_drapes__anchor')
+          assert doc['nodes'][anchor].get('children') == [1]
+
+          # Reference authority shows a dark night window behind the sheers. The immutable
+          # source GLB contains frame+drapes but no depth/glazing plane, so add exactly one
+          # derived 2-triangle architectural backing under the already solved window anchor.
+          # No source mesh/material/texture bytes, camera, shell, furniture transform or light changes.
+          half_w, half_h, local_z = 0.66, 0.52, -0.006
+          positions = [(-half_w, -half_h, local_z), (-half_w, half_h, local_z),
+                       (half_w, half_h, local_z), (half_w, -half_h, local_z)]
+          normals = [(0.0, 0.0, -1.0)] * 4
+          indices = [0, 1, 2, 0, 2, 3]
+
+          def pad4(buf):
+              while len(buf) % 4:
+                  buf.append(0)
+
+          def append(payload):
+              pad4(binary)
+              offset = len(binary)
+              binary.extend(payload)
+              return offset, len(payload)
+
+          pos_off, pos_len = append(b''.join(struct.pack('<3f', *v) for v in positions))
+          nrm_off, nrm_len = append(b''.join(struct.pack('<3f', *v) for v in normals))
+          idx_off, idx_len = append(struct.pack('<6H', *indices))
+          pad4(binary)
+
+          views = doc.setdefault('bufferViews', [])
+          accessors = doc.setdefault('accessors', [])
+          materials = doc.setdefault('materials', [])
+          meshes = doc.setdefault('meshes', [])
+          nodes = doc.setdefault('nodes', [])
+
+          pos_view = len(views); views.append({'buffer': 0, 'byteOffset': pos_off, 'byteLength': pos_len, 'target': 34962})
+          nrm_view = len(views); views.append({'buffer': 0, 'byteOffset': nrm_off, 'byteLength': nrm_len, 'target': 34962})
+          idx_view = len(views); views.append({'buffer': 0, 'byteOffset': idx_off, 'byteLength': idx_len, 'target': 34963})
+
+          pos_acc = len(accessors); accessors.append({'bufferView': pos_view, 'byteOffset': 0, 'componentType': 5126,
+              'count': 4, 'type': 'VEC3', 'min': [-half_w, -half_h, local_z], 'max': [half_w, half_h, local_z]})
+          nrm_acc = len(accessors); accessors.append({'bufferView': nrm_view, 'byteOffset': 0, 'componentType': 5126,
+              'count': 4, 'type': 'VEC3', 'min': [0.0, 0.0, -1.0], 'max': [0.0, 0.0, -1.0]})
+          idx_acc = len(accessors); accessors.append({'bufferView': idx_view, 'byteOffset': 0, 'componentType': 5123,
+              'count': 6, 'type': 'SCALAR', 'min': [0], 'max': [3]})
+
+          material = len(materials); materials.append({
+              'name': 'CELINE_WindowNightDepth_Background',
+              'pbrMetallicRoughness': {
+                  'baseColorFactor': [0.012, 0.018, 0.024, 1.0],
+                  'metallicFactor': 0.0,
+                  'roughnessFactor': 0.32,
+              },
+              'doubleSided': True,
+              'extras': {'celine_room_derived_architecture': True, 'source_glbs_mutated': False,
+                         'purpose': 'night-window depth backing behind immutable source drapes'},
+          })
+          mesh = len(meshes); meshes.append({
+              'name': 'CELINE_WindowNightDepth_BackgroundMesh',
+              'primitives': [{'attributes': {'POSITION': pos_acc, 'NORMAL': nrm_acc},
+                              'indices': idx_acc, 'material': material, 'mode': 4}],
+              'extras': {'celine_room_derived_architecture': True, 'triangle_count': 2},
+          })
+          node = len(nodes); nodes.append({
+              'name': 'CELINE_WindowNightDepth_Background',
+              'mesh': mesh,
+              'extras': {'celine_room_derived_architecture': True,
+                         'source_window_mesh_unchanged': True,
+                         'source_window_materials_unchanged': True,
+                         'reference_authority': 'Refernzbild.png'},
+          })
+          doc['nodes'][anchor].setdefault('children', []).append(node)
+          doc['buffers'][0]['byteLength'] = len(binary)
+
+          for key in ('bufferViews', 'accessors', 'materials', 'meshes'):
+              old = original.get(key, [])
+              assert doc[key][:len(old)] == old, key
+          for i in range(len(original['nodes'])):
+              if i == anchor:
+                  old_anchor, new_anchor = original['nodes'][i], doc['nodes'][i]
+                  for key, value in old_anchor.items():
+                      if key == 'children':
+                          assert new_anchor[key][:len(value)] == value
+                      else:
+                          assert new_anchor[key] == value
+              else:
+                  assert doc['nodes'][i] == original['nodes'][i]
+          assert bytes(binary[:len(original_binary)]) == original_binary
+
+          json_bytes = json.dumps(doc, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+          json_chunk = json_bytes + b' ' * ((-len(json_bytes)) % 4)
+          if len(binary) % 4:
+              binary.extend(b'\x00' * ((-len(binary)) % 4))
+          doc['buffers'][0]['byteLength'] = len(binary)
+          json_bytes = json.dumps(doc, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+          json_chunk = json_bytes + b' ' * ((-len(json_bytes)) % 4)
+          total = 12 + 8 + len(json_chunk) + 8 + len(binary)
+          out = bytearray(b'glTF' + struct.pack('<II', 2, total))
+          out += struct.pack('<II', len(json_chunk), 0x4E4F534A) + json_chunk
+          out += struct.pack('<II', len(binary), 0x004E4942) + bytes(binary)
+          assert len(out) == total
+          path.write_bytes(out)
+
+          reread = path.read_bytes()
+          assert hashlib.sha256(reread).hexdigest() == 'c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5'
+          assert len(reread) == 18551108
+          jl, jt = struct.unpack_from('<II', reread, 12)
+          assert jt == 0x4E4F534A
+          final = json.loads(reread[20:20+jl].decode('utf-8').rstrip('\x00 \t\r\n'))
+          assert final['nodes'][anchor]['children'][-1] == node
+          assert final['nodes'][node]['name'] == 'CELINE_WindowNightDepth_Background'
+          assert final['meshes'][mesh]['extras']['triangle_count'] == 2
+          print('CELINE_ROOM_WINDOW_DEPTH_PATCH PASS sourceBytesImmutable=true derivedTriangles=2')
+          PY
+
+          test "$(sha256sum "$WINDOW" | awk '{print $1}')" = 'c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5'
+          test "$(stat -c '%s' "$WINDOW")" = '18551108'
+
+      - name: Commit and publish only the bounded Room asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          WINDOW='app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "$WINDOW"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$WINDOW"
+          git commit -m 'room: add reference night-window depth backing'
+          RUNTIME_SHA="$(git rev-parse HEAD)"
+          git fetch --no-tags origin auto/celine/v80-human-videochat-presence
+          REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
+          if [ "$REMOTE" != "$ORCHESTRATOR_SHA" ]; then
+            echo "Refusing push because another Room writer moved the branch: orchestrator=$ORCHESTRATOR_SHA remote=$REMOTE" >&2
+            exit 1
+          fi
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
+          echo "CELINE_ROOM_WINDOW_DEPTH_RUNTIME_PROMOTION PASS runtime=$RUNTIME_SHA sourceGlbsMutated=false furnitureTransformsMutated=false cameraMutated=false lightingMutated=false"
