@@ -192,7 +192,6 @@ final class CelineRoomEnvironmentV80 {
         final TransformManager transforms;
         final AssetLoader assetLoader;
         final ResourceLoader resourceLoader;
-        final int legacyDirectionalLightEntity;
 
         final ArrayList<FilamentAsset> roomAssets = new ArrayList<>();
         FilamentAsset roomShellAsset;
@@ -200,7 +199,6 @@ final class CelineRoomEnvironmentV80 {
         CelineRoomWorldContractV80 worldContract;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
-        boolean legacyDirectionalDetached;
         boolean listenerInstalled;
         boolean failureLogged;
 
@@ -212,7 +210,6 @@ final class CelineRoomEnvironmentV80 {
             transforms = engine.getTransformManager();
             assetLoader = (AssetLoader) field(view, "assetLoader");
             resourceLoader = (ResourceLoader) field(view, "resourceLoader");
-            legacyDirectionalLightEntity = (Integer) field(view, "lightEntity");
             installListener();
         }
 
@@ -253,11 +250,11 @@ final class CelineRoomEnvironmentV80 {
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
-                int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
-                if (frontWallEntity == 0) {
-                    throw new IllegalStateException("Recovery shell front entity missing");
-                }
-                scene.removeEntity(frontWallEntity);
+      int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
+      if (frontWallEntity == 0) {
+          throw new IllegalStateException("Recovery shell front entity missing");
+      }
+      scene.removeEntity(frontWallEntity);
                 roomAssets.addAll(candidates);
                 candidates.clear();
                 roomShellAsset = shell;
@@ -270,7 +267,6 @@ final class CelineRoomEnvironmentV80 {
                         0.0f, 0.05f, -4.53f,
                         roomShellAsset.getRoot());
                 createFloorLampLight();
-                detachLegacyDirectionalLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
@@ -283,9 +279,6 @@ final class CelineRoomEnvironmentV80 {
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
                         "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true");
-                Celine3DDiagnostics.record(context, "ROOM-117",
-                        "Source-PBR Lichtowner bereinigt",
-                        "legacyDirectionalKey=false indirectOnly=true materialOverride=false sourceWindowPBR=true");
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
                         "entity=" + FLOOR_LAMP_LIGHT_ID
@@ -302,7 +295,7 @@ final class CelineRoomEnvironmentV80 {
                 for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (!roomAssets.isEmpty() || floorLampLightEntity != 0 || legacyDirectionalDetached) {
+                if (!roomAssets.isEmpty() || floorLampLightEntity != 0) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAssets.clear();
@@ -403,18 +396,6 @@ final class CelineRoomEnvironmentV80 {
             throw new IllegalStateException("Recovery room entity missing: " + name);
         }
 
-        private void detachLegacyDirectionalLight() {
-            if (legacyDirectionalLightEntity == 0 || legacyDirectionalDetached) return;
-            scene.removeEntity(legacyDirectionalLightEntity);
-            legacyDirectionalDetached = true;
-        }
-
-        private void restoreLegacyDirectionalLight() {
-            if (legacyDirectionalLightEntity == 0 || !legacyDirectionalDetached) return;
-            scene.addEntity(legacyDirectionalLightEntity);
-            legacyDirectionalDetached = false;
-        }
-
         private void createFloorLampLight() {
             int entity = EntityManager.get().create();
             try {
@@ -472,14 +453,13 @@ final class CelineRoomEnvironmentV80 {
         synchronized void destroyRoom() {
             ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
             int lampLight = floorLampLightEntity;
-            boolean restoreLegacyDirectional = legacyDirectionalDetached;
             roomAssets.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            if (current.isEmpty() && lampLight == 0 && !restoreLegacyDirectional) return;
+            if (current.isEmpty() && lampLight == 0) return;
             try {
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
@@ -491,9 +471,6 @@ final class CelineRoomEnvironmentV80 {
                         try { scene.removeEntity(entity); } catch (Throwable ignored) {}
                     }
                     assetLoader.destroyAsset(asset);
-                }
-                if (restoreLegacyDirectional) {
-                    restoreLegacyDirectionalLight();
                 }
                 Celine3DDiagnostics.record(context, "ROOM-130",
                         "Filament-Raum freigegeben", "detach lifecycle cleanup partitions=" + current.size());
