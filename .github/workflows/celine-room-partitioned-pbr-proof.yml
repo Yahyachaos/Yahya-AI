@@ -1,9 +1,9 @@
 name: Celine Room Partitioned Runtime Promotion
 
 on:
-  pull_request:
-    branches: [main]
-    types: [synchronize]
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
     paths:
       - '.github/workflows/celine-room-partitioned-pbr-proof.yml'
 
@@ -12,7 +12,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-room-partitioned-runtime-${{ github.event.pull_request.number }}
+  group: celine-room-partitioned-runtime
   cancel-in-progress: false
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout exact orchestration head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           lfs: true
 
