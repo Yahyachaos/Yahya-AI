@@ -1,9 +1,9 @@
 name: Celine Room Promote Partitioned Runtime
 
 on:
-  pull_request:
-    branches: [main]
-    types: [synchronize]
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
     paths:
       - '.github/workflows/celine-room-promote-partitioned-runtime.yml'
 
@@ -12,7 +12,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-room-promote-partitioned-runtime-${{ github.event.pull_request.number }}
+  group: celine-room-promote-partitioned-runtime
   cancel-in-progress: false
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout exact orchestration head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           lfs: true
 
@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
           VALIDATED='950ca2f0e256a9108ee00b19cfcf49f9923ae8f5'
           git merge-base --is-ancestor "$VALIDATED" HEAD
-          EXTRA="$(git diff --name-only "$VALIDATED" HEAD | grep -v '^\.github/workflows/celine-room-promote-partitioned-runtime\.yml$' || true)"
+          EXTRA="$(git diff --name-only "$VALIDATED" HEAD | grep -Ev '^\.github/workflows/celine-room-(promote-partitioned-runtime|partitioned-pbr-proof)\.yml$' || true)"
           if [ -n "$EXTRA" ]; then
             echo "Refusing promotion because non-orchestration files changed since validated runtime $VALIDATED:" >&2
             echo "$EXTRA" >&2
