@@ -10,7 +10,6 @@ import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -87,9 +86,8 @@ final class CelineRoomReferenceLayoutV80 {
     // x=0.205..0.588 / y=0.086..0.477. Correct only the immutable source window root TRS: expand X
     // by the measured visible-width ratio, shift the root left, lift it, and slightly reduce Y scale.
     // Depth, Z scale and yaw remain frozen; no derived planes, textures or source-material overrides.
-    // Partitioned source-fidelity exports preserve this transform owner as the instance anchor.
     private static final Spec WINDOW =
-            new Spec("room_window_drapes__anchor", -1.745000f, 1.780000f, -2.092500f,
+            new Spec("room_window_drapes", -1.745000f, 1.780000f, -2.092500f,
                     4.080000f, 1.690000f, 1.490625f, -8.437500f);
 
     private static final Spec SHELF =
@@ -115,71 +113,58 @@ final class CelineRoomReferenceLayoutV80 {
         try {
             Object state = roomState(view);
             if (state == null) return;
-            Field assetsField = state.getClass().getDeclaredField("roomAssets");
-            Field shellField = state.getClass().getDeclaredField("roomShellAsset");
+            Field assetField = state.getClass().getDeclaredField("roomAsset");
             Field transformsField = state.getClass().getDeclaredField("transforms");
-            assetsField.setAccessible(true);
-            shellField.setAccessible(true);
+            assetField.setAccessible(true);
             transformsField.setAccessible(true);
-            Object rawAssets = assetsField.get(state);
-            FilamentAsset shell = (FilamentAsset) shellField.get(state);
+            FilamentAsset asset = (FilamentAsset) assetField.get(state);
             TransformManager transforms = (TransformManager) transformsField.get(state);
-            if (!(rawAssets instanceof List) || shell == null || transforms == null) return;
-
-            @SuppressWarnings("unchecked")
-            List<FilamentAsset> assets = (List<FilamentAsset>) rawAssets;
-            FilamentAsset windowAsset = findAssetForEntity(assets, WINDOW.entityName);
-            if (windowAsset == null) {
-                throw new IllegalStateException("partitioned window anchor missing: " + WINDOW.entityName);
-            }
+            if (asset == null || transforms == null) return;
             synchronized (APPLIED) {
-                if (APPLIED.get(view) == windowAsset) return;
+                if (APPLIED.get(view) == asset) return;
             }
 
-            // The source-fidelity shell is already authored at exactly 4.40 x 4.20 x 2.65 m.
-            // Do not reapply the legacy 6.40/5.80 shell rescale or any proof-only shell translations.
-            requireEntity(shell, "room_shell_floor");
-            requireEntity(shell, "room_shell_ceiling");
-            requireEntity(shell, "room_shell_left");
-            requireEntity(shell, "room_shell_right");
-            requireEntity(shell, "room_shell_back");
-            requireEntity(shell, "room_shell_front");
+            translateParentLocal(asset, transforms, "room_left_wall", 1.0f, 0f, 0f, true);
+            translateParentLocal(asset, transforms, "room_right_wall", -1.0f, 0f, 0f, true);
+            translateParentLocal(asset, transforms, "room_back_wall", 0f, 0f, 0.8f, true);
+            translateParentLocal(asset, transforms, "room_ceiling", 0f, -0.15f, 0f, true);
 
-            // Recovery solve order is architecture/camera/window first. Restore only the proven
-            // window/drapes transform on its partition anchor; primary furniture remains untouched
-            // until the next coherent batch. Source PBR/materials and the 12 source GLBs stay intact.
-            setAbsoluteTrs(windowAsset, transforms, WINDOW, true);
+            scaleLocalXyz(asset, transforms, "room_floor",
+                    ROOM_WIDTH_SCALE_X, 1f, ROOM_DEPTH_SCALE_Z, true);
+            scaleLocalXyz(asset, transforms, "room_ceiling",
+                    ROOM_WIDTH_SCALE_X, 1f, ROOM_DEPTH_SCALE_Z, true);
+            scaleLocalXyz(asset, transforms, "room_back_wall",
+                    ROOM_WIDTH_SCALE_X, ROOM_HEIGHT_SCALE_Y, 1f, true);
+            scaleLocalXyz(asset, transforms, "room_left_wall",
+                    1f, ROOM_HEIGHT_SCALE_Y, ROOM_DEPTH_SCALE_Z, true);
+            scaleLocalXyz(asset, transforms, "room_right_wall",
+                    1f, ROOM_HEIGHT_SCALE_Y, ROOM_DEPTH_SCALE_Z, true);
+
+            for (Spec spec : ROOM_FURNITURE) {
+                setAbsoluteTrs(asset, transforms, spec, true);
+            }
+            disableMirrorFrustumCulling(view, asset);
+            applyMirrorReferenceVisibilityMaterial(view, asset);
 
             synchronized (APPLIED) {
-                APPLIED.put(view, windowAsset);
+                APPLIED.put(view, asset);
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
-                    "Partitionierter Architektur-/Fenster-Checkpoint aktiv",
+                    "4.40x4.20 Referenz-Solverlayout aktiv",
                     "authority=Refernzbild.png + real CALL raster"
-                            + " shell=sourceExact440x420x265 noLegacyRescale=true"
-                            + " proofCameraOwner=Celine3DView unchanged=true"
-                            + " windowAnchor=referenceSolved"
-                            + " sourceWindowPBR=true experimentalWindowLayers=false"
-                            + " primaryFurnitureDeferred=true"
+                            + " shell=4.40x4.20x2.65"
+                            + " furniture=13 referenceSolvedAbsoluteTRS"
+                            + " windowRasterAware=true"
+                            + " dresserRasterAware=true"
+                            + " chairRasterAware=true"
+                            + " mirrorFrustumCulling=false"
+                            + " mirrorReferenceMaterial=opaqueWallDuplicate"
                             + " sourceGLBsMutated=false"
-                            + " canonicalCelineScale=false");
+                            + " canonicalCelineScale=false"
+                            + " anchorsChanged=false");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
                     "Referenz-Solverlayout FEHLER", error);
-        }
-    }
-
-    private static FilamentAsset findAssetForEntity(List<FilamentAsset> assets, String entityName) {
-        if (assets == null || entityName == null) return null;
-        for (FilamentAsset asset : assets) {
-            if (asset != null && asset.getFirstEntityByName(entityName) != 0) return asset;
-        }
-        return null;
-    }
-
-    private static void requireEntity(FilamentAsset asset, String entityName) {
-        if (asset == null || asset.getFirstEntityByName(entityName) == 0) {
-            throw new IllegalStateException("partitioned shell entity missing: " + entityName);
         }
     }
 
