@@ -139,7 +139,7 @@ jobs:
                     throw new IllegalStateException("Recovery shell front entity missing");
                 }
                 scene.removeEntity(frontWallEntity);
-'''
+          '''
           if old_add not in text:
               raise SystemExit('partition scene-add anchor missing')
           text=text.replace(old_add,new_add,1)
