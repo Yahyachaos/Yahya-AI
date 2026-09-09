@@ -6,12 +6,14 @@ on:
     paths:
       - '.github/workflows/celine-room-window-clean-checkpoint.yml'
       - 'tools/blender/render_celine_room_window_clean_checkpoint.py'
+      - 'tools/blender/render_celine_room_window_source_pbr_checkpoint.py'
   push:
     branches:
       - auto/celine/v80-human-videochat-presence
     paths:
       - '.github/workflows/celine-room-window-clean-checkpoint.yml'
       - 'tools/blender/render_celine_room_window_clean_checkpoint.py'
+      - 'tools/blender/render_celine_room_window_source_pbr_checkpoint.py'
   workflow_dispatch:
 
 permissions:
@@ -69,7 +71,7 @@ jobs:
           blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
           command -v xvfb-run
 
-      - name: Render bounded source-window clean checkpoint
+      - name: Render bounded source-PBR window checkpoint
         shell: bash
         env:
           CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
@@ -86,18 +88,18 @@ jobs:
             --python tools/blender/build_celine_room_440x420.py \
             --python tools/blender/report_celine_room_geometry.py \
             --python tools/blender/solve_celine_room_reference_layout_stage.py \
-            --python tools/blender/render_celine_room_window_clean_checkpoint.py \
+            --python tools/blender/render_celine_room_window_source_pbr_checkpoint.py \
             2>&1 | tee ci-room-window-clean-proof/window-clean-checkpoint.log
 
           grep -F 'CELINE_ROOM_440x420 PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
           grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
           grep -F 'CELINE_ROOM_CLEAN_NEUTRAL_SHELL PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
-          grep -F 'CELINE_ROOM_WINDOW_CLEAN_CHECKPOINT PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
+          grep -F 'CELINE_ROOM_WINDOW_SOURCE_PBR_CHECKPOINT PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-window-clean-proof/window-clean-checkpoint.log
           test -s ci-room-window-clean-proof/candidate_front_wide.png
-          test -s ci-room-window-clean-proof/architecture_window_clean.png
-          test -s ci-room-window-clean-proof/window-clean-checkpoint.json
+          test -s ci-room-window-clean-proof/architecture_window_source_pbr.png
+          test -s ci-room-window-clean-proof/window-source-pbr-checkpoint.json
           test -s Refernzbild.png
           cp Refernzbild.png ci-room-window-clean-proof/Refernzbild.png
           printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-window-clean-proof/metadata.txt
@@ -107,12 +109,14 @@ jobs:
           printf '%s\n' 'camera_mutated=false' >> ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'derived_window_planes_added=false' >> ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'source_window_hidden=false' >> ci-room-window-clean-proof/metadata.txt
-          printf '%s\n' 'source_base_color_atlas_bypassed=true' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'source_material_slots_preserved=true' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'source_base_color_atlas_bypassed=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'appearance_strategy=source-pbr-preserved-single-camera-fill' >> ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'runtime_promoted=false' >> ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'apk_build_required=false' >> ci-room-window-clean-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-window-clean-proof/metadata.txt
 
-      - name: Upload exact window clean proof
+      - name: Upload exact window source-PBR proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
