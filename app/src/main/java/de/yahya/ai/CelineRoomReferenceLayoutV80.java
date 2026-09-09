@@ -1,8 +1,5 @@
 package de.yahya.ai;
 
-import android.opengl.Matrix;
-
-import com.google.android.filament.TransformManager;
 import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
@@ -11,38 +8,20 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * v80 clean architecture + coherent Primary Furniture owner for the partitioned source-fidelity room.
+ * v80 clean architecture owner for the partitioned source-fidelity room runtime.
  *
- * Real Candidate #1511 accepted the clean source shell/camera/window recovery direction: the prior
- * giant drape corruption is gone and the architecture is coherent again. This class therefore keeps
- * shell/window/material ownership neutral and applies exactly one measured Primary Furniture batch
- * for bed, dresser, lounge chair, foreground table and rug. Secondary objects stay source-authored.
+ * The rejected combined-room recovery accumulated legacy shell rescaling, per-furniture TRS writes,
+ * mirror material replacement and later window-only corrections. After promotion to the 14-partition
+ * source-fidelity runtime those writes no longer have a valid single roomAsset owner; continuing to
+ * reflect that field produces ROOM-159 and, more importantly, risks re-applying transforms that were
+ * solved against the rejected combined derivative rather than the immutable partition sources.
  *
- * The five targets originate from the latest real-CALL-tuned pre-partition solver history. The clean
- * partition runtime adds one shared 180-degree Y frame at every partition root, so those old child-
- * local targets cannot be copied verbatim: partition-local X/Z are negated and partition-local yaw
- * is oldYaw-180 degrees. Scale and Y are unchanged. The actual exported transform owners are the
- * canonical __anchor nodes. This preserves the same intended world-space batch without mutating any
- * of the 12 immutable source GLBs or reintroducing the rejected combined-room export path.
+ * This recovery checkpoint therefore owns validation only: verify the exact source shell and the
+ * source window/drapes partition are present, then leave their authored source-PBR transforms intact.
+ * Camera/FOV is owned by Celine3DView/CelineCameraZoomV70. Primary furniture is deliberately deferred
+ * to the later coherent primary-furniture batch required by the recovery solve order.
  */
 final class CelineRoomReferenceLayoutV80 {
-    private static final Spec BED =
-            new Spec("room_bed__anchor", -1.146877f, 0.660358f, 0.076940f,
-                    1.252188f, 1.316294f, 1.128440f, 95.562500f);
-    private static final Spec DRESSER =
-            new Spec("room_dresser__anchor", 2.100289f, 0.670294f, -0.426774f,
-                    0.733027f, 0.932473f, 0.967225f, -92.285156f);
-    private static final Spec CHAIR =
-            new Spec("room_lounge_chair__anchor", 1.643872f, 0.457133f, 1.720000f,
-                    0.495673f, 0.505830f, 0.433192f, 170.375000f);
-    private static final Spec TABLE =
-            new Spec("room_foreground_table__anchor", 0.251563f, 0.291672f, -2.912718f,
-                    1.031000f, 0.667240f, 0.519922f, 178.000000f);
-    private static final Spec RUG =
-            new Spec("room_rug__anchor", 0.047270f, 0.012676f, -0.151025f,
-                    2.128651f, 1.641016f, 1.269665f, -174.179687f);
-    private static final Spec[] PRIMARY = { BED, DRESSER, CHAIR, TABLE, RUG };
-
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED = new WeakHashMap<>();
 
     private CelineRoomReferenceLayoutV80() {}
@@ -55,15 +34,12 @@ final class CelineRoomReferenceLayoutV80 {
 
             Field assetsField = state.getClass().getDeclaredField("roomAssets");
             Field shellField = state.getClass().getDeclaredField("roomShellAsset");
-            Field transformsField = state.getClass().getDeclaredField("transforms");
             assetsField.setAccessible(true);
             shellField.setAccessible(true);
-            transformsField.setAccessible(true);
 
             Object rawAssets = assetsField.get(state);
             FilamentAsset shell = (FilamentAsset) shellField.get(state);
-            TransformManager transforms = (TransformManager) transformsField.get(state);
-            if (!(rawAssets instanceof List) || shell == null || transforms == null) return;
+            if (!(rawAssets instanceof List) || shell == null) return;
 
             @SuppressWarnings("unchecked")
             List<FilamentAsset> assets = (List<FilamentAsset>) rawAssets;
@@ -84,67 +60,28 @@ final class CelineRoomReferenceLayoutV80 {
             requireEntity(shell, "room_shell_back");
             requireEntity(shell, "room_shell_front");
 
-            // Resolve and validate all five partition/entity owners before writing any transform so a
-            // missing asset cannot leave half of the coherent Primary Furniture batch applied.
-            FilamentAsset[] primaryAssets = new FilamentAsset[PRIMARY.length];
-            int[] primaryInstances = new int[PRIMARY.length];
-            for (int i = 0; i < PRIMARY.length; i++) {
-                Spec spec = PRIMARY[i];
-                FilamentAsset asset = findAssetForEntity(assets, spec.entityName);
-                if (asset == null) {
-                    throw new IllegalStateException(
-                            "partitioned primary asset missing: " + spec.entityName);
-                }
-                int entity = asset.getFirstEntityByName(spec.entityName);
-                int instance = transforms.getInstance(entity);
-                if (instance == 0) {
-                    throw new IllegalStateException(
-                            "partitioned primary transform missing: " + spec.entityName);
-                }
-                primaryAssets[i] = asset;
-                primaryInstances[i] = instance;
-            }
-
-            for (int i = 0; i < PRIMARY.length; i++) {
-                setAbsoluteTrs(transforms, primaryInstances[i], PRIMARY[i]);
-            }
-
-            // Shell, proof camera, window/drapes, materials, lighting and all Secondary Objects are
-            // deliberately untouched. The window asset is only the stable one-shot application marker.
+            // Deliberately no transforms or materials here. The 14 partition exports already own the
+            // clean source-fidelity baseline. The previous window-anchor correction was visually
+            // regressive and remains discarded; furniture is solved later as one coherent batch.
             synchronized (APPLIED) {
                 APPLIED.put(view, window);
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
-                    "Kohaerenter Primary-Furniture-Checkpoint aktiv",
-                    "authority=Refernzbild.png + real CALL raster"
+                    "Partitionierter Clean-Architecture-Owner aktiv",
+                    "authority=Refernzbild.png"
                             + " shell=sourceExact440x420x265"
                             + " shellLegacyRescale=false"
-                            + " proofCameraOwner=Celine3DView unchanged=true"
-                            + " sourceWindowPBR=true windowTransformOverride=false"
-                            + " primaryBatch=bed,dresser,lounge-chair,foreground-table,rug"
-                            + " primaryOwners=partitionAnchors"
-                            + " primaryFrame=sharedYaw180Mapped"
-                            + " dresserFrontConstraintPreserved=true"
-                            + " chairAwayFromWindowConstraintPreserved=true"
-                            + " secondaryTransformsUnchanged=true"
-                            + " materialOverride=false lightingOverride=false"
+                            + " proofCameraOwner=Celine3DView"
+                            + " sourceWindowPBR=true"
+                            + " windowTransformOverride=false"
+                            + " furnitureTransformOverride=false"
+                            + " mirrorMaterialOverride=false"
                             + " sourceGLBsMutated=false");
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
                     "Referenz-Solverlayout FEHLER", error);
         }
-    }
-
-    private static void setAbsoluteTrs(TransformManager transforms, int instance, Spec spec) {
-        float[] matrix = new float[16];
-        Matrix.setIdentityM(matrix, 0);
-        Matrix.translateM(matrix, 0, spec.x, spec.y, spec.z);
-        if (spec.yawDeg != 0.0f) {
-            Matrix.rotateM(matrix, 0, spec.yawDeg, 0.0f, 1.0f, 0.0f);
-        }
-        Matrix.scaleM(matrix, 0, spec.sx, spec.sy, spec.sz);
-        transforms.setTransform(instance, matrix);
     }
 
     private static FilamentAsset findAssetForEntity(List<FilamentAsset> assets, String entityName) {
@@ -169,29 +106,6 @@ final class CelineRoomReferenceLayoutV80 {
         Map<?, ?> states = (Map<?, ?>) value;
         synchronized (states) {
             return states.get(view);
-        }
-    }
-
-    private static final class Spec {
-        final String entityName;
-        final float x;
-        final float y;
-        final float z;
-        final float sx;
-        final float sy;
-        final float sz;
-        final float yawDeg;
-
-        Spec(String entityName, float x, float y, float z,
-             float sx, float sy, float sz, float yawDeg) {
-            this.entityName = entityName;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.sx = sx;
-            this.sy = sy;
-            this.sz = sz;
-            this.yawDeg = yawDeg;
         }
     }
 }
