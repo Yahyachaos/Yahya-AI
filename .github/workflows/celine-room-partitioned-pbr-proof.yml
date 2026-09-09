@@ -1,30 +1,29 @@
-name: Celine Room Partitioned Source-Fidelity Proof
+name: Celine Room Partitioned Runtime Promotion
 
 on:
   pull_request:
-    types: [synchronize, edited]
+    branches: [main]
+    types: [synchronize]
     paths:
       - '.github/workflows/celine-room-partitioned-pbr-proof.yml'
-  workflow_dispatch:
 
 permissions:
   contents: write
   actions: read
 
 concurrency:
-  group: celine-room-partitioned-pbr-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: celine-room-partitioned-runtime-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
   promote-partitioned-runtime:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[promote-room-partition-runtime]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout exact orchestration head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           lfs: true
 
