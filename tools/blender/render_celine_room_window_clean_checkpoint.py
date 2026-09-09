@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Proof-only clean window/drapes appearance checkpoint for the v80 Room recovery.
+"""Proof-only window/drapes geometry-vs-shading checkpoint for v80 Room recovery.
 
 This script runs only after the canonical 4.40 x 4.20 x 2.65 m builder, geometry
 report and solved reference-layout stage have completed in the same Blender
-process. It deliberately changes root-cause family after the rejected lighting,
-layered-window and generated-coordinate two-tone attempts:
+process. Two bounded appearance attempts (generated-coordinate two-tone and
+uniform Principled) left the same diagonal window defect, so the material-color
+strategy is stopped. This proof changes root-cause family and removes normal/
+light response entirely to tell a shading defect from actual source geometry.
 
 * source GLB bytes stay immutable;
 * window/drapes geometry, anchor transform and solved proof camera stay exact;
-* no derived planes, texture atlases, hiding of the source window, camera writes
-  or furniture transforms are introduced;
-* the visibly corrupted source base-color atlas is bypassed for this proof with
-  one deliberately neutral Principled material and no coordinate-driven color
-  split that can paint artificial diagonal seams across source triangles.
+* no derived planes, texture atlases, camera writes or furniture transforms;
+* the window mesh gets one deterministic neutral unlit material only for this
+  diagnostic raster, so any surviving diagonal edge is geometry/overlap rather
+  than PBR, texture, normal or proof-light response.
 
-The proof writes a whole-scene candidate and a genuinely isolated shell+window
-architecture raster. Manual comparison against Refernzbild.png remains
-mandatory; this script never marks visual acceptance by itself.
+The proof writes a whole-scene candidate and an isolated shell+window raster.
+Manual comparison against Refernzbild.png remains mandatory; this script never
+marks visual acceptance by itself.
 """
 
 import json
@@ -33,16 +34,12 @@ HEAD_SHA = os.environ.get("CELINE_PROOF_HEAD_SHA", "unknown")
 CAMERA_NAME = "room_440x420_reference_camera"
 WINDOW_GEOMETRY = "room_window_drapes__geometry"
 FRONT_SHELL = "room_shell_front"
-MATERIAL_NAME = "CELINE_440_WindowDrapesCleanNeutral"
+MATERIAL_NAME = "CELINE_440_WindowDrapesGeometryIsolation"
 WHOLE_OUTPUT = PROOF_DIR / "candidate_front_wide.png"
 ARCH_OUTPUT = PROOF_DIR / "architecture_window_clean.png"
 META = PROOF_DIR / "window-clean-checkpoint.json"
-
-# Intentionally neutral, warm fabric checkpoint. This is not final night-room
-# polish; it removes both the damaged source atlas and the proof-created diagonal
-# two-tone seam as variables while retaining the exact source geometry.
 NEUTRAL_COLOR = (0.34, 0.27, 0.21, 1.0)
-ROUGHNESS = 0.88
+EMISSION_STRENGTH = 0.72
 
 
 def fail(message):
@@ -68,23 +65,17 @@ def make_clean_window_material():
     material["source_glb_bytes_mutated"] = False
     material["geometry_mutated"] = False
     material["source_base_color_atlas_bypassed"] = True
-    material["appearance_strategy"] = "uniform-neutral-principled"
+    material["appearance_strategy"] = "uniform-neutral-unlit-geometry-isolation"
     material.use_nodes = True
     nodes = material.node_tree.nodes
     links = material.node_tree.links
     nodes.clear()
 
     output = nodes.new("ShaderNodeOutputMaterial")
-    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
-    bsdf.inputs["Base Color"].default_value = NEUTRAL_COLOR
-    bsdf.inputs["Metallic"].default_value = 0.0
-    bsdf.inputs["Roughness"].default_value = ROUGHNESS
-    if "Specular" in bsdf.inputs:
-        bsdf.inputs["Specular"].default_value = 0.24
-    if "Specular IOR Level" in bsdf.inputs:
-        bsdf.inputs["Specular IOR Level"].default_value = 0.24
-    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
-
+    emission = nodes.new("ShaderNodeEmission")
+    emission.inputs["Color"].default_value = NEUTRAL_COLOR
+    emission.inputs["Strength"].default_value = EMISSION_STRENGTH
+    links.new(emission.outputs["Emission"], output.inputs["Surface"])
     material.diffuse_color = NEUTRAL_COLOR
     return material
 
@@ -96,9 +87,7 @@ def apply_clean_window_material():
     material = make_clean_window_material()
     meshes = []
     for obj in descendants(root):
-        if obj.type != "MESH":
-            continue
-        if not bool(obj.data):
+        if obj.type != "MESH" or not bool(obj.data):
             continue
         obj.data.materials.clear()
         obj.data.materials.append(material)
@@ -113,11 +102,9 @@ def apply_clean_window_material():
 
 
 def hide_non_window_geometry_for_architecture():
-    """Hide every descendant of non-window instance roots for the architecture raster."""
     window_root = bpy.data.objects.get(WINDOW_GEOMETRY)
     if window_root is None:
         fail(f"missing solved source window geometry: {WINDOW_GEOMETRY}")
-
     window_meshes = [obj for obj in descendants(window_root) if obj.type == "MESH"]
     if not window_meshes:
         fail("source window hierarchy contains no mesh objects for architecture proof")
@@ -129,7 +116,6 @@ def hide_non_window_geometry_for_architecture():
     ]
     if not geometry_roots:
         fail("architecture proof found no non-window geometry roots to isolate")
-
     for root in geometry_roots:
         for obj in descendants(root):
             obj.hide_render = True
@@ -142,7 +128,6 @@ def hide_non_window_geometry_for_architecture():
         fail("architecture isolation hid no renderable furniture meshes")
     if any(obj.hide_render for obj in window_meshes):
         fail("architecture isolation unexpectedly hid source window meshes")
-
     bpy.context.view_layer.update()
     return sorted(set(hidden))
 
@@ -194,6 +179,8 @@ def configure_scene():
         bg.inputs["Color"].default_value = (0.055, 0.055, 0.055, 1.0)
         bg.inputs["Strength"].default_value = 0.08
 
+    # Keep the exact proof-light environment so only window normal/light response
+    # is removed. Other room objects remain directly comparable with prior proof.
     lights = []
     specs = (
         ("CELINE_WINDOW_CLEAN_KEY", (0.4, 1.45, 2.45), 220.0, 3.4),
@@ -234,11 +221,8 @@ def main():
     original_hide = {obj.name: bool(obj.hide_render) for obj in bpy.data.objects}
     architecture_hidden = []
     try:
-        # Whole-scene comparison: window material strategy only.
         front.hide_render = True
         render(scene, WHOLE_OUTPUT)
-
-        # Architecture-only comparison: shell + exact source window/drapes + solved camera.
         architecture_hidden = hide_non_window_geometry_for_architecture()
         front.hide_render = True
         render(scene, ARCH_OUTPUT)
@@ -253,8 +237,8 @@ def main():
                 bpy.data.lights.remove(data)
 
     payload = {
-        "schema": 3,
-        "purpose": "clean source-window material checkpoint after whole-scene rejection #1379",
+        "schema": 4,
+        "purpose": "window geometry-vs-shading isolation after rejection #1379",
         "head_sha": HEAD_SHA,
         "whole_scene_render": WHOLE_OUTPUT.name,
         "architecture_render": ARCH_OUTPUT.name,
@@ -275,10 +259,10 @@ def main():
         "source_window_hidden": False,
         "source_base_color_atlas_bypassed": True,
         "clean_material": MATERIAL_NAME,
-        "clean_material_strategy": "uniform-neutral-principled",
+        "clean_material_strategy": "uniform-neutral-unlit-geometry-isolation",
+        "normal_and_light_response_removed": True,
         "neutral_color_linear": list(NEUTRAL_COLOR),
-        "coordinate_driven_color_split": False,
-        "roughness": ROUGHNESS,
+        "emission_strength": EMISSION_STRENGTH,
         "proof_lighting_runtime_equivalent_to_467": True,
         "proof_light_shadows": False,
         "proof_world_strength": 0.08,
@@ -291,7 +275,7 @@ def main():
             "reference_solved": bool(camera.get("reference_solved", False)),
         },
         "visual_acceptance": "UNASSESSED",
-        "note": "Manual pixel inspection against Refernzbild.png and the prior architecture raster is mandatory.",
+        "note": "If the diagonal defect survives this unlit raster it is geometry/overlap, not PBR/texture/normal/light response.",
     }
     META.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
@@ -299,7 +283,7 @@ def main():
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
         f"architectureHidden={len(architecture_hidden)} "
         "sourceBytesImmutable=true geometryMutated=false cameraMutated=false "
-        "derivedWindowPlanes=false sourceWindowHidden=false coordinateSplit=false",
+        "derivedWindowPlanes=false sourceWindowHidden=false normalLightResponse=false",
         flush=True,
     )
     print("visualAcceptance=UNASSESSED", flush=True)
