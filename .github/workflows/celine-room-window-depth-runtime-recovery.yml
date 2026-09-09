@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='6517052bbccf4d8d0d2828ff968ef201ffaa09d3'
+          BASE='fa27ea61509a02e4a8411abe98c5f09b9723bc29'
           git merge-base --is-ancestor "$BASE" HEAD
           EXTRA="$(git diff --name-only "$BASE" HEAD | grep -Ev '^\.github/workflows/celine-room-window-depth-runtime-recovery\.yml$' || true)"
           if [ -n "$EXTRA" ]; then
@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           ENV='app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java'
           BACKDROP='app/src/main/java/de/yahya/ai/CelineRoomBackdropView.java'
-          python3 ci/celine-room-source-pbr-lighting-isolation-recovery.py "$ENV" "$BACKDROP"
+          python3 ci/celine-room-source-pbr-lighting-isolation-recovery-v2.py "$ENV" "$BACKDROP"
           grep -F 'sharedCelineKeyMutated=false' "$ENV"
           grep -F 'renderables.setLightChannel(instance, 0, false)' "$ENV"
           grep -F 'renderables.setLightChannel(instance, ROOM_LIGHT_CHANNEL, true)' "$ENV"
