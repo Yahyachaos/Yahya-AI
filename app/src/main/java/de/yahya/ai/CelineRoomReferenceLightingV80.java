@@ -14,14 +14,16 @@ import java.util.WeakHashMap;
  *
  * The rejected whole-scene raster accumulated a strong directional key, a second warm practical,
  * ceiling/bed material edits, and a derived window/drape replacement. Exact source-PBR evidence on
- * the current Room head shows the curtain corruption under direct Principled lighting while the same
- * source geometry is clean in the unlit/workbench witness. Recovery therefore stops that appearance
- * strategy instead of stacking another furniture/material micro-patch.
+ * the partitioned Room runtime removed the dominant torn/faceted geometry corruption, while the
+ * first real CALL raster on that clean geometry exposed a separate appearance-owner conflict:
+ * CelineRoomEnvironmentV80 deliberately rebalances the shared directional key to the bounded Room
+ * value, then this owner was destructively zeroing that same key again and collapsing the shell into
+ * darkness.
  *
- * This checkpoint deliberately owns only a neutral indirect fill. It does not mutate room materials,
- * window/drape visibility, furniture transforms, camera/FOV, source GLBs, or the independent lamp
- * interaction owner. The original room asset's loaded PBR response remains the visual authority for
- * the next real CALL comparison.
+ * Recovery therefore removes only that conflicting zero-lux write. The Room environment remains the
+ * sole owner of direct-key intensity/color; this checkpoint keeps the neutral indirect fill and does
+ * not mutate room materials, window/drape visibility, furniture transforms, camera/FOV, source GLBs,
+ * or the independent lamp interaction owner.
  */
 final class CelineRoomReferenceLightingV80 {
     private static final float INDIRECT_LUX = 5600.0f;
@@ -57,10 +59,9 @@ final class CelineRoomReferenceLightingV80 {
             int instance = lights.getInstance(lightEntity);
             if (instance == 0) return;
 
-            // Clean recovery baseline: disable the experimental direct-key response completely.
-            // Exact source evidence already proved that changing normals/smoothing did not remove
-            // the curtain wedge, so do not continue that exhausted strategy.
-            lights.setIntensity(instance, 0.0f);
+            // Single-owner recovery: CelineRoomEnvironmentV80 already owns and restores the
+            // partition-room shared directional-key rebalance. Do not overwrite that intensity or
+            // color here. Keep the established no-shadow response and bounded neutral indirect fill.
             lights.setShadowCaster(instance, false);
             indirect.setIntensity(INDIRECT_LUX);
 
@@ -69,8 +70,9 @@ final class CelineRoomReferenceLightingV80 {
             }
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-140",
-                    "Referenzraum neutraler Recovery-Baseline aktiv",
-                    "directKey=off shadows=false indirectIntensity=" + INDIRECT_LUX
+                    "Referenzraum single-owner Recovery-Baseline aktiv",
+                    "directKeyOwner=roomEnvironment directKeyOverride=none shadows=false"
+                            + " indirectIntensity=" + INDIRECT_LUX
                             + " materialOverrides=none windowOverride=none practicalOverride=none"
                             + " · room source-PBR/camera/FOV/furniture/source-GLBs unverändert");
         } catch (Throwable error) {
