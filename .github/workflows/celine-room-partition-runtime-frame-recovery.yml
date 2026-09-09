@@ -1,0 +1,290 @@
+name: Celine Room Partition Runtime Frame Recovery
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-room-partition-runtime-frame-recovery.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: celine-room-partition-runtime-frame-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover-partition-runtime-frame:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact orchestration head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Prove bounded single-writer recovery input
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='2d8cc9d22cfc9ef385d1e7456dc7e0c14023f3f0'
+          git merge-base --is-ancestor "$BASE" HEAD
+          EXTRA="$(git diff --name-only "$BASE" HEAD | grep -Ev '^\.github/workflows/celine-room-partition-runtime-frame-recovery\.yml$' || true)"
+          if [ -n "$EXTRA" ]; then
+            echo "Refusing recovery because another Room writer changed non-orchestration files since $BASE:" >&2
+            echo "$EXTRA" >&2
+            exit 1
+          fi
+          echo "ORCHESTRATOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Reuse exact validated source-fidelity partitions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_ID='34314848738'
+          EXPECTED_HEAD='950ca2f0e256a9108ee00b19cfcf49f9923ae8f5'
+          META="$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion)"
+          python3 - "$META" "$EXPECTED_HEAD" <<'PY'
+          import json, sys
+          meta=json.loads(sys.argv[1])
+          expected=sys.argv[2]
+          assert meta['headSha'] == expected, meta
+          assert meta['conclusion'] == 'success', meta
+          print('CELINE_ROOM_REUSED_PARTITION_PROOF PASS', meta)
+          PY
+          rm -rf /tmp/celine-room-partition-proof
+          mkdir -p /tmp/celine-room-partition-proof
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name celine-room-partitioned-pbr-proof \
+            --dir /tmp/celine-room-partition-proof
+          test -s /tmp/celine-room-partition-proof/partitioned-pbr-export.json
+          test "$(find /tmp/celine-room-partition-proof/partitioned-pbr -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('/tmp/celine-room-partition-proof')
+          data=json.loads((root/'partitioned-pbr-export.json').read_text(encoding='utf-8'))
+          assert data['partition_count'] == 14, data
+          assert data['source_glbs_mutated'] is False, data
+          assert data['runtime_promoted'] is False, data
+          assert 3_900_000 <= data['total_triangles'] <= 4_100_000, data
+          assert data['total_glb_bytes'] < 200_000_000, data
+          for row in data['partitions']:
+              p=root/'partitioned-pbr'/row['file']
+              assert p.is_file(), p
+              assert hashlib.sha256(p.read_bytes()).hexdigest() == row['sha256'], p
+              assert p.stat().st_size == row['bytes'], p
+          print('CELINE_ROOM_PARTITION_BYTES PASS', data['total_triangles'], data['total_glb_bytes'])
+          PY
+
+      - name: Install source-fidelity partitions and repair shared runtime frame
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET='app/src/main/assets/models/room/source-fidelity'
+          rm -rf "$TARGET"
+          mkdir -p "$TARGET"
+          cp /tmp/celine-room-partition-proof/partitioned-pbr/*.glb "$TARGET/"
+          test "$(find "$TARGET" -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
+
+          # The rejected ~0.98M combined derivative remains forbidden as the recovery baseline.
+          git rm -f app/src/main/assets/models/room/celine_room_v80_final_modular.glb
+
+          # Reuse the already-built partition loader from the prior candidate, then change only the
+          # common room frame. Do not reintroduce any furniture-local orientation override.
+          PROMOTED='0b9d0642ef2d0f0d593222496d3892a88a43951c'
+          git show "$PROMOTED":app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java \
+            > app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
+          text=path.read_text(encoding='utf-8')
+          old='''            float[] base = transforms.getTransform(root, new float[16]);
+            float[] translation = new float[16];
+            float[] aligned = new float[16];
+            Matrix.setIdentityM(translation, 0);
+            Matrix.translateM(translation, 0,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
+            Matrix.multiplyMM(aligned, 0, translation, 0, base, 0);
+            transforms.setTransform(root, aligned);
+'''
+          new='''            float[] base = transforms.getTransform(root, new float[16]);
+            float[] runtimeFrameYaw = new float[16];
+            float[] framed = new float[16];
+            float[] translation = new float[16];
+            float[] aligned = new float[16];
+            // Blender's Y-up glTF export maps (X, depthY, heightZ) to
+            // (X, height, -depth). The accepted Proof #63 runtime camera was
+            // explicitly converted as (-X, height, +depth) plus the room offset.
+            // A single shared +180 degree Filament-Y root yaw is therefore the
+            // missing coordinate-frame transform. Apply it once to every complete
+            // partition root; furniture-local solved TRS stays untouched.
+            Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f, 0.0f, 1.0f, 0.0f);
+            Matrix.multiplyMM(framed, 0, runtimeFrameYaw, 0, base, 0);
+            Matrix.setIdentityM(translation, 0);
+            Matrix.translateM(translation, 0,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
+                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
+            Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
+            transforms.setTransform(root, aligned);
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one alignRoomRoot body, found {text.count(old)}')
+          text=text.replace(old,new,1)
+          text=text.replace(
+              '"combined098M=false partitions14=true sourceGlbsImmutable=true runtimeOrientationOverride=false"',
+              '"combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180"',
+              1,
+          )
+          path.write_text(text,encoding='utf-8')
+          PY
+
+          grep -F 'sharedRootYawDeg=180' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          grep -F 'Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          ! grep -Fq 'applyUserApprovedFurnitureOrientation(candidate)' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          ! grep -Fq 'celine_room_v80_final_modular.glb' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+
+      - name: Prove shared root frame equals the actual Proof 63 camera owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import math, re
+
+          # Exact source proof camera from reference_solve.json:
+          eye_b=(0.380078125, 2.8734375, 1.2234375)
+          target_b=(0.0565625, -0.30, 0.45)
+          offset=(0.0, -1.55, -4.0)
+
+          # Blender -> glTF Y-up is (x,z,-y); shared 180deg Y yaw is (-x,z,+y).
+          def runtime(p):
+              x,y,z=p
+              return (-x + offset[0], z + offset[1], y + offset[2])
+
+          expected_eye=(-0.380078125, -0.3265625, -1.1265625)
+          expected_target=(-0.0565625, -1.10, -4.30)
+          for got,want in zip(runtime(eye_b), expected_eye):
+              assert math.isclose(got,want,abs_tol=1e-7), (runtime(eye_b),expected_eye)
+          for got,want in zip(runtime(target_b), expected_target):
+              assert math.isclose(got,want,abs_tol=1e-7), (runtime(target_b),expected_target)
+
+          owner=Path('app/src/main/java/de/yahya/ai/Celine3DView.java').read_text(encoding='utf-8')
+          for value in ('-0.380078125','-0.3265625','-1.1265625','-0.0565625','-1.10','-4.30','20.846875'):
+              assert value in owner, value
+          print('CELINE_ROOM_RUNTIME_FRAME_CONTRACT PASS', runtime(eye_b), runtime(target_b))
+          PY
+
+      - name: Create exact local runtime candidate commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/assets/models/room/source-fidelity app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+          git status --short
+          git commit -m 'room: align source-fidelity partitions to proof camera frame'
+          RUNTIME_SHA="$(git rev-parse HEAD)"
+          echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
+          mkdir -p ci-room-runtime-frame-proof
+          printf 'runtime_sha=%s\norchestrator_sha=%s\npartition_proof_run=34314848738\npartition_count=14\nsource_glbs_mutated=false\nshared_root_yaw_deg=180\n' \
+            "$RUNTIME_SHA" "$ORCHESTRATOR_SHA" > ci-room-runtime-frame-proof/runtime-validation.txt
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 30 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"; fi
+          [ -x "$SDKMANAGER" ]
+          "$SDKMANAGER" 'platforms;android-30' 'build-tools;30.0.3'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.5.1'
+
+      - name: Build exactly one recovery APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee ci-room-runtime-frame-proof/android-build.log
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          FP="$(bash ci/celine-runtime-fingerprint.sh HEAD)"
+          APK_SHA="$(sha256sum app/build/outputs/apk/debug/app-debug.apk | awk '{print $1}')"
+          printf 'runtime_fingerprint=%s\napk_sha256=%s\n' "$FP" "$APK_SHA" >> ci-room-runtime-frame-proof/runtime-validation.txt
+          echo "RUNTIME_FINGERPRINT=$FP" >> "$GITHUB_ENV"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk assets/models/celine.glb > ci-room-runtime-frame-proof/celine-packaged.glb
+          test -s ci-room-runtime-frame-proof/celine-packaged.glb
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Run exactly one HOME CALL HOME room proof
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 300s bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-frame-proof/celine-packaged.glb
+
+      - name: Collect exact runtime frame proof evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p ci-room-runtime-frame-proof
+          for f in real-candidate-home.png real-candidate-call.png real-candidate-home-return.png real-candidate-logcat.txt real-candidate-logcat-home.txt real-candidate-logcat-final.txt real-candidate-prefs.xml; do
+            [ -e "$f" ] && cp "$f" ci-room-runtime-frame-proof/ || true
+          done
+          printf 'workflow_run_id=%s\nworkflow_run_number=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_NUMBER" >> ci-room-runtime-frame-proof/runtime-validation.txt
+
+      - name: Upload bounded runtime frame proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-partition-runtime-frame-proof
+          path: ci-room-runtime-frame-proof/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish candidate only after the one build and one real proof pass
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin auto/celine/v80-human-videochat-presence
+          REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
+          if [ "$REMOTE" != "$ORCHESTRATOR_SHA" ]; then
+            echo "Refusing push because another Room writer moved the branch: orchestrator=$ORCHESTRATOR_SHA remote=$REMOTE" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$RUNTIME_SHA"
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
+          echo "Published runtime candidate $RUNTIME_SHA fingerprint=$RUNTIME_FINGERPRINT for mandatory manual visual verdict"
