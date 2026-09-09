@@ -3,15 +3,16 @@
 
 This script runs only after the canonical 4.40 x 4.20 x 2.65 m builder, geometry
 report and solved reference-layout stage have completed in the same Blender
-process. It deliberately changes root-cause family after the rejected lighting
-and layered-window attempts:
+process. It deliberately changes root-cause family after the rejected lighting,
+layered-window and generated-coordinate two-tone attempts:
 
 * source GLB bytes stay immutable;
 * window/drapes geometry, anchor transform and solved proof camera stay exact;
 * no derived planes, texture atlases, hiding of the source window, camera writes
   or furniture transforms are introduced;
-* only the visibly corrupted source base-color atlas is bypassed for this proof
-  with one deterministic object-space two-tone fabric material.
+* the visibly corrupted source base-color atlas is bypassed for this proof with
+  one deliberately neutral Principled material and no coordinate-driven color
+  split that can paint artificial diagonal seams across source triangles.
 
 The proof writes a whole-scene candidate and a genuinely isolated shell+window
 architecture raster. Manual comparison against Refernzbild.png remains
@@ -32,18 +33,16 @@ HEAD_SHA = os.environ.get("CELINE_PROOF_HEAD_SHA", "unknown")
 CAMERA_NAME = "room_440x420_reference_camera"
 WINDOW_GEOMETRY = "room_window_drapes__geometry"
 FRONT_SHELL = "room_shell_front"
-MATERIAL_NAME = "CELINE_440_WindowDrapesCleanTwoTone"
+MATERIAL_NAME = "CELINE_440_WindowDrapesCleanNeutral"
 WHOLE_OUTPUT = PROOF_DIR / "candidate_front_wide.png"
 ARCH_OUTPUT = PROOF_DIR / "architecture_window_clean.png"
 META = PROOF_DIR / "window-clean-checkpoint.json"
 
-# Deliberately restrained neutral fabric values. They are not final night-room
-# polish; they exist only to remove the visibly broken white/taupe source atlas
-# as a variable while retaining the actual source geometry.
-SHEER_COLOR = (0.46, 0.36, 0.27, 1.0)
-DRAPE_COLOR = (0.20, 0.115, 0.070, 1.0)
+# Intentionally neutral, warm fabric checkpoint. This is not final night-room
+# polish; it removes both the damaged source atlas and the proof-created diagonal
+# two-tone seam as variables while retaining the exact source geometry.
+NEUTRAL_COLOR = (0.34, 0.27, 0.21, 1.0)
 ROUGHNESS = 0.88
-OUTER_BAND = 0.24
 
 
 def fail(message):
@@ -69,7 +68,7 @@ def make_clean_window_material():
     material["source_glb_bytes_mutated"] = False
     material["geometry_mutated"] = False
     material["source_base_color_atlas_bypassed"] = True
-    material["appearance_strategy"] = "generated-coordinate-two-tone-principled"
+    material["appearance_strategy"] = "uniform-neutral-principled"
     material.use_nodes = True
     nodes = material.node_tree.nodes
     links = material.node_tree.links
@@ -77,38 +76,16 @@ def make_clean_window_material():
 
     output = nodes.new("ShaderNodeOutputMaterial")
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
-    texcoord = nodes.new("ShaderNodeTexCoord")
-    separate = nodes.new("ShaderNodeSeparateXYZ")
-    left = nodes.new("ShaderNodeMath")
-    right = nodes.new("ShaderNodeMath")
-    outer = nodes.new("ShaderNodeMath")
-    mix = nodes.new("ShaderNodeMixRGB")
-
-    left.operation = "LESS_THAN"
-    left.inputs[1].default_value = OUTER_BAND
-    right.operation = "GREATER_THAN"
-    right.inputs[1].default_value = 1.0 - OUTER_BAND
-    outer.operation = "MAXIMUM"
-    mix.blend_type = "MIX"
-    mix.inputs[1].default_value = SHEER_COLOR
-    mix.inputs[2].default_value = DRAPE_COLOR
-
-    links.new(texcoord.outputs["Generated"], separate.inputs["Vector"])
-    links.new(separate.outputs["X"], left.inputs[0])
-    links.new(separate.outputs["X"], right.inputs[0])
-    links.new(left.outputs[0], outer.inputs[0])
-    links.new(right.outputs[0], outer.inputs[1])
-    links.new(outer.outputs[0], mix.inputs[0])
-    links.new(mix.outputs[0], bsdf.inputs["Base Color"])
-    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
-
+    bsdf.inputs["Base Color"].default_value = NEUTRAL_COLOR
     bsdf.inputs["Metallic"].default_value = 0.0
     bsdf.inputs["Roughness"].default_value = ROUGHNESS
     if "Specular" in bsdf.inputs:
         bsdf.inputs["Specular"].default_value = 0.24
     if "Specular IOR Level" in bsdf.inputs:
         bsdf.inputs["Specular IOR Level"].default_value = 0.24
-    material.diffuse_color = SHEER_COLOR
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+
+    material.diffuse_color = NEUTRAL_COLOR
     return material
 
 
@@ -136,14 +113,7 @@ def apply_clean_window_material():
 
 
 def hide_non_window_geometry_for_architecture():
-    """Hide every descendant of non-window instance roots for the architecture raster.
-
-    The previous proof toggled only the ``__geometry`` root empties. Blender does
-    not propagate ``hide_render`` from an Empty to its children, so the purported
-    architecture-only raster still contained every furniture mesh. Fail closed
-    unless we actually hide renderable descendants and keep the exact source
-    window hierarchy visible.
-    """
+    """Hide every descendant of non-window instance roots for the architecture raster."""
     window_root = bpy.data.objects.get(WINDOW_GEOMETRY)
     if window_root is None:
         fail(f"missing solved source window geometry: {WINDOW_GEOMETRY}")
@@ -165,7 +135,10 @@ def hide_non_window_geometry_for_architecture():
             obj.hide_render = True
             hidden.append(obj.name)
 
-    if not any(bpy.data.objects.get(name) is not None and bpy.data.objects[name].type == "MESH" for name in hidden):
+    if not any(
+        bpy.data.objects.get(name) is not None and bpy.data.objects[name].type == "MESH"
+        for name in hidden
+    ):
         fail("architecture isolation hid no renderable furniture meshes")
     if any(obj.hide_render for obj in window_meshes):
         fail("architecture isolation unexpectedly hid source window meshes")
@@ -261,12 +234,11 @@ def main():
     original_hide = {obj.name: bool(obj.hide_render) for obj in bpy.data.objects}
     architecture_hidden = []
     try:
-        # Whole-scene comparison: only the window material family differs from #467.
+        # Whole-scene comparison: window material strategy only.
         front.hide_render = True
         render(scene, WHOLE_OUTPUT)
 
         # Architecture-only comparison: shell + exact source window/drapes + solved camera.
-        # Hide renderable descendants, not merely their parent Empty objects.
         architecture_hidden = hide_non_window_geometry_for_architecture()
         front.hide_render = True
         render(scene, ARCH_OUTPUT)
@@ -281,7 +253,7 @@ def main():
                 bpy.data.lights.remove(data)
 
     payload = {
-        "schema": 2,
+        "schema": 3,
         "purpose": "clean source-window material checkpoint after whole-scene rejection #1379",
         "head_sha": HEAD_SHA,
         "whole_scene_render": WHOLE_OUTPUT.name,
@@ -303,10 +275,9 @@ def main():
         "source_window_hidden": False,
         "source_base_color_atlas_bypassed": True,
         "clean_material": MATERIAL_NAME,
-        "clean_material_strategy": "generated-coordinate-two-tone-principled",
-        "sheer_color_linear": list(SHEER_COLOR),
-        "drape_color_linear": list(DRAPE_COLOR),
-        "outer_band_fraction": OUTER_BAND,
+        "clean_material_strategy": "uniform-neutral-principled",
+        "neutral_color_linear": list(NEUTRAL_COLOR),
+        "coordinate_driven_color_split": False,
         "roughness": ROUGHNESS,
         "proof_lighting_runtime_equivalent_to_467": True,
         "proof_light_shadows": False,
@@ -320,7 +291,7 @@ def main():
             "reference_solved": bool(camera.get("reference_solved", False)),
         },
         "visual_acceptance": "UNASSESSED",
-        "note": "Manual pixel inspection against Refernzbild.png and the prior whole-scene checkpoint is mandatory.",
+        "note": "Manual pixel inspection against Refernzbild.png and the prior architecture raster is mandatory.",
     }
     META.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
@@ -328,7 +299,7 @@ def main():
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
         f"architectureHidden={len(architecture_hidden)} "
         "sourceBytesImmutable=true geometryMutated=false cameraMutated=false "
-        "derivedWindowPlanes=false sourceWindowHidden=false",
+        "derivedWindowPlanes=false sourceWindowHidden=false coordinateSplit=false",
         flush=True,
     )
     print("visualAcceptance=UNASSESSED", flush=True)
