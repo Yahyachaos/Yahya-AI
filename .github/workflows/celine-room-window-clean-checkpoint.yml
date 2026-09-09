@@ -1,0 +1,117 @@
+name: Celine Room Window Clean Checkpoint
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-room-window-clean-checkpoint.yml'
+      - 'tools/blender/render_celine_room_window_clean_checkpoint.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-room-window-clean-checkpoint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  window-clean-checkpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact Room head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Static exact-room contract
+        run: python3 ci/celine_room_440x420_builder_contract.py
+
+      - name: Materialize immutable canonical furniture sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT='df50816187978cbf5faf818ad484c3f682be7588'
+          SOURCE_DIR='/tmp/celine-room-source'
+          git fetch --no-tags origin "$SOURCE_COMMIT"
+          rm -rf "$SOURCE_DIR"
+          git worktree add --detach "$SOURCE_DIR" "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" lfs install --local
+          git -C "$SOURCE_DIR" lfs pull --include='app/src/main/assets/models/möbel/*.glb' --exclude=''
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('/tmp/celine-room-source/app/src/main/assets/models/möbel')
+          files = sorted(base.glob('*.glb'))
+          if len(files) != 12:
+              raise SystemExit(f'expected exactly 12 source GLBs, got {len(files)}')
+          tiny = [(p.name, p.stat().st_size) for p in files if p.stat().st_size < 100_000_000]
+          if tiny:
+              raise SystemExit(f'unmaterialized or unexpected source files: {tiny}')
+          print('materialized immutable source GLBs:', len(files))
+          PY
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
+          blender --version | head -n 2
+          blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
+          command -v xvfb-run
+
+      - name: Render bounded source-window clean checkpoint
+        shell: bash
+        env:
+          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
+          CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-window-clean-proof
+          CELINE_ROOM_WINDOW_CLEAN_PROOF_DIR: ${{ github.workspace }}/ci-room-window-clean-proof
+          CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
+          CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
+          CELINE_PROOF_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-window-clean-proof
+          xvfb-run -a blender --background --factory-startup \
+            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
+            --python tools/blender/build_celine_room_440x420.py \
+            --python tools/blender/report_celine_room_geometry.py \
+            --python tools/blender/solve_celine_room_reference_layout_stage.py \
+            --python tools/blender/render_celine_room_window_clean_checkpoint.py \
+            2>&1 | tee ci-room-window-clean-proof/window-clean-checkpoint.log
+
+          grep -F 'CELINE_ROOM_440x420 PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
+          grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
+          grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
+          grep -F 'CELINE_ROOM_CLEAN_NEUTRAL_SHELL PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
+          grep -F 'CELINE_ROOM_WINDOW_CLEAN_CHECKPOINT PASS' ci-room-window-clean-proof/window-clean-checkpoint.log
+          grep -F 'visualAcceptance=UNASSESSED' ci-room-window-clean-proof/window-clean-checkpoint.log
+          test -s ci-room-window-clean-proof/candidate_front_wide.png
+          test -s ci-room-window-clean-proof/architecture_window_clean.png
+          test -s ci-room-window-clean-proof/window-clean-checkpoint.json
+          test -s Refernzbild.png
+          cp Refernzbild.png ci-room-window-clean-proof/Refernzbild.png
+          printf '%s\n' "head_sha=${GITHUB_SHA}" > ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'source_glbs_mutated=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'geometry_mutated=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'camera_mutated=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'derived_window_planes_added=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'source_window_hidden=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'source_base_color_atlas_bypassed=true' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'runtime_promoted=false' >> ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' 'apk_build_required=false' >> ci-room-window-clean-proof/metadata.txt
+          sha256sum Refernzbild.png >> ci-room-window-clean-proof/metadata.txt
+
+      - name: Upload exact window clean proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-window-clean-checkpoint
+          path: ci-room-window-clean-proof/
+          if-no-files-found: warn
+          retention-days: 30
