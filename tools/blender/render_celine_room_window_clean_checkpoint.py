@@ -1,30 +1,25 @@
 #!/usr/bin/env python3
-"""Proof-only window/drapes geometry-vs-shading checkpoint for v80 Room recovery.
+"""Proof-only imported-normal recovery checkpoint for the v80 Room window/drapes.
 
-This script runs only after the canonical 4.40 x 4.20 x 2.65 m builder, geometry
-report and solved reference-layout stage have completed in the same Blender
-process. Two bounded appearance attempts (generated-coordinate two-tone and
-uniform Principled) left the same diagonal window defect, so the material-color
-strategy is stopped. This proof changes root-cause family and removes normal/
-light response entirely to tell a shading defect from actual source geometry.
+The previous uniform neutral Principled checkpoint retained the diagonal window
+artifact, while the exact same source geometry rendered unlit removed it. That
+ends the material-color strategy and changes root-cause family to imported split
+shading normals. This controlled proof returns to the same neutral Principled
+material as the failed lit checkpoint, but first clones the in-memory window mesh
+and discards imported custom split normals. Vertex positions, topology, anchor,
+solved proof camera and the immutable source GLB bytes stay unchanged.
 
-* source GLB bytes stay immutable;
-* window/drapes geometry, anchor transform and solved proof camera stay exact;
-* no derived planes, texture atlases, camera writes or furniture transforms;
-* the window mesh gets one deterministic neutral unlit material only for this
-  diagnostic raster, so any surviving diagonal edge is geometry/overlap rather
-  than PBR, texture, normal or proof-light response.
-
-The proof writes a whole-scene candidate and an isolated shell+window raster.
-Manual comparison against Refernzbild.png remains mandatory; this script never
+Manual comparison against Refernzbild.png remains mandatory. This script never
 marks visual acceptance by itself.
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
 
 import bpy
+import numpy as np
 from mathutils import Vector
 
 
@@ -34,12 +29,12 @@ HEAD_SHA = os.environ.get("CELINE_PROOF_HEAD_SHA", "unknown")
 CAMERA_NAME = "room_440x420_reference_camera"
 WINDOW_GEOMETRY = "room_window_drapes__geometry"
 FRONT_SHELL = "room_shell_front"
-MATERIAL_NAME = "CELINE_440_WindowDrapesGeometryIsolation"
+MATERIAL_NAME = "CELINE_440_WindowDrapesCleanNeutral"
 WHOLE_OUTPUT = PROOF_DIR / "candidate_front_wide.png"
 ARCH_OUTPUT = PROOF_DIR / "architecture_window_clean.png"
 META = PROOF_DIR / "window-clean-checkpoint.json"
 NEUTRAL_COLOR = (0.34, 0.27, 0.21, 1.0)
-EMISSION_STRENGTH = 0.72
+ROUGHNESS = 0.88
 
 
 def fail(message):
@@ -55,6 +50,74 @@ def descendants(root):
         stack.extend(list(obj.children))
 
 
+def vertex_position_digest(mesh):
+    coords = np.empty(len(mesh.vertices) * 3, dtype=np.float32)
+    mesh.vertices.foreach_get("co", coords)
+    return hashlib.sha256(coords.tobytes()).hexdigest()
+
+
+def rebuild_imported_window_shading_normals():
+    root = bpy.data.objects.get(WINDOW_GEOMETRY)
+    if root is None:
+        fail(f"missing solved source window geometry: {WINDOW_GEOMETRY}")
+
+    repairs = []
+    for obj in descendants(root):
+        if obj.type != "MESH" or not bool(obj.data):
+            continue
+        source_mesh = obj.data
+        before_vertices = len(source_mesh.vertices)
+        before_polygons = len(source_mesh.polygons)
+        before_digest = vertex_position_digest(source_mesh)
+        had_custom_normals = bool(getattr(source_mesh, "has_custom_normals", False))
+
+        # Clone only the in-memory proof mesh so the imported source datablock and
+        # immutable GLB bytes remain untouched. No vertices or topology are edited.
+        proof_mesh = source_mesh.copy()
+        proof_mesh.name = f"{source_mesh.name}__proof_recomputed_normals"
+        obj.data = proof_mesh
+
+        cleared = False
+        if hasattr(proof_mesh, "free_normals_split"):
+            try:
+                proof_mesh.free_normals_split()
+                cleared = had_custom_normals
+            except RuntimeError:
+                cleared = False
+        proof_mesh.update()
+
+        after_digest = vertex_position_digest(proof_mesh)
+        if before_vertices != len(proof_mesh.vertices):
+            fail(f"normal recovery changed vertex count for {obj.name}")
+        if before_polygons != len(proof_mesh.polygons):
+            fail(f"normal recovery changed polygon count for {obj.name}")
+        if before_digest != after_digest:
+            fail(f"normal recovery changed vertex positions for {obj.name}")
+
+        obj["reference_window_normal_recovery"] = True
+        obj["reference_window_source_mesh"] = source_mesh.name
+        repairs.append(
+            {
+                "object": obj.name,
+                "source_mesh": source_mesh.name,
+                "proof_mesh": proof_mesh.name,
+                "had_custom_normals": had_custom_normals,
+                "custom_normals_cleared": cleared,
+                "vertices": before_vertices,
+                "polygons": before_polygons,
+                "vertex_position_sha256_before": before_digest,
+                "vertex_position_sha256_after": after_digest,
+                "vertex_positions_unchanged": True,
+                "topology_unchanged": True,
+            }
+        )
+
+    if not repairs:
+        fail("source window hierarchy contains no mesh objects for normal recovery")
+    bpy.context.view_layer.update()
+    return repairs
+
+
 def make_clean_window_material():
     existing = bpy.data.materials.get(MATERIAL_NAME)
     if existing is not None and not bool(existing.get("celine_room_builder_owned", False)):
@@ -65,17 +128,22 @@ def make_clean_window_material():
     material["source_glb_bytes_mutated"] = False
     material["geometry_mutated"] = False
     material["source_base_color_atlas_bypassed"] = True
-    material["appearance_strategy"] = "uniform-neutral-unlit-geometry-isolation"
+    material["appearance_strategy"] = "uniform-neutral-principled-with-recomputed-imported-normals"
     material.use_nodes = True
     nodes = material.node_tree.nodes
     links = material.node_tree.links
     nodes.clear()
 
     output = nodes.new("ShaderNodeOutputMaterial")
-    emission = nodes.new("ShaderNodeEmission")
-    emission.inputs["Color"].default_value = NEUTRAL_COLOR
-    emission.inputs["Strength"].default_value = EMISSION_STRENGTH
-    links.new(emission.outputs["Emission"], output.inputs["Surface"])
+    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Base Color"].default_value = NEUTRAL_COLOR
+    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["Roughness"].default_value = ROUGHNESS
+    if "Specular" in bsdf.inputs:
+        bsdf.inputs["Specular"].default_value = 0.24
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = 0.24
+    links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
     material.diffuse_color = NEUTRAL_COLOR
     return material
 
@@ -179,8 +247,6 @@ def configure_scene():
         bg.inputs["Color"].default_value = (0.055, 0.055, 0.055, 1.0)
         bg.inputs["Strength"].default_value = 0.08
 
-    # Keep the exact proof-light environment so only window normal/light response
-    # is removed. Other room objects remain directly comparable with prior proof.
     lights = []
     specs = (
         ("CELINE_WINDOW_CLEAN_KEY", (0.4, 1.45, 2.45), 220.0, 3.4),
@@ -212,6 +278,7 @@ def render(scene, path):
 
 def main():
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
+    repairs = rebuild_imported_window_shading_normals()
     meshes = apply_clean_window_material()
     scene, camera, engine_name, lights = configure_scene()
     front = bpy.data.objects.get(FRONT_SHELL)
@@ -237,8 +304,8 @@ def main():
                 bpy.data.lights.remove(data)
 
     payload = {
-        "schema": 4,
-        "purpose": "window geometry-vs-shading isolation after rejection #1379",
+        "schema": 5,
+        "purpose": "imported window shading-normal recovery after unlit isolation removed the diagonal defect",
         "head_sha": HEAD_SHA,
         "whole_scene_render": WHOLE_OUTPUT.name,
         "architecture_render": ARCH_OUTPUT.name,
@@ -247,11 +314,16 @@ def main():
         "render_size": [1376, 1100],
         "window_geometry_object": WINDOW_GEOMETRY,
         "window_meshes": meshes,
+        "window_normal_repairs": repairs,
         "architecture_isolation": "shell+source_window_drapes+solved_camera_only",
         "architecture_non_window_objects_hidden_count": len(architecture_hidden),
         "architecture_non_window_objects_hidden": architecture_hidden,
         "source_glbs_mutated": False,
         "source_geometry_mutated": False,
+        "proof_mesh_datablocks_cloned": True,
+        "proof_shading_normals_recomputed": True,
+        "vertex_positions_mutated": False,
+        "topology_mutated": False,
         "window_anchor_transform_mutated": False,
         "proof_camera_mutated": False,
         "furniture_transforms_mutated": False,
@@ -259,10 +331,11 @@ def main():
         "source_window_hidden": False,
         "source_base_color_atlas_bypassed": True,
         "clean_material": MATERIAL_NAME,
-        "clean_material_strategy": "uniform-neutral-unlit-geometry-isolation",
-        "normal_and_light_response_removed": True,
+        "clean_material_strategy": "uniform-neutral-principled-with-recomputed-imported-normals",
+        "normal_and_light_response_removed": False,
         "neutral_color_linear": list(NEUTRAL_COLOR),
-        "emission_strength": EMISSION_STRENGTH,
+        "roughness": ROUGHNESS,
+        "failed_material_color_strategy_stopped": True,
         "proof_lighting_runtime_equivalent_to_467": True,
         "proof_light_shadows": False,
         "proof_world_strength": 0.08,
@@ -275,15 +348,16 @@ def main():
             "reference_solved": bool(camera.get("reference_solved", False)),
         },
         "visual_acceptance": "UNASSESSED",
-        "note": "If the diagonal defect survives this unlit raster it is geometry/overlap, not PBR/texture/normal/light response.",
+        "note": "Controlled comparison with the prior neutral Principled proof: only imported custom split normals are discarded before the same lit material strategy is rendered.",
     }
     META.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
         "CELINE_ROOM_WINDOW_CLEAN_CHECKPOINT PASS "
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
-        f"architectureHidden={len(architecture_hidden)} "
-        "sourceBytesImmutable=true geometryMutated=false cameraMutated=false "
-        "derivedWindowPlanes=false sourceWindowHidden=false normalLightResponse=false",
+        f"architectureHidden={len(architecture_hidden)} normalRepairMeshes={len(repairs)} "
+        "sourceBytesImmutable=true geometryMutated=false vertexPositionsMutated=false "
+        "topologyMutated=false cameraMutated=false derivedWindowPlanes=false "
+        "sourceWindowHidden=false normalLightResponse=true shadingNormalsRecomputed=true",
         flush=True,
     )
     print("visualAcceptance=UNASSESSED", flush=True)
