@@ -1,6 +1,11 @@
 name: Celine Room Window Clean Checkpoint
 
 on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - '.github/workflows/celine-room-window-clean-checkpoint.yml'
+      - 'tools/blender/render_celine_room_window_clean_checkpoint.py'
   push:
     branches:
       - auto/celine/v80-human-videochat-presence
@@ -14,7 +19,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-room-window-clean-checkpoint-${{ github.ref }}
+  group: celine-room-window-clean-checkpoint-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -72,7 +77,7 @@ jobs:
           CELINE_ROOM_WINDOW_CLEAN_PROOF_DIR: ${{ github.workspace }}/ci-room-window-clean-proof
           CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
           CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
-          CELINE_PROOF_HEAD_SHA: ${{ github.sha }}
+          CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p ci-room-window-clean-proof
@@ -95,7 +100,7 @@ jobs:
           test -s ci-room-window-clean-proof/window-clean-checkpoint.json
           test -s Refernzbild.png
           cp Refernzbild.png ci-room-window-clean-proof/Refernzbild.png
-          printf '%s\n' "head_sha=${GITHUB_SHA}" > ci-room-window-clean-proof/metadata.txt
+          printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-window-clean-proof/metadata.txt
           printf '%s\n' 'geometry_mutated=false' >> ci-room-window-clean-proof/metadata.txt
