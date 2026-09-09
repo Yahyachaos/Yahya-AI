@@ -60,9 +60,7 @@ jobs:
           PY
           rm -rf /tmp/celine-room-partition-proof
           mkdir -p /tmp/celine-room-partition-proof
-          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name celine-room-partitioned-pbr-proof \
-            --dir /tmp/celine-room-partition-proof
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name celine-room-partitioned-pbr-proof --dir /tmp/celine-room-partition-proof
           test -s /tmp/celine-room-partition-proof/partitioned-pbr-export.json
           test "$(find /tmp/celine-room-partition-proof/partitioned-pbr -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
           python3 - <<'PY'
@@ -92,55 +90,42 @@ jobs:
           mkdir -p "$TARGET"
           cp /tmp/celine-room-partition-proof/partitioned-pbr/*.glb "$TARGET/"
           test "$(find "$TARGET" -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
-
-          # The rejected ~0.98M combined derivative remains forbidden as the recovery baseline.
           git rm -f app/src/main/assets/models/room/celine_room_v80_final_modular.glb
-
-          # Reuse the already-built partition loader from the prior candidate, then change only the
-          # common room frame. Do not reintroduce any furniture-local orientation override.
           PROMOTED='0b9d0642ef2d0f0d593222496d3892a88a43951c'
-          git show "$PROMOTED":app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java \
-            > app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
-
+          git show "$PROMOTED":app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java > app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           python3 - <<'PY'
           from pathlib import Path
           path=Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
           text=path.read_text(encoding='utf-8')
-          old='''            float[] base = transforms.getTransform(root, new float[16]);
-            float[] translation = new float[16];
-            float[] aligned = new float[16];
-            Matrix.setIdentityM(translation, 0);
-            Matrix.translateM(translation, 0,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
-            Matrix.multiplyMM(aligned, 0, translation, 0, base, 0);
-            transforms.setTransform(root, aligned);
-'''
-          new='''            float[] base = transforms.getTransform(root, new float[16]);
-            float[] runtimeFrameYaw = new float[16];
-            float[] framed = new float[16];
-            float[] translation = new float[16];
-            float[] aligned = new float[16];
-            // Blender's Y-up glTF export maps (X, depthY, heightZ) to
-            // (X, height, -depth). The accepted Proof #63 runtime camera was
-            // explicitly converted as (-X, height, +depth) plus the room offset.
-            // A single shared +180 degree Filament-Y root yaw is therefore the
-            // missing coordinate-frame transform. Apply it once to every complete
-            // partition root; furniture-local solved TRS stays untouched.
-            Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f, 0.0f, 1.0f, 0.0f);
-            Matrix.multiplyMM(framed, 0, runtimeFrameYaw, 0, base, 0);
-            Matrix.setIdentityM(translation, 0);
-            Matrix.translateM(translation, 0,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
-            Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
-            transforms.setTransform(root, aligned);
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'expected one alignRoomRoot body, found {text.count(old)}')
-          text=text.replace(old,new,1)
+          start=text.index('        private void alignRoomRoot(FilamentAsset asset) {\n')
+          end=text.index('        private void applyUserApprovedFurnitureOrientation(', start)
+          lines=[
+              '        private void alignRoomRoot(FilamentAsset asset) {',
+              '            int root = transforms.getInstance(asset.getRoot());',
+              '            if (root == 0) {',
+              '                throw new IllegalStateException("4R Raum-Root-Transform fehlt");',
+              '            }',
+              '            float[] base = transforms.getTransform(root, new float[16]);',
+              '            float[] runtimeFrameYaw = new float[16];',
+              '            float[] framed = new float[16];',
+              '            float[] translation = new float[16];',
+              '            float[] aligned = new float[16];',
+              '            // Standard Blender Y-up glTF export is (X,height,-depth), while the accepted',
+              '            // Proof #63 runtime camera contract is (-X,height,+depth) plus room offset.',
+              '            // Apply the missing common 180deg Filament-Y frame once at every partition root.',
+              '            Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f, 0.0f, 1.0f, 0.0f);',
+              '            Matrix.multiplyMM(framed, 0, runtimeFrameYaw, 0, base, 0);',
+              '            Matrix.setIdentityM(translation, 0);',
+              '            Matrix.translateM(translation, 0,',
+              '                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,',
+              '                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,',
+              '                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);',
+              '            Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);',
+              '            transforms.setTransform(root, aligned);',
+              '        }',
+              '',
+          ]
+          text=text[:start]+'\n'.join(lines)+text[end:]
           text=text.replace(
               '"combined098M=false partitions14=true sourceGlbsImmutable=true runtimeOrientationOverride=false"',
               '"combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180"',
@@ -148,7 +133,6 @@ jobs:
           )
           path.write_text(text,encoding='utf-8')
           PY
-
           grep -F 'sharedRootYawDeg=180' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           grep -F 'Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           ! grep -Fq 'applyUserApprovedFurnitureOrientation(candidate)' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
@@ -160,25 +144,19 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import math, re
-
-          # Exact source proof camera from reference_solve.json:
+          import math
           eye_b=(0.380078125, 2.8734375, 1.2234375)
           target_b=(0.0565625, -0.30, 0.45)
           offset=(0.0, -1.55, -4.0)
-
-          # Blender -> glTF Y-up is (x,z,-y); shared 180deg Y yaw is (-x,z,+y).
           def runtime(p):
               x,y,z=p
               return (-x + offset[0], z + offset[1], y + offset[2])
-
           expected_eye=(-0.380078125, -0.3265625, -1.1265625)
           expected_target=(-0.0565625, -1.10, -4.30)
           for got,want in zip(runtime(eye_b), expected_eye):
               assert math.isclose(got,want,abs_tol=1e-7), (runtime(eye_b),expected_eye)
           for got,want in zip(runtime(target_b), expected_target):
               assert math.isclose(got,want,abs_tol=1e-7), (runtime(target_b),expected_target)
-
           owner=Path('app/src/main/java/de/yahya/ai/Celine3DView.java').read_text(encoding='utf-8')
           for value in ('-0.380078125','-0.3265625','-1.1265625','-0.0565625','-1.10','-4.30','20.846875'):
               assert value in owner, value
@@ -197,8 +175,7 @@ jobs:
           RUNTIME_SHA="$(git rev-parse HEAD)"
           echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
           mkdir -p ci-room-runtime-frame-proof
-          printf 'runtime_sha=%s\norchestrator_sha=%s\npartition_proof_run=34314848738\npartition_count=14\nsource_glbs_mutated=false\nshared_root_yaw_deg=180\n' \
-            "$RUNTIME_SHA" "$ORCHESTRATOR_SHA" > ci-room-runtime-frame-proof/runtime-validation.txt
+          printf 'runtime_sha=%s\norchestrator_sha=%s\npartition_proof_run=34314848738\npartition_count=14\nsource_glbs_mutated=false\nshared_root_yaw_deg=180\n' "$RUNTIME_SHA" "$ORCHESTRATOR_SHA" > ci-room-runtime-frame-proof/runtime-validation.txt
 
       - name: Set up Java
         uses: actions/setup-java@v4
