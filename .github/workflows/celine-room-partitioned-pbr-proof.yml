@@ -28,6 +28,14 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: Apply bounded promotion-script compatibility fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCRIPT='ci/celine-room-promote-partitioned-runtime.sh'
+          sed -i 's/if (roomAsset == null || floorLampLightEntity == 0) return false;/if (!isBuilt() || floorLampLightEntity == 0) return false;/' "$SCRIPT"
+          grep -F 'if (!isBuilt() || floorLampLightEntity == 0) return false;' "$SCRIPT"
+
       - name: Prepare exact partitioned Room runtime candidate
         shell: bash
         env:
