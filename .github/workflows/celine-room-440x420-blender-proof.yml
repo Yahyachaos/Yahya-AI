@@ -117,8 +117,11 @@ jobs:
           # but crashed at reduction/export/reload boundaries before a usable PBR raster existed.
           # Do not try that strategy again. Render the immutable canonical source materials in the
           # already-solved scene, before any decimation, texture resize, GLB export or reload.
-          # This proof-only light rig is neutral and deterministic; it changes no source bytes,
-          # furniture transforms, shell geometry or reference camera.
+          # Proofs 458 and 462 then isolated a second root cause: camera-frustum shell extensions
+          # changed the scene but left the same hard upper wedges and severe washout. Those wedges
+          # therefore cannot be accepted as shell geometry evidence. Use one bounded neutral-light
+          # checkpoint with proof-light shadows disabled and substantially lower energy; source
+          # bytes, furniture transforms, shell geometry and the solved reference camera stay exact.
           cat > /tmp/render_celine_room_source_pbr_direct.py <<'PY'
           import json
           import math
@@ -167,6 +170,8 @@ jobs:
           scene.render.image_settings.color_depth = '8'
           scene.render.film_transparent = False
           scene.camera = camera
+          if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'):
+              scene.eevee.taa_render_samples = 16
 
           world = scene.world
           if world is None:
@@ -176,7 +181,7 @@ jobs:
           bg = world.node_tree.nodes.get('Background')
           if bg is not None:
               bg.inputs['Color'].default_value = (0.055, 0.055, 0.055, 1.0)
-              bg.inputs['Strength'].default_value = 0.22
+              bg.inputs['Strength'].default_value = 0.08
 
           def look_at(obj, target):
               direction = Vector(target) - obj.location
@@ -184,9 +189,9 @@ jobs:
 
           proof_lights = []
           specs = (
-              ('CELINE_PBR_PROOF_KEY', (0.4, 1.45, 2.45), 680.0, 3.4),
-              ('CELINE_PBR_PROOF_FILL', (-1.75, 0.15, 1.85), 360.0, 2.8),
-              ('CELINE_PBR_PROOF_WINDOW_FILL', (1.25, -1.72, 2.20), 260.0, 2.4),
+              ('CELINE_PBR_PROOF_KEY', (0.4, 1.45, 2.45), 220.0, 3.4),
+              ('CELINE_PBR_PROOF_FILL', (-1.75, 0.15, 1.85), 120.0, 2.8),
+              ('CELINE_PBR_PROOF_WINDOW_FILL', (1.25, -1.72, 2.20), 80.0, 2.4),
           )
           for name, location, energy, size in specs:
               data = bpy.data.lights.new(name=name, type='AREA')
@@ -194,6 +199,8 @@ jobs:
               data.shape = 'DISK'
               data.size = size
               data.color = (1.0, 1.0, 1.0)
+              if hasattr(data, 'use_shadow'):
+                  data.use_shadow = False
               obj = bpy.data.objects.new(name, data)
               scene.collection.objects.link(obj)
               obj.location = location
@@ -211,7 +218,7 @@ jobs:
               scene.render.filepath = str(OUTPUT)
               print(
                   f'CELINE_ROOM_SOURCE_PBR_DIRECT_RENDER_BEGIN engine={selected_engine} '
-                  'size=1376x1100 sourceBytesImmutable=true reduction=false export=false',
+                  'size=1376x1100 samples=16 shadows=false sourceBytesImmutable=true reduction=false export=false',
                   flush=True,
               )
               bpy.ops.render.render(write_still=True)
@@ -241,6 +248,10 @@ jobs:
               'proof_time_geometry_mutation': False,
               'proof_time_camera_mutation': False,
               'proof_time_neutral_lighting_only': True,
+              'proof_time_light_shadows': False,
+              'proof_time_world_strength': 0.08,
+              'proof_time_area_light_energies': [220.0, 120.0, 80.0],
+              'proof_time_render_samples': 16,
               'camera': {
                   'name': camera.name,
                   'location': [float(v) for v in camera.location],
@@ -270,6 +281,7 @@ jobs:
           grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'CELINE_ROOM_SOURCE_PBR_DIRECT_RENDER PASS' ci-room-proof/blender-room-440x420.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
+          grep -F 'shadows=false' ci-room-proof/blender-room-440x420.log
           test -s ci-room-proof/geometry-profile.json
           test -s ci-room-proof/01_front_wide.png
           test -s ci-room-proof/02_instance_id.png
@@ -284,7 +296,7 @@ jobs:
           printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
           printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
           printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
-          printf '%s\n' 'checkpoint=direct_canonical_source_pbr_pre_reduction_pre_export' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'checkpoint=direct_canonical_source_pbr_pre_reduction_pre_export_neutral_no_shadow' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_structural_witness_run=449' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_structural_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/metadata.txt
           printf '%s\n' 'reduction_applied=false' >> ci-room-proof/metadata.txt
@@ -292,6 +304,8 @@ jobs:
           printf '%s\n' 'blend_reload_used=false' >> ci-room-proof/metadata.txt
           printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/metadata.txt
           printf '%s\n' 'proof_time_neutral_lighting_only=true' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'proof_time_light_shadows=false' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'proof_time_render_samples=16' >> ci-room-proof/metadata.txt
           printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
 
