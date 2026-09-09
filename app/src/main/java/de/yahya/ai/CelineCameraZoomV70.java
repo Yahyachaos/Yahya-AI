@@ -22,15 +22,17 @@ final class CelineCameraZoomV70 {
     static final float ZOOM_MIN = 0.55f;
     static final float ZOOM_MAX = 4.60f;
 
-    // The source-fidelity partition proofs show that the exported Room anchors already own the
-    // reference solve. CALL must therefore render the exact Proof #63 lens/eye state directly at
-    // Celine3DView's referenceBase=0.70 instead of stacking the older combined-shell 0.785714
-    // dolly on top. That old CALL default backed the proof camera away from the solved room and
-    // exposed too much of the foreground table. HOME keeps its existing bounded architecture
-    // framing until a separate HOME-specific proof requires a change. Furniture TRS, source GLBs,
-    // Celine scale/rig and the reference lens/eye direction remain unchanged by this correction.
+    // Real Candidate #1162 makes the remaining global perspective error measurable: the exact
+    // 4.40x4.20 shell reaches the top edge before the back-wall ceiling line, so the reference
+    // ceiling and side-wall wedges disappear. Re-projecting the physical shell through Filament's
+    // 24 mm vertical sensor model against the six high-confidence architecture landmarks gives the
+    // smallest current-camera correction at normalized zoom 0.785714, panX=0.071327 and
+    // panY=-0.192402. HOME uses baseZoom=1.0 and CALL uses baseZoom=0.70, therefore these paired
+    // defaults produce the same architecture camera in both real product surfaces. They leave the
+    // reference lens/eye direction, room dimensions, furniture TRS, Celine scale/rig and source GLBs
+    // unchanged; subsequent visual evidence must decide every furniture delta under this camera.
     static final float HOME_DEFAULT_ZOOM = 0.7857143f;
-    static final float CALL_DEFAULT_ZOOM = 0.70f;
+    static final float CALL_DEFAULT_ZOOM = 0.55f;
     static final float REFERENCE_PAN_X = 0.071327f;
     static final float REFERENCE_PAN_Y = -0.192402f;
 
@@ -198,7 +200,7 @@ final class CelineCameraZoomV70 {
                 panXField.setFloat(view, REFERENCE_PAN_X);
                 Celine3DDiagnostics.record(activity, "V80-210",
                         "CALL Kamera auf Referenzarchitektur gesetzt",
-                        "zoom=" + zoom + " · referenceBase=0.70 · normalizedZoom=1.000000"
+                        "zoom=" + zoom + " · referenceBase=0.70 · normalizedZoom=0.785714"
                                 + " · panX=" + REFERENCE_PAN_X + " panY=" + REFERENCE_PAN_Y
                                 + " · roomDimensionsUnchanged=true");
             } else if (!callNow && wasInCall) {
