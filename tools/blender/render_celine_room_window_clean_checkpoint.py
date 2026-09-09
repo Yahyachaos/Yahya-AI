@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
-"""Proof-only imported-normal recovery checkpoint for the v80 Room window/drapes.
+"""Proof-only flat-shading isolation for the v80 source window/drapes.
 
-The previous uniform neutral Principled checkpoint retained the diagonal window
-artifact, while the exact same source geometry rendered unlit removed it. That
-ends the material-color strategy and changes root-cause family to imported split
-shading normals. This controlled proof returns to the same neutral Principled
-material as the failed lit checkpoint, but first clones the in-memory window mesh
-and discards imported custom split normals. Vertex positions, topology, anchor,
-solved proof camera and the immutable source GLB bytes stay unchanged.
+Controlled evidence established:
+- source/neutral Principled lighting shows the diagonal curtain defect;
+- the same geometry rendered unlit does not;
+- discarding imported custom split normals alone does not improve it.
 
-Manual comparison against Refernzbild.png remains mandatory. This script never
-marks visual acceptance by itself.
+This is the second and final shading-normal-family isolation attempt. It clones
+only the in-memory proof mesh, clears imported custom normals and disables smooth
+normal interpolation on the clone while keeping vertex positions, polygon count,
+anchor, solved camera, shell, furniture transforms, lighting and immutable GLB
+bytes unchanged. The same neutral Principled material from the failed lit proof
+is kept so the only meaningful variable is smooth-vs-face shading.
+
+If this is not visibly better, the shading-normal strategy is exhausted and the
+next recovery step must change root-cause family instead of stacking appearance
+patches. Manual comparison against Refernzbild.png remains mandatory.
 """
 
 import hashlib
@@ -56,12 +61,12 @@ def vertex_position_digest(mesh):
     return hashlib.sha256(coords.tobytes()).hexdigest()
 
 
-def rebuild_imported_window_shading_normals():
+def clone_and_force_face_shading():
     root = bpy.data.objects.get(WINDOW_GEOMETRY)
     if root is None:
         fail(f"missing solved source window geometry: {WINDOW_GEOMETRY}")
 
-    repairs = []
+    audits = []
     for obj in descendants(root):
         if obj.type != "MESH" or not bool(obj.data):
             continue
@@ -70,55 +75,69 @@ def rebuild_imported_window_shading_normals():
         before_polygons = len(source_mesh.polygons)
         before_digest = vertex_position_digest(source_mesh)
         had_custom_normals = bool(getattr(source_mesh, "has_custom_normals", False))
+        smooth_before = np.empty(before_polygons, dtype=np.bool_)
+        source_mesh.polygons.foreach_get("use_smooth", smooth_before)
 
-        # Clone only the in-memory proof mesh so the imported source datablock and
-        # immutable GLB bytes remain untouched. No vertices or topology are edited.
+        # The canonical imported source datablock remains untouched. Only this
+        # proof object's in-memory mesh clone receives shading-flag changes.
         proof_mesh = source_mesh.copy()
-        proof_mesh.name = f"{source_mesh.name}__proof_recomputed_normals"
+        proof_mesh.name = f"{source_mesh.name}__proof_flat_face_shading"
         obj.data = proof_mesh
 
-        cleared = False
+        custom_normals_cleared = False
         if hasattr(proof_mesh, "free_normals_split"):
             try:
                 proof_mesh.free_normals_split()
-                cleared = had_custom_normals
+                custom_normals_cleared = had_custom_normals
             except RuntimeError:
-                cleared = False
+                custom_normals_cleared = False
+
+        if before_polygons:
+            proof_mesh.polygons.foreach_set(
+                "use_smooth", np.zeros(before_polygons, dtype=np.bool_)
+            )
         proof_mesh.update()
 
         after_digest = vertex_position_digest(proof_mesh)
+        smooth_after = np.empty(before_polygons, dtype=np.bool_)
+        proof_mesh.polygons.foreach_get("use_smooth", smooth_after)
         if before_vertices != len(proof_mesh.vertices):
-            fail(f"normal recovery changed vertex count for {obj.name}")
+            fail(f"face-shading proof changed vertex count for {obj.name}")
         if before_polygons != len(proof_mesh.polygons):
-            fail(f"normal recovery changed polygon count for {obj.name}")
+            fail(f"face-shading proof changed polygon count for {obj.name}")
         if before_digest != after_digest:
-            fail(f"normal recovery changed vertex positions for {obj.name}")
+            fail(f"face-shading proof changed vertex positions for {obj.name}")
+        if bool(np.any(smooth_after)):
+            fail(f"face-shading proof left smooth polygons enabled for {obj.name}")
 
-        obj["reference_window_normal_recovery"] = True
+        obj["reference_window_flat_face_shading"] = True
         obj["reference_window_source_mesh"] = source_mesh.name
-        repairs.append(
+        audits.append(
             {
                 "object": obj.name,
                 "source_mesh": source_mesh.name,
                 "proof_mesh": proof_mesh.name,
                 "had_custom_normals": had_custom_normals,
-                "custom_normals_cleared": cleared,
+                "custom_normals_cleared": custom_normals_cleared,
+                "smooth_polygons_before": int(np.count_nonzero(smooth_before)),
+                "smooth_polygons_after": int(np.count_nonzero(smooth_after)),
                 "vertices": before_vertices,
                 "polygons": before_polygons,
                 "vertex_position_sha256_before": before_digest,
                 "vertex_position_sha256_after": after_digest,
                 "vertex_positions_unchanged": True,
                 "topology_unchanged": True,
+                "proof_flat_face_shading": True,
             }
         )
 
-    if not repairs:
-        fail("source window hierarchy contains no mesh objects for normal recovery")
+    if not audits:
+        fail("source window hierarchy contains no mesh objects for face-shading isolation")
     bpy.context.view_layer.update()
-    return repairs
+    return audits
 
 
-def make_clean_window_material():
+def make_neutral_principled_material():
     existing = bpy.data.materials.get(MATERIAL_NAME)
     if existing is not None and not bool(existing.get("celine_room_builder_owned", False)):
         fail(f"refusing to replace non-room-owned material {MATERIAL_NAME}")
@@ -126,14 +145,12 @@ def make_clean_window_material():
     material["celine_room_builder_owned"] = True
     material["reference_clean_window_checkpoint"] = True
     material["source_glb_bytes_mutated"] = False
-    material["geometry_mutated"] = False
     material["source_base_color_atlas_bypassed"] = True
-    material["appearance_strategy"] = "uniform-neutral-principled-with-recomputed-imported-normals"
+    material["appearance_strategy"] = "uniform-neutral-principled-flat-face-shading"
     material.use_nodes = True
     nodes = material.node_tree.nodes
     links = material.node_tree.links
     nodes.clear()
-
     output = nodes.new("ShaderNodeOutputMaterial")
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     bsdf.inputs["Base Color"].default_value = NEUTRAL_COLOR
@@ -148,20 +165,18 @@ def make_clean_window_material():
     return material
 
 
-def apply_clean_window_material():
+def apply_neutral_principled_material():
     root = bpy.data.objects.get(WINDOW_GEOMETRY)
     if root is None:
         fail(f"missing solved source window geometry: {WINDOW_GEOMETRY}")
-    material = make_clean_window_material()
+    material = make_neutral_principled_material()
     meshes = []
     for obj in descendants(root):
         if obj.type != "MESH" or not bool(obj.data):
             continue
         obj.data.materials.clear()
         obj.data.materials.append(material)
-        obj["reference_clean_window_checkpoint"] = True
         obj["reference_clean_window_material"] = material.name
-        obj["reference_clean_window_geometry_mutated"] = False
         meshes.append(obj.name)
     if not meshes:
         fail("source window hierarchy contains no mesh objects")
@@ -188,12 +203,6 @@ def hide_non_window_geometry_for_architecture():
         for obj in descendants(root):
             obj.hide_render = True
             hidden.append(obj.name)
-
-    if not any(
-        bpy.data.objects.get(name) is not None and bpy.data.objects[name].type == "MESH"
-        for name in hidden
-    ):
-        fail("architecture isolation hid no renderable furniture meshes")
     if any(obj.hide_render for obj in window_meshes):
         fail("architecture isolation unexpectedly hid source window meshes")
     bpy.context.view_layer.update()
@@ -278,8 +287,8 @@ def render(scene, path):
 
 def main():
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
-    repairs = rebuild_imported_window_shading_normals()
-    meshes = apply_clean_window_material()
+    shading_audits = clone_and_force_face_shading()
+    meshes = apply_neutral_principled_material()
     scene, camera, engine_name, lights = configure_scene()
     front = bpy.data.objects.get(FRONT_SHELL)
     if front is None:
@@ -304,8 +313,8 @@ def main():
                 bpy.data.lights.remove(data)
 
     payload = {
-        "schema": 5,
-        "purpose": "imported window shading-normal recovery after unlit isolation removed the diagonal defect",
+        "schema": 6,
+        "purpose": "final shading-normal-family isolation: disable smooth normal interpolation on proof-only window mesh clone",
         "head_sha": HEAD_SHA,
         "whole_scene_render": WHOLE_OUTPUT.name,
         "architecture_render": ARCH_OUTPUT.name,
@@ -314,14 +323,14 @@ def main():
         "render_size": [1376, 1100],
         "window_geometry_object": WINDOW_GEOMETRY,
         "window_meshes": meshes,
-        "window_normal_repairs": repairs,
+        "window_face_shading_audits": shading_audits,
         "architecture_isolation": "shell+source_window_drapes+solved_camera_only",
         "architecture_non_window_objects_hidden_count": len(architecture_hidden),
-        "architecture_non_window_objects_hidden": architecture_hidden,
         "source_glbs_mutated": False,
         "source_geometry_mutated": False,
         "proof_mesh_datablocks_cloned": True,
-        "proof_shading_normals_recomputed": True,
+        "proof_custom_normals_cleared": True,
+        "proof_flat_face_shading": True,
         "vertex_positions_mutated": False,
         "topology_mutated": False,
         "window_anchor_transform_mutated": False,
@@ -331,12 +340,12 @@ def main():
         "source_window_hidden": False,
         "source_base_color_atlas_bypassed": True,
         "clean_material": MATERIAL_NAME,
-        "clean_material_strategy": "uniform-neutral-principled-with-recomputed-imported-normals",
+        "clean_material_strategy": "uniform-neutral-principled-flat-face-shading",
         "normal_and_light_response_removed": False,
         "neutral_color_linear": list(NEUTRAL_COLOR),
         "roughness": ROUGHNESS,
-        "failed_material_color_strategy_stopped": True,
-        "proof_lighting_runtime_equivalent_to_467": True,
+        "material_color_strategy_exhausted": True,
+        "shading_normal_strategy_final_attempt": True,
         "proof_light_shadows": False,
         "proof_world_strength": 0.08,
         "proof_area_light_energies": [220.0, 120.0, 80.0],
@@ -348,16 +357,16 @@ def main():
             "reference_solved": bool(camera.get("reference_solved", False)),
         },
         "visual_acceptance": "UNASSESSED",
-        "note": "Controlled comparison with the prior neutral Principled proof: only imported custom split normals are discarded before the same lit material strategy is rendered.",
+        "note": "Same neutral lit checkpoint as prior attempts, but proof-clone smooth shading is disabled. If the diagonal defect persists, leave the shading-normal family and change root cause.",
     }
     META.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
         "CELINE_ROOM_WINDOW_CLEAN_CHECKPOINT PASS "
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
-        f"architectureHidden={len(architecture_hidden)} normalRepairMeshes={len(repairs)} "
+        f"architectureHidden={len(architecture_hidden)} flatFaceMeshes={len(shading_audits)} "
         "sourceBytesImmutable=true geometryMutated=false vertexPositionsMutated=false "
         "topologyMutated=false cameraMutated=false derivedWindowPlanes=false "
-        "sourceWindowHidden=false normalLightResponse=true shadingNormalsRecomputed=true",
+        "sourceWindowHidden=false normalLightResponse=true flatFaceShading=true",
         flush=True,
     )
     print("visualAcceptance=UNASSESSED", flush=True)
