@@ -49,12 +49,13 @@ final class CelineRoomEnvironmentV80 {
             ROOM_PARTITION_BASE + "room_round_mirror.glb"
     };
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
-    private static final float DEFAULT_DIRECTIONAL_KEY_INTENSITY = 32_000.0f;
-    // Recovery stop-loss pass #2: fully detaching the shared key made the source-PBR room collapse
-    // into darkness. Keep that key, but halve it while this room is active so the window/drapes and
-    // pale source materials retain detail instead of clipping. The original value is restored on
-    // room teardown, so Celine3DView keeps its independent default outside this environment.
-    private static final float ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY = 16_000.0f;
+    private static final int ROOM_LIGHT_CHANNEL = 1;
+    // Clean source-PBR recovery: preserve Celine's accepted channel-0 key and give the Room one
+    // isolated neutral, camera-facing direct-light owner on channel 1.
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY = 14_000.0f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_X = 0.10f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.24f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.97f;
     // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
     // runtime light sits inside its shade, then applies the already locked room root offset.
     private static final float FLOOR_LAMP_LIGHT_X = -1.55f
@@ -203,9 +204,9 @@ final class CelineRoomEnvironmentV80 {
         FilamentAsset roomShellAsset;
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
+        int recoveryRoomKeyLightEntity;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
-        boolean directionalKeyRebalanced;
         boolean listenerInstalled;
         boolean failureLogged;
 
@@ -273,7 +274,8 @@ final class CelineRoomEnvironmentV80 {
                         1.15f, 0.95f, -1.55f,
                         0.0f, 0.05f, -4.53f,
                         roomShellAsset.getRoot());
-                rebalanceSharedDirectionalKey();
+                configureRoomLightChannels();
+                createRecoveryRoomKeyLight();
                 createFloorLampLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
@@ -286,8 +288,8 @@ final class CelineRoomEnvironmentV80 {
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true directionalKeyIntensity="
-                                + ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY);
+                        "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
+                                + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
                         "entity=" + FLOOR_LAMP_LIGHT_ID
@@ -304,13 +306,14 @@ final class CelineRoomEnvironmentV80 {
                 for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (!roomAssets.isEmpty() || floorLampLightEntity != 0 || directionalKeyRebalanced) {
+                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0 || floorLampLightEntity != 0) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAssets.clear();
                     roomShellAsset = null;
                     seatAnchor = null;
                     worldContract = null;
+                    recoveryRoomKeyLightEntity = 0;
                 }
                 if (!failureLogged) {
                     failureLogged = true;
@@ -406,35 +409,53 @@ final class CelineRoomEnvironmentV80 {
             throw new IllegalStateException("Recovery room entity missing: " + name);
         }
 
-        private void rebalanceSharedDirectionalKey() throws Exception {
-            int lightEntity = (Integer) field(view, "lightEntity");
-            LightManager lights = engine.getLightManager();
-            int instance = lights.getInstance(lightEntity);
-            if (instance == 0) {
-                throw new IllegalStateException("Recovery directional key instance missing");
+        private void configureRoomLightChannels() {
+            RenderableManager renderables = engine.getRenderableManager();
+            int isolated = 0;
+            for (FilamentAsset asset : roomAssets) {
+                if (asset == null) continue;
+                for (int entity : asset.getEntities()) {
+                    if (!renderables.hasComponent(entity)) continue;
+                    int instance = renderables.getInstance(entity);
+                    if (instance == 0) continue;
+                    renderables.setLightChannel(instance, 0, false);
+                    renderables.setLightChannel(instance, ROOM_LIGHT_CHANNEL, true);
+                    isolated++;
+                }
             }
-            lights.setIntensity(instance, ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY);
-            directionalKeyRebalanced = true;
+            if (isolated <= 0) {
+                throw new IllegalStateException("Recovery Room light-channel isolation found no renderables");
+            }
             Celine3DDiagnostics.record(context, "ROOM-118",
-                    "Recovery-Schluessellicht gebaendigt",
-                    "default=" + DEFAULT_DIRECTIONAL_KEY_INTENSITY
-                            + " room=" + ROOM_RECOVERY_DIRECTIONAL_KEY_INTENSITY
-                            + " fullDetach=false restoreOnDestroy=true");
+                    "Source-PBR Room-Licht isoliert",
+                    "renderables=" + isolated + " roomChannel=" + ROOM_LIGHT_CHANNEL
+                            + " sharedCelineKeyMutated=false sourceMaterialsMutated=false");
         }
 
-        private void restoreSharedDirectionalKey() {
-            if (!directionalKeyRebalanced) return;
-            directionalKeyRebalanced = false;
+        private void createRecoveryRoomKeyLight() {
+            int entity = EntityManager.get().create();
             try {
-                int lightEntity = (Integer) field(view, "lightEntity");
-                LightManager lights = engine.getLightManager();
-                int instance = lights.getInstance(lightEntity);
-                if (instance != 0) {
-                    lights.setIntensity(instance, DEFAULT_DIRECTIONAL_KEY_INTENSITY);
-                }
+                new LightManager.Builder(LightManager.Type.DIRECTIONAL)
+                        .color(1.0f, 0.98f, 0.96f)
+                        .intensity(ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY)
+                        .direction(ROOM_RECOVERY_NEUTRAL_KEY_DIR_X,
+                                ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y,
+                                ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z)
+                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, true)
+                        .build(engine, entity);
+                scene.addEntity(entity);
+                recoveryRoomKeyLightEntity = entity;
+                Celine3DDiagnostics.record(context, "ROOM-119",
+                        "Neutraler Source-PBR Room-Key aktiv",
+                        "channel=" + ROOM_LIGHT_CHANNEL
+                                + " intensity=" + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY
+                                + " shadows=false cameraFurnitureCelineUnchanged=true");
             } catch (Throwable error) {
-                Celine3DDiagnostics.error(context, "ROOM-197",
-                        "Recovery-Schluessellicht Restore FEHLER", error);
+                try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+                try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+                throw error;
             }
         }
 
@@ -450,7 +471,8 @@ final class CelineRoomEnvironmentV80 {
                         .intensity(FLOOR_LAMP_LIGHT_LUMENS)
                         .falloff(FLOOR_LAMP_LIGHT_FALLOFF_M)
                         .castShadows(false)
-                        .lightChannel(0, true)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, false)
                         .build(engine, entity);
                 scene.addEntity(entity);
                 floorLampLightEntity = entity;
@@ -468,7 +490,7 @@ final class CelineRoomEnvironmentV80 {
             int instance = lights.getInstance(floorLampLightEntity);
             if (instance == 0) return false;
             boolean next = !floorLampLightEnabled;
-            lights.setLightChannel(instance, 0, next);
+            lights.setLightChannel(instance, ROOM_LIGHT_CHANNEL, next);
             floorLampLightEnabled = next;
             Celine3DDiagnostics.record(context, "V80-484",
                     "9R.5 Lampenstatus gewechselt",
@@ -494,16 +516,22 @@ final class CelineRoomEnvironmentV80 {
 
         synchronized void destroyRoom() {
             ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
+            int roomKeyLight = recoveryRoomKeyLightEntity;
             int lampLight = floorLampLightEntity;
             roomAssets.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
+            recoveryRoomKeyLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            restoreSharedDirectionalKey();
-            if (current.isEmpty() && lampLight == 0) return;
+            if (current.isEmpty() && roomKeyLight == 0 && lampLight == 0) return;
             try {
+                if (roomKeyLight != 0) {
+                    try { scene.removeEntity(roomKeyLight); } catch (Throwable ignored) {}
+                    try { engine.getLightManager().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                    try { EntityManager.get().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                }
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
                     try { engine.getLightManager().destroy(lampLight); } catch (Throwable ignored) {}

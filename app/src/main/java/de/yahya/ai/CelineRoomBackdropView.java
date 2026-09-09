@@ -12,11 +12,7 @@ import android.graphics.Shader;
 import android.view.View;
 import android.view.ViewGroup;
 
-import com.google.android.filament.Engine;
-import com.google.android.filament.gltfio.FilamentAsset;
 
-import java.lang.reflect.Field;
-import java.util.Map;
 
 /**
  * Lightweight Canvas room fallback behind the transparent Filament avatar surface.
@@ -48,8 +44,6 @@ final class CelineRoomBackdropView extends View {
     }
 
     @Override protected void onDetachedFromWindow() {
-        Celine3DView threeD = findSibling3D();
-        if (threeD != null) releaseRecoveryWindowBackdrop(threeD);
         super.onDetachedFromWindow();
     }
 
@@ -63,48 +57,8 @@ final class CelineRoomBackdropView extends View {
 
     private void activateRecoveryRoom(Celine3DView threeD) {
         if (!CelineRoomEnvironmentV80.ensure(getContext(), threeD)) return;
+        // Partition-aware layout validation plus the isolated Room light are the only recovery owners.
         CelineRoomReferenceLayoutV80.ensure(threeD);
-        try {
-            Engine engine = engine(threeD);
-            FilamentAsset roomAsset = roomAsset(threeD);
-            if (engine != null && roomAsset != null) {
-                CelineRoomWindowBackdropV80.apply(threeD, roomAsset, engine);
-            }
-        } catch (Throwable error) {
-            // The source room remains the fail-closed visual fallback if the bounded night panes fail.
-            Celine3DDiagnostics.error(getContext(), "ROOM-147",
-                    "Recovery-Nachtfenster FEHLER - Source-Window bleibt aktiv", error);
-        }
-    }
-
-    private void releaseRecoveryWindowBackdrop(Celine3DView threeD) {
-        try {
-            Engine engine = engine(threeD);
-            if (engine != null) CelineRoomWindowBackdropV80.release(threeD, engine);
-        } catch (Throwable error) {
-            Celine3DDiagnostics.error(getContext(), "ROOM-147",
-                    "Recovery-Nachtfenster Cleanup FEHLER", error);
-        }
-    }
-
-    private Engine engine(Celine3DView threeD) throws Exception {
-        Field field = Celine3DView.class.getDeclaredField("engine");
-        field.setAccessible(true);
-        return (Engine) field.get(threeD);
-    }
-
-    private FilamentAsset roomAsset(Celine3DView threeD) throws Exception {
-        Field statesField = CelineRoomEnvironmentV80.class.getDeclaredField("STATES");
-        statesField.setAccessible(true);
-        Object rawStates = statesField.get(null);
-        if (!(rawStates instanceof Map)) return null;
-        Object state;
-        Map<?, ?> states = (Map<?, ?>) rawStates;
-        synchronized (states) { state = states.get(threeD); }
-        if (state == null) return null;
-        Field roomAssetField = state.getClass().getDeclaredField("roomAsset");
-        roomAssetField.setAccessible(true);
-        return (FilamentAsset) roomAssetField.get(state);
     }
 
     @Override protected void onDraw(Canvas canvas) {
