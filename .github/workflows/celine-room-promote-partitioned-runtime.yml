@@ -1,9 +1,9 @@
 name: Celine Room Promote Partitioned Runtime
 
 on:
-  push:
-    branches:
-      - auto/celine/v80-human-videochat-presence
+  pull_request:
+    branches: [main]
+    types: [synchronize]
     paths:
       - '.github/workflows/celine-room-promote-partitioned-runtime.yml'
 
@@ -12,135 +12,89 @@ permissions:
   actions: read
 
 concurrency:
-  group: celine-room-promote-partitioned-runtime
+  group: celine-room-promote-partitioned-runtime-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   promote-partitioned-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
-      - name: Checkout exact room branch
+      - name: Checkout exact orchestration head
         uses: actions/checkout@v4
         with:
-          ref: auto/celine/v80-human-videochat-presence
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           lfs: true
 
-      - name: Abort if branch moved away from the validated recovery parent
+      - name: Prove no competing Room runtime write since the validated parent
         shell: bash
         run: |
           set -euo pipefail
-          PARENT="$(git rev-parse HEAD^)"
-          EXPECTED='950ca2f0e256a9108ee00b19cfcf49f9923ae8f5'
-          if [ "$PARENT" != "$EXPECTED" ]; then
-            echo "Refusing promotion: expected validated runtime parent $EXPECTED, got $PARENT" >&2
+          VALIDATED='950ca2f0e256a9108ee00b19cfcf49f9923ae8f5'
+          git merge-base --is-ancestor "$VALIDATED" HEAD
+          EXTRA="$(git diff --name-only "$VALIDATED" HEAD | grep -v '^\.github/workflows/celine-room-promote-partitioned-runtime\.yml$' || true)"
+          if [ -n "$EXTRA" ]; then
+            echo "Refusing promotion because non-orchestration files changed since validated runtime $VALIDATED:" >&2
+            echo "$EXTRA" >&2
             exit 1
           fi
+          echo "ORCHESTRATOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Materialize pinned immutable furniture sources
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE_COMMIT='df50816187978cbf5faf818ad484c3f682be7588'
-          SOURCE_DIR='/tmp/celine-room-source'
-          git fetch --no-tags origin "$SOURCE_COMMIT"
-          rm -rf "$SOURCE_DIR"
-          git worktree add --detach "$SOURCE_DIR" "$SOURCE_COMMIT"
-          git -C "$SOURCE_DIR" lfs install --local
-          git -C "$SOURCE_DIR" lfs pull --include='app/src/main/assets/models/möbel/*.glb' --exclude=''
-          python3 - <<'PY'
-          from pathlib import Path
-          base = Path('/tmp/celine-room-source/app/src/main/assets/models/möbel')
-          files = sorted(base.glob('*.glb'))
-          if len(files) != 12:
-              raise SystemExit(f'expected 12 immutable source GLBs, got {len(files)}')
-          tiny = [(p.name, p.stat().st_size) for p in files if p.stat().st_size < 100_000_000]
-          if tiny:
-              raise SystemExit(f'unmaterialized source GLBs: {tiny}')
-          print('CELINE_ROOM_RUNTIME_SOURCE_MATERIALIZE PASS', len(files))
-          PY
-
-      - name: Install Blender
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
-          blender --version | head -n 2
-
-      - name: Reuse exact source witness for the already validated 4M reducer
+      - name: Reuse exact validated partition proof artifact
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p ci-room-runtime
-          rm -rf /tmp/celine-room-source-witness
-          mkdir -p /tmp/celine-room-source-witness
-          gh run download 34240853951 \
-            --repo "$GITHUB_REPOSITORY" \
-            --name celine-room-440x420-blender-proof \
-            --dir /tmp/celine-room-source-witness
-          test -s /tmp/celine-room-source-witness/source_front_wide.png
-          test -s /tmp/celine-room-source-witness/source_instance_id.png
-          test -s /tmp/celine-room-source-witness/render-proof-source.json
-          test -s /tmp/celine-room-source-witness/geometry-profile.json
-          cp /tmp/celine-room-source-witness/source_front_wide.png ci-room-runtime/01_front_wide.png
-          cp /tmp/celine-room-source-witness/source_instance_id.png ci-room-runtime/02_instance_id.png
-          cp /tmp/celine-room-source-witness/render-proof-source.json ci-room-runtime/render-proof.json
-          cp /tmp/celine-room-source-witness/geometry-profile.json ci-room-runtime/geometry-profile.json
-          cp Refernzbild.png ci-room-runtime/Refernzbild.png
-
-      - name: Build the proven-clean 4M partition set from canonical sources
-        shell: bash
-        env:
-          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
-          CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-runtime
-          CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
-          CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
-          CELINE_ROOM_FIDELITY_BUDGET_SCALE: '0.5'
-          CELINE_ROOM_FIDELITY_CHECKPOINT_MODE: skip
-          CELINE_ROOM_RECOVERY_TEXTURE_MAX: '1024'
-          CELINE_PROOF_HEAD_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          xvfb-run -a blender --background --factory-startup \
-            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
-            --python tools/blender/build_celine_room_440x420.py \
-            --python tools/blender/solve_celine_room_reference_layout_stage.py \
-            --python tools/blender/apply_celine_room_source_fidelity_budget.py \
-            --python tools/blender/export_celine_room_partitioned_pbr_recovery.py \
-            2>&1 | tee ci-room-runtime/partitioned-runtime-blender.log
-
-          grep -F 'CELINE_ROOM_440x420 PASS' ci-room-runtime/partitioned-runtime-blender.log
-          grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-runtime/partitioned-runtime-blender.log
-          grep -F 'CELINE_ROOM_SOURCE_FIDELITY_BUDGET PASS' ci-room-runtime/partitioned-runtime-blender.log
-          grep -F 'CELINE_ROOM_PARTITIONED_PBR_EXPORT PASS' ci-room-runtime/partitioned-runtime-blender.log
-          test "$(find ci-room-runtime/partitioned-pbr -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
+          RUN_ID='34314848738'
+          EXPECTED_HEAD='950ca2f0e256a9108ee00b19cfcf49f9923ae8f5'
+          META="$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json headSha,conclusion)"
+          python3 - "$META" "$EXPECTED_HEAD" <<'PY'
+          import json, sys
+          meta=json.loads(sys.argv[1])
+          expected=sys.argv[2]
+          assert meta['headSha'] == expected, meta
+          assert meta['conclusion'] == 'success', meta
+          print('CELINE_ROOM_REUSED_PARTITION_PROOF PASS', meta)
+          PY
+          rm -rf /tmp/celine-room-partition-proof
+          mkdir -p /tmp/celine-room-partition-proof
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name celine-room-partitioned-pbr-proof \
+            --dir /tmp/celine-room-partition-proof
+          test -s /tmp/celine-room-partition-proof/partitioned-pbr-export.json
+          test "$(find /tmp/celine-room-partition-proof/partitioned-pbr -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
           python3 - <<'PY'
-          import json
+          import hashlib, json
           from pathlib import Path
-          data = json.loads(Path('ci-room-runtime/partitioned-pbr-export.json').read_text(encoding='utf-8'))
+          root=Path('/tmp/celine-room-partition-proof')
+          data=json.loads((root/'partitioned-pbr-export.json').read_text(encoding='utf-8'))
           assert data['partition_count'] == 14, data
           assert data['source_glbs_mutated'] is False, data
           assert data['runtime_promoted'] is False, data
           assert 3_900_000 <= data['total_triangles'] <= 4_100_000, data
           assert data['total_glb_bytes'] < 200_000_000, data
-          print('CELINE_ROOM_RUNTIME_PARTITION_MANIFEST PASS', data['total_triangles'], data['total_glb_bytes'])
+          for row in data['partitions']:
+              p=root/'partitioned-pbr'/row['file']
+              assert p.is_file(), p
+              h=hashlib.sha256(p.read_bytes()).hexdigest()
+              assert h == row['sha256'], (p, h, row['sha256'])
+              assert p.stat().st_size == row['bytes'], (p, p.stat().st_size, row['bytes'])
+          print('CELINE_ROOM_PARTITION_BYTES PASS', data['total_triangles'], data['total_glb_bytes'])
           PY
 
-      - name: Install partition assets and switch only the room-owned loader
+      - name: Install partition assets and switch only the Room-owned loader
         shell: bash
         run: |
           set -euo pipefail
           TARGET='app/src/main/assets/models/room/source-fidelity'
           rm -rf "$TARGET"
           mkdir -p "$TARGET"
-          cp ci-room-runtime/partitioned-pbr/*.glb "$TARGET/"
+          cp /tmp/celine-room-partition-proof/partitioned-pbr/*.glb "$TARGET/"
           test "$(find "$TARGET" -maxdepth 1 -type f -name '*.glb' | wc -l)" -eq 14
 
-          # The rejected 0.98M combined derivative must not remain packaged as a second room.
+          # Candidate #1379 and later real CALL evidence rejected this aggressive combined derivative.
           git rm -f app/src/main/assets/models/room/celine_room_v80_final_modular.glb
 
           python3 - <<'PY'
@@ -187,7 +141,6 @@ jobs:
           if old_field not in text:
               raise SystemExit('roomAsset field anchor missing')
           text = text.replace(old_field, new_field, 1)
-
           text = text.replace('            return roomAsset != null;\n',
                               '            return roomShellAsset != null && !roomAssets.isEmpty();\n', 1)
 
@@ -358,37 +311,116 @@ jobs:
           text = text[:start] + destroy + text[end:]
 
           if 'roomAsset' in text:
-              raise SystemExit('stale singular roomAsset reference remains after partition-loader patch')
-          if 'applyUserApprovedFurnitureOrientation(' in text and text.count('applyUserApprovedFurnitureOrientation(') > 1:
-              raise SystemExit('runtime furniture orientation override is still called')
+              raise SystemExit('stale singular roomAsset reference remains')
+          if text.count('applyUserApprovedFurnitureOrientation(') > 1:
+              raise SystemExit('old combined-GLB orientation override still called')
           path.write_text(text, encoding='utf-8')
           PY
 
-          # Guard the exact runtime set before committing it.
           grep -F 'ROOM_PARTITION_BASE' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           grep -F 'runtimeOrientationOverride=false' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
-          if grep -Fq 'celine_room_v80_final_modular.glb' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java; then
-            echo 'Old combined runtime room path still referenced' >&2
-            exit 1
-          fi
+          ! grep -Fq 'celine_room_v80_final_modular.glb' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
 
-      - name: Commit one coherent room runtime batch
+      - name: Create exact local runtime candidate commit
         shell: bash
         run: |
           set -euo pipefail
-          # Refuse to race a different room writer that moved the remote branch after checkout.
-          git fetch --no-tags origin auto/celine/v80-human-videochat-presence
-          LOCAL="$(git rev-parse HEAD)"
-          REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
-          if [ "$LOCAL" != "$REMOTE" ]; then
-            echo "Refusing runtime commit because room branch moved: local=$LOCAL remote=$REMOTE" >&2
-            exit 1
-          fi
-
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/src/main/assets/models/room/source-fidelity app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
           git status --short
-          test -n "$(git status --porcelain)"
           git commit -m 'room: promote partitioned source-fidelity runtime'
+          RUNTIME_SHA="$(git rev-parse HEAD)"
+          echo "RUNTIME_SHA=$RUNTIME_SHA" >> "$GITHUB_ENV"
+          mkdir -p ci-room-runtime-proof
+          printf 'runtime_sha=%s\norchestrator_sha=%s\npartition_proof_run=34314848738\npartition_count=14\nsource_glbs_mutated=false\n' \
+            "$RUNTIME_SHA" "$ORCHESTRATOR_SHA" > ci-room-runtime-proof/runtime-validation.txt
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 30 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"; fi
+          [ -x "$SDKMANAGER" ]
+          "$SDKMANAGER" 'platforms;android-30' 'build-tools;30.0.3'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.5.1'
+
+      - name: Build exactly one recovery APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee ci-room-runtime-proof/android-build.log
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          FP="$(bash ci/celine-runtime-fingerprint.sh HEAD)"
+          APK_SHA="$(sha256sum app/build/outputs/apk/debug/app-debug.apk | awk '{print $1}')"
+          printf 'runtime_fingerprint=%s\napk_sha256=%s\n' "$FP" "$APK_SHA" >> ci-room-runtime-proof/runtime-validation.txt
+          echo "RUNTIME_FINGERPRINT=$FP" >> "$GITHUB_ENV"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk assets/models/celine.glb > ci-room-runtime-proof/celine-packaged.glb
+          test -s ci-room-runtime-proof/celine-packaged.glb
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Run exactly one HOME CALL HOME room proof
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 300s bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-proof/celine-packaged.glb
+
+      - name: Collect exact room proof evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p ci-room-runtime-proof
+          for f in real-candidate-home.png real-candidate-call.png real-candidate-home-return.png real-candidate-logcat.txt real-candidate-logcat-home.txt real-candidate-logcat-final.txt real-candidate-prefs.xml; do
+            [ -e "$f" ] && cp "$f" ci-room-runtime-proof/ || true
+          done
+          printf 'workflow_run_id=%s\nworkflow_run_number=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_NUMBER" >> ci-room-runtime-proof/runtime-validation.txt
+
+      - name: Upload bounded runtime proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-partitioned-runtime-proof
+          path: ci-room-runtime-proof/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish runtime candidate only after build and HOME CALL HOME proof pass
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin auto/celine/v80-human-videochat-presence
+          REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
+          if [ "$REMOTE" != "$ORCHESTRATOR_SHA" ]; then
+            echo "Refusing push because another Room writer moved the branch: orchestrator=$ORCHESTRATOR_SHA remote=$REMOTE" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$RUNTIME_SHA"
           git push origin HEAD:auto/celine/v80-human-videochat-presence
+          echo "Promoted exact runtime $RUNTIME_SHA fingerprint=$RUNTIME_FINGERPRINT"
