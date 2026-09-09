@@ -3,7 +3,7 @@
 
 This script runs only after the canonical 4.40 x 4.20 x 2.65 m builder, geometry
 report and solved reference-layout stage have completed in the same Blender
-process.  It deliberately changes root-cause family after the rejected lighting
+process. It deliberately changes root-cause family after the rejected lighting
 and layered-window attempts:
 
 * source GLB bytes stay immutable;
@@ -13,9 +13,9 @@ and layered-window attempts:
 * only the visibly corrupted source base-color atlas is bypassed for this proof
   with one deterministic object-space two-tone fabric material.
 
-The proof writes a whole-scene candidate and a shell+window architecture-only
-raster.  Manual comparison against Refernzbild.png remains mandatory; this
-script never marks visual acceptance by itself.
+The proof writes a whole-scene candidate and a genuinely isolated shell+window
+architecture raster. Manual comparison against Refernzbild.png remains
+mandatory; this script never marks visual acceptance by itself.
 """
 
 import json
@@ -37,7 +37,7 @@ WHOLE_OUTPUT = PROOF_DIR / "candidate_front_wide.png"
 ARCH_OUTPUT = PROOF_DIR / "architecture_window_clean.png"
 META = PROOF_DIR / "window-clean-checkpoint.json"
 
-# Deliberately restrained neutral fabric values.  They are not final night-room
+# Deliberately restrained neutral fabric values. They are not final night-room
 # polish; they exist only to remove the visibly broken white/taupe source atlas
 # as a variable while retaining the actual source geometry.
 SHEER_COLOR = (0.46, 0.36, 0.27, 1.0)
@@ -135,6 +135,45 @@ def apply_clean_window_material():
     return meshes
 
 
+def hide_non_window_geometry_for_architecture():
+    """Hide every descendant of non-window instance roots for the architecture raster.
+
+    The previous proof toggled only the ``__geometry`` root empties. Blender does
+    not propagate ``hide_render`` from an Empty to its children, so the purported
+    architecture-only raster still contained every furniture mesh. Fail closed
+    unless we actually hide renderable descendants and keep the exact source
+    window hierarchy visible.
+    """
+    window_root = bpy.data.objects.get(WINDOW_GEOMETRY)
+    if window_root is None:
+        fail(f"missing solved source window geometry: {WINDOW_GEOMETRY}")
+
+    window_meshes = [obj for obj in descendants(window_root) if obj.type == "MESH"]
+    if not window_meshes:
+        fail("source window hierarchy contains no mesh objects for architecture proof")
+
+    hidden = []
+    geometry_roots = [
+        obj for obj in list(bpy.data.objects)
+        if obj.name.endswith("__geometry") and obj.name != WINDOW_GEOMETRY
+    ]
+    if not geometry_roots:
+        fail("architecture proof found no non-window geometry roots to isolate")
+
+    for root in geometry_roots:
+        for obj in descendants(root):
+            obj.hide_render = True
+            hidden.append(obj.name)
+
+    if not any(bpy.data.objects.get(name) is not None and bpy.data.objects[name].type == "MESH" for name in hidden):
+        fail("architecture isolation hid no renderable furniture meshes")
+    if any(obj.hide_render for obj in window_meshes):
+        fail("architecture isolation unexpectedly hid source window meshes")
+
+    bpy.context.view_layer.update()
+    return sorted(set(hidden))
+
+
 def look_at(obj, target):
     direction = Vector(target) - obj.location
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
@@ -220,15 +259,15 @@ def main():
         fail(f"missing cutaway shell: {FRONT_SHELL}")
 
     original_hide = {obj.name: bool(obj.hide_render) for obj in bpy.data.objects}
+    architecture_hidden = []
     try:
         # Whole-scene comparison: only the window material family differs from #467.
         front.hide_render = True
         render(scene, WHOLE_OUTPUT)
 
         # Architecture-only comparison: shell + exact source window/drapes + solved camera.
-        for obj in bpy.data.objects:
-            if obj.name.endswith("__geometry") and obj.name != WINDOW_GEOMETRY:
-                obj.hide_render = True
+        # Hide renderable descendants, not merely their parent Empty objects.
+        architecture_hidden = hide_non_window_geometry_for_architecture()
         front.hide_render = True
         render(scene, ARCH_OUTPUT)
     finally:
@@ -242,7 +281,7 @@ def main():
                 bpy.data.lights.remove(data)
 
     payload = {
-        "schema": 1,
+        "schema": 2,
         "purpose": "clean source-window material checkpoint after whole-scene rejection #1379",
         "head_sha": HEAD_SHA,
         "whole_scene_render": WHOLE_OUTPUT.name,
@@ -252,6 +291,9 @@ def main():
         "render_size": [1376, 1100],
         "window_geometry_object": WINDOW_GEOMETRY,
         "window_meshes": meshes,
+        "architecture_isolation": "shell+source_window_drapes+solved_camera_only",
+        "architecture_non_window_objects_hidden_count": len(architecture_hidden),
+        "architecture_non_window_objects_hidden": architecture_hidden,
         "source_glbs_mutated": False,
         "source_geometry_mutated": False,
         "window_anchor_transform_mutated": False,
@@ -278,12 +320,13 @@ def main():
             "reference_solved": bool(camera.get("reference_solved", False)),
         },
         "visual_acceptance": "UNASSESSED",
-        "note": "Manual pixel inspection against Refernzbild.png and Proof #467 is mandatory.",
+        "note": "Manual pixel inspection against Refernzbild.png and the prior whole-scene checkpoint is mandatory.",
     }
     META.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
         "CELINE_ROOM_WINDOW_CLEAN_CHECKPOINT PASS "
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
+        f"architectureHidden={len(architecture_hidden)} "
         "sourceBytesImmutable=true geometryMutated=false cameraMutated=false "
         "derivedWindowPlanes=false sourceWindowHidden=false",
         flush=True,
