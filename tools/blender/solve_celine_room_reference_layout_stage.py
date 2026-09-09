@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded rug floor-plane correction on the accepted room branch.
+"""Bounded room reference-layout recovery wrapper.
 
 The prior staged solver remains byte-for-byte in
 solve_celine_room_reference_layout_stage_base.py. This wrapper preserves the
@@ -20,10 +20,23 @@ local X 1.7087076. Preserve local Z/thickness 1.6410157, yaw 5.8203125 degrees,
 exact rug floor grounding, all accepted other geometry and the immutable source
 rug GLB bytes. Projected object AABB remains diagnostic only; the real rendered
 instance-ID silhouette is visual authority.
+
+Recovery after rejected whole-scene candidate #1379 now keeps the exact
+4.40 x 4.20 x 2.65 m shell and solved proof camera unchanged. Proofs #460/#461/
+#462 showed that extending ceiling/side geometry did not remove the hard upper
+wedges, and Proof #464 showed that lowering proof light energy and disabling
+proof-light shadows also did not remove them. A ray/surface audit places those
+pixels on the builder-owned room_shell_ceiling itself. Stop stacking geometry or
+light patches: isolate the shell appearance owner with one clean, deterministic,
+unlit neutral ceiling material. Furniture source GLBs and all furniture PBR
+materials stay untouched. This is an architecture/appearance recovery
+checkpoint; final room lighting/material polish remains a later phase.
 """
 
 from pathlib import Path
 import math
+
+import bpy
 
 STAGE_BASE = Path(__file__).with_name("solve_celine_room_reference_layout_stage_base.py")
 source = STAGE_BASE.read_text(encoding="utf-8")
@@ -63,6 +76,10 @@ RUG_PARAMS = [
     1.6410156726837158,
     5.8203125,
 ]
+
+CEILING_MATERIAL_NAME = "CELINE_440_CeilingCleanNeutral"
+CEILING_EMISSION_COLOR = (0.30, 0.24, 0.18, 1.0)
+CEILING_EMISSION_STRENGTH = 0.80
 
 
 def _apply_anisotropic(instance_id, params, authority):
@@ -179,5 +196,61 @@ def _solve_instance_rug_bounded(camera, instance_id, target):
     return _previous_dispatch(camera, instance_id, target)
 
 
+def _apply_clean_neutral_ceiling_appearance():
+    """Make only the derived shell ceiling deterministic for recovery comparison.
+
+    The exact room dimensions, camera and all furniture source/PBR material state
+    are preserved. An emission surface deliberately removes direct-light shadow,
+    specular and normal interpolation from the ceiling appearance owner so the
+    architecture raster can prove whether the hard upper wedges came from shell
+    shading rather than geometry. This is a neutral recovery checkpoint, not the
+    final night-lighting look.
+    """
+    ceiling = bpy.data.objects.get("room_shell_ceiling")
+    if ceiling is None or not bool(ceiling.get("room_shell", False)):
+        raise RuntimeError("clean neutral ceiling checkpoint requires room_shell_ceiling")
+    if ceiling.type != "MESH":
+        raise RuntimeError("clean neutral ceiling checkpoint requires mesh ceiling")
+
+    existing = bpy.data.materials.get(CEILING_MATERIAL_NAME)
+    if existing is not None and not bool(existing.get("celine_room_builder_owned", False)):
+        raise RuntimeError(
+            f"refusing to replace non-room-owned material {CEILING_MATERIAL_NAME}"
+        )
+    material = existing if existing is not None else bpy.data.materials.new(CEILING_MATERIAL_NAME)
+    material["celine_room_builder_owned"] = True
+    material["reference_clean_neutral_ceiling"] = True
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    nodes.clear()
+    output = nodes.new("ShaderNodeOutputMaterial")
+    emission = nodes.new("ShaderNodeEmission")
+    emission.inputs["Color"].default_value = CEILING_EMISSION_COLOR
+    emission.inputs["Strength"].default_value = CEILING_EMISSION_STRENGTH
+    links.new(emission.outputs["Emission"], output.inputs["Surface"])
+    material.diffuse_color = CEILING_EMISSION_COLOR
+
+    ceiling.data.materials.clear()
+    ceiling.data.materials.append(material)
+    for polygon in ceiling.data.polygons:
+        polygon.use_smooth = False
+    ceiling["reference_clean_neutral_ceiling"] = True
+    ceiling["reference_clean_neutral_ceiling_material"] = CEILING_MATERIAL_NAME
+    ceiling["reference_clean_neutral_ceiling_emission_color"] = list(CEILING_EMISSION_COLOR)
+    ceiling["reference_clean_neutral_ceiling_emission_strength"] = CEILING_EMISSION_STRENGTH
+    ceiling["reference_clean_neutral_ceiling_reason"] = (
+        "proofs460-464_stop_loss_geometry_and_proof_light_strategies_failed; isolate_shell_appearance_owner"
+    )
+    bpy.context.view_layer.update()
+    print(
+        "CELINE_ROOM_CLEAN_NEUTRAL_CEILING PASS "
+        f"material={CEILING_MATERIAL_NAME} strength={CEILING_EMISSION_STRENGTH:.2f} "
+        "sourceFurnitureMaterialsMutated=false shellGeometryMutated=false",
+        flush=True,
+    )
+
+
 solver.solve_instance = _solve_instance_rug_bounded
 solver.main()
+_apply_clean_neutral_ceiling_appearance()
