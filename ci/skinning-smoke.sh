@@ -8,7 +8,7 @@ FIXTURE="ci/celine-skinned-probe.glb"
 fail_skin() {
   echo "SKINNING ERROR: $*"
   adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" 2>/dev/null || true
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|UiAutomation|V54-|V55-|V56-|V57-|V58-|V59-|V60-|V61-|V69-|V70-|REN-' | tail -320 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|UiAutomation|V54-|V55-|V56-|V57-|V58-|V59-|V60-|V61-|V69-|V70-|V80-|REN-' | tail -320 || true
   exit 1
 }
 
@@ -35,9 +35,8 @@ dump_ui() {
   return 1
 }
 
-# Keep the current multi-panel synthetic fixture: v61 preserves v59's proven production ownership,
-# so only the safe neck+Head owner may be active in CALL. Unused shoulder/Hips panels are harmless
-# and make accidental reactivation easier to detect through diagnostics.
+# Keep the current multi-panel synthetic fixture: v61 preserves its scale/inverse-bind guard while
+# v80 becomes the only procedural production transform owner. Missing fixture joints fail closed.
 python3 ci/generate-celine-skinned-probe-glb.py "$FIXTURE"
 [[ -s "$FIXTURE" ]] || fail_skin "Skinned CI fixture was not generated"
 adb shell am force-stop "$PACKAGE" || true
@@ -84,11 +83,12 @@ python3 ci/check-magenta-avatar.py emulator-skin-c.png SKIN_C || fail_skin "Skin
 python3 ci/check-skinned-motion.py emulator-skin-a.png emulator-skin-b.png emulator-skin-c.png || fail_skin "Safe neck+Head skinning did not visibly deform the probe"
 
 adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" > emulator-celine-diagnostics.xml 2>/dev/null || fail_skin "Could not read diagnostics"
-# v61 deliberately changed only the versioned safety marker while preserving v59 ownership semantics.
+# v61 remains the exact protected rig-scale/inverse-bind gate under the v80 owner.
 grep -q 'V61-003' emulator-celine-diagnostics.xml || fail_skin "v61 safety-mode marker missing"
-grep -q 'HOME Head-only' emulator-celine-diagnostics.xml || fail_skin "v61 diagnostics do not confirm HOME Head-only ownership"
-grep -q 'V55-110' emulator-celine-diagnostics.xml || fail_skin "V55-110 safe CALL marker missing"
-grep -q 'CALL neck+Head\|neck+Head' emulator-celine-diagnostics.xml || fail_skin "v61 diagnostics do not confirm CALL neck+Head ownership"
+grep -q 'v61 Rig-/Inverse-Bind-Schutz' emulator-celine-diagnostics.xml || fail_skin "v61 protection description missing"
+grep -q 'V80-400' emulator-celine-diagnostics.xml || fail_skin "v80 central owner bind marker missing"
+grep -q 'V80-420' emulator-celine-diagnostics.xml || fail_skin "v80 central CALL marker missing"
+grep -q 'oneTransaction=true oneSkinUpdate=true' emulator-celine-diagnostics.xml || fail_skin "v80 single-frame ownership invariant missing"
 grep -q 'probe=true' emulator-celine-diagnostics.xml || fail_skin "CelineSkinningProbe not detected"
 
 # The quarantined v56-v58 runtime owner must still never become active in v61 CALL.
@@ -96,7 +96,7 @@ if grep -q 'V56-110\|V57-120\|V58-120' emulator-celine-diagnostics.xml; then
   cat emulator-celine-diagnostics.xml
   fail_skin "Quarantined v56-v58 CALL skinning owner became active in v61"
 fi
-if grep -q 'V70-198\|V70-199\|V69-198\|V69-199\|V61-198\|V61-199\|V59-198\|V59-199\|V55-198\|V55-199\|V54-198\|V54-199' emulator-celine-diagnostics.xml; then
+if grep -q 'V80-499\|V61-198\|V61-199\|V59-198\|V59-199' emulator-celine-diagnostics.xml; then
   cat emulator-celine-diagnostics.xml
   fail_skin "Guarded v61/v59/v55/v54 skinning path recorded a runtime error"
 fi
@@ -105,5 +105,5 @@ adb shell input keyevent 4
 sleep 2
 PID_AFTER="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_AFTER" ]] || fail_skin "Process died restoring HOME after v61 proof"
-echo "v61 CALL framing safety proof passed with PID=$PID_AFTER"
-echo "Verified: v61 marker + preserved v59 HOME Head-only/CALL neck+Head ownership + moving pixels + HOME recovery; v56-v58 owner quarantined"
+echo "v61/v80 CALL skinning safety proof passed with PID=$PID_AFTER"
+echo "Verified: v61 protection + sole v80 transform owner + moving pixels + HOME recovery; v56-v58 owner quarantined"

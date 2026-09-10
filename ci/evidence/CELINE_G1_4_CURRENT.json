@@ -1,0 +1,66 @@
+{
+  "block": "G1.4",
+  "title": "Self Model + Attention + Context Broker",
+  "status": "COMPLETE_BUILT",
+  "repository": "Yahyachaos/Yahya-AI",
+  "pr": 111,
+  "branch": "auto/celine/v80-human-videochat-presence",
+  "runtime_implementation_head": "24211a489c7e5075fa7162b03a2db57b00771905",
+  "ci_compatibility_head": "a4e261db366218f83b4841d432a5bad495930ed1",
+  "runtime_fingerprint": "2cc457416026ad797d5245d713cdb38f98ba14c9a62fbb6bf1b52ec3cb08146c",
+  "android_build": {
+    "workflow": "Android Build",
+    "run_number": 1073,
+    "run_id": 33662942790,
+    "conclusion": "success",
+    "workflow_head": "a4e261db366218f83b4841d432a5bad495930ed1",
+    "apk_artifact_id": 9859480060,
+    "apk_artifact_digest": "sha256:fe63a6daa7c41dded8171ac3da7aabf97e738a5746471a2f0d388a977c3353c0",
+    "runtime_fingerprint_artifact_id": 9859480493,
+    "runtime_fingerprint_artifact_digest": "sha256:179ed78e034905a9a9e6b6c71782b2b9bb3257fb01a425c90684506352ea3630"
+  },
+  "implementation": {
+    "owner": "app/src/main/java/de/yahya/ai/CelineContextBrokerG14.java",
+    "live_integration": "app/src/main/java/de/yahya/ai/MainActivity.java",
+    "knowledge_states": ["KNOWN", "OBSERVED", "INFERRED", "UNKNOWN"],
+    "selects_structured_memory": true,
+    "selects_active_goal_task_state": true,
+    "selects_fresh_current_observations": true,
+    "excludes_stale_observations": true,
+    "excludes_irrelevant_memory": true,
+    "tracks_provenance": true,
+    "tracks_freshness": true,
+    "tracks_confidence": true,
+    "tracks_capability_availability": true,
+    "max_selected_facts": 10,
+    "max_prompt_chars": 2400,
+    "stored_context_is_data_not_instruction": true,
+    "provider_independent": true,
+    "hidden_reasoning_persisted": false
+  },
+  "validation": {
+    "deterministic_contract": "ci/celine_g1_context_broker_test.py",
+    "deterministic_contract_result": "PASS through VERIFY_PROJECT in Android Build #1073",
+    "g1_2_live_contract": "PASS after CI-only ownership-alignment update",
+    "g1_3_live_contract": "PASS after CI-only ownership-alignment update",
+    "verify_project": "PASS",
+    "gradle_assemble_debug": "PASS",
+    "visual_proof_required": false,
+    "visual_surface_changed": false
+  },
+  "build_1072_note": {
+    "run_id": 33660235102,
+    "conclusion": "failure",
+    "runtime_failure": false,
+    "cause": "Legacy G1.2 live-contract asserted direct MainActivity memory.promptMemory(userText,6) even though G1.4 intentionally moved context ownership to CelineContextBrokerG14.",
+    "repair": "CI-only commit a4e261db366218f83b4841d432a5bad495930ed1 updated G1.2 and G1.3 live contracts to assert preserved behavior through the central G1.4 broker. Runtime code was unchanged."
+  },
+  "acceptance": {
+    "known_observed_inferred_unknown_separated": true,
+    "relevant_context_only": true,
+    "active_goal_task_attention": true,
+    "stale_context_rejected": true,
+    "single_context_owner_for_reasoning_request": true
+  },
+  "next_block": "G1.5 Consolidation, privacy and memory controls"
+}

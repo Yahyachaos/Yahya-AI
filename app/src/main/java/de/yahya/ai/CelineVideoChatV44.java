@@ -19,15 +19,13 @@ import com.google.android.filament.Engine;
 import com.google.android.filament.Renderer;
 import com.google.android.filament.Scene;
 import com.google.android.filament.SwapChain;
-import com.google.android.filament.TransformManager;
-import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * v44 presentation layer. v47 adds explicit call ownership: while the seated-call layer owns the
- * rig and camera, v44 is locked and cannot silently recreate its walking MotionState.
+ * v44 presentation and HOME camera-follow layer. Since v80, root and rig transforms belong only to
+ * CelineProductionPresenceV80; this class consumes its HOME motion snapshot for camera follow.
  */
 final class CelineVideoChatV44 {
     private static final long TRANSPARENT_SWAP_CHAIN = 0x1L;
@@ -42,6 +40,7 @@ final class CelineVideoChatV44 {
         Celine3DView threeD = find3D(decor);
         if (threeD == null) return;
 
+        CelineSurfaceTransitionGuardV80.ensure(activity, threeD);
         installRoom(activity, threeD);
         hideDiagnosticBadge(threeD.getParent() instanceof ViewGroup ? (ViewGroup) threeD.getParent() : null);
         installDiagnosticsLongPress(activity, threeD);
@@ -64,8 +63,8 @@ final class CelineVideoChatV44 {
                     state = new MotionState(activity, threeD);
                     STATES.put(threeD, state);
                     state.start();
-                    Celine3DDiagnostics.record(activity, "V44-120", "Videochat-Bewegung gestartet",
-                            "roomPath=bounded · cameraFollow=on · legs/arms=procedural");
+                    Celine3DDiagnostics.record(activity, "V44-120", "Videochat-Kamerafolge gestartet",
+                            "cameraFollow=on · rigOwner=CelineProductionPresenceV80");
                 } catch (Throwable e) {
                     Celine3DDiagnostics.error(activity, "V44-199", "Videochat-Bewegung FEHLER", e);
                     return;
@@ -120,7 +119,10 @@ final class CelineVideoChatV44 {
         }
 
         ViewGroup.LayoutParams lp = stage.getLayoutParams();
-        if (lp != null) {
+        // HOME owns this legacy fixed stage height. During CALL the v45 reference-aspect slot is
+        // authoritative; resizing its child here made the Filament surface 1016x998 inside a
+        // 1016x813 slot, changing camera aspect/projection and clipping the reference composition.
+        if (lp != null && !isCallLocked(threeD)) {
             float d = Math.max(1f, activity.getResources().getDisplayMetrics().density);
             int screenH = activity.getResources().getDisplayMetrics().heightPixels;
             int target = Math.min(Math.round(455f * d), Math.round(screenH * 0.53f));
@@ -178,12 +180,6 @@ final class CelineVideoChatV44 {
         return null;
     }
 
-    private static final class Bone {
-        final int instance;
-        final float[] base;
-        Bone(int instance, float[] base) { this.instance = instance; this.base = base; }
-    }
-
     private static final class MotionState implements Choreographer.FrameCallback {
         final Activity activity;
         final Celine3DView view;
@@ -192,25 +188,11 @@ final class CelineVideoChatV44 {
         final Scene scene;
         final com.google.android.filament.View filamentView;
         final Camera camera;
-        final FilamentAsset asset;
-        final TransformManager transforms;
         final SurfaceView surface;
         final Field swapChainField;
-        final int rootInstance;
-        final float[] rootBase;
-        final Bone hips;
-        final Bone leftUpLeg;
-        final Bone rightUpLeg;
-        final Bone leftLeg;
-        final Bone rightLeg;
-        final Bone leftShoulder;
-        final Bone rightShoulder;
-        final Bone leftArm;
-        final Bone rightArm;
         final Choreographer choreographer = Choreographer.getInstance();
         boolean running;
         boolean transparentCallbackInstalled;
-        double startSeconds = -1.0;
 
         MotionState(Activity activity, Celine3DView view) throws Exception {
             this.activity = activity;
@@ -220,25 +202,9 @@ final class CelineVideoChatV44 {
             scene = (Scene) getField(view, "scene");
             filamentView = (com.google.android.filament.View) getField(view, "filamentView");
             camera = (Camera) getField(view, "camera");
-            asset = (FilamentAsset) getField(view, "asset");
-            transforms = (TransformManager) getField(view, "transformManager");
             surface = (SurfaceView) getField(view, "surfaceView");
             swapChainField = Celine3DView.class.getDeclaredField("swapChain");
             swapChainField.setAccessible(true);
-
-            rootInstance = transforms.getInstance(asset.getRoot());
-            if (rootInstance == 0) throw new IllegalStateException("Celine root transform fehlt");
-            rootBase = transforms.getTransform(rootInstance, new float[16]);
-
-            hips = bone("Hips");
-            leftUpLeg = bone("LeftUpLeg");
-            rightUpLeg = bone("RightUpLeg");
-            leftLeg = bone("LeftLeg");
-            rightLeg = bone("RightLeg");
-            leftShoulder = bone("LeftShoulder");
-            rightShoulder = bone("RightShoulder");
-            leftArm = bone("LeftArm");
-            rightArm = bone("RightArm");
         }
 
         void start() {
@@ -308,16 +274,6 @@ final class CelineVideoChatV44 {
             }
         }
 
-        private Bone bone(String name) {
-            try {
-                int entity = asset.getFirstEntityByName(name);
-                if (entity == 0) return null;
-                int instance = transforms.getInstance(entity);
-                if (instance == 0) return null;
-                return new Bone(instance, transforms.getTransform(instance, new float[16]));
-            } catch (Throwable ignored) { return null; }
-        }
-
         @Override public void doFrame(long frameTimeNanos) {
             if (!running || !view.isAttachedToWindow() || isCallLocked(view)) {
                 running = false;
@@ -328,35 +284,11 @@ final class CelineVideoChatV44 {
             }
             choreographer.postFrameCallback(this);
 
-            double now = frameTimeNanos * 1.0e-9;
-            if (startSeconds < 0.0) startSeconds = now;
-            double t = now - startSeconds;
-
-            float x = 0.30f * (float) Math.sin(t * 0.20);
-            float z = 0.16f * (float) Math.sin(t * 0.13 + 1.1);
-            float dx = 0.30f * 0.20f * (float) Math.cos(t * 0.20);
-            float dz = 0.16f * 0.13f * (float) Math.cos(t * 0.13 + 1.1);
-            float speed = (float) Math.sqrt(dx * dx + dz * dz);
-            float walk = clamp(speed / 0.052f, 0f, 1f);
-            float gait = (float) Math.sin(t * 2.65) * walk;
-            float bob = Math.abs((float) Math.sin(t * 2.65)) * 0.018f * walk;
-            float yaw = clamp(dx * 42f, -3.0f, 3.0f);
-
-            try {
-                transforms.openLocalTransformTransaction();
-                applyRoot(x, bob, z, yaw);
-                apply(hips, 0.0f, 0.0f, gait * 0.55f);
-                apply(leftUpLeg, gait * 5.0f, 0.0f, 0.0f);
-                apply(rightUpLeg, -gait * 5.0f, 0.0f, 0.0f);
-                apply(leftLeg, -gait * 2.4f, 0.0f, 0.0f);
-                apply(rightLeg, gait * 2.4f, 0.0f, 0.0f);
-                apply(leftShoulder, -gait * 0.9f, 0.0f, 0.0f);
-                apply(rightShoulder, gait * 0.9f, 0.0f, 0.0f);
-                apply(leftArm, -gait * 2.2f, 0.0f, 0.0f);
-                apply(rightArm, gait * 2.2f, 0.0f, 0.0f);
-            } finally {
-                transforms.commitLocalTransformTransaction();
-            }
+            CelineProductionPresenceV80.HomeFrame motion =
+                    CelineProductionPresenceV80.homeFrame(view);
+            float x = motion.x;
+            float z = motion.z;
+            float bob = motion.bob;
 
             double targetX = x * 0.48;
             double targetY = 0.38 + bob * 0.35;
@@ -369,31 +301,6 @@ final class CelineVideoChatV44 {
                     0.0, 1.0, 0.0);
         }
 
-        private void applyRoot(float x, float y, float z, float yawDeg) {
-            float[] localRotation = new float[16];
-            float[] rotated = new float[16];
-            float[] worldMove = new float[16];
-            float[] out = new float[16];
-            android.opengl.Matrix.setIdentityM(localRotation, 0);
-            android.opengl.Matrix.rotateM(localRotation, 0, yawDeg, 0f, 1f, 0f);
-            android.opengl.Matrix.multiplyMM(rotated, 0, rootBase, 0, localRotation, 0);
-            android.opengl.Matrix.setIdentityM(worldMove, 0);
-            android.opengl.Matrix.translateM(worldMove, 0, x, y, z);
-            android.opengl.Matrix.multiplyMM(out, 0, worldMove, 0, rotated, 0);
-            transforms.setTransform(rootInstance, out);
-        }
-
-        private void apply(Bone bone, float pitch, float yaw, float roll) {
-            if (bone == null) return;
-            float[] delta = new float[16];
-            float[] out = new float[16];
-            android.opengl.Matrix.setIdentityM(delta, 0);
-            if (yaw != 0f) android.opengl.Matrix.rotateM(delta, 0, yaw, 0f, 1f, 0f);
-            if (pitch != 0f) android.opengl.Matrix.rotateM(delta, 0, pitch, 1f, 0f, 0f);
-            if (roll != 0f) android.opengl.Matrix.rotateM(delta, 0, roll, 0f, 0f, 1f);
-            android.opengl.Matrix.multiplyMM(out, 0, bone.base, 0, delta, 0);
-            transforms.setTransform(bone.instance, out);
-        }
     }
 
     private static Object getField(Object target, String name) throws Exception {
@@ -402,7 +309,4 @@ final class CelineVideoChatV44 {
         return f.get(target);
     }
 
-    private static float clamp(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

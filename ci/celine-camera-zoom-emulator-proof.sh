@@ -72,19 +72,28 @@ wait_text "Live mit Celin" /sdcard/celine-v80-zoom-call.xml real-candidate-zoom-
 sleep 4
 grep -Fq 'V80-210' <(adb logcat -d) || fail "v80 default CALL framing did not activate"
 
-capture_zoom "1.45" real-candidate-zoom-call-normal.png
-capture_zoom "1.75" real-candidate-zoom-call-head.png
-capture_zoom "2.1" real-candidate-zoom-call-face.png
+# Block 3 diagnostic only: temporarily pull the real camera back to 1.0 while CALL seating remains
+# active. This exposes pelvis/legs and the room enough to judge contact without changing production
+# pose constants. Proof #1060 confirmed the current seated/contact result is still visually invalid.
+capture_zoom "1.0" real-candidate-seated-call.png
+
+# Real Candidate #1060 visually proved that 1.45 already puts the top of Celine's hair at the crop
+# edge and 1.75 clips the eyes/forehead. Bracket the usable CALL range below that failure instead of
+# guessing a production max. These are calibration checkpoints only; their real images still need
+# manual visual acceptance before any runtime camera constant changes.
+capture_zoom "1.2" real-candidate-zoom-call-normal.png
+capture_zoom "1.35" real-candidate-zoom-call-head.png
+capture_zoom "1.5" real-candidate-zoom-call-face.png
 python3 ci/check-camera-zoom-range.py \
   real-candidate-zoom-call-normal.png \
   real-candidate-zoom-call-head.png \
   real-candidate-zoom-call-face.png
 
-# The former unsafe request must clamp to the new measured v80 bound, then a return to the normal
-# CALL checkpoint and Android back must restore a visible HOME camera in the same process.
-set_zoom "1.45"
-set_zoom "2.2" "2.1"
-set_zoom "1.45"
+# Preserve the current production bound during this proof-only calibration. Once the safe visual
+# face limit is measured, the runtime bound itself can be reduced in one separate bounded change.
+set_zoom "1.2"
+set_zoom "9.0" "4.6"
+set_zoom "1.2"
 adb shell input keyevent 4
 wait_text "Mit Celin" /sdcard/celine-v80-zoom-return.xml real-candidate-zoom-home-return.xml
 sleep 2
@@ -99,7 +108,7 @@ adb logcat -d > real-candidate-zoom-logcat.txt
 for marker in V70-150 V80-210 V80-211; do
   grep -q "$marker" real-candidate-zoom-logcat.txt || fail "camera marker missing: $marker"
 done
-for checkpoint in 'requested=1.45 zoom=1.45' 'requested=1.75 zoom=1.75' 'requested=2.1 zoom=2.1' 'requested=2.2 zoom=2.1'; do
+for checkpoint in 'requested=1.0 zoom=1.0' 'requested=1.2 zoom=1.2' 'requested=1.35 zoom=1.35' 'requested=1.5 zoom=1.5' 'requested=9.0 zoom=4.6'; do
   requested="${checkpoint%% *}"
   zoom="${checkpoint##* }"
   grep -F 'V70-141' real-candidate-zoom-logcat.txt | grep -F "$requested" | grep -Fq "$zoom" \
@@ -109,4 +118,4 @@ if grep -Eq 'V70-148|V70-149|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-zoo
   fail "runtime error detected during v80 CALL camera proof"
 fi
 
-printf 'PASS v80 production CALL camera checkpoints: normal 1.45 -> head 1.75 -> face 2.10 -> HOME reset, same pid=%s; manual visual acceptance still required\n' "$PID_HOME"
+printf 'PASS v80 CALL camera calibration checkpoints: seated diagnostic 1.00 -> normal 1.20 -> head 1.35 -> face 1.50 -> HOME reset, same pid=%s; manual visual acceptance still required\n' "$PID_HOME"

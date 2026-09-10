@@ -14,7 +14,28 @@ import java.util.Locale;
 
 public class DeviceBridge {
     private final Context c;
-    public DeviceBridge(Context c) { this.c = c; }
+    private final CelineToolCortexG21 toolCortex;
+    private final CelinePermissionPolicyG22 permissionPolicy;
+    private final CelinePermissionedToolRegistryG22 permissionedTools;
+
+    public DeviceBridge(Context c) {
+        this.c = c;
+        this.toolCortex = new CelineToolCortexG21(new CelineAndroidToolBackend(this));
+        this.permissionPolicy = new CelinePermissionPolicyG22();
+        this.permissionedTools = new CelinePermissionedToolRegistryG22(toolCortex, permissionPolicy);
+    }
+
+    /** App-bound registry for brain/planner execution. G2.2 permissions are enforced here. */
+    public CelineToolRegistry toolRegistry() { return permissionedTools; }
+
+    /** Concrete permissioned view for future planner/authorization integration. */
+    public CelinePermissionedToolRegistryG22 permissionedToolRegistry() { return permissionedTools; }
+
+    /** Central app-owned permission policy. */
+    public CelinePermissionPolicy permissionPolicy() { return permissionPolicy; }
+
+    /** Raw G2.1 typed executor retained for focused diagnostics/contracts only; not planner execution. */
+    public CelineToolCortexG21 typedToolCortex() { return toolCortex; }
 
     public String status() {
         ActivityManager am = (ActivityManager)c.getSystemService(Context.ACTIVITY_SERVICE);

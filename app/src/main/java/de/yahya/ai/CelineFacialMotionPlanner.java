@@ -20,9 +20,12 @@ public final class CelineFacialMotionPlanner {
     public static final int TARGET_COUNT = 15;
 
     private static final float MAX_BLINK = 0.94f;
-    private static final float MAX_JAW = 0.66f;
-    private static final float MAX_VOWEL = 0.58f;
-    private static final float MAX_LIP_CONTACT = 0.72f;
+    // Block 8 close-range evidence showed that v77 produced correctly distinct PCM cues while the
+    // corresponding final-geometry mouth shapes under-read visually. Strengthen only speech
+    // articulation, still well below full morph weight; blink/expression/gaze caps stay untouched.
+    private static final float MAX_JAW = 0.76f;
+    private static final float MAX_VOWEL = 0.78f;
+    private static final float MAX_LIP_CONTACT = 0.84f;
     private static final float MAX_EXPRESSION = 0.34f;
     private static final float MAX_GAZE = 0.32f;
 
@@ -132,11 +135,11 @@ public final class CelineFacialMotionPlanner {
 
         switch (cue.shape) {
             case ROUND:
-                target[JAW_OPEN] = openness * MAX_JAW * 0.82f * voiced;
+                target[JAW_OPEN] = openness * MAX_JAW * 0.92f * voiced;
                 target[ROUNDED_VOWEL] = (0.20f + 0.80f * roundness) * MAX_VOWEL * voiced;
                 break;
             case WIDE:
-                target[JAW_OPEN] = openness * MAX_JAW * 0.78f * voiced;
+                target[JAW_OPEN] = openness * MAX_JAW * 0.88f * voiced;
                 target[SPREAD_VOWEL] = (0.18f + 0.82f * width) * MAX_VOWEL * voiced;
                 break;
             case LABIAL:
@@ -231,4 +234,3 @@ public final class CelineFacialMotionPlanner {
         return Math.max(-1.0f, Math.min(1.0f, value));
     }
 }
-

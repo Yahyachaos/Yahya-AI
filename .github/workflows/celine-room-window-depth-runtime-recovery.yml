@@ -1,0 +1,76 @@
+name: Celine Room Source-PBR Lighting Isolation Recovery
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-room-window-depth-runtime-recovery.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: celine-room-source-pbr-lighting-isolation-recovery
+  cancel-in-progress: false
+
+jobs:
+  promote-clean-light-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact orchestration head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Prove bounded single-writer input
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='fa27ea61509a02e4a8411abe98c5f09b9723bc29'
+          git merge-base --is-ancestor "$BASE" HEAD
+          EXTRA="$(git diff --name-only "$BASE" HEAD | grep -Ev '^\.github/workflows/celine-room-window-depth-runtime-recovery\.yml$' || true)"
+          if [ -n "$EXTRA" ]; then
+            echo "Refusing clean-light recovery because another Room writer changed files since $BASE:" >&2
+            echo "$EXTRA" >&2
+            exit 1
+          fi
+          echo "ORCHESTRATOR_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Apply isolated neutral Room light owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV='app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java'
+          BACKDROP='app/src/main/java/de/yahya/ai/CelineRoomBackdropView.java'
+          python3 ci/celine-room-source-pbr-lighting-isolation-recovery-v2.py "$ENV" "$BACKDROP"
+          grep -F 'sharedCelineKeyMutated=false' "$ENV"
+          grep -F 'renderables.setLightChannel(instance, 0, false)' "$ENV"
+          grep -F 'renderables.setLightChannel(instance, ROOM_LIGHT_CHANNEL, true)' "$ENV"
+          grep -F 'lights.setLightChannel(instance, ROOM_LIGHT_CHANNEL, next)' "$ENV"
+          ! grep -Fq 'Recovery-Nachtfenster FEHLER' "$BACKDROP"
+          ! grep -Fq 'getDeclaredField("roomAsset")' "$BACKDROP"
+          test "$(git diff --name-only | wc -l)" -eq 2
+
+      - name: Commit and publish exactly one bounded Room runtime batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java \
+                  app/src/main/java/de/yahya/ai/CelineRoomBackdropView.java
+          git commit -m 'room: isolate clean source-pbr light owner'
+          RUNTIME_SHA="$(git rev-parse HEAD)"
+          git fetch --no-tags origin auto/celine/v80-human-videochat-presence
+          REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
+          if [ "$REMOTE" != "$ORCHESTRATOR_SHA" ]; then
+            echo "Refusing push because another Room writer moved the branch: orchestrator=$ORCHESTRATOR_SHA remote=$REMOTE" >&2
+            exit 1
+          fi
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
+          echo "CELINE_ROOM_SOURCE_PBR_LIGHTING_ISOLATION_PROMOTION PASS runtime=$RUNTIME_SHA sourceGLBsMutated=false materialsMutated=false furnitureTransformsMutated=false cameraMutated=false sharedCelineKeyMutated=false"

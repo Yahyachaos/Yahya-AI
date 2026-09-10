@@ -1,0 +1,116 @@
+{
+  "schema": "celine-room-material-causal-rejection/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793",
+    "causal_witness": "ci/evidence/CELINE_ROOM_SHELF_WALL_POOL_CAUSAL_WITNESS_1358.json",
+    "direct_light_stop_loss": "ci/evidence/CELINE_ROOM_SHELF_UNDERLIGHT_REJECTION_1357.json",
+    "accepted_geometry_score": 0.004543166956175412
+  },
+  "candidate": {
+    "runtime_code_head": "e1803e67afe2cf23147650195cf9bff982b253bd",
+    "runtime_fingerprint": "888bfe5c704e90b6d635634667c1a6c2ee4871a692e026b49da49cb8a58f9932",
+    "android_build_run": 34159973842,
+    "android_build_number": 1407,
+    "android_build_status": "PASS",
+    "apk_sha256": "72cb6f2e0158784dffe3d5670aeed826c322e276cb8d433899cd30f80ed274b9",
+    "real_candidate_run": 34159973871,
+    "real_candidate_number": 1362,
+    "artifact_id": 10032427171,
+    "artifact_sha256": "c01c2ee428eaff8963f16b5f8fee4c000f486014f103f67e04053ddb17b38bd4",
+    "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+    "pid_home": 2091,
+    "pid_call": 2091,
+    "pid_return": 2091,
+    "call_capture": "real-candidate-call.png",
+    "call_capture_manual_status": "VALID_NONBLANK_ACTUAL_CALL",
+    "overall_workflow_conclusion": "FAILURE_AFTER_ROOM_PASS",
+    "unrelated_failure": "protected legacy CALL zoom assertion: head-and-shoulders checkpoint is not closer than normal CALL: 1.000"
+  },
+  "candidate_change": {
+    "strategy_family": "DUPLICATE_BACK_WALL_EMISSIVE_GRADIENT_PLANE",
+    "owner": "CelineRoomShelfWallPoolV80",
+    "change": "One bounded room-local plane duplicated the accepted room_back_wall PBR donor and supplied a smooth radial emissive map at the measured shelf residual only.",
+    "preserved": [
+      "global directional key and indirect fill",
+      "room shell geometry",
+      "furniture TRS",
+      "camera/FOV",
+      "accepted bed/window values",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "12 original furniture GLBs/source textures",
+      "Core/Conversation/Persona/Intelligence paths"
+    ]
+  },
+  "read_only_measurement": {
+    "screenshot_size_px": {"width": 1080, "height": 1920},
+    "call_stage_full_screenshot_px": {"left": 32, "top": 466, "right": 1048, "bottom": 1279},
+    "under_shelf_left_stage_px": {"left": 599, "top": 199, "right": 655, "bottom": 260},
+    "under_shelf_left_full_screenshot_px": {"left": 631, "top": 665, "right": 687, "bottom": 726},
+    "reference": {
+      "luma_median": 102.51,
+      "luma_p90": 110.14
+    },
+    "accepted_baseline": {
+      "luma_median": 87.70,
+      "luma_p90": 87.70,
+      "median_error": 14.81,
+      "p90_error": 22.44
+    },
+    "candidate_1362": {
+      "rgb_median": [120, 82, 49],
+      "luma_median": 87.6962,
+      "luma_p90": 98.4756,
+      "median_error": 14.8138,
+      "p90_error": 11.6644
+    },
+    "error_improvement_percent": {
+      "median": -0.025658338960150226,
+      "p90": 48.019607843137244
+    },
+    "required_error_improvement_percent_each_metric": 20.0,
+    "quantitative_result": "FAIL_MEDIAN_GATE",
+    "manual_visual": "FAIL_HARD_RECTANGULAR_PATCH: the actual CALL is valid/nonblank and the room lifecycle is intact, but the candidate produces a visibly hard-edged lighter rectangular patch under/near the shelf instead of the soft warm reference pool. This violates the witness no-hard-edge acceptance condition."
+  },
+  "candidate_decision": {
+    "decision": "REJECTED_REVERTED",
+    "reason": "Although the p90 residual improved materially, the median residual did not improve at all and manual comparison shows an obvious rectangular patch. Both the quantitative AND manual gates were required.",
+    "strategy_status": "STOP_LOSS_THIS_AUTHORIZED_DUPLICATE_PLANE_STRATEGY",
+    "must_not_stack": [
+      "emissive strength micro-tuning",
+      "plane size micro-tuning",
+      "plane position micro-tuning",
+      "radial edge/falloff micro-tuning",
+      "the already stopped direct shelf spot/point-light families"
+    ]
+  },
+  "rollback_verification": {
+    "revert_head": "950bdcc4cb57a84c5f0d2ca0bd2bc40c1d3daa9e",
+    "revert_commit_message": "revert(room): reject hard-edged shelf wall pool candidate",
+    "revert_parent": "e1803e67afe2cf23147650195cf9bff982b253bd",
+    "removed_candidate_owner": "app/src/main/java/de/yahya/ai/CelineRoomShelfWallPoolV80.java",
+    "accepted_content_origin": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "restored_runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "post_revert_android_build": "SKIPPED_RUNTIME_EQUIVALENT_ACCEPTED_CONTENT",
+    "rollback_decision": "PASS_ACCEPTED_RUNTIME_RESTORED"
+  },
+  "scoreboard": {
+    "whole_scene_total": 0.004543166956175412,
+    "decision": "UNCHANGED_APPEARANCE_ONLY_REJECTED",
+    "geometry_reason": "The candidate and its revert did not change geometry/layout/camera/furniture transforms."
+  },
+  "handoff": {
+    "workstream_head_before_evidence": "950bdcc4cb57a84c5f0d2ca0bd2bc40c1d3daa9e",
+    "runtime_code_head_latest_restore": "950bdcc4cb57a84c5f0d2ca0bd2bc40c1d3daa9e",
+    "accepted_content_origin": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "build_test_proof": "Candidate Android Build #1407 PASS. Real Candidate #1362 captured valid HOME->CALL->HOME in one process with PID 2091 throughout; room evidence PASS, appearance gate FAIL. Workflow becomes red only afterward at the unrelated protected legacy CALL zoom assertion.",
+    "changed": "Docs/evidence only after the already-landed runtime revert: formally closes the #1358-authorized duplicate-wall-plane candidate as rejected and records its exact quantitative/manual result.",
+    "not_changed": "No runtime/app write in this evidence commit; no room geometry, furniture TRS, camera/FOV, global key/fill, bed/window runtime, source GLBs/textures, Celine, anchors/navigation, Core/Persona, queue/AGENTS/build/release surfaces.",
+    "blocker": "none",
+    "exact_next_action": "Fresh-reconcile PR #111, then derive one read-only causal witness for the next largest reference-linked non-STOP-LOSS Room appearance residual; use the committed wall-spatial evidence to evaluate the left_upper_blank broad-wall flatness mismatch and identify a bounded proven live room-local owner before authorizing any runtime build. Do not retune direct shelf lights or the rejected duplicate-plane wall-pool strategy."
+  },
+  "validation_classification": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD"
+}

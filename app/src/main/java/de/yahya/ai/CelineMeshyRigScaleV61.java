@@ -27,7 +27,12 @@ import java.util.WeakHashMap;
  * HOME/CALL skinning ownership remain unchanged.
  */
 final class CelineMeshyRigScaleV61 {
-    private static final float TARGET_HEIGHT = 2.35f;
+    // The exact-room runtime proved the legacy 2.35 m presentation target is visibly oversized.
+    // The effective Meshy source extent is ~1.753 m, matching the human scale in Refernzbild.png.
+    // Keep the canonical rig/mesh untouched and normalize only its runtime presentation height.
+    private static final float TARGET_HEIGHT = 1.75f;
+    private static final float ROOM_FLOOR_Y = -1.55f;
+    private static final float FLOOR_CLEARANCE_M = 0.002f;
     private static final float CAMERA_TARGET_Z = -4.0f;
     private static final float MAX_TINY_BOUNDS = 0.25f;
     private static final float MIN_RIG_SCALE = 0.005f;
@@ -179,6 +184,11 @@ final class CelineMeshyRigScaleV61 {
         float correctedCenterY = center[1] * correction;
         float correctedCenterZ = center[2] * correction;
         float rootScale = TARGET_HEIGHT / correctedExtent;
+        // Source Y=0 is the production rig's sole baseline. After centering/scaling, place that
+        // baseline on the exact-room floor with a tiny positive clearance so floor calibration
+        // remains numerically one-sided and never sinks through the reconstructed floor.
+        float floorAlignedCenterY =
+                ROOM_FLOOR_Y + FLOOR_CLEARANCE_M + correctedCenterY * rootScale;
 
         float[] moveToOrigin = new float[16];
         float[] scaleMatrix = new float[16];
@@ -190,7 +200,7 @@ final class CelineMeshyRigScaleV61 {
         Matrix.setIdentityM(scaleMatrix, 0);
         Matrix.scaleM(scaleMatrix, 0, rootScale, rootScale, rootScale);
         Matrix.setIdentityM(centerAtTarget, 0);
-        Matrix.translateM(centerAtTarget, 0, 0.0f, 0.0f, CAMERA_TARGET_Z);
+        Matrix.translateM(centerAtTarget, 0, 0.0f, floorAlignedCenterY, CAMERA_TARGET_Z);
         Matrix.multiplyMM(temp, 0, scaleMatrix, 0, moveToOrigin, 0);
         Matrix.multiplyMM(transform, 0, centerAtTarget, 0, temp, 0);
 
@@ -201,7 +211,8 @@ final class CelineMeshyRigScaleV61 {
         Celine3DDiagnostics.record(activity, "V61-110", "Meshy Rig-Scale korrigiert",
                 "rawExtent=" + maxExtent + " armatureScale=" + rigScale + " correction=" + correction+
                         " correctedExtent=" + correctedExtent + " rootScale=" + rootScale +
-                        " targetHeight=" + TARGET_HEIGHT + " center=" + correctedCenterX + "," + correctedCenterY + "," + correctedCenterZ);
+                        " targetHeight=" + TARGET_HEIGHT + " floorAlignedCenterY=" + floorAlignedCenterY+
+                        " floorY=" + ROOM_FLOOR_Y + " center=" + correctedCenterX + "," + correctedCenterY + "," + correctedCenterZ);
         return true;
     }
 

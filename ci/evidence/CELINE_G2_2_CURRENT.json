@@ -1,0 +1,34 @@
+{
+  "block": "G2.2 Permission Policy",
+  "status": "COMPLETE_BUILT",
+  "runtime_head": "177b540dab4bdb6bac78e4bf4fe55b24b5b03bec",
+  "android_build": {
+    "run_number": 1100,
+    "run_id": 33695821625,
+    "conclusion": "success",
+    "apk_artifact_id": 9871774313,
+    "runtime_fingerprint_artifact_id": 9871774664,
+    "runtime_fingerprint": "ddbaee93af8e17b97c5c966c1830d692389fd50a92a0ef3c19381a7b39a548b7"
+  },
+  "contracts": {
+    "celine_g2_permission_policy_test": "PASS",
+    "celine_g2_permission_policy_live_contract": "PASS",
+    "g2_1_typed_tool_contracts_preserved": "PASS",
+    "g1_contracts_preserved": "PASS"
+  },
+  "policy": {
+    "deny_by_default": true,
+    "l0_read_only": "ALLOW",
+    "l1_reversible_local": "ALLOW",
+    "l2_external_state_change": "explicit target + explicit user intent required",
+    "l3_high_impact": "fresh exact-scope confirmation required",
+    "fresh_confirmation_window_ms": 120000,
+    "model_confidence_grants_permission": false,
+    "unknown_tools": "DENY"
+  },
+  "runtime_owner": {
+    "device_bridge_registry": "CelinePermissionedToolRegistryG22",
+    "raw_g2_1_cortex_role": "diagnostics/backend only; not brain/planner execution"
+  },
+  "next_single_flight_work": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md"
+}

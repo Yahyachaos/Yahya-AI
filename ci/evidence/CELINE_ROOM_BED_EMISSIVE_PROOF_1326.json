@@ -1,0 +1,84 @@
+{
+  "schema": "celine-room-material-proof/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "accepted_geometry_scoreboard": "ci/evidence/CELINE_ROOM_PROGRESS_SCOREBOARD_1314_EXPANDED.json",
+    "accepted_geometry_baseline_total_score": 0.004543166956175412,
+    "material_candidate_does_not_change_geometry": true
+  },
+  "candidate": {
+    "branch_proof_head": "c3c69857fd8248405ad05ff46841aea4c5a8ba0a",
+    "runtime_code_head": "7e009f5a8b956afcd89ab06ca41d43235440a64c",
+    "runtime_fingerprint": "b3a06fedae7a86d01a14352c2450e5d73b9892767e4904782665f5db8e5ee73a",
+    "bed_emissive_rgb": [0.16, 0.14, 0.12],
+    "android_build_run": 34112772957,
+    "real_candidate_run": 34113317385,
+    "real_candidate_number": 1326,
+    "artifact_id": 10015427486,
+    "artifact_sha256": "c4ed9f00af113f436108fde32195168f23ddf7fb0e9815667a45bfdcdc58276f",
+    "apk_sha256": "7fa50d0c406e6c1e25364946b6f5c3a281cf1da38038ad37d8d29c604e2dd0b9"
+  },
+  "capture": {
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION",
+    "orthogonal_failure": "head-and-shoulders checkpoint is not closer than normal CALL: 1.000",
+    "room_proof_usable": true
+  },
+  "semantic_roi_contract": {
+    "stage_origin_in_full_screenshot_px": {"x": 32, "y": 466},
+    "stage_size_px": {"width": 1016, "height": 813},
+    "duvet_stage_roi_px": {"left": 640, "top": 400, "right": 760, "bottom": 500},
+    "headboard_stage_roi_px": {"left": 800, "top": 265, "right": 930, "bottom": 320}
+  },
+  "semantic_roi_results": {
+    "duvet": {
+      "baseline_median_srgb": [68, 50, 37],
+      "candidate_median_srgb": [78, 59, 45],
+      "reference_median_srgb": [115, 77, 47],
+      "baseline_mean_abs_channel_error": 28.0,
+      "candidate_mean_abs_channel_error": 19.0,
+      "improvement_fraction": 0.3214285714,
+      "required_improvement_fraction": 0.20,
+      "gate": "PASS"
+    },
+    "headboard": {
+      "baseline_median_srgb": [73, 56, 43],
+      "candidate_median_srgb": [83, 65, 51],
+      "reference_median_srgb": [139, 96, 54],
+      "baseline_mean_abs_channel_error": 39.0,
+      "candidate_mean_abs_channel_error": 30.0,
+      "improvement_fraction": 0.2307692308,
+      "required_improvement_fraction": 0.20,
+      "gate": "PASS"
+    }
+  },
+  "manual_visual": {
+    "verdict": "PASS_BOUNDED_STEP",
+    "observations": [
+      "actual CALL bed is visibly lighter/warmer than the accepted baseline in the committed semantic ROIs",
+      "duvet and headboard texture/detail remain visible; no clipping or washout is evident",
+      "bed does not read as self-lit or detached from the room lighting",
+      "room composition, Celine placement and HOME -> CALL -> HOME-return lifecycle remain intact",
+      "bed is still materially darker than Refernzbild.png, so this is an accepted intermediate material step rather than final room acceptance"
+    ]
+  },
+  "decision": "ACCEPT__BOTH_ROI_ERRORS_IMPROVE_AT_LEAST_20_PERCENT_AND_MANUAL_VISUAL_AGREES",
+  "strategy_status": "ROOM_BED_LOCAL_EMISSIVE_SECOND_EQUAL_STEP_ACCEPTED",
+  "protected_state": {
+    "source_glb_bytes_changed": false,
+    "bed_trs_changed": false,
+    "base_color_texture_changed": false,
+    "metallic_roughness_texture_changed": false,
+    "normal_texture_changed": false,
+    "room_shell_changed": false,
+    "global_renderer_light_changed": false,
+    "camera_fov_changed": false,
+    "celine_identity_or_rig_changed": false,
+    "anchors_navigation_changed": false,
+    "core_persona_paths_changed": false
+  },
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. Keep runtime-code head 7e009f5a8b956afcd89ab06ca41d43235440a64c as the newly accepted room-bed material behavior. Before another runtime build, create a read-only causal witness for the largest remaining non-STOP-LOSS room-only appearance delta. Do not reopen stopped geometry families, do not touch global renderer lighting/Celine/Core, and do not assume another equal emissive step will clear the gate without a new measured prediction."
+}

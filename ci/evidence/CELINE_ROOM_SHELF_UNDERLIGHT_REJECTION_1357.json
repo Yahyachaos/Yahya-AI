@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-09-07",
+  "workstream": "ROOM/SCENE",
+  "reference_authority": {
+    "path": "/Refernzbild.png",
+    "blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793"
+  },
+  "accepted_baseline": {
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "lighting_content_blob_sha": "4806b031810c6c7ebddedee7be54faa1e7f0fa29",
+    "geometry_scoreboard_total": 0.004543166956175412
+  },
+  "candidate": {
+    "runtime_commit": "4e9f0c8fe0858547b34b40dee7e1e11b4871e3e2",
+    "runtime_fingerprint": "66c2829118eefa80e58c554ff335018ee9fd3c1a8e0935e154286641e6ea1760",
+    "scope": "five warm shadowless POINT sources distributed horizontally under/near the accepted shelf; global key/fill, shell material, geometry, camera/FOV, furniture TRS, Celine, anchors and source GLBs unchanged",
+    "line_practical": {
+      "count": 5,
+      "lumens_each": 160.0,
+      "falloff_m": 0.78,
+      "color_rgb": [1.0, 0.68, 0.40],
+      "cast_shadows": false,
+      "center_local_xyz": [1.439041, 1.70, -1.78],
+      "local_x_offsets": [-0.36, -0.18, 0.0, 0.18, 0.36],
+      "yaw_degrees": 5.820313
+    },
+    "android_build": {
+      "number": 1402,
+      "run_id": 34152320919,
+      "result": "PASS",
+      "apk_artifact_id": 10029813487,
+      "apk_sha256": "77a0a0f0c05ed8cb9314a5a84787e3bbdbac32d5b2a2056f15335e376517c998"
+    },
+    "real_candidate_proof": {
+      "number": 1357,
+      "run_id": 34152320921,
+      "room_lifecycle_result": "PASS",
+      "sequence": "HOME -> actual CALL -> HOME-return in one process",
+      "process_pid": 2156,
+      "evidence_artifact_id": 10029952494,
+      "evidence_digest": "sha256:5f02a08a04655a5f4c1cf991ea2f6a9ee1daf8b6d7c8e6d43a84b9fb634b292d",
+      "runtime_diagnostic": "ROOM-140 repeatedly recorded shelfUnderlight=distributed_line_5x160.0lm on PID 2156",
+      "workflow_terminal_note": "overall job later fails only on the known unrelated protected legacy zoom assertion after the room proof; that failure neither creates a visual PASS nor invalidates the captured room evidence"
+    }
+  },
+  "under_shelf_roi": {
+    "aligned_call_stage_full_screen": [32, 466, 1048, 1279],
+    "stage_relative_roi": [599, 199, 655, 260],
+    "reference": {
+      "rgb_median": [138, 97, 56],
+      "luma_median": 102.51,
+      "luma_p90": 110.14
+    },
+    "baseline": {
+      "rgb_median": [120, 82, 49],
+      "luma_median": 87.70,
+      "luma_p90": 87.70,
+      "median_error": 14.81,
+      "p90_error": 22.44
+    },
+    "candidate": {
+      "rgb_median": [120, 82, 49],
+      "luma_median": 87.6962,
+      "luma_p90": 88.8366,
+      "median_error": 14.8138,
+      "p90_error": 21.3034,
+      "median_error_improvement_percent": -0.0257,
+      "p90_error_improvement_percent": 5.0651
+    },
+    "required_error_improvement_percent": 20.0,
+    "quantitative_result": "FAIL"
+  },
+  "manual_visual_result": {
+    "result": "FAIL",
+    "observations": [
+      "the exact #1357 CALL artifact is a valid nonblank room scene with Celine and accepted composition intact",
+      "the target warm under-shelf wall pool is still not materially visible",
+      "the witness ROI median is raster-flat versus the accepted baseline and p90 improves only about five percent"
+    ]
+  },
+  "causal_execution_check": {
+    "exact_apk_room_glb_sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
+    "back_wall_material": "standard glTF PBR RoomWarmOffWhite; metallic=0; roughness=0.92; doubleSided=false",
+    "back_wall_runtime_center_z": -6.10,
+    "back_wall_room_side_face_z": -6.06,
+    "line_light_center_world_z": -5.78,
+    "line_light_room_side_distance_from_wall_face_m": 0.28,
+    "conclusion": "the candidate executed and its lights were placed on the room side of the back wall; the flat witness is not explained by dead code or a behind-wall light position"
+  },
+  "decision": "REJECTED",
+  "direct_shelf_light_family_stop_loss": {
+    "result": "STOP_LOSS_ACTIVE",
+    "reason": "two consecutive direct dynamic shelf-light strategies failed to produce a material witness improvement",
+    "attempts": [
+      {
+        "proof": 1353,
+        "strategy": "single focused warm spot",
+        "median_error_improvement_percent": 6.2390,
+        "p90_error_improvement_percent": 9.5214,
+        "decision": "REJECTED"
+      },
+      {
+        "proof": 1357,
+        "strategy": "five-source shadowless distributed point line",
+        "median_error_improvement_percent": -0.0257,
+        "p90_error_improvement_percent": 5.0651,
+        "decision": "REJECTED"
+      }
+    ],
+    "prohibited_next_variants": "do not retune direct shelf spot/point intensity, source count, cone, falloff or placement as another incremental candidate; derive a different causal owner"
+  },
+  "revert_and_restored_runtime": {
+    "revert_commit_sha": "b8ac077196301af93d8ab5d61d6b7494910e8b86",
+    "restored_lighting_content_blob_sha": "4806b031810c6c7ebddedee7be54faa1e7f0fa29",
+    "restored_runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "verification_build": {
+      "number": 1403,
+      "run_id": 34153121239,
+      "result": "PASS_REUSED_RUNTIME_EQUIVALENT_APK_NO_REBUILD"
+    },
+    "verification_real_proof": {
+      "number": 1358,
+      "run_id": 34153121303,
+      "room_lifecycle_result": "PASS",
+      "overall_terminal_note": "later known unrelated protected legacy zoom assertion only"
+    }
+  },
+  "scoreboard": {
+    "applicability": "N/A appearance-only candidate; geometry/layout/camera unchanged",
+    "accepted_total": 0.004543166956175412,
+    "decision": "UNCHANGED"
+  },
+  "changed": "candidate distributed shelf light was measured, rejected and already reverted; this evidence record activates family-level direct-light STOP-LOSS",
+  "not_changed": "room geometry, camera/FOV, furniture transforms, global key/fill, accepted bed/window values, Celine identity/rig/materials, anchors/navigation, Core/Persona workstream, source GLBs, merge/release state",
+  "blocker": "none",
+  "exact_next_action": "On the restored accepted runtime, inspect the back-wall/shelf material and renderable coupling plus exact proof/reference residual, derive one non-direct-light room-local causal owner for the under-shelf appearance gap, and authorize at most one bounded candidate only if that witness identifies a different owner; otherwise move to the largest remaining non-STOP-LOSS room appearance delta."
+}

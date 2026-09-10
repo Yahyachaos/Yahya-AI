@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-09-07",
+  "workstream": "ROOM/SCENE",
+  "reference_authority": {
+    "path": "/Refernzbild.png",
+    "blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793"
+  },
+  "reconciled_head_before_witness": "89fc655b8de85a5191c416e30007ab9d0e44fc55",
+  "accepted_runtime": {
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "restored_lighting_content_blob_sha": "4806b031810c6c7ebddedee7be54faa1e7f0fa29",
+    "geometry_scoreboard_total": 0.004543166956175412,
+    "verification_real_candidate": {
+      "number": 1358,
+      "run_id": 34153121303,
+      "evidence_artifact_id": 10030153733,
+      "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+      "overall_terminal_note": "known unrelated protected legacy zoom assertion after room evidence"
+    }
+  },
+  "exact_under_shelf_residual": {
+    "aligned_call_stage_full_screen": [32, 466, 1048, 1279],
+    "stage_relative_roi": [599, 199, 655, 260],
+    "stage_normalized_roi": {
+      "left": 0.589567,
+      "right": 0.644685,
+      "top": 0.244772,
+      "bottom": 0.319803,
+      "center_x": 0.617126,
+      "center_y": 0.282288,
+      "width": 0.055118,
+      "height": 0.075031
+    },
+    "reference_rgb_median": [138, 97, 56],
+    "reference_luma_median": 102.51,
+    "reference_luma_p90": 110.14,
+    "accepted_baseline_rgb_median": [120, 82, 49],
+    "accepted_baseline_luma_median": 87.70,
+    "accepted_baseline_luma_p90": 87.70,
+    "manual_1358_observation": "the real CALL proof is nonblank and compositionally intact; the exact clean ROI remains a visibly uniform back-wall patch without the reference warm pool"
+  },
+  "causal_owner_analysis": {
+    "direct_dynamic_light_family": {
+      "decision": "STOP_LOSS_ACTIVE",
+      "evidence": [
+        "Proof 1353 single focused warm spot improved median/p90 error only 6.24%/9.52%",
+        "Proof 1357 five-point distributed line improved median/p90 error -0.03%/5.07%",
+        "Proof 1357 verified the lights executed and were 0.28 m on the room side of the wall face"
+      ],
+      "conclusion": "another intensity/count/cone/falloff/placement retune is prohibited"
+    },
+    "broad_back_wall_material": {
+      "current_owner": "CelineRoomReferenceWallMaterialV80",
+      "accepted_response": "Real Candidate 1224 locked broad back wall at RGB 120/82/49 versus reference 120/83/49",
+      "implementation": "one uniform duplicated material factor is applied across room_back_wall",
+      "conclusion": "global back-wall factor retuning would move already accepted surrounding wall pixels and is not a bounded owner for the local residual"
+    },
+    "source_shell": {
+      "implementation": "build_celine_room_440x420.py creates the back shell as one cube with one warm wall material; no authored local under-shelf light/albedo map exists",
+      "conclusion": "the missing spatial response has no source-authored local material owner"
+    },
+    "different_owner_identified": {
+      "owner": "derived room-local back-wall pool plane using the accepted back-wall PBR shader and base map, with a bounded emissive gradient only on that duplicate",
+      "causal_class": "localized spatial material response, not a dynamic light",
+      "reason": "it can alter only the missing proof ROI while preserving the accepted broad wall baseColorMap, global key/fill and surrounding wall response"
+    }
+  },
+  "authorized_single_bounded_candidate": {
+    "result": "AUTHORIZED_ONE_CANDIDATE",
+    "new_owner_class": "CelineRoomShelfWallPoolV80",
+    "geometry": {
+      "parent": "room root",
+      "local_center_xyz": [1.176, 1.63, -2.055],
+      "half_width_m": 0.18,
+      "half_height_m": 0.16,
+      "wall_room_side_face_local_z": -2.06,
+      "wall_clearance_m": 0.005,
+      "derivation": "proof ROI is about 0.0444 stage-width left of the accepted shelf center; the prior measured CALL horizontal Jacobian is about 0.169 stage-width/m, giving about -0.263 m from shelf x=1.439041 to x≈1.176"
+    },
+    "material": {
+      "donor": "final accepted room_back_wall material after the window/post-pass returns",
+      "base_color_map": "inherited unchanged from the accepted back wall duplicate",
+      "mechanism": "64x64 smooth radial emissiveMap on a separate wall plane; black edge gives exact donor response and the center adds only a small warm local pool",
+      "emissive_factor_rgb": [0.05, 0.042, 0.02],
+      "emissive_strength": 1.0,
+      "dynamic_light_added": false,
+      "base_wall_factor_changed": false,
+      "global_key_or_fill_changed": false,
+      "reason": "a low-amplitude localized emission is causally distinct from the stopped dynamic-light transport family and preserves the proven wall texture at the plane boundary"
+    },
+    "hard_preserve": [
+      "room geometry and accepted furniture TRS",
+      "camera/FOV",
+      "global directional key and indirect fill",
+      "12 original furniture GLBs",
+      "window and bed accepted values",
+      "canonical Celine identity/rig/materials",
+      "anchors/navigation",
+      "Core/Persona PR 113"
+    ],
+    "acceptance_gate": {
+      "required_median_error_improvement_percent": 20.0,
+      "required_p90_error_improvement_percent": 20.0,
+      "manual": "warm under-shelf pool must become materially visible without a hard patch edge, washout, duplicate geometry, or composition regression",
+      "scoreboard": "N/A appearance-only derived detail; accepted geometry/layout/camera total remains 0.004543166956175412 unless a reliable geometry envelope changes"
+    }
+  },
+  "blocker": "none",
+  "exact_next_action": "Implement exactly the authorized localized back-wall material-pool owner as one runtime batch, run exactly one Android build for its new fingerprint and one smallest real HOME -> CALL -> HOME-return proof, then inspect the actual CALL and quantify the exact ROI. Keep only if median and p90 error each improve by at least 20% and manual inspection agrees; otherwise revert this material-pool strategy and move to the largest remaining non-STOP-LOSS room appearance delta."
+}

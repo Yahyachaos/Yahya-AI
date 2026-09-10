@@ -14,7 +14,7 @@ trap collect EXIT
 
 fail() {
   echo "ERROR: $*"
-  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V79-|V76-|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
+  adb logcat -d | grep -E 'de\.yahya\.ai|Filament|gltfio|FATAL EXCEPTION|SIGABRT|V80-|V79-|V76-|V75-|V74-|V70-|V62-|V61-|V60-|V39-|CTL-|REN-|VIS-' | tail -300 || true
   exit 1
 }
 
@@ -29,6 +29,24 @@ wait_for_log() {
     sleep 1
   done
   fail "timed out waiting for $label ($needle)"
+}
+
+dump_ui_with_retry() {
+  local remote="$1"
+  local local_file="$2"
+  local label="$3"
+  local attempt
+  for attempt in $(seq 1 8); do
+    if adb shell "rm -f '$remote'; uiautomator dump '$remote' >/dev/null 2>&1; test -s '$remote'" >/dev/null 2>&1 \
+      && adb pull "$remote" "$local_file" >/dev/null 2>&1 \
+      && [[ -s "$local_file" ]]; then
+      echo "Ready: $label UI hierarchy (attempt $attempt)"
+      return 0
+    fi
+    echo "Retry: $label UI hierarchy unavailable (attempt $attempt/8)"
+    sleep 2
+  done
+  fail "$label UI hierarchy unavailable after retries"
 }
 
 [[ -s "$APK" ]] || fail "missing APK: $APK"
@@ -57,21 +75,26 @@ wait_for_log 'V61-110' 'packaged production rig-scale correction'
 wait_for_log 'V39-150' 'packaged production texture binding'
 wait_for_log 'V75-160' 'v75 semantic material ownership after V39'
 wait_for_log 'CTL-350' 'confirmed 3D activation after visible-frame probe'
-wait_for_log 'V79-400' 'production v79 six-joint arm/hand rig binding'
-wait_for_log 'V79-410' 'HOME bounded arm/hand presence'
-wait_for_log 'V70-100' 'production seated lower-body rig binding'
+wait_for_log 'V80-400' 'central production root/body/head owner binding'
+wait_for_log 'V80-410' 'central layered HOME presence'
+
+# CTL-350 hides the legacy 2D fallback on the UI thread. Its log line is emitted in that same
+# callback, so an immediate SurfaceFlinger screencap can still contain the previous composed frame
+# for one traversal. Capture only after the settled post-activation HOME composition; otherwise the
+# initial HOME metric compares a stale 2D portrait against the real 3D HOME_RETURN frame.
+sleep 2
 
 PID="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID" ]] || fail "process died before HOME proof"
 
-adb shell uiautomator dump /sdcard/celine-real-home.xml >/dev/null || fail "HOME UI dump failed"
-adb pull /sdcard/celine-real-home.xml real-candidate-home.xml >/dev/null || fail "HOME UI pull failed"
-adb exec-out screencap -p > real-candidate-home.png
+adb exec-out screencap -p > real-candidate-home.png || fail "HOME screenshot failed"
+dump_ui_with_retry /sdcard/celine-real-home.xml real-candidate-home.xml HOME
 
 grep -q 'Celin 3D Ansicht' real-candidate-home.xml || fail "HOME 3D stage missing"
 grep -q 'Mit Celin' real-candidate-home.xml || fail "HOME call entry missing"
 python3 ci/check-real-celine-render.py real-candidate-home.png HOME
-python3 ci/check-celine-person-presence.py real-candidate-home.png HOME
+HOME_PRESENCE_RC=0
+python3 ci/check-celine-person-presence.py real-candidate-home.png HOME || HOME_PRESENCE_RC=$?
 
 # v76 must use the packaged production asset, never an injected private file.
 adb logcat -d > real-candidate-logcat-home.txt
@@ -96,7 +119,7 @@ fi
 if ! grep -q 'CTL-350' real-candidate-logcat-home.txt; then
   fail "3D controller did not confirm the visible candidate (CTL-350 missing)"
 fi
-if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V79-428|V79-429|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
+if grep -Eq 'V80-499|V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-home.txt; then
   fail "runtime/source error detected during real-candidate HOME proof"
 fi
 
@@ -112,39 +135,72 @@ raise SystemExit('call button bounds missing')
 PY
 )"
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL tap coordinates missing"
+# The SurfaceView transition guard deliberately keeps the last direct HOME frame
+# above the reparenting stage until CALL has produced a new stable SurfaceView frame.
+# Record the current release count so the visual CALL proof cannot accidentally
+# capture that stale HOME bridge frame.
+CALL_READY_BEFORE="$(adb logcat -d | grep -c 'V80-512' || true)"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 7
-wait_for_log 'V79-420' 'CALL bounded arm/hand presence'
-wait_for_log 'V70-110' 'CALL seated foundation entry'
-wait_for_log 'V70-120' 'CALL seated lower-body matrices'
+wait_for_log 'target=CALL eased=true snap=false' 'eased central HOME-to-CALL handoff'
+wait_for_log 'V80-420' 'central layered CALL presence'
+CALL_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+for _ in $(seq 1 25); do
+  if [[ "$CALL_READY_NOW" -gt "$CALL_READY_BEFORE" ]]; then
+    echo "Ready: direct CALL surface frame after HOME"
+    break
+  fi
+  sleep 1
+  CALL_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+done
+[[ "$CALL_READY_NOW" -gt "$CALL_READY_BEFORE" ]] ||
+  fail "CALL SurfaceView did not publish a new direct V80-512 frame after HOME"
 
 PID_CALL="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_CALL" ]] || fail "process died opening CALL"
-adb shell uiautomator dump /sdcard/celine-real-call.xml >/dev/null || fail "CALL UI dump failed"
-adb pull /sdcard/celine-real-call.xml real-candidate-call.xml >/dev/null || fail "CALL UI pull failed"
-adb exec-out screencap -p > real-candidate-call.png
+# Capture the direct CALL frame before querying accessibility. A transient
+# UiTestAutomationBridge null-root must never discard an otherwise valid CALL frame.
+adb exec-out screencap -p > real-candidate-call.png || fail "CALL screenshot failed"
+dump_ui_with_retry /sdcard/celine-real-call.xml real-candidate-call.xml CALL
 grep -q 'Live mit Celin' real-candidate-call.xml || fail "CALL overlay missing"
 grep -q 'Celin 3D Ansicht' real-candidate-call.xml || fail "CALL 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-call.png CALL
-python3 ci/check-celine-person-presence.py real-candidate-call.png CALL
+CALL_PRESENCE_RC=0
+python3 ci/check-celine-person-presence.py real-candidate-call.png CALL || CALL_PRESENCE_RC=$?
 
 # Lifecycle regression: close CALL and prove the same process and a visible real candidate recover.
+# The SurfaceView transition guard keeps the last real CALL frame above the stage while the HOME
+# surface/room is rebuilt. Do not capture that intentionally stale bridge frame as HOME evidence;
+# wait for a NEW V80-512 after the return, which means the cover has been replaced by a direct,
+# stable target SurfaceView frame.
+RETURN_READY_BEFORE="$(adb logcat -d | grep -c 'V80-512' || true)"
 adb shell input keyevent 4
 sleep 5
-wait_for_log 'V70-130' 'HOME-return lower-body restoration'
+wait_for_log 'target=HOME eased=true snap=false' 'eased central CALL-to-HOME handoff'
+RETURN_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+for _ in $(seq 1 25); do
+  if [[ "$RETURN_READY_NOW" -gt "$RETURN_READY_BEFORE" ]]; then
+    echo "Ready: direct HOME surface frame after CALL"
+    break
+  fi
+  sleep 1
+  RETURN_READY_NOW="$(adb logcat -d | grep -c 'V80-512' || true)"
+done
+[[ "$RETURN_READY_NOW" -gt "$RETURN_READY_BEFORE" ]] ||
+  fail "HOME SurfaceView did not publish a new direct V80-512 frame after CALL"
 PID_RETURN="$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
 [[ -n "$PID_RETURN" ]] || fail "process died returning HOME"
-adb shell uiautomator dump /sdcard/celine-real-return.xml >/dev/null || fail "HOME-return UI dump failed"
-adb pull /sdcard/celine-real-return.xml real-candidate-home-return.xml >/dev/null || fail "HOME-return UI pull failed"
-adb exec-out screencap -p > real-candidate-home-return.png
+adb exec-out screencap -p > real-candidate-home-return.png || fail "HOME-return screenshot failed"
+dump_ui_with_retry /sdcard/celine-real-return.xml real-candidate-home-return.xml HOME_RETURN
 grep -q 'Mit Celin' real-candidate-home-return.xml || fail "HOME did not recover"
 grep -q 'Celin 3D Ansicht' real-candidate-home-return.xml || fail "HOME-return 3D stage missing"
 python3 ci/check-real-celine-render.py real-candidate-home-return.png HOME_RETURN
-python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_RETURN
+HOME_RETURN_PRESENCE_RC=0
+python3 ci/check-celine-person-presence.py real-candidate-home-return.png HOME_RETURN || HOME_RETURN_PRESENCE_RC=$?
 python3 ci/check-home-return-zoom.py real-candidate-home.png real-candidate-home-return.png
 
 adb logcat -d > real-candidate-logcat-final.txt
-if grep -Eq 'V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|V79-428|V79-429|V74-198|V74-199|V70-198|V70-199|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
+if grep -Eq 'V80-499|V75-199|V39-158|V39-159|V61-102|V61-199|V76-298|V76-299|V62-298|V62-299|REN-399|FATAL EXCEPTION|SIGABRT' real-candidate-logcat-final.txt; then
   fail "runtime error detected across HOME/CALL lifecycle"
 fi
 if ! grep -q 'V76-210' real-candidate-logcat-final.txt; then
@@ -153,8 +209,14 @@ fi
 if ! grep -q 'V75-160' real-candidate-logcat-final.txt; then
   fail "v75 semantic material ownership evidence missing after lifecycle"
 fi
-for marker in V79-400 V79-410 V79-420 V70-100 V70-110 V70-120 V70-130; do
-  grep -q "$marker" real-candidate-logcat-final.txt || fail "v79/v70 lifecycle marker missing: $marker"
+for marker in V80-400 V80-410 V80-420; do
+  grep -q "$marker" real-candidate-logcat-final.txt || fail "v80 central-owner lifecycle marker missing: $marker"
 done
+grep -q 'target=CALL eased=true snap=false' real-candidate-logcat-final.txt || fail "eased CALL entry marker missing"
+grep -q 'target=HOME eased=true snap=false' real-candidate-logcat-final.txt || fail "eased HOME return marker missing"
 
-printf 'PASS packaged v79 blink-localized facial rig + v75 semantic material + v70 seated CALL + v79 bounded arm/hand candidate: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"
+if (( HOME_PRESENCE_RC != 0 || CALL_PRESENCE_RC != 0 || HOME_RETURN_PRESENCE_RC != 0 )); then
+  fail "person-presence guard failed after complete HOME/CALL/HOME-return capture (HOME=$HOME_PRESENCE_RC CALL=$CALL_PRESENCE_RC HOME_RETURN=$HOME_RETURN_PRESENCE_RC)"
+fi
+
+printf 'PASS packaged v79 blink-localized facial rig + v75 semantic material + v80 central layered HOME/CALL owner: bytes=%s sha=%s pid_home=%s pid_call=%s pid_return=%s\n' "$CANDIDATE_BYTES" "$CANDIDATE_SHA" "$PID" "$PID_CALL" "$PID_RETURN"

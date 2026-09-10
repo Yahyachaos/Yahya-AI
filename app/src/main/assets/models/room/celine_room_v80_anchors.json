@@ -1,0 +1,556 @@
+{
+  "schema": 1,
+  "status": "prepared_draft_contact_y_pending_final_mesh",
+  "priority_order": [
+    "renderer_lifecycle_recovery",
+    "explicit_user_action",
+    "HOME_CALL_presence",
+    "speaking_listening",
+    "requested_room_interaction",
+    "ambient_idle"
+  ],
+  "anchors": {
+    "recovery_home_anchor": {
+      "id": "recovery_home_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.0,
+        0.75
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor"
+      ]
+    },
+    "camera_talk_anchor": {
+      "id": "camera_talk_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.0,
+        1.15
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_near_anchor",
+        "foreground_table_approach_anchor",
+        "room_walk_anchor_left",
+        "room_walk_anchor_right",
+        "recovery_home_anchor"
+      ],
+      "allowed_predecessors": [
+        "recovery_home_anchor",
+        "camera_near_anchor",
+        "foreground_table_approach_anchor",
+        "room_walk_anchor_left",
+        "room_walk_anchor_right"
+      ]
+    },
+    "camera_near_anchor": {
+      "id": "camera_near_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.0,
+        1.4
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor",
+        "foreground_table_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor"
+      ]
+    },
+    "room_walk_anchor_left": {
+      "id": "room_walk_anchor_left",
+      "kind": "nav",
+      "world_xz_m": [
+        -0.65,
+        0.45
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor",
+        "chair_approach_anchor",
+        "dresser_anchor",
+        "lamp_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor",
+        "chair_approach_anchor",
+        "dresser_anchor",
+        "lamp_anchor"
+      ]
+    },
+    "room_walk_anchor_right": {
+      "id": "room_walk_anchor_right",
+      "kind": "nav",
+      "world_xz_m": [
+        0.2,
+        0.35
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor",
+        "bed_approach_anchor",
+        "window_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor",
+        "window_anchor",
+        "bed_approach_anchor"
+      ]
+    },
+    "chair_approach_anchor": {
+      "id": "chair_approach_anchor",
+      "kind": "approach",
+      "world_xz_m": [
+        -0.72,
+        -0.8
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "chair_sit_anchor",
+        "room_walk_anchor_left",
+        "back_center_nav_anchor"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_left",
+        "chair_sit_anchor",
+        "back_center_nav_anchor"
+      ]
+    },
+    "back_center_nav_anchor": {
+      "id": "back_center_nav_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -0.35,
+        -1.75
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "chair_approach_anchor",
+        "shelf_anchor"
+      ],
+      "allowed_predecessors": [
+        "chair_approach_anchor",
+        "shelf_anchor"
+      ]
+    },
+    "window_anchor": {
+      "id": "window_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.15,
+        -2.12
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "shelf_anchor",
+        "room_walk_anchor_right"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_right",
+        "shelf_anchor"
+      ]
+    },
+    "dresser_anchor": {
+      "id": "dresser_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -2.25,
+        0.35
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 270,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "room_walk_anchor_left",
+        "mirror_anchor"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_left",
+        "mirror_anchor"
+      ]
+    },
+    "shelf_anchor": {
+      "id": "shelf_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -1.2,
+        -2.08
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "back_center_nav_anchor",
+        "window_anchor"
+      ],
+      "allowed_predecessors": [
+        "back_center_nav_anchor",
+        "window_anchor"
+      ]
+    },
+    "lamp_anchor": {
+      "id": "lamp_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -0.75,
+        1.05
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "room_walk_anchor_left"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_left"
+      ]
+    },
+    "bed_approach_anchor": {
+      "id": "bed_approach_anchor",
+      "kind": "approach",
+      "world_xz_m": [
+        0.35,
+        0.15
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 90,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "bed_edge_sit_anchor",
+        "room_walk_anchor_right"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_right",
+        "bed_exit_anchor"
+      ]
+    },
+    "foreground_table_approach_anchor": {
+      "id": "foreground_table_approach_anchor",
+      "kind": "approach",
+      "world_xz_m": [
+        0.0,
+        1.48
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": "room_foreground_table",
+      "approach_anchor": null,
+      "clearance_radius_m": 0.32,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": "TABLE_STAND",
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "stops before table clearance zone",
+      "allowed_successors": [
+        "foreground_table_lean_anchor",
+        "camera_talk_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor",
+        "camera_near_anchor",
+        "foreground_table_lean_anchor"
+      ]
+    },
+    "foreground_table_lean_anchor": {
+      "id": "foreground_table_lean_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        0.0,
+        1.58
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 180,
+      "object_id": "room_foreground_table",
+      "approach_anchor": "foreground_table_approach_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "close_visible",
+      "pose_mode": "TABLE_LEAN",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "Y plus hand targets calibrated after final table mesh",
+      "allowed_successors": [
+        "foreground_table_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "foreground_table_approach_anchor"
+      ]
+    },
+    "bed_edge_sit_anchor": {
+      "id": "bed_edge_sit_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        0.72,
+        -0.25
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_approach_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "BED_EDGE_SIT",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "pelvis/mattress edge contact calibrated after final bed mesh",
+      "allowed_successors": [
+        "bed_relax_anchor",
+        "bed_exit_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_approach_anchor",
+        "bed_relax_anchor"
+      ]
+    },
+    "bed_relax_anchor": {
+      "id": "bed_relax_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        1.25,
+        -0.55
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_edge_sit_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "BED_RELAX",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "body support plane calibrated after final bed mesh",
+      "allowed_successors": [
+        "bed_lie_anchor",
+        "bed_edge_sit_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_edge_sit_anchor",
+        "bed_lie_anchor"
+      ]
+    },
+    "bed_lie_anchor": {
+      "id": "bed_lie_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        1.55,
+        -0.75
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_relax_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "BED_LIE",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "full support pose; one authored state first",
+      "allowed_successors": [
+        "bed_relax_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_relax_anchor"
+      ]
+    },
+    "bed_exit_anchor": {
+      "id": "bed_exit_anchor",
+      "kind": "contact_exit",
+      "world_xz_m": [
+        0.72,
+        -0.05
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_edge_sit_anchor",
+      "clearance_radius_m": 0.15,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "STAND_TALK",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "stand transition exit point calibrated with bed edge",
+      "allowed_successors": [
+        "bed_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_edge_sit_anchor"
+      ]
+    },
+    "chair_sit_anchor": {
+      "id": "chair_sit_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        -1.75,
+        -1.0
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 0,
+      "object_id": "room_lounge_chair",
+      "approach_anchor": "chair_approach_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "CHAIR_SIT",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "pelvis/back/feet contact calibrated after final chair mesh",
+      "allowed_successors": [
+        "chair_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "chair_approach_anchor"
+      ]
+    },
+    "mirror_anchor": {
+      "id": "mirror_anchor",
+      "kind": "interaction",
+      "world_xz_m": [
+        -2.28,
+        0.35
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 270,
+      "object_id": "room_round_mirror",
+      "approach_anchor": "dresser_anchor",
+      "clearance_radius_m": 0.28,
+      "look_target": "room_round_mirror",
+      "camera_visibility": "visible",
+      "pose_mode": "MIRROR_STAND",
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "decorative mirror; no realtime reflection required",
+      "allowed_successors": [
+        "dresser_anchor"
+      ],
+      "allowed_predecessors": [
+        "dresser_anchor"
+      ]
+    }
+  },
+  "interrupt_rule": "interrupt only at safe transition point or via RECOVERY_HOME; never snap root/bones",
+  "explicit_commands_only_before_autonomy": true
+}
