@@ -56,9 +56,13 @@ public final class Celine3DView extends FrameLayout {
 
     // Exact Proof #63 camera, converted from user/Blender coordinates into the runtime room world:
     // user X -> -Filament X, user height + roomY(-1.55), user depth + roomZ(-4.0).
-    // The renderer owns the final pre-render camera write, so these values deliberately override
-    // the stale v25/v44 projection callbacks immediately before every real Filament frame.
-    private static final double REFERENCE_FOCAL_LENGTH_MM = 20.846875;
+    // Blender solved 20.846875 mm with its 36 mm horizontal full-frame sensor. Filament's
+    // setLensProjection uses a 24 mm vertical sensor, so passing the same millimeter number directly
+    // narrows both axes on the real CALL aspect. Convert the focal length per viewport aspect so the
+    // Filament frustum is projection-equivalent to the Blender reference rather than numerically equal.
+    private static final double REFERENCE_BLENDER_FOCAL_LENGTH_MM = 20.846875;
+    private static final double BLENDER_HORIZONTAL_SENSOR_MM = 36.0;
+    private static final double FILAMENT_VERTICAL_SENSOR_MM = 24.0;
     private static final double REFERENCE_EYE_X = -0.380078125;
     private static final double REFERENCE_EYE_Y = -0.3265625;
     private static final double REFERENCE_EYE_Z = -1.1265625;
@@ -364,7 +368,8 @@ public final class Celine3DView extends FrameLayout {
     private void updateCameraPresence(long frameTimeNanos) {
         int width = Math.max(1, getWidth());
         int height = Math.max(1, getHeight());
-        camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,
+        double projectionFocalMm = referenceFilamentFocalLengthMm(width, height);
+        camera.setLensProjection(projectionFocalMm,
                 (double) width / (double) height, 0.05, 1000.0);
 
         boolean callStage = CelineCallUpperBodyPresenceV55.isCallStage(this);
@@ -422,8 +427,9 @@ public final class Celine3DView extends FrameLayout {
                 REFERENCE_TARGET_X, REFERENCE_TARGET_Y, REFERENCE_TARGET_Z,
                 0.0, 1.0, 0.0);
         Celine3DDiagnostics.record(appContext, "V60-122", "Kamera auf Referenz-Default zurückgesetzt",
-                "pan=0,0 zoom=1 lens=" + REFERENCE_FOCAL_LENGTH_MM
-                        + " target=" + REFERENCE_TARGET_X + "," + REFERENCE_TARGET_Y + "," + REFERENCE_TARGET_Z);
+                "pan=0,0 zoom=1 blenderLens=" + REFERENCE_BLENDER_FOCAL_LENGTH_MM
+                        + " sensorMap=36H->24V target=" + REFERENCE_TARGET_X + ","
+                        + REFERENCE_TARGET_Y + "," + REFERENCE_TARGET_Z);
     }
 
     private void updateLivePose(long frameTimeNanos) {
@@ -432,6 +438,12 @@ public final class Celine3DView extends FrameLayout {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static double referenceFilamentFocalLengthMm(int width, int height) {
+        double aspect = (double) Math.max(1, width) / (double) Math.max(1, height);
+        return REFERENCE_BLENDER_FOCAL_LENGTH_MM
+                * FILAMENT_VERTICAL_SENSOR_MM * aspect / BLENDER_HORIZONTAL_SENSOR_MM;
     }
 
     private void createSwapChain(SurfaceHolder holder) {
@@ -461,11 +473,13 @@ public final class Celine3DView extends FrameLayout {
     private void resizeViewport(int width, int height) {
         if (width <= 0 || height <= 0) return;
         filamentView.setViewport(new Viewport(0, 0, width, height));
-        camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,
+        double projectionFocalMm = referenceFilamentFocalLengthMm(width, height);
+        camera.setLensProjection(projectionFocalMm,
                 (double) width / (double) height, 0.05, 1000.0);
         updateCameraPresence(System.nanoTime());
         Celine3DDiagnostics.record(appContext, "REN-324", "Viewport gesetzt",
-                width + "x" + height + " · Proof#63 Referenzkamera lens=" + REFERENCE_FOCAL_LENGTH_MM);
+                width + "x" + height + " · Proof#63 Blender lens="
+                        + REFERENCE_BLENDER_FOCAL_LENGTH_MM + " FilamentEquivalent=" + projectionFocalMm);
     }
 
     private boolean isSurfaceReady() {
