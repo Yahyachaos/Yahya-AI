@@ -1,0 +1,100 @@
+{
+  "schema": "celine-room-window-material-owner-spatial-path-witness/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "reference_blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793",
+    "workstream_head_before": "f3a1285b7672c0dd418dd01b36e624319432c092",
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "accepted_geometry_score": 0.004543166956175412,
+    "latest_room_proof": {
+      "real_candidate": 1347,
+      "run": 34143017546,
+      "artifact": 10026759841,
+      "artifact_digest": "sha256:a0c0115e37ebe1f6171ffcc70fb1e6e24b0f462d5aa5e0c821635bb1d8701bd4",
+      "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+      "overall_workflow_note": "Later protected legacy CALL zoom assertion is unrelated to room evidence."
+    }
+  },
+  "question": "Does the duplicated room_back_wall material used by CelineRoomWindowFoldDetailV80 expose any PROVEN live spatially varying path independent of the rejected derived-curtain baseColorMap strategy, sufficient to justify a runtime probe?",
+  "source_audit": {
+    "CelineRoomWindowFoldDetailV80": {
+      "material_owner": "duplicates the currently bound room_back_wall MaterialInstance",
+      "vertex_attributes": ["POSITION", "TANGENTS", "COLOR", "UV0", "UV1"],
+      "color_stream_state": "all generated vertices are hard-coded white [1,1,1,1]",
+      "spatially_varied_color_path_in_current_source": false,
+      "material_tuning": "uniform MaterialInstance parameters only",
+      "proven_color_consumption": false
+    },
+    "CelineRoomWindowSheerFillV80": {
+      "material_owner": "same room_back_wall donor family",
+      "vertex_color_state": "COLOR is declared but generated values are uniformly white",
+      "proven_color_consumption": false
+    },
+    "CelineRoomReferenceWallMaterialV80": {
+      "spatial_paths": "none added by this owner",
+      "parameters": ["baseColorFactor", "metallicFactor", "roughnessFactor", "reflectance"],
+      "classification": "uniform_only"
+    },
+    "CelineRoomSurfaceTextureV80": {
+      "proven_spatial_path": "baseColorMap via existing shell TEXCOORD_0",
+      "note": "This proves UV-driven baseColorMap is a live shell path in general, not that an arbitrary vertex COLOR stream is consumed by the donor material."
+    },
+    "build_celine_room_440x420.py": {
+      "room_shell_creation": "primitive cube mesh plus material assignment",
+      "explicit_color_attribute_creation_found": false,
+      "implication": "repository source does not establish a donor-shell vertex-color contract"
+    }
+  },
+  "historical_runtime_evidence": {
+    "derived_outer_curtain_baseColorMap_modulation": {
+      "proof": 1343,
+      "decision": "REJECTED_FLAT_STOP_LOSS",
+      "result": "clean visible curtain ROIs were raster-identical to the accepted baseline despite the generated modulation"
+    },
+    "smooth_sheer_pleat_geometry": {
+      "proof": 1346,
+      "decision": "REJECTED_FLAT_STOP_LOSS"
+    },
+    "same_material_single_broad_fold_lobe": {
+      "witness": "CELINE_ROOM_WINDOW_FOLD_DETAIL_ROW_AXIS_BOUND_WITNESS_1347.json",
+      "decision": "STOP_LOSS_NO_RUNTIME_BUILD",
+      "reason": "the theoretical constant same-material lobe contrast cannot clear the required right-sheer 20-percent std-error gate"
+    }
+  },
+  "path_classification": {
+    "baseColorMap": "PROVEN_LIVE_ON_SHELL_BUT_STOP_LOSS_FOR_TARGET_DERIVED_CURTAIN_PATH",
+    "vertex_COLOR": "DECLARED_BUT_UNPROVEN_CONSUMED",
+    "UV0_UV1": "NO_NEW_INDEPENDENT_CONSUMER_EVIDENCED_BEYOND_STOPPED_BASECOLORMAP_ROUTE",
+    "uniform_scalar_vector_parameters": "NOT_SPATIALLY_VARYING",
+    "normal_geometry_variation": "ALREADY_TESTED_BY_1346_AND_STOPPED"
+  },
+  "causal_decision": {
+    "result": "NO_PROVEN_INDEPENDENT_LIVE_SPATIAL_PATH_NO_RUNTIME_BUILD",
+    "window_local_material_microtuning": "STOP_LOSS",
+    "runtime_write_authorized": false,
+    "android_build_required": false,
+    "reason": "A vertex COLOR gradient or other interpolated channel would be a speculative runtime experiment, not a proven owner path. Building merely to discover whether the donor material consumes it would violate the current read-only witness and efficiency gate."
+  },
+  "scoreboard": {
+    "total": 0.004543166956175412,
+    "decision": "UNCHANGED_APPEARANCE_ONLY_ANALYSIS",
+    "largest_geometry_deltas": "unchanged from accepted geometry baseline; stopped plant/rug families remain closed"
+  },
+  "changed": [
+    "ci/evidence/CELINE_ROOM_WINDOW_MATERIAL_OWNER_SPATIAL_PATH_WITNESS_1347.json"
+  ],
+  "not_changed": [
+    "runtime code",
+    "room GLB/source texture bytes",
+    "furniture TRS",
+    "room shell geometry",
+    "camera/FOV",
+    "Celine identity/rig/materials",
+    "Core/Persona",
+    "anchors/navigation",
+    "build/release/version files"
+  ],
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111, then move off window micro-tuning. Create one read-only causal witness for the next largest reliable non-STOP-LOSS room-only appearance delta. Current accepted evidence and the canonical target contract point to the broad/flat room shell (especially wall material/detail response) as the next candidate family: verify a reference-linked wall ROI mismatch and the already-proven CelineRoomSurfaceTextureV80 baseColorMap owner before authorizing any bounded runtime change. Do not build until that witness predicts a material improvement; do not reopen window, foliage/plant/rug, Celine, global renderer key/fill, Core/Persona, anchors/navigation, merge or release."
+}

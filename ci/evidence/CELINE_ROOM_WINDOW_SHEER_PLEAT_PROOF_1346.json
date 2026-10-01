@@ -1,0 +1,157 @@
+{
+  "schema": "celine-room-material-causal-proof/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_linked_support": "docs/celine/room-source/v80-2026-08-28/target_room_composition_reference.jpg",
+    "causal_witness": "ci/evidence/CELINE_ROOM_WINDOW_SHEER_PLEAT_WITNESS_1343.json",
+    "outer_curtain_stop_loss": "ci/evidence/CELINE_ROOM_WINDOW_CURTAIN_MODULATION_PROOF_1343.json",
+    "accepted_geometry_total_score": 0.004543166956175412
+  },
+  "candidate": {
+    "runtime_code_head": "0926423c7d6c1221194ea0643d5350d84d93d56a",
+    "runtime_fingerprint": "b3778870b0bfa4d6357ed177d2bc8c606e0127f48af2ae8ed9ec1ace44ebdfd3",
+    "android_build_run": 34141699156,
+    "android_build_number": 1392,
+    "android_build_status": "PASS",
+    "apk_sha256": "f8850d607a582206e588f3e84d0f45ed8cd98cd586550cc2849e497e06d5c772",
+    "real_candidate_run": 34141699197,
+    "real_candidate_number": 1346,
+    "real_candidate_attempt": 2,
+    "artifact_id": 10026421420,
+    "artifact_sha256": "cc1a3d68f51f655990f68afb3416afd102a286d6757000aded28969779579094",
+    "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+    "pid_home_call_return": 2103,
+    "overall_workflow_conclusion": "FAILURE_AFTER_ROOM_PASS",
+    "unrelated_failure": "protected legacy CALL zoom assertion: face-close checkpoint is not closer than normal CALL: peak=1.000"
+  },
+  "candidate_change": {
+    "strategy_family": "SMOOTH_BASE_SHEER_PLEAT_GEOMETRY",
+    "scope": "CelineRoomWindowSheerFillV80 only",
+    "change": "Replace each accepted broad-sheer four-vertex plane with a shared 17x9 low-amplitude smooth pleated surface, two broad cycles and <=6 mm depth, with tangent variation following the wave.",
+    "preserved": [
+      "accepted sheer X/Y envelope and centers",
+      "accepted sheer center Z and baseColorFactor",
+      "outer curtain fill and material strategy",
+      "night backdrop",
+      "existing fold-detail overlay owner",
+      "source GLB/source texture bytes",
+      "room shell/global renderer lighting",
+      "bed/furniture transforms and accepted bed material",
+      "camera/FOV",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "Core/Conversation/Persona/Intelligence paths"
+    ]
+  },
+  "read_only_measurement": {
+    "stage_origin_full_screenshot_px": {"x": 32, "y": 466},
+    "stage_size_px": {"width": 1016, "height": 813},
+    "rois_stage_px": {
+      "left_sheer_clean": {"left": 275, "top": 85, "right": 350, "bottom": 220},
+      "right_sheer_clean": {"left": 475, "top": 85, "right": 530, "bottom": 200}
+    },
+    "baseline_1336": {
+      "left_sheer": {
+        "median_srgb": [115, 90, 68],
+        "unique_rgb_count": 4,
+        "luminance_std": 1.3641212666,
+        "row_mean_luminance_std": 0.4282570059,
+        "column_mean_luminance_std": 0.7490205711
+      },
+      "right_sheer": {
+        "median_srgb": [115, 90, 68],
+        "unique_rgb_count": 3,
+        "luminance_std": 1.8060774555,
+        "row_mean_luminance_std": 1.8060601312,
+        "column_mean_luminance_std": 0.0
+      }
+    },
+    "candidate_1346": {
+      "left_sheer": {
+        "median_srgb": [115, 90, 68],
+        "unique_rgb_count": 8,
+        "luminance_std": 1.3676413901,
+        "row_mean_luminance_std": 0.4293959289,
+        "column_mean_luminance_std": 0.7539351250
+      },
+      "right_sheer": {
+        "median_srgb": [115, 90, 68],
+        "unique_rgb_count": 6,
+        "luminance_std": 1.8056561725,
+        "row_mean_luminance_std": 1.8056477889,
+        "column_mean_luminance_std": 0.0
+      }
+    },
+    "candidate_pixel_comparison_to_1336": {
+      "left_sheer_clean": {
+        "changed_pixels": 84,
+        "pixel_count": 10125,
+        "changed_fraction": 0.0082962963,
+        "max_rgb_channel_delta": 1,
+        "mean_abs_rgb_delta": 0.0027654
+      },
+      "right_sheer_clean": {
+        "changed_pixels": 53,
+        "pixel_count": 6325,
+        "changed_fraction": 0.0083794466,
+        "max_rgb_channel_delta": 1,
+        "mean_abs_rgb_delta": 0.0027931
+      }
+    },
+    "reference_linked_targets_from_1336_witness": {
+      "left_sheer_row_mean_luminance_std": 9.0,
+      "right_sheer_row_mean_luminance_std": 22.5,
+      "left_sheer_unique_rgb_count": 3939,
+      "right_sheer_unique_rgb_count": 5039
+    },
+    "manual_visual": "FAIL_NO_MATERIAL_IMPROVEMENT: the actual #1346 CALL remains visibly board-like; the low-amplitude pleat produces only sub-1% one-code-value raster changes in the clean sheer ROIs and does not approach the reference fold shading."
+  },
+  "candidate_decision": {
+    "decision": "REJECTED_FLAT",
+    "reason": "The predicted continuous fabric variation did not materially appear in the real raster. Do not stack amplitude/frequency micro-tuning on this candidate without a new independent causal witness.",
+    "stop_loss_status": "ONE_FLAT_ATTEMPT_IN_THIS_SMOOTH_BASE_SHEER_PLEAT_FAMILY"
+  },
+  "rollback_verification": {
+    "rollback_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "rollback_change": "Restored CelineRoomWindowSheerFillV80 byte-for-byte to the accepted pre-candidate planar owner content.",
+    "restored_runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "android_build_at_rollback_head": "SCOPE_PASS_BUILD_SKIPPED_RUNTIME_EQUIVALENT",
+    "runtime_equivalent_android_build_run": 34139237605,
+    "runtime_equivalent_android_build_number": 1389,
+    "runtime_equivalent_build_head": "4ce05b2ef79c933a828346d5b3237ff0b83d40a0",
+    "runtime_equivalent_apk_sha256": "b7e11e64154f4156a4012e333f0a8acf4df810b1b8c5e148391c0cea06e6c73d",
+    "real_candidate_run": 34143017546,
+    "real_candidate_number": 1347,
+    "artifact_id": 10026759841,
+    "artifact_sha256": "a0c0115e37ebe1f6171ffcc70fb1e6e24b0f462d5aa5e0c821635bb1d8701bd4",
+    "call_capture": "real-candidate-call.png",
+    "call_capture_manual_status": "VALID_NONBLANK_ACTUAL_CALL",
+    "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+    "pid_home_call_return": 2169,
+    "overall_workflow_conclusion": "FAILURE_AFTER_ROOM_PASS",
+    "unrelated_failure": "protected legacy CALL zoom assertion: head-and-shoulders checkpoint is not closer than normal CALL: 1.000",
+    "rollback_raster_comparison_to_1336": {
+      "left_sheer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 10125},
+      "right_sheer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 6325},
+      "left_outer_clean": {"exact_pixel_equal": false, "changed_pixels": 3, "pixel_count": 7425, "max_rgb_channel_delta": 1},
+      "right_outer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 6750}
+    },
+    "rollback_decision": "PASS_ACCEPTED_RUNTIME_RESTORED"
+  },
+  "scoreboard": {
+    "whole_scene_total": 0.004543166956175412,
+    "decision": "UNCHANGED_APPEARANCE_ONLY",
+    "geometry_reason": "The candidate preserved the accepted 2D window envelope; after rejection the accepted planar runtime was restored."
+  },
+  "handoff": {
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "build_test_proof": "#1346 candidate Build #1392 PASS but appearance REJECTED_FLAT; rollback restored runtime-equivalent fingerprint, Build #1389 artifact reused, Real Candidate #1347 room HOME->CALL->HOME PASS same PID 2169; overall workflow red only after room pass at unrelated protected zoom assertion.",
+    "changed": "One bounded CelineRoomWindowSheerFillV80 pleat candidate was tested and then discarded; accepted runtime content restored.",
+    "not_changed": "Room geometry envelope, source assets, furniture TRS, bed accepted material, camera/FOV, Celine, anchors/navigation, Core/Persona, shared queue/AGENTS/build/release surfaces.",
+    "blocker": "none",
+    "exact_next_action": "Fresh-reconcile PR #111; do one docs/read-only causal comparison using accepted #1217/#1218 fold-detail evidence and current #1336/#1347 raster to determine whether the existing CelineRoomWindowFoldDetailV80 owner admits a bounded broader low-contrast fold treatment that is causally distinct from both the rejected baseColorMap path and Proof #73 dark-bar strategy; make no runtime change until that witness predicts a measurable clean-sheer improvement."
+  },
+  "validation_classification": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD"
+}

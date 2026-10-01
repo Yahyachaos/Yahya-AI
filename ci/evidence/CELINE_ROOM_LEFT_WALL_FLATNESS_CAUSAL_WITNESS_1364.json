@@ -1,0 +1,105 @@
+{
+  "schema": "celine-room-left-wall-flatness-causal-witness/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793",
+    "pr": 111,
+    "workstream_head_before": "a194aadd5e8a326d13d47c55b7fc54709e41fe0e",
+    "accepted_runtime_content_origin": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "accepted_runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "accepted_geometry_score": 0.004543166956175412,
+    "current_exact_head_proof": {
+      "real_candidate_number": 1364,
+      "run": 34161678645,
+      "artifact": 10032897876,
+      "artifact_digest": "sha256:16f60f072dbbaf5e2cbbedca015d72fc200b415b1f46401defb7e7ea11d64137",
+      "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+      "runtime_apk_source_run": 34139237605,
+      "runtime_apk_sha256": "b7e11e64154f4156a4012e333f0a8acf4df810b1b8c5e148391c0cea06e6c73d",
+      "manual_capture_status": "VALID_NONBLANK_ACTUAL_CALL",
+      "workflow_note": "Room evidence is usable; the workflow fails later at the unrelated protected legacy CALL zoom assertion."
+    }
+  },
+  "measurement": {
+    "call_stage_px": {"left": 32, "top": 466, "right": 1048, "bottom": 1279, "width": 1016, "height": 813},
+    "roi": "left_upper_blank",
+    "normalized_bounds": {"left": 0.06, "right": 0.13, "top": 0.04, "bottom": 0.11},
+    "stage_bounds_px": {"left": 61, "right": 132, "top": 33, "bottom": 89},
+    "reference": {
+      "rgb_median": [106, 72, 42],
+      "luma_median": 77.1346,
+      "luma_std": 6.2397,
+      "luma_p10": 70.4266,
+      "luma_p90": 86.4836
+    },
+    "current": {
+      "rgb_median": [124, 83, 44],
+      "luma_median": 88.9008,
+      "luma_std": 0.0,
+      "luma_p10": 88.9008,
+      "luma_p90": 88.9008
+    },
+    "residual": {
+      "median_error": 11.7662,
+      "std_error": 6.2397,
+      "finding": "The current clean upper-left wall is exactly flat and materially too bright; the reference contains a broad smooth low-frequency warm-wall response rather than a hard local patch or high-frequency noise."
+    }
+  },
+  "owner_audit": {
+    "CelineRoomReferenceWallMaterialV80": {
+      "status": "LIVE_UNIFORM_OWNER",
+      "left_wall_parameters": ["baseColorFactor", "metallicFactor", "roughnessFactor", "reflectance"],
+      "spatial_variation": "none",
+      "causal_limit": "Can move the median but cannot create the missing spatial spread. Re-tuning the accepted uniform wall tuple would also reopen an already-accepted broad color response."
+    },
+    "CelineRoomSurfaceTextureV80": {
+      "path": "baseColorMap via existing room-shell TEXCOORD_0",
+      "historical_path_status": "PROVEN_LIVE_ON_SHELL",
+      "current_source_character": "small-amplitude high-frequency deterministic plaster map plus floor wood map",
+      "current_head_wiring_audit": "No CelineRoomSurfaceTextureV80.apply invocation is present in the current PR diff/orchestration path; the class is therefore not an active owner on the current accepted head.",
+      "candidate_reuse_risk": "Calling the dormant broad owner as-is would also touch back/right walls and floor, so it is not bounded enough for this residual."
+    },
+    "lighting_families": {
+      "global_key_fill": "PROTECTED",
+      "direct_shelf_spot": "STOP_LOSS_AFTER_1353",
+      "duplicate_back_wall_emissive_plane": "STOP_LOSS_AFTER_1362",
+      "classification": "Do not use those families for this left-wall residual."
+    }
+  },
+  "causal_decision": {
+    "root_cause": "The accepted left-wall material path is spatially uniform in the clean upper-left ROI, while the reference requires low-frequency spatial variation. A shell baseColorMap is a historically proven spatial path, but the old broad CelineRoomSurfaceTextureV80 owner is dormant and too wide in scope to activate unchanged.",
+    "authorized_candidate_family": "DEDICATED_LEFT_WALL_ONLY_LOW_FREQUENCY_BASECOLORMAP",
+    "runtime_write_authorized": true,
+    "bounded_owner": "new room-only CelineRoomLeftWallTextureV80 bound from CelineRoomReferenceLightingV80 after the room asset exists",
+    "protected": [
+      "room geometry/layout/camera/FOV",
+      "furniture TRS",
+      "back/right wall material factors",
+      "floor/rug",
+      "global directional key/indirect fill",
+      "accepted bed/window values",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "12 original source GLBs/textures",
+      "Core/Conversation/Persona/Intelligence",
+      "AGENTS/queue/build/release/version files"
+    ],
+    "acceptance_gate": {
+      "median_error_reduction_min_percent": 20.0,
+      "std_error_reduction_min_percent": 20.0,
+      "median_no_overshoot_max_luma": 86.5476,
+      "std_min_if_still_below_reference": 1.2479,
+      "manual": "The clean left wall must move toward the reference's broad smooth tonal variation with no hard rectangle, obvious stripe pattern, washout, or visible regression to the accepted window/bed/room composition."
+    },
+    "stop_loss": "If the candidate is FLAT or REGRESSED on the left_upper_blank median/std pair, reject and revert this dedicated baseColorMap strategy rather than tuning texture amplitude repeatedly."
+  },
+  "scoreboard": {
+    "whole_scene_total": 0.004543166956175412,
+    "decision": "UNCHANGED_APPEARANCE_ONLY_WITNESS",
+    "reason": "No geometry/layout/camera/furniture transform changed."
+  },
+  "validation_classification": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD",
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. If the head still contains only this docs witness beyond a194aadd and no overlapping room writer/job is active, implement exactly one left-wall-only smooth low-frequency baseColorMap owner through the proven room-shell TEXCOORD_0 path, wire it only from CelineRoomReferenceLightingV80, run exactly one Android build for the new runtime fingerprint, then exactly one real HOME->CALL->HOME proof. Keep only if both quantitative gates and manual comparison pass; otherwise revert and stop this strategy."
+}

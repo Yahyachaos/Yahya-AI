@@ -1,0 +1,27 @@
+{
+  "schema": "celine-room-progress-scoreboard/v1",
+  "candidate_source": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1302_EXPANDED.json",
+  "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+  "tool_semantics": "The deterministic tool excludes unusable/missing objects from its denominator. Because room_rug is completely missing in Proof #1302, any apparent numeric improvement would be invalid for acceptance.",
+  "objects_scored": 9,
+  "objects_missing_or_unusable": ["room_rug", "room_bed", "room_floor_lamp", "room_foreground_table", "room_nightstand_front", "room_nightstand_rear", "room_plant_small", "room_reference_foreground_laptop", "room_reference_foreground_plant"],
+  "baseline_total_score_current_targets": 0.004543166956175412,
+  "numeric_score_excluding_missing_rug": 0.0021445926143236,
+  "numeric_decision_excluding_missing_rug": "MISLEADING_IMPROVED__INVALID_DENOMINATOR",
+  "manual_visual_verdict": "FAIL__RUG_MISSING",
+  "decision": "REJECTED_SEMANTIC_FAIL",
+  "acceptance": "REJECT. Actual CALL shows the reference rug missing; manual visual gate overrides a score that drops the missing primary object from the denominator. Restore accepted runtime immediately and do not retry this rug replacement/surface family.",
+  "strategy_status": {
+    "source_hidden_smooth_rug_replacement": "STOP_LOSS__REJECTED_AFTER_PROOF_1302",
+    "derived_smooth_rug_family": "STOP_LOSS__PROOFS_1279_1282_1302",
+    "plant_x_sx": "STOP_LOSS__PROOF_1274",
+    "plant_x_yaw": "STOP_LOSS__PROOF_1295"
+  },
+  "largest_reliable_non_missing_residuals": [
+    {"object": "room_plant_large", "weighted_score": 0.009915160032992646},
+    {"object": "room_reference_left_wall_art_pair", "weighted_score": 0.0020845162252201},
+    {"object": "room_lounge_chair", "weighted_score": 0.0021725878392767797},
+    {"object": "room_window_drapes", "weighted_score": 0.001919568145409097},
+    {"object": "room_reference_right_wall_art", "weighted_score": 0.0018808791422827047}
+  ]
+}

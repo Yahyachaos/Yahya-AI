@@ -1,0 +1,1510 @@
+{
+  "schema": 1,
+  "status": "ASSET_CANDIDATE_READY_FOR_RUNTIME_INTEGRATION_NOT_YET_RUNTIME_ACCEPTED",
+  "phase": "4R",
+  "room_id": "celine_room_v80_final_modular",
+  "room_shell_m": {
+    "width": 6.4,
+    "depth": 5.8,
+    "height": 2.8
+  },
+  "viewer": {
+    "type": "laptop_webcam",
+    "camera_side": "+z",
+    "render_laptop": false,
+    "foreground_table_visible": true
+  },
+  "optimized_assets": [
+    {
+      "file": "Bett.glb",
+      "source_sha256": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+      "optimized_sha256": "6254126d3b97a13799681996ed6cd180d86b4697a4b6dd8507e3e7f7b5270fe3",
+      "source_triangles": 3089506,
+      "optimized_triangles": 180283,
+      "reduction_percent": 94.165,
+      "optimized_vertices": 121730,
+      "optimized_bytes": 8287884,
+      "extent_ratio_xyz": [
+        0.9996193051338196,
+        0.9996445775032043,
+        0.9997738003730774
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 163123,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 30681,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 85541,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-aware vtkDecimatePro aggressive within UV/topology components",
+      "optimization_report": "Bett_aggressive.report.json"
+    },
+    {
+      "file": "Fenstermitgardinen.glb",
+      "source_sha256": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+      "optimized_sha256": "5091b0d505bac1535c3ab66d16c4bb7e54f0ccbf32e92c0fcbfc8338c120fa39",
+      "source_triangles": 3132714,
+      "optimized_triangles": 99962,
+      "reduction_percent": 96.809,
+      "optimized_vertices": 69031,
+      "optimized_bytes": 4843816,
+      "extent_ratio_xyz": [
+        0.9996600151062012,
+        0.9997303485870361,
+        1.0
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 233664,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 59006,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 36021,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-pruned spatial LOD + attribute-preserving VTK component decimation",
+      "optimization_report": "Fenstermitgardinen_lod.report.json"
+    },
+    {
+      "file": "GroßeKomode.glb",
+      "source_sha256": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+      "optimized_sha256": "1e23dbd496e12afa05bf6067fe94bd5425711063fc97c0f3c6239eae4e112be0",
+      "source_triangles": 3076688,
+      "optimized_triangles": 87669,
+      "reduction_percent": 97.151,
+      "optimized_vertices": 58668,
+      "optimized_bytes": 3753232,
+      "extent_ratio_xyz": [
+        0.9998970031738281,
+        1.0,
+        0.9999456405639648
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 313275,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 53250,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 42533,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-pruned spatial LOD + attribute-preserving VTK component decimation",
+      "optimization_report": "GroßeKomode_lod.report.json"
+    },
+    {
+      "file": "Großepflanzemittopf.glb",
+      "source_sha256": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+      "optimized_sha256": "c8fbe5a6953329022033492ec286fe9d27e3cce5c88ea30c8991218719310159",
+      "source_triangles": 2649096,
+      "optimized_triangles": 53874,
+      "reduction_percent": 97.966,
+      "optimized_vertices": 45963,
+      "optimized_bytes": 2749796,
+      "extent_ratio_xyz": [
+        1.0,
+        0.9999458193778992,
+        1.0
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 188438,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 20178,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 9624,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-pruned spatial LOD + attribute-preserving VTK component decimation",
+      "optimization_report": "Großepflanzemittopf_lod.report.json"
+    },
+    {
+      "file": "Hängeboardmitbücher.glb",
+      "source_sha256": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+      "optimized_sha256": "597675f9f4c41cf63d95fa15cac2b416e9a62f610c09dac66b006bda102b03ec",
+      "source_triangles": 3009674,
+      "optimized_triangles": 111478,
+      "reduction_percent": 96.296,
+      "optimized_vertices": 68506,
+      "optimized_bytes": 4881928,
+      "extent_ratio_xyz": [
+        0.9998933672904968,
+        0.999966025352478,
+        0.9998189806938171
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 203950,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 31320,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 18542,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-pruned spatial LOD + attribute-preserving VTK component decimation",
+      "optimization_report": "Hängeboardmitbücher_lod.report.json"
+    },
+    {
+      "file": "Kleinepflanzemittopf.glb",
+      "source_sha256": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+      "optimized_sha256": "652090bf079f88d6da6d5f1680eb27fae600f23cb3d07ecfe3be94bd85bb6e87",
+      "source_triangles": 2897712,
+      "optimized_triangles": 115307,
+      "reduction_percent": 96.021,
+      "optimized_vertices": 91127,
+      "optimized_bytes": 5855624,
+      "extent_ratio_xyz": [
+        1.0,
+        0.9997755289077759,
+        1.0
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 58708,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 20778,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 16272,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-pruned spatial LOD + attribute-preserving VTK component decimation",
+      "optimization_report": "Kleinepflanzemittopf_lod.report.json"
+    },
+    {
+      "file": "Lampe.glb",
+      "source_sha256": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+      "optimized_sha256": "b80fd3dc55f751339492175087dd5fe8175682953ed75f867d3b0ff0786b8f7f",
+      "source_triangles": 3139662,
+      "optimized_triangles": 33734,
+      "reduction_percent": 98.926,
+      "optimized_vertices": 25437,
+      "optimized_bytes": 1514748,
+      "extent_ratio_xyz": [
+        0.998679518699646,
+        0.9999626874923706,
+        0.9962430000305176
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 46687,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 25540,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 17053,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-aware vtkDecimatePro aggressive within UV/topology components",
+      "optimization_report": "Lampe_aggressive.report.json"
+    },
+    {
+      "file": "Nachttisch.glb",
+      "source_sha256": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+      "optimized_sha256": "7de10765d91bb6f8be5487cd3f434c40e499895b37e69e829c41b1eafe0c10bb",
+      "source_triangles": 3119670,
+      "optimized_triangles": 48101,
+      "reduction_percent": 98.458,
+      "optimized_vertices": 36527,
+      "optimized_bytes": 2336480,
+      "extent_ratio_xyz": [
+        0.999921977519989,
+        0.9998576045036316,
+        0.9982380270957947
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 173623,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 26698,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 92166,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-aware vtkDecimatePro aggressive within UV/topology components",
+      "optimization_report": "Nachttisch_aggressive.report.json"
+    },
+    {
+      "file": "Sessel.glb",
+      "source_sha256": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+      "optimized_sha256": "7cd292b38bbf2b65b14f091308122a5ca85dd2a15fd27a47ca49a36a371a311c",
+      "source_triangles": 3141472,
+      "optimized_triangles": 61080,
+      "reduction_percent": 98.056,
+      "optimized_vertices": 51024,
+      "optimized_bytes": 3044460,
+      "extent_ratio_xyz": [
+        0.9999589920043945,
+        0.9999666810035706,
+        0.9997141361236572
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 152740,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 12276,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 61725,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-aware vtkDecimatePro aggressive within UV/topology components",
+      "optimization_report": "Sessel_aggressive.report.json"
+    },
+    {
+      "file": "Teppisch.glb",
+      "source_sha256": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+      "optimized_sha256": "404a80a9d778cceb2d19304f149f818c0637d7976195d06f01521e2b667ec4ea",
+      "source_triangles": 3089503,
+      "optimized_triangles": 107334,
+      "reduction_percent": 96.526,
+      "optimized_vertices": 77893,
+      "optimized_bytes": 5211728,
+      "extent_ratio_xyz": [
+        0.994660496711731,
+        0.9903973937034607,
+        0.9982501864433289
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 126018,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 16632,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 40112,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "rug top connected surfaces + decimation; microfibers removed",
+      "optimization_report": "Teppisch_lod.report.json"
+    },
+    {
+      "file": "Tischfürlaptop.glb",
+      "source_sha256": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+      "optimized_sha256": "77bcb2ebf569195ac4abec981d62731946798009a82db30ba0da3f40e893c24c",
+      "source_triangles": 3135250,
+      "optimized_triangles": 43362,
+      "reduction_percent": 98.617,
+      "optimized_vertices": 32915,
+      "optimized_bytes": 2133884,
+      "extent_ratio_xyz": [
+        0.9999863505363464,
+        0.9999887943267822,
+        0.9999551177024841
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 171740,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 30469,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            1024,
+            1024
+          ],
+          "bytes": 89495,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-aware vtkDecimatePro aggressive within UV/topology components",
+      "optimization_report": "Tischfürlaptop_aggressive.report.json"
+    },
+    {
+      "file": "Wandspiegelrund.glb",
+      "source_sha256": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0",
+      "optimized_sha256": "b3230d6cc75da53008b5646fe9e9a4cd37ccff4c17a1d1f4f893487e07734534",
+      "source_triangles": 3128912,
+      "optimized_triangles": 34760,
+      "reduction_percent": 98.889,
+      "optimized_vertices": 26677,
+      "optimized_bytes": 1598144,
+      "extent_ratio_xyz": [
+        0.9996982216835022,
+        0.9999016523361206,
+        0.999445915222168
+      ],
+      "textures": [
+        {
+          "role": "base",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 43244,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "mr",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 42672,
+          "mime": "image/jpeg"
+        },
+        {
+          "role": "normal",
+          "dimensions": [
+            512,
+            512
+          ],
+          "bytes": 21090,
+          "mime": "image/jpeg"
+        }
+      ],
+      "optimization_method": "component-aware vtkDecimatePro aggressive within UV/topology components",
+      "optimization_report": "Wandspiegelrund_aggressive.report.json"
+    }
+  ],
+  "aggregate": {
+    "source_triangles": 36609859,
+    "optimized_triangles": 976944,
+    "triangle_reduction_percent": 97.331,
+    "optimized_12_asset_bytes": 46211724,
+    "optimized_12_asset_mib": 44.071
+  },
+  "combined_room": {
+    "sha256": "25dc79b93accc804340da392b2b7a8d78c69ce19b16c17b6aacef3bfaf4465a8",
+    "bytes": 46580788,
+    "nodes": 41,
+    "meshes": 16,
+    "materials": 16,
+    "images": 37,
+    "furniture_instances": 13,
+    "anchor_nodes": 20,
+    "nightstand_instances": 2,
+    "nightstand_mesh_indices": [
+      7
+    ],
+    "has_portrait_plane": true,
+    "has_front_wall": false,
+    "has_visible_laptop_node": false,
+    "extras_keys": [
+      "canonical_celine_separate",
+      "contact_calibration",
+      "contact_planes_m",
+      "nav_collision_contract",
+      "no_visible_laptop",
+      "optimized_asset_provenance",
+      "room_action_phase",
+      "room_shell_m",
+      "scene_instance_count",
+      "source_asset_count",
+      "total_source_asset_triangles"
+    ]
+  },
+  "contact_planes": {
+    "bed_mattress_y_m": 0.461,
+    "chair_seat_y_m": 0.457,
+    "foreground_table_top_y_m": 0.756,
+    "nightstand_cabinet_top_y_m": 0.606,
+    "dresser_top_y_m": 0.768
+  },
+  "anchors": {
+    "recovery_home_anchor": {
+      "id": "recovery_home_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.0,
+        0.75
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor"
+      ]
+    },
+    "camera_talk_anchor": {
+      "id": "camera_talk_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.0,
+        1.15
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_near_anchor",
+        "foreground_table_approach_anchor",
+        "room_walk_anchor_left",
+        "room_walk_anchor_right",
+        "recovery_home_anchor"
+      ],
+      "allowed_predecessors": [
+        "recovery_home_anchor",
+        "camera_near_anchor",
+        "foreground_table_approach_anchor",
+        "room_walk_anchor_left",
+        "room_walk_anchor_right"
+      ]
+    },
+    "camera_near_anchor": {
+      "id": "camera_near_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.0,
+        1.4
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor",
+        "foreground_table_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor"
+      ]
+    },
+    "room_walk_anchor_left": {
+      "id": "room_walk_anchor_left",
+      "kind": "nav",
+      "world_xz_m": [
+        -0.65,
+        0.45
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor",
+        "chair_approach_anchor",
+        "dresser_anchor",
+        "lamp_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor",
+        "chair_approach_anchor",
+        "dresser_anchor",
+        "lamp_anchor"
+      ]
+    },
+    "room_walk_anchor_right": {
+      "id": "room_walk_anchor_right",
+      "kind": "nav",
+      "world_xz_m": [
+        0.2,
+        0.35
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "camera_talk_anchor",
+        "bed_approach_anchor",
+        "window_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor",
+        "window_anchor",
+        "bed_approach_anchor"
+      ]
+    },
+    "chair_approach_anchor": {
+      "id": "chair_approach_anchor",
+      "kind": "approach",
+      "world_xz_m": [
+        -0.72,
+        -0.8
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "chair_sit_anchor",
+        "room_walk_anchor_left",
+        "back_center_nav_anchor"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_left",
+        "chair_sit_anchor",
+        "back_center_nav_anchor"
+      ]
+    },
+    "back_center_nav_anchor": {
+      "id": "back_center_nav_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -0.35,
+        -1.75
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "chair_approach_anchor",
+        "shelf_anchor"
+      ],
+      "allowed_predecessors": [
+        "chair_approach_anchor",
+        "shelf_anchor"
+      ]
+    },
+    "window_anchor": {
+      "id": "window_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        0.15,
+        -2.12
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "shelf_anchor",
+        "room_walk_anchor_right"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_right",
+        "shelf_anchor"
+      ]
+    },
+    "dresser_anchor": {
+      "id": "dresser_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -2.25,
+        0.35
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 270,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "room_walk_anchor_left",
+        "mirror_anchor"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_left",
+        "mirror_anchor"
+      ]
+    },
+    "shelf_anchor": {
+      "id": "shelf_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -1.2,
+        -2.08
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "back_center_nav_anchor",
+        "window_anchor"
+      ],
+      "allowed_predecessors": [
+        "back_center_nav_anchor",
+        "window_anchor"
+      ]
+    },
+    "lamp_anchor": {
+      "id": "lamp_anchor",
+      "kind": "nav",
+      "world_xz_m": [
+        -0.75,
+        1.05
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": null,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "room_walk_anchor_left"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_left"
+      ]
+    },
+    "bed_approach_anchor": {
+      "id": "bed_approach_anchor",
+      "kind": "approach",
+      "world_xz_m": [
+        0.35,
+        0.15
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 90,
+      "object_id": null,
+      "approach_anchor": null,
+      "clearance_radius_m": 0.35,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": null,
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": null,
+      "allowed_successors": [
+        "bed_edge_sit_anchor",
+        "room_walk_anchor_right"
+      ],
+      "allowed_predecessors": [
+        "room_walk_anchor_right",
+        "bed_exit_anchor"
+      ]
+    },
+    "foreground_table_approach_anchor": {
+      "id": "foreground_table_approach_anchor",
+      "kind": "approach",
+      "world_xz_m": [
+        0.0,
+        1.48
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 180,
+      "object_id": "room_foreground_table",
+      "approach_anchor": null,
+      "clearance_radius_m": 0.32,
+      "look_target": "camera_viewer",
+      "camera_visibility": "expected_visible",
+      "pose_mode": "TABLE_STAND",
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "stops before table clearance zone",
+      "allowed_successors": [
+        "foreground_table_lean_anchor",
+        "camera_talk_anchor"
+      ],
+      "allowed_predecessors": [
+        "camera_talk_anchor",
+        "camera_near_anchor",
+        "foreground_table_lean_anchor"
+      ]
+    },
+    "foreground_table_lean_anchor": {
+      "id": "foreground_table_lean_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        0.0,
+        1.58
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 180,
+      "object_id": "room_foreground_table",
+      "approach_anchor": "foreground_table_approach_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "close_visible",
+      "pose_mode": "TABLE_LEAN",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "Y plus hand targets calibrated after final table mesh",
+      "allowed_successors": [
+        "foreground_table_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "foreground_table_approach_anchor"
+      ]
+    },
+    "bed_edge_sit_anchor": {
+      "id": "bed_edge_sit_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        0.72,
+        -0.25
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_approach_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "BED_EDGE_SIT",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "pelvis/mattress edge contact calibrated after final bed mesh",
+      "allowed_successors": [
+        "bed_relax_anchor",
+        "bed_exit_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_approach_anchor",
+        "bed_relax_anchor"
+      ]
+    },
+    "bed_relax_anchor": {
+      "id": "bed_relax_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        1.25,
+        -0.55
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_edge_sit_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "BED_RELAX",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "body support plane calibrated after final bed mesh",
+      "allowed_successors": [
+        "bed_lie_anchor",
+        "bed_edge_sit_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_edge_sit_anchor",
+        "bed_lie_anchor"
+      ]
+    },
+    "bed_lie_anchor": {
+      "id": "bed_lie_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        1.55,
+        -0.75
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_relax_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "BED_LIE",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "full support pose; one authored state first",
+      "allowed_successors": [
+        "bed_relax_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_relax_anchor"
+      ]
+    },
+    "bed_exit_anchor": {
+      "id": "bed_exit_anchor",
+      "kind": "contact_exit",
+      "world_xz_m": [
+        0.72,
+        -0.05
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 90,
+      "object_id": "room_bed",
+      "approach_anchor": "bed_edge_sit_anchor",
+      "clearance_radius_m": 0.15,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "STAND_TALK",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "stand transition exit point calibrated with bed edge",
+      "allowed_successors": [
+        "bed_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "bed_edge_sit_anchor"
+      ]
+    },
+    "chair_sit_anchor": {
+      "id": "chair_sit_anchor",
+      "kind": "contact",
+      "world_xz_m": [
+        -1.75,
+        -1.0
+      ],
+      "world_y_m": null,
+      "facing_y_deg": 0,
+      "object_id": "room_lounge_chair",
+      "approach_anchor": "chair_approach_anchor",
+      "clearance_radius_m": 0.0,
+      "look_target": "camera_viewer",
+      "camera_visibility": "visible",
+      "pose_mode": "CHAIR_SIT",
+      "contact_calibration_required": true,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "pelvis/back/feet contact calibrated after final chair mesh",
+      "allowed_successors": [
+        "chair_approach_anchor"
+      ],
+      "allowed_predecessors": [
+        "chair_approach_anchor"
+      ]
+    },
+    "mirror_anchor": {
+      "id": "mirror_anchor",
+      "kind": "interaction",
+      "world_xz_m": [
+        -2.28,
+        0.35
+      ],
+      "world_y_m": 0.0,
+      "facing_y_deg": 270,
+      "object_id": "room_round_mirror",
+      "approach_anchor": "dresser_anchor",
+      "clearance_radius_m": 0.28,
+      "look_target": "room_round_mirror",
+      "camera_visibility": "visible",
+      "pose_mode": "MIRROR_STAND",
+      "contact_calibration_required": false,
+      "recovery_fallback": "recovery_home_anchor",
+      "notes": "decorative mirror; no realtime reflection required",
+      "allowed_successors": [
+        "dresser_anchor"
+      ],
+      "allowed_predecessors": [
+        "dresser_anchor"
+      ]
+    }
+  },
+  "nav_collision": {
+    "schema": 1,
+    "status": "prepared_draft",
+    "avatar_capsule": {
+      "radius_m": 0.35,
+      "standing_height_m": 1.7,
+      "note": "radius used for route clearance, exact avatar dimensions may be refined later without changing topology"
+    },
+    "room_bounds_m": {
+      "min": [
+        -3.2,
+        0,
+        -2.9
+      ],
+      "max": [
+        3.2,
+        2.8,
+        2.9
+      ]
+    },
+    "colliders": [
+      {
+        "id": "col_room_bed",
+        "object_id": "room_bed",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            0.7058,
+            0.0,
+            -1.738
+          ],
+          "max": [
+            3.1942,
+            0.9794,
+            0.238
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": true
+      },
+      {
+        "id": "col_room_dresser",
+        "object_id": "room_dresser",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            -3.2161,
+            0.0,
+            -0.634
+          ],
+          "max": [
+            -2.5839,
+            1.2338,
+            1.334
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": true
+      },
+      {
+        "id": "col_room_plant_large",
+        "object_id": "room_plant_large",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            -3.1859,
+            0.0,
+            -2.3593
+          ],
+          "max": [
+            -2.2141,
+            1.7533,
+            -1.4407
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": false
+      },
+      {
+        "id": "col_room_plant_small",
+        "object_id": "room_plant_small",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            1.2976,
+            0.0,
+            -2.8791
+          ],
+          "max": [
+            2.2024,
+            1.2176,
+            -1.9609
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": false
+      },
+      {
+        "id": "col_room_floor_lamp",
+        "object_id": "room_floor_lamp",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            -2.0113,
+            0.0,
+            1.0886
+          ],
+          "max": [
+            -1.0887,
+            1.6378,
+            2.0114
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": true
+      },
+      {
+        "id": "col_room_nightstand_back",
+        "object_id": "room_nightstand_back",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            2.2064,
+            0.0,
+            -2.277
+          ],
+          "max": [
+            3.1136,
+            1.2177,
+            -1.603
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": false
+      },
+      {
+        "id": "col_room_nightstand_front",
+        "object_id": "room_nightstand_front",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            2.2064,
+            0.0,
+            0.163
+          ],
+          "max": [
+            3.1136,
+            1.2177,
+            0.837
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": false
+      },
+      {
+        "id": "col_room_lounge_chair",
+        "object_id": "room_lounge_chair",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            -2.3455,
+            0.0,
+            -1.5301
+          ],
+          "max": [
+            -1.1545,
+            0.9018,
+            -0.4699
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": true
+      },
+      {
+        "id": "col_room_foreground_table",
+        "object_id": "room_foreground_table",
+        "shape": "aabb",
+        "aabb_m": {
+          "min": [
+            -0.7481,
+            0.0,
+            1.6863
+          ],
+          "max": [
+            0.7481,
+            0.7563,
+            2.5137
+          ]
+        },
+        "navigation_blocker": true,
+        "interaction_exception": true
+      }
+    ],
+    "walkable_surface": {
+      "floor_y_m": 0.0,
+      "rug_walkable": true
+    },
+    "edges": [
+      {
+        "from": "recovery_home_anchor",
+        "to": "camera_talk_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "camera_talk_anchor",
+        "to": "camera_near_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "camera_talk_anchor",
+        "to": "room_walk_anchor_left",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "camera_talk_anchor",
+        "to": "room_walk_anchor_right",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "room_walk_anchor_left",
+        "to": "chair_approach_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "room_walk_anchor_left",
+        "to": "dresser_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "chair_approach_anchor",
+        "to": "back_center_nav_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "back_center_nav_anchor",
+        "to": "shelf_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "shelf_anchor",
+        "to": "window_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "window_anchor",
+        "to": "room_walk_anchor_right",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "room_walk_anchor_right",
+        "to": "bed_approach_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "room_walk_anchor_left",
+        "to": "lamp_anchor",
+        "bidirectional": true,
+        "type": "verified_straight_approach",
+        "requires_turn_before_walk": true
+      },
+      {
+        "from": "camera_near_anchor",
+        "to": "foreground_table_approach_anchor",
+        "bidirectional": true,
+        "type": "verified_short_approach",
+        "requires_turn_before_walk": false
+      },
+      {
+        "from": "dresser_anchor",
+        "to": "mirror_anchor",
+        "bidirectional": true,
+        "type": "interaction_step",
+        "requires_turn_before_walk": true
+      }
+    ],
+    "contact_edges": [
+      {
+        "from": "foreground_table_approach_anchor",
+        "to": "foreground_table_lean_anchor"
+      },
+      {
+        "from": "bed_approach_anchor",
+        "to": "bed_edge_sit_anchor"
+      },
+      {
+        "from": "bed_edge_sit_anchor",
+        "to": "bed_relax_anchor"
+      },
+      {
+        "from": "bed_relax_anchor",
+        "to": "bed_lie_anchor"
+      },
+      {
+        "from": "bed_edge_sit_anchor",
+        "to": "bed_exit_anchor"
+      },
+      {
+        "from": "chair_approach_anchor",
+        "to": "chair_sit_anchor"
+      }
+    ],
+    "route_policy": [
+      "never teleport on route failure",
+      "turn before locomotion",
+      "match root speed to gait",
+      "settle before pose switch",
+      "camera never chases avatar"
+    ]
+  },
+  "protected_rules": [
+    "canonical Celine remains separate",
+    "no visible laptop",
+    "one visible room only",
+    "preserve accepted camera/zoom",
+    "preserve accepted seated pose",
+    "preserve v77 PCM German lip sync",
+    "Block 5 must not start before 4R runtime acceptance"
+  ],
+  "runtime_integration_next": [
+    "replace/evolve existing celine_room_v80 path with the combined optimized candidate or equivalent modular loading without stacking rooms",
+    "keep CelineRoomEnvironmentV80 resource ownership/fallback semantics",
+    "wire structured anchors/nav metadata without enabling 9R locomotion yet",
+    "add restrained lamp light entity outside the fused lamp material",
+    "one Android build because runtime asset changes",
+    "one smallest targeted 4R room proof and manually inspect actual evidence"
+  ],
+  "validation": {
+    "errors": [],
+    "warnings": [],
+    "result": "PASS_STATIC_ASSET_CANDIDATE"
+  }
+}

@@ -11,11 +11,26 @@ import com.google.android.filament.gltfio.FilamentAsset;
 import java.lang.reflect.Field;
 
 /**
- * Lab-only deterministic pose driver for the exact branch-live Celine rig.
- * It never installs in HOME/CALL and restores every captured transform when stopped.
+ * Lab diagnostic pose adapter. Deterministic legacy poses remain isolated here, while v80
+ * production and layer modes delegate to the exact HOME/CALL production mixer.
  */
 final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback {
-    enum Mode { LIVE, STAND, WEIGHT_LEFT, WEIGHT_RIGHT, SEATED, BEND, WALK, ARMS }
+    enum Mode {
+        LIVE,
+        PRODUCTION_HOME,
+        PRODUCTION_CALL,
+        LAYER_BASE,
+        LAYER_BREATHING_POSTURE,
+        LAYER_CONVERSATION,
+        LAYER_GAZE_HEAD,
+        STAND,
+        WEIGHT_LEFT,
+        WEIGHT_RIGHT,
+        SEATED,
+        BEND,
+        WALK,
+        ARMS
+    }
 
     private static final class Bone {
         final int instance;
@@ -128,13 +143,15 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
     void setMode(Mode next) {
         mode = next == null ? Mode.LIVE : next;
         modeStartNanos = System.nanoTime();
-        if (mode == Mode.LIVE && !headOverride) restoreAll();
+        if (!headOverride && isProductionMode(mode)) restoreAll();
+        configureProductionOwner();
     }
 
     Mode getMode() { return mode; }
 
     void setHead(float pitch, float yaw, float roll) {
         headOverride = true;
+        CelineProductionPresenceV80.disableForDiagnosticPose(view);
         headPitch = clamp(pitch, -24f, 24f);
         headYaw = clamp(yaw, -38f, 38f);
         headRoll = clamp(roll, -22f, 22f);
@@ -143,6 +160,7 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
     void clearHead() {
         headOverride = false;
         headPitch = headYaw = headRoll = 0f;
+        configureProductionOwner();
     }
 
     @Override public void doFrame(long frameTimeNanos) {
@@ -160,7 +178,7 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
 
     private void apply(long now) {
         Mode current = mode;
-        if (current == Mode.LIVE && !headOverride) return;
+        if (isProductionMode(current) && !headOverride) return;
 
         double t = Math.max(0L, now - modeStartNanos) / 1_000_000_000.0;
         float wave = (float) Math.sin(t * Math.PI * 1.4);
@@ -240,6 +258,12 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
                     rotate(rightHand, -4.0f * wave, 0f, -2.0f * wave);
                     break;
                 case LIVE:
+                case PRODUCTION_HOME:
+                case PRODUCTION_CALL:
+                case LAYER_BASE:
+                case LAYER_BREATHING_POSTURE:
+                case LAYER_CONVERSATION:
+                case LAYER_GAZE_HEAD:
                 default:
                     break;
             }
@@ -287,6 +311,59 @@ final class CelineAvatarLabPoseDriverV79 implements Choreographer.FrameCallback 
             try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
         }
         try { animator.updateBoneMatrices(); } catch (Throwable ignored) {}
+    }
+
+    private void configureProductionOwner() {
+        if (headOverride) {
+            CelineProductionPresenceV80.disableForDiagnosticPose(view);
+            return;
+        }
+        switch (mode) {
+            case LIVE:
+            case PRODUCTION_HOME:
+                CelineProductionPresenceV80.setDiagnostic(view,
+                        CelineProductionPresenceV80.Stage.HOME,
+                        CelineProductionPresenceV80.LayerView.COMBINED);
+                break;
+            case PRODUCTION_CALL:
+                CelineProductionPresenceV80.setDiagnostic(view,
+                        CelineProductionPresenceV80.Stage.CALL,
+                        CelineProductionPresenceV80.LayerView.COMBINED);
+                break;
+            case LAYER_BASE:
+                CelineProductionPresenceV80.setDiagnostic(view,
+                        CelineProductionPresenceV80.Stage.HOME,
+                        CelineProductionPresenceV80.LayerView.BASE_ONLY);
+                break;
+            case LAYER_BREATHING_POSTURE:
+                CelineProductionPresenceV80.setDiagnostic(view,
+                        CelineProductionPresenceV80.Stage.HOME,
+                        CelineProductionPresenceV80.LayerView.BREATHING_POSTURE);
+                break;
+            case LAYER_CONVERSATION:
+                CelineProductionPresenceV80.setDiagnostic(view,
+                        CelineProductionPresenceV80.Stage.HOME,
+                        CelineProductionPresenceV80.LayerView.CONVERSATION);
+                break;
+            case LAYER_GAZE_HEAD:
+                CelineProductionPresenceV80.setDiagnostic(view,
+                        CelineProductionPresenceV80.Stage.HOME,
+                        CelineProductionPresenceV80.LayerView.GAZE_HEAD);
+                break;
+            default:
+                CelineProductionPresenceV80.disableForDiagnosticPose(view);
+                break;
+        }
+    }
+
+    private static boolean isProductionMode(Mode value) {
+        return value == Mode.LIVE
+                || value == Mode.PRODUCTION_HOME
+                || value == Mode.PRODUCTION_CALL
+                || value == Mode.LAYER_BASE
+                || value == Mode.LAYER_BREATHING_POSTURE
+                || value == Mode.LAYER_CONVERSATION
+                || value == Mode.LAYER_GAZE_HEAD;
     }
 
     private void translateRoot(float x, float y, float z) {

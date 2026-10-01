@@ -1,0 +1,319 @@
+name: Celine Exact Room 440x420 Blender Proof
+
+on:
+  pull_request:
+    types: [synchronize, edited]
+    paths:
+      - '.github/workflows/celine-room-440x420-blender-proof.yml'
+      - 'tools/celine-room-texture-only-recovery.py'
+      - 'tools/blender/build_celine_room_440x420.py'
+      - 'tools/blender/report_celine_room_geometry.py'
+      - 'tools/blender/export_celine_room_source_pbr_recovery.py'
+      - 'tools/blender/apply_celine_room_source_fidelity_budget.py'
+      - 'tools/blender/solve_celine_room_reference_layout.py'
+      - 'tools/blender/solve_celine_room_reference_layout_stage.py'
+      - 'tools/blender/render_celine_room_440x420_proof.py'
+      - 'ci/celine_room_440x420_builder_contract.py'
+      - 'ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json'
+      - 'Refernzbild.png'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-room-440x420-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-room-blender:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact PR head with LFS support
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Static exact-room contract
+        run: python3 ci/celine_room_440x420_builder_contract.py
+
+      - name: Materialize pinned canonical furniture sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT='df50816187978cbf5faf818ad484c3f682be7588'
+          SOURCE_DIR='/tmp/celine-room-source'
+          git fetch --no-tags origin "$SOURCE_COMMIT"
+          rm -rf "$SOURCE_DIR"
+          git worktree add --detach "$SOURCE_DIR" "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" lfs install --local
+          git -C "$SOURCE_DIR" lfs pull --include='app/src/main/assets/models/möbel/*.glb' --exclude=''
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('/tmp/celine-room-source/app/src/main/assets/models/möbel')
+          files = sorted(base.glob('*.glb'))
+          if len(files) != 12:
+              raise SystemExit(f'expected exactly 12 materialized source GLBs, got {len(files)}: {[p.name for p in files]}')
+          tiny = [(p.name, p.stat().st_size) for p in files if p.stat().st_size < 100_000_000]
+          if tiny:
+              raise SystemExit(f'unmaterialized or unexpected source files: {tiny}')
+          print('materialized canonical GLBs:', len(files))
+          for p in files:
+              print(p.name, p.stat().st_size)
+          PY
+
+      - name: Install Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender python3-numpy libegl1 xvfb
+          blender --version | head -n 2
+          blender --background --factory-startup --python-expr 'import numpy; print("BLENDER_NUMPY_OK", numpy.__version__)'
+          ldconfig -p | grep -F 'libEGL.so.1'
+          command -v xvfb-run
+
+      - name: Reuse exact clean source witness from run 449
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-proof
+          rm -rf /tmp/celine-room-source-witness
+          mkdir -p /tmp/celine-room-source-witness
+          gh run download 34240853951 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name celine-room-440x420-blender-proof \
+            --dir /tmp/celine-room-source-witness
+          test -s /tmp/celine-room-source-witness/source_front_wide.png
+          test -s /tmp/celine-room-source-witness/source_instance_id.png
+          test -s /tmp/celine-room-source-witness/render-proof-source.json
+          test -s /tmp/celine-room-source-witness/geometry-profile.json
+          cp /tmp/celine-room-source-witness/source_front_wide.png ci-room-proof/01_front_wide.png
+          cp /tmp/celine-room-source-witness/source_instance_id.png ci-room-proof/02_instance_id.png
+          cp /tmp/celine-room-source-witness/render-proof-source.json ci-room-proof/render-proof.json
+          cp /tmp/celine-room-source-witness/geometry-profile.json ci-room-proof/geometry-profile.json
+          printf '%s\n' 'source_witness_run=449' > ci-room-proof/source-witness-reuse.txt
+          printf '%s\n' 'source_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/source-witness-reuse.txt
+          printf '%s\n' 'reuse_reason=runtime-equivalent source/layout inputs; avoid redundant 39.7M structural Workbench render' >> ci-room-proof/source-witness-reuse.txt
+
+      - name: Render clean canonical source PBR directly before unstable export boundary
+        shell: bash
+        env:
+          CELINE_ROOM_GLB_DIR: /tmp/celine-room-source/app/src/main/assets/models/möbel
+          CELINE_ROOM_PROOF_DIR: ${{ github.workspace }}/ci-room-proof
+          CELINE_ROOM_REFERENCE: ${{ github.workspace }}/Refernzbild.png
+          CELINE_ROOM_REFERENCE_TARGETS: ${{ github.workspace }}/ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json
+          CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Recovery STOP-LOSS: runs 451, 453 and 455 all reached clean source import/solve
+          # but crashed at reduction/export/reload boundaries before a usable PBR raster existed.
+          # Do not try that strategy again. Render the immutable canonical source materials in the
+          # already-solved scene, before any decimation, texture resize, GLB export or reload.
+          # Proofs 458 and 462 then isolated a second root cause: camera-frustum shell extensions
+          # changed the scene but left the same hard upper wedges and severe washout. Those wedges
+          # therefore cannot be accepted as shell geometry evidence. Use one bounded neutral-light
+          # checkpoint with proof-light shadows disabled and substantially lower energy; source
+          # bytes, furniture transforms, shell geometry and the solved reference camera stay exact.
+          cat > /tmp/render_celine_room_source_pbr_direct.py <<'PY'
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          import bpy
+          from mathutils import Vector
+
+          PROOF_DIR = Path(os.environ['CELINE_ROOM_PROOF_DIR']).resolve()
+          REFERENCE = Path(os.environ['CELINE_ROOM_REFERENCE']).resolve()
+          CAMERA_NAME = 'room_440x420_reference_camera'
+          FRONT_SHELL = 'room_shell_front'
+          OUTPUT = PROOF_DIR / 'candidate_front_wide.png'
+          META = PROOF_DIR / 'source-pbr-direct-render.json'
+
+          def fail(message):
+              print('CELINE_ROOM_SOURCE_PBR_DIRECT_RENDER FAIL', flush=True)
+              raise RuntimeError(message)
+
+          camera = bpy.data.objects.get(CAMERA_NAME)
+          if camera is None or camera.type != 'CAMERA':
+              fail(f'missing solved proof camera: {CAMERA_NAME}')
+          if not bool(camera.get('reference_solved', False)):
+              fail('proof camera is not reference_solved')
+          if not REFERENCE.is_file():
+              fail(f'missing reference image: {REFERENCE}')
+
+          scene = bpy.context.scene
+          selected_engine = None
+          for engine in ('BLENDER_EEVEE_NEXT', 'BLENDER_EEVEE'):
+              try:
+                  scene.render.engine = engine
+                  selected_engine = engine
+                  break
+              except Exception:
+                  continue
+          if selected_engine is None:
+              fail('no Eevee render engine available')
+
+          scene.render.resolution_x = 1376
+          scene.render.resolution_y = 1100
+          scene.render.resolution_percentage = 100
+          scene.render.image_settings.file_format = 'PNG'
+          scene.render.image_settings.color_mode = 'RGB'
+          scene.render.image_settings.color_depth = '8'
+          scene.render.film_transparent = False
+          scene.camera = camera
+          if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'):
+              scene.eevee.taa_render_samples = 16
+
+          world = scene.world
+          if world is None:
+              world = bpy.data.worlds.new('CELINE_ROOM_SOURCE_PBR_PROOF_WORLD')
+              scene.world = world
+          world.use_nodes = True
+          bg = world.node_tree.nodes.get('Background')
+          if bg is not None:
+              bg.inputs['Color'].default_value = (0.055, 0.055, 0.055, 1.0)
+              bg.inputs['Strength'].default_value = 0.08
+
+          def look_at(obj, target):
+              direction = Vector(target) - obj.location
+              obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+
+          proof_lights = []
+          specs = (
+              ('CELINE_PBR_PROOF_KEY', (0.4, 1.45, 2.45), 220.0, 3.4),
+              ('CELINE_PBR_PROOF_FILL', (-1.75, 0.15, 1.85), 120.0, 2.8),
+              ('CELINE_PBR_PROOF_WINDOW_FILL', (1.25, -1.72, 2.20), 80.0, 2.4),
+          )
+          for name, location, energy, size in specs:
+              data = bpy.data.lights.new(name=name, type='AREA')
+              data.energy = energy
+              data.shape = 'DISK'
+              data.size = size
+              data.color = (1.0, 1.0, 1.0)
+              if hasattr(data, 'use_shadow'):
+                  data.use_shadow = False
+              obj = bpy.data.objects.new(name, data)
+              scene.collection.objects.link(obj)
+              obj.location = location
+              look_at(obj, (0.0, -0.15, 1.0))
+              proof_lights.append(obj)
+
+          front = bpy.data.objects.get(FRONT_SHELL)
+          if front is None:
+              fail(f'missing cutaway shell: {FRONT_SHELL}')
+          prev_hide_render = bool(front.hide_render)
+          prev_hide_viewport = bool(front.hide_viewport)
+          try:
+              front.hide_render = True
+              front.hide_viewport = True
+              scene.render.filepath = str(OUTPUT)
+              print(
+                  f'CELINE_ROOM_SOURCE_PBR_DIRECT_RENDER_BEGIN engine={selected_engine} '
+                  'size=1376x1100 samples=16 shadows=false sourceBytesImmutable=true reduction=false export=false',
+                  flush=True,
+              )
+              bpy.ops.render.render(write_still=True)
+          finally:
+              front.hide_render = prev_hide_render
+              front.hide_viewport = prev_hide_viewport
+              for obj in proof_lights:
+                  data = obj.data
+                  bpy.data.objects.remove(obj, do_unlink=True)
+                  if data.users == 0:
+                      bpy.data.lights.remove(data)
+
+          if not OUTPUT.is_file() or OUTPUT.stat().st_size < 20_000:
+              fail(f'PBR render missing or unexpectedly small: {OUTPUT}')
+
+          payload = {
+              'schema': 1,
+              'purpose': 'clean source-PBR architecture/appearance checkpoint after rejected whole-scene candidate #1379',
+              'render': OUTPUT.name,
+              'reference': REFERENCE.name,
+              'render_size': [1376, 1100],
+              'engine': selected_engine,
+              'source_glbs_mutated': False,
+              'reduction_applied': False,
+              'derived_glb_exported': False,
+              'blend_reload_used': False,
+              'proof_time_geometry_mutation': False,
+              'proof_time_camera_mutation': False,
+              'proof_time_neutral_lighting_only': True,
+              'proof_time_light_shadows': False,
+              'proof_time_world_strength': 0.08,
+              'proof_time_area_light_energies': [220.0, 120.0, 80.0],
+              'proof_time_render_samples': 16,
+              'camera': {
+                  'name': camera.name,
+                  'location': [float(v) for v in camera.location],
+                  'rotation_euler': [float(v) for v in camera.rotation_euler],
+                  'lens_mm': float(camera.data.lens),
+                  'reference_solved': bool(camera.get('reference_solved', False)),
+              },
+              'visual_acceptance': 'UNASSESSED',
+              'note': 'Manual comparison against Refernzbild.png is mandatory; numeric geometry scores cannot accept this raster.',
+          }
+          META.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
+          print('CELINE_ROOM_SOURCE_PBR_DIRECT_RENDER PASS', flush=True)
+          print(f'output={OUTPUT}', flush=True)
+          print('visualAcceptance=UNASSESSED', flush=True)
+          PY
+
+          xvfb-run -a blender --background --factory-startup \
+            --python-expr 'import bpy; [bpy.data.objects.remove(obj, do_unlink=True) for obj in list(bpy.data.objects) if obj.name in {"Cube", "Camera", "Light"}]' \
+            --python tools/blender/build_celine_room_440x420.py \
+            --python tools/blender/report_celine_room_geometry.py \
+            --python tools/blender/solve_celine_room_reference_layout_stage.py \
+            --python /tmp/render_celine_room_source_pbr_direct.py \
+            2>&1 | tee ci-room-proof/blender-room-440x420.log
+
+          grep -F 'CELINE_ROOM_440x420 PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_GEOMETRY_PROFILE PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_REFERENCE_SOLVE PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'CELINE_ROOM_SOURCE_PBR_DIRECT_RENDER PASS' ci-room-proof/blender-room-440x420.log
+          grep -F 'visualAcceptance=UNASSESSED' ci-room-proof/blender-room-440x420.log
+          grep -F 'shadows=false' ci-room-proof/blender-room-440x420.log
+          test -s ci-room-proof/geometry-profile.json
+          test -s ci-room-proof/01_front_wide.png
+          test -s ci-room-proof/02_instance_id.png
+          test -s ci-room-proof/render-proof.json
+          test -s ci-room-proof/candidate_front_wide.png
+          test -s ci-room-proof/source-pbr-direct-render.json
+          test -s Refernzbild.png
+          cp Refernzbild.png ci-room-proof/Refernzbild.png
+          printf '%s\n' "head_sha=${CELINE_PROOF_HEAD_SHA}" > ci-room-proof/metadata.txt
+          printf '%s\n' 'source_commit=df50816187978cbf5faf818ad484c3f682be7588' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'dimensions_user_m=4.40x4.20x2.65' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'unique_glbs=12' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'instances=13' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'root=room_world_root' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'checkpoint=direct_canonical_source_pbr_pre_reduction_pre_export_neutral_no_shadow' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_structural_witness_run=449' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_structural_witness_head=2a6f449e5cc284857b0c6d30bd978cd09f2da772' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'reduction_applied=false' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'derived_glb_exported=false' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'blend_reload_used=false' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'source_glbs_mutated=false' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'proof_time_neutral_lighting_only=true' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'proof_time_light_shadows=false' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'proof_time_render_samples=16' >> ci-room-proof/metadata.txt
+          printf '%s\n' 'structural_render_pass_does_not_imply_visual_acceptance=true' >> ci-room-proof/metadata.txt
+          sha256sum Refernzbild.png >> ci-room-proof/metadata.txt
+
+      - name: Upload deterministic Blender proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-440x420-blender-proof
+          path: ci-room-proof/
+          if-no-files-found: warn
+          retention-days: 30

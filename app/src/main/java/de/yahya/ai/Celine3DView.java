@@ -52,7 +52,20 @@ public final class Celine3DView extends FrameLayout {
     private static final float CAMERA_PAN_X_MAX = 2.50f;
     private static final float CAMERA_PAN_Y_MAX = 2.00f;
     private static final float CAMERA_ZOOM_MIN = 0.55f;
-    private static final float CAMERA_ZOOM_MAX = 2.20f;
+    private static final float CAMERA_ZOOM_MAX = 4.60f;
+
+    // Exact Proof #63 camera, converted from user/Blender coordinates into the runtime room world:
+    // user X -> -Filament X, user height + roomY(-1.55), user depth + roomZ(-4.0).
+    // The renderer owns the final pre-render camera write, so these values deliberately override
+    // the stale v25/v44 projection callbacks immediately before every real Filament frame.
+    private static final double REFERENCE_FOCAL_LENGTH_MM = 20.846875;
+    private static final double REFERENCE_EYE_X = -0.380078125;
+    private static final double REFERENCE_EYE_Y = -0.3265625;
+    private static final double REFERENCE_EYE_Z = -1.1265625;
+    private static final double REFERENCE_TARGET_X = -0.0565625;
+    private static final double REFERENCE_TARGET_Y = -1.10;
+    private static final double REFERENCE_TARGET_Z = -4.30;
+    private static final float CALL_REFERENCE_BASE_ZOOM = 0.70f;
 
     static { Gltfio.init(); }
 
@@ -205,6 +218,8 @@ public final class Celine3DView extends FrameLayout {
                 .build(engine);
         scene.setSkybox(skybox);
 
+        // Room work is frozen. Restore the illumination under which Celine's accepted v79
+        // appearance was visually approved, instead of tinting the shared renderer for a room.
         indirectLight = new IndirectLight.Builder()
                 .irradiance(1, new float[]{1.0f, 0.98f, 0.96f})
                 .intensity(7000.0f)
@@ -241,7 +256,8 @@ public final class Celine3DView extends FrameLayout {
         resourceLoader.loadResources(asset);
         Celine3DDiagnostics.record(appContext, "REN-312", "GLB Ressourcen geladen", "loadResources OK");
         tameMeshyMaterials();
-        Celine3DDiagnostics.record(appContext, "REN-313", "Runtime-Materialwerte gesetzt", "PBR repair angewendet");
+        Celine3DDiagnostics.record(appContext, "REN-313", "Runtime-Materialwerte gesetzt",
+                "akzeptierte v79 PBR-Normalisierung angewendet");
         asset.releaseSourceData();
 
         normalizeAsset(asset);
@@ -346,57 +362,40 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private void updateCameraPresence(long frameTimeNanos) {
-        double t = frameTimeNanos * 1.0e-9;
-        float amplitude;
-        float speed;
-        float breathDepth;
-        switch (avatarState) {
-            case LISTENING:
-                amplitude = 0.0055f;
-                speed = 0.46f;
-                breathDepth = 0.0035f;
-                break;
-            case THINKING:
-                amplitude = 0.0140f;
-                speed = 0.32f;
-                breathDepth = 0.0045f;
-                break;
-            case SPEAKING:
-                amplitude = 0.0090f + 0.0040f * clamp(speechEnergy, 0.0f, 1.0f);
-                speed = 0.62f;
-                breathDepth = 0.0045f + 0.0025f * clamp(speechEnergy, 0.0f, 1.0f);
-                break;
-            case IDLE:
-            default:
-                amplitude = 0.0080f;
-                speed = 0.40f;
-                breathDepth = 0.0060f;
-                break;
-        }
-        float side = (float) Math.sin(t * speed) * amplitude;
-        float lift = (float) Math.sin(t * (speed * 0.73f) + 1.1) * amplitude * 0.32f;
-        float breath = (float) Math.sin(t * 1.45 + 0.35);
-        float depth = breath * breathDepth;
-        float breathLift = breath * breathDepth * 0.30f;
-        float microTargetX = side * 0.22f;
-        float microTargetY = lift * 0.18f + breathLift * 0.12f;
-        float distance = CAMERA_BASE_DISTANCE / cameraZoom;
+        int width = Math.max(1, getWidth());
+        int height = Math.max(1, getHeight());
+        camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,
+                (double) width / (double) height, 0.05, 1000.0);
+
+        boolean callStage = CelineCallUpperBodyPresenceV55.isCallStage(this);
+        float baseZoom = callStage ? CALL_REFERENCE_BASE_ZOOM : 1.0f;
+        float normalizedZoom = Math.max(0.10f, cameraZoom / baseZoom);
+        double inverseZoom = 1.0 / normalizedZoom;
+        double panX = cameraPanX * 0.28;
+        double panY = cameraPanY * 0.28;
 
         if (diagnosticCameraOrbitEnabled) {
-            float yawRad = (float) Math.toRadians(diagnosticCameraOrbitYawDeg);
-            float eyeX = (float) Math.sin(yawRad) * distance + side;
-            float eyeY = cameraPanY + lift + breathLift;
-            float eyeZ = CAMERA_TARGET_Z + (float) Math.cos(yawRad) * distance + depth;
-            camera.lookAt(eyeX, eyeY, eyeZ, 0.0, cameraPanY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
+            double dx = REFERENCE_EYE_X - REFERENCE_TARGET_X;
+            double dz = REFERENCE_EYE_Z - REFERENCE_TARGET_Z;
+            double radius = Math.sqrt(dx * dx + dz * dz) * inverseZoom;
+            double yawRad = Math.toRadians(diagnosticCameraOrbitYawDeg);
+            double targetX = REFERENCE_TARGET_X + panX;
+            double targetY = REFERENCE_TARGET_Y + panY;
+            double targetZ = REFERENCE_TARGET_Z;
+            double eyeX = targetX + Math.sin(yawRad) * radius;
+            double eyeY = targetY + (REFERENCE_EYE_Y - REFERENCE_TARGET_Y) * inverseZoom;
+            double eyeZ = targetZ + Math.cos(yawRad) * radius;
+            camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ, 0.0, 1.0, 0.0);
             return;
         }
 
-        float eyeX = side + cameraPanX * 0.28f;
-        float eyeY = lift + breathLift + cameraPanY * 0.28f;
-        float eyeZ = CAMERA_TARGET_Z + distance + depth;
-        float targetX = cameraPanX + microTargetX;
-        float targetY = cameraPanY + microTargetY;
-        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
+        double targetX = REFERENCE_TARGET_X + panX;
+        double targetY = REFERENCE_TARGET_Y + panY;
+        double targetZ = REFERENCE_TARGET_Z;
+        double eyeX = targetX + (REFERENCE_EYE_X - REFERENCE_TARGET_X) * inverseZoom;
+        double eyeY = targetY + (REFERENCE_EYE_Y - REFERENCE_TARGET_Y) * inverseZoom;
+        double eyeZ = targetZ + (REFERENCE_EYE_Z - REFERENCE_TARGET_Z) * inverseZoom;
+        camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ, 0.0, 1.0, 0.0);
     }
 
     void v79SetDiagnosticCameraOrbit(float yawDeg) {
@@ -404,7 +403,8 @@ public final class Celine3DView extends FrameLayout {
         diagnosticCameraOrbitEnabled = true;
         cameraPanX = 0.0f;
         Celine3DDiagnostics.record(appContext, "V79-540", "Avatar Lab echter Kamera-Orbit aktiv",
-                "yaw=" + diagnosticCameraOrbitYawDeg + " target=0," + cameraPanY + "," + CAMERA_TARGET_Z + " rootScaleChanged=false");
+                "yaw=" + diagnosticCameraOrbitYawDeg + " target=" + REFERENCE_TARGET_X + "," +
+                        REFERENCE_TARGET_Y + "," + REFERENCE_TARGET_Z + " rootScaleChanged=false");
     }
 
     void v79ClearDiagnosticCameraOrbit() {
@@ -418,55 +418,16 @@ public final class Celine3DView extends FrameLayout {
         cameraZoom = 1.0f;
         diagnosticCameraOrbitEnabled = false;
         diagnosticCameraOrbitYawDeg = 0.0f;
-        camera.lookAt(0.0, 0.0, 1.0, 0.0, 0.0, CAMERA_TARGET_Z, 0.0, 1.0, 0.0);
-        Celine3DDiagnostics.record(appContext, "V60-122", "Kamera auf sicheren Default zurückgesetzt",
-                "pan=0,0 zoom=1 targetZ=" + CAMERA_TARGET_Z);
+        camera.lookAt(REFERENCE_EYE_X, REFERENCE_EYE_Y, REFERENCE_EYE_Z,
+                REFERENCE_TARGET_X, REFERENCE_TARGET_Y, REFERENCE_TARGET_Z,
+                0.0, 1.0, 0.0);
+        Celine3DDiagnostics.record(appContext, "V60-122", "Kamera auf Referenz-Default zurückgesetzt",
+                "pan=0,0 zoom=1 lens=" + REFERENCE_FOCAL_LENGTH_MM
+                        + " target=" + REFERENCE_TARGET_X + "," + REFERENCE_TARGET_Y + "," + REFERENCE_TARGET_Z);
     }
 
     private void updateLivePose(long frameTimeNanos) {
-        if (headBone == null && neckBone == null && spineBone == null && spine01Bone == null && spine02Bone == null) return;
-
-        double t = frameTimeNanos * 1.0e-9;
-        float breath = (float) Math.sin(t * 1.45);
-        float slowSway = (float) Math.sin(t * 0.58);
-        float micro = (float) Math.sin(t * 0.91 + 0.7);
-        float speech = clamp(speechEnergy, 0.0f, 1.0f);
-        float speakingNod = avatarState == CelineAvatarController.State.SPEAKING
-                ? (float) Math.sin(t * 5.7) * (0.8f + 1.8f * speech)
-                : 0.0f;
-        float listeningTilt = avatarState == CelineAvatarController.State.LISTENING ? 1.2f : 0.0f;
-
-        float targetYaw = lookActive ? clamp(lookX, -1.0f, 1.0f) * 7.0f : slowSway * 1.3f;
-        float targetPitch = lookActive ? clamp(-lookY, -1.0f, 1.0f) * 4.5f : breath * 0.65f;
-
-        try {
-            transformManager.openLocalTransformTransaction();
-            applyBone(spineBone, 0.25f * breath, 0.0f, 0.45f * slowSway);
-            applyBone(spine01Bone, 0.45f * breath, 0.0f, 0.65f * slowSway);
-            applyBone(spine02Bone, 0.55f * breath, 0.15f * micro, 0.75f * slowSway);
-            applyBone(neckBone,
-                    targetPitch * 0.35f + speakingNod * 0.20f,
-                    targetYaw * 0.45f,
-                    -0.45f * slowSway + listeningTilt * 0.35f);
-            applyBone(headBone,
-                    targetPitch + speakingNod,
-                    targetYaw,
-                    -0.85f * slowSway + listeningTilt);
-        } finally {
-            transformManager.commitLocalTransformTransaction();
-        }
-    }
-
-    private void applyBone(BonePose bone, float pitchDeg, float yawDeg, float rollDeg) {
-        if (bone == null) return;
-        float[] delta = new float[16];
-        float[] out = new float[16];
-        Matrix.setIdentityM(delta, 0);
-        if (yawDeg != 0.0f) Matrix.rotateM(delta, 0, yawDeg, 0.0f, 1.0f, 0.0f);
-        if (pitchDeg != 0.0f) Matrix.rotateM(delta, 0, pitchDeg, 1.0f, 0.0f, 0.0f);
-        if (rollDeg != 0.0f) Matrix.rotateM(delta, 0, rollDeg, 0.0f, 0.0f, 1.0f);
-        Matrix.multiplyMM(out, 0, bone.base, 0, delta, 0);
-        transformManager.setTransform(bone.instance, out);
+        CelineProductionPresenceV80.onFrame(this, frameTimeNanos);
     }
 
     private static float clamp(float value, float min, float max) {
@@ -500,9 +461,11 @@ public final class Celine3DView extends FrameLayout {
     private void resizeViewport(int width, int height) {
         if (width <= 0 || height <= 0) return;
         filamentView.setViewport(new Viewport(0, 0, width, height));
-        camera.setLensProjection(32.0, (double) width / (double) height, 0.05, 1000.0);
+        camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,
+                (double) width / (double) height, 0.05, 1000.0);
         updateCameraPresence(System.nanoTime());
-        Celine3DDiagnostics.record(appContext, "REN-324", "Viewport gesetzt", width + "x" + height + " · v60 bounded camera retained");
+        Celine3DDiagnostics.record(appContext, "REN-324", "Viewport gesetzt",
+                width + "x" + height + " · Proof#63 Referenzkamera lens=" + REFERENCE_FOCAL_LENGTH_MM);
     }
 
     private boolean isSurfaceReady() {

@@ -1,0 +1,176 @@
+name: Celine 9R.5 Lamp Proof
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [edited]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-9r5-lamp-proof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lamp-proof:
+    if: contains(github.event.pull_request.body, '[run-lamp-proof:9r5]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Locate exact runtime-fingerprint Android Build artifact
+        id: source
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: bash ci/celine-find-runtime-apk.sh
+
+      - name: Download runtime-equivalent APK only
+        if: steps.source.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle for exact-head APK fallback
+        if: steps.source.outcome == 'failure'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.5.1'
+
+      - name: Build exact proof-head APK fallback
+        if: steps.source.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+            SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          [ -x "$SDKMANAGER" ] || { echo "sdkmanager not found"; exit 1; }
+          "$SDKMANAGER" "platforms;android-30" "build-tools;30.0.3"
+          bash VERIFY_PROJECT.sh
+          gradle wrapper --gradle-version 7.5.1
+          ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee lamp-fallback-build.log
+          test -f app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p ci-apk
+          cp app/build/outputs/apk/debug/app-debug.apk ci-apk/app-debug.apk
+
+      - name: Verify and record exact Lamp APK provenance
+        env:
+          FINDER_FP: ${{ steps.source.outputs.runtime_fingerprint }}
+          FINDER_OUTCOME: ${{ steps.source.outcome }}
+          SOURCE_RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ci-apk/app-debug.apk
+          PROOF_HEAD="$(git rev-parse HEAD)"
+          CURRENT_FP="$(bash ci/celine-runtime-fingerprint.sh HEAD)"
+          APK_SHA="$(sha256sum ci-apk/app-debug.apk | awk '{print $1}')"
+          if [ "$FINDER_OUTCOME" = "success" ]; then
+            [ -n "$FINDER_FP" ] && [ "$FINDER_FP" = "$CURRENT_FP" ] || {
+              echo "Finder/runtime fingerprint mismatch: finder=${FINDER_FP:-missing} current=$CURRENT_FP" >&2
+              exit 1
+            }
+            SOURCE_KIND="android-build-artifact"
+          else
+            SOURCE_KIND="exact-proof-head-fallback-build"
+            SOURCE_RUN_ID=""
+            SOURCE_SHA="$PROOF_HEAD"
+          fi
+          printf '%s  %s\n' "$APK_SHA" 'ci-apk/app-debug.apk' | tee lamp-apk.sha256
+          echo "runtime_fingerprint=$CURRENT_FP" | tee lamp-runtime-fingerprint.txt
+          {
+            echo "source=$SOURCE_KIND"
+            echo "proof_head=$PROOF_HEAD"
+            echo "source_sha=${SOURCE_SHA:-$PROOF_HEAD}"
+            echo "source_run_id=${SOURCE_RUN_ID:-none}"
+            echo "runtime_fingerprint=$CURRENT_FP"
+            echo "apk_sha256=$APK_SHA"
+          } | tee lamp-apk-source.txt
+
+      - name: Enable KVM permissions
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Capture targeted 9R.5 Lamp evidence
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 840s bash ci/celine-9r5-lamp-proof.sh ci-apk/app-debug.apk lamp-proof
+
+      - name: Fail-closed 9R.5 Lamp evidence preflight
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s lamp-proof/210-9r5-lamp-camera-talk-start.png
+          test -s lamp-proof/212-9r5-lamp-on-arrived.png
+          test -s lamp-proof/216-9r5-lamp-on-look-stable.png
+          test -s lamp-proof/217-9r5-lamp-user-reacquire.png
+          test -s lamp-proof/220-9r5-lamp-first-walk-away-transition.png
+          test -s lamp-proof/220-9r5-lamp-first-walk-away-arrived.png
+          test -s lamp-proof/222-9r5-lamp-off-arrived.png
+          test -s lamp-proof/224-9r5-lamp-off-stable.png
+          test -s lamp-proof/226-9r5-lamp-final-walk-away-transition.png
+          test -s lamp-proof/226-9r5-lamp-final-walk-away-arrived.png
+          test -s lamp-proof/232-9r5-lamp-camera-talk-final.png
+          grep -Fq 'PASS 9R.5 lamp technical gate' lamp-proof/9r5-lamp-summary.txt
+          grep -Fq 'LAMP_ROOT=x_plus_0_10_authored_depth' lamp-proof/9r5-lamp-summary.txt
+          grep -Fq 'LAMP_LIGHT=floor_lamp_light' lamp-proof/9r5-lamp-summary.txt
+          grep -Fq 'LAMP_ON_OFF=reversible_two_deliberate_visits' lamp-proof/9r5-lamp-summary.txt
+          grep -Fq 'HAND_CONTACT=false' lamp-proof/9r5-lamp-summary.txt
+          grep -Fq 'TELEPORT=false' lamp-proof/9r5-lamp-summary.txt
+          grep -Fq 'enabled=true lightEntity=floor_lamp_light' lamp-proof/9r5-lamp-runtime-log.txt
+          grep -Fq 'enabled=false lightEntity=floor_lamp_light' lamp-proof/9r5-lamp-runtime-log.txt
+          grep -Fq 'pose=LAMP_INTERACT' lamp-proof/9r5-lamp-runtime-log.txt
+          grep -Fq 'V80-477' lamp-proof/9r5-lamp-runtime-log.txt
+
+      - name: Upload lightweight Lamp evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lamp-proof-${{ github.event.pull_request.head.sha }}
+          path: |
+            lamp-proof/
+            lamp-apk.sha256
+            lamp-runtime-fingerprint.txt
+            lamp-apk-source.txt
+            lamp-fallback-build.log
+          if-no-files-found: warn

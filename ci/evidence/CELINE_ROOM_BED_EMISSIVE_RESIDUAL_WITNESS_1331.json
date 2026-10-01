@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "workstream": "ROOM_SCENE",
+  "scope": "read-only residual causal witness after accepted bed emissive Proof #1331",
+  "reference_authority": "/Refernzbild.png",
+  "accepted_workstream_head_before_witness": "c781757fe0aaeaced3d0bef4cf63660ee7245a00",
+  "accepted_runtime_code_head": "d6ba2e15bc2d14cd9873318753639b9c80d73983",
+  "accepted_runtime_fingerprint": "662927ec78367414ef05f03419f2d02d66fdeeec5b63ba7f1924db41b68b9121",
+  "accepted_proof": {
+    "number": 1331,
+    "run": 34115586149,
+    "artifact_id": 10016290262,
+    "bed_emissive_rgb": [0.21, 0.18, 0.12],
+    "duvet_median_srgb": [91, 69, 45],
+    "headboard_median_srgb": [96, 75, 51],
+    "duvet_reference_srgb": [115, 77, 47],
+    "headboard_reference_srgb": [139, 96, 54],
+    "duvet_mean_abs_channel_error": 11.3333333333,
+    "headboard_mean_abs_channel_error": 22.3333333333,
+    "manual_result": "PASS_BOUNDED_STEP__NOT_FINAL_ROOM_ACCEPTANCE"
+  },
+  "priority_selection": {
+    "geometry_scoreboard_total_unchanged": 0.004543166956175412,
+    "excluded_stop_loss_families": [
+      "derived/procedural foreground foliage",
+      "plant transform families",
+      "smooth/derived rug families",
+      "above-one bed baseColorFactor"
+    ],
+    "largest_currently_quantified_reliable_non_stop_loss_appearance_delta": "room_bed headboard semantic ROI",
+    "headboard_error": 22.3333333333,
+    "duvet_error": 11.3333333333,
+    "reason": "Among the currently committed reference-linked room-only appearance metrics that remain causally actionable, the headboard has the larger residual error. This witness does not claim that unmeasured surfaces are smaller; it deliberately avoids inventing a ranking without reference-linked measurements."
+  },
+  "measured_response_from_previous_accepted_step": {
+    "emissive_before_rgb": [0.16, 0.14, 0.12],
+    "emissive_after_rgb": [0.21, 0.18, 0.12],
+    "emissive_delta_rgb": [0.05, 0.04, 0.0],
+    "duvet_raster_delta_rgb": [13, 10, 0],
+    "headboard_raster_delta_rgb": [13, 10, 0],
+    "local_red_response_srgb_per_emissive_unit": 260.0,
+    "local_green_response_srgb_per_emissive_unit": 250.0,
+    "blue_response": "not re-estimated because blue was intentionally held fixed",
+    "observation": "Both independent semantic ROIs again responded identically in red and green, strengthening the causal local-response estimate for one more smaller bounded residual step."
+  },
+  "residual_analysis": {
+    "duvet_target_minus_current_rgb": [24, 8, 2],
+    "headboard_target_minus_current_rgb": [43, 21, 3],
+    "conclusion": "The largest reliable residual remains red, especially on the headboard. Green also remains low; blue is already within 2-3 sRGB of reference and should remain fixed. A smaller red/green-only step is preferable to an equal-channel or stronger broad emissive increase."
+  },
+  "next_bounded_candidate_prediction": {
+    "strategy": "ROOM_BED_LOCAL_EMISSIVE_RESIDUAL_CHANNEL_WEIGHTED_STEP_2",
+    "change_only": "CelineRoomReferenceLightingV80 BED_EMISSIVE_RED/GREEN/BLUE",
+    "candidate_bed_emissive_rgb": [0.245, 0.20, 0.12],
+    "increment_from_accepted_rgb": [0.035, 0.02, 0.0],
+    "prediction_method": "local linear projection from the measured exact-CALL #1326 -> #1331 accepted red/green response; blue held fixed because both semantic ROIs are already within 2-3 sRGB of reference blue",
+    "predicted_duvet_median_srgb": [100.1, 74.0, 45.0],
+    "predicted_duvet_mean_abs_channel_error": 6.6333333333,
+    "predicted_duvet_improvement_percent_vs_1331": 41.4705882353,
+    "predicted_headboard_median_srgb": [105.1, 80.0, 51.0],
+    "predicted_headboard_mean_abs_channel_error": 17.6333333333,
+    "predicted_headboard_improvement_percent_vs_1331": 21.0447761194,
+    "prediction_clears_20_percent_gate_for_both_rois": true
+  },
+  "runtime_acceptance_rule": {
+    "must_use_exact_candidate_apk": true,
+    "must_open_actual_call": true,
+    "duvet_actual_error_improvement_percent_min": 20.0,
+    "headboard_actual_error_improvement_percent_min": 20.0,
+    "manual_visual_agreement_required": true,
+    "reject_if": [
+      "either semantic ROI misses the 20% improvement gate versus accepted Proof #1331",
+      "fabric texture/detail visibly washes out",
+      "bed reads self-lit or detached from room shading",
+      "blue materially overshoots despite remaining fixed",
+      "HOME -> CALL -> HOME-return lifecycle regresses",
+      "adjacent room composition or Celine changes"
+    ],
+    "on_reject": "revert this exact candidate and STOP_LOSS the further bed-local channel-weighted residual emissive strategy; return to a newly measured different room-only appearance cause"
+  },
+  "evidence_limit": {
+    "statement": "This is a docs/measurement-only causal witness, not visual acceptance. It reuses the already committed /Refernzbild.png semantic ROI medians from the accepted #1326/#1331 proof chain and the exact #1331 CALL raster response. A runtime candidate still requires one exact APK proof and manual visual inspection."
+  },
+  "protected_unchanged": [
+    "12 original furniture GLB/source-texture bytes",
+    "all accepted furniture TRS",
+    "room shell",
+    "camera/FOV",
+    "global renderer key/fill/practical lighting",
+    "Celine identity/rig/materials",
+    "anchors/navigation/actions",
+    "Core/Persona workstream paths"
+  ],
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. If this witness remains current and no competing room writer owns CelineRoomReferenceLightingV80.java, apply exactly one runtime-only room-bed emissive residual step from [0.21,0.18,0.12] to [0.245,0.20,0.12]; run exactly one necessary Android Build and one smallest real HOME -> CALL -> HOME-return proof; measure the committed duvet/headboard ROIs and manually inspect actual CALL. Keep only if both errors improve >=20% versus Proof #1331 and texture/naturalness remain intact."
+}

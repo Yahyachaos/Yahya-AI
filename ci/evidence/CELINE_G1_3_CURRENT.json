@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "block": "G1.3 Knowledge graph + Goal/Task graph + persistent working state",
+  "status": "COMPLETE_BUILT",
+  "runtime_head": "0307421a6ff9679def23c8013d021a75f51dd535",
+  "core_head": "dbd8aa0592b530f47ac40ca97de561aab0d078d4",
+  "runtime_fingerprint": "4ba38982c402a6ff3b3e9c8a0a09de45674219db86f2a4e8d9c9198217ae6204",
+  "android_build": {
+    "run_number": 1070,
+    "run_id": 33658227649,
+    "conclusion": "success",
+    "apk_artifact_id": 9857682824,
+    "apk_artifact_digest": "sha256:bbe171e55a9755975db68c6daccdb2a6baf407d153b3c4b1df5eea62da21c6ec",
+    "runtime_fingerprint_artifact_id": 9857683557,
+    "runtime_fingerprint_artifact_digest": "sha256:d26bcba0eba1c7bd1056d7a195df7d1a56500fa74683e1f78035430c1235827d"
+  },
+  "owners": {
+    "goal_task_graph": "app/src/main/java/de/yahya/ai/CelineGoalTaskGraph.java",
+    "android_runtime_bridge": "app/src/main/java/de/yahya/ai/CelineGoalTaskRuntime.java",
+    "structured_memory": "app/src/main/java/de/yahya/ai/CelineStructuredMemory.java"
+  },
+  "tests": [
+    "ci/celine_g1_goal_task_state_test.py",
+    "ci/celine_g1_goal_task_live_test.py"
+  ],
+  "verified": {
+    "stable_goal_task_ids": true,
+    "parent_dependency_links": true,
+    "restart_resume": true,
+    "active_goal_selection": true,
+    "last_confirmed_step_blocker_next_action": true,
+    "completion_evidence": true,
+    "minimal_entity_links": true,
+    "live_submit_goal_capture": true,
+    "continuation_same_task": true,
+    "correction_same_task": true,
+    "unrelated_context_excluded": true,
+    "provider_independent_persistence": true,
+    "hidden_reasoning_persisted": false
+  },
+  "validation": {
+    "verify_project": "PASS",
+    "celine_g1_brain_contract": "PASS",
+    "celine_g1_structured_memory_contract": "PASS",
+    "celine_g1_structured_memory_live_contract": "PASS",
+    "celine_g1_goal_task_state": "PASS",
+    "celine_g1_goal_task_live_contract": "PASS",
+    "gradle_assemble_debug": "PASS",
+    "visual_proof_required": false
+  },
+  "notes": "The earlier bc5f018 live approach incorrectly attempted normal-goal capture through rememberExplicit(), which only receives explicit memory phrases. Runtime head 0307421 fixes this by observing non-local user submits through a dedicated Goal/Task runtime bridge while keeping long-term memory and working state separate."
+}

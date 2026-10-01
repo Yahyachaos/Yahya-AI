@@ -1,0 +1,114 @@
+{
+  "schema": "celine-room-material-proof/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "accepted_geometry_scoreboard": "ci/evidence/CELINE_ROOM_PROGRESS_SCOREBOARD_1314_EXPANDED.json",
+    "accepted_geometry_baseline_total_score": 0.004543166956175412,
+    "material_candidate_does_not_change_geometry": true,
+    "accepted_material_baseline": "ci/evidence/CELINE_ROOM_BED_EMISSIVE_RESIDUAL_PROOF_1331.json",
+    "causal_witness": "ci/evidence/CELINE_ROOM_BED_EMISSIVE_RESIDUAL_WITNESS_1331.json"
+  },
+  "candidate": {
+    "runtime_code_head": "8e06125b7eac308679990490a23363e09e98748a",
+    "runtime_fingerprint": "eba41c1ffd26a3a26b2eaae9c48f9a9d809050b07383e2f34ed9122806aaacb2",
+    "bed_emissive_rgb": [0.245, 0.20, 0.12],
+    "android_build_run": 34123098995,
+    "android_build_number": 1385,
+    "android_build_conclusion": "SUCCESS",
+    "real_candidate_run": 34123445920,
+    "real_candidate_number": 1336,
+    "real_candidate_attempt": 2,
+    "artifact_id": 10019982140,
+    "artifact_sha256": "96dc05d3f69f5895a0b5e385619cd22c1996f6d1fbc653e5cff0006a717d10c9",
+    "apk_sha256": "8a5c82705b596b767fca38075c4a41d36ad4923cc1d04e8d72d1d6e91669029e"
+  },
+  "capture": {
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "pid_home": 2152,
+    "pid_call": 2152,
+    "pid_return": 2152,
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION",
+    "orthogonal_failure": "head-and-shoulders checkpoint is not closer than normal CALL: 1.000",
+    "room_proof_usable": true,
+    "proof_log_observations": [
+      "attempt 1 was cancelled before a complete usable proof; attempt 2 re-ran the exact cancelled job on the same exact candidate head and APK",
+      "actual CALL opened and produced a valid nonblank room render",
+      "HOME, CALL and HOME-return retained the same process PID 2152",
+      "the room-relevant lifecycle/render path passed before the protected legacy CALL zoom assertion failed",
+      "no second competing room proof was started"
+    ]
+  },
+  "semantic_roi_contract": {
+    "stage_origin_in_full_screenshot_px": {"x": 32, "y": 466},
+    "stage_size_px": {"width": 1016, "height": 813},
+    "duvet_stage_roi_px": {"left": 640, "top": 400, "right": 760, "bottom": 500},
+    "headboard_stage_roi_px": {"left": 800, "top": 265, "right": 930, "bottom": 320}
+  },
+  "semantic_roi_results": {
+    "duvet": {
+      "baseline_1331_median_srgb": [91, 69, 45],
+      "candidate_median_srgb": [100, 74, 45],
+      "reference_median_srgb": [115, 77, 47],
+      "baseline_mean_abs_channel_error": 11.3333333333,
+      "candidate_mean_abs_channel_error": 6.6666666667,
+      "improvement_fraction": 0.4117647059,
+      "improvement_percent": 41.17647059,
+      "required_improvement_fraction": 0.20,
+      "gate": "PASS"
+    },
+    "headboard": {
+      "baseline_1331_median_srgb": [96, 75, 51],
+      "candidate_median_srgb": [105, 80, 51],
+      "reference_median_srgb": [139, 96, 54],
+      "baseline_mean_abs_channel_error": 22.3333333333,
+      "candidate_mean_abs_channel_error": 17.6666666667,
+      "improvement_fraction": 0.2089552239,
+      "improvement_percent": 20.89552239,
+      "required_improvement_fraction": 0.20,
+      "gate": "PASS"
+    }
+  },
+  "prediction_check": {
+    "duvet_predicted_median_srgb": [100.1, 74.0, 45.0],
+    "duvet_actual_median_srgb": [100, 74, 45],
+    "headboard_predicted_median_srgb": [105.1, 80.0, 51.0],
+    "headboard_actual_median_srgb": [105, 80, 51],
+    "verdict": "MEASURED_RESPONSE_MATCHES_CAUSAL_WITNESS_CLOSELY"
+  },
+  "manual_visual": {
+    "verdict": "PASS_BOUNDED_STEP",
+    "observations": [
+      "actual CALL bed is visibly lighter and warmer than accepted Proof #1331 while preserving the same room composition",
+      "duvet and headboard texture/detail remain visible in the committed semantic ROIs; no clipping or washout is visible",
+      "the bed remains shaded by the room and does not read as a detached self-lit object",
+      "blue remained fixed and measured blue stays 45/51 versus reference 47/54",
+      "Celine remains present and HOME -> CALL -> HOME-return passes in one process",
+      "the step is accepted as bounded material progress, not final room acceptance"
+    ]
+  },
+  "decision": "ACCEPT__BOTH_ROI_ERRORS_IMPROVE_AT_LEAST_20_PERCENT_AND_MANUAL_VISUAL_AGREES",
+  "strategy_status": "ROOM_BED_LOCAL_EMISSIVE_RESIDUAL_CHANNEL_WEIGHTED_STEP_2_ACCEPTED__DO_NOT_STACK_ANOTHER_STEP_WITHOUT_NEW_CAUSAL_WITNESS",
+  "protected_state": {
+    "source_glb_bytes_changed": false,
+    "bed_trs_changed": false,
+    "base_color_texture_changed": false,
+    "metallic_roughness_texture_changed": false,
+    "normal_texture_changed": false,
+    "room_shell_changed": false,
+    "global_renderer_light_changed": false,
+    "camera_fov_changed": false,
+    "celine_identity_or_rig_changed": false,
+    "anchors_navigation_changed": false,
+    "core_persona_paths_changed": false
+  },
+  "geometry_scoreboard": {
+    "required_for_this_material_only_candidate": false,
+    "accepted_total_score_remains": 0.004543166956175412,
+    "decision": "UNCHANGED_MATERIAL_ONLY",
+    "reason": "candidate changes bed-local emissive constants only and does not change geometry/layout/camera"
+  },
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. Keep runtime-code head 8e06125b7eac308679990490a23363e09e98748a as the newly accepted room-bed material behavior. Before any further runtime build, create one read-only causal witness for a different largest reliable non-STOP-LOSS room-only appearance delta against /Refernzbild.png; do not stack another bed emissive step without a new measured prediction, do not reopen stopped foliage/plant/rug or above-one bed-baseColor families, and do not touch global renderer lighting, Celine, Core/Persona, anchors/navigation, merge or release."
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "celine-room-material-proof/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "baseline_proof": 1285,
+    "candidate_proof": 1320,
+    "baseline_runtime_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6"
+  },
+  "candidate": {
+    "head": "d87d0fadb12fe1b08f194a6d89e24850c8a5669d",
+    "android_build_run": 34110329519,
+    "real_candidate_run": 34110694191,
+    "runtime_fingerprint": "6047c6e9402d916e61f5edec18ce35ed275b801bdc80b57231885fd38c6918b3",
+    "apk_sha256": "83481d147bd8631da8c14b436e2a9ba40c655a72ade5bedeccc08236385432bf",
+    "room_bed_base_color_factor_linear": [1.722159, 1.525363, 1.239566, 1.0]
+  },
+  "capture": {
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION",
+    "diagnostic_owner_executed": true,
+    "diagnostic": "ROOM-154"
+  },
+  "semantic_roi_results": {
+    "duvet": {
+      "baseline_median_srgb": [68, 50, 37],
+      "candidate_median_srgb": [68, 50, 37],
+      "reference_median_srgb": [115, 77, 47],
+      "baseline_mean_abs_channel_error": 28.0,
+      "candidate_mean_abs_channel_error": 28.0,
+      "improvement_fraction": 0.0,
+      "required_improvement_fraction": 0.20
+    },
+    "headboard": {
+      "baseline_median_srgb": [73, 56, 43],
+      "candidate_median_srgb": [73, 56, 43],
+      "reference_median_srgb": [139, 96, 54],
+      "baseline_mean_abs_channel_error": 39.0,
+      "candidate_mean_abs_channel_error": 39.0,
+      "improvement_fraction": 0.0,
+      "required_improvement_fraction": 0.20
+    }
+  },
+  "manual_visual": "FAIL__actual CALL bed is indistinguishable from the accepted baseline in the committed duvet/headboard witnesses; no material warming/lightening is visible",
+  "empirical_cause": "The room_bed material owner executed on the exact candidate runtime, but applying baseColorFactor components above 1.0 produced zero measured raster response in both independent semantic ROIs. This proves the above-one baseColorFactor brightening strategy is ineffective in the current bed material/shader path; it does not by itself prove which internal clamp or shader operation causes the no-op.",
+  "decision": "REJECT__0_PERCENT_ROI_IMPROVEMENT_BELOW_20_PERCENT_GATE",
+  "strategy_status": "STOP_LOSS__ROOM_BED_BASE_COLOR_FACTOR_BRIGHTENING_ABOVE_ONE",
+  "protected_state": {
+    "source_glb_bytes_changed": false,
+    "bed_trs_changed": false,
+    "bed_texture_binding_accepted_change": false,
+    "roughness_normal_ao_accepted_change": false,
+    "room_shell_changed": false,
+    "global_renderer_light_changed": false,
+    "camera_fov_changed": false,
+    "celine_identity_or_rig_changed": false,
+    "anchors_navigation_changed": false,
+    "core_persona_paths_changed": false
+  },
+  "next_rule": "Restore the exact accepted runtime. Do not retry a larger baseColorFactor. Before another build, root-cause a materially different room-only appearance path with a read-only witness that preserves source textures/detail and does not touch global lighting or Celine."
+}
