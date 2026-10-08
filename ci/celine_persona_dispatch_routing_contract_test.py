@@ -2,7 +2,7 @@
 """Deterministic command-consumption routing contract for the Celine persona seam.
 
 The canonical commands and expected states come from the existing issue #112
-acceptance vector file. This test adds no Android/runtime wiring. It proves the
+dispatch acceptance vector file. This test adds no Android/runtime wiring. It proves the
 integration invariant that the existing submit flow continues exactly when the
 persona parser did not consume the direct-user command.
 """
@@ -17,19 +17,19 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MODE_SOURCE = ROOT / "ci/prototypes/CelinePersonaMode.java"
-CASES = ROOT / "ci/evidence/CELINE_ADULT_PERSONA_ACCEPTANCE_CASES.json"
+CASES = ROOT / "ci/evidence/CELINE_ADULT_PERSONA_DISPATCH_ACCEPTANCE.json"
+EXPECTED_SCHEMA = "celine-adult-persona-dispatch-acceptance/v1"
 
 REQUIRED_CASE_IDS = {
-    "activate-default",
-    "activate-intensity-1",
-    "activate-intensity-2",
-    "activate-intensity-3",
-    "deactivate-codeword",
-    "deactivate-normal-mode",
-    "no-substring-activation",
-    "no-quoted-activation",
-    "reject-high-intensity",
-    "reject-malformed-intensity",
+    "activate-default-short-circuits",
+    "activate-intensity-short-circuits",
+    "deactivate-short-circuits",
+    "normalmode-short-circuits",
+    "invalid-intensity-short-circuits-preserves-state",
+    "normal-text-passes-through-inactive",
+    "normal-text-passes-through-active",
+    "substring-passes-through",
+    "blank-passes-through",
 }
 
 PROBE = r"""
@@ -71,7 +71,9 @@ public final class CelinePersonaDispatchProbe {
 
 
 def as_bool(value: object) -> bool:
-    return bool(value)
+    if type(value) is not bool:
+        raise ValueError(f"expected JSON boolean, got {value!r}")
+    return value
 
 
 def main() -> int:
@@ -81,7 +83,14 @@ def main() -> int:
         raise SystemExit(f"missing acceptance vectors: {CASES}")
 
     data = json.loads(CASES.read_text(encoding="utf-8"))
-    by_id = {case["id"]: case for case in data.get("cases", [])}
+    if data.get("schema") != EXPECTED_SCHEMA or data.get("issue") != 112:
+        raise SystemExit("dispatch acceptance schema or issue drift")
+    cases = data.get("cases")
+    if not isinstance(cases, list):
+        raise SystemExit("dispatch acceptance cases must be a list")
+    by_id = {case["id"]: case for case in cases}
+    if len(by_id) != len(cases):
+        raise SystemExit("duplicate dispatch acceptance case ids")
     missing = sorted(REQUIRED_CASE_IDS - by_id.keys())
     if missing:
         raise SystemExit(f"dispatch acceptance vector drift; missing cases: {missing}")
@@ -99,7 +108,7 @@ def main() -> int:
             cwd=ROOT,
         )
 
-        for case_id in sorted(REQUIRED_CASE_IDS):
+        for case_id in sorted(by_id):
             case = by_id[case_id]
             expected = case["expected"]
             initial = case.get("initial", {"active": False, "intensity": 0})
@@ -136,10 +145,12 @@ def main() -> int:
                 raise AssertionError(f"{case_id}: active mismatch")
             if intensity != int(expected.get("intensity", 0)):
                 raise AssertionError(f"{case_id}: intensity mismatch")
+            if continue_normal_flow != as_bool(expected["continue_normal_flow"]):
+                raise AssertionError(f"{case_id}: continue_normal_flow mismatch")
             if continue_normal_flow == consumed:
                 raise AssertionError(f"{case_id}: submit-flow gate must be exact inverse of command_consumed")
 
-    print("CelinePersona dispatch routing contract: PASS")
+    print(f"CelinePersona dispatch routing contract: PASS ({len(by_id)} dedicated vectors)")
     return 0
 
 
