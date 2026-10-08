@@ -65,9 +65,6 @@ jobs:
           cp Refernzbild.png room-polish-proof/reference.png
           sha256sum room-polish-proof/reference.png | tee room-polish-proof/reference.sha256
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Enable KVM permissions
         shell: bash
         run: |

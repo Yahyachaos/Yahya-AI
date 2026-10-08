@@ -58,7 +58,7 @@ public final class Celine3DView extends FrameLayout {
     // user X -> -Filament X, user height + roomY(-1.55), user depth + roomZ(-4.0).
     // The renderer owns the final pre-render camera write, so these values deliberately override
     // the stale v25/v44 projection callbacks immediately before every real Filament frame.
-    private static final double REFERENCE_FOCAL_LENGTH_MM = 20.846875;
+    private static final double REFERENCE_FOCAL_LENGTH_MM = 17.36812218122181;
     private static final double REFERENCE_EYE_X = -0.380078125;
     private static final double REFERENCE_EYE_Y = -0.3265625;
     private static final double REFERENCE_EYE_Z = -1.1265625;
