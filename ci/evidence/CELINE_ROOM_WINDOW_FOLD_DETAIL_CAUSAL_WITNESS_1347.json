@@ -1,0 +1,139 @@
+{
+  "schema": "celine-room-material-causal-witness/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_linked_support": "docs/celine/room-source/v80-2026-08-28/target_room_composition_reference.jpg",
+    "prior_sheer_pleat_proof": "ci/evidence/CELINE_ROOM_WINDOW_SHEER_PLEAT_PROOF_1346.json",
+    "prior_sheer_pleat_witness": "ci/evidence/CELINE_ROOM_WINDOW_SHEER_PLEAT_WITNESS_1343.json",
+    "accepted_geometry_total_score": 0.004543166956175412
+  },
+  "exact_current_truth": {
+    "workstream_head_before_this_docs_witness": "25ea48549d36424c2d6c3ba5674addee3ed4ab42",
+    "restored_runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "runtime_equivalent_android_build_run": 34139237605,
+    "runtime_equivalent_android_build_number": 1389,
+    "real_candidate_run": 34143017546,
+    "real_candidate_number": 1347,
+    "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+    "call_capture_manual_status": "VALID_NONBLANK_ACTUAL_CALL",
+    "overall_workflow_conclusion": "FAILURE_AFTER_ROOM_PASS",
+    "unrelated_failure": "protected legacy CALL zoom assertion only",
+    "geometry_scoreboard": "UNCHANGED_APPEARANCE_ONLY"
+  },
+  "question": "Can the existing CelineRoomWindowFoldDetailV80 owner support a bounded broader low-contrast treatment that is causally distinct from both the rejected baseColorMap modulation path and the rejected many-dark-narrow-bars strategy?",
+  "historical_raster_effect_witness": {
+    "before": {
+      "commit": "5cfae5571cb33e1da42d8d9fc7e482214d2f637c",
+      "real_candidate_run": 34050888711,
+      "real_candidate_number": 1217,
+      "artifact_id": 9994591545,
+      "artifact_sha256": "c51e5e3bd1fa16253a752eee0c93f5f6cb046cad5c75d5aabec658d9f5bbc780"
+    },
+    "after": {
+      "commit": "15701ddf9a59f011eb654e942503f3eff71ba565",
+      "real_candidate_run": 34051580601,
+      "real_candidate_number": 1218,
+      "artifact_id": 9994793435,
+      "artifact_sha256": "7096f4b230c5ed49138c1ccdc93d77d2610a80f2b5589ebd56cde503de3a08d5"
+    },
+    "only_runtime_change": "move the two existing SHEER_X fold-detail facets onto the already accepted sheer-panel centers",
+    "clean_roi_diff": {
+      "left_sheer": {
+        "changed_pixels": 1639,
+        "pixel_count": 10125,
+        "changed_fraction": 0.1618765432,
+        "changed_bbox_local_px": {"left": 32, "top": 0, "right": 52, "bottom": 135},
+        "changed_columns": 20,
+        "roi_columns": 75,
+        "per_changed_pixel_rgb_delta": [-7, 7, 17],
+        "row_mean_luminance_std_before": 1.4541114121,
+        "row_mean_luminance_std_after": 1.4640097637,
+        "row_axis_relative_change": 0.006806
+      },
+      "right_sheer": {
+        "changed_pixels": 1380,
+        "pixel_count": 6325,
+        "changed_fraction": 0.2181818182,
+        "changed_bbox_local_px": {"left": 20, "top": 0, "right": 32, "bottom": 115},
+        "changed_columns": 12,
+        "roi_columns": 55,
+        "per_changed_pixel_rgb_delta": [-7, 7, 17],
+        "row_mean_luminance_std_before": 0.2994736168,
+        "row_mean_luminance_std_after": 0.2994736168,
+        "row_axis_relative_change": 0.0
+      }
+    },
+    "axis_finding": "The owner is definitely raster-effective, but its present four-vertex full-height planar facet topology acts almost entirely as a constant vertical stripe: it changes many pixels and column-axis variation, while producing essentially no meaningful height/row-axis variation."
+  },
+  "current_reference_linked_gap": {
+    "baseline_proof": 1336,
+    "rollback_proof": 1347,
+    "rollback_vs_1336_clean_sheers": "PIXEL_IDENTICAL",
+    "left_sheer": {
+      "current_row_mean_luminance_std": 0.4268696508,
+      "reference_linked_row_mean_luminance_std": 9.0,
+      "remaining_error": 8.5731303492,
+      "current_unique_rgb_count": 4,
+      "reference_linked_unique_rgb_count": 3939
+    },
+    "right_sheer": {
+      "current_row_mean_luminance_std": 1.8086212133,
+      "reference_linked_row_mean_luminance_std": 22.5,
+      "remaining_error": 20.6913787867,
+      "current_unique_rgb_count": 3,
+      "reference_linked_unique_rgb_count": 5039
+    },
+    "manual_visual": "The restored actual CALL is valid and stable, but the central sheers remain visibly quantized/board-like relative to the soft continuously varying reference treatment."
+  },
+  "strategy_discrimination": {
+    "rejected_baseColorMap_family": "STOP_LOSS: #1343 was raster-flat after brightness was neutralized; do not retune map amplitude/frequency/median.",
+    "rejected_many_dark_bar_family": "Proof #73 used many narrow darker full-height facets and visibly read as regular bars. It was explicitly softened by commit 2d7e200828e23cf1fa475c01472ad005aef4d544 to fewer, lighter, lower-angle facets.",
+    "rejected_smooth_base_pleat_family": "#1346 low-amplitude broad-sheer pleat geometry was REJECTED_FLAT and reverted; do not micro-tune that same base-surface pleat strategy without new independent evidence.",
+    "simple_widen_current_fold_facet": "NOT_AUTHORIZED: widening the present full-height constant planar facet would increase the same vertical stripe/bar axis that #73 already showed is visually dangerous, while the #1217/#1218 pair demonstrates almost no improvement on the measured height/row axis that remains far from reference."
+  },
+  "causal_conclusion": {
+    "owner_status": "RASTER_EFFECTIVE_BUT_CURRENT_TOPOLOGY_CAUSALLY_MISMATCHED",
+    "runtime_candidate_authorized_now": false,
+    "reason": "The existing fold-detail owner can affect the target pixels, but a simple broader version of its current full-height planar quad is not a sound prediction for the measured reference gap. The evidence does not justify spending another Android build on width/angle/color micro-tuning of the same stripe topology.",
+    "minimum_independent_requirement_for_next_candidate": "A new read-only source-level witness must identify a height-varying, non-bar mechanism inside the same room-only owner (for example a single broad tapered/twisted or otherwise y-varying fold lobe per sheer, not repeated dark strips) and predict measurable row-axis improvement before runtime write."
+  },
+  "acceptance_prediction_for_any_future_fold_detail_candidate": {
+    "preserve": [
+      "accepted sheer X/Y envelope and centers",
+      "accepted sheer center color near RGB 115/90/68",
+      "outer curtain stop-loss state",
+      "night opening",
+      "source GLB/source texture bytes",
+      "room shell/global renderer lights",
+      "bed/furniture TRS and accepted materials",
+      "camera/FOV",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "Core/Conversation/Persona/Intelligence paths"
+    ],
+    "must_not_repeat": [
+      "baseColorMap modulation tuning",
+      "many narrow dark vertical overlay bars",
+      "simple width/angle/color micro-tuning of the current full-height planar fold facet",
+      "the rejected smooth base-sheer pleat candidate"
+    ],
+    "measurement_gate": "A future candidate must materially reduce the reference-linked row-axis error in BOTH clean sheer ROIs and manual inspection must read softer/more fabric-like without introducing regular bar banding. Workflow success alone is not visual PASS."
+  },
+  "scoreboard": {
+    "whole_scene_total": 0.004543166956175412,
+    "decision": "UNCHANGED_READ_ONLY_APPEARANCE_WITNESS",
+    "reason": "No geometry/layout/camera or runtime content changed in this witness."
+  },
+  "handoff": {
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "build_test_proof": "No build for this docs/read-only witness. Current restored runtime remains verified by Real Candidate #1347: room HOME->CALL->HOME PASS same process; actual CALL valid/nonblank; overall red only at unrelated protected legacy zoom assertion.",
+    "changed": "Docs/evidence only: quantified the #1217/#1218 fold-detail raster response against current #1336/#1347 clean-sheer metrics and rejected simple full-height fold widening as causally mismatched.",
+    "not_changed": "All runtime/app code, source assets, room geometry/envelope, furniture, camera/FOV, Celine, anchors/navigation, Core/Persona, shared queue/AGENTS/build/release surfaces.",
+    "blocker": "none",
+    "exact_next_action": "Fresh-reconcile PR #111; perform one further read-only source-level causal witness on CelineRoomWindowFoldDetailV80 to determine whether a SINGLE broad height-varying non-bar lobe (tapered/twisted/y-varying geometry or another proven live room-local parameter path) can predict material row-axis improvement in both clean sheers. Do not make a runtime change or build unless that witness establishes a measurable prediction distinct from #73 bars, #1343 baseColorMap modulation and #1346 smooth-base pleat geometry."
+  },
+  "validation_classification": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD"
+}

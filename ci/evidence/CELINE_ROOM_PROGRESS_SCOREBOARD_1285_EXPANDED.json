@@ -1,0 +1,59 @@
+{
+  "schema": "celine-room-progress-scoreboard/v1",
+  "candidate_source": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1285_EXPANDED.json",
+  "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+  "scoring": {
+    "direction": "lower_is_better",
+    "formula": "weighted mean of 0.50*center_error + 0.30*size_error + 0.20*edge_error",
+    "primary_weight": 1.6,
+    "confidence_weights": {"high": 1.0, "medium": 0.75, "low": 0.4},
+    "minimum_improvement": 0.002
+  },
+  "objects_scored": 10,
+  "weight_sum": 11.0,
+  "weighted_score_sum": 0.04956443918744171,
+  "total_score": 0.0045058581079492465,
+  "objects_missing_or_unusable": [
+    "room_bed",
+    "room_floor_lamp",
+    "room_foreground_table",
+    "room_nightstand_front",
+    "room_nightstand_rear",
+    "room_plant_small",
+    "room_reference_foreground_laptop",
+    "room_reference_foreground_plant"
+  ],
+  "largest_deltas": [
+    {"object": "room_rug", "weighted_score": 0.01534721046861761, "raw_score": 0.01278934205718134},
+    {"object": "room_plant_large", "weighted_score": 0.009915160032992646, "raw_score": 0.013220213377323528},
+    {"object": "room_window_drapes", "weighted_score": 0.005887940067144873, "raw_score": 0.0036799625419655455},
+    {"object": "room_lounge_chair", "weighted_score": 0.0044635880141219025, "raw_score": 0.002789742508826189},
+    {"object": "room_wall_shelf_books", "weighted_score": 0.003956158242460891, "raw_score": 0.005274877656614521}
+  ],
+  "per_object": {
+    "room_dresser": {"raw_score": 0.0006042461540560543, "weight": 1.6, "weighted_score": 0.0009667938464896869},
+    "room_lounge_chair": {"raw_score": 0.002789742508826189, "weight": 1.6, "weighted_score": 0.0044635880141219025},
+    "room_plant_large": {"raw_score": 0.013220213377323528, "weight": 0.75, "weighted_score": 0.009915160032992646},
+    "room_reference_foreground_candle": {"raw_score": 0.0033659433666646137, "weight": 0.75, "weighted_score": 0.0025244575249984604},
+    "room_reference_left_wall_art_pair": {"raw_score": 0.0022321585263096718, "weight": 0.75, "weighted_score": 0.0016741188947322538},
+    "room_reference_right_wall_art": {"raw_score": 0.0037684704936635487, "weight": 1.0, "weighted_score": 0.0037684704936635487},
+    "room_round_mirror": {"raw_score": 0.0010605416022198327, "weight": 1.0, "weighted_score": 0.0010605416022198327},
+    "room_rug": {"raw_score": 0.01278934205718134, "weight": 1.2, "weighted_score": 0.01534721046861761},
+    "room_wall_shelf_books": {"raw_score": 0.005274877656614521, "weight": 0.75, "weighted_score": 0.003956158242460891},
+    "room_window_drapes": {"raw_score": 0.0036799625419655455, "weight": 1.6, "weighted_score": 0.005887940067144873}
+  },
+  "decision": "NO_BASELINE",
+  "baseline_status": "EXPANDED_OBJECT_SET__CORRECTED_LEFT_ART_REFERENCE__NEW_BASELINE",
+  "comparison_note": "Do not compare this total directly with #1270's seven-object total. The scored object set expanded. The initial expanded draft also used a stale left-art bottom=0.334 target that included plant occlusion; the authoritative direct visible-frame target is y=0.150..0.271.",
+  "strategy_implication": {
+    "rug_strategy_status": "STOP_LOSS__DO_NOT_REOPEN",
+    "largest_non_stop_loss_residual": "room_plant_large",
+    "plant_only_max_possible_total_reduction": 0.0009013781848175133,
+    "plant_only_can_meet_minimum_improvement": false,
+    "plant_window_chair_max_possible_total_reduction": 0.001842426192205402,
+    "plant_window_chair_can_meet_minimum_improvement": false,
+    "plant_window_chair_shelf_max_possible_total_reduction": 0.0022020769415200285,
+    "plant_window_chair_shelf_can_theoretically_meet_minimum_improvement": true,
+    "rejected_strategy_guard": "Proof #1274 already rejected the previous plant+chair+shelf residual-adjustment candidate; do not repeat that causal strategy. Root-cause analysis must precede any new runtime batch."
+  }
+}

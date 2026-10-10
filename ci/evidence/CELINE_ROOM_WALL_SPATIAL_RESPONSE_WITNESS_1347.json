@@ -1,0 +1,99 @@
+{
+  "schema": "celine-room-wall-spatial-response-witness/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "reference_blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793",
+    "reference_pixel_source": {
+      "workflow": "Exact Room Proof #111",
+      "run": 33908112566,
+      "artifact": 9950443389,
+      "artifact_digest": "sha256:cf5e48cd406121ad0d079c404e395a69b4e9a8cfe86bbb6d3aa4992f1fccf0eb"
+    },
+    "current_real_candidate": 1347,
+    "current_real_candidate_run": 34143017546,
+    "current_real_candidate_artifact": 10026759841,
+    "current_runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "current_runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "accepted_geometry_score": 0.004543166956175412
+  },
+  "alignment": {
+    "reference_resample_px": [1016, 813],
+    "current_call_stage_px": {"left": 32, "top": 466, "right": 1048, "bottom": 1279},
+    "coordinate_convention": "normalized CALL-stage coordinates, origin top-left"
+  },
+  "clean_wall_rois": {
+    "left_upper_blank": {
+      "bounds": {"left": 0.06, "right": 0.13, "top": 0.04, "bottom": 0.11},
+      "reference": {"rgb_median": [105,72,42], "luma_median": 77.06, "luma_std": 6.34, "luma_p10": 69.78, "luma_p90": 86.48},
+      "current": {"rgb_median": [124,83,44], "luma_median": 88.90, "luma_std": 0.0, "luma_p10": 88.90, "luma_p90": 88.90},
+      "finding": "current wall is exactly flat in this clean patch and about 11.84 luma brighter at the median"
+    },
+    "back_upper_center": {
+      "bounds": {"left": 0.60, "right": 0.70, "top": 0.08, "bottom": 0.15},
+      "reference": {"rgb_median": [127,88,51], "luma_median": 93.69, "luma_std": 8.25, "luma_p10": 86.62, "luma_p90": 107.54},
+      "current": {"rgb_median": [120,82,49], "luma_median": 87.70, "luma_std": 7.52, "luma_p10": 87.70, "luma_p90": 87.70},
+      "finding": "median hue is near target but the stable current core collapses to one luma"
+    },
+    "wall_right_of_shelf": {
+      "bounds": {"left": 0.715, "right": 0.80, "top": 0.17, "bottom": 0.30},
+      "reference": {"rgb_median": [142,99,56], "luma_median": 105.19, "luma_std": 17.09, "luma_p10": 93.84, "luma_p90": 129.25},
+      "current": {"rgb_median": [135,96,61], "luma_median": 101.76, "luma_std": 6.52, "luma_p10": 87.70, "luma_p90": 101.76},
+      "finding": "median color is close while the reference has a strong localized high-light tail absent from current"
+    },
+    "under_shelf_left": {
+      "bounds_px": [599,199,655,260],
+      "bounds_normalized_approx": {"left": 0.5896, "right": 0.6447, "top": 0.2448, "bottom": 0.3198},
+      "reference": {"rgb_median": [138,97,56], "luma_median": 102.51, "luma_std": 5.99, "luma_p90": 110.14},
+      "current": {"rgb_median": [120,82,49], "luma_median": 87.70, "luma_std": 4.60, "luma_p90": 87.70},
+      "reference_linked_visual_feature": "a warm under-shelf emitter creates a bright local pool directly below the wall shelf; the exact current CALL has no corresponding pool"
+    }
+  },
+  "owner_audit": {
+    "wall_layout": {
+      "shelf_runtime_spec_local": {"x": 1.439041, "y": 1.844809, "z": -1.916250},
+      "source": "CelineRoomReferenceLayoutV80.SHELF",
+      "reference_raster_target": {"left": 0.610, "right": 0.713, "top": 0.175, "bottom": 0.255}
+    },
+    "surface_texture": {
+      "owner": "CelineRoomSurfaceTextureV80",
+      "proven_spatial_path": "room_back_wall baseColorMap through existing TEXCOORD_0",
+      "current_character": "small-amplitude high-frequency procedural plaster variation",
+      "classification": "LIVE_BUT_NOT_PRIMARY_FOR_REFERENCE_LIGHT_POOL"
+    },
+    "lighting": {
+      "owner": "CelineRoomReferenceLightingV80",
+      "global_key": "5000 lux fixed by prior accepted evidence",
+      "global_indirect": "5600 lux fixed by prior accepted interpolation/proof",
+      "existing_room_local_practical": "one warm focused spot tied to the front-nightstand/bed region",
+      "shelf_underlight_present": false
+    }
+  },
+  "causal_classification": {
+    "global_wall_recolor": "REJECTED_AS_PRIMARY_CAUSE_MEDIANS_ALREADY_CLOSE_IN_RIGHT_BACK_WALL_ROIS",
+    "global_key_or_fill": "PROTECTED_NOT_AUTHORIZED",
+    "more_high_frequency_plaster_noise": "LOW_CONFIDENCE_TARGET_IS_DOMINATED_BY_LOCALIZED_LIGHT_POOL",
+    "bounded_shelf_underlight": "HIGH_CONFIDENCE_REFERENCE_LINKED_ROOM_LOCAL_CAUSE",
+    "reason": "The reference visibly contains an under-shelf warm emitter and wall pool at the exact shelf raster. Current geometry already places the shelf on the accepted envelope, current wall medians are reasonably close outside the pool, and current lighting owner has no shelf practical."
+  },
+  "bounded_candidate_prediction": {
+    "change_family": "room-local shelf underlight only",
+    "protected": ["global key", "global indirect fill", "wall baseColorFactor", "room shell geometry", "furniture TRS", "camera/FOV", "Celine", "window", "bed", "rug", "foliage"],
+    "primary_roi": "under_shelf_left",
+    "primary_current_luma_median_error": 14.81,
+    "primary_current_luma_p90_error": 22.44,
+    "acceptance_gate": {
+      "minimum_error_reduction_fraction": 0.20,
+      "post_candidate_luma_median_min_if_no_overshoot": 90.66,
+      "post_candidate_luma_p90_min_if_no_overshoot": 92.19,
+      "manual_gate": "visible warm shelf pool must move toward Refernzbild.png without washing the shelf/books, window, Celine or bed"
+    },
+    "decision": "AUTHORIZE_ONE_BOUNDED_RUNTIME_CANDIDATE"
+  },
+  "scoreboard": {
+    "total": 0.004543166956175412,
+    "decision": "UNCHANGED_GEOMETRY_APPEARANCE_WITNESS"
+  },
+  "build_required_for_this_witness": false,
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. If no overlapping room writer/job exists, add exactly one bounded warm shelf-underlight in CelineRoomReferenceLightingV80 using the accepted shelf world location; do not alter global key/fill or any material/geometry/camera/Celine owner. Then run exactly one Android build for the new runtime fingerprint and exactly one real HOME->CALL->HOME proof. Measure the under_shelf_left ROI; keep the candidate only if both the >=20% quantitative gate and manual comparison to Refernzbild.png pass."
+}

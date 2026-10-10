@@ -1,0 +1,38 @@
+{
+  "schema": "celine-room-batch-prediction/v1",
+  "baseline_proof": 1285,
+  "baseline_scoreboard": "ci/evidence/CELINE_ROOM_PROGRESS_SCOREBOARD_1285_EXPANDED.json",
+  "baseline_total_score": 0.0045058581079492465,
+  "minimum_material_improvement": 0.002,
+  "strategy": {
+    "rug": "STOP_LOSS__UNCHANGED",
+    "plant_root_cause": "room_plant_large is one fused node/mesh/primitive; rejected #1274 X/SX expansion cannot independently preserve pot/trunk",
+    "plant": "new bounded X+yaw solve; preserve #1270 SX and all Y/Z/SY/SZ; projection/occlusion constrained",
+    "window": "same derived owner, pure center-X residual solve from #1266->#1285 empirical response",
+    "chair": "90% interpolation of the real #1285->#1274 horizontal response",
+    "shelf": "44.357% interpolation of the real #1285->#1274 vertical response to target bottom",
+    "right_wall_art": "small fail-closed derived-part affine from exact-camera relative projection",
+    "foreground_candle": "small fail-closed derived-part Y/size affine from measured raster ratio and #1195->#1196 Y response"
+  },
+  "candidate_transforms": {
+    "room_plant_large": {"x": -2.18, "y": 0.977047, "z": -1.399038, "sx": 1.110767, "sy": 1.02634, "sz": 0.882475, "yaw_deg": -2.5},
+    "room_lounge_chair": {"x": -1.671258, "y": 0.457133, "z": -2.107537, "sx": 0.509056, "sy": 0.50583, "sz": 0.433192, "yaw_deg": 170.375},
+    "room_wall_shelf_books": {"x": 1.439041, "y": 1.823316, "z": -1.91625, "sx": 0.421335, "sy": 0.392109, "sz": 0.351875, "yaw_deg": 5.820313},
+    "derived_window_group": {"new_center_x": -0.864824, "horizontal_scale": 1.03095712, "new_center_y": 1.753992, "vertical_scale": 0.8047052},
+    "derived_right_wall_art": {"center_y": 1.766978, "center_z": 0.216709, "local_scale_x": 1.054015, "local_scale_y": 0.9841},
+    "derived_foreground_candle": {"center_y": 0.90694, "local_scale_x": 1.05144, "local_scale_y": 0.99551}
+  },
+  "predicted_visible_raster": {
+    "room_plant_large": {"left": 0.1375, "right": 0.247, "top": 0.2034, "bottom": 0.5355, "note": "projection estimate; semantic pot/trunk preservation remains mandatory manual gate"},
+    "room_window_drapes": {"left": 0.205063, "right": 0.587937, "top": 0.086101, "bottom": 0.479705},
+    "room_lounge_chair": {"left": 0.217028, "right": 0.334646, "top": 0.366544, "bottom": 0.509225},
+    "room_wall_shelf_books": {"left": 0.609252, "right": 0.712598, "top": 0.175346, "bottom": 0.255},
+    "room_reference_right_wall_art": {"left": 0.858, "right": 0.969, "top": 0.076, "bottom": 0.283},
+    "room_reference_foreground_candle": {"left": 0.039, "right": 0.128, "top": 0.748, "bottom": 0.928}
+  },
+  "predicted_weighted_score_reduction": 0.0242,
+  "predicted_total_score_reduction": 0.0022,
+  "predicted_total_score_approx": 0.00231,
+  "decision": "JUSTIFIED_FOR_ONE_BOUNDED_BUILD_AND_REAL_PROOF",
+  "acceptance": "Keep only if fresh corrected-expanded scoreboard materially improves and manual actual-CALL comparison confirms plant pot/trunk semantics and no scene regression."
+}

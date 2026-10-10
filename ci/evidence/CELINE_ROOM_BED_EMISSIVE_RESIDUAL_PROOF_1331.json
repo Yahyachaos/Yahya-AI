@@ -1,0 +1,107 @@
+{
+  "schema": "celine-room-material-proof/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "accepted_geometry_scoreboard": "ci/evidence/CELINE_ROOM_PROGRESS_SCOREBOARD_1314_EXPANDED.json",
+    "accepted_geometry_baseline_total_score": 0.004543166956175412,
+    "material_candidate_does_not_change_geometry": true,
+    "accepted_material_baseline": "ci/evidence/CELINE_ROOM_BED_EMISSIVE_PROOF_1326.json",
+    "causal_witness": "ci/evidence/CELINE_ROOM_BED_EMISSIVE_RESIDUAL_WITNESS_1326.json"
+  },
+  "candidate": {
+    "runtime_code_head": "d6ba2e15bc2d14cd9873318753639b9c80d73983",
+    "runtime_fingerprint": "662927ec78367414ef05f03419f2d02d66fdeeec5b63ba7f1924db41b68b9121",
+    "bed_emissive_rgb": [0.21, 0.18, 0.12],
+    "android_build_run": 34115218105,
+    "android_build_number": 1382,
+    "android_build_conclusion": "SUCCESS",
+    "real_candidate_run": 34115586149,
+    "real_candidate_number": 1331,
+    "artifact_id": 10016290262,
+    "artifact_sha256": "3aadc82939fd05ab56d79a81d8bbef01cc9d0a40aceec4a223eb18efa36c2e60",
+    "apk_sha256": "1b01138a81d4f05004302e6dfcddae3f9da6f05bc26af887628ac18932233690"
+  },
+  "capture": {
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION",
+    "orthogonal_failure": "head-and-shoulders checkpoint is not closer than normal CALL: 1.000",
+    "room_proof_usable": true,
+    "proof_log_observations": [
+      "actual CALL opened and produced a valid nonblank room render",
+      "HOME, CALL and HOME-return all retained central Celine presence in the same process",
+      "workflow failed only after the usable room proof at the protected legacy CALL zoom assertion"
+    ]
+  },
+  "semantic_roi_contract": {
+    "stage_origin_in_full_screenshot_px": {"x": 32, "y": 466},
+    "stage_size_px": {"width": 1016, "height": 813},
+    "duvet_stage_roi_px": {"left": 640, "top": 400, "right": 760, "bottom": 500},
+    "headboard_stage_roi_px": {"left": 800, "top": 265, "right": 930, "bottom": 320}
+  },
+  "semantic_roi_results": {
+    "duvet": {
+      "baseline_1326_median_srgb": [78, 59, 45],
+      "candidate_median_srgb": [91, 69, 45],
+      "reference_median_srgb": [115, 77, 47],
+      "baseline_mean_abs_channel_error": 19.0,
+      "candidate_mean_abs_channel_error": 11.3333333333,
+      "improvement_fraction": 0.4035087719,
+      "improvement_percent": 40.35087719,
+      "required_improvement_fraction": 0.20,
+      "gate": "PASS"
+    },
+    "headboard": {
+      "baseline_1326_median_srgb": [83, 65, 51],
+      "candidate_median_srgb": [96, 75, 51],
+      "reference_median_srgb": [139, 96, 54],
+      "baseline_mean_abs_channel_error": 30.0,
+      "candidate_mean_abs_channel_error": 22.3333333333,
+      "improvement_fraction": 0.2555555556,
+      "improvement_percent": 25.55555556,
+      "required_improvement_fraction": 0.20,
+      "gate": "PASS"
+    }
+  },
+  "prediction_check": {
+    "duvet_predicted_median_srgb": [90.5, 69.285714, 45.0],
+    "duvet_actual_median_srgb": [91, 69, 45],
+    "headboard_predicted_median_srgb": [95.5, 75.285714, 51.0],
+    "headboard_actual_median_srgb": [96, 75, 51],
+    "verdict": "MEASURED_RESPONSE_MATCHES_CAUSAL_WITNESS_CLOSELY"
+  },
+  "manual_visual": {
+    "verdict": "PASS_BOUNDED_STEP",
+    "observations": [
+      "actual CALL bed is visibly lighter and warmer than accepted Proof #1326 while preserving the same room composition",
+      "duvet and headboard texture/detail remain visible in the exact semantic ROIs; no clipping or washout is visible",
+      "the bed remains shaded by the room and does not read as a detached self-lit object",
+      "blue was held fixed and does not visibly overshoot; measured blue remains 45/51 versus reference 47/54",
+      "Celine remains present and the HOME -> CALL -> HOME-return lifecycle passes in one process",
+      "the step is accepted as bounded material progress, not final room acceptance"
+    ]
+  },
+  "decision": "ACCEPT__BOTH_ROI_ERRORS_IMPROVE_AT_LEAST_20_PERCENT_AND_MANUAL_VISUAL_AGREES",
+  "strategy_status": "ROOM_BED_LOCAL_EMISSIVE_RESIDUAL_CHANNEL_WEIGHTED_STEP_ACCEPTED__DO_NOT_STACK_STRONGER_STEP_WITHOUT_NEW_CAUSAL_WITNESS",
+  "protected_state": {
+    "source_glb_bytes_changed": false,
+    "bed_trs_changed": false,
+    "base_color_texture_changed": false,
+    "metallic_roughness_texture_changed": false,
+    "normal_texture_changed": false,
+    "room_shell_changed": false,
+    "global_renderer_light_changed": false,
+    "camera_fov_changed": false,
+    "celine_identity_or_rig_changed": false,
+    "anchors_navigation_changed": false,
+    "core_persona_paths_changed": false
+  },
+  "geometry_scoreboard": {
+    "required_for_this_material_only_candidate": false,
+    "accepted_total_score_remains": 0.004543166956175412,
+    "reason": "candidate changes bed-local emissive constants only and does not change geometry/layout/camera"
+  },
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. Keep runtime-code head d6ba2e15bc2d14cd9873318753639b9c80d73983 as the newly accepted room-bed material behavior. Before any further runtime build, create one read-only causal witness for the largest remaining non-STOP-LOSS room-only appearance delta against /Refernzbild.png. Do not stack another stronger bed emissive correction without a new measured prediction; do not reopen stopped geometry/plant/rug families; do not touch global renderer lighting, Celine, Core/Persona, anchors/navigation, merge or release."
+}

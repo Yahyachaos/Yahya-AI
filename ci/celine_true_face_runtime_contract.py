@@ -26,6 +26,11 @@ version_match = re.search(r"versionCode\s+(\d+)", build)
 if not version_match or int(version_match.group(1)) < 76:
     raise SystemExit("v76+ final-geometry facial-rig version gate missing")
 
+# Block 8 close-range evidence intentionally strengthened only speech
+# articulation after v77 proved distinct PCM cues but the final-geometry mouth
+# shapes still under-read. Keep those already-accepted bounded values here; the
+# older v76 pre-Block-8 amplitudes (0.66/0.58/0.72) are stale and must not block
+# a proof of the current canonical runtime.
 required = {
     "TARGET_COUNT = 15": "exact v76 target count",
     "BILABIAL_PRESS = 6": "bilabial speech channel",
@@ -36,9 +41,9 @@ required = {
     "GAZE_LEFT = 11": "horizontal gaze channel",
     "GAZE_DOWN = 14": "vertical gaze channel",
     "MAX_BLINK = 0.94f": "bounded blink amplitude",
-    "MAX_JAW = 0.66f": "bounded jaw amplitude",
-    "MAX_VOWEL = 0.58f": "bounded vowel amplitude",
-    "MAX_LIP_CONTACT = 0.72f": "bounded lip-contact amplitude",
+    "MAX_JAW = 0.76f": "accepted Block 8 bounded jaw amplitude",
+    "MAX_VOWEL = 0.78f": "accepted Block 8 bounded vowel amplitude",
+    "MAX_LIP_CONTACT = 0.84f": "accepted Block 8 bounded lip-contact amplitude",
     "MAX_EXPRESSION = 0.34f": "bounded expression amplitude",
     "MAX_GAZE = 0.32f": "bounded gaze amplitude",
     "case SPEAKING": "state-aware speech motion",
@@ -129,4 +134,4 @@ for needle, purpose in runtime_required.items():
 if PROD.exists():
     raise SystemExit("opaque production celine.glb unexpectedly committed instead of generated")
 
-print("final-geometry Celine v76 facial runtime contract: PASS")
+print("final-geometry Celine v76 facial runtime contract with accepted Block 8 speech bounds: PASS")

@@ -1,0 +1,55 @@
+name: Celine Room Runtime GLB Profile
+
+on:
+  pull_request:
+    types: [synchronize, edited]
+    paths:
+      - '.github/workflows/celine-room-runtime-glb-profile.yml'
+      - 'tools/celine-room-glb-profile.py'
+      - 'app/src/main/assets/models/room/celine_room_v80_final_modular.glb'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celine-room-runtime-glb-profile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-room-glb-profile:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.body || '', '[run-room-440-blender-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Profile committed runtime room GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-runtime-profile
+          python3 tools/celine-room-glb-profile.py \
+            app/src/main/assets/models/room/celine_room_v80_final_modular.glb \
+            --output ci-room-runtime-profile/runtime-room-glb-profile.json \
+            | tee ci-room-runtime-profile/profile.log
+          grep -F 'CELINE_ROOM_GLB_PROFILE PASS' ci-room-runtime-profile/profile.log
+          test -s ci-room-runtime-profile/runtime-room-glb-profile.json
+          printf '%s\n' "head_sha=${{ github.event.pull_request.head.sha || github.sha }}" > ci-room-runtime-profile/metadata.txt
+          printf '%s\n' 'source_reference_triangles=39729529' >> ci-room-runtime-profile/metadata.txt
+          printf '%s\n' 'source_reference_proof_run=34223747816' >> ci-room-runtime-profile/metadata.txt
+          printf '%s\n' 'source_glbs_mutated=false' >> ci-room-runtime-profile/metadata.txt
+          printf '%s\n' 'visual_acceptance=not_applicable_profile_only' >> ci-room-runtime-profile/metadata.txt
+
+      - name: Upload runtime room GLB profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-runtime-glb-profile
+          path: ci-room-runtime-profile/
+          if-no-files-found: warn
+          retention-days: 30

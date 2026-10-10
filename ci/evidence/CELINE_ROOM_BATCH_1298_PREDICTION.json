@@ -1,0 +1,33 @@
+{
+  "schema": "celine-room-batch-prediction/v1",
+  "baseline_proof": 1285,
+  "baseline_total_score_recomputed_current_targets": 0.004543166956175412,
+  "minimum_material_improvement": 0.002,
+  "strategy": {
+    "rug": "STOP_LOSS__UNCHANGED__PROOFS_1279_1282_NOT_RETRIED",
+    "room_plant_large_source": "accepted #1285 half-step preserved exactly; rejected #1274 X/SX and #1295 X/yaw source strategies not retried",
+    "room_plant_large_new_cause": "derived foliage-only camera-facing augmentation fills missing left leaf silhouette while fused immutable source pot/trunk remain untouched",
+    "room_window_drapes": "reuse independently successful #1295 visible-raster response",
+    "room_lounge_chair": "reuse independently successful #1295 visible-raster response",
+    "room_wall_shelf_books": "reuse independently successful #1295 visible-raster response",
+    "right_wall_art": "reuse independently successful #1295 derived-part response",
+    "foreground_candle": "reuse independently successful #1295 derived-part response",
+    "left_wall_art_pair": "vertical-only direct #1285 residual solve; horizontal geometry frozen",
+    "round_mirror": "vertical-only direct #1285 visible-height ratio; width/center/depth/yaw frozen"
+  },
+  "predicted_visible_raster": {
+    "room_plant_large": {"left": 0.131, "right": 0.253937, "top": 0.205412, "bottom": 0.535055, "note": "combined accepted source plus derived foliage augment; pot/trunk source semantics unchanged"},
+    "room_window_drapes": {"left": 0.204724, "right": 0.587598, "top": 0.086101, "bottom": 0.479705},
+    "room_lounge_chair": {"left": 0.217520, "right": 0.334646, "top": 0.366544, "bottom": 0.509225},
+    "room_wall_shelf_books": {"left": 0.609252, "right": 0.712598, "top": 0.175892, "bottom": 0.255843},
+    "room_reference_right_wall_art": {"left": 0.858268, "right": 0.965551, "top": 0.076261, "bottom": 0.282903},
+    "room_reference_foreground_candle": {"left": 0.039370, "right": 0.127953, "top": 0.747847, "bottom": 0.928659},
+    "room_reference_left_wall_art_pair": {"left": 0.103346, "right": 0.153543, "top": 0.150062, "bottom": 0.271000},
+    "room_round_mirror": {"left": 0.000000, "right": 0.077756, "top": 0.094867, "bottom": 0.336867}
+  },
+  "predicted_total_score_approx": 0.00237446,
+  "predicted_total_score_reduction": 0.00216871,
+  "predicted_margin_over_minimum": 0.00016871,
+  "decision": "JUSTIFIED_FOR_ONE_BOUNDED_BUILD_AND_REAL_PROOF",
+  "acceptance": "Keep only if a fresh actual-CALL corrected-expanded scoreboard improves by at least 0.002 against the same current targets AND manual comparison confirms natural large-plant foliage with pot/trunk preserved and no scene regression. Otherwise reject the full batch; do not stack it."
+}

@@ -1,0 +1,139 @@
+{
+  "android_build_run": 34100551417,
+  "apk_sha256": "2a8302f23309531ad8fa0c55e541e48ffbeaf53932bc0e5dca86b7a1ea63e65a",
+  "capture": {
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "manual_semantic_gate": "PASS_RUG_VISIBLE_POT_TRUNK_VISIBLE__FOLIAGE_AUGMENT_INEFFECTIVE",
+    "source": "real-candidate-call.png",
+    "stage_px": {
+      "bottom": 1279,
+      "height": 813,
+      "left": 32,
+      "right": 1048,
+      "top": 466,
+      "width": 1016
+    },
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION"
+  },
+  "head": "fa0df343e1cfab26b8b9c4dc51061028a48fe96a",
+  "manual_notes": {
+    "room_plant_large": "pot/trunk remain visible, but the new derived foliage augmentation did not materially change the visible silhouette; predicted left-edge fill did not render into the actual CALL envelope",
+    "room_rug": "visible and unchanged; prior smooth/derived rug strategy remains STOP_LOSS",
+    "whole_scene": "valid/nonblank and no catastrophic room break; acceptance still fails the mandatory numeric threshold"
+  },
+  "measurement_method": {
+    "left_wall_art_pair": "actual #1307 dark-frame connected-component bounds in isolated left-art ROI",
+    "normalization": "x / 1016, y / 813 on exact CALL stage",
+    "room_plant_large": "actual #1307 image-diff against accepted #1285: no new visible pixels extend the intended left-foliage envelope; retain exact accepted #1285 visible bbox",
+    "round_mirror": "actual #1307 dark-silhouette bounds in isolated mirror ROI, normalized to the same CALL stage",
+    "reused_proven_same_owner_values": "window/chair/shelf/right-art/candle use the same exact runtime owner/constants independently measured in actual Proof #1295 and were visually cross-checked in #1307",
+    "unchanged_values": "dresser/rug carry exact #1285 bboxes because their runtime owner/material/camera remained unchanged and #1307 actual CALL confirms the same envelope"
+  },
+  "measurements": {
+    "room_dresser": {
+      "bottom": 0.7183271832718328,
+      "center_x": 0.09153543307086615,
+      "center_y": 0.568880688806888,
+      "height": 0.29889298892988936,
+      "left": 0.0,
+      "right": 0.1830708661417323,
+      "top": 0.4194341943419434,
+      "width": 0.1830708661417323
+    },
+    "room_lounge_chair": {
+      "bottom": 0.5092250922509225,
+      "center_x": 0.27608267716535434,
+      "center_y": 0.4378843788437884,
+      "height": 0.14268142681426815,
+      "left": 0.21751968503937008,
+      "right": 0.3346456692913386,
+      "top": 0.36654366543665434,
+      "width": 0.11712598425196852
+    },
+    "room_plant_large": {
+      "bottom": 0.5350553505535055,
+      "center_x": 0.20669291338582677,
+      "center_y": 0.37023370233702335,
+      "height": 0.3296432964329643,
+      "left": 0.1594488188976378,
+      "right": 0.25393700787401574,
+      "top": 0.2054120541205412,
+      "width": 0.09448818897637795
+    },
+    "room_reference_foreground_candle": {
+      "bottom": 0.9286592865928659,
+      "center_x": 0.08366141732283464,
+      "center_y": 0.8382533825338253,
+      "height": 0.18081180811808117,
+      "left": 0.03937007874015748,
+      "right": 0.1279527559055118,
+      "top": 0.7478474784747847,
+      "width": 0.08858267716535433
+    },
+    "room_reference_left_wall_art_pair": {
+      "bottom": 0.2693726937269373,
+      "center_x": 0.12893700787401574,
+      "center_y": 0.20848708487084872,
+      "height": 0.12177121771217714,
+      "left": 0.10334645669291338,
+      "right": 0.1545275590551181,
+      "top": 0.14760147601476015,
+      "width": 0.05118110236220473
+    },
+    "room_reference_right_wall_art": {
+      "bottom": 0.2829028290282903,
+      "center_x": 0.9119094488188977,
+      "center_y": 0.1795817958179582,
+      "height": 0.2066420664206642,
+      "left": 0.8582677165354331,
+      "right": 0.9655511811023622,
+      "top": 0.07626076260762607,
+      "width": 0.10728346456692905
+    },
+    "room_round_mirror": {
+      "bottom": 0.3370233702337023,
+      "center_x": 0.03887795275590551,
+      "center_y": 0.2158671586715867,
+      "height": 0.24231242312423124,
+      "left": 0.0,
+      "right": 0.07775590551181102,
+      "top": 0.09471094710947109,
+      "width": 0.07775590551181102
+    },
+    "room_rug": {
+      "bottom": 0.7822878228782287,
+      "center_x": 0.53248031496063,
+      "center_y": 0.6611316113161132,
+      "height": 0.24231242312423118,
+      "left": 0.2076771653543307,
+      "right": 0.8572834645669292,
+      "top": 0.5399753997539976,
+      "width": 0.6496062992125985
+    },
+    "room_wall_shelf_books": {
+      "bottom": 0.25584255842558423,
+      "center_x": 0.6609251968503937,
+      "center_y": 0.2158671586715867,
+      "height": 0.07995079950799505,
+      "left": 0.609251968503937,
+      "right": 0.7125984251968503,
+      "top": 0.17589175891758918,
+      "width": 0.10334645669291331
+    },
+    "room_window_drapes": {
+      "bottom": 0.4797047970479705,
+      "center_x": 0.3961614173228346,
+      "center_y": 0.2829028290282903,
+      "height": 0.3936039360393604,
+      "left": 0.2047244094488189,
+      "right": 0.5875984251968503,
+      "top": 0.08610086100861009,
+      "width": 0.3828740157480315
+    }
+  },
+  "proof": 1307,
+  "proof_run": 34101164132,
+  "runtime_fingerprint": "95f3a347153186999ecbcf936888b1cbbab03d132f1e7b76e77a1b077b75978f",
+  "schema": "celine-room-progress-measurements/v1"
+}

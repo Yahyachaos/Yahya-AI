@@ -1,0 +1,120 @@
+{
+  "schema": "celine-room-left-wall-texture-rejection/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_blob_sha": "e85c43b5e365982aa862329eecfb31ab502db793",
+    "pr": 111,
+    "causal_witness_head": "616ef47314ceef47e13ffa8ea0a15cfa28e671fa",
+    "candidate_runtime_head": "fa1709316c9bd279094756b0ac319fd03691435d",
+    "revert_head": "083b1fa2f7da200fd4aed3074acc80f9910cbaa0",
+    "accepted_runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "accepted_geometry_score": 0.004543166956175412
+  },
+  "candidate": {
+    "scope": [
+      "app/src/main/java/de/yahya/ai/CelineRoomLeftWallTextureV80.java",
+      "app/src/main/java/de/yahya/ai/CelineRoomReferenceLightingV80.java"
+    ],
+    "intent": "Bind one dedicated smooth low-frequency baseColorMap only to room_left_wall through existing TEXCOORD_0; preserve accepted uniform wall factors and all other room/Celine surfaces.",
+    "runtime_fingerprint": "9265415558da99b83d3118b7c2634527db3e9421ba7a0108d7719ad54be3fc55",
+    "android_build": {
+      "run_number": 1411,
+      "run": 34163673839,
+      "result": "PASS",
+      "apk_artifact": 10033470122,
+      "apk_artifact_digest": "sha256:5e47a8222a6785ae852c43d056bb4397876aaaa0463363238ac0b339c8a09b56",
+      "apk_sha256": "56f89073babff4200ae13593c6e447ec2d9f332577220c4ab1a836415b93fa59"
+    }
+  },
+  "proof": {
+    "real_candidate_number": 1368,
+    "run": 34163825832,
+    "artifact": 10033593818,
+    "artifact_digest": "sha256:0fca7798a389cf78755372fc63339446fff621202dc71405c531a905bf77bc52",
+    "runtime_fingerprint": "9265415558da99b83d3118b7c2634527db3e9421ba7a0108d7719ad54be3fc55",
+    "android_build_source_run": 34163673839,
+    "actual_call_capture": "PASS_NONBLANK",
+    "home_call_home_same_process": "PASS",
+    "workflow_conclusion": "FAIL_LATER_UNRELATED_PROTECTED_LEGACY_CALL_ZOOM_ASSERTION",
+    "room_evidence_usable": true,
+    "runtime_diagnostic": "ROOM-153 present on HOME/CALL/HOME cycles; candidate owner executed."
+  },
+  "measurement": {
+    "call_stage_px": {"left": 32, "top": 466, "right": 1048, "bottom": 1279, "width": 1016, "height": 813},
+    "roi": "left_upper_blank",
+    "normalized_bounds": {"left": 0.06, "right": 0.13, "top": 0.04, "bottom": 0.11},
+    "reference": {
+      "rgb_median": [106, 72, 42],
+      "luma_median": 77.1346,
+      "luma_std": 6.2397,
+      "luma_p10": 70.4266,
+      "luma_p90": 86.4836
+    },
+    "accepted_baseline": {
+      "rgb_median": [124, 83, 44],
+      "luma_median": 88.9008,
+      "luma_std": 0.0,
+      "luma_p10": 88.9008,
+      "luma_p90": 88.9008
+    },
+    "candidate": {
+      "rgb_median": [124, 83, 44],
+      "luma_median": 88.9008,
+      "luma_std": 0.0,
+      "luma_p10": 88.9008,
+      "luma_p90": 88.9008
+    },
+    "median_error_reduction_percent": 0.0,
+    "std_error_reduction_percent": 0.0,
+    "required_each_percent": 20.0,
+    "decision": "FLAT"
+  },
+  "manual_visual": {
+    "decision": "REJECT",
+    "finding": "The candidate CALL is visually indistinguishable from the accepted baseline in the clean upper-left wall. No hard artifact or gross scene regression appeared, but the target broad smooth tonal response did not become visible.",
+    "reference_comparison": "Reference upper-left wall contains smooth broad warm tonal variation; candidate remains the same flat upper-left wall as baseline."
+  },
+  "causal_result": {
+    "candidate_owner_executed": true,
+    "measured_raster_response": "ZERO_IN_TARGET_ROI",
+    "strategy": "DEDICATED_LEFT_WALL_BASECOLORMAP",
+    "decision": "REJECTED_FLAT_STOP_LOSS",
+    "do_not_repeat": [
+      "baseColorMap amplitude tuning on this left-wall strategy",
+      "activating the dormant broad CelineRoomSurfaceTextureV80 as a substitute",
+      "direct shelf spot retuning",
+      "duplicate wall-plane light-pool retuning"
+    ]
+  },
+  "revert": {
+    "head": "083b1fa2f7da200fd4aed3074acc80f9910cbaa0",
+    "tree": "a6dfaceb3c8105cdac18cfb17bf4a703edae1cbe",
+    "tree_matches_pre_candidate_witness_head": true,
+    "restored_lighting_blob": "4806b031810c6c7ebddedee7be54faa1e7f0fa29",
+    "candidate_class_removed": true,
+    "runtime_equivalence": "EXACT_PRE_CANDIDATE_CONTENT",
+    "android_rebuild_required": false,
+    "proof_reuse": "accepted fingerprint 910f9a05... remains the authoritative restored runtime evidence"
+  },
+  "scoreboard": {
+    "whole_scene_total": 0.004543166956175412,
+    "decision": "UNCHANGED_APPEARANCE_ONLY_REJECTED",
+    "largest_geometry_deltas": "unchanged; this candidate did not modify geometry/layout/camera/furniture TRS"
+  },
+  "protected_unchanged": [
+    "room geometry/layout/camera/FOV",
+    "furniture transforms",
+    "back/right wall material factors",
+    "floor/rug",
+    "global directional key/indirect fill",
+    "accepted bed/window values",
+    "Celine identity/rig/materials",
+    "anchors/navigation",
+    "12 original source GLBs/textures",
+    "Core/Conversation/Persona/Intelligence",
+    "AGENTS/queue/build/release/version files"
+  ],
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111 on the reverted accepted runtime, then derive one different read-only causal witness for the largest reliable non-STOP-LOSS Room appearance delta. Do not reopen left-wall baseColorMap amplitude tuning, direct shelf-spot, duplicate wall-plane light-pool, stopped window microtuning, foliage/plant/rug, global renderer key/fill, Celine, Core/Persona, anchors/navigation, merge or release."
+}
