@@ -96,7 +96,7 @@ adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO || true
 adb shell am start -W -n "$MAIN" > "$OUT/activity-start.txt" || fail "HOME launch"
 
 wait_log 'ROOM-100' 'modular room active'
-wait_log 'ROOM-117' 'warm shell material polish active'
+wait_log 'ROOM-116' 'room source-PBR activation'
 wait_log 'V80-410' 'HOME layered frame'
 wait_log 'CTL-350' 'canonical Celine visible'
 sleep 2
@@ -157,7 +157,9 @@ sleep 1
 capture home-return ROOM_POLISH_HOME_RETURN
 
 adb logcat -d -v threadtime > "$OUT/logcat.txt"
-grep -Fq 'ROOM-117' "$OUT/logcat.txt" || fail "warm shell diagnostic absent"
+for diagnostic in ROOM-116 ROOM-118 ROOM-119; do
+  grep -Fq "$diagnostic" "$OUT/logcat.txt" || fail "room source-PBR diagnostic absent: $diagnostic"
+done
 grep -Fq 'ROOM-100' "$OUT/logcat.txt" || fail "room activation absent"
 if grep -Eq 'ROOM-198|ROOM-199|V80-499|REN-399|FATAL EXCEPTION|SIGABRT|OutOfMemoryError' "$OUT/logcat.txt"; then
   fail "room/renderer/lifecycle failure detected"
@@ -165,7 +167,7 @@ fi
 
 cat > "$OUT/summary.txt" <<'EOF'
 STRUCTURAL_PASS targeted v80 room visual polish proof
-EXPECTED_VISUAL=warm_beige_walls_and_ceiling_warmer_wood_floor
+EXPECTED_VISUAL=source_pbr_room_shell_window_drapes_manual_reference_check_required
 PROTECTED=canonical_Celine_camera_room_root_furniture_transforms_navigation_lamp
 CELINE_PRESENCE=CTL-350_plus_manual_image_review
 VISUAL_ACCEPTANCE=manual_review_required
