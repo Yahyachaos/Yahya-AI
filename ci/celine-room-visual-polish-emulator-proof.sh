@@ -118,7 +118,7 @@ root = ET.parse(sys.argv[1]).getroot()
 for node in root.iter('node'):
     if 'Mit Celin' not in node.attrib.get('text', ''):
         continue
-    match = re.fullmatch(r'\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]', node.attrib.get('bounds', ''))
+    match = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib.get('bounds', ''))
     if match:
         x1, y1, x2, y2 = map(int, match.groups())
         print((x1 + x2) // 2, (y1 + y2) // 2)
@@ -131,7 +131,7 @@ else
   # real HOME/V80 and CTL-350 are confirmed. Use only the recorded prior successful
   # 1080x1920 pixel_2 HOME button center (540,1682); CALL transition must still be
   # proven via the real production-owner transition log before any CALL screenshot.
-  SIZE="$(adb shell wm size | tr -d '\\r' | grep -Eo '[0-9]+x[0-9]+' | tail -1)"
+  SIZE="$(adb shell wm size | grep -Eo '[0-9]+x[0-9]+' | tail -1)"
   [[ "$SIZE" == "1080x1920" ]] || fail "fallback tap requires the verified 1080x1920 emulator, got '$SIZE'"
   TAP_X=540
   TAP_Y=1682
