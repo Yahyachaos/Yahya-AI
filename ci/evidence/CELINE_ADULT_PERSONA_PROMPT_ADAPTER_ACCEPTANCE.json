@@ -1,0 +1,51 @@
+{
+  "schema": "celine-adult-persona-prompt-adapter-acceptance/v1",
+  "issue": 112,
+  "work_order": "ci/work-orders/CELINE_ADULT_PERSONA_MODE.md",
+  "scope": "ownership_safe_prompt_composition_seam_only__not_runtime_wiring",
+  "rules": {
+    "inactive_returns_exact_base_object": true,
+    "active_preserves_base_prefix": true,
+    "active_appends_only_persona_contribution": true,
+    "deactivation_restores_exact_base_on_next_compose": true,
+    "empty_base_active_returns_persona_contribution": true,
+    "adapter_store_provider_tool_room_authority": false
+  },
+  "cases": [
+    {
+      "id": "inactive-normal-prompt-transparent",
+      "expected": {
+        "same_object": true,
+        "same_content": true,
+        "persona_contribution": ""
+      }
+    },
+    {
+      "id": "active-style-layer-appended",
+      "initial": {"active": true, "intensity": 3},
+      "expected": {
+        "base_prefix_unchanged": true,
+        "suffix_equals_persona_contribution": true,
+        "base_input_unmodified": true
+      }
+    },
+    {
+      "id": "deactivate-next-prompt-transparent",
+      "initial": {"active": true, "intensity": 2},
+      "command": "Nutte aus",
+      "expected": {
+        "next_compose_same_object": true,
+        "next_compose_same_content": true,
+        "persona_contribution": ""
+      }
+    },
+    {
+      "id": "empty-base-active-contribution-only",
+      "initial": {"active": true, "intensity": 1},
+      "expected": {
+        "output_equals_persona_contribution": true
+      }
+    }
+  ],
+  "claim_boundary": "This proves only deterministic prompt-layer transparency for the isolated prototype seam. It is not runtime MainActivity/store integration and does not by itself prove normal conversation/memory regression acceptance."
+}
