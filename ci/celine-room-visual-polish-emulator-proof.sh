@@ -139,6 +139,10 @@ else
 fi
 [[ -n "${TAP_X:-}" && -n "${TAP_Y:-}" ]] || fail "CALL coordinates missing"
 
+# Count only direct-surface releases AFTER the CALL-entry tap. A stale HOME
+# V80-512 must never satisfy the settled CALL capture gate.
+READY_RELEASES_BEFORE_CALL="$(adb logcat -d | grep -Fc 'V80-512' || true)"
+
 # Emulator input occasionally lands during the last HOME layout pass even though the button's
 # accessibility bounds are already stable. Retry the same bounded entry tap only until the real
 # production-owner CALL transition is observed. This changes proof transport only, never runtime.
@@ -157,7 +161,15 @@ for attempt in 1 2 3 4 5 6; do
 done
 [[ "$CALL_ENTERED" == true ]] || fail "timed out entering CALL after bounded tap retries"
 wait_log 'V80-420' 'CALL layered frame'
-sleep 2
+# V80-420 signals the production owner switched, NOT that the temporary Block-12
+# UI cover / old HOME SurfaceView has been removed. Proof #284 captured both HOME
+# and CALL roof silhouettes in one raster because the CALL capture raced the
+# later V80-512 direct-surface release (~8 seconds after V80-420 in that run).
+# Require a release strictly newer than the pre-entry count before taking the
+# architecture reference screenshot, or fail closed instead of misclassifying a
+# transition composite as an actual settled CALL scene.
+wait_log_count_gt 'V80-512' "$READY_RELEASES_BEFORE_CALL" 'CALL direct Surface release'
+sleep 1
 capture call ROOM_POLISH_CALL
 
 # The Block-12 transition guard can still be presenting its real-frame cover for a short window
