@@ -163,6 +163,12 @@ public final class CelinePersonaMode {
             return result(true, false);
         }
 
+        // Exit commands tolerate pasted line endings; activation does not.
+        // Reject C0/DEL padding and multiline intensity commands fail closed.
+        if (hasControlCharacters(input)) {
+            return result(false, false);
+        }
+
         if (equalsIgnoreCase(command, "Nutte")) {
             activate(DEFAULT_INTENSITY, ActivationSource.DIRECT_USER_COMMAND);
             return result(true, false);
@@ -221,6 +227,15 @@ public final class CelinePersonaMode {
 
     private CommandResult result(boolean consumed, boolean invalid) {
         return new CommandResult(consumed, invalid, active, intensity, activationSource);
+    }
+
+    private static boolean hasControlCharacters(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean equalsIgnoreCase(String value, String expected) {
