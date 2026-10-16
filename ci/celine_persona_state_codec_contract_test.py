@@ -40,7 +40,7 @@ public final class CelinePersonaStateCodecProbe {
         for(int i=1;i<=3;i++) activeLevel(i);
         String[] invalid={null,"","cpm0|1|2","cpm2|1|2","cpm1|1|0","cpm1|1|4",
                           "cpm1|1|9","cpm1|1|02","cpm1|1|2|extra","cpm1|1|+2",
-                          "cpm1|true|2","cpm1|0|2","cpm1|1|\\n", "cpm1|1|2 ",
+                          "cpm1|true|2","cpm1|0|2","cpm1|1|\n", "cpm1|1|2 ",
                           " cpm1|1|2","cpm1|1|２"};
         for(int i=0;i<invalid.length;i++) {
             require(mode.restorePersistedState(true, 3),"setup " + i);
