@@ -69,33 +69,54 @@ def covers_xy(tri, x, y):
 
 def audit(path: Path):
     doc, binary = glb(path)
-    back = next((n for n in doc["nodes"] if n.get("name") == "room_shell_back"), None)
-    if back is None:
-        raise ValueError("back wall node is missing")
+    matches = [node for node in doc["nodes"] if node.get("name") == "room_shell_back"]
+    if len(matches) != 1:
+        raise ValueError("expected exactly one room_shell_back node")
+    back = matches[0]
+    translation = back.get("translation")
+    if not isinstance(translation,list) or len(translation)!=3 or abs(translation[1]-1.325)>0.001:
+        raise ValueError("back-wall transform changed; reconcile before structural sampling")
     mesh = doc["meshes"][back["mesh"]]
-    coverage = []
+    triangles = []
     for primitive in mesh["primitives"]:
-        vertices = read_accessor(doc, binary, primitive["attributes"]["POSITION"])
-        faces = read_accessor(doc, binary, primitive["indices"])
-        triangles = [(vertices[faces[i][0]], vertices[faces[i + 1][0]],
-                      vertices[faces[i + 2][0]]) for i in range(0, len(faces), 3)]
-        coverage.append(any(covers_xy(t, APERTURE_CENTER_X, APERTURE_CENTER_LOCAL_Y)
-                            for t in triangles))
-    result = {
-        "derived_glb": str(path),
-        "back_wall_exists": True,
-        "sample_x": APERTURE_CENTER_X,
-        "sample_world_height_y": APERTURE_CENTER_LOCAL_Y + back["translation"][1],
-        "center_blocked": any(coverage),
-        "candidate_aperture_structural": "PASS" if not any(coverage) else "FAIL",
-        "visual_acceptance": "UNASSESSED",
-        "canonical_furniture_glbs_changed": False,
-    }
-    print(json.dumps(result, indent=2))
-    return 0 if not any(coverage) else 1
+        if primitive.get("mode",4) != 4:
+            raise ValueError("back wall must contain triangles")
+        vertices = read_accessor(doc,binary,primitive["attributes"]["POSITION"])
+        faces = read_accessor(doc,binary,primitive["indices"])
+        if len(faces)%3:
+            raise ValueError("back-wall index count must be divisible by 3")
+        for i in range(0,len(faces),3):
+            indices=[faces[i+j][0] for j in range(3)]
+            if any(k>=len(vertices) for k in indices):
+                raise ValueError("back-wall triangle index out of bounds")
+            triangles.append(tuple(vertices[k] for k in indices))
+    if not triangles:
+        raise ValueError("missing back-wall triangles")
 
+    def blocked(x,world_y):
+        y=world_y-translation[1]
+        return any(covers_xy(t,x,y) for t in triangles)
+
+    interior=[{"x":x,"world_y":y,"blocked":blocked(x,y)}
+              for y in (1.10,1.65,2.20) for x in (0.30,0.75,1.20)]
+    surround=([{"x":x,"world_y":y,"blocked":blocked(x,y)}
+               for y in (1.10,1.65,2.20) for x in (-1.40,1.80)]
+              +[{"x":x,"world_y":y,"blocked":blocked(x,y)}
+                for y in (0.40,2.52) for x in (0.30,0.75,1.20)])
+    clear_count=sum(not p["blocked"] for p in interior)
+    opaque_count=sum(p["blocked"] for p in surround)
+    passed=clear_count==len(interior) and opaque_count==len(surround)
+    result={"derived_glb":str(path),"back_wall_triangles":len(triangles),
+            "interior_clear_count":clear_count,"interior_total":len(interior),
+            "surrounding_opaque_count":opaque_count,"surrounding_total":len(surround),
+            "interior_samples":interior,"surround_samples":surround,
+            "candidate_aperture_structural":"PASS" if passed else "FAIL",
+            "visual_acceptance":"UNASSESSED_REQUIRES_REAL_CALL_PROOF",
+            "canonical_furniture_glbs_changed":False}
+    print(json.dumps(result,indent=2))
+    return 0 if passed else 1
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("derived_room_shell_glb", type=Path)
+    parser=argparse.ArgumentParser()
+    parser.add_argument("derived_room_shell_glb",type=Path)
     raise SystemExit(audit(parser.parse_args().derived_room_shell_glb))
