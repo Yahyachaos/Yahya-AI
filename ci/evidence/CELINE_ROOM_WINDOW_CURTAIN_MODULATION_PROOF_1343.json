@@ -1,0 +1,108 @@
+{
+  "schema": "celine-room-material-causal-proof/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "reference_layout_contract": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+    "prior_causal_witness": "ci/evidence/CELINE_ROOM_WINDOW_CURTAIN_FLATNESS_WITNESS_1336.json",
+    "accepted_geometry_total_score": 0.004543166956175412,
+    "geometry_change_proposed": false
+  },
+  "exact_candidate": {
+    "runtime_code_head": "4ce05b2ef79c933a828346d5b3237ff0b83d40a0",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "android_build_run": 34139237605,
+    "android_build_number": 1389,
+    "android_build_status": "PASS",
+    "apk_sha256": "b7e11e64154f4156a4012e333f0a8acf4df810b1b8c5e148391c0cea06e6c73d",
+    "real_candidate_run": 34139237603,
+    "real_candidate_number": 1343,
+    "real_candidate_attempt": 2,
+    "artifact_id": 10025484782,
+    "artifact_sha256": "42867a0a3585ba806de2046fc49d358cc3624b8659d0a7d8bb0e4e6161d4c95b",
+    "call_capture": "real-candidate-call.png",
+    "capture_status": "VALID_NONBLANK_ACTUAL_CALL"
+  },
+  "room_relevant_validation": {
+    "home_call_home": "PASS",
+    "same_process": true,
+    "pid_home": 2180,
+    "pid_call": 2180,
+    "pid_return": 2180,
+    "overall_workflow_conclusion": "FAILURE_AFTER_ROOM_PASS",
+    "unrelated_failure": "protected legacy CALL zoom assertion: head-and-shoulders checkpoint is not closer than normal CALL: 1.000",
+    "room_proof_usable": true
+  },
+  "candidate_change": {
+    "strategy_family": "VISIBLE_OUTER_CURTAIN_PROCEDURAL_BASECOLOR_MODULATION",
+    "scope": "CelineRoomWindowCurtainFillV80 only",
+    "change": "Keep the generated 128x256 smooth grayscale fold baseColorMap on the two visible outer-curtain materials, but remove the #1342 median-factor compensation so the accepted #1245 left/right color centers are preserved.",
+    "diagnostic_runtime_confirmation": "ROOM-149 is present in exact #1343 CALL logcat with modulation=128x256 and no median compensation, proving the intended code path executed.",
+    "not_changed": [
+      "window/curtain geometry or accepted affine envelope",
+      "night backdrop",
+      "derived sheer geometry/material",
+      "fold facet geometry",
+      "source GLB/source texture bytes",
+      "room shell/global renderer lighting",
+      "bed/furniture transforms or accepted bed material",
+      "camera/FOV",
+      "Celine identity/rig/materials",
+      "anchors/navigation",
+      "Core/Conversation/Persona/Intelligence paths"
+    ]
+  },
+  "read_only_measurement": {
+    "stage_origin_full_screenshot_px": {"x": 32, "y": 466},
+    "stage_size_px": {"width": 1016, "height": 813},
+    "rois_stage_px": {
+      "left_outer_clean": {"left": 215, "top": 85, "right": 270, "bottom": 220},
+      "left_sheer_clean": {"left": 275, "top": 85, "right": 350, "bottom": 220},
+      "right_sheer_clean": {"left": 475, "top": 85, "right": 530, "bottom": 200},
+      "right_outer_clean": {"left": 545, "top": 85, "right": 595, "bottom": 220}
+    },
+    "baseline_1336": {
+      "left_outer_median_srgb": [117, 75, 32],
+      "right_outer_median_srgb": [88, 54, 25],
+      "right_outer_luminance_std": 1.1559721110944536,
+      "right_outer_adjacent_column_mean_abs_luminance_delta": 0.0993306122449063,
+      "right_outer_unique_rgb_count": 2
+    },
+    "candidate_1343": {
+      "left_outer_median_srgb": [117, 75, 32],
+      "right_outer_median_srgb": [88, 54, 25],
+      "right_outer_luminance_std": 1.1559721110944536,
+      "right_outer_adjacent_column_mean_abs_luminance_delta": 0.0993306122449063,
+      "right_outer_unique_rgb_count": 2
+    },
+    "roi_pixel_comparison_1336_to_1343": {
+      "left_outer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 7425},
+      "left_sheer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 10125},
+      "right_sheer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 6325},
+      "right_outer_clean": {"exact_pixel_equal": true, "changed_pixels": 0, "pixel_count": 6750}
+    },
+    "reference_linked_right_outer_targets_from_1336_witness": {
+      "luminance_std": 16.88,
+      "adjacent_column_mean_abs_luminance_delta": 6.06,
+      "unique_rgb_count": 2525
+    },
+    "manual_visual": "FAIL_NO_MATERIAL_IMPROVEMENT: #1343 restores the accepted outer-curtain color centers, but the visible clean curtain ROIs are raster-identical to #1336 and do not read more like continuous soft fabric."
+  },
+  "causal_conclusion": {
+    "1342_interpretation": "The apparent #1342 variation gain was coupled to an approximately 24% baseColorFactor brightening and materially regressed both accepted curtain color centers; after removing that factor compensation, #1343 returns exactly to the #1336 clean-ROI raster.",
+    "1343_finding": "The generated baseColorMap binding is raster-inert for the visible broad outer-curtain panels under the current duplicated room_back_wall material/shader path, despite the ROOM-149 runtime path executing.",
+    "decision": "REJECTED_FLAT",
+    "stop_loss": "STOP_LOSS_FOR_SAME_BASECOLORMAP_STRATEGY: do not spend another Android build on amplitude/frequency/median tweaks to this same generated baseColorMap path without new independent evidence that a different visible material owner or shader path can affect the raster."
+  },
+  "handoff": {
+    "runtime_code_head": "4ce05b2ef79c933a828346d5b3237ff0b83d40a0",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "build_test_proof": "Android Build #1389 PASS; Real Candidate #1343 room HOME->CALL->HOME PASS in one process; candidate appearance decision REJECTED_FLAT; overall workflow red only at unrelated protected zoom assertion.",
+    "scoreboard_total": 0.004543166956175412,
+    "scoreboard_decision": "UNCHANGED_MATERIAL_ONLY",
+    "largest_rest_delta": "Visible derived window fabric remains materially quantized; #1336 already quantified the sheer clean ROIs as a separate remaining appearance delta, but no new runtime fix is authorized until a read-only causal witness proves an independently effective visible material owner/path.",
+    "blocker": "none",
+    "exact_next_action": "Fresh-reconcile PR #111; with outer-curtain baseColorMap modulation now stop-loss rejected, perform one docs/read-only causal witness for the largest remaining non-stop-loss room appearance delta (the visible derived sheer flatness is the quantified candidate from #1336), without changing runtime, then only implement a bounded fix if that witness identifies an independently effective visible material owner/path."
+  },
+  "validation_classification": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD"
+}

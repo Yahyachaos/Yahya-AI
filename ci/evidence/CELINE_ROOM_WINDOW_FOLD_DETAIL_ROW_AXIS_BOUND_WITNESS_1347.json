@@ -1,0 +1,97 @@
+{
+  "schema": "celine-room-material-causal-witness/v1",
+  "workstream": "ROOM_SCENE",
+  "authority": {
+    "visual_reference": "Refernzbild.png",
+    "prior_axis_witness": "ci/evidence/CELINE_ROOM_WINDOW_FOLD_DETAIL_CAUSAL_WITNESS_1347.json",
+    "prior_pleat_proof": "ci/evidence/CELINE_ROOM_WINDOW_SHEER_PLEAT_PROOF_1346.json",
+    "accepted_geometry_total_score": 0.004543166956175412
+  },
+  "exact_current_truth": {
+    "workstream_head_before_this_docs_witness": "4766130c83fadcd2ebc37ed981842b1f79d8b2d4",
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "real_candidate_number": 1347,
+    "room_lifecycle": "PASS_HOME_CALL_HOME_SAME_PROCESS",
+    "geometry_scoreboard": "UNCHANGED_APPEARANCE_ONLY"
+  },
+  "source_level_question": "Can one single broad height-varying non-bar lobe in CelineRoomWindowFoldDetailV80, while keeping the currently proven low-contrast fold material, plausibly clear a material row-axis improvement gate in both clean sheers?",
+  "proven_live_fold_material_response": {
+    "source_pair": "Real Candidate #1217 -> #1218",
+    "only_change": "move the existing two sheer fold facets onto the accepted panel centers",
+    "observed_rgb_delta_on_changed_pixels": [-7, 7, 17],
+    "rec709_srgb_luminance_delta": 4.7456,
+    "finding": "This is a strong direct proof of the present fold material/coverage response. The response is spatially constant where the full-height planar facet covers the panel."
+  },
+  "reference_linked_row_axis_gate": {
+    "rule": "Use the same 20% material-error reduction discipline that prevented flat micro-tuning elsewhere: each clean sheer must reduce its absolute error to the reference-linked row-mean-luminance standard deviation by at least 20%, with manual visual agreement.",
+    "left": {
+      "current_std": 0.4268696508,
+      "reference_std": 9.0,
+      "current_error": 8.5731303492,
+      "max_error_after_20pct_reduction": 6.8585042794,
+      "minimum_candidate_std_toward_reference": 2.1414957206
+    },
+    "right": {
+      "current_std": 1.8086212133,
+      "reference_std": 22.5,
+      "current_error": 20.6913787867,
+      "max_error_after_20pct_reduction": 16.5531030294,
+      "minimum_candidate_std_toward_reference": 5.9468969706
+    }
+  },
+  "coverage_only_upper_bound": {
+    "derivation": "For one constant-color overlay/lobe using the proven current fold material, a row's added mean luminance is bounded between 0 and the observed full-coverage luminance delta 4.7456. By Popoviciu's inequality, the standard deviation of that bounded added row signal cannot exceed half its range: 2.3728. By the triangle inequality for standard deviation, candidate row std is therefore no greater than current row std + 2.3728, even under an unrealistically optimal coverage waveform.",
+    "left": {
+      "current_std": 0.4268696508,
+      "max_theoretical_candidate_std": 2.7996696508,
+      "minimum_required_std": 2.1414957206,
+      "theoretical_gate_possible": true
+    },
+    "right": {
+      "current_std": 1.8086212133,
+      "max_theoretical_candidate_std": 4.1814212133,
+      "minimum_required_std": 5.9468969706,
+      "theoretical_gate_possible": false
+    },
+    "conclusion": "A single broad height-varying lobe that keeps the presently proven low-contrast constant fold material cannot clear the 20% reference-linked row-axis error gate in BOTH sheers, regardless of taper shape or projected coverage. The right sheer fails even the generous mathematical upper bound."
+  },
+  "normal_only_cross_check": {
+    "evidence": "Real Candidate #1346 replaced each broad sheer with a smooth low-amplitude pleated surface/tangent field while preserving accepted color/envelope.",
+    "result": "REJECTED_FLAT",
+    "observed_response": "sub-1% clean-ROI changed pixels with max one-code-value channel delta and no material visual improvement",
+    "conclusion": "There is no evidence that merely twisting/tapering normals under the current room lighting can supply the missing factor. Normal-only geometry is therefore not an independent rescue for the same-material single-lobe bound."
+  },
+  "causal_conclusion": {
+    "strategy_family": "SINGLE_BROAD_SAME_MATERIAL_FOLD_LOBE",
+    "decision": "STOP_LOSS_NO_RUNTIME_BUILD",
+    "reason": "Direct raster response plus a conservative mathematical upper bound show the right sheer cannot reach the minimum reference-linked row-axis improvement using only current fold-material coverage, while the already-tested smooth normal/pleat path is flat. Another build on width/taper/twist alone would be speculative and violates the efficiency/stop-loss policy.",
+    "what_would_be_independent": "A provably live room-local mechanism that creates continuous within-lobe intensity variation larger than the current constant fold-material delta without returning to baseColorMap modulation or many dark bars—for example a verified per-vertex color/gradient path, a separate bounded material parameter that interpolates spatially, or another independently evidenced material owner."
+  },
+  "protected_state": [
+    "12 original furniture GLBs/source textures",
+    "accepted room geometry/layout/furniture TRS",
+    "camera/FOV",
+    "global renderer key/fill/practical lights",
+    "accepted bed material",
+    "Celine identity/rig/materials",
+    "anchors/navigation",
+    "Core/Conversation/Persona/Intelligence paths",
+    "shared queue/AGENTS/build/release surfaces"
+  ],
+  "scoreboard": {
+    "whole_scene_total": 0.004543166956175412,
+    "decision": "UNCHANGED_READ_ONLY_APPEARANCE_WITNESS",
+    "reason": "No runtime or geometry/layout/camera content changed."
+  },
+  "handoff": {
+    "runtime_code_head": "bc0cdd543076bbd1813338c3bcd892cc8edb6809",
+    "runtime_fingerprint": "910f9a05a78c75726a96fce46a37b40144d3500de059be10a26203b1f030d637",
+    "build_test_proof": "No build: docs/read-only upper-bound witness only. Restored runtime remains proven by Real Candidate #1347 room HOME->CALL->HOME PASS in one process and valid actual CALL; unrelated protected legacy zoom assertion remains outside Room scope.",
+    "changed": "Docs/evidence only: established STOP-LOSS for a same-material single broad/tapered/twisted fold lobe using direct #1217/#1218 raster response, current #1336/#1347 row metrics and a conservative upper bound.",
+    "not_changed": "All runtime/app code and every protected Room/Core/shared surface.",
+    "blocker": "none",
+    "exact_next_action": "Fresh-reconcile PR #111; perform one read-only material-owner witness to determine whether the duplicated room_back_wall material used by CelineRoomWindowFoldDetailV80 has any PROVEN live spatially varying path other than the rejected baseColorMap route (for example vertex COLOR consumption or another interpolated parameter). If no such live path can be evidenced without a runtime experiment, stop window micro-tuning and move to the next largest measured non-STOP-LOSS room-only appearance delta. Do not build merely to probe an unproven parameter."
+  },
+  "validation_classification": "DOCS_EVIDENCE_ONLY_NO_ANDROID_BUILD"
+}

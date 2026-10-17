@@ -1,0 +1,99 @@
+{
+  "schema": "celine-room-progress-measurements/v1",
+  "proof": {
+    "workflow": "Celine Real Candidate Render Proof",
+    "run_number": 1262,
+    "run_id": 34068017416,
+    "artifact_id": 9999637259,
+    "artifact_digest": "sha256:b2a309e97a61c8d4f1aa7c77125ff0a43bf50b91193bc5d503f97dac3d2ac73f",
+    "head_sha": "33afe315f1c6889b96a430f4869b013f514e57d1",
+    "runtime_fingerprint": "42b76bd26b76ac2acd027337de01c4abfa70cf9c42aed3c8be7b9ce2430416a2",
+    "android_build_run_id": 34067887238,
+    "apk_sha256": "1eacf6c7a86a93a4fd1fdf4c52649ca7a0f5b5176790985ae208bceabe27e818"
+  },
+  "stage": {
+    "source": "real-candidate-call.xml",
+    "bounds_px": [32, 466, 1048, 1279],
+    "width_px": 1016,
+    "height_px": 813,
+    "coordinate_convention": "normalized within exact CALL stage; origin top-left"
+  },
+  "method": {
+    "kind": "manual_visible_raster_bbox",
+    "proof_opened": true,
+    "notes": "Actual real-candidate-call.png was opened and cropped using the exact stage bounds from real-candidate-call.xml. Only visibly separable object envelopes were measured. Values are intentionally limited to reliable broad geometry and are not pixel-segmentation claims. Bed, foreground table/laptop/plant, floor lamp, nightstands, small plant and wall-art targets are excluded here where occlusion, perspective or target semantics make the visible bbox ambiguous."
+  },
+  "measurements": {
+    "room_window_drapes": {
+      "bbox_px": [199, 599, 61, 397],
+      "left": 0.195866,
+      "right": 0.589567,
+      "top": 0.075031,
+      "bottom": 0.488315,
+      "measurement_confidence": "high"
+    },
+    "room_dresser": {
+      "bbox_px": [0, 186, 341, 584],
+      "left": 0.0,
+      "right": 0.183071,
+      "top": 0.419434,
+      "bottom": 0.718327,
+      "measurement_confidence": "high"
+    },
+    "room_lounge_chair": {
+      "bbox_px": [218, 321, 298, 414],
+      "left": 0.214567,
+      "right": 0.315945,
+      "top": 0.366544,
+      "bottom": 0.509225,
+      "measurement_confidence": "high"
+    },
+    "room_round_mirror": {
+      "bbox_px": [0, 79, 79, 272],
+      "left": 0.0,
+      "right": 0.077756,
+      "top": 0.097171,
+      "bottom": 0.334563,
+      "measurement_confidence": "high"
+    },
+    "room_rug": {
+      "bbox_px": [211, 871, 439, 636],
+      "left": 0.207677,
+      "right": 0.857283,
+      "top": 0.539975,
+      "bottom": 0.782288,
+      "measurement_confidence": "medium",
+      "notes": "Visible patterned rug envelope only; Celine/bed/foreground occlusion remains. This measurement is geometry-envelope evidence, not a material/banding PASS."
+    },
+    "room_plant_large": {
+      "bbox_px": [164, 241, 169, 435],
+      "left": 0.161417,
+      "right": 0.237205,
+      "top": 0.207872,
+      "bottom": 0.535055,
+      "measurement_confidence": "medium"
+    },
+    "room_wall_shelf_books": {
+      "bbox_px": [619, 724, 143, 198],
+      "left": 0.609252,
+      "right": 0.712598,
+      "top": 0.175892,
+      "bottom": 0.243542,
+      "measurement_confidence": "medium"
+    }
+  },
+  "excluded_from_score": {
+    "room_bed": "partly occluded by Celine; visible left envelope is not a stable proxy for the target semantics",
+    "room_foreground_table": "perspective boundary is not a single stable bbox top edge",
+    "room_reference_foreground_laptop": "existing target file carries a dedicated quadrilateral contract; do not replace it with a coarse bbox",
+    "room_reference_foreground_plant": "foreground occlusion/clipping makes this baseline bbox ambiguous",
+    "room_floor_lamp": "partly occluded by chair/window region",
+    "room_nightstand_rear": "bed occludes lower cabinet",
+    "room_nightstand_front": "right-edge clipping and lamp overlap",
+    "room_plant_small": "nightstand/bed overlap",
+    "room_reference_foreground_candle": "not reliably separable in this proof",
+    "room_reference_right_wall_art": "not needed for broad geometry baseline",
+    "room_reference_left_wall_art_pair": "not needed for broad geometry baseline"
+  },
+  "manual_visual_verdict": "WHOLE_ROOM_FAIL__RUG_HORIZONTAL_BANDING_REMAINS; GEOMETRY_SCORE_BASELINE_ONLY"
+}

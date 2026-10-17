@@ -1,0 +1,53 @@
+{
+  "checkpoint": "v25_TRUE3D",
+  "status": "user_visually_approved_room_layout_checkpoint",
+  "created_from_local_preview": true,
+  "reference_sha256": "c5bbbfcffdcf60ac4d59149e21e5860de3b99b5b15864569d489a699dc7986e1",
+  "preview_sha256": "ba5b33d14933b0a685030cc9ebb0e4d66be739ece70e3942cdd2f9d6834c8f9d",
+  "comparison_sha256": "c28cbcae4603319750b7765e8d8f6c5e1087ab7c40254d6c0a688b2b1c10d162",
+  "renderer": {
+    "size": [1402, 1122],
+    "floor_y": -1.55,
+    "room_back_z": -8.0,
+    "room_front_z": -1.05,
+    "room_width": 6.4,
+    "room_height": 2.8,
+    "camera": {
+      "position": [0.0, 1.05, 1.15],
+      "focal_point": [0.0, -0.6, -4.0],
+      "view_up": [0.0, 1.0, 0.0],
+      "view_angle_deg": 41.1,
+      "clipping_range": [0.05, 1000.0]
+    }
+  },
+  "objects": [
+    {"asset":"Fenstermitgardinen.glb","x":-0.82,"world_z":-7.8,"free_y":-0.12,"uniform_scale":1.5,"yaw_deg":0},
+    {"asset":"Hängeboardmitbücher.glb","x":1.35,"world_z":-7.66,"free_y":0.58,"uniform_scale":0.47,"yaw_deg":0},
+    {"asset":"Wandspiegelrund.glb","x":-3.08,"world_z":-3.65,"free_y":0.18,"uniform_scale":0.49,"yaw_deg":90},
+    {"asset":"Bett.glb","x":1.81,"zlocal":-1.82,"uniform_scale":1.46,"yaw_deg":-90},
+    {"asset":"GroßeKomode.glb","x":-2.82,"zlocal":-0.7,"uniform_scale":1.3,"yaw_deg":90},
+    {"asset":"Großepflanzemittopf.glb","x":-2.72,"zlocal":-2.92,"uniform_scale":1.1,"yaw_deg":0},
+    {"asset":"Sessel.glb","x":-2.28,"zlocal":-3.18,"uniform_scale":0.43,"yaw_deg":25},
+    {"asset":"Lampe.glb","x":-1.62,"zlocal":-3.18,"uniform_scale":0.56,"yaw_deg":0},
+    {"asset":"Teppisch.glb","x":0.14,"zlocal":-0.91,"scale_xyz":[2.35,1.0,1.64],"yaw_deg":0},
+    {"asset":"Nachttisch.glb","instance":"front","x":2.55,"zlocal":-0.42,"uniform_scale":0.49,"yaw_deg":270},
+    {"asset":"Nachttisch.glb","instance":"back","x":2.55,"zlocal":-3.18,"uniform_scale":0.43,"yaw_deg":270},
+    {"asset":"Kleinepflanzemittopf.glb","x":1.72,"zlocal":-2.55,"uniform_scale":0.32,"yaw_deg":0},
+    {"asset":"Tischfürlaptop.glb","x":0.0,"zlocal":3.2,"scale_xyz":[1.25,1.1,0.91],"yaw_deg":0}
+  ],
+  "source_assets_sha256": {
+    "Bett.glb":"9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+    "Fenstermitgardinen.glb":"24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+    "GroßeKomode.glb":"e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+    "Großepflanzemittopf.glb":"48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+    "Hängeboardmitbücher.glb":"9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+    "Kleinepflanzemittopf.glb":"ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+    "Lampe.glb":"7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+    "Nachttisch.glb":"169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+    "Sessel.glb":"2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+    "Teppisch.glb":"5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+    "Tischfürlaptop.glb":"b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+    "Wandspiegelrund.glb":"f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0"
+  },
+  "checkpoint_preview_jpeg_sha256":"7d10e5f24d305050b6cb6c7cf9024d3a2723e0931d334e1e5cd238591c5f5638"
+}

@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "block": "G2.1 Typed Tool Cortex",
+  "status": "COMPLETE_BUILT",
+  "runtime_head": "e62512db34306aeb4c882c0dfd22e23ea9f0021d",
+  "implementation": {
+    "cortex": "app/src/main/java/de/yahya/ai/CelineToolCortexG21.java",
+    "android_backend": "app/src/main/java/de/yahya/ai/CelineAndroidToolBackend.java",
+    "device_binding": "app/src/main/java/de/yahya/ai/DeviceBridge.java",
+    "allowlisted_tool_count": 13,
+    "typed_parameters": true,
+    "explicit_preconditions": true,
+    "explicit_failure_states": true,
+    "provider_independent_core": true,
+    "android_free_core": true,
+    "dynamic_unallowlisted_execution": false
+  },
+  "tools": [
+    "device.status",
+    "notifications.recent",
+    "screen.read",
+    "navigation.home",
+    "navigation.back",
+    "navigation.recents",
+    "app.open",
+    "ui.click_text",
+    "ui.set_text",
+    "ui.tap",
+    "settings.accessibility",
+    "settings.notifications",
+    "settings.all_files"
+  ],
+  "contracts": {
+    "ci/celine_g2_typed_tool_cortex_test.py": "PASS",
+    "ci/celine_g2_typed_tool_live_contract.py": "PASS",
+    "g1_regression_contracts": "PASS"
+  },
+  "android_build": {
+    "workflow": "Android Build",
+    "run_number": 1095,
+    "run_id": 33694671209,
+    "conclusion": "success",
+    "verify_project": "success",
+    "assemble_debug": "success",
+    "apk_artifact_id": 9871378568,
+    "apk_artifact_digest": "sha256:38a242fcb0a98f242c7889df87a609c806036a01dd006f4314c96faf166800fb",
+    "runtime_fingerprint": "34cd92488762a2dbcea3f167f1c3cce1705edf5147de1ee77c6d7818f6499eb8",
+    "runtime_fingerprint_artifact_id": 9871379026,
+    "runtime_fingerprint_artifact_digest": "sha256:ad9f6666e9add48a216092bcd89bb830000e85d1456595453e34dabb479f51d9",
+    "emulator_visual_job": "skipped",
+    "publish_job": "skipped"
+  },
+  "repair_history": {
+    "failed_run_number": 1094,
+    "failed_run_id": 33694324625,
+    "failure_class": "focused compile contract only",
+    "root_cause": "app.open registration passed List<ParameterSpec> into the preconditions-only descriptor overload",
+    "repair": "use the existing five-argument descriptor overload with an explicit empty precondition list",
+    "runtime_behavior_changed_by_repair": false
+  },
+  "scope_exclusions": [
+    "no planner",
+    "no world model",
+    "no agent loop",
+    "no provider/model migration",
+    "no room/avatar/voice changes"
+  ]
+}
