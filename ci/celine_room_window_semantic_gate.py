@@ -7,11 +7,43 @@ separate explicit material ownership; opaque atlas-only windows are a hard FAIL.
 from __future__ import annotations
 import argparse
 import json
+import math
 from pathlib import Path
 
 from celine_room_window_aperture_structural_check import glb
 
 REQUIRED = {"curtain", "glass", "frame"}
+
+
+
+def physical_alpha_ok(mat: dict, semantic: str) -> bool:
+    """Conservative structural guard; actual CALL raster determines visual validity.
+
+    glTF alphaMode=BLEND on an opaque JPEG with baseColorFactor alpha=1
+    is not physically translucent. Transmission support is deliberately
+    unaccepted until verified by the Android renderer.
+    """
+    factor = (mat.get("pbrMetallicRoughness") or {}).get("baseColorFactor", [1, 1, 1, 1])
+    if not isinstance(factor, list) or len(factor) != 4:
+        return False
+    try:
+        rgba = [float(value) for value in factor]
+        transmission = float(((mat.get("extensions") or {}).get("KHR_materials_transmission") or {}).get("transmissionFactor", 0))
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(v) and 0 <= v <= 1 for v in [*rgba, transmission]):
+        return False
+    alpha = rgba[3]
+    mode = mat.get("alphaMode", "OPAQUE")
+    if semantic == "frame":
+        return mode == "OPAQUE" and alpha >= 0.98 and transmission == 0
+    if transmission:
+        return False
+    if semantic == "curtain":
+        return mode == "BLEND" and 0.03 <= alpha <= 0.88
+    if semantic == "glass":
+        return mode == "BLEND" and 0.03 <= alpha <= 0.75
+    return False
 
 
 def check(path: Path, expected_faces: int = 499998) -> dict:
@@ -40,11 +72,7 @@ def check(path: Path, expected_faces: int = 499998) -> dict:
         mat = materials[material_id]
         semantic = (mat.get("extras") or {}).get("celine_room_semantic_surface")
         alpha = mat.get("alphaMode", "OPAQUE")
-        accepted_alpha = (
-            alpha == "BLEND" if semantic == "curtain" else
-            alpha in ("BLEND", "MASK") if semantic == "glass" else
-            alpha == "OPAQUE" if semantic == "frame" else False
-        )
+        accepted_alpha = physical_alpha_ok(mat, semantic)
         if not accepted_alpha:
             unowned += count
         if semantic in REQUIRED and accepted_alpha:
