@@ -158,13 +158,17 @@ public final class CelinePersonaMode {
             return result(false, false);
         }
 
+        // Exit commands may include pasted CR/LF, but trim() also strips
+        // NUL/TAB and other control padding. Those must never be consumed.
         if (equalsIgnoreCase(command, "Normalmodus") || equalsIgnoreCase(command, "Nutte aus")) {
+            if (hasDisallowedExitControlCharacters(input)) {
+                return result(false, false);
+            }
             reset();
             return result(true, false);
         }
 
-        // Exit commands tolerate pasted line endings; activation does not.
-        // Reject C0/DEL padding and multiline intensity commands fail closed.
+        // Activation requires an exact standalone user command.
         if (hasControlCharacters(input)) {
             return result(false, false);
         }
@@ -227,6 +231,16 @@ public final class CelinePersonaMode {
 
     private CommandResult result(boolean consumed, boolean invalid) {
         return new CommandResult(consumed, invalid, active, intensity, activationSource);
+    }
+
+    private static boolean hasDisallowedExitControlCharacters(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isISOControl(ch) && ch != '\r' && ch != '\n') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasControlCharacters(String value) {
