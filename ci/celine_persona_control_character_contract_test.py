@@ -48,13 +48,35 @@ public final class CelinePersonaControlCharacterContractTest {
         require(mode.apply(CelinePersonaMode.InputChannel.DIRECT_USER,
                 "Nutte 9").invalidIntensity(), "out of range flagged");
         require(mode.isActive() && mode.intensity() == 3, "intensity reject preserves");
+        // Malformed exit commands must not silently deactivate the active mode.
+        String[] malformedExits = {
+            "Nutte aus" + (char)0,
+            ((char)0) + "Nutte aus",
+            "Normalmodus" + (char)9,
+            "Nutte aus" + (char)127,
+            ((char)7) + "Normalmodus",
+            "Nutte aus" + (char)10 + (char)0
+        };
+        for (String malformed : malformedExits) {
+            CelinePersonaMode.CommandResult rejected =
+                mode.apply(CelinePersonaMode.InputChannel.DIRECT_USER, malformed);
+            require(!rejected.commandConsumed(), "malformed exit not consumed");
+            require(mode.isActive() && mode.intensity() == 3,
+                    "malformed exit preserves active mode and intensity");
+            require(!mode.promptContribution().isEmpty(),
+                    "malformed exit preserves active prompt contribution");
+        }
+        require(!mode.apply(CelinePersonaMode.InputChannel.MODEL_OUTPUT,
+                "Nutte aus").commandConsumed(), "model output cannot deactivate");
+        require(mode.isActive() && mode.intensity() == 3,
+                "non-user exit preserves active state");
         require(mode.apply(CelinePersonaMode.InputChannel.DIRECT_USER,
                 "\r\nNutte aus\r\n").commandConsumed(), "pasted exit accepted");
         require(!mode.isActive() && mode.promptContribution().isEmpty(),
                 "pasted exit resets to normal");
         require(!mode.apply(CelinePersonaMode.InputChannel.MODEL_OUTPUT,
                 "Nutte").commandConsumed(), "model output cannot activate");
-        System.out.println("Celine persona control-character guard: PASS (9 invalid inputs + state/exit)");
+        System.out.println("Celine persona control-character guard: PASS (9 invalid activations + 6 invalid exits + state/exit)");
     }
 }
 '''
