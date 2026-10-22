@@ -66,6 +66,18 @@ public final class CelinePersonaControlCharacterContractTest {
             require(!mode.promptContribution().isEmpty(),
                     "malformed exit preserves active prompt contribution");
         }
+        // Java equalsIgnoreCase accepts long-s as 's'; control commands must not.
+        String[] unicodeExitLookalikes = {
+            "Nutte au\\u017F",
+            "Normalmodu\\u017F"
+        };
+        for (String lookalike : unicodeExitLookalikes) {
+            CelinePersonaMode.CommandResult rejected =
+                mode.apply(CelinePersonaMode.InputChannel.DIRECT_USER, lookalike);
+            require(!rejected.commandConsumed(), "Unicode-lookalike exit not consumed");
+            require(mode.isActive() && mode.intensity() == 3,
+                    "Unicode-lookalike exit preserves active persona");
+        }
         require(!mode.apply(CelinePersonaMode.InputChannel.MODEL_OUTPUT,
                 "Nutte aus").commandConsumed(), "model output cannot deactivate");
         require(mode.isActive() && mode.intensity() == 3,

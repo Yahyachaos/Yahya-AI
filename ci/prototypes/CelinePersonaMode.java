@@ -1,7 +1,5 @@
 package de.yahya.ai;
 
-import java.util.Locale;
-
 /**
  * Standalone candidate for the eventual app-owned deterministic persona state.
  *
@@ -178,8 +176,8 @@ public final class CelinePersonaMode {
             return result(true, false);
         }
 
-        String lower = command.toLowerCase(Locale.ROOT);
-        if (!lower.startsWith("nutte ")) {
+        if (command.length() < 6
+                || !equalsIgnoreCase(command.substring(0, 6), "Nutte ")) {
             return result(false, false);
         }
 
@@ -252,8 +250,25 @@ public final class CelinePersonaMode {
         return false;
     }
 
+    /** Fail closed on Unicode lookalikes for exact ASCII control commands. */
     private static boolean equalsIgnoreCase(String value, String expected) {
-        return value.equalsIgnoreCase(expected);
+        if (value.length() != expected.length()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char left = value.charAt(i);
+            char right = expected.charAt(i);
+            if (left >= 'A' && left <= 'Z') {
+                left = (char) (left + ('a' - 'A'));
+            }
+            if (right >= 'A' && right <= 'Z') {
+                right = (char) (right + ('a' - 'A'));
+            }
+            if (left != right) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean isAsciiInteger(String value) {
