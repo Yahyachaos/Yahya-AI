@@ -1,0 +1,13 @@
+# C29 — Window atlas UV semantic-separation diagnostic (READ ONLY / NO VISUAL PASS)
+
+Scope: existing Room PR #111; no GLB/source/runtime/CI change. Exact APK Build #1567 runtime SHA ffe4db33b7c73c2cdaa48753e95d880071b1f2f7, fingerprint dea4c685866295bb5c6c4e68883820d709ea4d49c29facd4d84a7cf5fba3ff18. Exact shipped derived room_window_drapes.glb SHA256 c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5.
+
+Reproducible novel result: Rasterize all 499,998 exact shipped derivative triangles into their own 1024x1024 UV texture atlas (CV2 filled triangles; nearest integer texels, no AA). Classify only PROVISIONAL face-centroid local-X bands: outer |x| >= 0.75 (93,740 faces), center |x| <= 0.40 (160,489 faces), transition (245,769 faces).
+
+UV footprint occupied texels: outer 135,941, center 232,495, transition 421,038. Outer-center overlap ONLY 100 texels (0.0736% of outer and 0.0430% of center), and ZERO overlapping interior texels after 3x3 erosion. Outer-transition overlap 3,509; center-transition overlap 3,508; all-three overlap 2.
+
+Interpretation: The separated outer-vs-center bands challenge the too-strong claim that split primitives are inherently necessary SOLELY to represent per-texel opacity. A revised RGBA atlas with alphaMode=BLEND may be feasible for those bands if linear-filter/edge handling and physical semantic labels are verified. This does NOT prove their true curtain material classes, correct alpha values or visual fidelity. The huge 245,769-face transition zone is still unresolved, and glass/frame/physical aperture/lighting/depth owners cannot be fixed solely by alpha. Raw original and 12 canonical furniture GLBs remain immutable. No replacement model, accepted material change or Android visual PASS is claimed.
+
+Validation: exact GLB source identity PASS; offline UV occupancy computation PASS; no new build or proof. Existing Room Visual Polish #286 (run 38912197608) HOME-CALL-HOME technical PASS but WHOLE-SCENE VISUAL FAIL. Prewrite live Room PR111 head 106211b6abc78eb74d7290724b034727721c342f OPEN/DRAFT; separate Core PR113 head bc9dca53e09841f2bc2859d8f4a75d4f67607164 OPEN/DRAFT. No merge, release, final APK.
+
+exact_next_action: Fresh-reconcile live GitHub and Room ownership; establish physically defensible classification for the unresolved transition UV islands against canonical source and real CALL depth, then select split-material or RGBA-alpha DERIVED window in one source-faithful offline visual negative control. Prepare one coherent backwall-aperture/window/curtain/ceiling/room-light correction for the existing Room PR, only if authorized writes resume; then one Android build and one real HOME-CALL-HOME visually inspected proof. No visual PASS before that.
