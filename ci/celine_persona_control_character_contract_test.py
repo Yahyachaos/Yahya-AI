@@ -68,8 +68,8 @@ public final class CelinePersonaControlCharacterContractTest {
         }
         // Java equalsIgnoreCase accepts long-s as 's'; control commands must not.
         String[] unicodeExitLookalikes = {
-            "Nutte au\\u017F",
-            "Normalmodu\\u017F"
+            "Nutte au" + (char)0x017F,
+            "Normalmodu" + (char)0x017F
         };
         for (String lookalike : unicodeExitLookalikes) {
             CelinePersonaMode.CommandResult rejected =
