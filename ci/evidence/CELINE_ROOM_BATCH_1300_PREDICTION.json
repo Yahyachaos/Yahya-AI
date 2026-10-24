@@ -1,0 +1,60 @@
+{
+  "schema": "celine-room-batch-prediction/v1",
+  "workstream": "ROOM/SCENE",
+  "source_head": "1310a322f9494d913d345a6a3a7949b13f1139af",
+  "runtime_baseline_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
+  "runtime_baseline_fingerprint": "71cb31332b4b3bc66325c6fa7e030b9132bc69e58c376cacd77cf09dc59d56d8",
+  "baseline_proof": 1285,
+  "baseline_run": 34085168920,
+  "baseline_total_score_current_targets": 0.00454316695617541,
+  "minimum_required_improvement": 0.002,
+  "required_margin_policy": "must exceed 0.002 before build; manual proof still decides acceptance",
+  "batch": {
+    "strategy": "extract only #1295 independently measured positive residuals, preserve accepted plant behavior, and replace visible rug ownership with a derived reference-fit surface while hiding only the immutable source rug renderable from the scene",
+    "known_positive_components_from_real_proof_1295": {
+      "room_window_drapes_total_reduction": 0.00036076108379416,
+      "room_lounge_chair_total_reduction": 0.00020827274316773844,
+      "room_wall_shelf_books_total_reduction": 0.00029869309068173534,
+      "room_reference_right_wall_art_total_reduction": 0.00017159921376189307,
+      "room_reference_foreground_candle_total_reduction": 0.00019831835650819884,
+      "combined_total_reduction": 0.0012376444879137258,
+      "evidence": "actual CALL raster #1285 -> #1295 against the same current canonical targets"
+    },
+    "room_rug_new_root_cause_strategy": {
+      "previous_strategy_reused": false,
+      "old_rejected_strategy": "smooth overlay while source high-relief rug remained visible",
+      "new_strategy": "remove only room_rug source entity from Scene visibility and render one derived smooth plane using the already-isolated rug material; keep immutable Teppisch.glb bytes and accepted source node TRS untouched",
+      "baseline_visible_bbox": {"left": 0.2076771653543307, "right": 0.8572834645669292, "top": 0.5399753997539976, "bottom": 0.7822878228782287},
+      "canonical_bbox": {"left": 0.205, "right": 0.870, "top": 0.520, "bottom": 0.795},
+      "derived_fit_model": {
+        "width_scale_ratio": 1.023697,
+        "depth_scale_ratio": 1.134899,
+        "bounded_center_x_world_shift_m": 0.0423,
+        "predicted_visible_bbox": {"left": 0.206, "right": 0.869, "top": 0.522, "bottom": 0.793},
+        "predicted_raw_score": 0.0015535533905933145,
+        "baseline_raw_score": 0.01278934205718134,
+        "predicted_total_score_reduction": 0.001225722399991421
+      }
+    },
+    "predicted_combined_total_score_reduction": 0.002463366887905147,
+    "predicted_total_score": 0.0020798000682702633,
+    "prediction_gate": "PASS_WITH_0.000463366887905147_MARGIN"
+  },
+  "ownership": {
+    "source_glb_bytes_mutated": false,
+    "accepted_source_rug_trs_mutated": false,
+    "room_shell_mutated": false,
+    "camera_fov_mutated": false,
+    "celine_identity_or_rig_mutated": false,
+    "anchors_navigation_mutated": false,
+    "core_persona_mutated": false,
+    "shared_version_or_release_metadata_mutated": false
+  },
+  "stop_loss_guards": [
+    "Do not reintroduce rejected room_plant_large X/SX strategy from #1274.",
+    "Do not reintroduce rejected room_plant_large X+yaw strategy from #1295.",
+    "Keep the currently accepted plant half-step unchanged.",
+    "If the real proof improves by less than 0.002 or manual inspection rejects it, revert the complete runtime batch rather than stack another patch."
+  ],
+  "validation_plan": "one Android build for the coherent runtime batch, then exactly one real HOME->CALL->HOME proof; open actual CALL image, measure changed visible objects, run scoreboard, keep only if materially improved and manual inspection agrees"
+}

@@ -12,8 +12,11 @@ checks = {
     "product resets stale pan y": 'setFloat(view, "cameraPanY", 0.0f)' in product,
     "product pinch owns cameraZoom": 'getDeclaredField("cameraZoom")' in product and "detector.getScaleFactor()" in product,
     "diagnostic orbit is explicit": "diagnosticCameraOrbitEnabled" in view and "v79SetDiagnosticCameraOrbit" in view,
-    "orbit moves camera on sin/cos radius": "Math.sin(yawRad) * distance" in view and "Math.cos(yawRad) * distance" in view,
-    "orbit keeps fixed subject target": "camera.lookAt(eyeX, eyeY, eyeZ, 0.0, cameraPanY, CAMERA_TARGET_Z" in view,
+    "orbit moves camera on sin/cos radius": "Math.sin(yawRad) * radius" in view and "Math.cos(yawRad) * radius" in view,
+    "orbit keeps fixed reference-room target": all(token in view for token in (
+        "REFERENCE_TARGET_X", "REFERENCE_TARGET_Y", "REFERENCE_TARGET_Z",
+        "camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ",
+    )),
     "capture does not fake orbit by rotating model": "celineView.v75SetReferenceYaw(0f);" in capture and "v79SetDiagnosticCameraOrbit" in capture,
     "dolly near/far share fixed target": 'case "dolly_near"' in capture and 'case "dolly_far"' in capture and "rootScaleChanged=false" in capture,
 }

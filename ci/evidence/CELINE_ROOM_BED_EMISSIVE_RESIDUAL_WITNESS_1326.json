@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "workstream": "ROOM_SCENE",
+  "scope": "read-only residual causal witness after accepted bed emissive Proof #1326",
+  "reference_authority": "/Refernzbild.png",
+  "accepted_runtime_code_head": "7e009f5a8b956afcd89ab06ca41d43235440a64c",
+  "accepted_runtime_fingerprint": "b3a06fedae7a86d01a14352c2450e5d73b9892767e4904782665f5db8e5ee73a",
+  "accepted_proof": {
+    "number": 1326,
+    "run": 34113317385,
+    "bed_emissive_rgb": [0.16, 0.14, 0.12],
+    "duvet_median_srgb": [78, 59, 45],
+    "headboard_median_srgb": [83, 65, 51],
+    "duvet_reference_srgb": [115, 77, 47],
+    "headboard_reference_srgb": [139, 96, 54],
+    "duvet_error": 19.0,
+    "headboard_error": 30.0
+  },
+  "measured_response_from_previous_equal_step": {
+    "emissive_before_rgb": [0.12, 0.105, 0.09],
+    "emissive_after_rgb": [0.16, 0.14, 0.12],
+    "emissive_delta_rgb": [0.04, 0.035, 0.03],
+    "duvet_raster_delta_rgb": [10, 9, 8],
+    "headboard_raster_delta_rgb": [10, 9, 8],
+    "local_channel_response_srgb_per_emissive_unit": [250.0, 257.142857, 266.666667],
+    "observation": "Both independent semantic ROIs responded essentially identically to the accepted local emissive step, providing a causal local response estimate for one further bounded residual correction."
+  },
+  "residual_analysis": {
+    "duvet_target_minus_current_rgb": [37, 18, 2],
+    "headboard_target_minus_current_rgb": [56, 31, 3],
+    "conclusion": "Blue is already close to target in both ROIs while red/green remain materially low. Repeating an equal RGB-ratio step would waste blue headroom and is not the best residual correction. A smaller channel-weighted step that freezes blue is the bounded causal candidate."
+  },
+  "next_bounded_candidate_prediction": {
+    "strategy": "ROOM_BED_LOCAL_EMISSIVE_RESIDUAL_CHANNEL_WEIGHTED_STEP",
+    "change_only": "CelineRoomReferenceLightingV80 BED_EMISSIVE_RED/GREEN/BLUE",
+    "candidate_bed_emissive_rgb": [0.21, 0.18, 0.12],
+    "increment_from_accepted_rgb": [0.05, 0.04, 0.0],
+    "prediction_method": "local linear projection from the measured exact-CALL #1320-baseline -> #1326 accepted emissive response; blue held fixed because both semantic ROIs are already within 2-3 sRGB of reference blue",
+    "predicted_duvet_median_srgb": [90.5, 69.285714, 45.0],
+    "predicted_duvet_mean_abs_channel_error": 11.404762,
+    "predicted_duvet_improvement_percent_vs_1326": 39.974937,
+    "predicted_headboard_median_srgb": [95.5, 75.285714, 51.0],
+    "predicted_headboard_mean_abs_channel_error": 22.404762,
+    "predicted_headboard_improvement_percent_vs_1326": 25.31746,
+    "prediction_clears_20_percent_gate_for_both_rois": true
+  },
+  "runtime_acceptance_rule": {
+    "must_use_exact_candidate_apk": true,
+    "must_open_actual_call": true,
+    "duvet_actual_error_improvement_percent_min": 20.0,
+    "headboard_actual_error_improvement_percent_min": 20.0,
+    "manual_visual_agreement_required": true,
+    "reject_if": [
+      "either semantic ROI misses the 20% improvement gate versus accepted Proof #1326",
+      "fabric texture/detail visibly washes out",
+      "bed reads self-lit/unphysical against the reference",
+      "blue channel materially overshoots despite being held fixed in the candidate",
+      "HOME -> CALL -> HOME-return lifecycle regresses",
+      "adjacent room composition or Celine changes"
+    ],
+    "on_reject": "revert this exact residual candidate and STOP_LOSS the channel-weighted residual emissive strategy; do not stack another stronger bed emissive correction"
+  },
+  "protected_unchanged": [
+    "12 original furniture GLB source bytes",
+    "room_bed TRS",
+    "base-color texture",
+    "metallic-roughness texture",
+    "normal texture",
+    "room shell",
+    "global key/fill/practical lighting",
+    "camera/FOV",
+    "Celine identity/rig/materials",
+    "anchors/navigation",
+    "Core/Persona workstream paths"
+  ],
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. If this witness remains live and no competing room writer owns CelineRoomReferenceLightingV80.java, apply exactly one runtime-only room-bed emissive residual step from [0.16,0.14,0.12] to [0.21,0.18,0.12]; run exactly one necessary Android Build and one smallest real HOME -> CALL -> HOME-return proof; measure the committed duvet/headboard ROIs and manually compare actual CALL to /Refernzbild.png. Keep only if both errors improve >=20% versus Proof #1326 and detail/naturalness remain intact."
+}

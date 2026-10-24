@@ -1,0 +1,143 @@
+name: Celine Room Partitioned Runtime Promotion
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-room-partitioned-pbr-proof.yml'
+      - 'ci/celine-room-promote-partitioned-runtime.sh'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: celine-room-partitioned-runtime
+  cancel-in-progress: false
+
+jobs:
+  promote-partitioned-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact orchestration head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          lfs: true
+
+      - name: Include bounded lamp guard in runtime candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java')
+          text = path.read_text(encoding='utf-8')
+          old = '            if (roomAsset == null || floorLampLightEntity == 0) return false;'
+          new = '            if (!isBuilt() || floorLampLightEntity == 0) return false;'
+          if old not in text:
+              raise SystemExit('lamp toggle runtime anchor missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          grep -F 'if (!isBuilt() || floorLampLightEntity == 0) return false;' app/src/main/java/de/yahya/ai/CelineRoomEnvironmentV80.java
+
+      - name: Prepare exact partitioned Room runtime candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ci/celine-room-promote-partitioned-runtime.sh
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 30 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+            SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          [ -x "$SDKMANAGER" ]
+          "$SDKMANAGER" 'platforms;android-30' 'build-tools;30.0.3'
+
+      - name: Set up Gradle 7.5.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.5.1'
+
+      - name: Build exactly one recovery APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-room-runtime-proof
+          ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee ci-room-runtime-proof/android-build.log
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          FP="$(bash ci/celine-runtime-fingerprint.sh HEAD)"
+          APK_SHA="$(sha256sum app/build/outputs/apk/debug/app-debug.apk | awk '{print $1}')"
+          printf 'runtime_fingerprint=%s\napk_sha256=%s\n' "$FP" "$APK_SHA" >> ci-room-runtime-proof/runtime-validation.txt
+          echo "RUNTIME_FINGERPRINT=$FP" >> "$GITHUB_ENV"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk assets/models/celine.glb > ci-room-runtime-proof/celine-packaged.glb
+          test -s ci-room-runtime-proof/celine-packaged.glb
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Run exactly one HOME CALL HOME Room proof
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 300s bash ci/celine-real-candidate-emulator-proof.sh app/build/outputs/apk/debug/app-debug.apk ci-room-runtime-proof/celine-packaged.glb
+
+      - name: Collect exact runtime proof evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p ci-room-runtime-proof
+          for f in real-candidate-home.png real-candidate-call.png real-candidate-home-return.png real-candidate-logcat.txt real-candidate-logcat-home.txt real-candidate-logcat-final.txt real-candidate-prefs.xml; do
+            [ -e "$f" ] && cp "$f" ci-room-runtime-proof/ || true
+          done
+          printf 'workflow_run_id=%s\nworkflow_run_number=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_NUMBER" >> ci-room-runtime-proof/runtime-validation.txt
+
+      - name: Upload bounded runtime proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-partitioned-runtime-proof
+          path: ci-room-runtime-proof/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Push runtime candidate only after build and HOME CALL HOME proof pass
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin auto/celine/v80-human-videochat-presence
+          REMOTE="$(git rev-parse origin/auto/celine/v80-human-videochat-presence)"
+          if [ "$REMOTE" != "$ORCHESTRATOR_SHA" ]; then
+            echo "Refusing push because another Room writer moved the branch: orchestrator=$ORCHESTRATOR_SHA remote=$REMOTE" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$RUNTIME_SHA"
+          git push origin HEAD:auto/celine/v80-human-videochat-presence
+          echo "Promoted exact runtime $RUNTIME_SHA fingerprint=$RUNTIME_FINGERPRINT"

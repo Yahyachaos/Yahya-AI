@@ -1,0 +1,53 @@
+{
+  "schema": "celine-room-material-witness/v1",
+  "authority": {
+    "reference": "Refernzbild.png",
+    "accepted_call_proof": 1285,
+    "accepted_runtime_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6"
+  },
+  "phase_transition": "Geometry expansion after Proof #1314 found no newly reliable non-STOP-LOSS batch that could honestly clear the runtime prediction gate. Material/appearance work may proceed room-only; global renderer lighting and Celine remain protected.",
+  "target_entity": "room_bed",
+  "source_contract": {
+    "source_glb_bytes_mutated": false,
+    "source_transform_mutated": false,
+    "material_scope": "runtime duplicate of room_bed material instance only",
+    "global_indirect_light_changed": false,
+    "global_directional_light_changed": false,
+    "celine_material_or_identity_changed": false
+  },
+  "semantic_roi_measurements": {
+    "duvet": {
+      "accepted_call_roi_px": {"left": 640, "top": 400, "right": 760, "bottom": 500, "image": "#1285 1016x813 CALL stage"},
+      "reference_roi_px": {"left": 850, "top": 500, "right": 1000, "bottom": 620, "image": "Refernzbild.png 1376x1100"},
+      "accepted_median_srgb": [68, 50, 37],
+      "reference_median_srgb": [115, 77, 47],
+      "baseline_mean_abs_channel_error": 28.0
+    },
+    "headboard": {
+      "accepted_call_roi_px": {"left": 800, "top": 265, "right": 930, "bottom": 320, "image": "#1285 1016x813 CALL stage"},
+      "reference_roi_px": {"left": 1050, "top": 405, "right": 1320, "bottom": 465, "image": "Refernzbild.png 1376x1100"},
+      "accepted_median_srgb": [73, 56, 43],
+      "reference_median_srgb": [139, 96, 54],
+      "baseline_mean_abs_channel_error": 39.0
+    }
+  },
+  "bounded_candidate": {
+    "derivation": "Apply the geometric half-step of the duvet linear-light target/current ratios so the first material iteration cannot jump directly to the full brightness target.",
+    "base_color_factor": [1.722159, 1.525363, 1.239566, 1.0],
+    "roughness_change": false,
+    "normal_change": false,
+    "ao_change": false,
+    "texture_binding_change": false,
+    "predicted_duvet_median_srgb_under_ideal_linear_factor": [89, 62, 42],
+    "predicted_headboard_median_srgb_under_ideal_linear_factor": [95, 69, 48]
+  },
+  "acceptance": {
+    "required": [
+      "fresh actual HOME -> CALL -> HOME-return room proof on exact candidate APK",
+      "duvet and headboard semantic ROI mean-absolute channel error both decrease materially",
+      "manual CALL inspection agrees that bed becomes warmer/lighter without clipping, glow, texture loss or Celine/room geometry regression"
+    ],
+    "material_improvement_threshold_fraction": 0.20,
+    "reject_if": "Either semantic ROI error fails to improve by at least 20%, or manual visual inspection shows washout/identity/geometry regression. Revert the material candidate instead of stacking further factors."
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "block": "G1.5 Consolidation, privacy and memory controls",
+  "status": "COMPLETE_BUILT",
+  "runtime_head": "af4c572eb18de11cdd731372ccaa41f576904af0",
+  "validated_via_ci_head": "b523e443b246a0d20ab3115de5becfad8d752cd3",
+  "runtime_fingerprint": "a9cd7e0349cca5d51c09adc8912a1a3780aa9f091bce26e18ccd18f5476f8ccb",
+  "android_build": {
+    "run_number": 1078,
+    "run_id": 33668982029,
+    "conclusion": "success",
+    "apk_artifact_id": 9861794853,
+    "apk_artifact_digest": "sha256:5f133e7fdd6526df31228034939f510860a07f8c213eb682939b822199f97fe1",
+    "runtime_fingerprint_artifact_id": 9861795496,
+    "runtime_fingerprint_artifact_digest": "sha256:5aea5c26e23412547c45a1cdefb4cada015408ace4c62f0915d1fd2e4ba1c030"
+  },
+  "implementation": {
+    "consolidation_owner": "app/src/main/java/de/yahya/ai/CelineMemoryEngine.java",
+    "protected_storage_owner": "app/src/main/java/de/yahya/ai/CelineProtectedMemoryStorage.java",
+    "structured_store": "app/src/main/java/de/yahya/ai/CelineStructuredMemory.java",
+    "user_controls": "app/src/main/java/de/yahya/ai/CelineMemoryControls.java",
+    "event_driven_consolidation": true,
+    "expiry_cleanup": true,
+    "deduplication": true,
+    "conflict_resolution": true,
+    "superseded_record_cleanup": true,
+    "explicit_correction_priority": true,
+    "inspect_individual_memory": true,
+    "correct_individual_memory": true,
+    "forget_individual_memory": true,
+    "forget_all": true,
+    "protected_storage": "AndroidKeyStore AES/GCM/NoPadding",
+    "plaintext_fallback_for_new_writes": false,
+    "encrypted_plaintext_migration": true,
+    "encrypted_rollback_backup": true,
+    "hidden_reasoning_persisted": false
+  },
+  "tests": [
+    "ci/celine_g1_memory_privacy_consolidation_test.py",
+    "ci/celine_g1_memory_controls_live_contract.py",
+    "ci/celine_g1_structured_memory_live_contract.py"
+  ],
+  "history": {
+    "core_head": "d0bf3869044bf720ac98d19b8872e84b624fd611",
+    "core_build_run": 33667986248,
+    "controls_head": "af4c572eb18de11cdd731372ccaa41f576904af0",
+    "controls_first_build_run": 33668700173,
+    "controls_first_build_result": "failed in VERIFY_PROJECT because the older G1.2 live contract still required MainActivity.memory.inspect(); runtime/Gradle was not reached",
+    "ci_compatibility_fix": "b523e443b246a0d20ab3115de5becfad8d752cd3"
+  },
+  "next": "Run Generation-1 acceptance against the fixed G1.0 baseline and all G1.1-G1.5 deterministic contracts before any G2 implementation."
+}

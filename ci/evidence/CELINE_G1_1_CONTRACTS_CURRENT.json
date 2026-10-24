@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "block": "G1.1",
+  "title": "Central CelineBrain owner and contracts",
+  "status": "PASS",
+  "runtime_head": "0c7dcbbde54fcaec3261848fd491130edd8af91e",
+  "runtime_fingerprint": "79cfcc58f32edc37533951aca48b3b88e477814186d5ac4226f2c380e5607738",
+  "android_build": {
+    "workflow": "Android Build",
+    "run_number": 1062,
+    "run_id": 33648480852,
+    "conclusion": "success",
+    "verify_project_step": "success",
+    "gradle_build_step": "success",
+    "apk_artifact_id": 9853811696,
+    "apk_artifact_digest": "sha256:da92fb0addb651380f0833bc05334ca9151d4c677c46b84148112cdd176387af",
+    "runtime_fingerprint_artifact_id": 9853812174,
+    "runtime_fingerprint_artifact_digest": "sha256:d5cf5412ceadb2bae823b1cd14cfd0083f5bd9b6432f416617dcb3caf8d9d8e4"
+  },
+  "contract_test": {
+    "path": "ci/celine_g1_brain_contract.py",
+    "execution": "VERIFY_PROJECT.sh",
+    "result": "PASS via successful VERIFY_PROJECT step",
+    "checks": [
+      "CelineBrain compiles standalone with Java 8",
+      "required app-owned brain interfaces exist",
+      "memory mutation supports UPSERT/SUPERSEDE/FORGET",
+      "knowledge state distinguishes OBSERVED/EXPLICIT/INFERRED/UNKNOWN",
+      "permission risk classes L0-L3 exist",
+      "resource routes include deterministic/local/external-optional/unavailable",
+      "central contract contains no Android SharedPreferences, HTTP/OpenAI endpoint or fixed GPT model coupling"
+    ]
+  },
+  "runtime_surface": {
+    "added": [
+      "app/src/main/java/de/yahya/ai/CelineBrain.java"
+    ],
+    "interfaces": [
+      "CelineMemory",
+      "CelineWorkingState",
+      "CelineGoalGraph",
+      "CelineContextBroker",
+      "CelineToolRegistry",
+      "CelinePermissionPolicy",
+      "CelineReasoningProvider",
+      "CelineVerifier",
+      "CelineLearningEngine",
+      "CelineAffectState",
+      "CelineResourcePolicy"
+    ],
+    "main_activity_behavior_changed": false,
+    "memory_migrated": false,
+    "provider_switched": false,
+    "tool_routing_migrated": false
+  },
+  "validation_scope": "Nonvisual cognitive contract change: one Android build only. Draft emulator/avatar/room/release jobs skipped by policy.",
+  "protected": [
+    "existing MainActivity runtime behavior",
+    "v78 conversation intelligence",
+    "flat legacy memory until G1.2 migration",
+    "device/accessibility/notification behavior",
+    "voice/lip-sync/avatar/room surfaces"
+  ],
+  "next_block": "G1.2 Structured memory"
+}

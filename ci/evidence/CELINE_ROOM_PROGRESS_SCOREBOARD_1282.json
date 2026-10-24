@@ -1,0 +1,44 @@
+{
+  "schema": "celine-room-progress-scoreboard/v1",
+  "candidate_source": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1282.json",
+  "baseline_scoreboard": "ci/evidence/CELINE_ROOM_PROGRESS_SCOREBOARD_1270.json",
+  "baseline_total_score": 0.004957744355405523,
+  "total_score": 0.004957744355405523,
+  "score_improvement": 0.0,
+  "decision": "FLAT",
+  "strategy_decision": "REJECT_AND_STOP_RUG_DERIVED_SURFACE_MICRO_TUNING",
+  "manual_visual_verdict": "VISUAL_RUG_IMPROVEMENT_CONFIRMED__LIGHT_CREAM_SURFACE_AND_BANDING_REMOVAL_ARE_CLOSER_TO_REFERNZBILD; POLICY_STILL_REJECTS_BECAUSE_WHOLE_SCENE_SCORE_DID_NOT_MATERIALLY_DROP",
+  "stop_loss": {
+    "strategy": "derived smooth rug replacement / orientation-material micro-tuning",
+    "triggered": true,
+    "reason": "Proof #1279 and Proof #1282 are consecutive non-material whole-scene score improvements for the same causal strategy; #1282 is visually better but remains numerically FLAT",
+    "next_rule": "restore accepted runtime and leave rug strategy; work the next largest reliably measured whole-scene delta with a different causal strategy"
+  },
+  "objects_scored": 7,
+  "objects_missing_or_unusable": [
+    "room_bed", "room_floor_lamp", "room_foreground_table", "room_nightstand_front", "room_nightstand_rear", "room_plant_small", "room_reference_foreground_candle", "room_reference_foreground_laptop", "room_reference_foreground_plant", "room_reference_left_wall_art_pair", "room_reference_right_wall_art"
+  ],
+  "largest_deltas": [
+    {"object": "room_rug", "raw_score": 0.012714070837239754, "weighted_score": 0.015256885004687708},
+    {"object": "room_plant_large", "raw_score": 0.013470189592906544, "weighted_score": 0.010102642194679908},
+    {"object": "room_window_drapes", "raw_score": 0.003976944188361581, "weighted_score": 0.00636311070137853},
+    {"object": "room_lounge_chair", "raw_score": 0.0027897425088261917, "weighted_score": 0.004463588014121907},
+    {"object": "room_wall_shelf_books", "raw_score": 0.005236354209825807, "weighted_score": 0.003927265657369355}
+  ],
+  "scoring": {
+    "confidence_weights": {"high": 1.0, "low": 0.4, "medium": 0.75},
+    "direction": "lower_is_better",
+    "formula": "weighted mean of 0.50*center_error + 0.30*size_error + 0.20*edge_error",
+    "primary_weight": 1.6
+  },
+  "per_object": {
+    "room_dresser": {"raw_score": 0.0006042461540560543, "weighted_score": 0.0009667938464896869},
+    "room_lounge_chair": {"raw_score": 0.0027897425088261917, "weighted_score": 0.004463588014121907},
+    "room_plant_large": {"raw_score": 0.013470189592906544, "weighted_score": 0.010102642194679908},
+    "room_round_mirror": {"raw_score": 0.001060541602219847, "weighted_score": 0.001060541602219847},
+    "room_rug": {"raw_score": 0.012714070837239754, "weighted_score": 0.015256885004687708},
+    "room_wall_shelf_books": {"raw_score": 0.005236354209825807, "weighted_score": 0.003927265657369355},
+    "room_window_drapes": {"raw_score": 0.003976944188361581, "weighted_score": 0.00636311070137853}
+  },
+  "regressions": []
+}

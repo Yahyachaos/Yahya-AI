@@ -103,6 +103,21 @@ public final class CelineAvatarLabActivity extends Activity {
         ));
 
         panel.addView(row(
+                button("Produktion HOME", v -> pose(CelineAvatarLabPoseDriverV79.Mode.PRODUCTION_HOME,
+                        "Production Owner: HOME kombiniert")),
+                button("Produktion CALL", v -> pose(CelineAvatarLabPoseDriverV79.Mode.PRODUCTION_CALL,
+                        "Production Owner: CALL kombiniert")),
+                button("Layer Basis", v -> pose(CelineAvatarLabPoseDriverV79.Mode.LAYER_BASE,
+                        "Production Layer: Szene/Root/Basis")),
+                button("Layer Atmung", v -> pose(CelineAvatarLabPoseDriverV79.Mode.LAYER_BREATHING_POSTURE,
+                        "Production Layer: Atmung/Haltung")),
+                button("Layer Körper/Arme", v -> pose(CelineAvatarLabPoseDriverV79.Mode.LAYER_CONVERSATION,
+                        "Production Layer: Torso/Arme/Hände")),
+                button("Layer Blick/Kopf", v -> pose(CelineAvatarLabPoseDriverV79.Mode.LAYER_GAZE_HEAD,
+                        "Production Layer: Blick/Kopf/Hals"))
+        ));
+
+        panel.addView(row(
                 button("Kopf ←", v -> head(0f, -26f, 0f, "Kopf links")),
                 button("Kopf →", v -> head(0f, 26f, 0f, "Kopf rechts")),
                 button("Kopf ↑", v -> head(-16f, 0f, 0f, "Kopf hoch")),
@@ -163,7 +178,7 @@ public final class CelineAvatarLabActivity extends Activity {
 
         TextView hint = new TextView(this);
         String rig = poseDriver == null ? "Pose-Rig nicht gebunden" : poseDriver.capabilitySummary();
-        hint.setText("Branch-live Test des echten Renderers/Rigs. Blink/Mimik/Viseme laufen über den v76 Final-Geometry-Morphpfad. Körpermodi schreiben ausschließlich im Lab deterministische Rig-Posen. Orbit bewegt die Kamera um den festen Avatar; Dolly verändert die echte Kameradistanz, nie die Modellskalierung. Rig: " + rig);
+        hint.setText("Branch-live Test des echten Renderers/Rigs. Produktion HOME/CALL und die einzelnen Layer laufen über denselben v80 Owner wie das Produkt; Blink/Mimik/Viseme bleiben der abschließende v76/v77 Layer. Die übrigen Körpermodi sind isolierte Diagnoseposen. Orbit bewegt die Kamera um den festen Avatar; Dolly verändert die echte Kameradistanz, nie die Modellskalierung. Rig: " + rig);
         hint.setTextColor(0xFF8F9CAF);
         hint.setTextSize(11f);
         hint.setPadding(0, dp(5), 0, 0);

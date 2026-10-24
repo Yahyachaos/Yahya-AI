@@ -1,0 +1,35 @@
+# Room C64 — canonical UV texture ambiguity (2026-10-23)
+
+**ROOM-ONLY READ-ONLY SOURCE AUDIT; NOT AN ACCEPTED SEMANTIC SPLIT, FILAMENT/ANDROID RENDER, VISUAL PASS, APK BUILD OR RUNTIME PROMOTION.**
+
+## Mandatory chronology / authority
+Read full live-main `AGENTS.md`, main + Room branch queue, current Room rebuild work-order and v80 amendment, `ci/CELINE_VALIDATION_POLICY.md`, Celine source manifest, source retrieval contract and LFS bridge, reference-layout targets, current semantic gate, C29/C60–C63 evidence, PR #111/#113, live heads and latest Actions/artifacts/comments. Live main `5a23ccf75fb82b97d262cf3d8be24a6fe77fb26b`; Room PR #111 OPEN/DRAFT, starting head `0d31f5982fa6ee7198ead8159e7aca8ab7c01362`; separate Core PR #113 OPEN/DRAFT `ea4ad020555b95560707b00a45b9a56d33b1c5e1`. Main queue's old PR #110 and Room queue's #1179 snapshot are superseded by live evidence. All relevant latest exact-head Room workflows completed and no competing Room writer was observed. No shared ownership handoff.
+
+Latest actual Room runtime-code / built head `ffe4db33b7c73c2cdaa48753e95d880071b1f2f7`, unchanged runtime fingerprint `dea4c685866295bb5c6c4e68883820d709ea4d49c29facd4d84a7cf5fba3ff18`; newer Room commits affect only `ci/**`. Actual reusable Android Build #1567 / run `38900853726` owns unexpired `yahya-ai-debug` artifact `12045643858` (ZIP 278631395 bytes, SHA256 `bffce79cff50503e1450b29749bf1143c3959f3ba49b7e0e1f7514b7d91de481`, expires 2027-01-14). Previously verified APK: 365974068 bytes, SHA256 `2d1c8074e6ff9a0eecee87f61f67162be3f06c3c4e06a7995ef914247dff35eb`. Legitimate authenticated download: https://github.com/Yahyachaos/Yahya-AI/actions/runs/38900853726 > artifact `yahya-ai-debug`. **UNFERTIGE ENTWICKLUNGSVORSCHAU ONLY**, Core #113 unintegrated. Historical real Room HOME→CALL→HOME #286 captured technically, but WHOLE-SCENE VISUAL FAIL vs `Refernzbild.png`. No new APK installation or Android/Filament proof.
+
+Newest pre-C64 Android #1596 / run `39943311098` SUCCESS **scope-only** with actual build/emulator SKIPPED; Room Window Checkpoint #99 / run `39943311190` structural SUCCESS, not visual PASS; Promotion #82 / run `39943303207` FAILURE with no jobs, no promoted binary. No redundant Android work was started.
+
+## Verified source inputs and new face-appearance test
+Canonical immutable Library backup lists all 12 original GLBs, matching expected file names. `Fenstermitgardinen.glb` was materialized only after reading the source retrieval/LFS contracts; its exact SHA256 `24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c`, size **127167492** bytes, **3132714** indexed triangles, **1714590** vertices, **2048×2048** base-color JPEG, a single unspecified glTF material with default **OPAQUE**, match the canonical source manifest. Direct bytes were not modified. Runtime-derived `room_window_drapes.glb`: SHA256 `c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5`, 18551108 bytes, 499998 indexed window triangles, 1024×1024 JPEG, one OPAQUE window material. Separate 2-face night backing is not proved glass.
+
+For every indexed source and derived face, a deterministic source UV-centroid **one-pixel appearance-only** sample on the respective atlas was taken. Appearance bins: LIGHT=mean RGB>=206 and max-min<=45; BROWN=red>=blue+12, green>=blue+6, mean<=204; UNKNOWN=else. These arbitrary color bins are **NOT** real glass/frame/curtain semantic labels and cannot capture within-triangle color changes.
+
+- Original source: LIGHT **2067416**, BROWN **1059405**, UNKNOWN **5893** (sum 3132714).
+- Exact derived: LIGHT **329222**, BROWN **164942**, UNKNOWN **5834** (sum 499998).
+- Exact derived indexed-face confusion with explicitly UNACCEPTED C54 classes; columns [UV_UNKNOWN, UV_BROWN, UV_LIGHT]:
+  - C54 UNKNOWN (224696): **[2692, 70031, 151973]** → 67.63% light-looking but held opaque by C54.
+  - C54 OUTER_BROWN (134416): **[1312, 47597, 85507]** → mostly light-looking at these sampled UV centroids, not purely brown.
+  - C54 INNER_PALE (140886): **[1830, 47314, 91742]** → **34.88% NOT UV_LIGHT**, so proposed blanket pale alpha makes visibly mixed paint categories transparent.
+- On a reproducible 100×100 source-local XY projected face-center grid, 5872/9329 occupied cells contain >=5 BROWN and >=5 LIGHT faces; **424959/499998 (84.99%)** triangles project into such mixed bins. Projected co-occurrence is not proof of shared depth/surface identity.
+- 22754 light-looking triangles have abs(mean vertex n_z)>0.98. Flat normals are **not proof of glass**.
+
+## Interpretation / gate
+This is a stronger **negative control** than repeating alpha tweaks: true canonical source atlas light/brown texture appearance intermixes in both C54 provisional semantic partitions. Color alone cannot prove glass/frame/curtain. In C63, 28 explicitly sampled X strips corresponded to physically empty full-height original+derived aperture bands, **not authored glass**. Neither original nor derived has an independently tagged authentic glass material; this does not prove that no glass polygons exist elsewhere. Current `ci/celine_room_window_semantic_gate.py` requires independent CURTAIN+FRAME+GLASS owners with valid alpha for every derived triangle. **Structural semantic gate remains FAIL.** Never fake glass, relabel UNKNOWN or promote C49/C56 just to flip CI green. Offline source-color bins do not establish an Android visual PASS.
+
+**PASS:** exact canonical source and derived hashes/sizes, parser/face-count reconciliation, reproducible UV appearance buckets and C54 cross-tab, verified live preview artifact metadata. **FAIL:** honest full-triangle window semantic contract and historically inspected whole-room visual. **NOT RUN:** new Android build/install/crash smoke, source promotion, real Filament, HOME→CALL→HOME, new visual acceptance. No runtime/asset/furniture/camera/lighting/Celine/Core/build/workflow/shared queue/main/merge/release edits.
+
+**External/spec blocker:** the physically open original slit is not demonstrated GLASS geometry, while current gate requires nonempty independent GLASS material owner. The responsible Room work-order/semantic-contract owner must explicitly decide whether a physically open *glass-less* pane is an accepted reference design with a revised structural contract, or whether canonically evidenced real glass is required; no autonomous weakening of the check.
+
+**`exact_next_action`:** Obtain and record the explicit Room semantic-contract ownership decision for the physical source-open window (authorized glass-less aperture gate variant OR proven authentic pane source); only then build a provenance-backed derived face owner map with UNKNOWN retained and run a single coherent room/window/ceiling/lighting candidate and one targeted Android HOME→CALL→HOME proof as warranted. Until the decision, advance only genuinely independent approved Room diagnostic work, not C49/C56 promotion or alpha micro-patches.
+
+All original 12 source furniture GLBs unchanged. Docs-only checkpoint; Room-owned file writer released after readback. No merge, release or final APK.
