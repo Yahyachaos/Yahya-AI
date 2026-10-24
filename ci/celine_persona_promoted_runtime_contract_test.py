@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Validate promoted Android persona classes with the canonical pure-Java contracts.
+"""Run the existing Core persona contracts against exact promoted Android sources.
 
-This is a focused Core-only test. It does not exercise MainActivity, provider wiring,
-persistence, Android UI, memory integration, or room rendering.
+This is a focused Core-only check, not proof of MainActivity/AI provider wiring,
+app-owned persistence, device UI behavior, memory integration or room visuals.
 """
 from __future__ import annotations
 
@@ -13,6 +13,22 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "app/src/main/java/de/yahya/ai"
 PROTOTYPES = ROOT / "ci/prototypes"
 SOURCES = ("CelinePersonaMode.java", "CelinePersonaPromptAdapter.java")
+
+# Run the actual canonical Java harnesses, including JSON-driven acceptance vectors
+# and fail-closed control/dispatch cases, against the promoted runtime Java sources.
+# The standalone codec contract is deliberately excluded: that codec is still an
+# unpromoted prototype and testing it would not prove Android storage integration.
+CONTRACTS = (
+    ("celine_persona_mode_contract_test.py", {"SOURCE": SOURCES[0]}),
+    ("celine_persona_prompt_adapter_contract_test.py", {
+        "MODE_SOURCE": SOURCES[0], "ADAPTER_SOURCE": SOURCES[1]}),
+    ("celine_persona_control_character_contract_test.py", {"MODE": SOURCES[0]}),
+    ("celine_persona_dispatch_routing_contract_test.py", {"MODE_SOURCE": SOURCES[0]}),
+    ("celine_persona_operation_vector_contract_test.py", {"SOURCE": SOURCES[0]}),
+    ("celine_persona_prompt_vector_execution_test.py", {
+        "MODE": SOURCES[0], "ADAPTER": SOURCES[1]}),
+    ("celine_persona_vector_execution_contract_test.py", {"SOURCE": SOURCES[0]}),
+)
 
 
 def load_contract(name: str, path: pathlib.Path):
@@ -33,18 +49,17 @@ def main() -> int:
         if prototype.read_bytes() != runtime.read_bytes():
             raise SystemExit(f"promoted source drift for {name}; review the approved integration contract")
 
-    mode = load_contract("celine_mode_contract", ROOT / "ci/celine_persona_mode_contract_test.py")
-    mode.SOURCE = RUNTIME / SOURCES[0]
-    if mode.main() != 0:
-        raise SystemExit("promoted CelinePersonaMode contract failed")
+    for index, (filename, bindings) in enumerate(CONTRACTS):
+        name = f"celine_promoted_contract_{index}"
+        contract = load_contract(name, ROOT / "ci" / filename)
+        for variable, source in bindings.items():
+            if not hasattr(contract, variable):
+                raise SystemExit(f"canonical contract lost {variable}: {filename}")
+            setattr(contract, variable, RUNTIME / source)
+        if contract.main() != 0:
+            raise SystemExit(f"promoted contract failed: {filename}")
 
-    adapter = load_contract("celine_prompt_adapter_contract", ROOT / "ci/celine_persona_prompt_adapter_contract_test.py")
-    adapter.MODE_SOURCE = RUNTIME / SOURCES[0]
-    adapter.ADAPTER_SOURCE = RUNTIME / SOURCES[1]
-    if adapter.main() != 0:
-        raise SystemExit("promoted CelinePersonaPromptAdapter contract failed")
-
-    print("Promoted Celine persona runtime contracts: PASS (parity + 2 canonical harnesses)")
+    print(f"Promoted Celine persona runtime contracts: PASS (byte parity + {len(CONTRACTS)} canonical Java harnesses)")
     return 0
 
 
