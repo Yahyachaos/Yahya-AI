@@ -50,12 +50,15 @@ final class CelineRoomEnvironmentV80 {
     };
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
     private static final int ROOM_LIGHT_CHANNEL = 1;
-    // Clean source-PBR recovery: preserve Celine's accepted channel-0 key and give the Room one
-    // isolated neutral, camera-facing direct-light owner on channel 1.
+    // Phase-A floor-raster #286 showed an underlit, featureless floor while the back
+    // wall was already bright. Angle only the Room channel-1 key further downward:
+    // measured source normals give ideal floor incidence 0.239 -> 0.500 and
+    // back-wall incidence 0.966 -> 0.860 (not a Filament/IBL visual PASS).
+    // Retain intensity, color, isolation, shadows and Celine's channel-0 lighting.
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY = 14_000.0f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_X = 0.10f;
-    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.24f;
-    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.97f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.50f;
+    private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.86f;
     // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
     // runtime light sits inside its shade, then applies the already locked room root offset.
     private static final float FLOOR_LAMP_LIGHT_X = -1.55f
@@ -451,6 +454,9 @@ final class CelineRoomEnvironmentV80 {
                         "Neutraler Source-PBR Room-Key aktiv",
                         "channel=" + ROOM_LIGHT_CHANNEL
                                 + " intensity=" + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY
+                                + " direction=" + ROOM_RECOVERY_NEUTRAL_KEY_DIR_X + ","
+                                + ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y + ","
+                                + ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z
                                 + " shadows=false cameraFurnitureCelineUnchanged=true");
             } catch (Throwable error) {
                 try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
