@@ -122,9 +122,9 @@ def assert_control_turn_visible(command, acknowledgment):
     does not prove an outgoing network request.
     """
     actual = [node.attrib.get("text", "") for node in hierarchy().iter("node")]
-    if "Du\\n" + command not in actual:
+    if "Du\n" + command not in actual:
         raise AssertionError("Consumed persona command missing from visible chat: " + command)
-    if not any(text.startswith("Celin\\n") and acknowledgment in text for text in actual):
+    if not any(text.startswith("Celin\n") and acknowledgment in text for text in actual):
         raise AssertionError("Persona command acknowledgement missing from visible chat")
     print("PERSONA_CONTROL_VISIBLE_CHAT_PASS:", command, flush=True)
 
