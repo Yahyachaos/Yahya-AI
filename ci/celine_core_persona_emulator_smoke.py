@@ -211,6 +211,17 @@ def find_memory_text(fragment):
     return nodes[-1]
 
 
+def dialog_button(label):
+    # Real Android AlertDialog buttons may expose localized labels in ALL CAPS.
+    # Match only a full button text, case-insensitively, never substring text.
+    root = hierarchy()
+    for node in root.iter("node"):
+        if node.attrib.get("text", "").casefold() == label.casefold():
+            return node
+    visible = [n.attrib.get("text") for n in root.iter("node") if n.attrib.get("text")]
+    raise AssertionError(f"Dialog button {label!r} absent; visible={visible[-20:]!r}")
+
+
 def verify_migrated_memory_correction_and_forget():
     # This specifically guards the previously observed G1.5 AlertDialog
     # message-vs-items regression. Verify the *real decrypted row*, not just
@@ -221,11 +232,11 @@ def verify_migrated_memory_correction_and_forget():
     screenshot("03-migrated-memory-selectable-list.png")
     click(find_memory_text(LEGACY_MIGRATION_PROBE))
     find_memory_text(LEGACY_MIGRATION_PROBE)
-    node_with("text", "Korrigieren")
+    dialog_button("Korrigieren")
     screenshot("04-migrated-memory-inspection.png")
     print("MIGRATED_MEMORY_ROW_INSPECT_PASS", flush=True)
 
-    click(node_with("text", "Korrigieren"))
+    click(dialog_button("Korrigieren"))
     editor = node_with("class", "android.widget.EditText")
     old_text = editor.attrib.get("text", "")
     if LEGACY_MIGRATION_PROBE not in old_text or len(old_text) > 240:
@@ -242,7 +253,7 @@ def verify_migrated_memory_correction_and_forget():
     if edited != corrected:
         raise AssertionError(f"Android EditText replacement failed: {edited!r}")
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
-    click(node_with("text", "Speichern"))
+    click(dialog_button("Speichern"))
     find_memory_text(corrected)
     prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     if corrected in prefs or LEGACY_MIGRATION_PROBE in prefs:
@@ -258,9 +269,9 @@ def verify_migrated_memory_correction_and_forget():
     screenshot("05-corrected-memory-after-process-restart.png")
     print("MIGRATED_MEMORY_CORRECTION_RESTART_PASS", flush=True)
 
-    click(node_with("text", "Löschen"))
+    click(dialog_button("Löschen"))
     node_with("text", "Diese Erinnerung löschen?")
-    click(node_with("text", "Löschen"))
+    click(dialog_button("Löschen"))
     root = hierarchy()
     if any(corrected in n.attrib.get("text", "") for n in root.iter("node")):
         raise AssertionError("Deleted memory still selectable in G1 inspection UI")

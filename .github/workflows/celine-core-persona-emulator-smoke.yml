@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           test "$(git merge-base 1cd2e35a7f8f6b5a9840a8c02b0ed6737e2aabef HEAD)" = 1cd2e35a7f8f6b5a9840a8c02b0ed6737e2aabef
           git diff --quiet 1cd2e35a7f8f6b5a9840a8c02b0ed6737e2aabef HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          echo 'RUNTIME_EQUIVALENCE_PASS: only tests/CI since already-built Core runtime head 4843bf3d'
+          echo 'RUNTIME_EQUIVALENCE_PASS: only tests/CI since already-built Core runtime head 1cd2e35a'
           echo 'No Android build or Room build will be started by this workflow.'
 
       - name: Reuse and verify actual prior successful Core APK (no Gradle)
