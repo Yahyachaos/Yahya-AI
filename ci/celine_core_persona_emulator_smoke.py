@@ -16,6 +16,7 @@ OUT = pathlib.Path("core-persona-emulator-proof")
 OUT.mkdir(exist_ok=True)
 APK = pathlib.Path("ci-apk/app-debug.apk")
 PACKAGE = "de.yahya.ai"
+LEGACY_MIGRATION_PROBE = "celine_upgrade_probe_20261025"
 ACTIVITY = PACKAGE + "/.MainActivity"
 
 
@@ -146,15 +147,71 @@ def screenshot(filename):
         pass
 
 
+
+def back_to_chat():
+    for _ in range(4):
+        if any(n.attrib.get("content-desc") == "Celin Nachricht schreiben"
+               for n in hierarchy().iter("node")):
+            return
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        time.sleep(0.5)
+    raise AssertionError("Cannot return to chat after legacy memory inspection")
+
+
+def open_memory_settings():
+    click(node_with("text", "⚙"))
+    first = hierarchy()
+    if any(n.attrib.get("text") == "Weitere Einstellungen" for n in first.iter("node")):
+        click(node_with("text", "Weitere Einstellungen"))
+    click(node_with("text", "Gedächtnis"))
+
+
+def prepare_public_v80_memory():
+    version = adb("shell", "dumpsys", "package", PACKAGE)
+    if not re.search(r"versionCode=80\\b", version):
+        raise AssertionError("Public v80 must be installed before legacy memory seed")
+    launch()
+    # This is disposable CI test data, never personal memory or a cloud credential.
+    send_user("merk dir " + LEGACY_MIGRATION_PROBE)
+    open_memory_settings()
+    root = hierarchy()
+    if not any(LEGACY_MIGRATION_PROBE in n.attrib.get("text", "")
+               for n in root.iter("node")):
+        raise AssertionError("Public v80 did not expose the seeded memory")
+    back_to_chat()
+    print("PUBLIC_V80_LEGACY_MEMORY_SEED_PASS", flush=True)
+
+
+def verify_v80_to_v82_memory_migration():
+    # The old v80 flat-memory entry must survive the in-place installation and
+    # become user-inspectable G1 memory, encrypted at rest, without a cleartext copy.
+    raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+    if LEGACY_MIGRATION_PROBE in raw or re.search(r'<string\\s+name="memory"', raw):
+        raise AssertionError("Legacy plaintext remains in v82 shared preferences")
+    if not re.search(r'<boolean\\s+name="celine_memory_v2_migrated"\\s+value="true"', raw):
+        raise AssertionError("v80 legacy memory migration was not durably recorded")
+    if not re.search(r'<string\\s+name="celine_memory_g1_5_protected"', raw):
+        raise AssertionError("v82 encrypted G1 memory envelope missing")
+    open_memory_settings()
+    root = hierarchy()
+    if not any(LEGACY_MIGRATION_PROBE in n.attrib.get("text", "")
+               for n in root.iter("node")):
+        raise AssertionError("v80 memory was lost or hidden after v82 upgrade")
+    back_to_chat()
+    print("PUBLIC_V80_TO_V82_ENCRYPTED_MEMORY_MIGRATION_PASS", flush=True)
+
+
 def main():
     if not APK.is_file():
         raise AssertionError("Pinned prior build APK not downloaded")
-    print("CORE_EMULATOR_SMOKE_START: install unchanged v82 artifact", flush=True)
+    prepare_public_v80_memory()
+    print("CORE_EMULATOR_SMOKE_START: in-place v80 to unchanged v82 artifact", flush=True)
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
     if not re.search(r"versionCode=82\b", version):
         raise AssertionError("Installed Android package is not versionCode 82")
     launch()
+    verify_v80_to_v82_memory_migration()
     check_mode("aus")
     # Ordinary user prose mentioning the codeword must never opt in.
     send_user("Hallo Nutte")
