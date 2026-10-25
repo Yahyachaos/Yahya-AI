@@ -72,15 +72,21 @@ final class CelineRoomEnvironmentV80 {
     private static final float FLOOR_LAMP_LIGHT_Z = -1.70734370f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
-    // Aim from the fitted bulb (X=-1.71406, Y=1.45, Z=-1.70734) toward the
-    // fitted lounge-chair anchor (X=-1.69922, Y=0.40, Z=-2.05) in the same
-    // post-yaw Room coordinate frame: normalized target delta (0.01344,
-    // -0.95057, -0.31021). Preserve the protected 9R.5 reversible ON/OFF
-    // state, default OFF, existing 60 klm, falloff, cones and light channel.
+    // 9R.5 exact real ON/OFF proof #273 changed 0 static wall/floor pixels.
+    // The former fitted-chair aim was behind this bulb toward the opaque back
+    // wall (old dir z=-0.31021); its focused pool was outside the visible floor.
+    // Aim from the unchanged derived physical lamp bulb (-1.71406245,1.45,
+    // -1.70734370) at a nearby source-room floor patch (-1.45,0.0,-1.00),
+    // beside/in front of the lounge chair and inside the locked 4.40x4.20 room.
+    // Unit direction = normalize((0.26406245,-1.45,0.70734370)), length=1.6348m.
+    // This is a bounded lamp-only geometric/raster experiment: preserve default
+    // OFF and accepted 9R.5 ON/OFF, 60 klm, 3.4m falloff, cones and room channel.
+    // Retain only if actual same-runtime Android ON/OFF ROOM pixels improve;
+    // rollback on zero delta, clipping, blowout or new interaction regressions.
     private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 3.4f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_X = 0.01343812f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.95057327f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.31020941f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_X = 0.16152605f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.88695980f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Z = 0.43267961f;
     private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.41887902f; // 24 degrees
     private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.69813170f; // 40 degrees
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
