@@ -7,7 +7,6 @@ on:
     paths:
       - '.github/workflows/celine-core-persona-g1-regression.yml'
       - 'ci/celine_persona_**'
-      - 'ci/conversation_intelligence_v78_contract.py'
       - 'app/src/main/java/de/yahya/ai/CelinePersonaMode.java'
       - 'app/src/main/java/de/yahya/ai/CelinePersonaPromptAdapter.java'
       - 'app/src/main/java/de/yahya/ai/CelinePersonaStateStore.java'
@@ -54,12 +53,15 @@ jobs:
           ROOM_SOURCE_SHA: 15045bf8f770ffc4b7b2719fd10c4582cfa30421
         run: |
           set -euo pipefail
-          python3 ci/conversation_intelligence_v78_contract.py
-
-          # Import only the tests into this disposable runner workspace.
-          # The Core branch, Room branch and source files remain untouched;
-          # the assertions execute against this checkout's actual Core Java.
+          # G1.4 central context assembly intentionally superseded the legacy
+          # MainActivity selectContextStart() call. The old V78 static check
+          # rejects that correctly migrated path, so execute the newer actual
+          # Conversation Java probe and preserved G1 contracts instead.
+          # Borrow Room-authored TESTS only into the disposable CI workspace.
           git fetch --no-tags origin "$ROOM_SOURCE_SHA"
+          git show "$ROOM_SOURCE_SHA:ci/celine_g1_intelligence_baseline.py" > ci/celine_g1_intelligence_baseline.py
+          git show "$ROOM_SOURCE_SHA:ci/evidence/CELINE_G1_BASELINE_CASES.json" > ci/evidence/CELINE_G1_BASELINE_CASES.json
+          python3 ci/celine_g1_intelligence_baseline.py --strict --output celine-g1-baseline.json
           tests=(
             celine_g1_brain_contract.py
             celine_g1_structured_memory_test.py
@@ -74,4 +76,4 @@ jobs:
             git show "$ROOM_SOURCE_SHA:ci/$test" > "ci/$test"
             python3 "ci/$test"
           done
-          echo "Core conversation + ${#tests[@]} G1 regression contracts: PASS"
+          echo "Core G1 conversation baseline + ${#tests[@]} G1 regressions: PASS"
