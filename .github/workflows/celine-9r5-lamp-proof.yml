@@ -53,8 +53,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # The exact APK is already resolved above; reactivecircus/android-emulator-runner
+      # provisions its own SDK. Avoid the obsolete setup-android@v3 `sdkmanager tools`
+      # bootstrap, which fails before emulator capture on hosted Ubuntu runners.
 
       - name: Set up Gradle for exact-head APK fallback
         if: steps.source.outcome == 'failure'
