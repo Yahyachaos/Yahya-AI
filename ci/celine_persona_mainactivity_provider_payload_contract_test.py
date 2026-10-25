@@ -71,10 +71,13 @@ def check_wiring(source: str) -> tuple[str, str]:
     if method.count(start_marker) != 1 or method.count(end_marker) != 1:
         raise AssertionError("cannot identify actual cloud body.input code")
     snippet = method[method.index(start_marker) : method.index(end_marker) + len(end_marker)]
-    match = re.search(r"private static class Message\s*\{[^{}]+\}", source)
-    if not match:
-        raise AssertionError("cannot extract actual MainActivity.Message model")
-    return snippet, match.group(0)
+    model_start = source.find("private static class Message{")
+    if model_start < 0:
+        raise AssertionError("cannot locate actual MainActivity.Message model")
+    model_end = source.find("\n    }", model_start)
+    if model_end < 0:
+        raise AssertionError("cannot locate complete MainActivity.Message model")
+    return snippet, source[model_start:model_end + len("\n    }")]
 
 
 def make_harness(snippet: str, message_model: str, cases: list[dict]) -> str:
@@ -121,9 +124,9 @@ def make_harness(snippet: str, message_model: str, cases: list[dict]) -> str:
         ])
         for i, (role, text) in enumerate(expected_provider):
             runs.extend([
-                f"  JSONObject row=(JSONObject)actual.items.get({i});",
-                f"  verify(row.values.get(\"role\").equals({java_string(role)})&&"
-                f"row.values.get(\"content\").equals({java_string(text)}),"
+                f"  JSONObject row{i}=(JSONObject)actual.items.get({i});",
+                f"  verify(row{i}.values.get(\"role\").equals({java_string(role)})&&"
+                f"row{i}.values.get(\"content\").equals({java_string(text)}),"
                 f"{name}+\": wrong serialized row {i}\");",
             ])
         runs.extend([
