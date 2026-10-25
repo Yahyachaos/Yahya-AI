@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only actual indexed rug glTF baseColor atlas/UV spatial audit.
 
-Structural evidence only; this never implies floor-pile, Android, or whole-room
+Structural evidence only; samples baseColor, metallic-roughness and normal-map\ntexels by indexed triangle UV centroids. This never implies Android or whole-room
 visual acceptance. Source identity is pinned independently of the optimizer.
 """
 import argparse
@@ -51,13 +51,17 @@ def image_bytes(raw, j, binary_offset, binary_length, image_index):
     return raw[start:end]
 
 
-def describe_texture(j, raw, binary_offset, binary_length, material_index, cache):
+def describe_texture(j, raw, binary_offset, binary_length, material_index, cache, role):
     material = j["materials"][material_index]
     pbr = material.get("pbrMetallicRoughness", {})
     factor = pbr.get("baseColorFactor", [1.0, 1.0, 1.0, 1.0])
     if len(factor) != 4:
         raise ValueError("Invalid baseColorFactor")
-    reference = pbr.get("baseColorTexture")
+    reference = (pbr.get("baseColorTexture") if role == "baseColor" else
+                 pbr.get("metallicRoughnessTexture") if role == "metallicRoughness" else
+                 material.get("normalTexture") if role == "normal" else None)
+    if role not in ("baseColor", "metallicRoughness", "normal"):
+        raise ValueError("Unrecognized glTF PBR texture role")
     if not reference:
         return {"texture": False, "factor": factor, "uv_set": None,
                 "texture_size": None, "sampler": None, "embedded_image_sha256": None}, None
@@ -80,7 +84,7 @@ def describe_texture(j, raw, binary_offset, binary_length, material_index, cache
     return meta, image
 
 
-def profile(path):
+def profile(path, role="baseColor"):
     raw, j, binary_offset, binary_length = load(path)
     images = {}
     mats = {}
@@ -93,7 +97,7 @@ def profile(path):
             material_idx = prim.get("material", 0)
             if material_idx not in mats:
                 mats[material_idx] = describe_texture(
-                    j, raw, binary_offset, binary_length, material_idx, images
+                    j, raw, binary_offset, binary_length, material_idx, images, role
                 )
             material, image = mats[material_idx]
             pcount, pa, position = accessor(
@@ -178,6 +182,7 @@ def profile(path):
         }
     return {
         "glb_sha256": hashlib.sha256(raw).hexdigest(),
+        "texture_role": role,
         "glb_bytes": len(raw), "sampled_indexed_triangles": len(triangles),
         "sampled_xz_domain_m": [round(v,6) for v in extents],
         "sampled_uv_outside_0_1_count": out_of_range_uv,
@@ -221,10 +226,22 @@ def main():
     if original["glb_sha256"] != SOURCE_SHA or original["glb_bytes"] != SOURCE_SIZE:
         raise ValueError("Canonical original Teppisch.glb SHA256/size mismatch")
     packaged = profile(args.derived)
+    other_pbr_roles = {}
+    for role in ("metallicRoughness", "normal"):
+        src_role = profile(args.source, role)
+        derived_role = profile(args.derived, role)
+        other_pbr_roles[role] = {
+            "source_materials": src_role["materials"],
+            "packaged_materials": derived_role["materials"],
+            "source_sampled_indexed_triangles": src_role["sampled_indexed_triangles"],
+            "packaged_sampled_indexed_triangles": derived_role["sampled_indexed_triangles"],
+            "sampled_spatial_channel_delta": compare(src_role, derived_role),
+        }
     report = {
         "schema":"celine-room-rug-atlas-indexed-uv-spatial/v1",
         "source":original,"packaged":packaged,
         "sampled_spatial_color_delta":compare(original,packaged),
+        "sampled_metallic_roughness_normal_channel_deltas": other_pbr_roles,
         "structural_audit":"PASS",
         "android_home_call_home_visual_proof":"NOT_RUN",
         "whole_room_visual_acceptance":"FAIL_PREVIOUS_MANUAL_PROOF",
