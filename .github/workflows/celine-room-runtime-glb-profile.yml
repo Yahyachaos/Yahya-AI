@@ -135,6 +135,7 @@ jobs:
           python3 ci/celine_room_rug_source_derived_audit.py \
             --source /tmp/celine-small-plant-source/app/src/main/assets/models/möbel/Teppisch.glb \
             --derived app/src/main/assets/models/room/source-fidelity/room_rug.glb \
+            --budget-generator tools/blender/apply_celine_room_source_fidelity_budget.py \
             --output ci-room-runtime-profile/rug-source-derived-audit.json \
             | tee ci-room-runtime-profile/rug-source-derived-audit.log
           grep -F 'CELINE_ROOM_RUG_SOURCE_DERIVED_AUDIT PASS' ci-room-runtime-profile/rug-source-derived-audit.log
