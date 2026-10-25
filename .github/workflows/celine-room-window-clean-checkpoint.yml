@@ -116,6 +116,24 @@ jobs:
           printf '%s\n' 'apk_build_required=false' >> ci-room-window-clean-proof/metadata.txt
           sha256sum Refernzbild.png >> ci-room-window-clean-proof/metadata.txt
 
+      - name: Audit true window PNGs on a normalized reference grid (metrics only)
+        shell: bash
+        env:
+          CELINE_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 ci/celine_room_window_raster_audit.py \
+            --reference ci-room-window-clean-proof/Refernzbild.png \
+            --architecture ci-room-window-clean-proof/architecture_window_source_pbr.png \
+            --candidate ci-room-window-clean-proof/candidate_front_wide.png \
+            --checkpoint ci-room-window-clean-proof/window-source-pbr-checkpoint.json \
+            --head "$CELINE_PROOF_HEAD_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --output ci-room-window-clean-proof/window-reference-raster-audit.json \
+            | tee ci-room-window-clean-proof/window-reference-raster-audit.log
+          grep -F 'WINDOW_NORMALIZED_RGB_DIAGNOSTIC_PASS (NOT VISUAL PASS)' ci-room-window-clean-proof/window-reference-raster-audit.log
+          grep -F '"visual_acceptance": "UNASSESSED_REQUIRES_MANUAL_COMPARISON"' ci-room-window-clean-proof/window-reference-raster-audit.json
+
       - name: Upload exact window source-PBR proof
         if: always()
         uses: actions/upload-artifact@v4
