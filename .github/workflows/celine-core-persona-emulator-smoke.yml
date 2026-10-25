@@ -50,6 +50,11 @@ jobs:
           echo '6cc5c65c0ea0532b588662c9aaab01074696830111d697c6890d8e0bcd386f9a  ci-apk/app-debug.apk' | sha256sum -c -
           sha256sum ci-apk/app-debug.apk > core-persona-emulator-proof/apk-sha256.txt
           echo 'PINNED_V82_APK_INTEGRITY_PASS'
+          # Public released v80 is the actual user's updater baseline, not an Actions debug artifact.
+          gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' -D ci-apk
+          test -f ci-apk/Yahya-AI-v80.apk
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          echo 'PINNED_PUBLIC_V80_RELEASE_INTEGRITY_PASS'
 
       - name: Reuse runner-preinstalled Android SDK (setup-android v3 legacy tools fails)
         shell: bash
@@ -74,7 +79,13 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
-          script: timeout 480s python3 ci/celine_core_persona_emulator_smoke.py
+          script: |
+            set -eu
+            # Fail closed if the exact public v80 app cannot be upgraded in place to v82.
+            adb install -r ci-apk/Yahya-AI-v80.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
+            echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
+            timeout 480s python3 ci/celine_core_persona_emulator_smoke.py
 
       - name: Upload genuine emulator screenshots and test provenance
         if: always()
