@@ -11,6 +11,7 @@ on:
       - 'ci/celine_room_window_source_derived_pbr_audit.py'
       - 'ci/celine_room_window_atlas_uv_audit.py'
       - 'ci/celine_room_rug_source_derived_audit.py'
+      - 'ci/celine_room_rug_atlas_uv_audit.py'
       - 'app/src/main/assets/models/room/source-fidelity/room_rug.glb'
       - 'app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
   workflow_dispatch:
@@ -141,6 +142,20 @@ jobs:
           grep -F 'CELINE_ROOM_RUG_SOURCE_DERIVED_AUDIT PASS' ci-room-runtime-profile/rug-source-derived-audit.log
           grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/rug-source-derived-audit.log
           test -s ci-room-runtime-profile/rug-source-derived-audit.json
+
+      - name: Compare actual rug indexed UV positions with embedded PBR atlas colors (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x /tmp/celine-window-atlas-audit-env/bin/python
+          /tmp/celine-window-atlas-audit-env/bin/python ci/celine_room_rug_atlas_uv_audit.py \
+            --source /tmp/celine-small-plant-source/app/src/main/assets/models/möbel/Teppisch.glb \
+            --derived app/src/main/assets/models/room/source-fidelity/room_rug.glb \
+            --output ci-room-runtime-profile/rug-atlas-uv-audit.json \
+            | tee ci-room-runtime-profile/rug-atlas-uv-audit.log
+          grep -F 'CELINE_ROOM_RUG_ATLAS_UV_AUDIT PASS' ci-room-runtime-profile/rug-atlas-uv-audit.log
+          grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/rug-atlas-uv-audit.log
+          test -s ci-room-runtime-profile/rug-atlas-uv-audit.json
 
       - name: Upload runtime room GLB profile
         if: always()
