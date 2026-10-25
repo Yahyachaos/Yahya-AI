@@ -89,6 +89,19 @@ final class CelineRoomEnvironmentV80 {
     private static final float FLOOR_LAMP_LIGHT_DIR_Z = 0.43267961f;
     private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.41887902f; // 24 degrees
     private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.69813170f; // 40 degrees
+    // Reference-solved original wall shelf center (-1.400, 1.894, +1.91625)
+    // in glTF room coordinates. The shared 180deg room yaw gives (+1.400,
+    // 1.894, -1.91625). Place one warm, short-range room-channel-only lamp
+    // just BELOW the existing shelf and slightly toward the room center.
+    // No geometry, source GLB, Celine or independently reversible 9R.5 lamp changes.
+    private static final float ROOM_SHELF_FILL_X = 1.40f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
+    private static final float ROOM_SHELF_FILL_Y = 1.814f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
+    private static final float ROOM_SHELF_FILL_Z = -1.82625f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    private static final float ROOM_SHELF_FILL_LUMENS = 750.0f;
+    private static final float ROOM_SHELF_FILL_FALLOFF_M = 1.25f;
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
     static final class SeatAnchor {
@@ -220,6 +233,7 @@ final class CelineRoomEnvironmentV80 {
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
         int recoveryRoomKeyLightEntity;
+        int shelfFillLightEntity;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
         boolean listenerInstalled;
@@ -291,6 +305,7 @@ final class CelineRoomEnvironmentV80 {
                         roomShellAsset.getRoot());
                 configureRoomLightChannels();
                 createRecoveryRoomKeyLight();
+                createShelfFillLight();
                 createFloorLampLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
@@ -323,7 +338,8 @@ final class CelineRoomEnvironmentV80 {
                 for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0 || floorLampLightEntity != 0) {
+                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0
+                        || shelfFillLightEntity != 0 || floorLampLightEntity != 0) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAssets.clear();
@@ -479,6 +495,38 @@ final class CelineRoomEnvironmentV80 {
             }
         }
 
+        // Local reference shelf glow. New light exists only in the Room channel,
+        // never in Celine channel 0. Static/default fixture, not a 9R.5 toggle.
+        private void createShelfFillLight() {
+            int entity = EntityManager.get().create();
+            try {
+                new LightManager.Builder(LightManager.Type.POINT)
+                        .position(ROOM_SHELF_FILL_X, ROOM_SHELF_FILL_Y, ROOM_SHELF_FILL_Z)
+                        .color(1.0f, 0.68f, 0.42f)
+                        .intensity(ROOM_SHELF_FILL_LUMENS)
+                        .falloff(ROOM_SHELF_FILL_FALLOFF_M)
+                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, true)
+                        .build(engine, entity);
+                scene.addEntity(entity);
+                shelfFillLightEntity = entity;
+                Celine3DDiagnostics.record(context, "ROOM-121",
+                        "Source-Wandregal-Unterlicht aktiv",
+                        "channel=" + ROOM_LIGHT_CHANNEL
+                                + " owner=source_wall_shelf_books"
+                                + " type=POINT lumens=" + ROOM_SHELF_FILL_LUMENS
+                                + " falloff=" + ROOM_SHELF_FILL_FALLOFF_M
+                                + " position=" + ROOM_SHELF_FILL_X + ","
+                                + ROOM_SHELF_FILL_Y + "," + ROOM_SHELF_FILL_Z
+                                + " lamp9R5Unaffected=true sourceGeometryUnchanged=true");
+            } catch (Throwable error) {
+                try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+                try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+                throw error;
+            }
+        }
+
         private void createFloorLampLight() {
             int entity = EntityManager.get().create();
             try {
@@ -537,20 +585,28 @@ final class CelineRoomEnvironmentV80 {
         synchronized void destroyRoom() {
             ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
             int roomKeyLight = recoveryRoomKeyLightEntity;
+            int shelfLight = shelfFillLightEntity;
             int lampLight = floorLampLightEntity;
             roomAssets.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
             recoveryRoomKeyLightEntity = 0;
+            shelfFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            if (current.isEmpty() && roomKeyLight == 0 && lampLight == 0) return;
+            if (current.isEmpty() && roomKeyLight == 0
+                    && shelfLight == 0 && lampLight == 0) return;
             try {
                 if (roomKeyLight != 0) {
                     try { scene.removeEntity(roomKeyLight); } catch (Throwable ignored) {}
                     try { engine.getLightManager().destroy(roomKeyLight); } catch (Throwable ignored) {}
                     try { EntityManager.get().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                }
+                if (shelfLight != 0) {
+                    try { scene.removeEntity(shelfLight); } catch (Throwable ignored) {}
+                    try { engine.getLightManager().destroy(shelfLight); } catch (Throwable ignored) {}
+                    try { EntityManager.get().destroy(shelfLight); } catch (Throwable ignored) {}
                 }
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
