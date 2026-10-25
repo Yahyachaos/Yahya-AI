@@ -1,0 +1,143 @@
+{
+  "schema": "celine-room-c108-verified-material-atlas-audit/v1",
+  "date": "2026-10-25",
+  "room_pr": 111,
+  "pinned_originals": {
+    "source_commit": "df50816187978cbf5faf818ad484c3f682be7588",
+    "source_path": "app/src/main/assets/models/möbel/",
+    "contract": "docs/celine/room-source/v80-2026-08-28/ROOM_SOURCE_RETRIEVAL_CONTRACT.json",
+    "original_glbs_mutated": false
+  },
+  "prewrite": {
+    "main": "5a23ccf75fb82b97d262cf3d8be24a6fe77fb26b",
+    "room": "15045bf8f770ffc4b7b2719fd10c4582cfa30421",
+    "core": "0ba543d2be4d0f15dff484f1dfc2ac87f2b69dbb",
+    "core_exclusive_G1_paths_reserved": true,
+    "in_flight_runs": 0
+  },
+  "method": "Materialized full original immutable GLB bytes from canonical Library backup, verified complete SHA256 against independent pinned Git-LFS source contract; parsed actual glTF2 header/chunks, JSON material/texture/image bufferViews; extracted actual embedded baseColor JPEG; inspected actual image atlas; measured absolute per-channel sRGB differences between opposite baseColor-atlas edges (mean over corresponding 2048 edge pixels). These metrics diagnose repeat/seam risk; they are NOT architectural semantic authorization nor substitute for actual Android CALL raster proof.",
+  "originals": [
+    {
+      "name": "Tischfürlaptop.glb",
+      "role": "foreground table, not architectural floor",
+      "file_bytes": 121105992,
+      "verified_sha256": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+      "sha256_pass": true,
+      "material": {
+        "count": 1,
+        "baseColorTexture": true,
+        "metallicRoughnessTexture": true,
+        "normalTexture": true,
+        "doubleSided": true,
+        "alphaMode": "OPAQUE (glTF default)",
+        "embedded_2048_jpeg_images": 3
+      },
+      "baseColor_image": {
+        "sha256": "af45bc647d167ad502a5c1d8d28554f550f18b09dda183691c772a827b745a3d",
+        "mean_absolute_opposite_edge_srgb_rgb": {
+          "left_right": [
+            72.94,
+            52.35,
+            37.66
+          ],
+          "top_bottom": [
+            77.04,
+            56.53,
+            42.47
+          ]
+        },
+        "manual_description": "disjoint black, tan and off-white mesh-specific UV islands; not continuous floorboard pattern"
+      },
+      "floor_suitability": "REJECT: source-specific furniture UV atlas, non-seamless at image borders, no canonical license/spec association to an architectural floor"
+    },
+    {
+      "name": "GroßeKomode.glb",
+      "role": "dresser, not architectural floor",
+      "file_bytes": 125839900,
+      "verified_sha256": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+      "sha256_pass": true,
+      "material": {
+        "count": 1,
+        "baseColorTexture": true,
+        "metallicRoughnessTexture": true,
+        "normalTexture": true,
+        "doubleSided": true,
+        "alphaMode": "OPAQUE (glTF default)",
+        "embedded_2048_jpeg_images": 3
+      },
+      "baseColor_image": {
+        "sha256": "4988fa3c1135840c71e7c0218afe1796d4ad2b6bf0ded643fcdad3f7c3198914",
+        "mean_absolute_opposite_edge_srgb_rgb": {
+          "left_right": [
+            75.16,
+            58.48,
+            61.34
+          ],
+          "top_bottom": [
+            73.2,
+            58.5,
+            60.77
+          ]
+        },
+        "manual_description": "patchwork of green, cream, gray and brown furniture-specific material islands; not a coherent plank texture"
+      },
+      "floor_suitability": "REJECT: no floorboard semantics, non-seamless UV atlas, green non-floor patches"
+    },
+    {
+      "name": "Kleinepflanzemittopf.glb",
+      "role": "small plant, independent missing crown root-cause probe",
+      "file_bytes": 177155676,
+      "verified_sha256": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+      "sha256_pass": true,
+      "material": {
+        "count": 1,
+        "baseColorTexture": true,
+        "metallicRoughnessTexture": true,
+        "normalTexture": true,
+        "doubleSided": true,
+        "alphaMode": "OPAQUE (glTF default)",
+        "embedded_2048_jpeg_images": 3
+      },
+      "baseColor_image": {
+        "sha256": "e8757f26f863a8fa51abfee4ce3947d59fa168d28cd4ba81d77a245ec5282b94",
+        "approx_green_dominant_pixel_fraction": 0.85246,
+        "criterion": "G>1.1*R AND G>1.1*B, RGB sRGB, heuristic",
+        "manual_description": "large green foliage atlas regions and pale/brown pot components; authentic source contains leaf coloration"
+      },
+      "derived_runtime_hypothesis": "Green base-color source is not missing; screen-space crown absence may instead be derived geometry, scale, occlusion, backface/submesh or runtime material/visibility. None yet established; requires exact derived GLB inspection and real CALL image."
+    }
+  ],
+  "existing_derived_shell": {
+    "path": "app/src/main/assets/models/room/source-fidelity/room_shell.glb",
+    "blob_sha": "520b4f143a50e223600b701df7c8a2a08140c73c",
+    "baseColorTexture": false,
+    "image_count": 0,
+    "floor_top_uv_u": [
+      0.625,
+      0.875
+    ],
+    "floor_top_uv_v": [
+      0.25,
+      0.5
+    ],
+    "prior_audit": "ci/evidence/CELINE_ROOM_C106_FLOOR_UV_MATERIAL_SOURCE_AUDIT_2026_10_25.md"
+  },
+  "relevant_runtime_source_observation": "CelineRoomSurfaceTextureV80.java contains deterministic createWood(512,512) with plank stripes, but the source GLB itself has zero floor images. We have not proven that this legacy method is invoked on current 14-part Room rendering; do not claim a specific visible texture without current CALL evidence. Existing source's generated wood code does not demonstrate user-approved architectural source provenance.",
+  "gates": {
+    "original_sha256": "PASS_3_OF_3_BYTE_EXACT",
+    "gltf_and_images": "PASS_3_OF_3",
+    "canonical_floor_texture_authorization": "FAIL_NOT_DOCUMENTED",
+    "table_as_floor": "REJECT",
+    "dresser_as_floor": "REJECT",
+    "new_derived_shell_mutation": false,
+    "new_runtime_source_mutation": false,
+    "new_android_build": false,
+    "new_apk": false,
+    "new_visual_pass": false,
+    "overall_room_visual": "FAIL_EXISTING",
+    "releases_latest": "v80",
+    "G2_3": "PAUSED"
+  },
+  "ownership": "Docs-only new Room-evidence path. G1 + MainActivity + Conversation remains temporarily Core-owned through explicit clean return-handoff. No Gradle/version/workflow/Queue/shared asset write, no release, no merge, no new worker/PR.",
+  "exact_next_action": "Inspect exact current source-fidelity room_plant_small.glb derived renderable/UV/PBR mesh versus SHA-verified original Kleinepflanzemittopf.glb, then compare its visible crown against one real HOME→CALL→HOME raster; only if a specific Room-owned material/visibility defect is demonstrated make one bounded derived-only fix, one Android build, and one targeted real visual proof. Keep the floor texture unchanged absent canonical floor-specific reference authorization."
+}
