@@ -89,6 +89,77 @@ def assert_live_persona_integration_source_contract() -> None:
     print("CORE_PERSONA_LIVE_SOURCE_WIRING_PASS: direct-only early dispatch, encrypted state, provider instructions, memory-extractor isolation (source-level only)")
 
 
+def assert_settings_only_exit_source_contract() -> None:
+    """Read-only guard for the explicitly exposed Settings-only normal-mode exit.
+
+    A Settings tap must not forge a submitted direct-user command turn; the
+    encrypted store must be cleared and only the genuine app ACK may appear in
+    visible chat (and remain excluded from provider-history serialization).
+    This is a source contract, NOT a physical Android Settings UI test.
+    """
+    source = (RUNTIME / "MainActivity.java").read_text(encoding="utf-8")
+    compact = "".join(source.split())
+
+    def section(start: str, end: str) -> str:
+        if compact.count(start) != 1 or compact.count(end) != 1:
+            raise AssertionError("Settings-only persona source boundary missing")
+        return compact.split(start, 1)[1].split(end, 1)[0]
+
+    def verify(current: str) -> None:
+        blocks = {
+            "settings": current.split("privatevoidshowSettings()", 1)[1].split(
+                "privatevoidshowPersonaSettings()", 1)[0],
+            "persona": current.split("privatevoidshowPersonaSettings()", 1)[1].split(
+                "privatevoidshowAbout()", 1)[0],
+            "wrapper": current.split("privatebooleanhandlePersonaCommand(Stringtext)", 1)[1].split(
+                "privatebooleanhandlePersonaCommand(Stringtext,booleanmarkSubmittedUser)", 1)[0],
+            "dispatch": current.split("privatebooleanhandlePersonaCommand(Stringtext,booleanmarkSubmittedUser)", 1)[1].split(
+                "privatevoidsubmit(Stringtext)", 1)[0],
+        }
+        required = (
+            ("settings", "case12:showPersonaSettings();"),
+            ("persona", "if(!personaMode.isActive())"),
+            ("persona", '.setPositiveButton("Normalmodus",(d,w)->handlePersonaCommand("Normalmodus"))'),
+            ("wrapper", "returnhandlePersonaCommand(text,false);"),
+            ("dispatch", "if(markSubmittedUser)"),
+            ("dispatch", "if(!command.commandConsumed())returnfalse;"),
+            ("dispatch", "personaStateStore.clear()"),
+            ("dispatch", "addPersonaAssistant(cleared?"),
+        )
+        for block, token in required:
+            if token not in blocks[block]:
+                raise AssertionError(f"Settings-only exit lost {block}: {token}")
+        if any(token in blocks["persona"] for token in ("submit(", "addUser(", "messages.add(")):
+            raise AssertionError("Settings path fabricated a submitted direct-user turn")
+        for token in (
+            'addBubble("Celin",t,false,true)',
+            "if(!m.personaControl)providerHistory.add(m)",
+            "messages.set(last,newMessage(visible.role,visible.content,true))",
+        ):
+            if token not in current:
+                raise AssertionError("Settings ACK/provider exclusion contract lost: " + token)
+
+    verify(compact)
+    # Prove the guard rejects two plausible mistakes in the protected Java
+    # integration without writing or patching that Room-owned source.
+    mutations = (
+        ("settings-created direct control turn",
+         "returnhandlePersonaCommand(text,false);",
+         "returnhandlePersonaCommand(text,true);"),
+        ("Settings button bypasses normal-mode handler",
+         '.setPositiveButton("Normalmodus",(d,w)->handlePersonaCommand("Normalmodus"))',
+         '.setPositiveButton("Normalmodus",(d,w)->personaMode.reset())'),
+    )
+    for description, before, after in mutations:
+        if compact.count(before) != 1:
+            raise AssertionError("Cannot anchor Settings mutation: " + description)
+        try:
+            verify(compact.replace(before, after, 1))
+        except AssertionError:
+            continue
+        raise AssertionError("Settings guard incorrectly accepted mutation: " + description)
+    print("CORE_PERSONA_SETTINGS_ONLY_EXIT_SOURCE_PASS: Settings route, non-forged user turn, encrypted exit, marked ACK/provider exclusion, mutation rejected (source-only)")
+
 def main() -> int:
     for name in SOURCES:
         prototype = PROTOTYPES / name
@@ -99,6 +170,7 @@ def main() -> int:
             raise SystemExit(f"promoted source drift for {name}; review the approved integration contract")
 
     assert_live_persona_integration_source_contract()
+    assert_settings_only_exit_source_contract()
 
     for index, (filename, bindings) in enumerate(CONTRACTS):
         name = f"celine_promoted_contract_{index}"
