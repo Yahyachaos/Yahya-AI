@@ -490,6 +490,140 @@ def _uv_footprint_detail_comparison(source_path, packaged_path):
     }
 
 
+
+def _normal_direction(rgb, normal_scale):
+    """Linear glTF tangent normal encoded in RGB, applying normalTexture.scale."""
+    x = (2.0 * rgb[0] / 255.0 - 1.0) * normal_scale
+    y = (2.0 * rgb[1] / 255.0 - 1.0) * normal_scale
+    z = 2.0 * rgb[2] / 255.0 - 1.0
+    n = math.sqrt(x*x + y*y + z*z)
+    if n < 1e-8:
+        raise ValueError("Degenerate encoded tangent normal")
+    return x/n, y/n, z/n
+
+
+def _normal_neighbor_angle_deg(center, neighbor, normal_scale):
+    a = _normal_direction(center, normal_scale)
+    b = _normal_direction(neighbor, normal_scale)
+    dot = max(-1.0, min(1.0, sum(a[i]*b[i] for i in range(3))))
+    return math.degrees(math.acos(dot))
+
+
+def _indexed_normal_mip_sensitivity(path, max_samples_per_primitive=12000):
+    """Measure actual indexed normal-map UV texel angular steps at hypothetical mips.
+
+    No Android camera/raster, visibility, GPU mipmap generation, BRDF, or
+    actual screen-space LOD is inferred; source/derived UVs differ.
+    """
+    raw, gltf, bo, bl = load(path)
+    cache, atlas_cache, angle_samples = {}, {}, defaultdict(list)
+    samplers = set()
+    sampled_count = 0
+    for mesh in gltf.get("meshes", []):
+        for primitive in mesh.get("primitives", []):
+            if primitive.get("mode", 4) != 4 or "POSITION" not in primitive.get("attributes", {}):
+                raise ValueError("Normal mip audit requires triangular POSITION")
+            material_index = primitive.get("material", 0)
+            material = gltf["materials"][material_index]
+            normal_info = material.get("normalTexture")
+            if not normal_info:
+                raise ValueError("Missing rug normal map; cannot compare tangent normal response")
+            if "KHR_texture_transform" in normal_info.get("extensions", {}):
+                raise ValueError("Texture transform requires explicit projection handling")
+            normal_scale = float(normal_info.get("scale", 1.0))
+            if not math.isfinite(normal_scale) or normal_scale < 0:
+                raise ValueError("Invalid glTF normalTexture.scale")
+            meta, rgb = describe_texture(gltf, raw, bo, bl, material_index, cache, "normal")
+            if rgb is None:
+                raise ValueError("Missing embedded normal image")
+            image_key = meta["embedded_image_sha256"]
+            if image_key not in atlas_cache:
+                common = rgb if rgb.size == (1024, 1024) else rgb.resize(
+                    (1024, 1024), Image.Resampling.LANCZOS
+                )
+                atlas_cache[image_key] = [
+                    common.resize((1024 >> level, 1024 >> level), Image.Resampling.LANCZOS)
+                    if level else common for level in range(4)
+                ]
+            sampler = meta["sampler"]
+            samplers.add((sampler["wrapS"], sampler["wrapT"],
+                          sampler["magFilter"], sampler["minFilter"], normal_scale))
+            attrs = primitive["attributes"]
+            uv_key = "TEXCOORD_" + str(meta["uv_set"])
+            if uv_key not in attrs:
+                raise ValueError("Normal map UV accessor missing: " + uv_key)
+            vertex_count, _, _ = accessor(gltf, raw, bo, bl, attrs["POSITION"])
+            uv_count, _, uv_reader = accessor(gltf, raw, bo, bl, attrs[uv_key])
+            if uv_count < vertex_count:
+                raise ValueError("UV count smaller than vertex count")
+            indexed = accessor(gltf, raw, bo, bl, primitive["indices"]) if "indices" in primitive else None
+            count = indexed[0] if indexed else vertex_count
+            if count % 3:
+                raise ValueError("Non-triangle normal mip indices")
+            stride = max(1, math.ceil(count / 3 / max_samples_per_primitive))
+            for ti in range(0, count // 3, stride):
+                ids = [int(indexed[2](ti*3+k)[0]) if indexed else ti*3+k for k in range(3)]
+                u = sum(uv_reader(k)[0] for k in ids) / 3.0
+                v = sum(uv_reader(k)[1] for k in ids) / 3.0
+                for level, img in enumerate(atlas_cache[image_key]):
+                    x = min(img.width - 1, int(wrap_uv(u, sampler["wrapS"]) * img.width))
+                    y = min(img.height - 1, int(wrap_uv(v, sampler["wrapT"]) * img.height))
+                    xx = min(img.width - 1, int(wrap_uv(
+                        u + 1.0/img.width, sampler["wrapS"]) * img.width))
+                    yy = min(img.height - 1, int(wrap_uv(
+                        v + 1.0/img.height, sampler["wrapT"]) * img.height))
+                    center = img.getpixel((x, y))
+                    delta = 0.5 * (
+                        _normal_neighbor_angle_deg(center, img.getpixel((xx, y)), normal_scale)
+                        + _normal_neighbor_angle_deg(center, img.getpixel((x, yy)), normal_scale)
+                    )
+                    angle_samples[level].append(delta)
+                sampled_count += 1
+    if not sampled_count:
+        raise ValueError("No normal-map UV triangle samples")
+    levels = {}
+    for level in range(4):
+        measured = sorted(angle_samples[level])
+        if len(measured) != sampled_count:
+            raise ValueError("Incomplete mip sample census")
+        levels[str(level)] = {
+            "hypothetical_atlas_px": 1024 >> level,
+            "sampled_triangle_uv_centroids": len(measured),
+            "mean_adjacent_texel_tangent_normal_angle_deg": round(sum(measured)/len(measured), 6),
+            "p95_adjacent_texel_tangent_normal_angle_deg":
+                round(measured[min(len(measured)-1, math.ceil(.95*len(measured))-1)], 6),
+            "max_adjacent_texel_tangent_normal_angle_deg": round(measured[-1], 6),
+        }
+    return {
+        "glb_sha256": hashlib.sha256(raw).hexdigest(),
+        "hypothetical_mip_levels": levels,
+        "sampler_metadata_wrap_filters_and_normal_scale":
+            sorted(str(item) for item in samplers),
+        "interpretation": "Normal-map RGB decoded to normalized glTF tangent vectors at indexed "
+            "UV centroids. Mips are Pillow Lanczos hypotheses, not native Android GPU mips. "
+            "No CALL-visible texel/LOD/occlusion/BRDF/lighting verified; no raster A/B or visual PASS.",
+    }
+
+
+def _normal_mip_angular_comparison(source_path, packaged_path):
+    source = _indexed_normal_mip_sensitivity(source_path)
+    packaged = _indexed_normal_mip_sensitivity(packaged_path)
+    ratios = {}
+    for level, s in source["hypothetical_mip_levels"].items():
+        p = packaged["hypothetical_mip_levels"][level]
+        ss = s["mean_adjacent_texel_tangent_normal_angle_deg"]
+        pp = p["mean_adjacent_texel_tangent_normal_angle_deg"]
+        ratios[level] = round(pp/ss, 6) if ss > 1e-9 else None
+    return {
+        "source": source,
+        "packaged": packaged,
+        "packaged_over_source_hypothetical_mip_mean_angle_ratios": ratios,
+        "causal_status": "UNASSESSED_NO_ANDROID_SCREEN_SPACE_MIP_OR_FIXED_LIGHT_RASTER_AB",
+        "diagnostic_limit": "Separate UV-centroid populations and hypothetical Lanczos mip "
+            "response cannot establish corresponding camera-visible pixels or a product fix.",
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", type=Path, required=True)
@@ -518,6 +652,7 @@ def main():
         "sampled_metallic_roughness_normal_channel_deltas": other_pbr_roles,
         "pbr_full_atlas_high_frequency_diagnostic": _pbr_atlas_detail_audit(args.source, args.derived),
         "pbr_uv_referenced_high_frequency_diagnostic": _uv_footprint_detail_comparison(args.source, args.derived),
+        "pbr_normal_map_hypothetical_mip_angular_diagnostic": _normal_mip_angular_comparison(args.source, args.derived),
         "structural_audit":"PASS",
         "android_home_call_home_visual_proof":"NOT_RUN",
         "whole_room_visual_acceptance":"FAIL_PREVIOUS_MANUAL_PROOF",
