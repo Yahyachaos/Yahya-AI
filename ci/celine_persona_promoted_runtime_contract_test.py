@@ -65,7 +65,17 @@ def main() -> int:
         if contract.main() != 0:
             raise SystemExit(f"promoted contract failed: {filename}")
 
-    print(f"Promoted Celine persona runtime contracts: PASS (byte parity + {len(CONTRACTS)} canonical Java harnesses)")
+    # The Android-key provision path still needs a real device/emulator test.
+    # This independent JVM harness exercises actual JCA AES-GCM and the promoted
+    # Android store class with narrow framework stubs and an injected test key.
+    store_contract = load_contract(
+        "celine_persona_state_store_contract",
+        ROOT / "ci" / "celine_persona_state_store_contract_test.py",
+    )
+    if store_contract.main() != 0:
+        raise SystemExit("promoted state-store contract failed")
+
+    print(f"Promoted Celine persona runtime contracts: PASS (byte parity + {len(CONTRACTS)} canonical Java harnesses + encrypted state-store contract)")
     return 0
 
 
