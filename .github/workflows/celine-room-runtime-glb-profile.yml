@@ -10,6 +10,8 @@ on:
       - 'ci/celine_room_small_plant_derived_audit.py'
       - 'ci/celine_room_window_source_derived_pbr_audit.py'
       - 'ci/celine_room_window_atlas_uv_audit.py'
+      - 'ci/celine_room_rug_source_derived_audit.py'
+      - 'app/src/main/assets/models/room/source-fidelity/room_rug.glb'
       - 'app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
   workflow_dispatch:
 
@@ -24,7 +26,7 @@ jobs:
   runtime-room-glb-profile:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.number == 111)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
@@ -115,6 +117,29 @@ jobs:
           grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/window-atlas-uv-audit.log
           test -s ci-room-runtime-profile/window-atlas-uv-audit.json
           test -s ci-room-runtime-profile/window-atlas-contact-sheet.png
+
+      - name: Materialize pinned canonical rug without source mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST='/tmp/celine-small-plant-source'
+          git -C "$DEST" lfs pull --include='app/src/main/assets/models/möbel/Teppisch.glb' --exclude=''
+          SOURCE="$DEST/app/src/main/assets/models/möbel/Teppisch.glb"
+          test "$(stat -c '%s' "$SOURCE")" -eq 189246808
+          printf '%s  %s\n' '5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b' "$SOURCE" | sha256sum -c -
+
+      - name: Audit pinned original versus packaged rug mesh UV PBR
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_room_rug_source_derived_audit.py \
+            --source /tmp/celine-small-plant-source/app/src/main/assets/models/möbel/Teppisch.glb \
+            --derived app/src/main/assets/models/room/source-fidelity/room_rug.glb \
+            --output ci-room-runtime-profile/rug-source-derived-audit.json \
+            | tee ci-room-runtime-profile/rug-source-derived-audit.log
+          grep -F 'CELINE_ROOM_RUG_SOURCE_DERIVED_AUDIT PASS' ci-room-runtime-profile/rug-source-derived-audit.log
+          grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/rug-source-derived-audit.log
+          test -s ci-room-runtime-profile/rug-source-derived-audit.json
 
       - name: Upload runtime room GLB profile
         if: always()
