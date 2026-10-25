@@ -8,6 +8,8 @@ on:
       - 'tools/celine-room-glb-profile.py'
       - 'app/src/main/assets/models/room/source-fidelity/room_plant_small.glb'
       - 'ci/celine_room_small_plant_derived_audit.py'
+      - 'ci/celine_room_window_source_derived_pbr_audit.py'
+      - 'app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
   workflow_dispatch:
 
 permissions:
@@ -73,6 +75,29 @@ jobs:
           grep -F 'CELINE_ROOM_SMALL_PLANT_STRUCTURAL_AUDIT PASS' ci-room-runtime-profile/small-plant-source-derived.log
           grep -F 'visualAcceptance=UNASSESSED' ci-room-runtime-profile/small-plant-source-derived.log
           test -s ci-room-runtime-profile/small-plant-source-derived.json
+
+      - name: Materialize pinned original window-drapes source (no original mutation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST='/tmp/celine-small-plant-source'
+          git -C "$DEST" lfs pull --include='app/src/main/assets/models/möbel/Fenstermitgardinen.glb' --exclude=''
+          SOURCE="$DEST/app/src/main/assets/models/möbel/Fenstermitgardinen.glb"
+          test "$(stat -c '%s' "$SOURCE")" -eq 127167492
+          printf '%s  %s\n' '24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c' "$SOURCE" | sha256sum -c -
+
+      - name: Audit actual packaged window geometry and PBR against canonical original
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_room_window_source_derived_pbr_audit.py \
+            --source /tmp/celine-small-plant-source/app/src/main/assets/models/möbel/Fenstermitgardinen.glb \
+            --derived app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb \
+            --output ci-room-runtime-profile/window-source-derived-pbr.json \
+            | tee ci-room-runtime-profile/window-source-derived-pbr.log
+          grep -F 'CELINE_ROOM_WINDOW_SOURCE_DERIVED_PBR_AUDIT PASS' ci-room-runtime-profile/window-source-derived-pbr.log
+          grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/window-source-derived-pbr.log
+          test -s ci-room-runtime-profile/window-source-derived-pbr.json
 
       - name: Upload runtime room GLB profile
         if: always()
