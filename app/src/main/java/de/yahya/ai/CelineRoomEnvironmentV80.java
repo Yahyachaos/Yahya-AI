@@ -59,22 +59,28 @@ final class CelineRoomEnvironmentV80 {
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_X = 0.10f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.50f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.86f;
-    // Assembly contract places the physical lamp at room-local (-1.55, 1.55). The restrained
-    // runtime light sits inside its shade, then applies the already locked room root offset.
-    private static final float FLOOR_LAMP_LIGHT_X = -1.55f
+    // The CURRENT source-fidelity floor-lamp GLB has a reference-solved anchor at
+    // (+1.71406245, +0.72000003, +1.70734370) before the common 180-degree room yaw.
+    // alignRoomRoot rotates it to X=-1.71406245, Z=-1.70734370 and then applies the
+    // locked runtime offset. The old 6.4m room constants (-1.55,+1.55) left the light
+    // 3.26 m from its actual shade. Bind this focused source-light to the real fitted
+    // lamp position without mutating the original furniture GLB or accepted toggle.
+    private static final float FLOOR_LAMP_LIGHT_X = -1.71406245f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
     private static final float FLOOR_LAMP_LIGHT_Y = 1.45f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-    private static final float FLOOR_LAMP_LIGHT_Z = 1.55f
+    private static final float FLOOR_LAMP_LIGHT_Z = -1.70734370f
             + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
-    // Proof #18 confirmed the default renderable light channel is enabled, but the previous
-    // steep down/back beam still lands mostly outside the fixed-camera witness. Keep the proven
-    // 60,000 lm and lamp position unchanged; aim the warm spot through the visible lounge-chair area.
+    // Aim from the fitted bulb (X=-1.71406, Y=1.45, Z=-1.70734) toward the
+    // fitted lounge-chair anchor (X=-1.69922, Y=0.40, Z=-2.05) in the same
+    // post-yaw Room coordinate frame: normalized target delta (0.01344,
+    // -0.95057, -0.31021). Preserve the protected 9R.5 reversible ON/OFF
+    // state, default OFF, existing 60 klm, falloff, cones and light channel.
     private static final float FLOOR_LAMP_LIGHT_FALLOFF_M = 3.4f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_X = -0.07282363f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.36411816f;
-    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.92850131f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_X = 0.01343812f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Y = -0.95057327f;
+    private static final float FLOOR_LAMP_LIGHT_DIR_Z = -0.31020941f;
     private static final float FLOOR_LAMP_SPOT_INNER_RAD = 0.41887902f; // 24 degrees
     private static final float FLOOR_LAMP_SPOT_OUTER_RAD = 0.69813170f; // 40 degrees
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
@@ -298,7 +304,9 @@ final class CelineRoomEnvironmentV80 {
                         "entity=" + FLOOR_LAMP_LIGHT_ID
                                 + " type=FOCUSED_SPOT enabled=false lumens="
                                 + FLOOR_LAMP_LIGHT_LUMENS + " falloff="
-                                + FLOOR_LAMP_LIGHT_FALLOFF_M + "m direction="
+                                + FLOOR_LAMP_LIGHT_FALLOFF_M + "m position="
+                                + FLOOR_LAMP_LIGHT_X + "," + FLOOR_LAMP_LIGHT_Y + ","
+                                + FLOOR_LAMP_LIGHT_Z + " direction="
                                 + FLOOR_LAMP_LIGHT_DIR_X + "," + FLOOR_LAMP_LIGHT_DIR_Y + ","
                                 + FLOOR_LAMP_LIGHT_DIR_Z + " coneRad="
                                 + FLOOR_LAMP_SPOT_INNER_RAD + "/" + FLOOR_LAMP_SPOT_OUTER_RAD
