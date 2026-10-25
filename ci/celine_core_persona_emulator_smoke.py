@@ -370,6 +370,36 @@ def verify_tampered_android_keystore_state_fails_closed():
     print("ANDROID_KEYSTORE_TAMPERED_TAG_FAIL_CLOSED_PASS:"
           " real ciphertext bit flip, process restart, normal-mode UI, alive", flush=True)
 
+    # Reopen the unchanged invalid record independently: a failed decrypt may
+    # never reactivate the last valid opt-in on a later process launch.
+    adb("shell", "am", "force-stop", PACKAGE)
+    launch()
+    check_mode("aus")
+    print("ANDROID_KEYSTORE_TAMPER_SECOND_RESTART_OFF_PASS", flush=True)
+
+    # Recovery must be explicit, not automatic. A fresh direct-user opt-in
+    # must replace the invalid envelope with genuine new authenticated data
+    # and survive restart; explicit exit must delete that replacement.
+    send_user("Nutte 1")
+    check_mode("Stufe 1")
+    ciphertext()
+    recovered = adb("shell", "run-as", PACKAGE, "cat",
+                    "shared_prefs/yahya_ai.xml")
+    repaired = marker.search(recovered)
+    if not repaired or repaired.group(2) == corrupted:
+        raise AssertionError("New explicit opt-in did not replace tampered Persona record")
+    adb("shell", "am", "force-stop", PACKAGE)
+    launch()
+    check_mode("Stufe 1")
+    send_user("Nutte aus")
+    check_mode("aus")
+    cleared = adb("shell", "run-as", PACKAGE, "cat",
+                  "shared_prefs/yahya_ai.xml")
+    if marker.search(cleared):
+        raise AssertionError("Reactivated Persona ciphertext survived direct normal-mode exit")
+    print("ANDROID_KEYSTORE_TAMPER_EXPLICIT_RECOVERY_PASS:"
+          " second restart OFF, fresh direct opt-in persisted, explicit clear", flush=True)
+
 
 def ciphertext():
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
