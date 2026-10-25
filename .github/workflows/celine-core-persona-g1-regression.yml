@@ -57,6 +57,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 ci/celine_persona_mainactivity_provider_payload_contract_test.py
+      - name: Execute actual MainActivity provider instructions Persona seam
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_persona_mainactivity_provider_instructions_contract_test.py
+
       - name: Run conversation plus pinned Room-authored G1 regressions against Core
         shell: bash
         env:
