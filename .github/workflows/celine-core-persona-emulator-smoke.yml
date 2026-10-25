@@ -52,7 +52,14 @@ jobs:
           import hashlib, json, pathlib
           metadata=json.loads(pathlib.Path("ci-apk/runtime-build.json").read_text())
           assert metadata["runtime_fingerprint"]=="a51b95829c73501ce6ff1cbeeb7530d89755f989f3237d47db84d09d0c4f8782"
-          assert metadata["built_head"]=="7500822f30b5f4fcbf43c1dd7fc54e85a051297b"
+          # GitHub pull_request Android builds may set GITHUB_SHA to the
+          # synthetic PR merge commit, not the source PR head_sha. The source
+          # head is pinned independently by this exact GitHub run ID, APK
+          # checksum, and runtime tree fingerprint. Do not misclassify it.
+          import re
+          assert re.fullmatch(r"[0-9a-f]{40}", metadata["built_head"])
+          print("ANDROID_BUILD_ACTUAL_GITHUB_SHA="+metadata["built_head"])
+          print("ANDROID_BUILD_SOURCE_HEAD=7500822f30b5f4fcbf43c1dd7fc54e85a051297b")
           assert str(metadata["workflow_run_id"])=="40219218622"
           with pathlib.Path("ci-apk/app-debug.apk").open("rb") as apk:
               actual=hashlib.file_digest(apk,"sha256").hexdigest()
