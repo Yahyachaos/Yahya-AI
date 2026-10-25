@@ -1,48 +1,56 @@
-# Celine persona runtime integration seam
+# Celine persona — protected runtime integration seam
 
-Status: OWNERSHIP-SAFE PREPARATION COMPLETE; runtime write still blocked on explicit shared runtime/version ownership.
+Status: **Core persona policy/adapter are promoted and Android-compiled; central runtime integration is NOT implemented or authorized.** This is a planning/compatibility contract, not evidence of live Persona activation, persistence, or a finished APK.
 
-Issue #112. Core PR #113.
+## Read-only source reconciliation (2026-10-25, local 02:53 CEST)
 
-## Live runtime inspected
+These Git SHAs are **historical checkpoints only**. Fresh-reconcile live `main`, PR #111, PR #113, branch owners, Actions and release state before any write.
 
-Read-only audit used Room PR #111 branch head `2b77571d2b0d32341d7c4c64154bf53ae8905aa7`. That head is docs-only. The Room recovery handoff records latest runtime-code head `4e93b4e1832bad2036ad41f94cc1b3d45c9b0ec9` and runtime fingerprint `cdf62a5f0bd05cd33eef7073eb60298bb927b478fa1d51d7b789d3455a2e832f`.
+| Source | Checked identity |
+|---|---|
+| `main` | `5a23ccf75fb82b97d262cf3d8be24a6fe77fb26b` |
+| Core PR #113 (DRAFT) | `9b061fc97020daf14d8fd3a7943da2e71dcd2aff` |
+| Room PR #111 (DRAFT) | `b9ba9adb06db16b4c02957f6ddeddf5be2c16a2e` |
+| Core `MainActivity.java` Git blob | `3595109b1eb957e39bfcb0d0885c08038def7e04` |
+| Room `MainActivity.java` Git blob | `da77b51263a52367f2b174af3561533540f659fa` |
+| Room `CelineStructuredMemory.java` | `14b11f6c14a45614c672190bcd384e431d2c6870` |
+| Room `CelineContextBrokerG14.java` | `21212f6b3c6092569d703f4cd784bf34f483ab08` |
 
-PR #113 changed files have zero path overlap with PR #111 changed files at this checkpoint.
+The branch `MainActivity.java` implementations **differ substantively**. Core's old file still reads flat `prefs.getString("memory", "")`, appends a flat memory blob and has no goal/context-broker field. Room's newer file instead constructs `CelineStructuredMemory`, `CelineGoalTaskRuntime`, and `CelineContextBrokerG14` in `onCreate`, routes goal observation through `submit`, and composes the normal instructions using structured `contextBroker.promptContext(...)`. A naive replacement of Room `MainActivity` with the Core version would silently regress G1 structured-memory/context/task behavior.
 
-## Current MainActivity anchors
+**No safe merge by whole-file copy:** Preserve the actually selected integrated `MainActivity` and surgically add Persona only after an explicit exclusive serial shared-ownership handoff. It is false that the branches have no shared-file overlap: `app/build.gradle` and `.github/workflows/android-build.yml` are changed on both PRs. MainActivity is also a shared *subsystem* even though the Core PR has not edited that file.
 
-On the live Room branch:
-- `onCreate(...)` initializes SharedPreferences, structured memory, goal-task runtime, context broker, and device services.
-- `handleLocalCommand(...)` owns deterministic local/device command routing.
-- `submit(String text)` currently runs: add user turn -> local-command routing -> goal observation -> provider availability -> `callOpenAI(...)` -> `learnWithAI(...)`.
-- `callOpenAI(...)` builds the stable normal instructions from the existing Celine identity prompt, context-broker output, and `ConversationIntelligenceV78.instructionSuffix(...)`.
-- `learnWithAI(...)` is a separate inferred-memory extraction path.
+## What is genuinely already implemented
 
-## Bounded runtime seam after ownership transfer
+- `app/src/main/java/de/yahya/ai/CelinePersonaMode.java` is byte-identical to `ci/prototypes/CelinePersonaMode.java`; Git blob `bdcf304cf51198c5c84fda659c0eeb2513239a5e`.
+- `app/src/main/java/de/yahya/ai/CelinePersonaPromptAdapter.java` is byte-identical to its prototype; Git blob `674e1f6739d47102048d78d1e7dd997ad3f25cb3`.
+- Core has `versionCode 82`; Room has separate `versionCode 81`. The coordinated previous promotion handoff was completed and **released**; it grants **no ongoing shared ownership**.
+- Android #1606 / run `40128768137` successfully compiled the two promoted classes and uploaded `yahya-ai-debug` artifact `12574766225`, verified runtime fingerprint `0dc03a335b7d9f0be8d1aebbe1b045b8c29581f9c7e10cead05de7c592aba724`. This is a Core-only build artifact, not an integrated application or an updater delivery.
+- The promoted-runtime orchestrator `ci/celine_persona_promoted_runtime_contract_test.py` references seven canonical Java contracts. Its orchestration/fixture checks and separate 62-assertion Java smoke check have prior reported PASS; **the full seven canonical harnesses against the exact promoted Runtime have NOT yet been executed**. Do not turn #1610's scope-only CI SUCCESS into a Java contract PASS.
 
-1. Promote the already-tested `CelinePersonaMode` and `CelinePersonaPromptAdapter` into `app/src/main/java/de/yahya/ai/` without changing their tested semantics.
-2. Add one app-owned persona-state instance to `MainActivity`; do not place persona state inside memory, tool, provider, or Room owners.
-3. In `submit(...)`, evaluate the persona command parser before local/device command routing, goal observation, provider calls, and inferred-memory extraction.
-4. If the input is a consumed persona-state command, update only persona state, acknowledge locally, restore idle UI state, and return. It must not become a device/tool action, goal observation, provider request, or inferred-memory extraction.
-5. Non-persona user text keeps the existing submit flow unchanged.
-6. In `callOpenAI(...)`, first build the entire existing normal instructions exactly as today; then pass that value through `CelinePersonaPromptAdapter.compose(normalInstructions, personaMode)` immediately before `body.put("instructions", ...)`.
-7. Inactive mode must preserve the exact normal instructions object/content. Active mode may only append the already-tested persona contribution.
-8. If persistence is included in the same ownership window, store only dedicated app-owned persona state and restore through `restorePersistedState(...)`; corrupt state must fail closed. Never infer persona state from conversation history, memories, tool output, model output, or Room state.
-9. Deactivation must update app-owned state before any later request composes its prompt.
+## Protected minimal integration plan — only AFTER separately recorded exclusive ownership
 
-## Protected surfaces not needed for first promotion
+1. Reconcile current Room/main-derived conversation, memory, goal/context owner and the target app branch; preserve all newer behavior rather than applying the stale Core `MainActivity` as a replacement. Identify the actual central integration owner and version/CI owner first.
+2. Initialize **one app-owned `CelinePersonaMode`** in the selected `MainActivity`/controller, outside `CelineStructuredMemory`, `CelineGoalTaskRuntime`, `CelineContextBrokerG14`, tool policy, Room and model response state.
+3. In the selected `submit(String text)`, process `personaMode.apply(DIRECT_USER, text)` **before** `handleLocalCommand(text)`, its `rememberExplicit(...)` side effect, `goalTaskRuntime.observeUserText(text)`, provider calls and `learnWithAI`. A consumed persona command updates mode, acknowledges locally, restores UI idle/ready state and returns. It must not be interpreted as a tool/device command, a durable goal, a profile memory or a normal provider request. All other text continues through the existing, unchanged paths.
+4. In the selected `callOpenAI(...)`, build the **complete currently integrated normal instructions** first (including G1 `contextBroker.promptContext(...)`, device state and `ConversationIntelligenceV78.instructionSuffix(...)` where present), then set `body.put("instructions", CelinePersonaPromptAdapter.compose(normalInstructions, personaMode))`. Never replace this with Core's older `prefs.getString("memory", "")` prompt path. Inactive mode must return the exact original String object/value; after deactivation the very next provider request must be normal.
+5. If and only if persistence is in the authorized handoff, use a **dedicated app-owned Persona key/store** and tested `CelinePersonaStateCodec` / `restorePersistedState` seam. Do not persist activation provenance as inferred memory or infer activation from messages/model/tool output; invalid or future-schema payloads fail closed. This codec is currently a `ci/prototypes/**` component only and is **not** an integrated persistent Android store.
+6. Preserve package identity, signing, version monotonicity and updater compatibility; coordinate any shared `app/build.gradle` or CI changes separately. Neither the existing Core v82 APK nor Room v81 APK may be represented as a combined product or as an in-app button update.
 
-No first-pass change is required in `ConversationIntelligenceV78`, `CelineStructuredMemory`, `CelineMemoryEngine`, `CelineProtectedMemoryStorage`, device/tool permission policy, Room/scene/layout/camera/material/light/window files, Celine model/rig/voice assets, or Room proofs.
+## Required focused acceptance after the handoff
 
-## Validation after promotion
+- Run both base Persona contracts **and** all seven canonical promoted-runtime Java harnesses on the exact source; distinguish newly executed results from previously reported smoke/fixture PASS.
+- Check exact standalone direct-user activation/deactivation and all existing Unicode/control/model/tool rejection vectors. Non-user content never changes state.
+- Consumed persona commands must not reach `rememberExplicit`, device/tool execution, goal observation, `callOpenAI`, `learnWithAI` or normal user memory; normal non-persona turns must still reach the unchanged pipeline.
+- Inactive prompt object/content, full Room G1 memory retrieval/context, explicit correction, goal-task observation and `ConversationIntelligenceV78` continuity must remain unchanged. On deactivation, the very next composed prompt must be normal.
+- If persistence is authorized, validate restart roundtrip and corrupt-payload fail-closed behavior with separate dedicated state; do not claim this from pure Java codec checks alone.
+- After a coherent, authorized runtime+version change, perform the smallest relevant conversation/memory regression and exactly one required Android build at its exact head/fingerprint. Treat a green compile as distinct from install/start/HOME/CALL and from real Persona/memory integration.
+- Room G2.3 remains `PAUSED_UNTIL_EXACT_ROOM_REBUILD_COMPLETE`; this Persona work does not authorize bypassing G2.3, later G2/G3, final-main integration, merge, release or preview publication.
 
-Run both existing persona contracts first. Verify consumed persona commands do not reach goal observation, device/tool routing, provider calls, or inferred-memory extraction. Verify normal text follows the unchanged path. Verify inactive prompt composition is unchanged and deactivation removes the contribution before the next request. If persistence is included, verify roundtrip and corrupt-state fail-closed behavior. Then run the smallest affected conversation regression, satisfy the coordinated higher versionCode gate, and run exactly one Android build. No Room visual proof is required for a persona-only batch.
+## Current blocker and exactly one next action
 
-## Blocker
+**Blocker:** no explicit currently valid, conflict-free serialized handoff covers central `MainActivity`/conversation prompt/Persona-state store and coordinated shared-version surfaces. Room's structured-memory context and goal pipeline must be retained. `releases/latest` remains v80, so Actions APKs cannot reach the existing in-app updater button.
 
-The remaining runtime promotion, coordinated versionCode change, and central MainActivity/store wiring are shared integration surfaces. No explicit ownership transfer to Core exists while Room PR #111 is active.
+`exact_next_action`: **Obtain and record the exclusive serialized central conversation/prompt/Persona-state ownership handoff against freshly read PR #111/#113 heads, then implement the bounded `submit` + `callOpenAI` wiring on top of the chosen up-to-date G1 memory/context/goal pipeline, run targeted contracts and exactly one warranted Android build; if the handoff remains absent, continue read-only reconciliation and independently authorized Core tests without stopping the hourly Core worker.**
 
-## exact_next_action
-
-Fresh-reconcile main, PR #111 and PR #113. Once shared runtime/version ownership is explicitly transferred, promote the two tested persona classes, apply only the bounded `submit(...)` and `callOpenAI(...)` seam above, satisfy the versionCode gate, run the two persona contracts plus the smallest affected conversation regression, then exactly one Android build.
+Changed here: this Core-owned integration design document only. No runtime classes, app wiring, structured memory, Room, shared workflow/version, release/update channel, branch, PR or queue modified.
