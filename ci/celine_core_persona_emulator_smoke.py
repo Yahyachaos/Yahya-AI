@@ -319,6 +319,58 @@ def verify_settings_only_exit():
           " actual button, OFF state and ciphertext deletion durable", flush=True)
 
 
+def verify_tampered_android_keystore_state_fails_closed():
+    """Tamper with real AES-GCM ciphertext at rest, never app Java or cloud state.
+
+    This is a disposable CI emulator only. A corrupted saved Persona opt-in
+    must fail closed after an actual Android process restart, with chat alive.
+    The XML is written only to the app sandbox and never uploaded as evidence.
+    """
+    import base64
+
+    send_user("Nutte 3")
+    check_mode("Stufe 3")
+    ciphertext()
+    adb("shell", "am", "force-stop", PACKAGE)
+    original = adb("shell", "run-as", PACKAGE, "cat",
+                   "shared_prefs/yahya_ai.xml")
+    marker = re.compile(r'(<string name="celine_persona_state_cipher_v1">)([^<]+)(</string>)')
+    matches = list(marker.finditer(original))
+    if len(matches) != 1:
+        raise AssertionError("Expected exactly one AndroidKeyStore Persona preference")
+    parts = matches[0].group(2).split(":")
+    if len(parts) != 3 or parts[0] != "gcm1":
+        raise AssertionError("Invalid pre-tamper Persona ciphertext envelope")
+    encrypted = bytearray(base64.b64decode(parts[2] + "=" * (-len(parts[2]) % 4)))
+    if len(encrypted) < 17:
+        raise AssertionError("Cannot authenticate too-short Persona ciphertext")
+    encrypted[-1] ^= 1  # A real GCM authentication tag bit, not a malformed XML attack.
+    corrupted = "gcm1:" + parts[1] + ":" + base64.b64encode(encrypted).decode().rstrip("=")
+    patched = original[:matches[0].start(2)] + corrupted + original[matches[0].end(2):]
+    ET.fromstring(patched)  # Preserve well-formed, otherwise unchanged app preferences.
+    # No shell quoting of original preferences: feed exact bytes via no-PTY stdin
+    # into run-as in the app sandbox, while its process is force-stopped.
+    writer = subprocess.run(
+        ["adb", "shell", "-T",
+         "run-as " + PACKAGE + " sh -c 'cat >shared_prefs/yahya_ai.xml'"],
+        input=patched, text=True, capture_output=True, timeout=30,
+    )
+    if writer.returncode:
+        raise AssertionError("Could not inject a single GCM tag corruption in "
+                             "disposable app preferences: " + writer.stderr[-400:])
+    readback = adb("shell", "run-as", PACKAGE, "cat",
+                   "shared_prefs/yahya_ai.xml")
+    match = marker.search(readback)
+    if not match or match.group(2) != corrupted:
+        raise AssertionError("The tampered encrypted state was not committed to Android")
+    launch()
+    check_mode("aus")
+    # A previous valid opt-in must not be resurrected despite a valid schema,
+    # valid Base64 and valid IV length when GCM authentication fails.
+    print("ANDROID_KEYSTORE_TAMPERED_TAG_FAIL_CLOSED_PASS:"
+          " real ciphertext bit flip, process restart, normal-mode UI, alive", flush=True)
+
+
 def ciphertext():
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     found = re.search(r'<string\s+name="celine_persona_state_cipher_v1">(.*?)</string>', raw)
@@ -563,6 +615,7 @@ def main():
     check_mode("Stufe 3")
     ciphertext()
     verify_settings_only_exit()
+    verify_tampered_android_keystore_state_fails_closed()
 
     print("CORE_EMULATOR_SMOKE_PASS: real v82 install, UI activation/exit, AndroidKeyStore save/restore/clear", flush=True)
 
