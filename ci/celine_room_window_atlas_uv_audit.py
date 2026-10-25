@@ -8,6 +8,7 @@ import argparse
 import hashlib
 from io import BytesIO
 import json
+import math
 from pathlib import Path
 import struct
 
@@ -147,6 +148,164 @@ def compare_images(a,b):
             "method":"same UV-normalized 256x256 thumbnails, not a scene-space render or material semantic proof"}
 
 
+
+def indexed_triangle_profiles(doc, raw, bin_at, bin_len):
+    """Resolve actual indexed material/UV/geometry associations, not just atlas pixels.
+
+    Profiles are mesh-LOCAL, deterministic sampled indices, not rendered pixels.
+    In particular the presence of an OPAQUE backplane proves only the mesh data,
+    not that it should be removed or converted to GLASS.
+    """
+    kinds = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
+             5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
+    dims = {"SCALAR": 1, "VEC2": 2, "VEC3": 3}
+    def get_accessor(index):
+        a = doc["accessors"][index]
+        if a.get("sparse") or a["componentType"] not in kinds or a["type"] not in dims:
+            raise ValueError("unsupported indexed primitive accessor")
+        letter, width = kinds[a["componentType"]]
+        dim = dims[a["type"]]
+        begin, end, view = gltf_buffer_view(doc, raw, bin_at, bin_len, a["bufferView"])
+        offset = begin + a.get("byteOffset", 0)
+        stride = view.get("byteStride", dim * width)
+        count = a["count"]
+        if not count or stride < dim * width or offset + (count-1)*stride + dim*width > end:
+            raise ValueError("invalid indexed primitive accessor bounds")
+        fmt = "<" + letter * dim
+        ct = a["componentType"]
+        normalized = bool(a.get("normalized"))
+        divisor = {5120: 127, 5121: 255, 5122: 32767, 5123: 65535, 5125: 4294967295}.get(ct)
+        def at(i):
+            if i < 0 or i >= count:
+                raise ValueError("primitive index exceeds accessor count")
+            values = struct.unpack_from(fmt, raw, offset + i * stride)
+            if normalized and divisor:
+                values = tuple(max(-1.0, v / divisor) if ct in (5120, 5122)
+                               else v / divisor for v in values)
+            return values
+        return count, a["type"], at
+
+    material_images = {}
+    profiles = []
+    for mesh_no, mesh in enumerate(doc.get("meshes", [])):
+        for prim_no, prim in enumerate(mesh.get("primitives", [])):
+            if prim.get("mode", 4) != 4 or "POSITION" not in prim.get("attributes", {}):
+                raise ValueError("triangle POSITION primitive required")
+            attrs = prim["attributes"]
+            npos, pos_type, position = get_accessor(attrs["POSITION"])
+            if pos_type != "VEC3":
+                raise ValueError("non-VEC3 POSITION")
+            uv = get_accessor(attrs["TEXCOORD_0"]) if "TEXCOORD_0" in attrs else None
+            if uv and uv[1] != "VEC2":
+                raise ValueError("non-VEC2 UV")
+            index = get_accessor(prim["indices"]) if "indices" in prim else None
+            if index and index[1] != "SCALAR":
+                raise ValueError("non-SCALAR triangle index")
+            count = index[0] if index else npos
+            if count % 3:
+                raise ValueError("index count not multiple of 3")
+            triangle_count = count // 3
+            step = max(1, (triangle_count + 44999) // 45000)
+            material_no = prim.get("material")
+            material = doc.get("materials", [])[material_no] if material_no is not None else {}
+            factor = material.get("pbrMetallicRoughness", {}).get("baseColorFactor", [1,1,1,1])
+            if material_no not in material_images:
+                slot = material.get("pbrMetallicRoughness", {}).get("baseColorTexture")
+                if slot:
+                    if slot.get("texCoord", 0) != 0 or slot.get("extensions", {}).get("KHR_texture_transform"):
+                        raise ValueError("material uses a non-UV0 texture transformation")
+                    tex = doc["textures"][slot["index"]]
+                    image = doc["images"][tex["source"]]
+                    if "bufferView" not in image:
+                        raise ValueError("external image unsupported")
+                    a, b, _ = gltf_buffer_view(doc, raw, bin_at, bin_len, image["bufferView"])
+                    with Image.open(BytesIO(raw[a:b])) as decoded:
+                        material_images[material_no] = decoded.convert("RGB")
+                else:
+                    material_images[material_no] = None
+            pixels = material_images[material_no]
+            if pixels is not None and not uv:
+                raise ValueError("textured primitive without UV coordinates")
+            sums, squares, facing = [0.0]*3, [0.0]*3, {}
+            xyz_min, xyz_max = [float("inf")]*3, [float("-inf")]*3
+            sampled = zero_geom = zero_uv = outside_uv = warm = dark = 0
+            sampled_area = sampled_uv_area = 0.0
+            for triangle_no in range(0, triangle_count, step):
+                ids = [int(index[2](triangle_no*3+i)[0]) if index else triangle_no*3+i
+                       for i in range(3)]
+                pp = [position(i) for i in ids]
+                for point in pp:
+                    for dim in range(3):
+                        xyz_min[dim] = min(xyz_min[dim], point[dim])
+                        xyz_max[dim] = max(xyz_max[dim], point[dim])
+                ab = [pp[1][k]-pp[0][k] for k in range(3)]
+                ac = [pp[2][k]-pp[0][k] for k in range(3)]
+                normal = (ab[1]*ac[2]-ab[2]*ac[1],
+                          ab[2]*ac[0]-ab[0]*ac[2],
+                          ab[0]*ac[1]-ab[1]*ac[0])
+                area = sum(k*k for k in normal)**0.5 / 2
+                sampled_area += area
+                zero_geom += area < 1e-12
+                axis = max(range(3), key=lambda x: abs(normal[x]))
+                key = "xyz"[axis] + ("+" if normal[axis] >= 0 else "-")
+                facing[key] = facing.get(key, 0) + 1
+                if uv:
+                    qq = [uv[2](i) for i in ids]
+                    u = sum(x[0] for x in qq)/3
+                    v = sum(x[1] for x in qq)/3
+                    if not (math.isfinite(u) and math.isfinite(v)):
+                        raise ValueError("non-finite UV coordinate")
+                    outside_uv += int(u<0 or u>1 or v<0 or v>1)
+                    uvarea = abs((qq[1][0]-qq[0][0])*(qq[2][1]-qq[0][1]) -
+                                 (qq[1][1]-qq[0][1])*(qq[2][0]-qq[0][0]))/2
+                    sampled_uv_area += uvarea
+                    zero_uv += uvarea < 1e-12
+                    if pixels is not None:
+                        width,height = pixels.size
+                        color = pixels.getpixel((min(width-1,int((u%1)*width)),
+                                                 min(height-1,int(((1-v)%1)*height))))
+                    else:
+                        color = tuple(round(255*x) for x in factor[:3])
+                else:
+                    color = tuple(round(255*x) for x in factor[:3])
+                for dim in range(3):
+                    sums[dim] += color[dim]
+                    squares[dim] += color[dim]**2
+                dark += sum(color)/3 < 80
+                warm += color[0]-color[2] > 20
+                sampled += 1
+            if sampled == 0:
+                raise ValueError("empty primitive")
+            means = [x/sampled for x in sums]
+            profiles.append({
+                "mesh_index": mesh_no, "primitive_index": prim_no,
+                "material_index": material_no, "material_name": material.get("name", ""),
+                "material_alpha_mode": material.get("alphaMode", "OPAQUE"),
+                "material_double_sided": material.get("doubleSided", False),
+                "base_color_factor": factor,
+                "base_color_texture_present": pixels is not None,
+                "total_triangles": triangle_count, "sampled_triangles": sampled,
+                "sample_stride": step,
+                "sampled_mesh_local_bounds_min": [round(x,5) for x in xyz_min],
+                "sampled_mesh_local_bounds_max": [round(x,5) for x in xyz_max],
+                "sampled_normal_dominant_axis_counts": facing,
+                "sampled_geometric_area_sum": round(sampled_area,6),
+                "sampled_uv_area_sum": round(sampled_uv_area,6),
+                "sampled_geometric_degenerate_triangles": zero_geom,
+                "sampled_uv_degenerate_triangles": zero_uv,
+                "sampled_uv_outside_0_1_triangles": outside_uv,
+                "sampled_atlas_centroid_mean_rgb": [round(x,2) for x in means],
+                "sampled_atlas_centroid_std_rgb": [
+                    round(max(0,squares[i]/sampled-means[i]**2)**0.5,2) for i in range(3)],
+                "sampled_dark_rgb_fraction": round(dark/sampled,5),
+                "sampled_warm_r_minus_b_gt20_fraction": round(warm/sampled,5)
+            })
+    if not profiles:
+        raise ValueError("no triangle materials found")
+    return profiles
+
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--source",type=Path,required=True)
@@ -160,6 +319,9 @@ def main():
     report={"schema":"celine-room-window-atlas-uv-source-vs-derived/v1",
             "source_sha256":CANONICAL_SHA,"derived_sha256":hashlib.sha256(dr).hexdigest(),
             "source_uv":uv_sample(sd,sr,ss,sl),"derived_uv":uv_sample(dd,dr,ds,dl),
+            "indexed_triangle_diagnostics":{"source":indexed_triangle_profiles(sd,sr,ss,sl),
+                                            "derived":indexed_triangle_profiles(dd,dr,ds,dl)},
+            "indexed_diagnostic_limitations":"Indexed 45k-per-primitive deterministic samples in local mesh coordinates, not full visibility, aligned triangle correspondence or Android raster; no material semantic license.",
             "roles":{},"source_glbs_mutated":False,"derived_glb_mutated":False,
             "visual_acceptance":"NOT_TESTED","window_semantics":"GLASS_OPENING_OPAQUE_BACKPLANES_UNRESOLVED",
             "warning":"Atlas comparisons are diagnostic: color difference does not prove optimizer defect, curtain mesh translucency or Android raster acceptance."}
