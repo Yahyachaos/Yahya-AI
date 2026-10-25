@@ -6,6 +6,7 @@ on:
       - auto/celine/core-adult-persona-contract
     paths:
       - '.github/workflows/celine-core-persona-emulator-smoke.yml'
+      - 'ci/celine_core_persona_emulator_smoke.py'
   workflow_dispatch:
 
 permissions:
