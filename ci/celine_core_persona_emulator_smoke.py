@@ -168,7 +168,7 @@ def open_memory_settings():
 
 def prepare_public_v80_memory():
     version = adb("shell", "dumpsys", "package", PACKAGE)
-    if not re.search(r"versionCode=80\\b", version):
+    if not re.search(r"versionCode=80\b", version):
         raise AssertionError("Public v80 must be installed before legacy memory seed")
     launch()
     # This is disposable CI test data, never personal memory or a cloud credential.
@@ -186,11 +186,11 @@ def verify_v80_to_v82_memory_migration():
     # The old v80 flat-memory entry must survive the in-place installation and
     # become user-inspectable G1 memory, encrypted at rest, without a cleartext copy.
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if LEGACY_MIGRATION_PROBE in raw or re.search(r'<string\\s+name="memory"', raw):
+    if LEGACY_MIGRATION_PROBE in raw or re.search(r'<string\s+name="memory"', raw):
         raise AssertionError("Legacy plaintext remains in v82 shared preferences")
-    if not re.search(r'<boolean\\s+name="celine_memory_v2_migrated"\\s+value="true"', raw):
+    if not re.search(r'<boolean\s+name="celine_memory_v2_migrated"\s+value="true"', raw):
         raise AssertionError("v80 legacy memory migration was not durably recorded")
-    if not re.search(r'<string\\s+name="celine_memory_g1_5_protected"', raw):
+    if not re.search(r'<string\s+name="celine_memory_g1_5_protected"', raw):
         raise AssertionError("v82 encrypted G1 memory envelope missing")
     open_memory_settings()
     root = hierarchy()
