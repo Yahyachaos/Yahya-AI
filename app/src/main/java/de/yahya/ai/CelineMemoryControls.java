@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.text.InputType;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.List;
@@ -33,9 +34,20 @@ final class CelineMemoryControls {
             CelineMemoryItem item = items.get(i);
             labels[i] = item.type.name() + " · " + shortText(item.summary, 86);
         }
+        // AlertDialog shows message content OR list content, not both. Putting
+        // status text in setMessage() hides setItems() on real Android devices.
+        // Keep the security notice visible in the custom title, leaving the
+        // content panel exclusively for the selectable memory rows.
+        TextView header = new TextView(activity);
+        header.setText("Celins Gedächtnis\n" + protection
+                + "\n\nTippe eine Erinnerung an, um sie zu prüfen, zu korrigieren oder einzeln zu löschen.");
+        float density = activity.getResources().getDisplayMetrics().density;
+        int horizontal = Math.round(24 * density);
+        int vertical = Math.round(16 * density);
+        header.setPadding(horizontal, vertical, horizontal, vertical);
+        header.setTextSize(16f);
         new AlertDialog.Builder(activity)
-                .setTitle("Celins Gedächtnis")
-                .setMessage(protection + "\n\nTippe eine Erinnerung an, um sie zu prüfen, zu korrigieren oder einzeln zu löschen.")
+                .setCustomTitle(header)
                 .setItems(labels, (dialog, which) -> showItem(activity, memory, items.get(which)))
                 .setNegativeButton("Schließen", null)
                 .show();
