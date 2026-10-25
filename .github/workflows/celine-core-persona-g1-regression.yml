@@ -47,6 +47,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 ci/celine_persona_promoted_runtime_contract_test.py
+      - name: Run event-marked provider history exclusion prototype vectors (not live UI wiring)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_persona_history_projection_contract_test.py
       - name: Run conversation plus pinned Room-authored G1 regressions against Core
         shell: bash
         env:
