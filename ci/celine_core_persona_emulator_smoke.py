@@ -18,6 +18,7 @@ OUT.mkdir(exist_ok=True)
 APK = pathlib.Path("ci-apk/app-debug.apk")
 PACKAGE = "de.yahya.ai"
 LEGACY_MIGRATION_PROBE = "celine_upgrade_probe_20261025"
+PERSONA_G1_ISOLATION_PROBE = "celine_persona_g1_isolation_20261025"
 ACTIVITY = PACKAGE + "/.MainActivity"
 
 
@@ -328,6 +329,18 @@ def verify_tampered_android_keystore_state_fails_closed():
     """
     import base64
 
+    # Persona ciphertext corruption must not destroy or expose unrelated G1
+    # app-owned memories. Seed a disposable, locally saved encrypted memory
+    # and confirm it is actually selectable before touching Persona state.
+    send_user("merk dir " + PERSONA_G1_ISOLATION_PROBE)
+    open_memory_settings()
+    find_memory_text(PERSONA_G1_ISOLATION_PROBE)
+    back_to_chat()
+    seeded_prefs = adb("shell", "run-as", PACKAGE, "cat",
+                       "shared_prefs/yahya_ai.xml")
+    if PERSONA_G1_ISOLATION_PROBE in seeded_prefs:
+        raise AssertionError("G1 isolation probe leaked into plaintext before Persona tamper")
+
     send_user("Nutte 3")
     check_mode("Stufe 3")
     ciphertext()
@@ -397,6 +410,17 @@ def verify_tampered_android_keystore_state_fails_closed():
                   "shared_prefs/yahya_ai.xml")
     if marker.search(cleared):
         raise AssertionError("Reactivated Persona ciphertext survived direct normal-mode exit")
+
+    # Verify the same real decrypted G1 row still exists after corrupted
+    # Persona state, two restarts, explicit recovery, and subsequent OFF.
+    open_memory_settings()
+    find_memory_text(PERSONA_G1_ISOLATION_PROBE)
+    back_to_chat()
+    final_prefs = adb("shell", "run-as", PACKAGE, "cat",
+                      "shared_prefs/yahya_ai.xml")
+    if PERSONA_G1_ISOLATION_PROBE in final_prefs:
+        raise AssertionError("G1 isolation probe leaked into plaintext after Persona recovery")
+    print("ANDROID_PERSONA_TAMPER_G1_MEMORY_ISOLATION_PASS", flush=True)
     print("ANDROID_KEYSTORE_TAMPER_EXPLICIT_RECOVERY_PASS:"
           " second restart OFF, fresh direct opt-in persisted, explicit clear", flush=True)
 
