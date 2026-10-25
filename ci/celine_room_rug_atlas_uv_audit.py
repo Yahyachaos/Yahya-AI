@@ -295,6 +295,201 @@ def _pbr_atlas_detail_audit(source_path, packaged_path):
     }
 
 
+
+def _indexed_uv_surface_detail(path, max_samples_per_primitive=20000):
+    """Measure high-pass texels *referenced* by rug triangles, not screen visibility.
+
+    Source images are Lanczos-reduced to 1024px to match the packaged atlas.
+    Indexed triangle centroids cover sampled UV positions; source/packaged
+    topology and camera visibility can differ. Neither nearest UV lookup nor
+    horizontal-normal stratification models Android filtering or occlusion.
+    """
+    raw, gltf, bo, bl = load(path)
+    image_cache = {}
+    detail_cache = {}
+    material_roles = {}
+    rows = []
+    role_names = ("baseColor", "metallicRoughness", "normal")
+
+    for mesh in gltf.get("meshes", []):
+        for primitive in mesh.get("primitives", []):
+            if primitive.get("mode", 4) != 4:
+                raise ValueError("UV detail audit requires triangles")
+            attrs = primitive["attributes"]
+            material_index = primitive.get("material", 0)
+            if material_index not in material_roles:
+                roles = {}
+                for role in role_names:
+                    m = gltf["materials"][material_index]
+                    pbr = m.get("pbrMetallicRoughness", {})
+                    reference = (pbr.get("baseColorTexture") if role == "baseColor"
+                                 else pbr.get("metallicRoughnessTexture") if role == "metallicRoughness"
+                                 else m.get("normalTexture"))
+                    if reference and "KHR_texture_transform" in reference.get("extensions", {}):
+                        raise ValueError("KHR_texture_transform needs explicit UV transform audit")
+                    meta, img = describe_texture(
+                        gltf, raw, bo, bl, material_index, image_cache, role
+                    )
+                    if img is None:
+                        roles[role] = None
+                        continue
+                    digest = (role, meta["embedded_image_sha256"])
+                    if digest not in detail_cache:
+                        common = img if img.size == (1024, 1024) else img.resize(
+                            (1024, 1024), Image.Resampling.LANCZOS
+                        )
+                        highpass = ImageChops.difference(
+                            common, common.filter(ImageFilter.GaussianBlur(radius=1.0))
+                        )
+                        detail_cache[digest] = highpass
+                    roles[role] = (meta, detail_cache[digest])
+                material_roles[material_index] = roles
+
+            pc, _, position = accessor(gltf, raw, bo, bl, attrs["POSITION"])
+            uv_readers = {}
+            for role, info in material_roles[material_index].items():
+                if info is None:
+                    continue
+                uv_name = "TEXCOORD_" + str(info[0]["uv_set"])
+                if uv_name not in attrs:
+                    raise ValueError("UV detail audit missing " + uv_name)
+                uc, _, read_uv = accessor(gltf, raw, bo, bl, attrs[uv_name])
+                if uc < pc:
+                    raise ValueError("UV detail reader shorter than POSITION")
+                uv_readers[role] = read_uv
+
+            indexed = accessor(gltf, raw, bo, bl, primitive["indices"]) if "indices" in primitive else None
+            icount = indexed[0] if indexed else pc
+            if icount % 3:
+                raise ValueError("Non-triangle indexed rug")
+            triangles = icount // 3
+            stride = max(1, math.ceil(triangles / max_samples_per_primitive))
+            for ti in range(0, triangles, stride):
+                indices = [int(indexed[2](ti * 3 + k)[0]) if indexed else ti * 3 + k
+                           for k in range(3)]
+                ps = [position(k) for k in indices]
+                cx = sum(v[0] for v in ps) / 3
+                cz = sum(v[2] for v in ps) / 3
+                if not (math.isfinite(cx) and math.isfinite(cz)):
+                    raise ValueError("Nonfinite rug centroid")
+                e1 = [ps[1][k] - ps[0][k] for k in range(3)]
+                e2 = [ps[2][k] - ps[0][k] for k in range(3)]
+                n = (e1[1]*e2[2]-e1[2]*e2[1],
+                     e1[2]*e2[0]-e1[0]*e2[2],
+                     e1[0]*e2[1]-e1[1]*e2[0])
+                magnitude = math.sqrt(sum(x*x for x in n))
+                plane_alignment = abs(n[1]) / magnitude if magnitude > 1e-12 else None
+                texcoords = {
+                    role: tuple(sum(reader(k)[axis] for k in indices) / 3 for axis in range(2))
+                    for role, reader in uv_readers.items()
+                }
+                rows.append((cx, cz, material_index, plane_alignment, texcoords))
+    if not rows:
+        raise ValueError("No rug triangles available for UV detail audit")
+    lo_x, hi_x = min(r[0] for r in rows), max(r[0] for r in rows)
+    lo_z, hi_z = min(r[1] for r in rows), max(r[1] for r in rows)
+    if not (hi_x > lo_x and hi_z > lo_z):
+        raise ValueError("Degenerate sampled rug spatial domain")
+
+    def new_cell():
+        return {"count": 0, "sum": [0., 0., 0.], "plane_aligned_count": 0,
+                "plane_aligned_sum": [0., 0., 0.]}
+
+    grouped = {role: defaultdict(new_cell) for role in role_names}
+    unique_texels = {role: set() for role in role_names}
+    for cx, cz, mid, plane_alignment, texcoords in rows:
+        xx = min(3, max(0, int(4*(cx-lo_x)/(hi_x-lo_x))))
+        zz = min(3, max(0, int(4*(cz-lo_z)/(hi_z-lo_z))))
+        cell_key = f"x{xx}_z{zz}"
+        for role, uv in texcoords.items():
+            meta, highpass = material_roles[mid][role]
+            u, v = uv
+            s = meta["sampler"]
+            px = min(highpass.width - 1, int(wrap_uv(u, s["wrapS"])*highpass.width))
+            py = min(highpass.height - 1, int(wrap_uv(v, s["wrapT"])*highpass.height))
+            rgb = highpass.getpixel((px, py))
+            cell = grouped[role][cell_key]
+            cell["count"] += 1
+            unique_texels[role].add((mid, px, py))
+            for k in range(3):
+                cell["sum"][k] += rgb[k]
+            if plane_alignment is not None and plane_alignment >= 0.5:
+                cell["plane_aligned_count"] += 1
+                for k in range(3):
+                    cell["plane_aligned_sum"][k] += rgb[k]
+
+    result = {}
+    for role in role_names:
+        cells = {}
+        total_sum = [0., 0., 0.]
+        total_n = 0
+        for key, data in sorted(grouped[role].items()):
+            n = data["count"]
+            total_n += n
+            total_sum = [total_sum[k] + data["sum"][k] for k in range(3)]
+            nc = data["plane_aligned_count"]
+            cells[key] = {
+                "sampled_indexed_uv_centroids": n,
+                "highpass_mae_rgb": [round(v / n, 5) for v in data["sum"]],
+                "approximately_horizontal_normal_count": nc,
+                "approximately_horizontal_normal_highpass_mae_rgb":
+                    [round(v / nc, 5) for v in data["plane_aligned_sum"]] if nc else None,
+            }
+        if not total_n:
+            raise ValueError("Missing PBR role UV references: " + role)
+        result[role] = {
+            "sample_count": total_n,
+            "unique_sampled_atlas_texels_not_full_triangle_coverage": len(unique_texels[role]),
+            "uv_centroid_highpass_mae_rgb": [round(v/total_n, 5) for v in total_sum],
+            "normalized_local_xz_cells": cells,
+        }
+    return {
+        "glb_sha256": hashlib.sha256(raw).hexdigest(),
+        "sampling": "indexed triangle centroids, independent normalized 4x4 local XZ bins",
+        "common_texture_resolution": [1024, 1024],
+        "sampled_triangles_all_primitives": len(rows),
+        "roles": result,
+    }
+
+
+def _uv_footprint_detail_comparison(source_path, packaged_path):
+    source = _indexed_uv_surface_detail(source_path)
+    packaged = _indexed_uv_surface_detail(packaged_path)
+    comparison = {}
+    for role in ("baseColor", "metallicRoughness", "normal"):
+        a = source["roles"][role]
+        b = packaged["roles"][role]
+        ratios = []
+        for k in range(3):
+            aa, bb = a["uv_centroid_highpass_mae_rgb"][k], b["uv_centroid_highpass_mae_rgb"][k]
+            ratios.append(round(bb/aa, 5) if aa > 1e-8 else None)
+        spatial = {}
+        for key in sorted(set(a["normalized_local_xz_cells"]) & set(b["normalized_local_xz_cells"])):
+            u = a["normalized_local_xz_cells"][key]
+            v = b["normalized_local_xz_cells"][key]
+            if min(u["sampled_indexed_uv_centroids"], v["sampled_indexed_uv_centroids"]) < 20:
+                continue
+            spatial[key] = {
+                "original_uv_highpass_mae_rgb": u["highpass_mae_rgb"],
+                "packaged_uv_highpass_mae_rgb": v["highpass_mae_rgb"],
+                "source_n": u["sampled_indexed_uv_centroids"],
+                "packaged_n": v["sampled_indexed_uv_centroids"],
+            }
+        comparison[role] = {
+            "packaged_over_original_uv_centroid_highpass_ratio_rgb": ratios,
+            "paired_spatial_cells_at_least_20_samples": spatial,
+        }
+    return {
+        "source": source,
+        "packaged": packaged,
+        "comparison": comparison,
+        "diagnostic_limit": "UV-centroid-referenced atlas texels are NOT proven visible on Android. "
+            "Independent source/derived triangles and atlas UV layouts are not pixel-registered; "
+            "no occlusion, texture-coordinate derivatives, mip LOD, BRDF, GPU normal decode, "
+            "direct side-by-side Android material substitution or causal visual PASS is asserted.",
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", type=Path, required=True)
@@ -322,6 +517,7 @@ def main():
         "sampled_spatial_color_delta":compare(original,packaged),
         "sampled_metallic_roughness_normal_channel_deltas": other_pbr_roles,
         "pbr_full_atlas_high_frequency_diagnostic": _pbr_atlas_detail_audit(args.source, args.derived),
+        "pbr_uv_referenced_high_frequency_diagnostic": _uv_footprint_detail_comparison(args.source, args.derived),
         "structural_audit":"PASS",
         "android_home_call_home_visual_proof":"NOT_RUN",
         "whole_room_visual_acceptance":"FAIL_PREVIOUS_MANUAL_PROOF",
