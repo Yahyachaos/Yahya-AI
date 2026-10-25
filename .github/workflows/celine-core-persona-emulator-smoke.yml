@@ -50,8 +50,12 @@ jobs:
           sha256sum ci-apk/app-debug.apk > core-persona-emulator-proof/apk-sha256.txt
           echo 'PINNED_V82_APK_INTEGRITY_PASS'
 
-      - name: Configure Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Reuse runner-preinstalled Android SDK (setup-android v3 legacy tools fails)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || command -v sdkmanager
+          echo 'Avoiding deprecated sdkmanager tools package requested by setup-android@v3.'
 
       - name: Allow KVM emulator acceleration
         shell: bash
