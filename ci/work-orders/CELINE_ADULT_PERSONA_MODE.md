@@ -1,6 +1,6 @@
 # Celine Adult Persona Mode — opt-in contract
 
-Status: **PROTOTYPE READY — runtime promotion blocked until shared runtime/version ownership is explicitly handed off**
+Status: **RUNTIME PERSONA POLICY + PROMPT ADAPTER PROMOTED AND CONTRACT-TESTED; G1-AWARE MAINACTIVITY/CONVERSATION/PERSISTENCE INTEGRATION STILL REQUIRES EXCLUSIVE HANDOFF**
 
 Issue: `#112` — Product requirement: opt-in adult flirt mode for Celine.
 
@@ -122,7 +122,7 @@ Required cases:
 12. deactivation removes the contribution on the very next request;
 13. normal conversation/context/memory tests remain unchanged while inactive.
 
-## Current ownership-safe prototype checkpoint
+## Historical ownership-safe prototype checkpoint (before runtime promotion)
 
 The pure policy is now implemented as an **unwired prototype** at:
 
@@ -135,7 +135,22 @@ The deterministic pure-Java harness passes locally with `javac`/`java` and cover
 
 A bounded promotion attempt placed the same class under `app/src/**` at head `52930f417bfe03d6d8b66c0062fc6468bfbd413f`. Android Build #1333 / run `34073197361` correctly stopped **before compilation** at the repository version guard: `versionCode must increase: base=80 head=80`. Because `app/build.gradle` / version metadata are protected shared surfaces and PR #111 actively changes that file, this Core workstream did not bypass the guard or race the room worker. The temporary `app/src` file was immediately reverted at `48575901ab6cc5a11b73bd74ead29da7fee10a08`.
 
-Current final diff therefore has **no `app/src/**` runtime change**. Android Build #1336 / run `34073320019` completed SUCCESS for scope classification with build/emulator/publish correctly skipped.
+At that historical checkpoint the diff had **no `app/src/**` runtime change** and Android Build #1336 / run `34073320019` did scope classification only. That checkpoint is superseded by the promoted-runtime result below.
+
+## Current promoted-runtime checkpoint (2026-10-25)
+
+The two original Core-owned standalone Java components are **already promoted** in the existing DRAFT Core PR #113, and are not still awaiting a versionCode handoff:
+
+- `app/src/main/java/de/yahya/ai/CelinePersonaMode.java`, Git blob `bdcf304cf51198c5c84fda659c0eeb2513239a5e`.
+- `app/src/main/java/de/yahya/ai/CelinePersonaPromptAdapter.java`, Git blob `674e1f6739d47102048d78d1e7dd997ad3f25cb3`.
+- Coordinated `app/build.gradle` **versionCode 82** on Core, package/signature unchanged. Room PR #111 remains separate with versionCode 81.
+- Successful true Core Android build #1606 / run `40128768137` provides `yahya-ai-debug` artifact `12574766225` (ZIP SHA-256 `f17490cd07f182aad3d02c28ce5091e8628a223b78c3afe7bc3b48202a7db320`).
+- All **nine** canonical promoted-Java contracts (dispatch, Unicode/control characters, JSON acceptance vectors, 1,024 deterministic transitions, 16,384 concurrent operations, etc.) passed against the exact promoted source blobs, documented at PR #113 comment `6392920068`. Run `python3 ci/celine_persona_promoted_runtime_contract_test.py` for regression.
+- Last runtime-changing Core head: `7e2eab0a4ffd98506e4f408101fe83d7a9d62aeb`; last previously measured fingerprint: `0dc03a335b7d9f0be8d1aebbe1b045b8c29581f9c7e10cead05de7c592aba724` (not remeasured here). Later test/doc-only heads do not imply new APKs.
+
+**Crucial scope boundary:** Persona/PromptAdapter are **not wired** into `MainActivity.submit`, `callOpenAI`, durable Persona state, existing G1 memory, persistent goals or context broker. Local nine-of-nine JVM PASS and APK class packaging do not establish integration, physical Samsung install, preview update, visual acceptance or release. Existing updater reads only public `releases/latest` vNN .apk assets, not Actions artifacts; last verified latest release was v80.
+
+The live Room branch has newer G1-dependent `MainActivity` and structured memory, goal/task and context classes absent from the Core branch. Copying just its `MainActivity` would not compile; patching Core's old flat-memory `MainActivity` would risk overwriting newer G1 behavior. **Core→Room explicit G1-aware shared ownership request at PR #111 comment `6393149338` is a request, NOT an accepted grant.** Earlier limited Java/version/SDK-CI handoffs were completed and released. G2.3 is paused pending required Room visual acceptance; no new independent roadmap work is authorized by this documentation.
 
 ## Validation fast path
 
@@ -143,12 +158,7 @@ Contract/prototype/docs-only changes:
 
 - no Android APK build.
 
-When the standalone runtime persona policy is promoted later:
-
-- run `python3 ci/celine_persona_mode_contract_test.py` first;
-- because `app/src/**` changes the runtime fingerprint, the same coordinated ownership window must also satisfy the repository's required versionCode policy;
-- run exactly one required Android build for that coherent persona-policy batch;
-- no room/avatar/video proof unless integration actually changes those surfaces.
+Existing standalone runtime components were already promoted and tested. For any newly authorized, bounded change to a Core-owned runtime class, run the nine promoted-runtime Java contracts, respect the existing version gate and request exclusive ownership for shared version/build paths when required, then one necessary Android build if the runtime fingerprint changes. Do not touch Room/visual proof without a specifically affected approved surface.
 
 When central app wiring/persistence is later integrated:
 
@@ -159,13 +169,11 @@ When central app wiring/persistence is later integrated:
 
 ## Current blocker
 
-No product-design blocker exists. **Runtime promotion is blocked by shared ownership and the repository version gate.** Any `app/src/**` runtime change on this PR requires a higher `versionCode`, but `app/build.gradle` / version metadata are protected shared surfaces and are also changed by active room PR `#111`. Central `MainActivity`/Cognitive-OS wiring is likewise shared. This workstream must not race either surface.
-
-The ownership-safe prototype deliberately advances and tests the policy without weakening CI or creating conflicting runtime evidence.
+**NOT the old standalone Java/runtime promotion.** The actual external blocker is the missing Room-owner grant for a **coherent G1-aware central MainActivity + Conversation/Prompt + dedicated Persona state-store integration** with all dependent G1 source classes, exclusive shared-file ownership window and, only if necessary, coordinated version/build ownership. This request is recorded in PR #111 comment `6393149338`; absent an explicit reply that transfers this exact scope, no central integration or protected shared file mutation is authorized. The two DRAFT branches remain unmerged; no preview button release can be inferred from their debug artifacts, and AGENTS.md final release barrier remains binding.
 
 ## exact_next_action
 
-Fresh-reconcile live `main`, PR `#111`, active workflows and PR `#113`. Once an explicit shared runtime/version ownership handoff exists, promote the already-tested `ci/prototypes/CelinePersonaMode.java` into `app/src/main/java/de/yahya/ai/CelinePersonaMode.java`, satisfy the required coordinated versionCode policy without overwriting newer room/integration state, run `python3 ci/celine_persona_mode_contract_test.py`, then run exactly one Android build. Central `MainActivity`/persistence wiring remains a later serialized integration step unless that same handoff explicitly includes it.
+Fresh-reconcile live main, Core #113, Room #111, active workflows and the Room-owner reply to request `6393149338`. **Only after** the exact exclusive serialized G1 dependency/baseline + central submit/callOpenAI + app-owned Persona state-store handoff is granted, integrate the existing two promoted Java components without regressing structured G1 memory/goals/context; run the nine promoted runtime contracts, targeted G1/conversation/persistence regression and one necessary Android build; hand back shared ownership. Otherwise touch no protected shared files, pursue only independent registered Core work and retain the existing hourly continuation without user-feedback dependency.
 
 ## Final-app barrier
 
