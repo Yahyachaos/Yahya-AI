@@ -444,7 +444,7 @@ final class CelineRoomEnvironmentV80 {
                         .direction(ROOM_RECOVERY_NEUTRAL_KEY_DIR_X,
                                 ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y,
                                 ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z)
-                        .castShadows(false)
+                        .castShadows(true)
                         .lightChannel(0, false)
                         .lightChannel(ROOM_LIGHT_CHANNEL, true)
                         .build(engine, entity);
@@ -457,7 +457,7 @@ final class CelineRoomEnvironmentV80 {
                                 + " direction=" + ROOM_RECOVERY_NEUTRAL_KEY_DIR_X + ","
                                 + ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y + ","
                                 + ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z
-                                + " shadows=false cameraFurnitureCelineUnchanged=true");
+                                + " shadows=true cameraFurnitureCelineUnchanged=true");
             } catch (Throwable error) {
                 try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
                 try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
