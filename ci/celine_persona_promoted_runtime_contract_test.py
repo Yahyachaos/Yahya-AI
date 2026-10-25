@@ -30,6 +30,8 @@ CONTRACTS = (
     ("celine_persona_vector_execution_contract_test.py", {"SOURCE": SOURCES[0]}),
     ("celine_persona_sequence_contract_test.py", {
         "MODE_SOURCE": SOURCES[0], "ADAPTER_SOURCE": SOURCES[1]}),
+    ("celine_persona_concurrency_contract_test.py", {
+        "MODE_SOURCE": SOURCES[0], "ADAPTER_SOURCE": SOURCES[1]}),
 )
 
 
