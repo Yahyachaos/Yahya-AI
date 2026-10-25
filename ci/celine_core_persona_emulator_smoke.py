@@ -156,6 +156,10 @@ def main():
         raise AssertionError("Installed Android package is not versionCode 82")
     launch()
     check_mode("aus")
+    # Ordinary user prose mentioning the codeword must never opt in.
+    send_user("Hallo Nutte")
+    check_mode("aus")
+    print("EMBEDDED_CODEWORD_NO_ACTIVATION_PASS", flush=True)
     send_user("Nutte 3")
     check_mode("Stufe 3")
     ciphertext()
@@ -185,6 +189,18 @@ def main():
     if "celine_persona_state_cipher_v1" in snapshot:
         raise AssertionError("Persona ciphertext remains after explicit exit")
     print("NORMALMODE_KEYSTORE_CLEAR_PASS", flush=True)
+
+    # Case-insensitive standalone opt-in must route differently from prose.
+    send_user("NUTTE 1")
+    check_mode("Stufe 1")
+    ciphertext()
+    print("UPPERCASE_DIRECT_OPT_IN_PASS", flush=True)
+    send_user("Nutte aus")
+    check_mode("aus")
+    cleared = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+    if "celine_persona_state_cipher_v1" in cleared:
+        raise AssertionError("Encrypted persona state remains after uppercase activation and exit")
+    print("UPPERCASE_PERSONA_EXIT_CLEAR_PASS", flush=True)
     adb("shell", "am", "force-stop", PACKAGE)
     launch()
     check_mode("aus")
