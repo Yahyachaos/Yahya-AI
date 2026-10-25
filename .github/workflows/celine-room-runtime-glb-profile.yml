@@ -12,6 +12,7 @@ on:
       - 'ci/celine_room_window_atlas_uv_audit.py'
       - 'ci/celine_room_rug_source_derived_audit.py'
       - 'ci/celine_room_rug_atlas_uv_audit.py'
+      - 'ci/celine_room_rug_call_projection_audit.py'
       - 'app/src/main/assets/models/room/source-fidelity/room_rug.glb'
       - 'app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb'
   workflow_dispatch:
@@ -156,6 +157,22 @@ jobs:
           grep -F 'CELINE_ROOM_RUG_ATLAS_UV_AUDIT PASS' ci-room-runtime-profile/rug-atlas-uv-audit.log
           grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/rug-atlas-uv-audit.log
           test -s ci-room-runtime-profile/rug-atlas-uv-audit.json
+
+      - name: Audit packaged rug projected default CALL camera normal-map footprint (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x /tmp/celine-window-atlas-audit-env/bin/python
+          /tmp/celine-window-atlas-audit-env/bin/python ci/celine_room_rug_call_projection_audit.py \
+            --derived app/src/main/assets/models/room/source-fidelity/room_rug.glb \
+            --camera-java app/src/main/java/de/yahya/ai/Celine3DView.java \
+            --world-java app/src/main/java/de/yahya/ai/CelineRoomWorldContractV80.java \
+            --viewport-width 1016 --viewport-height 813 \
+            --output ci-room-runtime-profile/rug-call-projection-audit.json \
+            | tee ci-room-runtime-profile/rug-call-projection-audit.log
+          grep -F 'CELINE_ROOM_RUG_CALL_PROJECTION_AUDIT PASS' ci-room-runtime-profile/rug-call-projection-audit.log
+          grep -F 'visualAcceptance=NOT_TESTED' ci-room-runtime-profile/rug-call-projection-audit.log
+          test -s ci-room-runtime-profile/rug-call-projection-audit.json
 
       - name: Upload runtime room GLB profile
         if: always()
