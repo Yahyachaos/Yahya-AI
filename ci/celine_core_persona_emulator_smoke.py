@@ -66,13 +66,39 @@ def click(node):
 
 def check_mode(expected):
     click(node_with("text", "⚙"))
+    # v82 has a top-level App/Updates settings chooser above the existing
+    # MainActivity 'Weitere Einstellungen' list. Do not mistake that chooser
+    # for the actual Persona settings or claim a product failure.
+    first = hierarchy()
+    if any(n.attrib.get("text") == "Weitere Einstellungen" for n in first.iter("node")):
+        click(node_with("text", "Weitere Einstellungen"))
+    found = False
+    last_error = None
+    for attempt in range(4):
+        try:
+            item = node_with("text", "Persona-Modus: " + expected)
+            found = item.attrib.get("text") == "Persona-Modus: " + expected
+            if found:
+                break
+        except AssertionError as error:
+            last_error = error
+        # The persona row is last in the long internal settings list.
+        adb("shell", "input", "swipe", "570", "1530", "570", "670", "330")
+        time.sleep(0.6)
     try:
-        item = node_with("text", "Persona-Modus: " + expected)
-        if item.attrib.get("text") != "Persona-Modus: " + expected:
-            raise AssertionError("Wrong settings persona state")
+        if not found:
+            raise AssertionError("Persona row missing after nested settings scroll: " + str(last_error))
     finally:
-        adb("shell", "input", "keyevent", "KEYCODE_BACK")
-    time.sleep(0.6)
+        # Close internal settings and any still-open outer App/Updates chooser.
+        for _ in range(3):
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
+            time.sleep(0.35)
+            current = hierarchy()
+            if any(n.attrib.get("content-desc") == "Celin Nachricht schreiben"
+                   for n in current.iter("node")):
+                break
+        else:
+            raise AssertionError("Could not return from nested Settings to actual chat")
     print("UI_SETTINGS_MODE_PASS:", expected, flush=True)
 
 
