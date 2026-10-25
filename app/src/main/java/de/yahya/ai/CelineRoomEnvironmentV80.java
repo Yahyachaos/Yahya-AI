@@ -56,6 +56,18 @@ final class CelineRoomEnvironmentV80 {
     // back-wall incidence 0.966 -> 0.860 (not a Filament/IBL visual PASS).
     // Retain intensity, color, isolation, shadows and Celine's channel-0 lighting.
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY = 14_000.0f;
+    // Phase-A CALL #300 source/raster root cause: the source-fidelity ceiling's visible
+    // underside normal is (0,-1,0). The room key points downward (Y=-0.50), so it
+    // contributes NO direct light to that underside; the shared first-order IBL
+    // and constant shell emissive leave the ceiling exactly flat (RGB std=0).
+    // Try ONE localized room-channel-only bounce from the already authored rear
+    // bedside/nightstand anchor. No fabricated wood texture, new mesh, window
+    // semantics, furniture transform, camera change, or shared renderer mutation.
+    // Retain only if a genuine same-runtime HOME/CALL raster gains localized
+    // ceiling variation toward Refernzbild.png without clipping/blowout.
+    private static final float BEDSIDE_BOUNCE_HEIGHT_ABOVE_ANCHOR_M = 0.65f;
+    private static final float BEDSIDE_BOUNCE_LUMENS = 9_000.0f;
+    private static final float BEDSIDE_BOUNCE_FALLOFF_M = 2.40f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_X = 0.10f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.50f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.86f;
@@ -220,6 +232,7 @@ final class CelineRoomEnvironmentV80 {
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
         int recoveryRoomKeyLightEntity;
+        int bedsideBounceLightEntity;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
         boolean listenerInstalled;
@@ -291,6 +304,7 @@ final class CelineRoomEnvironmentV80 {
                         roomShellAsset.getRoot());
                 configureRoomLightChannels();
                 createRecoveryRoomKeyLight();
+                createBedsideBounceLight();
                 createFloorLampLight();
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
@@ -323,7 +337,8 @@ final class CelineRoomEnvironmentV80 {
                 for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0 || floorLampLightEntity != 0) {
+                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0
+                        || bedsideBounceLightEntity != 0 || floorLampLightEntity != 0) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAssets.clear();
@@ -479,6 +494,64 @@ final class CelineRoomEnvironmentV80 {
             }
         }
 
+        private void createBedsideBounceLight() {
+            FilamentAsset rearStand = null;
+            int standAnchor = 0;
+            for (FilamentAsset part : roomAssets) {
+                if (part == null) continue;
+                int entity = part.getFirstEntityByName("room_nightstand_rear__anchor");
+                if (entity != 0) {
+                    rearStand = part;
+                    standAnchor = entity;
+                    break;
+                }
+            }
+            if (rearStand == null || standAnchor == 0) {
+                throw new IllegalStateException("Source rear bedside light anchor missing");
+            }
+            int instance = transforms.getInstance(standAnchor);
+            if (instance == 0) {
+                throw new IllegalStateException("Source rear bedside anchor has no transform");
+            }
+            float[] world = transforms.getWorldTransform(instance, new float[16]);
+            float x = world[12];
+            float y = world[13] + BEDSIDE_BOUNCE_HEIGHT_ABOVE_ANCHOR_M;
+            float z = world[14];
+            if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(z)
+                    || y <= CelineRoomWorldContractV80.RUNTIME_OFFSET_Y
+                    || y >= CelineRoomWorldContractV80.RUNTIME_OFFSET_Y + 2.65f) {
+                throw new IllegalStateException("Source rear bedside light outside room envelope");
+            }
+            int entity = EntityManager.get().create();
+            try {
+                new LightManager.Builder(LightManager.Type.POINT)
+                        .position(x, y, z)
+                        .color(1.0f, 0.82f, 0.64f)
+                        .intensity(BEDSIDE_BOUNCE_LUMENS)
+                        .falloff(BEDSIDE_BOUNCE_FALLOFF_M)
+                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, true)
+                        .build(engine, entity);
+                scene.addEntity(entity);
+                bedsideBounceLightEntity = entity;
+                Celine3DDiagnostics.record(context, "ROOM-121",
+                        "Source-fitted bedside ceiling bounce experiment",
+                        "source=room_nightstand_rear__anchor position="
+                                + x + "," + y + "," + z
+                                + " channel=" + ROOM_LIGHT_CHANNEL
+                                + " lumens=" + BEDSIDE_BOUNCE_LUMENS
+                                + " falloff=" + BEDSIDE_BOUNCE_FALLOFF_M
+                                + " celineLightUnchanged=true"
+                                + " visualAcceptance=pending");
+            } catch (Throwable error) {
+                try { scene.removeEntity(entity); } catch (Throwable ignored) {}
+                try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+                try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+                throw error;
+            }
+        }
+
         private void createFloorLampLight() {
             int entity = EntityManager.get().create();
             try {
@@ -537,20 +610,27 @@ final class CelineRoomEnvironmentV80 {
         synchronized void destroyRoom() {
             ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
             int roomKeyLight = recoveryRoomKeyLightEntity;
+            int bounceLight = bedsideBounceLightEntity;
             int lampLight = floorLampLightEntity;
             roomAssets.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
             recoveryRoomKeyLightEntity = 0;
+            bedsideBounceLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            if (current.isEmpty() && roomKeyLight == 0 && lampLight == 0) return;
+            if (current.isEmpty() && roomKeyLight == 0 && bounceLight == 0 && lampLight == 0) return;
             try {
                 if (roomKeyLight != 0) {
                     try { scene.removeEntity(roomKeyLight); } catch (Throwable ignored) {}
                     try { engine.getLightManager().destroy(roomKeyLight); } catch (Throwable ignored) {}
                     try { EntityManager.get().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                }
+                if (bounceLight != 0) {
+                    try { scene.removeEntity(bounceLight); } catch (Throwable ignored) {}
+                    try { engine.getLightManager().destroy(bounceLight); } catch (Throwable ignored) {}
+                    try { EntityManager.get().destroy(bounceLight); } catch (Throwable ignored) {}
                 }
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
