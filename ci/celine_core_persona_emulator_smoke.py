@@ -167,6 +167,18 @@ def main():
     check_mode("Stufe 3")
     print("KEYSTORE_PROCESS_RESTART_RESTORE_PASS", flush=True)
 
+    # Negative direct command must not silently change a valid active state.
+    send_user("Nutte 9")
+    check_mode("Stufe 3")
+    print("INVALID_INTENSITY_PRESERVES_ACTIVE_STATE_PASS", flush=True)
+    # Both deactivation commands and the default standalone opt-in are checked
+    # through the real UI, not only the pure Java policy contract.
+    send_user("Nutte aus")
+    check_mode("aus")
+    print("EXPLICIT_NUTTE_AUS_DEACTIVATION_PASS", flush=True)
+    send_user("Nutte")
+    check_mode("Stufe 2")
+    print("DEFAULT_DIRECT_USER_ACTIVATION_PASS", flush=True)
     send_user("Normalmodus")
     check_mode("aus")
     snapshot = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
