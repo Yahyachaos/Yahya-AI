@@ -162,6 +162,60 @@ def make_harness(snippet: str, message_model: str, cases: list[dict]) -> str:
     )
 
 
+
+def stress_cases() -> list[dict]:
+    """Long histories reveal context-window pollution masked by short vectors.
+
+    Actual MainActivity body.input must trim AFTER excluding consumed direct
+    commands and their own app acknowledgements. Ordinary texts are retained;
+    no cloud, UI, Room or Android writer ownership is claimed.
+    """
+    specs = (
+        ("long-normal-context-retains-twenty", 64, 20, False, False),
+        ("long-followup-retains-twenty-eight", 64, 28, True, False),
+        ("large-turns-keep-minimum-six", 12, 6, False, True),
+    )
+    out: list[dict] = []
+    for name, count, keep, followup, large in specs:
+        events: list[dict] = []
+        ordinary: list[str] = []
+        for index in range(count):
+            # Churn control+ACK history repeatedly; none may consume cloud
+            # context budget or evict normal user messages.
+            if index % 7 == 0:
+                events.extend((
+                    {"role": "user", "text": "Nutte 3", "consumed": True},
+                    {"role": "assistant", "text": "Persona-Modus aktiv", "ack": True},
+                    {"role": "user", "text": "Normalmodus", "consumed": True},
+                    {"role": "assistant", "text": "Normalmodus aktiv", "ack": True},
+                ))
+            value = (f"Normaler Kontextabschnitt {index:03d} mit Wert {index:03d}"
+                     if not large
+                     else f"Langtext {index:02d} " + "x" * 1900)
+            events.append({"role": "user", "text": value})
+            ordinary.append(value)
+        if followup:
+            events.append({"role": "user", "text": "weiter"})
+            ordinary.append("weiter")
+        out.append({
+            "id": name, "events": events,
+            "expected_provider": [["user", x] for x in ordinary[-keep:]],
+            "active": False, "intensity": 0,
+        })
+    return out
+
+
+def run_extra_harness(folder: pathlib.Path, snippet: str,
+                      message_model: str, cases: list[dict]) -> subprocess.CompletedProcess:
+    folder.mkdir(parents=True, exist_ok=True)
+    harness = folder / "Harness.java"
+    harness.write_text(make_harness(snippet, message_model, cases), encoding="utf-8")
+    subprocess.run(["javac", "-encoding", "UTF-8", "-d", str(folder),
+                    str(PERSONA), str(CONVERSATION), str(harness)], check=True)
+    return subprocess.run(["java", "-cp", str(folder), "de.yahya.ai.Harness"],
+                          text=True, capture_output=True, check=False)
+
+
 def main() -> int:
     source = MAIN.read_text(encoding="utf-8")
     snippet, message_model = check_wiring(source)
@@ -181,6 +235,27 @@ def main() -> int:
             check=True,
         )
         subprocess.run(["java", "-cp", str(folder), "de.yahya.ai.Harness"], check=True)
+    # Reuse exact MainActivity Java serialization, real V78 context selection and
+    # the promoted parser under deliberately crowded conversation histories.
+    stress = stress_cases()
+    with tempfile.TemporaryDirectory(prefix="celine-provider-context-stress-") as temp:
+        folder = pathlib.Path(temp)
+        good = run_extra_harness(folder / "positive", snippet, message_model, stress)
+        if good.returncode != 0:
+            raise AssertionError("long-history provider isolation FAIL: " + good.stderr[-1800:])
+        print(good.stdout.strip())
+        # Negative control: deliberately remove ONLY the existing event-marker
+        # filter. Our exact same executable assertions MUST reject the leak.
+        guard = "if(!m.personaControl)providerHistory.add(m);"
+        if snippet.count(guard) != 1:
+            raise AssertionError("cannot isolate unique provider-history filter")
+        mutant = snippet.replace(guard, "providerHistory.add(m);", 1)
+        bad = run_extra_harness(folder / "filter-bypass", mutant, message_model, stress)
+        if bad.returncode == 0 or not re.search(
+                r"body\\.input length|wrong serialized row", bad.stderr):
+            raise AssertionError("negative filter-bypass mutation was not rejected: "
+                                 + bad.stderr[-1800:])
+        print("CORE_PROVIDER_HISTORY_FILTER_MUTATION_REJECTED_PASS")
     print("SCOPE: actual MainActivity.body.input Java code with JSON recorders; no network/device assertions")
     return 0
 
