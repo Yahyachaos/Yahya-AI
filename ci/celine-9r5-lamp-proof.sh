@@ -245,9 +245,24 @@ if grep -Eq 'pose=(WINDOW_STAND|DRESSER_STAND|MIRROR_STAND|SHELF_STAND|CHAIR_SIT
   fail "runtime/source failure or protected non-Lamp pose activation detected during lamp proof"
 fi
 
+# The pull_request edited-event GITHUB_SHA can identify GitHub's synthetic merge
+# commit rather than the exact checked-out PR head or reused APK runtime.
+# Bind summary identities to the exact-source manifest produced by the workflow.
+PROOF_HEAD="$(git rev-parse HEAD)" || fail "cannot resolve exact proof checkout"
+[[ "$PROOF_HEAD" =~ ^[0-9a-f]{40}$ ]] || fail "invalid checked-out proof SHA"
+[[ -s lamp-apk-source.txt ]] || fail "missing exact APK/runtime provenance"
+SOURCE_PROOF_HEAD="$(sed -n 's/^proof_head=//p' lamp-apk-source.txt | head -n 1)"
+SOURCE_RUNTIME_HEAD="$(sed -n 's/^source_sha=//p' lamp-apk-source.txt | head -n 1)"
+SOURCE_RUNTIME_FP="$(sed -n 's/^runtime_fingerprint=//p' lamp-apk-source.txt | head -n 1)"
+[[ "$SOURCE_PROOF_HEAD" == "$PROOF_HEAD" ]] || fail "proof SHA does not match APK provenance"
+[[ "$SOURCE_RUNTIME_HEAD" =~ ^[0-9a-f]{40}$ ]] || fail "invalid built runtime SHA"
+[[ "$SOURCE_RUNTIME_FP" =~ ^[0-9a-f]{64}$ ]] || fail "invalid runtime fingerprint"
+
 cat > "$OUT/9r5-lamp-summary.txt" <<EOF
 PASS 9R.5 lamp technical gate
-RUNTIME_HEAD=${GITHUB_SHA:-unknown}
+PROOF_HEAD=$PROOF_HEAD
+RUNTIME_HEAD=$SOURCE_RUNTIME_HEAD
+RUNTIME_FINGERPRINT=$SOURCE_RUNTIME_FP
 CHAIN=camera_talk_to_lamp_on_look_to_user_reacquire_to_walk_away_to_lamp_off_to_walk_away_to_camera_talk
 LAMP_INTERACT=central_owner_bounded_pose
 LAMP_ROOT=x_plus_0_10_authored_depth
