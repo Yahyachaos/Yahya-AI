@@ -215,6 +215,110 @@ def assert_control_turn_visible(command, acknowledgment):
           flush=True)
 
 
+
+def assert_settings_exit_chat_bubbles():
+    """Check real Android chat TextViews after the Settings-only OFF button.
+
+    The exit ACK must be visible, the previous submitted activation recoverable
+    by bounded scroll, and no synthetic 'Du: Normalmodus' user turn may exist.
+    """
+    observations = []
+    ack_seen = previous_opt_in_seen = phantom_user_seen = False
+    last_root = None
+    for attempt in range(7):
+        root = hierarchy()
+        last_root = root
+        chat, bubbles = _chat_scroll_and_bubbles(root)
+        visible = []
+        for node in bubbles:
+            raw = node.attrib.get("text", "")
+            if not raw or not _visible_rect(node, chat):
+                continue
+            visible.append({"text": raw, "bounds": node.attrib.get("bounds", "")})
+            user = _labeled_body(raw, "Du")
+            assistant = _labeled_body(raw, "Celin")
+            if user == "Normalmodus":
+                phantom_user_seen = True
+            if user == "Nutte 3":
+                previous_opt_in_seen = True
+            if assistant == "Normalmodus aktiviert.":
+                ack_seen = True
+        observations.append({"attempt": attempt,
+                             "visible_chat_textviews": visible,
+                             "ack_seen": ack_seen,
+                             "previous_opt_in_seen": previous_opt_in_seen,
+                             "phantom_user_seen": phantom_user_seen})
+        if phantom_user_seen:
+            break
+        if attempt < 6:
+            _reveal_previous_chat_bubble(chat)
+    (OUT / "ui-settings-only-exit.json").write_text(
+        json.dumps(observations, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    if not ack_seen or not previous_opt_in_seen or phantom_user_seen:
+        if last_root is not None:
+            (OUT / "FAIL-settings-only-exit.xml").write_text(
+                ET.tostring(last_root, encoding="unicode"), encoding="utf-8")
+        screenshot("FAIL-settings-only-exit.png")
+        raise AssertionError(
+            "Real Settings-only exit chat invariant failed: "
+            f"ack={ack_seen} previousOptIn={previous_opt_in_seen} "
+            f"phantomDirectNormalmodus={phantom_user_seen}; UI={observations!r}")
+    screenshot("08-settings-only-exit-chat.png")
+    print("SETTINGS_ONLY_OFF_NO_PHANTOM_USER_BUBBLE_PASS:"
+          " genuine app ACK, preceding direct opt-in, no forged direct exit", flush=True)
+
+
+def verify_settings_only_exit():
+    """Press actual active Persona Settings Normalmodus button, then restart.
+
+    Never mistake a submitted direct chat command for a Settings-only exit.
+    """
+    click(node_with("text", "⚙"))
+    first = hierarchy()
+    if any(n.attrib.get("text") == "Weitere Einstellungen" for n in first.iter("node")):
+        click(node_with("text", "Weitere Einstellungen"))
+    target = None
+    for attempt in range(4):
+        try:
+            target = node_with("text", "Persona-Modus: Stufe 3")
+            break
+        except AssertionError:
+            adb("shell", "input", "swipe", "570", "1530", "570", "670", "330")
+            time.sleep(0.6)
+    if target is None:
+        screenshot("FAIL-settings-persona-row.png")
+        raise AssertionError("Real active Persona Settings row not reachable")
+    click(target)
+    root = hierarchy()
+    texts = [n.attrib.get("text", "") for n in root.iter("node")]
+    if ("Celines Persona-Modus" not in texts
+            or not any(t.startswith("Aktiv auf Stufe 3. Du kannst ihn jederzeit hier")
+                       for t in texts)):
+        screenshot("FAIL-settings-persona-dialog.png")
+        raise AssertionError(f"Actual active Persona dialog absent: {texts[-24:]!r}")
+    exit_button = dialog_button("Normalmodus")
+    if exit_button.attrib.get("class") != "android.widget.Button":
+        raise AssertionError("Settings exit matched a non-button UI element")
+    screenshot("07-settings-active-persona-dialog.png")
+    click(exit_button)
+    back_to_chat()
+    assert_settings_exit_chat_bubbles()
+    check_mode("aus")
+    prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+    if "celine_persona_state_cipher_v1" in prefs:
+        raise AssertionError("Encrypted persona state survived actual Settings OFF tap")
+    adb("shell", "am", "force-stop", PACKAGE)
+    launch()
+    check_mode("aus")
+    prefs_after = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+    if "celine_persona_state_cipher_v1" in prefs_after:
+        raise AssertionError("Settings-cleared persona ciphertext returned after restart")
+    screenshot("09-settings-only-off-after-process-restart.png")
+    print("SETTINGS_ONLY_OFF_REAL_UI_KEYSTORE_RESTART_PASS:"
+          " actual button, OFF state and ciphertext deletion durable", flush=True)
+
+
 def ciphertext():
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     found = re.search(r'<string\s+name="celine_persona_state_cipher_v1">(.*?)</string>', raw)
@@ -453,6 +557,13 @@ def main():
     launch()
     check_mode("aus")
     screenshot("02-inactive-after-restart.png")
+
+    # Verify Settings-only OFF is distinct from a submitted Normalmodus turn.
+    send_user("Nutte 3")
+    check_mode("Stufe 3")
+    ciphertext()
+    verify_settings_only_exit()
+
     print("CORE_EMULATOR_SMOKE_PASS: real v82 install, UI activation/exit, AndroidKeyStore save/restore/clear", flush=True)
 
 
