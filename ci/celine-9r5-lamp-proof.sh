@@ -137,8 +137,62 @@ wait_log "V80-484" 340
 wait_log "enabled=false" 340
 wait_log "lightEntity=floor_lamp_light" 340
 wait_log "handContact=false" 340
-sleep 0.20
+# The switch log changes before the capped emulator frame delta and Filament image settle.
+# Keep this bound to the actual settled-on #217 versus settled-off #224 capture, not
+# the early transition image. This gate only verifies a local fixture response.
+sleep 5.00
 capture_product 224-9r5-lamp-off-stable 9R5_LAMP_OFF_STABLE
+python3 - "$OUT/217-9r5-lamp-user-reacquire.png" "$OUT/224-9r5-lamp-off-stable.png" "$OUT/9r5-lamp-local-light-delta.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+from statistics import median
+from PIL import Image
+
+on_path, off_path, report_path = map(Path, sys.argv[1:])
+with Image.open(on_path) as source_on, Image.open(off_path) as source_off:
+    on = source_on.convert("RGB")
+    off = source_off.convert("RGB")
+if on.size != (1080, 1920) or off.size != on.size:
+    raise SystemExit(f"9R.5 local light proof FAIL: uncalibrated image size {on.size}/{off.size}")
+
+def signed_luma_delta(box):
+    left, top, right, bottom = box
+    if not (0 <= left < right <= on.width and 0 <= top < bottom <= on.height):
+        raise SystemExit("9R.5 local light proof FAIL: ROI out of bounds")
+    on_pixels = on.crop(box).getdata()
+    off_pixels = off.crop(box).getdata()
+    return [
+        .2126 * (a[0] - b[0]) + .7152 * (a[1] - b[1]) + .0722 * (a[2] - b[2])
+        for a, b in zip(on_pixels, off_pixels)
+    ]
+
+# Both masks are small static, actually visible patches measured in real #276.
+# This is *not* a reference-wide lighting comparison or a visual-acceptance gate.
+floor = signed_luma_delta((215, 775, 260, 825))
+wall = signed_luma_delta((140, 350, 190, 400))
+floor_median = median(floor)
+bright_fraction = sum(value > 8.0 for value in floor) / len(floor)
+wall_abs_median = median(abs(value) for value in wall)
+passed = floor_median > 8.0 and bright_fraction >= .75 and wall_abs_median <= 2.5
+result = {
+    "schema": "celine-9r5-settled-lamp-local-raster/v1",
+    "on_image": on_path.name,
+    "off_image": off_path.name,
+    "image_size_px": list(on.size),
+    "floor_roi_px": [215, 775, 260, 825],
+    "wall_control_roi_px": [140, 350, 190, 400],
+    "settled_on_minus_off_floor_median_srgb_luma": round(floor_median, 3),
+    "floor_fraction_over_8_srgb": round(bright_fraction, 4),
+    "static_wall_median_absolute_srgb_luma_delta": round(wall_abs_median, 3),
+    "criterion": "local_source_lamp_response_only_not_room_visual_acceptance",
+    "verdict": "PASS_LOCAL_FIXTURE_RESPONSE_ONLY" if passed else "FAIL_LOCAL_FIXTURE_RESPONSE",
+}
+report_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+print(json.dumps(result, sort_keys=True))
+if not passed:
+    raise SystemExit("9R.5 local light proof FAIL: expected settled ON/OFF floor response with static wall control")
+PY
 append_runtime 222-9r5-lamp-off-runtime.txt
 append_runtime 224-9r5-lamp-off-state-runtime.txt
 
