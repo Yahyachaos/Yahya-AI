@@ -113,6 +113,22 @@ def send_user(command):
     time.sleep(1.8)
 
 
+
+def assert_control_turn_visible(command, acknowledgment):
+    """Consumed direct controls and own ACKs stay in actual Android chat UI.
+
+    Exclusion from the later provider transcript is separately exercised by
+    the exact MainActivity Java serialization contract; UI visibility alone
+    does not prove an outgoing network request.
+    """
+    actual = [node.attrib.get("text", "") for node in hierarchy().iter("node")]
+    if "Du\\n" + command not in actual:
+        raise AssertionError("Consumed persona command missing from visible chat: " + command)
+    if not any(text.startswith("Celin\\n") and acknowledgment in text for text in actual):
+        raise AssertionError("Persona command acknowledgement missing from visible chat")
+    print("PERSONA_CONTROL_VISIBLE_CHAT_PASS:", command, flush=True)
+
+
 def ciphertext():
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     found = re.search(r'<string\s+name="celine_persona_state_cipher_v1">(.*?)</string>', raw)
@@ -305,6 +321,7 @@ def main():
     check_mode("aus")
     print("EMBEDDED_CODEWORD_NO_ACTIVATION_PASS", flush=True)
     send_user("Nutte 3")
+    assert_control_turn_visible("Nutte 3", "Persona-Modus aktiv, Stufe 3.")
     check_mode("Stufe 3")
     ciphertext()
     screenshot("01-active-persona.png")
@@ -328,6 +345,7 @@ def main():
     check_mode("Stufe 2")
     print("DEFAULT_DIRECT_USER_ACTIVATION_PASS", flush=True)
     send_user("Normalmodus")
+    assert_control_turn_visible("Normalmodus", "Normalmodus aktiviert.")
     check_mode("aus")
     snapshot = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     if "celine_persona_state_cipher_v1" in snapshot:
