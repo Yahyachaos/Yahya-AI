@@ -46,6 +46,49 @@ def load_contract(name: str, path: pathlib.Path):
     return module
 
 
+def assert_live_persona_integration_source_contract() -> None:
+    """Read-only source gate for the already-borrowed G1 MainActivity integration.
+
+    Pure persona Java tests cannot prove that the actual app routes direct
+    commands before G1/tools or includes the persona contribution in the
+    provider request. This catches silent source-wiring regressions; it is NOT
+    evidence of a live cloud model response or physical-device acceptance.
+    No ownership of MainActivity or G1 sources is acquired by this read.
+    """
+    source = (RUNTIME / "MainActivity.java").read_text(encoding="utf-8")
+    compact = "".join(source.split())
+    required = {
+        "direct user channel only":
+            "personaMode.apply(CelinePersonaMode.InputChannel.DIRECT_USER,text)",
+        "encrypted persona restore at launch":
+            "personaStateStore.restoreInto(personaMode)",
+        "durable activation save":
+            "personaStateStore.save(personaMode)",
+        "explicit persisted-state clear":
+            "personaStateStore.clear()",
+        "actual provider instructions composed with app-owned persona":
+            'body.put("instructions",CelinePersonaPromptAdapter.compose(instructions,personaMode))',
+    }
+    for description, expression in required.items():
+        if expression not in compact:
+            raise SystemExit(f"MainActivity persona source-wiring FAIL: {description}")
+    try:
+        submit = compact.split("privatevoidsubmit(Stringtext)", 1)[1].split(
+            "privateStringcallOpenAI(", 1)[0]
+        learner = compact.split("privatevoidlearnWithAI(", 1)[1].split(
+            "privatevoidrememberExplicit(", 1)[0]
+    except IndexError as exc:
+        raise SystemExit("MainActivity source-wiring FAIL: required method boundary missing") from exc
+    persona_first = submit.find("if(handlePersonaCommand(text))return;")
+    tool_next = submit.find("if(handleLocalCommand(text))")
+    goal_next = submit.find("goalTaskRuntime.observeUserText(text)")
+    if persona_first < 0 or tool_next < persona_first or goal_next < persona_first:
+        raise SystemExit("MainActivity source-wiring FAIL: persona dispatch no longer precedes tools/G1")
+    if "CelinePersonaPromptAdapter" in learner or "personaMode.promptContribution()" in learner:
+        raise SystemExit("MainActivity source-wiring FAIL: model style leaked into memory extractor")
+    print("CORE_PERSONA_LIVE_SOURCE_WIRING_PASS: direct-only early dispatch, encrypted state, provider instructions, memory-extractor isolation (source-level only)")
+
+
 def main() -> int:
     for name in SOURCES:
         prototype = PROTOTYPES / name
@@ -54,6 +97,8 @@ def main() -> int:
             raise SystemExit(f"missing promoted/prototype source for {name}")
         if prototype.read_bytes() != runtime.read_bytes():
             raise SystemExit(f"promoted source drift for {name}; review the approved integration contract")
+
+    assert_live_persona_integration_source_contract()
 
     for index, (filename, bindings) in enumerate(CONTRACTS):
         name = f"celine_promoted_contract_{index}"
