@@ -111,8 +111,11 @@ def main():
         'measured': measures,
         'reference_minus_architecture_warm_r_minus_b': round(ref['r_minus_b']-art['r_minus_b'], 3),
         'architecture_to_reference_high_contrast_stripe_ratio': round(art['horizontal_edge_fraction_gt12']/max(ref['horizontal_edge_fraction_gt12'], 1e-9), 4),
-        'classification': 'VISIBLE_GRAY_STRIPES_VS_WARM_SOURCE_REFERENCE_DIFFERENCE',
-        'visual_acceptance': 'FAIL_MANUALLY_INSPECTED_WINDOW_AND_WHOLE_ROOM',
+        'classification': ('GRAY_STRIPES_AND_WARM_COLOR_DEFICIT_OBSERVED' if
+                           ref['r_minus_b']-art['r_minus_b'] > 20 and
+                           art['horizontal_edge_fraction_gt12'] > 1.5*ref['horizontal_edge_fraction_gt12']
+                           else 'METRICS_ONLY_REQUIRES_MANUAL_VISUAL_INTERPRETATION'),
+        'visual_acceptance': 'UNASSESSED_REQUIRES_MANUAL_COMPARISON',
         'caveat': 'Metrics are local color/striping evidence, not proof of material cause, GLASS decision, or full-scene acceptance. Compare authentic Android CALL separately.',
     }
     Path(a.output).write_text(json.dumps(report, indent=2, ensure_ascii=False)+'\n', encoding='utf-8')
