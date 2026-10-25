@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 from collections import defaultdict
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter, ImageStat
 from celine_room_rug_source_derived_audit import (
     SOURCE_SHA, SOURCE_SIZE, accessor, load,
 )
@@ -216,6 +216,85 @@ def compare(source, derived):
     }
 
 
+
+def _unique_pbr_atlases(path):
+    """Resolve each embedded image by *PBR role*, not unreliable glTF image index."""
+    raw, gltf, binary_offset, binary_length = load(path)
+    result = {}
+    for role in ("baseColor", "metallicRoughness", "normal"):
+        cache = {}
+        roles = {}
+        for index in range(len(gltf.get("materials", []))):
+            meta, rgb = describe_texture(
+                gltf, raw, binary_offset, binary_length, index, cache, role
+            )
+            if rgb is not None:
+                roles[meta["embedded_image_sha256"]] = rgb
+        result[role] = roles
+    return result
+
+
+def _mean_abs_rgb(a, b):
+    if a.mode != "RGB" or b.mode != "RGB" or a.size != b.size:
+        raise ValueError("PBR atlas comparison requires aligned RGB image dimensions")
+    return [round(v, 4) for v in ImageStat.Stat(ImageChops.difference(a, b)).mean]
+
+
+def _highpass_rgb(image, gaussian_radius_px):
+    blurred = image.filter(ImageFilter.GaussianBlur(radius=gaussian_radius_px))
+    return _mean_abs_rgb(image, blurred)
+
+
+def _pbr_atlas_detail_audit(source_path, packaged_path):
+    """Measure atlas-scale detail only; no claim about UV-visible pixels or Android."""
+    original = _unique_pbr_atlases(source_path)
+    derived = _unique_pbr_atlases(packaged_path)
+    measurements = {}
+    for role in ("baseColor", "metallicRoughness", "normal"):
+        src = original[role]
+        dst = derived[role]
+        if len(src) != 1 or len(dst) != 1:
+            measurements[role] = {
+                "pairing": "UNPAIRED_MULTIPLE_OR_MISSING_ROLE_IMAGES",
+                "source_unique_images": len(src),
+                "packaged_unique_images": len(dst),
+                "causal_verdict": "UNASSESSED",
+            }
+            continue
+        src_img = next(iter(src.values()))
+        dst_img = next(iter(dst.values()))
+        reference_at_packaged_resolution = src_img.resize(
+            dst_img.size, Image.Resampling.LANCZOS
+        )
+        source_reconstructed_at_native_resolution = reference_at_packaged_resolution.resize(
+            src_img.size, Image.Resampling.LANCZOS
+        )
+        source_common_hf = _highpass_rgb(reference_at_packaged_resolution, 1.0)
+        packaged_common_hf = _highpass_rgb(dst_img, 1.0)
+        measurements[role] = {
+            "pairing": "UNIQUE_ROLE_IMAGES_ATLAS_COORDINATES_NOT_PROVEN_REGISTERED",
+            "source_resolution": list(src_img.size),
+            "packaged_resolution": list(dst_img.size),
+            "source_native_highpass_radius_2px_mae_rgb": _highpass_rgb(src_img, 2.0),
+            "source_detail_not_reconstructable_after_lanczos_resize_mae_rgb":
+                _mean_abs_rgb(src_img, source_reconstructed_at_native_resolution),
+            "source_downsampled_vs_packaged_at_same_resolution_mae_rgb":
+                _mean_abs_rgb(reference_at_packaged_resolution, dst_img),
+            "source_downsampled_highpass_radius_1px_mae_rgb": source_common_hf,
+            "packaged_highpass_radius_1px_mae_rgb": packaged_common_hf,
+            "packaged_to_source_downsampled_highpass_ratio_rgb": [
+                round(packaged_common_hf[i] / source_common_hf[i], 5)
+                if source_common_hf[i] > 1e-7 else None for i in range(3)
+            ],
+            "causal_verdict": "UNASSESSED_NEEDS_UV_FOOTPRINT_AND_REAL_ANDROID_RASTER",
+        }
+    return {
+        "comparison": measurements,
+        "method": "Embedded glTF PBR-role RGB JPEGs, full-atlas Gaussian high-pass and Lanczos resolution controls. These are per-channel sRGB byte errors, NOT normal-vector angles, BRDF response, filtered screen pixels or visual acceptance.",
+        "limitations": "Atlas pixel alignment, triangle UV area/visibility, alpha, color space and actual mobile texture mip/filtering are NOT established here. A detail loss does not prove Android image causality; no unrelated material source or original GLB is modified.",
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", type=Path, required=True)
@@ -242,6 +321,7 @@ def main():
         "source":original,"packaged":packaged,
         "sampled_spatial_color_delta":compare(original,packaged),
         "sampled_metallic_roughness_normal_channel_deltas": other_pbr_roles,
+        "pbr_full_atlas_high_frequency_diagnostic": _pbr_atlas_detail_audit(args.source, args.derived),
         "structural_audit":"PASS",
         "android_home_call_home_visual_proof":"NOT_RUN",
         "whole_room_visual_acceptance":"FAIL_PREVIOUS_MANUAL_PROOF",
