@@ -32,6 +32,8 @@ CONTRACTS = (
         "MODE_SOURCE": SOURCES[0], "ADAPTER_SOURCE": SOURCES[1]}),
     ("celine_persona_concurrency_contract_test.py", {
         "MODE_SOURCE": SOURCES[0], "ADAPTER_SOURCE": SOURCES[1]}),
+    ("celine_persona_untrusted_channel_isolation_contract_test.py", {
+        "MODE_SOURCE": SOURCES[0], "ADAPTER_SOURCE": SOURCES[1]}),
 )
 
 
