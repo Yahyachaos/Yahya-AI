@@ -6,6 +6,7 @@ Checks UI command routing, actual Keystore-backed ciphertext, process persistenc
 explicit deactivation and crash-free foreground launch. Fail closed on missing UI.
 """
 import pathlib
+import json
 import re
 import subprocess
 import sys
@@ -114,19 +115,104 @@ def send_user(command):
 
 
 
-def assert_control_turn_visible(command, acknowledgment):
-    """Consumed direct controls and own ACKs stay in actual Android chat UI.
+def _chat_scroll_and_bubbles(root):
+    """Only rendered in-app chat TextViews, not settings/composer/other labels."""
+    if not any(n.attrib.get("content-desc") == "Celin Nachricht schreiben"
+               for n in root.iter("node")):
+        raise AssertionError("Not on the actual MainActivity chat screen")
+    scrolls = [n for n in root.iter("node")
+               if n.attrib.get("class") == "android.widget.ScrollView"
+               and n.attrib.get("package") == PACKAGE]
+    if len(scrolls) != 1:
+        raise AssertionError(f"Expected one application chat ScrollView, got {len(scrolls)}")
+    chat = scrolls[0]
+    bubbles = [n for n in chat.iter("node")
+               if n.attrib.get("class") == "android.widget.TextView"
+               and n.attrib.get("package") == PACKAGE]
+    return chat, bubbles
 
-    Exclusion from the later provider transcript is separately exercised by
-    the exact MainActivity Java serialization contract; UI visibility alone
-    does not prove an outgoing network request.
+
+def _visible_rect(node, viewport):
+    """Require nonempty clipped Android UI bounds within the chat viewport."""
+    def rect(value):
+        parts = list(map(int, re.findall(r"\d+", value)))
+        return parts if len(parts) == 4 else None
+    a = rect(node.attrib.get("bounds", ""))
+    b = rect(viewport.attrib.get("bounds", ""))
+    return bool(a and b and min(a[2], b[2]) > max(a[0], b[0])
+                and min(a[3], b[3]) > max(a[1], b[1]))
+
+
+def _labeled_body(raw, who):
+    # UiAutomator may expose TextView line breaks as whitespace or literal \n.
+    # This parses the WHOLE label and requires an exact user command body.
+    m = re.fullmatch(re.escape(who) + r"(?:\s|\\n)+(.+)", raw, re.DOTALL)
+    return m.group(1) if m else None
+
+
+def _reveal_previous_chat_bubble(chat):
+    coords = list(map(int, re.findall(r"\d+", chat.attrib.get("bounds", ""))))
+    if len(coords) != 4 or coords[3] - coords[1] < 65:
+        raise AssertionError("Chat has no safely scrollable visible bounds")
+    x = (coords[0] + coords[2]) // 2
+    top, bottom = coords[1] + 12, coords[3] - 12
+    adb("shell", "input", "swipe", str(x), str(top), str(x),
+        str(bottom), "300")
+    time.sleep(0.55)
+
+
+def assert_control_turn_visible(command, acknowledgment):
+    """Find actual distinct chat bubbles, including when the latest ACK scrolls
+    the preceding user bubble offscreen. Never accept generic field substrings.
+    The separate exact-Java contract proves provider transcript exclusion.
     """
-    actual = [node.attrib.get("text", "") for node in hierarchy().iter("node")]
-    if "Du\n" + command not in actual:
-        raise AssertionError("Consumed persona command missing from visible chat: " + command)
-    if not any(text.startswith("Celin\n") and acknowledgment in text for text in actual):
-        raise AssertionError("Persona command acknowledgement missing from visible chat")
-    print("PERSONA_CONTROL_VISIBLE_CHAT_PASS:", command, flush=True)
+    observations = []
+    user_seen = ack_seen = False
+    last_root = None
+    # MainActivity scroll.post(fullScroll) follows the ACK. The chat viewport
+    # is small on pixel_2, so inspect bottom first, then bounded upward scrolls.
+    for attempt in range(5):
+        root = hierarchy()
+        last_root = root
+        chat, bubbles = _chat_scroll_and_bubbles(root)
+        current = []
+        for node in bubbles:
+            raw = node.attrib.get("text", "")
+            if not raw or not _visible_rect(node, chat):
+                continue
+            current.append({"text": raw, "bounds": node.attrib.get("bounds", "")})
+            user_body = _labeled_body(raw, "Du")
+            assistant_body = _labeled_body(raw, "Celin")
+            if user_body == command:
+                user_seen = True
+            if assistant_body is not None and assistant_body.startswith(acknowledgment):
+                ack_seen = True
+        observations.append({"attempt": attempt, "user": user_seen,
+                             "ack": ack_seen, "visible_chat_textviews": current,
+                             "scroll_bounds": chat.attrib.get("bounds", "")})
+        if user_seen and ack_seen:
+            break
+        _reveal_previous_chat_bubble(chat)
+    # Diagnostics are genuine Android hierarchy data, not manufactured passes.
+    # Archive them even after PASS to establish why old one-dump equality failed.
+    label = re.sub(r"[^A-Za-z0-9_-]+", "-", command).strip("-").lower()
+    (OUT / ("ui-chat-" + label + ".json")).write_text(
+        json.dumps(observations, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    if not (user_seen and ack_seen):
+        if last_root is not None:
+            (OUT / ("FAIL-ui-chat-" + label + ".xml")).write_text(
+                ET.tostring(last_root, encoding="unicode"), encoding="utf-8")
+        screenshot("FAIL-ui-chat-" + label + ".png")
+        summary = [(x["attempt"], x["user"], x["ack"],
+                    [(v["text"], v["bounds"]) for v in x["visible_chat_textviews"]])
+                   for x in observations]
+        raise AssertionError(
+            f"Actual chat control bubbles unavailable: user={user_seen} "
+            f"ack={ack_seen} command={command!r}; UI={summary!r}")
+    print("PERSONA_CONTROL_VISIBLE_CHAT_PASS:", command,
+          "distinct real user and assistant chat TextViews with clipped on-screen bounds",
+          flush=True)
 
 
 def ciphertext():
