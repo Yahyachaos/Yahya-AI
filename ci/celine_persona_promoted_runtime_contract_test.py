@@ -79,7 +79,7 @@ def assert_live_persona_integration_source_contract() -> None:
             "privatevoidrememberExplicit(", 1)[0]
     except IndexError as exc:
         raise SystemExit("MainActivity source-wiring FAIL: required method boundary missing") from exc
-    persona_first = submit.find("if(handlePersonaCommand(text))return;")
+    persona_first = submit.find("if(handlePersonaCommand(text,true))return;")
     tool_next = submit.find("if(handleLocalCommand(text))")
     goal_next = submit.find("goalTaskRuntime.observeUserText(text)")
     if persona_first < 0 or tool_next < persona_first or goal_next < persona_first:
