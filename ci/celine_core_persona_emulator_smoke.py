@@ -201,6 +201,81 @@ def verify_v80_to_v82_memory_migration():
     print("PUBLIC_V80_TO_V82_ENCRYPTED_MEMORY_MIGRATION_PASS", flush=True)
 
 
+def find_memory_text(fragment):
+    root = hierarchy()
+    nodes = [n for n in root.iter("node") if fragment in n.attrib.get("text", "")]
+    if not nodes:
+        found = [n.attrib.get("text") for n in root.iter("node")
+                 if n.attrib.get("text")]
+        raise AssertionError(f"Memory text {fragment!r} invisible; UI={found[-28:]!r}")
+    return nodes[-1]
+
+
+def verify_migrated_memory_correction_and_forget():
+    # This specifically guards the previously observed G1.5 AlertDialog
+    # message-vs-items regression. Verify the *real decrypted row*, not just
+    # encrypted preference-key presence or a compile-successful source diff.
+    corrected = "celine_memory_corrected_20261025"
+    open_memory_settings()
+    find_memory_text("Geschützter Speicher: aktiv")
+    screenshot("03-migrated-memory-selectable-list.png")
+    click(find_memory_text(LEGACY_MIGRATION_PROBE))
+    find_memory_text(LEGACY_MIGRATION_PROBE)
+    node_with("text", "Korrigieren")
+    screenshot("04-migrated-memory-inspection.png")
+    print("MIGRATED_MEMORY_ROW_INSPECT_PASS", flush=True)
+
+    click(node_with("text", "Korrigieren"))
+    editor = node_with("class", "android.widget.EditText")
+    old_text = editor.attrib.get("text", "")
+    if LEGACY_MIGRATION_PROBE not in old_text or len(old_text) > 240:
+        raise AssertionError("Migrated memory editor did not contain expected bounded source")
+    click(editor)
+    adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+    # Input uses real Android key events. Multiple KEYCODE_DEL values in one
+    # invocation avoid fragile clipboard/IME context menus in headless CI.
+    count = len(old_text) + 2
+    for start in range(0, count, 70):
+        adb("shell", "input", "keyevent", *["KEYCODE_DEL"] * min(70, count - start))
+    adb("shell", "input", "text", corrected)
+    edited = node_with("class", "android.widget.EditText").attrib.get("text", "")
+    if edited != corrected:
+        raise AssertionError(f"Android EditText replacement failed: {edited!r}")
+    adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    click(node_with("text", "Speichern"))
+    find_memory_text(corrected)
+    prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+    if corrected in prefs or LEGACY_MIGRATION_PROBE in prefs:
+        raise AssertionError("G1 corrected/decrypted memory leaked into SharedPreferences plaintext")
+    print("MIGRATED_MEMORY_CORRECTION_ENCRYPTED_PASS", flush=True)
+    back_to_chat()
+
+    adb("shell", "am", "force-stop", PACKAGE)
+    launch()
+    open_memory_settings()
+    click(find_memory_text(corrected))
+    find_memory_text(corrected)
+    screenshot("05-corrected-memory-after-process-restart.png")
+    print("MIGRATED_MEMORY_CORRECTION_RESTART_PASS", flush=True)
+
+    click(node_with("text", "Löschen"))
+    node_with("text", "Diese Erinnerung löschen?")
+    click(node_with("text", "Löschen"))
+    root = hierarchy()
+    if any(corrected in n.attrib.get("text", "") for n in root.iter("node")):
+        raise AssertionError("Deleted memory still selectable in G1 inspection UI")
+    screenshot("06-memory-forgotten.png")
+    back_to_chat()
+    adb("shell", "am", "force-stop", PACKAGE)
+    launch()
+    open_memory_settings()
+    root = hierarchy()
+    if any(corrected in n.attrib.get("text", "") for n in root.iter("node")):
+        raise AssertionError("Deleted memory returned after process restart")
+    back_to_chat()
+    print("MIGRATED_MEMORY_INDIVIDUAL_FORGET_RESTART_PASS", flush=True)
+
+
 def main():
     if not APK.is_file():
         raise AssertionError("Pinned prior build APK not downloaded")
@@ -212,6 +287,7 @@ def main():
         raise AssertionError("Installed Android package is not versionCode 82")
     launch()
     verify_v80_to_v82_memory_migration()
+    verify_migrated_memory_correction_and_forget()
     check_mode("aus")
     # Ordinary user prose mentioning the codeword must never opt in.
     send_user("Hallo Nutte")

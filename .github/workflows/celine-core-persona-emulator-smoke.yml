@@ -33,8 +33,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git merge-base 4843bf3d3522ab6291cd0bab574343aaaff7864a HEAD)" = 4843bf3d3522ab6291cd0bab574343aaaff7864a
-          git diff --quiet 4843bf3d3522ab6291cd0bab574343aaaff7864a HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(git merge-base 1cd2e35a7f8f6b5a9840a8c02b0ed6737e2aabef HEAD)" = 1cd2e35a7f8f6b5a9840a8c02b0ed6737e2aabef
+          git diff --quiet 1cd2e35a7f8f6b5a9840a8c02b0ed6737e2aabef HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
           echo 'RUNTIME_EQUIVALENCE_PASS: only tests/CI since already-built Core runtime head 4843bf3d'
           echo 'No Android build or Room build will be started by this workflow.'
 
@@ -45,9 +45,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40186869221 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          gh run download 40204342842 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
           test -f ci-apk/app-debug.apk
-          echo '6cc5c65c0ea0532b588662c9aaab01074696830111d697c6890d8e0bcd386f9a  ci-apk/app-debug.apk' | sha256sum -c -
+          echo 'a5d2e147961d94eb7c65f960b2a2ba975059c773aca397f3f447eb425238fd08  ci-apk/app-debug.apk' | sha256sum -c -
           sha256sum ci-apk/app-debug.apk > core-persona-emulator-proof/apk-sha256.txt
           echo 'PINNED_V82_APK_INTEGRITY_PASS'
           # Public released v80 is the actual user's updater baseline, not an Actions debug artifact.
