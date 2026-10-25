@@ -147,25 +147,44 @@ import json
 import sys
 from pathlib import Path
 from statistics import median
-from PIL import Image
+import runpy
 
 on_path, off_path, report_path = map(Path, sys.argv[1:])
-with Image.open(on_path) as source_on, Image.open(off_path) as source_off:
-    on = source_on.convert("RGB")
-    off = source_off.convert("RGB")
-if on.size != (1080, 1920) or off.size != on.size:
-    raise SystemExit(f"9R.5 local light proof FAIL: uncalibrated image size {on.size}/{off.size}")
+# The canonical real-render validator already decodes 8-bit Android RGB/RGBA
+# screencaps with the standard library. Reuse its fail-closed PNG/visible-model
+# checks rather than requiring Pillow on the isolated Ubuntu emulator runner.
+def decode_native_png(path):
+    original_argv = sys.argv[:]
+    try:
+        sys.argv = ["ci/check-real-celine-render.py", str(path), "9R5_LAMP_DELTA"]
+        data = runpy.run_path("ci/check-real-celine-render.py")
+    finally:
+        sys.argv = original_argv
+    return (data["width"], data["height"]), data["channels"], data["rows"]
+
+on_size, on_channels, on_rows = decode_native_png(on_path)
+off_size, off_channels, off_rows = decode_native_png(off_path)
+if on_size != (1080, 1920) or off_size != on_size or on_channels != off_channels:
+    raise SystemExit(
+        f"9R.5 local light proof FAIL: uncalibrated PNG size/channels "
+        f"{on_size}/{off_size} {on_channels}/{off_channels}"
+    )
 
 def signed_luma_delta(box):
     left, top, right, bottom = box
-    if not (0 <= left < right <= on.width and 0 <= top < bottom <= on.height):
+    if not (0 <= left < right <= on_size[0] and 0 <= top < bottom <= on_size[1]):
         raise SystemExit("9R.5 local light proof FAIL: ROI out of bounds")
-    on_pixels = on.crop(box).getdata()
-    off_pixels = off.crop(box).getdata()
-    return [
-        .2126 * (a[0] - b[0]) + .7152 * (a[1] - b[1]) + .0722 * (a[2] - b[2])
-        for a, b in zip(on_pixels, off_pixels)
-    ]
+    differences = []
+    for y in range(top, bottom):
+        a, b = on_rows[y], off_rows[y]
+        for x in range(left, right):
+            i = x * on_channels
+            differences.append(
+                .2126 * (a[i] - b[i])
+                + .7152 * (a[i + 1] - b[i + 1])
+                + .0722 * (a[i + 2] - b[i + 2])
+            )
+    return differences
 
 # Both masks are small static, actually visible patches measured in real #276.
 # This is *not* a reference-wide lighting comparison or a visual-acceptance gate.
@@ -179,7 +198,7 @@ result = {
     "schema": "celine-9r5-settled-lamp-local-raster/v1",
     "on_image": on_path.name,
     "off_image": off_path.name,
-    "image_size_px": list(on.size),
+    "image_size_px": list(on_size),
     "floor_roi_px": [215, 775, 260, 825],
     "wall_control_roi_px": [140, 350, 190, 400],
     "settled_on_minus_off_floor_median_srgb_luma": round(floor_median, 3),
