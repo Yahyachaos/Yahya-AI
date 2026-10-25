@@ -1,0 +1,80 @@
+name: Celine Core Persona Android Emulator Smoke
+
+on:
+  push:
+    branches:
+      - auto/celine/core-adult-persona-contract
+    paths:
+      - '.github/workflows/celine-core-persona-emulator-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-core-persona-emulator-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reuse-built-apk-and-test:
+    name: Real installed v82 persona UI and AndroidKeyStore persistence
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - name: Checkout existing Core PR only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Reject unbuilt runtime changes since pinned v82 Android build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git merge-base 4843bf3d3522ab6291cd0bab574343aaaff7864a HEAD)" = 4843bf3d3522ab6291cd0bab574343aaaff7864a
+          git diff --quiet 4843bf3d3522ab6291cd0bab574343aaaff7864a HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          echo 'RUNTIME_EQUIVALENCE_PASS: only tests/CI since already-built Core runtime head 4843bf3d'
+          echo 'No Android build or Room build will be started by this workflow.'
+
+      - name: Reuse and verify actual prior successful Core APK (no Gradle)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk core-persona-emulator-proof
+          gh run download 40186869221 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+          echo '6cc5c65c0ea0532b588662c9aaab01074696830111d697c6890d8e0bcd386f9a  ci-apk/app-debug.apk' | sha256sum -c -
+          sha256sum ci-apk/app-debug.apk > core-persona-emulator-proof/apk-sha256.txt
+          echo 'PINNED_V82_APK_INTEGRITY_PASS'
+
+      - name: Configure Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Allow KVM emulator acceleration
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Real emulator install, direct commands, encrypted save, restart and exit
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 480s python3 ci/celine_core_persona_emulator_smoke.py
+
+      - name: Upload genuine emulator screenshots and test provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-core-v82-real-emulator-smoke
+          path: core-persona-emulator-proof/
+          if-no-files-found: warn
