@@ -138,6 +138,20 @@ final class CelineRoomReferenceLeftArtworkV80 {
                     TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
             material.setParameter("baseColorMap", texture, sampler);
             material.setParameter("baseColorIndex", 0);
+            // C141 genuine Android CALL #357 shows both source-cropped frames
+            // near-black (median ~33/15/6 inside) against the much brighter
+            // botanical reference. The room's directional PBR key barely
+            // reaches this side wall. Preserve the exact crop, base-color UVs
+            // and room lighting; only the two derived prints receive a
+            // texture-matched, bounded emissive contribution.
+            // Older donor variants may lack emissive map support. In that case
+            // preserve source PBR instead of inventing a different material.
+            if (material.getMaterial().hasParameter("emissiveMap")
+                    && material.getMaterial().hasParameter("emissiveFactor")) {
+                material.setParameter("emissiveMap", texture, sampler);
+                material.setParameter("emissiveFactor", Colors.RgbType.LINEAR,
+                        0.55f, 0.55f, 0.55f);
+            }
             if (material.getMaterial().hasParameter("baseColorFactor")) {
                 material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                         1f, 1f, 1f, 1f);
