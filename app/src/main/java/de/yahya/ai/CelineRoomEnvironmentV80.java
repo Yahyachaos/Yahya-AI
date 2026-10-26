@@ -46,8 +46,12 @@ final class CelineRoomEnvironmentV80 {
             ROOM_PARTITION_BASE + "room_foreground_table.glb",
             ROOM_PARTITION_BASE + "room_window_drapes.glb",
             ROOM_PARTITION_BASE + "room_wall_shelf_books.glb",
-            ROOM_PARTITION_BASE + "room_round_mirror.glb"
+            ROOM_PARTITION_BASE + "room_round_mirror.glb",
+            ROOM_PARTITION_BASE + "room_plant_large.glb" // foreground derived instance
     };
+    // The extra foreground prop reuses one optimized plant; all 12 canonical source
+    // GLBs and their 13 authored furniture instances remain strictly untouched.
+    private static final int FOREGROUND_PLANT_DERIVED_INDEX = ROOM_PATHS.length - 1;
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
     private static final int ROOM_LIGHT_CHANNEL = 1;
     // Phase-A floor-raster #286 showed an underlit, featureless floor while the back
@@ -262,7 +266,8 @@ final class CelineRoomEnvironmentV80 {
                 CelineRoomWorldContractV80 contract = CelineRoomWorldContractV80.load(context);
                 FilamentAsset shell = null;
                 int renderables = 0;
-                for (String roomPath : ROOM_PATHS) {
+                for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
+                    final String roomPath = ROOM_PATHS[partitionIndex];
                     ByteBuffer source = readAsset(context, roomPath);
                     FilamentAsset part = assetLoader.createAsset(source);
                     if (part == null) {
@@ -276,6 +281,9 @@ final class CelineRoomEnvironmentV80 {
                             throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
                         }
                         alignRoomRoot(part);
+                        if (partitionIndex == FOREGROUND_PLANT_DERIVED_INDEX) {
+                            positionForegroundDerivedPlant(part);
+                        }
                         if (roomPath.endsWith("room_dresser.glb")) {
                             correctDresserReferenceEnvelope(part);
                         }
@@ -333,7 +341,7 @@ final class CelineRoomEnvironmentV80 {
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "combined098M=false partitions14=true sourceGlbsImmutable=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
+                        "combined098M=false partitions15=true sourceGlbsImmutable=true authoredFurnitureInstances13Unchanged=true derivedForegroundPlant=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
                                 + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
@@ -404,6 +412,52 @@ final class CelineRoomEnvironmentV80 {
                     CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
             Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
             transforms.setTransform(root, aligned);
+        }
+
+        /**
+         * C133: the measured reference x=.812..1.0 / y=.645..946 has a
+         * foreground plant entirely absent from actual Android CALL #332/#334.
+         * Reuse an immutable source-faithful optimized plant as a *separate*
+         * decor instance. The original left plant and 13 authored instances
+         * keep their exact geometry, transforms, materials and interaction
+         * anchors. This is a candidate requiring real Android visual review.
+         */
+        private void positionForegroundDerivedPlant(FilamentAsset asset) {
+            final int rootEntity = asset.getRoot();
+            final int root = transforms.getInstance(rootEntity);
+            final int anchorEntity = asset.getFirstEntityByName("room_plant_large__anchor");
+            if (anchorEntity == 0 || root == 0) {
+                throw new IllegalStateException("Foreground source plant root/anchor missing");
+            }
+            final int anchor = transforms.getInstance(anchorEntity);
+            if (anchor == 0) {
+                throw new IllegalStateException("Foreground source plant transform missing");
+            }
+            float[] rootBase = transforms.getTransform(root, new float[16]);
+            float[] originalAnchor = transforms.getTransform(anchor, new float[16]);
+            float[] derivedScale = new float[16];
+            float[] scaledAnchor = new float[16];
+            float[] worldAnchor = new float[16];
+            float[] worldOffset = new float[16];
+            float[] fittedRoot = new float[16];
+            Matrix.setIdentityM(derivedScale, 0);
+            Matrix.scaleM(derivedScale, 0, 0.48f, 0.48f, 0.48f);
+            Matrix.multiplyMM(scaledAnchor, 0, originalAnchor, 0, derivedScale, 0);
+            Matrix.multiplyMM(worldAnchor, 0, rootBase, 0, scaledAnchor, 0);
+            Matrix.setIdentityM(worldOffset, 0);
+            Matrix.translateM(worldOffset, 0,
+                    0.30f - worldAnchor[12],
+                    -0.87f - worldAnchor[13],
+                    -1.75f - worldAnchor[14]);
+            Matrix.multiplyMM(fittedRoot, 0, worldOffset, 0, rootBase, 0);
+            transforms.setTransform(anchor, scaledAnchor);
+            transforms.setTransform(root, fittedRoot);
+            Celine3DDiagnostics.record(context, "ROOM-150",
+                    "Quelltreue Vordergrundpflanze als eigene Instanz",
+                    "reference=Refernzbild.png #332 target=x.812..1.000,y.645..946"
+                            + " worldAnchor=0.30,-0.87,-1.75 derivedScale=0.48"
+                            + " canonicalSources12=true authoredInstances13Unchanged=true"
+                            + " windowsGlassBackplanesUnchanged=true");
         }
 
         /**
