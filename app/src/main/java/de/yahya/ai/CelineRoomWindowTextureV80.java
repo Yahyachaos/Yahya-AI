@@ -17,7 +17,7 @@ import java.io.InputStream;
 import java.util.WeakHashMap;
 
 /**
- * v80 bounded derived-material owner for the single room_window_drapes primitive.
+ * v80 bounded derived-material owner for the original source drape primitive only.
  *
  * The immutable Fenstermitgardinen.glb and the optimized room GLB both carry the same high-contrast,
  * patchy white/taupe Meshy base-color atlas. Reference-room evidence shows that preserving that atlas
@@ -47,35 +47,43 @@ final class CelineRoomWindowTextureV80 {
 
     private static void applyInternal(Celine3DView view, FilamentAsset asset,
                                       Engine engine, boolean includeLegacyLayers) throws Exception {
-        // Android #343 proved that the optimized window partition has no entity
-        // literally named "room_window_drapes", although the partition renders.
-        // Resolve its sole actual renderable rather than silently skipping the
-        // correction. Fail closed on ambiguous/multi-primitive GLB structure.
-        // Genuine Android #345: the optimized drape partition contains exactly TWO
-        // renderable entities (ROOM-150: renderable count=2), not one. The old
-        // singleton gate kept this correction completely disabled in production.
-        // Bind the UV-preserving palette only to primitive-0 material instances
-        // that actually expose baseColorMap; never recolor unrelated partitions.
+        // C139 source-proven identity from the exact APK partition GLB
+        // sha256 c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5:
+        // mesh_node.010 = 499998-triangle ORIGINAL drape mesh (material.010);
+        // CELINE_WindowNightDepth_Background = independent two-triangle OPAQUE night plane.
+        // The previous ROOM-150 correction recolored BOTH, accidentally replacing the
+        // night plane's source atlas with the cream/brown drape atlas. Preserve its
+        // original PBR and opacity; only the actual curtain gets the fabric palette.
         RenderableManager manager = engine.getRenderableManager();
-        java.util.ArrayList<MaterialInstance> drapeMaterials = new java.util.ArrayList<>();
-        int renderableCount = 0;
-        for (int entity : asset.getEntities()) {
-            int candidate = manager.getInstance(entity);
-            if (candidate == 0) continue;
-            renderableCount++;
-            if (manager.getPrimitiveCount(candidate) != 1) {
-                throw new IllegalStateException("window primitive count="
-                        + manager.getPrimitiveCount(candidate));
-            }
-            MaterialInstance candidateMaterial = manager.getMaterialInstanceAt(candidate, 0);
-            if (candidateMaterial != null
-                    && candidateMaterial.getMaterial().hasParameter("baseColorMap")) {
-                drapeMaterials.add(candidateMaterial);
-            }
+        int drapeEntity = asset.getFirstEntityByName("mesh_node.010");
+        int nightEntity = asset.getFirstEntityByName("CELINE_WindowNightDepth_Background");
+        if (drapeEntity == 0 || nightEntity == 0 || drapeEntity == nightEntity) {
+            throw new IllegalStateException("window source identities ambiguous: drape="
+                    + drapeEntity + " night=" + nightEntity);
         }
-        if (renderableCount != 2 || drapeMaterials.isEmpty()) {
-            throw new IllegalStateException("window partition structure renderables="
-                    + renderableCount + " baseColorMapMaterials=" + drapeMaterials.size());
+        int drapeRenderable = manager.getInstance(drapeEntity);
+        int nightRenderable = manager.getInstance(nightEntity);
+        if (drapeRenderable == 0 || nightRenderable == 0
+                || manager.getPrimitiveCount(drapeRenderable) != 1
+                || manager.getPrimitiveCount(nightRenderable) != 1) {
+            throw new IllegalStateException("window source renderables changed");
+        }
+        int sourceRenderableCount = 0;
+        for (int entity : asset.getEntities()) {
+            if (manager.getInstance(entity) != 0) sourceRenderableCount++;
+        }
+        if (sourceRenderableCount != 2) {
+            throw new IllegalStateException("window source renderable count="
+                    + sourceRenderableCount + " expected=2");
+        }
+        MaterialInstance drapeMaterial =
+                manager.getMaterialInstanceAt(drapeRenderable, 0);
+        MaterialInstance nightMaterial =
+                manager.getMaterialInstanceAt(nightRenderable, 0);
+        if (drapeMaterial == null || nightMaterial == null
+                || drapeMaterial == nightMaterial
+                || !drapeMaterial.getMaterial().hasParameter("baseColorMap")) {
+            throw new IllegalStateException("window drape/night materials not independent");
         }
 
         synchronized (TEXTURES) {
@@ -114,11 +122,9 @@ final class CelineRoomWindowTextureV80 {
             engine.flushAndWait();
             TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
                     TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
-            for (MaterialInstance drapeMaterial : drapeMaterials) {
-                drapeMaterial.setParameter("baseColorMap", texture, sampler);
-                drapeMaterial.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
-                        1f, 1f, 1f, 1f);
-            }
+            drapeMaterial.setParameter("baseColorMap", texture, sampler);
+            drapeMaterial.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                    1f, 1f, 1f, 1f);
             synchronized (TEXTURES) { TEXTURES.put(view, texture); }
         } catch (Throwable error) {
             try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
@@ -131,8 +137,8 @@ final class CelineRoomWindowTextureV80 {
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Quellgardinen nur farblich harmonisiert",
                     "originalMeshVisible=true originalUVs=true"
-                            + " contrastBalancedFabricAtlas=true"
-                            + " derivedPlanes=false opaqueBackplanesChanged=false"
+                            + " contrastBalancedFabricAtlas=true sourceDrapeMesh=mesh_node.010"
+                            + " originalNightDepthMaterial=untouched derivedPlanes=false opaqueBackplanesChanged=false"
                             + " glassWindowSemanticsChanged=false");
             return;
         }
