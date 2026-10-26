@@ -343,6 +343,16 @@ final class CelineRoomEnvironmentV80 {
                             "Holzboden-Bindung FEHLER; Original-Boden unveraendert", floorError);
                 }
 
+                // C139: restore the reference's conspicuously missing framed right-wall print.
+                // Cropped only from the canonical image, as Room-owned derived decor;
+                // no GLASS/opening, original furniture, Celine, camera or Core mutation.
+                try {
+                    CelineRoomReferenceArtworkV80.apply(view, shell, engine, scene);
+                } catch (Throwable artworkError) {
+                    Celine3DDiagnostics.error(context, "ROOM-151",
+                            "Referenz-Wandbild konnte nicht geladen werden", artworkError);
+                }
+
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
                         "partitions=" + roomAssets.size() + " renderables=" + renderables
@@ -770,6 +780,7 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            CelineRoomReferenceArtworkV80.release(view, engine);
             CelineRoomWindowTextureV80.release(view, engine);
             CelineRoomSurfaceTextureV80.release(view, engine);
             if (current.isEmpty() && roomKeyLight == 0 && floorFillLight == 0 && lampLight == 0) return;
