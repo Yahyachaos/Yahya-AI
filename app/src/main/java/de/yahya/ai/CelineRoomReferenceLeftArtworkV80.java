@@ -44,20 +44,20 @@ final class CelineRoomReferenceLeftArtworkV80 {
     private static final int REFERENCE_WIDTH = 1402;
     private static final int REFERENCE_HEIGHT = 1122;
     // Pre-common-180-degree shell local +X is the physical left interior wall.
-    // C143 genuine HOME/CALL/HOME #361: both prints sit conspicuously too low,
-    // too far screen-right and overlarge versus canonical reference crops.
-    // Geometry is corrected as one measured pair, not by moving the camera:
-    // raise shared center +0.540 m, compress each outline 30% vertically /
-    // 18% horizontally, and reduce center-Z separation to match the two
-    // reference print centers without touching shell, furniture or window.
+    // Exact Android HOME/CALL/HOME C144 #362 proves the first recovery moved
+    // BOTH prints too far toward the ceiling and screen-left. Recover a paired
+    // reference-constrained wall envelope: drop shared center 5cm; move both
+    // local Z centers rightward within the original source plane; narrow their
+    // frames to match the measured ~2 narrow vertical artworks. No change to
+    // fixed CALL camera, wall material, source crops or original 12 GLBs.
     private static final float WALL_LOCAL_X = 2.185f;
-    private static final float ROOT_ART_Y = 2.230f;
+    private static final float ROOT_ART_Y = 2.180f;
 
     private static final Frame[] FRAMES = {
             // Fixed exact-raster crops of the two botanical prints. Preserve the
             // original crop as-is: no synthesis, replacement or invented picture.
-            new Frame("near", 143, 164, 45, 105, .670f, .140f, .170f),
-            new Frame("far", 181, 177, 43, 108, .950f, .140f, .170f)
+            new Frame("near", 143, 164, 45, 105, .820f, .120f, .170f),
+            new Frame("far", 181, 177, 43, 108, 1.050f, .110f, .160f)
     };
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
