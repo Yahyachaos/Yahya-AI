@@ -159,10 +159,17 @@ final class CelineRoomWindowTextureV80 {
             float b = Color.blue(color) / 255f;
             float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 
-            float target = luminance < 0.5f
-                    ? 0.50f + 0.20f * (luminance / 0.5f)
-                    : 0.70f + 0.18f * ((luminance - 0.5f) / 0.5f);
-            float chromaScale = 0.20f;
+            // C137: the C136 palette compressed the original white/taupe atlas
+            // into nearly one pale beige: the real #346 CALL still rendered the
+            // opaque source-fold regions much lighter than the warm brown outer
+            // curtains in Refernzbild.png. Preserve near-white sheer highlights
+            // while restoring distinctly darker warm fabric midtones. This is
+            // intentionally atlas-color ONLY; no geometry, alpha, GLASS, opening,
+            // night-depth/backplane, source-GLB or other room material changes.
+            float target = luminance < 0.78f
+                    ? 0.20f + 0.56f * luminance
+                    : 0.6368f + 1.10636f * (luminance - 0.78f);
+            float chromaScale = 0.32f;
             float nr = clamp01(target + (r - luminance) * chromaScale + 0.035f);
             float ng = clamp01(target + (g - luminance) * chromaScale + 0.010f);
             float nb = clamp01(target + (b - luminance) * chromaScale - 0.035f);
