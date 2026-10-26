@@ -289,6 +289,8 @@ final class CelineRoomEnvironmentV80 {
                         }
                         if (roomPath.endsWith("room_window_drapes.glb")) {
                             correctWindowDrapeVisibleWidth(part);
+                            // C148: source drape alone, never the independent opaque night pane.
+                            widenVisibleSourceDrapeOnly(part);
                             // C136: The exact Android #341 CALL still shows cold, high-contrast
                             // source-fabric stripes. The recovery baseline no longer invokes
                             // the old window appearance owner at all. Restore ONLY the
@@ -531,6 +533,54 @@ final class CelineRoomEnvironmentV80 {
                     "source=Refernzbild.png #324 axis=localX factor=1.135"
                             + " sourceLocalShiftX=-0.094 preserveLeftTop=true"
                             + " windowsGlassBackplaneChanged=false originalsChanged=false");
+        }
+
+        /**
+         * C148, measured on the real C147 Android HOME-CALL-HOME #367 CALL stage:
+         * the existing sourced top-rail/drape envelope spans approximately
+         * x=0.199..0.545 versus Refernzbild.png's x=0.205..0.588.
+         * Its top is already near the canonical target, so preserve all Y/Z,
+         * camera and room-shell geometry. Expand the real drape mesh by 10.5%
+         * in local X and compensate its left edge by a small source-local shift.
+         *
+         * IMPORTANT: the night-depth node shares the partition anchor. Changing
+         * that anchor again would also stretch the independent, authored opaque
+         * background. Apply this second, bounded correction ONLY to the drape
+         * mesh_node.010 child; leave the partition anchor's previously validated
+         * transform and the night plane's transform/material strictly unchanged.
+         * This is a runtime-derived transform, not a source-GLB edit, and no
+         * GLASS/open-window/backplane semantic choice is fabricated.
+         *
+         * Projection estimate only: KEEP only if next genuine Android CALL A/B
+         * visibly improves silhouette with no lost source fabric or black gaps.
+         */
+        private void widenVisibleSourceDrapeOnly(FilamentAsset asset) {
+            final int drapeEntity = asset.getFirstEntityByName("mesh_node.010");
+            final int nightEntity =
+                    asset.getFirstEntityByName("CELINE_WindowNightDepth_Background");
+            if (drapeEntity == 0 || nightEntity == 0 || drapeEntity == nightEntity) {
+                throw new IllegalStateException("Source drape/night identities ambiguous");
+            }
+            final int drapeTransform = transforms.getInstance(drapeEntity);
+            if (drapeTransform == 0) {
+                throw new IllegalStateException("Source drape local transform missing");
+            }
+            float[] before = transforms.getTransform(drapeTransform, new float[16]);
+            float[] correction = new float[16];
+            float[] widened = new float[16];
+            Matrix.setIdentityM(correction, 0);
+            Matrix.translateM(correction, 0, -0.090f, 0.0f, 0.0f);
+            Matrix.scaleM(correction, 0, 1.105f, 1.0f, 1.0f);
+            Matrix.multiplyMM(widened, 0, before, 0, correction, 0);
+            transforms.setTransform(drapeTransform, widened);
+            Celine3DDiagnostics.record(context, "ROOM-158",
+                    "Quellgardinen-Silhouette erweitert, Nachtfläche unverändert",
+                    "reference=Refernzbild.png androidProof=367"
+                            + " oldEnvelope=.199..545 target=.205..588"
+                            + " drapeLocalXScale=1.105 drapeLocalXShift=-0.090"
+                            + " nightDepthTransformMaterialChanged=false"
+                            + " originalFurnitureGlbsChanged=false"
+                            + " windowGlassOpeningsBackplanesChanged=false");
         }
 
         /**
