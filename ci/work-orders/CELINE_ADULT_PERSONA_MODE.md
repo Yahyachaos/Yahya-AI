@@ -1,6 +1,6 @@
 # Celine Adult Persona Mode — opt-in contract
 
-Status: **CORE-BRANCH PERSONA + G1-AWARE MAINACTIVITY/PROMPT/ENCRYPTED STATE INTEGRATED AND EMULATOR-TESTED; COMBINED ROOM+CORE APP INTEGRATION NOT DONE; RELEASE BLOCKED BY ROOM VISUAL FAIL AND ROOT AGENTS FINAL-GATE**
+Status: **CORE IMPLEMENTATION ACCEPTANCE MET ON ISOLATED v82 BRANCH — CLEAN INTEGRATION-READY SOURCE HANDOFF; COMBINED ROOM+CORE APP NOT YET INTEGRATED; ROOM VISUAL FAIL/G2.3 PAUSED BLOCK FINISHED RELEASE**
 
 Issue: `#112` — Product requirement: opt-in adult flirt mode for Celine.
 
@@ -167,13 +167,24 @@ When central app wiring/persistence is later integrated:
 - verify activation/deactivation across the intended restart/persistence behavior;
 - do not merge/release independently while another included workstream is unfinished.
 
+## 26 Oct 2026 — clean Core integration-ready source handoff to existing Room owner
+
+**Core #113 isolated implementation scope:** Core Persona policy, PromptAdapter, AndroidKeyStore AES-GCM app-owned store, direct-user parser, Settings OFF, active prompt composition, G1-aware provider-history exclusion and preserved normal UI bubbles are implemented and tested on Core's independent v82 branch. Acceptance cases **1–12** have the deterministic promoted-Java contracts and real Android emulator evidence. Case **13** (normal conversation/context/memory unchanged when OFF) has the existing real-source provider serialization + 8/8 G1 regression contracts and a separate real v80→v82 G1/persona/memory Android emulator smoke. This constitutes **integration-ready Core source**, NOT combined app acceptance, cloud-network provider success, S25 Ultra install, or final release approval.
+
+**Immutable handoff anchors:** current Core implementation baseline / last runtime-code-and-built commit `7500822f30b5f4fcbf43c1dd7fc54e85a051297b`; unchanged runtime fingerprint `a51b95829c73501ce6ff1cbeeb7530d89755f989f3237d47db84d09d0c4f8782`; actual Android #1668/run `40219218622` with live artifact `12608596107` and ZIP sha256 `8a7d1a2bff9d3f2116d7f29ff5e5aba8d770cadc410bd2ce982a6868ecd66254`. Runtime Java blobs: `CelinePersonaMode.java`=`bdcf304cf51198c5c84fda659c0eeb2513239a5e`; `CelinePersonaPromptAdapter.java`=`674e1f6739d47102048d78d1e7dd997ad3f25cb3`; `CelinePersonaStateStore.java`=`007787f8c03d92d8e4e5632c038c9337051f9260`; Core `MainActivity.java`=`11591afc5312bdeec026637883fded2355a6ad57`. Exact-head Android emulator #21/run `40247105318` job `121330886485` succeeded; real artifact `12620086057` sha256 `01176f7fe20d3a762a595684228a66a9e38e4f1a2973276f4ebd8f456fb74662`. These artifacts belong to the **Core v82** fingerprint; do not reuse for a combined runtime with a different fingerprint.
+
+**Sole serialized integrator decision:** Existing Room #111 owner explicitly accepted the role of **one prospective Room+G1+Persona integrator/publisher** in Room comment `6406163871` after prior Core request `6405848957`. **No MainActivity/Gradle/workflow/Queue/release lease was granted to Core.** Room's different G1-aware MainActivity blob `da77b51263a52367f2b174af3561533540f659fa` must be integrated surgically, not replaced wholesale. Core's tested three dedicated Persona Java classes and the bounded MainActivity behavior are now offered as immutable, clean integration inputs to that one named Room integrator, **effective only at the future exclusive serialized integration checkpoint after Room visual acceptance and clean worker completion**. Core releases its implementation edit lease over those inputs for that integration and will not mutate or start concurrent Android builds on them without a new explicit non-overlapping grant. This is **not** permission to merge, release or edit another worker's live files now.
+
+**Hard product gate:** Room #111 DRAFT at last owner response `08cac93ea47401c9acb434b40a51fd01cb84b77b`; whole-scene VISUAL FAIL against `Refernzbild.png`, `G2.3 PAUSED_UNTIL_EXACT_ROOM_REBUILD_COMPLETE`. Room Android #1697/run `40253417789` built its **separate** fingerprint `d1dc829b81e30910bc2760c01e0d6f383697b4858645b06a79a757f1af4a40f5`, not a Core-integrated APK; whole-room visual proof for that runtime still pending at last read. Root `AGENTS.md` §§10–12 bars a finished release until Room accepted, both workstreams clean and combined exact-main validation complete. Existing updater's last verified `releases/latest` was v80 only; no button update exists.
+
 ## Current blocker
 
 **No independent Core-only runtime defect is established by the current full Core emulator/contract evidence.** The actual release blockers are (1) Core #113 and Room #111 still have divergent central app integration and protected build/version paths without a current exclusive serialized integrator handoff; (2) Room #111 remains whole-scene **VISUAL FAIL**, not integration-ready, with G2.3 PAUSED; (3) neither included workstream is cleanly combined/exact-main validated. `releases/latest` remains v80, not the actual Core v82 Android Actions artifact. Root `AGENTS.md` §10 release barrier applies; no unauthorized merge/release or misleading `fertig` claim.
 
 ## exact_next_action
 
-**Reconcile the explicit Room-owner response to #111 comment `6405848957` and the current real Room visual verdict at the next hourly Core continuation; obtain the single named serialized integrator plus exact shared-file heads/lease, then perform the bounded G1-preserving Persona integration on the agreed owned branch and relevant combined compile/emulator checks.** Do **not** relaunch already passed Core #21 or invent extra persona microtests; do not edit Room or shared Java/version/CI paths before that grant, and do not start exact-main/final Release until Room's actual whole-scene visual acceptance and both workstreams' clean completion satisfy root `AGENTS.md`. Keep Core automation alive regardless of feedback.
+**At the next existing Core continuation:** fresh-reconcile the sole Room integrator decision `#6406163871`, both draft HEADs, Room's real HOME→CALL→HOME visual verdict and release eligibility. If Room has reached actual whole-scene acceptance and the exclusive serialized integration checkpoint, deliver the unchanged proven Core Persona/G1 deltas to Room's named integrator for minimal combined port/build/proofs; otherwise preserve this clean source handoff, make no extra persona microtests or shared-file edits, and leave the release explicitly blocked by the **actual Room visual gate**. No duplicate worker, branch, PR, Android build, merger or publisher; no pause triggered by user feedback.
+
 
 ## Final-app barrier
 
