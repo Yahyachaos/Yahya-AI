@@ -44,14 +44,20 @@ final class CelineRoomReferenceLeftArtworkV80 {
     private static final int REFERENCE_WIDTH = 1402;
     private static final int REFERENCE_HEIGHT = 1122;
     // Pre-common-180-degree shell local +X is the physical left interior wall.
+    // C143 genuine HOME/CALL/HOME #361: both prints sit conspicuously too low,
+    // too far screen-right and overlarge versus canonical reference crops.
+    // Geometry is corrected as one measured pair, not by moving the camera:
+    // raise shared center +0.540 m, compress each outline 30% vertically /
+    // 18% horizontally, and reduce center-Z separation to match the two
+    // reference print centers without touching shell, furniture or window.
     private static final float WALL_LOCAL_X = 2.185f;
-    private static final float ROOT_ART_Y = 1.690f;
+    private static final float ROOT_ART_Y = 2.230f;
 
     private static final Frame[] FRAMES = {
             // Fixed exact-raster crops of the two botanical prints. Preserve the
             // original crop as-is: no synthesis, replacement or invented picture.
-            new Frame("near", 143, 164, 45, 105, .850f, .170f, .240f),
-            new Frame("far", 181, 177, 43, 108, 1.280f, .170f, .240f)
+            new Frame("near", 143, 164, 45, 105, .670f, .140f, .170f),
+            new Frame("far", 181, 177, 43, 108, .950f, .140f, .170f)
     };
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
 
@@ -138,19 +144,16 @@ final class CelineRoomReferenceLeftArtworkV80 {
                     TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
             material.setParameter("baseColorMap", texture, sampler);
             material.setParameter("baseColorIndex", 0);
-            // C141 Android #357 showed near-black reference crops. C142 Android
-            // #359 proved a neutral .55 emissive factor overexposes both prints:
-            // first bounded ROI RGB error grows 40.04 -> 67.88 versus the
-            // canonical reference, and floral linework washes out. Recover
-            // the measured warm, paper-like color instead of white light:
-            // fixed-ROI deltas independently imply approx R=.30-.34,
-            // G=.21-.26, B=.10-.15 relative to unchanged PBR+atlas.
-            // Preserve the EXACT source crop/UV, shell key and all GLBs.
+            // C142 .55 neutral emission blew paper highlights out; C143
+            // (.32/.23/.12) swung them back to near-wall brown. One bounded
+            // warm intermediate keeps the source-cropped florals readable
+            // while the physically misplaced pair is corrected together.
+            // Preserve exact source crop/UV, shell key and all original GLBs.
             if (material.getMaterial().hasParameter("emissiveMap")
                     && material.getMaterial().hasParameter("emissiveFactor")) {
                 material.setParameter("emissiveMap", texture, sampler);
                 material.setParameter("emissiveFactor", Colors.RgbType.LINEAR,
-                        0.32f, 0.23f, 0.12f);
+                        0.46f, 0.35f, 0.22f);
             }
             if (material.getMaterial().hasParameter("baseColorFactor")) {
                 material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
