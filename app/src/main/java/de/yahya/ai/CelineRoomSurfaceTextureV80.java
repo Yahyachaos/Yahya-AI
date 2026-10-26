@@ -223,13 +223,18 @@ final class CelineRoomSurfaceTextureV80 {
                         + 0.55f * (float) Math.sin(x * 0.031 + localY * 0.16 + plank);
                 int fine = hash(x / 3, y, 97) % 9 - 4;
                 int g = Math.round(grain * 5.0f) + fine;
-                int r = 158 + plankTone + g;
-                int gr = 109 + plankTone / 2 + g / 2;
-                int b = 68 + plankTone / 3 + g / 3;
+                // C138: real C137 Android CALL vs canonical reference, same left-bare-floor
+                // pixels (x=95..135, y=430..465) average 74.9/40.8/18.6 vs
+                // reference 83.2/45.4/14.0. Warm the wood pigments without
+                // touching room lighting, fitted geometry or any furniture GLB.
+                int r = 176 + plankTone + g;
+                int gr = 117 + plankTone / 2 + g / 2;
+                int b = 60 + plankTone / 3 + g / 3;
                 if (seam) {
-                    r -= 16;
-                    gr -= 14;
-                    b -= 10;
+                    // Reference oak joints are softer than the existing dark grooves.
+                    r -= 9;
+                    gr -= 8;
+                    b -= 5;
                 }
                 // A few short cross-joints keep the surface from reading as one stretched stripe.
                 int jointX = ((plank * 137) + 83) % width;
