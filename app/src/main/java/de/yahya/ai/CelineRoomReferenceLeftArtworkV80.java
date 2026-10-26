@@ -138,19 +138,19 @@ final class CelineRoomReferenceLeftArtworkV80 {
                     TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
             material.setParameter("baseColorMap", texture, sampler);
             material.setParameter("baseColorIndex", 0);
-            // C141 genuine Android CALL #357 shows both source-cropped frames
-            // near-black (median ~33/15/6 inside) against the much brighter
-            // botanical reference. The room's directional PBR key barely
-            // reaches this side wall. Preserve the exact crop, base-color UVs
-            // and room lighting; only the two derived prints receive a
-            // texture-matched, bounded emissive contribution.
-            // Older donor variants may lack emissive map support. In that case
-            // preserve source PBR instead of inventing a different material.
+            // C141 Android #357 showed near-black reference crops. C142 Android
+            // #359 proved a neutral .55 emissive factor overexposes both prints:
+            // first bounded ROI RGB error grows 40.04 -> 67.88 versus the
+            // canonical reference, and floral linework washes out. Recover
+            // the measured warm, paper-like color instead of white light:
+            // fixed-ROI deltas independently imply approx R=.30-.34,
+            // G=.21-.26, B=.10-.15 relative to unchanged PBR+atlas.
+            // Preserve the EXACT source crop/UV, shell key and all GLBs.
             if (material.getMaterial().hasParameter("emissiveMap")
                     && material.getMaterial().hasParameter("emissiveFactor")) {
                 material.setParameter("emissiveMap", texture, sampler);
                 material.setParameter("emissiveFactor", Colors.RgbType.LINEAR,
-                        0.55f, 0.55f, 0.55f);
+                        0.32f, 0.23f, 0.12f);
             }
             if (material.getMaterial().hasParameter("baseColorFactor")) {
                 material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
