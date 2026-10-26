@@ -168,6 +168,13 @@ final class CelineRoomSurfaceTextureV80 {
                 throw new IllegalStateException("baseColorMap nicht verfuegbar: " + entityName);
             }
             material.setParameter("baseColorMap", texture, sampler);
+            // The glTF shell floor has no source baseColorTexture. Binding a sampler alone
+            // leaves the gltfio baseColorIndex sentinel negative, so the shader keeps its
+            // old flat albedo. Select existing TEXCOORD_0 explicitly before rendering.
+            if (!material.getMaterial().hasParameter("baseColorIndex")) {
+                throw new IllegalStateException("baseColorIndex nicht verfuegbar: " + entityName);
+            }
+            material.setParameter("baseColorIndex", 0);
             if (material.getMaterial().hasParameter("baseColorFactor")) {
                 material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
                         red, green, blue, 1.0f);
