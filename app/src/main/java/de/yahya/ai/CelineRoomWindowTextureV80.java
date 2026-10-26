@@ -51,25 +51,31 @@ final class CelineRoomWindowTextureV80 {
         // literally named "room_window_drapes", although the partition renders.
         // Resolve its sole actual renderable rather than silently skipping the
         // correction. Fail closed on ambiguous/multi-primitive GLB structure.
+        // Genuine Android #345: the optimized drape partition contains exactly TWO
+        // renderable entities (ROOM-150: renderable count=2), not one. The old
+        // singleton gate kept this correction completely disabled in production.
+        // Bind the UV-preserving palette only to primitive-0 material instances
+        // that actually expose baseColorMap; never recolor unrelated partitions.
         RenderableManager manager = engine.getRenderableManager();
-        int renderable = 0;
+        java.util.ArrayList<MaterialInstance> drapeMaterials = new java.util.ArrayList<>();
         int renderableCount = 0;
         for (int entity : asset.getEntities()) {
             int candidate = manager.getInstance(entity);
             if (candidate == 0) continue;
+            renderableCount++;
             if (manager.getPrimitiveCount(candidate) != 1) {
                 throw new IllegalStateException("window primitive count="
                         + manager.getPrimitiveCount(candidate));
             }
-            renderable = candidate;
-            renderableCount++;
+            MaterialInstance candidateMaterial = manager.getMaterialInstanceAt(candidate, 0);
+            if (candidateMaterial != null
+                    && candidateMaterial.getMaterial().hasParameter("baseColorMap")) {
+                drapeMaterials.add(candidateMaterial);
+            }
         }
-        if (renderableCount != 1) {
-            throw new IllegalStateException("window renderable count=" + renderableCount);
-        }
-        MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
-        if (material == null || !material.getMaterial().hasParameter("baseColorMap")) {
-            throw new IllegalStateException("window baseColorMap fehlt");
+        if (renderableCount != 2 || drapeMaterials.isEmpty()) {
+            throw new IllegalStateException("window partition structure renderables="
+                    + renderableCount + " baseColorMapMaterials=" + drapeMaterials.size());
         }
 
         synchronized (TEXTURES) {
@@ -108,8 +114,11 @@ final class CelineRoomWindowTextureV80 {
             engine.flushAndWait();
             TextureSampler sampler = new TextureSampler(TextureSampler.MinFilter.LINEAR,
                     TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE);
-            material.setParameter("baseColorMap", texture, sampler);
-            material.setParameter("baseColorFactor", Colors.RgbaType.LINEAR, 1f, 1f, 1f, 1f);
+            for (MaterialInstance drapeMaterial : drapeMaterials) {
+                drapeMaterial.setParameter("baseColorMap", texture, sampler);
+                drapeMaterial.setParameter("baseColorFactor", Colors.RgbaType.LINEAR,
+                        1f, 1f, 1f, 1f);
+            }
             synchronized (TEXTURES) { TEXTURES.put(view, texture); }
         } catch (Throwable error) {
             try { engine.destroyTexture(texture); } catch (Throwable ignored) {}
