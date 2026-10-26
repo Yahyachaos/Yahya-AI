@@ -276,6 +276,9 @@ final class CelineRoomEnvironmentV80 {
                             throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
                         }
                         alignRoomRoot(part);
+                        if (roomPath.endsWith("room_window_drapes.glb")) {
+                            correctWindowDrapeVisibleWidth(part);
+                        }
                         candidates.add(part);
                         renderables += partRenderables;
                         if (ROOM_SHELL_PATH.equals(roomPath)) shell = part;
@@ -398,6 +401,40 @@ final class CelineRoomEnvironmentV80 {
                     CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
             Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
             transforms.setTransform(root, aligned);
+        }
+
+        /**
+         * C129: exact #324 Android CALL has the drape silhouette's left/top almost
+         * aligned, but the right edge ends roughly 40-45 stage pixels before
+         * Refernzbild.png. Stretch the already-derived partition horizontally
+         * by 13.5%, then compensate by half the added source-local width so the
+         * accepted projected left edge stays put. The common 180-degree frame
+         * maps negative local X toward screen-right. No opacity, GLASS/opening,
+         * backplane, source geometry, camera or other furniture gets changed.
+         * Accept this correction ONLY after an authentic Android CALL raster A/B.
+         */
+        private void correctWindowDrapeVisibleWidth(FilamentAsset asset) {
+            final int entity = asset.getFirstEntityByName("room_window_drapes__anchor");
+            if (entity == 0) {
+                throw new IllegalStateException("Room source-drape partition anchor missing");
+            }
+            final int instance = transforms.getInstance(entity);
+            if (instance == 0) {
+                throw new IllegalStateException("Room source-drape anchor transform missing");
+            }
+            float[] base = transforms.getTransform(instance, new float[16]);
+            float[] correction = new float[16];
+            float[] fitted = new float[16];
+            Matrix.setIdentityM(correction, 0);
+            Matrix.translateM(correction, 0, -0.094f, 0.0f, 0.0f);
+            Matrix.scaleM(correction, 0, 1.135f, 1.0f, 1.0f);
+            Matrix.multiplyMM(fitted, 0, base, 0, correction, 0);
+            transforms.setTransform(instance, fitted);
+            Celine3DDiagnostics.record(context, "ROOM-147",
+                    "Quelltreue Fenster-Gardinenbreite kalibriert",
+                    "source=Refernzbild.png #324 axis=localX factor=1.135"
+                            + " sourceLocalShiftX=-0.094 preserveLeftTop=true"
+                            + " windowsGlassBackplaneChanged=false originalsChanged=false");
         }
 
         private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {
