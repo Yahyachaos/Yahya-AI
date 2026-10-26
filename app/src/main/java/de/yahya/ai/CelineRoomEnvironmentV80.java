@@ -353,6 +353,17 @@ final class CelineRoomEnvironmentV80 {
                             "Referenz-Wandbild konnte nicht geladen werden", artworkError);
                 }
 
+                // C141: The authentic C140 Android CALL still lacks both framed
+                // botanical prints on the reference's upper left wall. Reuse
+                // fixed crops of the already-packaged canonical reference image,
+                // independently of all original furniture and window semantics.
+                try {
+                    CelineRoomReferenceLeftArtworkV80.apply(view, shell, engine, scene);
+                } catch (Throwable leftArtError) {
+                    Celine3DDiagnostics.error(context, "ROOM-155",
+                            "Linke Referenz-Wandbilder konnten nicht geladen werden", leftArtError);
+                }
+
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
                         "partitions=" + roomAssets.size() + " renderables=" + renderables
@@ -780,6 +791,7 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            CelineRoomReferenceLeftArtworkV80.release(view, engine);
             CelineRoomReferenceArtworkV80.release(view, engine);
             CelineRoomWindowTextureV80.release(view, engine);
             CelineRoomSurfaceTextureV80.release(view, engine);
