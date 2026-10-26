@@ -292,6 +292,14 @@ final class CelineRoomEnvironmentV80 {
                 configureRoomLightChannels();
                 createRecoveryRoomKeyLight();
                 createFloorLampLight();
+                // Real-source shell's top-face UVs are meter-remapped; keep furniture/walls as-is.
+                // Texture failure is reported, never misrepresented as floor visual acceptance.
+                try {
+                    CelineRoomSurfaceTextureV80.applyFloor(view, shell, engine);
+                } catch (Throwable floorError) {
+                    Celine3DDiagnostics.error(context, "ROOM-145",
+                            "Holzboden-Bindung FEHLER; Original-Boden unveraendert", floorError);
+                }
 
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
@@ -545,6 +553,7 @@ final class CelineRoomEnvironmentV80 {
             recoveryRoomKeyLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            CelineRoomSurfaceTextureV80.release(view, engine);
             if (current.isEmpty() && roomKeyLight == 0 && lampLight == 0) return;
             try {
                 if (roomKeyLight != 0) {

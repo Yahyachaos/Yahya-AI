@@ -81,6 +81,42 @@ final class CelineRoomSurfaceTextureV80 {
         }
     }
 
+
+    /**
+     * Bind only the already-existing deterministic wood atlas to the derived 4.40 x 4.20 shell.
+     * The original furniture PBR, independently calibrated walls and ceiling remain unchanged.
+     * This is an in-app procedural wood candidate, NOT a claim of canonical photographic floor source.
+     */
+    static void applyFloor(Celine3DView view, FilamentAsset shell, Engine engine) throws Exception {
+        if (view == null || shell == null || engine == null) return;
+        release(view, engine);
+        Bitmap wood = createWood(512, 512);
+        Texture floorTexture = null;
+        try {
+            floorTexture = upload(engine, wood);
+            engine.flushAndWait();
+            TextureSampler sampler = new TextureSampler(
+                    TextureSampler.MinFilter.LINEAR,
+                    TextureSampler.MagFilter.LINEAR,
+                    TextureSampler.WrapMode.REPEAT);
+            bind(shell, engine, "room_shell_floor", floorTexture, sampler,
+                    0.98f, 0.92f, 0.84f, 0.66f, 0.42f);
+            synchronized (STATES) {
+                STATES.put(view, new State(null, floorTexture));
+            }
+            floorTexture = null;
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-145",
+                    "Warmes Holzboden-PBR aktiv",
+                    "floor=procedural-wood-512 topUV=metric-plank-2-repeat"
+                            + " material=floor-only walls=unchanged originalFurniture=immutable");
+        } finally {
+            wood.recycle();
+            if (floorTexture != null) {
+                try { engine.destroyTexture(floorTexture); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
     static void release(Celine3DView view, Engine engine) {
         if (view == null || engine == null) return;
         State previous;
@@ -88,7 +124,9 @@ final class CelineRoomSurfaceTextureV80 {
             previous = STATES.remove(view);
         }
         if (previous == null) return;
-        try { engine.destroyTexture(previous.wall); } catch (Throwable ignored) {}
+        if (previous.wall != null) {
+            try { engine.destroyTexture(previous.wall); } catch (Throwable ignored) {}
+        }
         try { engine.destroyTexture(previous.floor); } catch (Throwable ignored) {}
     }
 
