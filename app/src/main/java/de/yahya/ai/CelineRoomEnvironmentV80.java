@@ -59,6 +59,20 @@ final class CelineRoomEnvironmentV80 {
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_X = 0.10f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Y = -0.50f;
     private static final float ROOM_RECOVERY_NEUTRAL_KEY_DIR_Z = -0.86f;
+    // C127 exact Android CALL #322: left/near bare wood remains much darker
+    // than the same reference ROIs, while calibrated walls/ceiling are close.
+    // A constrained downward, room-channel-only warm fill targets left/near floor;
+    // do not retune the shared key or alter the 9R.5 user-toggle lamp.
+    private static final float ROOM_WARM_FLOOR_FILL_X = -0.80f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
+    private static final float ROOM_WARM_FLOOR_FILL_Y = 2.25f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
+    private static final float ROOM_WARM_FLOOR_FILL_Z = 0.75f
+            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    private static final float ROOM_WARM_FLOOR_FILL_LUMENS = 38_000.0f;
+    private static final float ROOM_WARM_FLOOR_FILL_FALLOFF_M = 2.85f;
+    private static final float ROOM_WARM_FLOOR_FILL_CONE_INNER_RAD = 0.34f;
+    private static final float ROOM_WARM_FLOOR_FILL_CONE_OUTER_RAD = 0.50f;
     // The CURRENT source-fidelity floor-lamp GLB has a reference-solved anchor at
     // (+1.71406245, +0.72000003, +1.70734370) before the common 180-degree room yaw.
     // alignRoomRoot rotates it to X=-1.71406245, Z=-1.70734370 and then applies the
@@ -220,6 +234,7 @@ final class CelineRoomEnvironmentV80 {
         SeatAnchor seatAnchor;
         CelineRoomWorldContractV80 worldContract;
         int recoveryRoomKeyLightEntity;
+        int warmFloorFillLightEntity;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
         boolean listenerInstalled;
@@ -291,6 +306,7 @@ final class CelineRoomEnvironmentV80 {
                         roomShellAsset.getRoot());
                 configureRoomLightChannels();
                 createRecoveryRoomKeyLight();
+                createWarmFloorFillLight();
                 createFloorLampLight();
                 // Real-source shell's top-face UVs are meter-remapped; keep furniture/walls as-is.
                 // Texture failure is reported, never misrepresented as floor visual acceptance.
@@ -331,7 +347,8 @@ final class CelineRoomEnvironmentV80 {
                 for (FilamentAsset candidate : candidates) {
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
-                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0 || floorLampLightEntity != 0) {
+                if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0
+                        || warmFloorFillLightEntity != 0 || floorLampLightEntity != 0) {
                     try { destroyRoom(); } catch (Throwable ignored) {}
                 } else {
                     roomAssets.clear();
@@ -339,6 +356,7 @@ final class CelineRoomEnvironmentV80 {
                     seatAnchor = null;
                     worldContract = null;
                     recoveryRoomKeyLightEntity = 0;
+                    warmFloorFillLightEntity = 0;
                 }
                 if (!failureLogged) {
                     failureLogged = true;
@@ -487,6 +505,40 @@ final class CelineRoomEnvironmentV80 {
             }
         }
 
+        private void createWarmFloorFillLight() {
+            int entity = EntityManager.get().create();
+            try {
+                // Center of the beam reaches approximately (-1.24, 0, +0.80)
+                // in 4.40x4.20 room-local coordinates. The narrow cone minimizes
+                // light on already tuned back/side walls and the ceiling underside.
+                new LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
+                        .position(ROOM_WARM_FLOOR_FILL_X,
+                                ROOM_WARM_FLOOR_FILL_Y, ROOM_WARM_FLOOR_FILL_Z)
+                        .direction(-0.19f, -0.98f, 0.02f)
+                        .spotLightCone(ROOM_WARM_FLOOR_FILL_CONE_INNER_RAD,
+                                ROOM_WARM_FLOOR_FILL_CONE_OUTER_RAD)
+                        .color(1.0f, 0.78f, 0.60f)
+                        .intensity(ROOM_WARM_FLOOR_FILL_LUMENS)
+                        .falloff(ROOM_WARM_FLOOR_FILL_FALLOFF_M)
+                        .castShadows(false)
+                        .lightChannel(0, false)
+                        .lightChannel(ROOM_LIGHT_CHANNEL, true)
+                        .build(engine, entity);
+                scene.addEntity(entity);
+                warmFloorFillLightEntity = entity;
+                Celine3DDiagnostics.record(context, "ROOM-146",
+                        "Begrenztes warmes Bodenfuelllicht aktiv",
+                        "channel=" + ROOM_LIGHT_CHANNEL
+                                + " lumens=" + ROOM_WARM_FLOOR_FILL_LUMENS
+                                + " falloff=" + ROOM_WARM_FLOOR_FILL_FALLOFF_M
+                                + "m shadows=false furnitureCameraCelineUnchanged=true");
+            } catch (Throwable error) {
+                try { engine.getLightManager().destroy(entity); } catch (Throwable ignored) {}
+                try { EntityManager.get().destroy(entity); } catch (Throwable ignored) {}
+                throw error;
+            }
+        }
+
         private void createFloorLampLight() {
             int entity = EntityManager.get().create();
             try {
@@ -545,21 +597,28 @@ final class CelineRoomEnvironmentV80 {
         synchronized void destroyRoom() {
             ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
             int roomKeyLight = recoveryRoomKeyLightEntity;
+            int floorFillLight = warmFloorFillLightEntity;
             int lampLight = floorLampLightEntity;
             roomAssets.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
             recoveryRoomKeyLightEntity = 0;
+            warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
             CelineRoomSurfaceTextureV80.release(view, engine);
-            if (current.isEmpty() && roomKeyLight == 0 && lampLight == 0) return;
+            if (current.isEmpty() && roomKeyLight == 0 && floorFillLight == 0 && lampLight == 0) return;
             try {
                 if (roomKeyLight != 0) {
                     try { scene.removeEntity(roomKeyLight); } catch (Throwable ignored) {}
                     try { engine.getLightManager().destroy(roomKeyLight); } catch (Throwable ignored) {}
                     try { EntityManager.get().destroy(roomKeyLight); } catch (Throwable ignored) {}
+                }
+                if (floorFillLight != 0) {
+                    try { scene.removeEntity(floorFillLight); } catch (Throwable ignored) {}
+                    try { engine.getLightManager().destroy(floorFillLight); } catch (Throwable ignored) {}
+                    try { EntityManager.get().destroy(floorFillLight); } catch (Throwable ignored) {}
                 }
                 if (lampLight != 0) {
                     try { scene.removeEntity(lampLight); } catch (Throwable ignored) {}
