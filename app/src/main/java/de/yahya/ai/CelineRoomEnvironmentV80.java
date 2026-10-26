@@ -289,6 +289,18 @@ final class CelineRoomEnvironmentV80 {
                         }
                         if (roomPath.endsWith("room_window_drapes.glb")) {
                             correctWindowDrapeVisibleWidth(part);
+                            // C136: The exact Android #341 CALL still shows cold, high-contrast
+                            // source-fabric stripes. The recovery baseline no longer invokes
+                            // the old window appearance owner at all. Restore ONLY the
+                            // already-derived UV-preserving fabric palette, not its rejected
+                            // overlay planes, opaque backdrop or source-visibility changes.
+                            try {
+                                CelineRoomWindowTextureV80.applySourceMaterialOnly(view, part, engine);
+                            } catch (Throwable drapeError) {
+                                Celine3DDiagnostics.error(context, "ROOM-150",
+                                        "Gardinen-Farbmaterial fehlgeschlagen; Quellgeometrie bleibt",
+                                        drapeError);
+                            }
                         }
                         candidates.add(part);
                         renderables += partRenderables;
@@ -758,6 +770,7 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            CelineRoomWindowTextureV80.release(view, engine);
             CelineRoomSurfaceTextureV80.release(view, engine);
             if (current.isEmpty() && roomKeyLight == 0 && floorFillLight == 0 && lampLight == 0) return;
             try {

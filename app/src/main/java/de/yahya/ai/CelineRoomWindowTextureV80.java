@@ -31,7 +31,22 @@ final class CelineRoomWindowTextureV80 {
 
     private CelineRoomWindowTextureV80() {}
 
+    /**
+     * C136 exact-room recovery: only rebalance the existing UV-mapped source fabric.
+     * In particular do not resurrect the rejected backdrop, broad planes, altered
+     * opening/GLASS interpretation, fold meshes or source-hiding side effects.
+     */
+    static void applySourceMaterialOnly(Celine3DView view, FilamentAsset asset,
+                                        Engine engine) throws Exception {
+        applyInternal(view, asset, engine, false);
+    }
+
     static void apply(Celine3DView view, FilamentAsset asset, Engine engine) throws Exception {
+        applyInternal(view, asset, engine, true);
+    }
+
+    private static void applyInternal(Celine3DView view, FilamentAsset asset,
+                                      Engine engine, boolean includeLegacyLayers) throws Exception {
         int entity = asset.getFirstEntityByName("room_window_drapes");
         if (entity == 0) throw new IllegalStateException("window entity fehlt");
         RenderableManager manager = engine.getRenderableManager();
@@ -88,6 +103,16 @@ final class CelineRoomWindowTextureV80 {
             throw error;
         } finally {
             bitmap.recycle();
+        }
+
+        if (!includeLegacyLayers) {
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
+                    "Quellgardinen nur farblich harmonisiert",
+                    "originalMeshVisible=true originalUVs=true"
+                            + " contrastBalancedFabricAtlas=true"
+                            + " derivedPlanes=false opaqueBackplanesChanged=false"
+                            + " glassWindowSemanticsChanged=false");
+            return;
         }
 
         // Proof #72 confirms the sparse source mesh should stay hidden, but the clean derived coverage
