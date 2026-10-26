@@ -445,15 +445,14 @@ final class CelineRoomEnvironmentV80 {
          * the existing derived dresser reads low and slightly too far to screen right
          * (visible top ~0.434 vs 0.420; foot ~0.729 vs 0.718; right ~0.190 vs 0.184).
          * Retain the already-proved +8 cm source X / +9 cm deeper parent shift.
-         * C131: exact #329 Android CALL still shows the dresser front too
-         * oblique versus Refernzbild.png. Projecting the original 304158
-         * dresser vertices through the exact CALL camera and room root predicts
-         * that -8 degrees of LOCAL anchor yaw widens the visible front while
-         * keeping the projected right edge ~0.200 frame-width (target 0.184,
-         * within the coarse initial envelope for a partially edge-clipped body).
-         * This is a single bounded derived-instance yaw correction, NOT a
-         * source GLB/room architecture/camera edit. Parent translation, scale,
-         * vertical floor contact and all other partitions stay unchanged.
+         * C131 corrective A/B after exact #331 Android CALL: -8 degrees
+         * increased the clipped dresser top-edge diagonal and shifted the
+         * right envelope outside the reference. Source-vertex projection at
+         * the exact CALL camera instead fits a +6-degree local yaw and an
+         * 8 cm source-X re-centering while preserving the accepted +9 cm
+         * depth, local/vertical scale, grounded floor and all original GLBs.
+         * Predicted right edge is ~188/1016 vs the canonical 0.184*1016=187;
+         * this geometric prediction is NOT visual acceptance.
          * Accept ONLY after a genuine Android HOME/CALL/HOME visual A/B.
          */
         private void correctDresserReferenceEnvelope(FilamentAsset asset) {
@@ -473,22 +472,22 @@ final class CelineRoomEnvironmentV80 {
             Matrix.setIdentityM(parentSpaceShift, 0);
             // Common room-root 180-degree Y alignment maps +source X to
             // screen-left and +source Z toward the back of the actual room.
-            Matrix.translateM(parentSpaceShift, 0, 0.080f, 0.0f, 0.090f);
+            Matrix.translateM(parentSpaceShift, 0, 0.0f, 0.0f, 0.090f);
             // Post-multiply: rotate around the dresser's existing anchor,
             // without changing the accepted parent shift or grounding.
-            Matrix.setRotateM(localYaw, 0, -8.0f, 0.0f, 1.0f, 0.0f);
+            Matrix.setRotateM(localYaw, 0, 6.0f, 0.0f, 1.0f, 0.0f);
             Matrix.multiplyMM(rotated, 0, base, 0, localYaw, 0);
             Matrix.multiplyMM(fitted, 0, parentSpaceShift, 0, rotated, 0);
             transforms.setTransform(instance, fitted);
             Celine3DDiagnostics.record(context, "ROOM-148",
                     "Referenzgebundene Kommodentiefe beibehalten",
-                    "source=Refernzbild.png #327 sourceX=+0.080m sourceZ=+0.090m"
+                    "source=Refernzbild.png #331 sourceX=+0.000m sourceZ=+0.090m"
                             + " parentSpace=true preserveFloorScale=true"
                             + " originalsChanged=false otherPartitionsChanged=false");
             Celine3DDiagnostics.record(context, "ROOM-149",
                     "Kommodenfront im CALL referenzgebunden ausgerichtet",
-                    "source=Refernzbild.png #329 anchorLocalYaw=-8deg"
-                            + " preserveParentShiftScaleFloor=true"
+                    "source=Refernzbild.png #331 anchorLocalYaw=+6deg"
+                            + " preserveDepthShiftScaleFloor=true"
                             + " originalGlbChanged=false cameraChanged=false");
         }
 
