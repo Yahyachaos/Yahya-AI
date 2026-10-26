@@ -154,17 +154,14 @@ final class CelineRoomWindowTextureV80 {
     }
 
     /**
-     * ROOM-156: The packaged 1024x1024 UV atlas is genuinely bimodal: ~33% brown
-     * islands (source luminance below 0.50), ~67% light cream islands. The C137
-     * single continuous gray-beige curve turned both original fabric domains
-     * into cold/low-contrast cloth in actual C145 Android CALL and Window #182.
-     *
-     * Recover separate warm-brown outer cloth and cream sheer source domains
-     * from the source atlas's OWN bimodal color segmentation, not screen-space
-     * geometry, an invented window plane, a new GLASS material or global lights.
-     * Smooth the narrow transition so JPEG antialiasing has no abrupt edge.
-     * Retain local weave/image contrast, original alpha, UV coordinates, source
-     * normal/roughness maps, and the independent OPAQUE night-depth material.
+     * ROOM-157: C146's real #365 Android raster proved that brightening the
+     * WHOLE source window atlas made the overall reference error worse:
+     * whole-window RGB MAE 45.32 -> 50.09, especially the upper sheer area.
+     * Preserve the former cream/light-island values exactly, while separating
+     * and warming ONLY the independently confirmed source-brown fabric islands.
+     * The sparse midtone valley is blended smoothly to avoid atlas seams.
+     * This cannot resolve geometric slats, independent opaque window backing
+     * or GLASS semantics and is not a whole-room visual acceptance.
      */
     private static Bitmap balanceDrapeAtlas(Bitmap source) {
         int width = source.getWidth();
@@ -178,21 +175,27 @@ final class CelineRoomWindowTextureV80 {
             float b = Color.blue(color) / 255f;
             float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 
-            // The atlas contains two genuine source-fabric color families,
-            // with a sparse 0.45..0.67 luminance valley between them.
-            float sheer = clamp01((luminance - 0.45f) / 0.22f);
-            sheer = sheer * sheer * (3f - 2f * sheer);
-            float brownDetail = Math.max(-0.055f,
-                    Math.min(0.055f, (luminance - 0.31f) * 0.25f));
-            float creamDetail = Math.max(-0.035f,
-                    Math.min(0.035f, (luminance - 0.74f) * 0.18f));
-            float brownWeight = 1f - sheer;
-            float nr = clamp01(brownWeight * (0.58f + brownDetail)
-                    + sheer * (0.98f + creamDetail));
-            float ng = clamp01(brownWeight * (0.40f + brownDetail)
-                    + sheer * (0.85f + creamDetail));
-            float nb = clamp01(brownWeight * (0.24f + brownDetail)
-                    + sheer * (0.66f + creamDetail));
+            // Keep the C145-tested light-UV family, including original tonal
+            // variation and texture contours, not C146's overexposed cream.
+            float oldTone = luminance < 0.78f
+                    ? 0.20f + 0.56f * luminance
+                    : 0.6368f + 1.10636f * (luminance - 0.78f);
+            float oldR = clamp01(oldTone + (r - luminance) * 0.32f + 0.035f);
+            float oldG = clamp01(oldTone + (g - luminance) * 0.32f + 0.010f);
+            float oldB = clamp01(oldTone + (b - luminance) * 0.32f - 0.035f);
+
+            // Source-brown islands are a separate original material family.
+            // Change their warm fabric albedo only; no image geometry or alpha.
+            float brownWeight = 1f - clamp01((luminance - 0.45f) / 0.22f);
+            brownWeight = brownWeight * brownWeight * (3f - 2f * brownWeight);
+            float brownDetail = Math.max(-0.045f,
+                    Math.min(0.045f, (luminance - 0.31f) * 0.22f));
+            float nr = clamp01(oldR * (1f - brownWeight)
+                    + (0.72f + brownDetail) * brownWeight);
+            float ng = clamp01(oldG * (1f - brownWeight)
+                    + (0.51f + brownDetail) * brownWeight);
+            float nb = clamp01(oldB * (1f - brownWeight)
+                    + (0.31f + brownDetail) * brownWeight);
             pixels[i] = Color.argb(Color.alpha(color), Math.round(nr * 255f),
                     Math.round(ng * 255f), Math.round(nb * 255f));
         }
