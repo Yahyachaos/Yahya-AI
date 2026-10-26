@@ -47,7 +47,7 @@ final class CelineRoomEnvironmentV80 {
             ROOM_PARTITION_BASE + "room_window_drapes.glb",
             ROOM_PARTITION_BASE + "room_wall_shelf_books.glb",
             ROOM_PARTITION_BASE + "room_round_mirror.glb",
-            ROOM_PARTITION_BASE + "room_plant_large.glb" // foreground derived instance
+            ROOM_PARTITION_BASE + "room_plant_small.glb" // source-faithful foreground pot
     };
     // The extra foreground prop reuses one optimized plant; all 12 canonical source
     // GLBs and their 13 authored furniture instances remain strictly untouched.
@@ -417,15 +417,18 @@ final class CelineRoomEnvironmentV80 {
         /**
          * C133: the measured reference x=.812..1.0 / y=.645..946 has a
          * foreground plant entirely absent from actual Android CALL #332/#334.
-         * Reuse an immutable source-faithful optimized plant as a *separate*
-         * decor instance. The original left plant and 13 authored instances
+         * C133 Android #336 proved the copied *large* plant was an oversized
+         * tree, not the compact potted foliage on the reference foreground
+         * table (unacceptable tall trunk). Therefore reuse the canonical
+         * optimized SMALL potted plant as a *separate* decor instance.
+         * The original left plant and 13 authored instances
          * keep their exact geometry, transforms, materials and interaction
          * anchors. This is a candidate requiring real Android visual review.
          */
         private void positionForegroundDerivedPlant(FilamentAsset asset) {
             final int rootEntity = asset.getRoot();
             final int root = transforms.getInstance(rootEntity);
-            final int anchorEntity = asset.getFirstEntityByName("room_plant_large__anchor");
+            final int anchorEntity = asset.getFirstEntityByName("room_plant_small__anchor");
             if (anchorEntity == 0 || root == 0) {
                 throw new IllegalStateException("Foreground source plant root/anchor missing");
             }
@@ -441,13 +444,13 @@ final class CelineRoomEnvironmentV80 {
             float[] worldOffset = new float[16];
             float[] fittedRoot = new float[16];
             Matrix.setIdentityM(derivedScale, 0);
-            Matrix.scaleM(derivedScale, 0, 0.48f, 0.48f, 0.48f);
+            Matrix.scaleM(derivedScale, 0, 1.10f, 1.10f, 1.10f);
             Matrix.multiplyMM(scaledAnchor, 0, originalAnchor, 0, derivedScale, 0);
             Matrix.multiplyMM(worldAnchor, 0, rootBase, 0, scaledAnchor, 0);
             Matrix.setIdentityM(worldOffset, 0);
             Matrix.translateM(worldOffset, 0,
                     0.30f - worldAnchor[12],
-                    -0.87f - worldAnchor[13],
+                    -0.80f - worldAnchor[13],
                     -1.75f - worldAnchor[14]);
             Matrix.multiplyMM(fittedRoot, 0, worldOffset, 0, rootBase, 0);
             transforms.setTransform(anchor, scaledAnchor);
@@ -455,7 +458,7 @@ final class CelineRoomEnvironmentV80 {
             Celine3DDiagnostics.record(context, "ROOM-150",
                     "Quelltreue Vordergrundpflanze als eigene Instanz",
                     "reference=Refernzbild.png #332 target=x.812..1.000,y.645..946"
-                            + " worldAnchor=0.30,-0.87,-1.75 derivedScale=0.48"
+                            + " worldAnchor=0.30,-0.80,-1.75 derivedScale=1.10"
                             + " canonicalSources12=true authoredInstances13Unchanged=true"
                             + " windowsGlassBackplanesUnchanged=true");
         }
