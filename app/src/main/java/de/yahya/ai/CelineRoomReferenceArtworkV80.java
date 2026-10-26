@@ -42,12 +42,17 @@ import java.util.WeakHashMap;
  */
 final class CelineRoomReferenceArtworkV80 {
     private static final String REFERENCE_ASSET = "textures/room_reference_wall_art_source.png";
-    private static final int REFERENCE_WIDTH = 1376;
-    private static final int REFERENCE_HEIGHT = 1100;
-    private static final int CROP_LEFT = 1181;
-    private static final int CROP_TOP = 84;
-    private static final int CROP_WIDTH = 152;
-    private static final int CROP_HEIGHT = 227;
+    // The layout measurement contract uses a 1376x1100 grid, whereas the
+    // immutable GitHub Refernzbild.png actual raster is 1402x1122. Exact real
+    // emulator #352/ROOM-151 caught the erroneous grid-size assertion:
+    // read the genuine packaged raster dimensions and remap the same normalized
+    // x=.858..969, y=.076..283 artwork envelope before cropping.
+    private static final int REFERENCE_WIDTH = 1402;
+    private static final int REFERENCE_HEIGHT = 1122;
+    private static final int CROP_LEFT = 1203;
+    private static final int CROP_TOP = 85;
+    private static final int CROP_WIDTH = 156;
+    private static final int CROP_HEIGHT = 233;
     private static final float CENTER_X = -2.185f;
     private static final float CENTER_Y = 1.795f;
     private static final float CENTER_Z = 0.285f;
@@ -90,7 +95,7 @@ final class CelineRoomReferenceArtworkV80 {
             if (reference == null || reference.getWidth() != REFERENCE_WIDTH
                     || reference.getHeight() != REFERENCE_HEIGHT) {
                 if (reference != null) reference.recycle();
-                throw new IllegalStateException("artwork: canonical 1376x1100 reference absent");
+                throw new IllegalStateException("artwork: exact canonical 1402x1122 PNG absent (1376x1100 = measurement grid)");
             }
             Bitmap crop;
             try {
@@ -155,7 +160,7 @@ final class CelineRoomReferenceArtworkV80 {
             }
             Celine3DDiagnostics.record(view.getContext(), "ROOM-151",
                     "Originalreferenz-Wandbild als separate sichtbare Raumdeko",
-                    "canonicalReferenceBlob=e85c43b5... crop=(1181,84,152,227)"
+                    "canonicalReferenceBlob=e85c43b5... crop=(1203,85,156,233) measurementGrid=1376x1100 imagePx=1402x1122"
                             + " rootXYZ=" + CENTER_X + "," + CENTER_Y + "," + CENTER_Z
                             + " surface=right-wall interior sourceGLBs12Unchanged=true"
                             + " windowsGlassBackplanesUnchanged=true CelineCameraCoreUnchanged=true");
