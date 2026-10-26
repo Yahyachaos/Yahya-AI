@@ -418,12 +418,20 @@ final class CelineRoomEnvironmentV80 {
          * C133: the measured reference x=.812..1.0 / y=.645..946 has a
          * foreground plant entirely absent from actual Android CALL #332/#334.
          * C133 Android #336 proved the copied *large* plant was an oversized
-         * tree, not the compact potted foliage on the reference foreground
-         * table (unacceptable tall trunk). Therefore reuse the canonical
-         * optimized SMALL potted plant as a *separate* decor instance.
-         * The original left plant and 13 authored instances
-         * keep their exact geometry, transforms, materials and interaction
-         * anchors. This is a candidate requiring real Android visual review.
+         * tree, not the compact potted foliage in the reference foreground.
+         * Exact C133 compact-small-plant Android CALL #338 / 1016x813 stage
+         * has foliage visible near x=912..1015 and y=548..697, with pot base
+         * near y=703. Canonical target x=.812..1.000, y=.645..946 means
+         * x=825..1016 and y=524..769 on the same stage. A one-shot pinhole
+         * depth solve from pot base (~703->769, stage midline 406) gives
+         * depth factor ~1.22, fitted local world Z=-1.64. Remaining foliage
+         * envelope factor ~1.29 is applied as derived scale 1.42/1.10.
+         * The X anchor moves 0.30->0.22 to counter the increased magnification.
+         * Keep Y=-0.80, matching the foreground table top (-0.794).
+         * This fitted silhouette remains a candidate until a genuine
+         * Android HOME->CALL->HOME raster/manual reference comparison.
+         * All 12 canonical furniture GLBs, 13 authored instances, other
+         * anchors, camera and GLASS/backplane semantics stay unchanged.
          */
         private void positionForegroundDerivedPlant(FilamentAsset asset) {
             final int rootEntity = asset.getRoot();
@@ -444,21 +452,21 @@ final class CelineRoomEnvironmentV80 {
             float[] worldOffset = new float[16];
             float[] fittedRoot = new float[16];
             Matrix.setIdentityM(derivedScale, 0);
-            Matrix.scaleM(derivedScale, 0, 1.10f, 1.10f, 1.10f);
+            Matrix.scaleM(derivedScale, 0, 1.42f, 1.42f, 1.42f);
             Matrix.multiplyMM(scaledAnchor, 0, originalAnchor, 0, derivedScale, 0);
             Matrix.multiplyMM(worldAnchor, 0, rootBase, 0, scaledAnchor, 0);
             Matrix.setIdentityM(worldOffset, 0);
             Matrix.translateM(worldOffset, 0,
-                    0.30f - worldAnchor[12],
+                    0.22f - worldAnchor[12],
                     -0.80f - worldAnchor[13],
-                    -1.75f - worldAnchor[14]);
+                    -1.64f - worldAnchor[14]);
             Matrix.multiplyMM(fittedRoot, 0, worldOffset, 0, rootBase, 0);
             transforms.setTransform(anchor, scaledAnchor);
             transforms.setTransform(root, fittedRoot);
             Celine3DDiagnostics.record(context, "ROOM-150",
                     "Quelltreue Vordergrundpflanze als eigene Instanz",
                     "reference=Refernzbild.png #332 target=x.812..1.000,y.645..946"
-                            + " worldAnchor=0.30,-0.80,-1.75 derivedScale=1.10"
+                            + " worldAnchor=0.22,-0.80,-1.64 derivedScale=1.42"
                             + " canonicalSources12=true authoredInstances13Unchanged=true"
                             + " windowsGlassBackplanesUnchanged=true");
         }
