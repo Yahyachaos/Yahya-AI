@@ -47,12 +47,25 @@ final class CelineRoomWindowTextureV80 {
 
     private static void applyInternal(Celine3DView view, FilamentAsset asset,
                                       Engine engine, boolean includeLegacyLayers) throws Exception {
-        int entity = asset.getFirstEntityByName("room_window_drapes");
-        if (entity == 0) throw new IllegalStateException("window entity fehlt");
+        // Android #343 proved that the optimized window partition has no entity
+        // literally named "room_window_drapes", although the partition renders.
+        // Resolve its sole actual renderable rather than silently skipping the
+        // correction. Fail closed on ambiguous/multi-primitive GLB structure.
         RenderableManager manager = engine.getRenderableManager();
-        int renderable = manager.getInstance(entity);
-        if (renderable == 0 || manager.getPrimitiveCount(renderable) != 1) {
-            throw new IllegalStateException("window renderable/primitive ungültig");
+        int renderable = 0;
+        int renderableCount = 0;
+        for (int entity : asset.getEntities()) {
+            int candidate = manager.getInstance(entity);
+            if (candidate == 0) continue;
+            if (manager.getPrimitiveCount(candidate) != 1) {
+                throw new IllegalStateException("window primitive count="
+                        + manager.getPrimitiveCount(candidate));
+            }
+            renderable = candidate;
+            renderableCount++;
+        }
+        if (renderableCount != 1) {
+            throw new IllegalStateException("window renderable count=" + renderableCount);
         }
         MaterialInstance material = manager.getMaterialInstanceAt(renderable, 0);
         if (material == null || !material.getMaterial().hasParameter("baseColorMap")) {
