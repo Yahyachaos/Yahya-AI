@@ -276,6 +276,9 @@ final class CelineRoomEnvironmentV80 {
                             throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
                         }
                         alignRoomRoot(part);
+                        if (roomPath.endsWith("room_dresser.glb")) {
+                            correctDresserReferenceEnvelope(part);
+                        }
                         if (roomPath.endsWith("room_window_drapes.glb")) {
                             correctWindowDrapeVisibleWidth(part);
                         }
@@ -435,6 +438,43 @@ final class CelineRoomEnvironmentV80 {
                     "source=Refernzbild.png #324 axis=localX factor=1.135"
                             + " sourceLocalShiftX=-0.094 preserveLeftTop=true"
                             + " windowsGlassBackplaneChanged=false originalsChanged=false");
+        }
+
+        /**
+         * C130 / genuine Android CALL #327 vs Refernzbild.png:
+         * the existing derived dresser reads low and slightly too far to screen right
+         * (visible top ~0.434 vs 0.420; foot ~0.729 vs 0.718; right ~0.190 vs 0.184).
+         * Move only the already-grounded derived dresser anchor 9 cm deeper in the
+         * source room to reduce its near-camera perspective and lift the raster
+         * envelope. Offset source X +8 cm to compensate the projection's screen-
+         * right drift with depth. This is a parent-space translation, not a
+         * local-axis post-rotation: authored yaw, scale, floorY/contact, the
+         * immutable original source GLB and the other 13 partitions stay fixed.
+         * Acceptance requires real Android HOME/CALL/HOME raster comparison.
+         */
+        private void correctDresserReferenceEnvelope(FilamentAsset asset) {
+            final int entity = asset.getFirstEntityByName("room_dresser__anchor");
+            if (entity == 0) {
+                throw new IllegalStateException("Room source-dresser partition anchor missing");
+            }
+            final int instance = transforms.getInstance(entity);
+            if (instance == 0) {
+                throw new IllegalStateException("Room source-dresser anchor transform missing");
+            }
+            float[] base = transforms.getTransform(instance, new float[16]);
+            float[] parentSpaceShift = new float[16];
+            float[] fitted = new float[16];
+            Matrix.setIdentityM(parentSpaceShift, 0);
+            // Common room-root 180-degree Y alignment maps +source X to
+            // screen-left and +source Z toward the back of the actual room.
+            Matrix.translateM(parentSpaceShift, 0, 0.080f, 0.0f, 0.090f);
+            Matrix.multiplyMM(fitted, 0, parentSpaceShift, 0, base, 0);
+            transforms.setTransform(instance, fitted);
+            Celine3DDiagnostics.record(context, "ROOM-148",
+                    "Referenzgebundene Kommodentiefe kalibriert",
+                    "source=Refernzbild.png #327 sourceX=+0.080m sourceZ=+0.090m"
+                            + " parentSpace=true preserveFloorYawScale=true"
+                            + " originalsChanged=false otherPartitionsChanged=false");
         }
 
         private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {
