@@ -153,6 +153,19 @@ final class CelineRoomWindowTextureV80 {
         CelineRoomWindowDerivedGroupV80.apply(view, engine);
     }
 
+    /**
+     * ROOM-156: The packaged 1024x1024 UV atlas is genuinely bimodal: ~33% brown
+     * islands (source luminance below 0.50), ~67% light cream islands. The C137
+     * single continuous gray-beige curve turned both original fabric domains
+     * into cold/low-contrast cloth in actual C145 Android CALL and Window #182.
+     *
+     * Recover separate warm-brown outer cloth and cream sheer source domains
+     * from the source atlas's OWN bimodal color segmentation, not screen-space
+     * geometry, an invented window plane, a new GLASS material or global lights.
+     * Smooth the narrow transition so JPEG antialiasing has no abrupt edge.
+     * Retain local weave/image contrast, original alpha, UV coordinates, source
+     * normal/roughness maps, and the independent OPAQUE night-depth material.
+     */
     private static Bitmap balanceDrapeAtlas(Bitmap source) {
         int width = source.getWidth();
         int height = source.getHeight();
@@ -165,20 +178,21 @@ final class CelineRoomWindowTextureV80 {
             float b = Color.blue(color) / 255f;
             float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
 
-            // C137: the C136 palette compressed the original white/taupe atlas
-            // into nearly one pale beige: the real #346 CALL still rendered the
-            // opaque source-fold regions much lighter than the warm brown outer
-            // curtains in Refernzbild.png. Preserve near-white sheer highlights
-            // while restoring distinctly darker warm fabric midtones. This is
-            // intentionally atlas-color ONLY; no geometry, alpha, GLASS, opening,
-            // night-depth/backplane, source-GLB or other room material changes.
-            float target = luminance < 0.78f
-                    ? 0.20f + 0.56f * luminance
-                    : 0.6368f + 1.10636f * (luminance - 0.78f);
-            float chromaScale = 0.32f;
-            float nr = clamp01(target + (r - luminance) * chromaScale + 0.035f);
-            float ng = clamp01(target + (g - luminance) * chromaScale + 0.010f);
-            float nb = clamp01(target + (b - luminance) * chromaScale - 0.035f);
+            // The atlas contains two genuine source-fabric color families,
+            // with a sparse 0.45..0.67 luminance valley between them.
+            float sheer = clamp01((luminance - 0.45f) / 0.22f);
+            sheer = sheer * sheer * (3f - 2f * sheer);
+            float brownDetail = Math.max(-0.055f,
+                    Math.min(0.055f, (luminance - 0.31f) * 0.25f));
+            float creamDetail = Math.max(-0.035f,
+                    Math.min(0.035f, (luminance - 0.74f) * 0.18f));
+            float brownWeight = 1f - sheer;
+            float nr = clamp01(brownWeight * (0.58f + brownDetail)
+                    + sheer * (0.98f + creamDetail));
+            float ng = clamp01(brownWeight * (0.40f + brownDetail)
+                    + sheer * (0.85f + creamDetail));
+            float nb = clamp01(brownWeight * (0.24f + brownDetail)
+                    + sheer * (0.66f + creamDetail));
             pixels[i] = Color.argb(Color.alpha(color), Math.round(nr * 255f),
                     Math.round(ng * 255f), Math.round(nb * 255f));
         }
