@@ -216,27 +216,27 @@ final class CelineRoomSurfaceTextureV80 {
         for (int y = 0; y < height; y++) {
             int plank = y / plankHeight;
             int localY = y % plankHeight;
-            int plankTone = (hash(plank, 0, 73) % 21) - 10;
+            int plankTone = (hash(plank, 0, 73) % 15) - 7;
             boolean seam = localY <= 1 || localY >= plankHeight - 2;
             for (int x = 0; x < width; x++) {
                 float grain = (float) Math.sin(x * 0.10 + plank * 1.73)
                         + 0.55f * (float) Math.sin(x * 0.031 + localY * 0.16 + plank);
                 int fine = hash(x / 3, y, 97) % 9 - 4;
                 int g = Math.round(grain * 5.0f) + fine;
-                int r = 132 + plankTone + g;
-                int gr = 91 + plankTone / 2 + g / 2;
-                int b = 57 + plankTone / 3 + g / 3;
+                int r = 158 + plankTone + g;
+                int gr = 109 + plankTone / 2 + g / 2;
+                int b = 68 + plankTone / 3 + g / 3;
                 if (seam) {
-                    r -= 30;
-                    gr -= 25;
-                    b -= 18;
+                    r -= 16;
+                    gr -= 14;
+                    b -= 10;
                 }
                 // A few short cross-joints keep the surface from reading as one stretched stripe.
                 int jointX = ((plank * 137) + 83) % width;
                 if (Math.abs(x - jointX) <= 1 && localY > 2 && localY < plankHeight - 3) {
-                    r -= 22;
-                    gr -= 18;
-                    b -= 12;
+                    r -= 13;
+                    gr -= 11;
+                    b -= 7;
                 }
                 pixels[y * width + x] = Color.rgb(clamp255(r), clamp255(gr), clamp255(b));
             }
