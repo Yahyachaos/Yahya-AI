@@ -973,9 +973,15 @@ def grant_visible_call_permission(grant_count):
     Never use adb pm grant or dismiss an unexpected/system ANR dialog.
     """
     window = adb("shell", "dumpsys", "window", "windows", check=False, timeout=25)
+    # Android 35's real permission focus can be reported as the foreground
+    # '#0 Window{...permissioncontroller/...GrantPermissionsActivity}' without
+    # any mCurrentFocus line. Check only that OS-owned foreground or explicit
+    # mCurrentFocus; never grant an arbitrary background permission window.
     focused = [line.strip() for line in window.splitlines()
-               if "mCurrentFocus=" in line]
-    if not any("GrantPermissionsActivity" in line for line in focused):
+               if ("mCurrentFocus=" in line or "#0 Window{" in line)
+               and "com.android.permissioncontroller/" in line
+               and "GrantPermissionsActivity" in line]
+    if not focused:
         return None
     if grant_count >= 2:
         screenshot("FAIL-production-unexpected-extra-permission.png")
@@ -1075,7 +1081,7 @@ def assert_no_production_android_anr_or_crash():
     (OUT / "production-system.txt").write_text(system[-130000:], encoding="utf-8")
     # Positive + negative matcher regression: a literal backslash-b must
     # never silently turn actual Android am_anr/am_crash records into PASS.
-    fatal_tag = re.compile(r"\\bam_(?:anr|crash)\\b")
+    fatal_tag = re.compile(r"\bam_(?:anr|crash)\b")
     positive = ("10-27 16:00:00.000  1000  1000 I am_anr: [0,system_server]",
                 "10-27 16:00:01.000  1000  1000 I am_crash: [0,de.yahya.ai]")
     negative = ("10-27 16:00:02.000  1000  1000 I am_anr_preview: [0,de.yahya.ai]",
