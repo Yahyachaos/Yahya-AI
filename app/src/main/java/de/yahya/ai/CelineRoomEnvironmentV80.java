@@ -381,6 +381,17 @@ final class CelineRoomEnvironmentV80 {
                             "Referenz-Laptop-Vordergrund konnte nicht geladen werden", laptopError);
                 }
 
+                // C150: the real partitioned Android CALL has no foreground candle.
+                // Reuse ONLY the measured upright source-derived jar from the existing
+                // Room geometry owner, with the current shell explicitly supplied.
+                // Leave GLASS/backplanes, original furniture, camera and Celine alone.
+                try {
+                    CelineRoomForegroundPlantV80.applyCandleOnly(view, shell, engine);
+                } catch (Throwable candleError) {
+                    Celine3DDiagnostics.error(context, "ROOM-160",
+                            "Referenzkerze im Raum konnte nicht geladen werden", candleError);
+                }
+
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
                         "partitions=" + roomAssets.size() + " renderables=" + renderables
@@ -856,6 +867,7 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            CelineRoomForegroundPlantV80.releaseCandleOnly(view);
             CelineRoomForegroundLaptopV80.release(view);
             CelineRoomReferenceLeftArtworkV80.release(view, engine);
             CelineRoomReferenceArtworkV80.release(view, engine);

@@ -86,6 +86,12 @@ final class CelineRoomForegroundPlantV80 {
     private static final float CANDLE_PITCH_DEG = 0.0f;
 
     private static final WeakHashMap<Celine3DView, State> STATES = new WeakHashMap<>();
+    // C150: recovery Room partitions replace the old combined roomAsset field.
+    // Only the source-measured foreground CANDLE is restored here. Do not activate
+    // the legacy duplicated plant or wall-art meshes: independent live owners
+    // already provide those objects, and the 12 canonical furniture GLBs are fixed.
+    private static final WeakHashMap<Celine3DView, State> CANDLE_STATES =
+            new WeakHashMap<>();
 
     private CelineRoomForegroundPlantV80() {}
 
@@ -140,6 +146,51 @@ final class CelineRoomForegroundPlantV80 {
             state.destroy();
             throw error;
         }
+    }
+
+    /**
+     * Restore only the reference candle, fitted against actual earlier Android CALL
+     * (#1198) at x=.044..123/y=.738..943, reference x=.039..128/y=.748..928.
+     * The new source-fidelity runtime owns a partitioned shell, not `roomAsset`.
+     * This path therefore receives the real shell directly and does not enable the
+     * rejected legacy full derived-geometry group.
+     */
+    static void applyCandleOnly(Celine3DView view, FilamentAsset shell,
+                                Engine engine) throws Exception {
+        if (view == null || engine == null || shell == null) {
+            throw new IllegalArgumentException("C150 candle requires the Room shell");
+        }
+        synchronized (CANDLE_STATES) {
+            if (CANDLE_STATES.containsKey(view)) return;
+        }
+        Scene scene = (Scene) field(view, "scene");
+        if (scene == null) throw new IllegalStateException("C150 candle scene missing");
+        TransformManager transforms = engine.getTransformManager();
+        int parent = transforms.getInstance(shell.getRoot());
+        if (parent == 0) throw new IllegalStateException("C150 candle shell root missing");
+        MaterialInstance donor = firstMaterial(shell, engine, "room_shell_left");
+        State state = new State(view, engine, scene);
+        try {
+            state.parts.add(createForegroundCandle(engine, scene, transforms,
+                    parent, donor));
+            synchronized (CANDLE_STATES) { CANDLE_STATES.put(view, state); }
+            view.addOnAttachStateChangeListener(state);
+            Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
+                    "Referenzkerze im Vordergrund als abgeleitete Quellgeometrie aktiv",
+                    "reference=Refernzbild.png expected=x.039-.128/y.748-.928"
+                            + " authenticPriorCall1198=x.044-.123/y.738-.943"
+                            + " onlyCandle=true partitionedShell=true"
+                            + " original12GlbsUnmodified=true glassBackplanesUnchanged=true");
+        } catch (Throwable error) {
+            state.destroy();
+            throw error;
+        }
+    }
+
+    static void releaseCandleOnly(Celine3DView view) {
+        State state;
+        synchronized (CANDLE_STATES) { state = CANDLE_STATES.remove(view); }
+        if (state != null) state.destroy();
     }
 
     static void release(Celine3DView view) {
@@ -459,6 +510,7 @@ final class CelineRoomForegroundPlantV80 {
 
         @Override public void onViewDetachedFromWindow(View v) {
             CelineRoomForegroundPlantV80.release(view);
+            CelineRoomForegroundPlantV80.releaseCandleOnly(view);
         }
 
         void destroy() {
