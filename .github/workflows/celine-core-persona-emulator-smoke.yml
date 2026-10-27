@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   reuse-built-apk-and-test:
-    name: Real combined v83 Room+Core persona UI and AndroidKeyStore persistence
+    name: Real non-debuggable v83 production in-place upgrade, memory, Persona and lifecycle
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
@@ -29,51 +29,58 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify runtime equivalence with the actual combined v83 Android #1776
+      - name: Verify exact release runtime equivalence with real production Android #1780
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor ee518091a4971ff15fb446f3e3064104986772bf HEAD
-          git diff --quiet ee518091a4971ff15fb446f3e3064104986772bf HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac"
-          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: exact Android #1776, same G1/Persona, + #47 focused-Settings GPU-fence guard'
-          echo 'No Android build or Room build will be started by this workflow.'
+          git merge-base --is-ancestor 251b5f26aebc961768bc259fb65da58ca5e84b35 HEAD
+          git diff --quiet 251b5f26aebc961768bc259fb65da58ca5e84b35 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "5df30cdf2af80eb2c9fb884b3fccdff2b19bebb9d08580d069a3cbd3de8e5f88"
+          echo 'PRODUCTION_V83_RUNTIME_EQUIVALENCE_PASS: real Android #1780 unchanged release package / G1 / Persona'
+          echo 'No Android Gradle build or Room visual build is invoked by this workflow.'
 
-      - name: Reuse actual integrated Room+Core Android #1776 APK (no second Gradle build)
+      - name: Reuse actual verified non-debuggable production Android #1780 APK (no Gradle)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40485243392 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
-          test -f ci-apk/app-debug.apk
-          gh run download 40485243392 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac -D ci-apk
-          python3 - <<'PY'
-          import hashlib, json, pathlib
-          metadata=json.loads(pathlib.Path("ci-apk/runtime-build.json").read_text())
-          assert metadata["runtime_fingerprint"]=="f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac"
-          # GitHub pull_request Android builds may set GITHUB_SHA to the
-          # synthetic PR merge commit, not the source PR head_sha. The source
-          # head is pinned independently by this exact GitHub run ID, APK
-          # checksum, and runtime tree fingerprint. Do not misclassify it.
-          import re
-          assert re.fullmatch(r"[0-9a-f]{40}", metadata["built_head"])
-          print("ANDROID_BUILD_ACTUAL_GITHUB_SHA="+metadata["built_head"])
-          print("ANDROID_BUILD_SOURCE_HEAD=ee518091a4971ff15fb446f3e3064104986772bf")
-          assert str(metadata["workflow_run_id"])=="40485243392"
-          with pathlib.Path("ci-apk/app-debug.apk").open("rb") as apk:
-              actual=hashlib.file_digest(apk,"sha256").hexdigest()
-          assert actual==metadata["apk_sha256"],"built Android APK SHA-256 mismatch"
-          print("COMBINED_V83_APK_INTEGRITY_PASS sha256="+actual)
-          PY
-          sha256sum ci-apk/app-debug.apk > core-persona-emulator-proof/apk-sha256.txt
-          echo 'COMBINED_V83_APK_INTEGRITY_PASS'
-          # Public released v80 is the actual user's updater baseline, not an Actions debug artifact.
+          gh run download 40528029595 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          test -s ci-apk/app-release.apk
+          echo '53f817941920f7473412f6084920ca87098064ae0f8d0fa0a637a463cbd6091f  ci-apk/app-release.apk' | sha256sum -c -
+          sha256sum ci-apk/app-release.apk > core-persona-emulator-proof/production-apk-sha256.txt
+          echo 'PINNED_PRODUCTION_APK_1780_SHA256_PASS'
+          # The public v80 APK is the real installed/retained-data baseline.
           gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' -D ci-apk
-          test -f ci-apk/Yahya-AI-v80.apk
+          test -s ci-apk/Yahya-AI-v80.apk
           echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
           echo 'PINNED_PUBLIC_V80_RELEASE_INTEGRITY_PASS'
+
+      - name: Verify production package, nondebug manifest and v80 signing parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDK_ROOT/build-tools/30.0.3/apksigner" ]; then
+            "$SDKMANAGER" 'build-tools;30.0.3'
+          fi
+          AAPT="$SDK_ROOT/build-tools/30.0.3/aapt"
+          APKSIGNER="$SDK_ROOT/build-tools/30.0.3/apksigner"
+          APK=ci-apk/app-release.apk
+          OLD=ci-apk/Yahya-AI-v80.apk
+          "$APKSIGNER" verify "$APK" >/dev/null
+          "$APKSIGNER" verify "$OLD" >/dev/null
+          BADGING="$("$AAPT" dump badging "$APK")"
+          grep -Fq "package: name='de.yahya.ai' versionCode='83'" <<<"$BADGING"
+          ! grep -q '^application-debuggable' <<<"$BADGING"
+          cert() { "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1; }
+          C80="$(cert "$OLD")"
+          C83="$(cert "$APK")"
+          [ -n "$C80" ] && [ "$C80" = "$C83" ]
+          echo 'PRODUCTION_V83_PACKAGE_NONDEBUG_CERTIFICATE_V80_PARITY_PASS'
+          echo 'SECURITY_NOTE: matching public historical certificate is not private-key custody assurance; no stable publication authorized'
 
       - name: Reuse runner-preinstalled Android SDK (setup-android v3 legacy tools fails)
         shell: bash
@@ -89,7 +96,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm || true
 
-      - name: Real emulator install, direct commands, encrypted save, restart and exit
+      - name: Real release-APK in-place v80-to-v83 UI, memory, persona, HOME/CALL/HOME and ANR checks
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -120,7 +127,7 @@ jobs:
             # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
-            # The exact #1776 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
+            # Exact production APK #1780 pinned; fail-closed production UI and OS ANR checks remain.
             # Confirm this software emulator matches the source renderer's paced hardware predicate.
             adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
             grep -Eq '^(ranchu|goldfish)$' core-persona-emulator-proof/emulator-hardware.txt
@@ -133,13 +140,13 @@ jobs:
             adb install -r ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
             echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
-            timeout 1440s python3 ci/celine_core_persona_emulator_smoke.py
+            YAHYA_PRODUCTION_SMOKE=1 timeout 1440s python3 ci/celine_core_persona_emulator_smoke.py
 
       - name: Upload genuine emulator screenshots and test provenance
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: celine-v83-combined-real-emulator-smoke
+          name: celine-v83-production-real-emulator-smoke
           path: core-persona-emulator-proof/
           if-no-files-found: warn
-# One-time CI-only push-path trigger (27 Oct 2026): validate existing 1440s v80-to-v83 smoke; no test/runtime changes.
+# One targeted CI-only production validation (27 Oct 2026): reuse immutable signed #1780 APK; no Gradle build or stable publish.

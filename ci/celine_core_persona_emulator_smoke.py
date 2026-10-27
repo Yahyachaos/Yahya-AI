@@ -7,6 +7,7 @@ explicit deactivation and crash-free foreground launch. Fail closed on missing U
 """
 import pathlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -15,7 +16,8 @@ import xml.etree.ElementTree as ET
 
 OUT = pathlib.Path("core-persona-emulator-proof")
 OUT.mkdir(exist_ok=True)
-APK = pathlib.Path("ci-apk/app-debug.apk")
+PRODUCTION_MODE = os.environ.get("YAHYA_PRODUCTION_SMOKE") == "1"
+APK = pathlib.Path("ci-apk/app-release.apk" if PRODUCTION_MODE else "ci-apk/app-debug.apk")
 PACKAGE = "de.yahya.ai"
 LEGACY_MIGRATION_PROBE = "celine_upgrade_probe_20261025"
 PERSONA_G1_ISOLATION_PROBE = "celine_persona_g1_isolation_20261025"
@@ -519,18 +521,24 @@ def verify_settings_only_exit():
     back_to_chat()
     assert_settings_exit_chat_bubbles()
     check_mode("aus")
-    prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if "celine_persona_state_cipher_v1" in prefs:
-        raise AssertionError("Encrypted persona state survived actual Settings OFF tap")
+    if not PRODUCTION_MODE:
+        prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+        if "celine_persona_state_cipher_v1" in prefs:
+            raise AssertionError("Encrypted persona state survived actual Settings OFF tap")
     adb("shell", "am", "force-stop", PACKAGE)
     launch()
     check_mode("aus")
-    prefs_after = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if "celine_persona_state_cipher_v1" in prefs_after:
-        raise AssertionError("Settings-cleared persona ciphertext returned after restart")
+    if not PRODUCTION_MODE:
+        prefs_after = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+        if "celine_persona_state_cipher_v1" in prefs_after:
+            raise AssertionError("Settings-cleared persona ciphertext returned after restart")
     screenshot("09-settings-only-off-after-process-restart.png")
-    print("SETTINGS_ONLY_OFF_REAL_UI_KEYSTORE_RESTART_PASS:"
-          " actual button, OFF state and ciphertext deletion durable", flush=True)
+    if PRODUCTION_MODE:
+        print("PRODUCTION_SETTINGS_ONLY_OFF_RESTART_UI_PASS:"
+              " actual Settings button, OFF state and process restart", flush=True)
+    else:
+        print("SETTINGS_ONLY_OFF_REAL_UI_KEYSTORE_RESTART_PASS:"
+              " actual button, OFF state and ciphertext deletion durable", flush=True)
 
 
 def verify_tampered_android_keystore_state_fails_closed():
@@ -639,6 +647,11 @@ def verify_tampered_android_keystore_state_fails_closed():
 
 
 def ciphertext():
+    if PRODUCTION_MODE:
+        print("PRODUCTION_CIPHERTEXT_INSPECTION_NOT_CLAIMED:"
+              " run-as disallowed; UI persistence is checked, debug #50 tamper separate",
+              flush=True)
+        return
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     found = re.search(r'<string\s+name="celine_persona_state_cipher_v1">(.*?)</string>', raw)
     if not found:
@@ -845,20 +858,22 @@ def await_fresh_v83_home(previous_pid):
 def verify_v80_to_v83_memory_migration():
     # The old v80 flat-memory entry must survive the in-place installation and
     # become user-inspectable G1 memory, encrypted at rest, without a cleartext copy.
-    raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if LEGACY_MIGRATION_PROBE in raw or re.search(r'<string\s+name="memory"', raw):
-        raise AssertionError("Legacy plaintext remains in v83 shared preferences")
-    if not re.search(r'<boolean\s+name="celine_memory_v2_migrated"\s+value="true"', raw):
-        raise AssertionError("v80 legacy memory migration was not durably recorded")
-    if not re.search(r'<string\s+name="celine_memory_g1_5_protected"', raw):
-        raise AssertionError("v83 encrypted G1 memory envelope missing")
+    if not PRODUCTION_MODE:
+        raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+        if LEGACY_MIGRATION_PROBE in raw or re.search(r'<string\s+name="memory"', raw):
+            raise AssertionError("Legacy plaintext remains in v83 shared preferences")
+        if not re.search(r'<boolean\s+name="celine_memory_v2_migrated"\s+value="true"', raw):
+            raise AssertionError("v80 legacy memory migration was not durably recorded")
+        if not re.search(r'<string\s+name="celine_memory_g1_5_protected"', raw):
+            raise AssertionError("v83 encrypted G1 memory envelope missing")
     open_memory_settings()
     root = hierarchy()
     if not any(LEGACY_MIGRATION_PROBE in n.attrib.get("text", "")
                for n in root.iter("node")):
         raise AssertionError("v80 memory was lost or hidden after v83 upgrade")
     back_to_chat()
-    print("PUBLIC_V80_TO_V83_ENCRYPTED_MEMORY_MIGRATION_PASS", flush=True)
+    print("PUBLIC_V80_TO_V83_MEMORY_UI_MIGRATION_PASS" if PRODUCTION_MODE
+          else "PUBLIC_V80_TO_V83_ENCRYPTED_MEMORY_MIGRATION_PASS", flush=True)
 
 
 def find_memory_text(fragment):
@@ -915,10 +930,12 @@ def verify_migrated_memory_correction_and_forget():
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     click(dialog_button("Speichern"))
     find_memory_text(corrected)
-    prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if corrected in prefs or LEGACY_MIGRATION_PROBE in prefs:
-        raise AssertionError("G1 corrected/decrypted memory leaked into SharedPreferences plaintext")
-    print("MIGRATED_MEMORY_CORRECTION_ENCRYPTED_PASS", flush=True)
+    if not PRODUCTION_MODE:
+        prefs = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+        if corrected in prefs or LEGACY_MIGRATION_PROBE in prefs:
+            raise AssertionError("G1 corrected/decrypted memory leaked into SharedPreferences plaintext")
+    print("MIGRATED_MEMORY_CORRECTION_UI_PASS" if PRODUCTION_MODE
+          else "MIGRATED_MEMORY_CORRECTION_ENCRYPTED_PASS", flush=True)
     back_to_chat()
 
     adb("shell", "am", "force-stop", PACKAGE)
@@ -947,18 +964,94 @@ def verify_migrated_memory_correction_and_forget():
     print("MIGRATED_MEMORY_INDIVIDUAL_FORGET_RESTART_PASS", flush=True)
 
 
+
+def verify_production_home_call_home():
+    """Real HOME/CALL/HOME entry and source lifecycle events, not visual PASS."""
+    root = hierarchy()
+    targets = [node for node in root.iter("node")
+               if "Mit Celin" in node.attrib.get("text", "")]
+    if not targets:
+        screenshot("FAIL-production-home-no-call-entry.png")
+        raise AssertionError("Real HOME CALL button not exposed")
+    screenshot("10-production-home.png")
+    click(targets[-1])
+    entered = False
+    for _ in range(22):
+        logs = adb("logcat", "-d", "-t", "1600", check=False, timeout=25)
+        if "target=CALL eased=true snap=false" in logs and "V80-420" in logs:
+            entered = True
+            break
+        time.sleep(1)
+    if not entered:
+        screenshot("FAIL-production-call-transition.png")
+        raise AssertionError("No real HOME-to-CALL transition and CALL frame log")
+    screenshot("11-production-call.png")
+    adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    returned = False
+    for _ in range(22):
+        logs = adb("logcat", "-d", "-t", "2000", check=False, timeout=25)
+        if "target=HOME eased=true snap=false" in logs:
+            returned = True
+            break
+        time.sleep(1)
+    if not returned:
+        screenshot("FAIL-production-home-return.png")
+        raise AssertionError("Real CALL-to-HOME transition absent")
+    node_with("content-desc", "Celin Nachricht schreiben")
+    screenshot("12-production-home-return.png")
+    print("PRODUCTION_HOME_CALL_HOME_STRUCTURAL_LIFECYCLE_PASS:"
+          " real HOME and CALL lifecycle signals, chat recovered;"
+          " visual reference acceptance remains FAIL", flush=True)
+
+
+def assert_no_production_android_anr_or_crash():
+    """Fail closed for Android application/system ANR and crash events since upgrade."""
+    events = adb("logcat", "-d", "-b", "events", "-v", "threadtime",
+                 check=False, timeout=45)
+    system = adb("logcat", "-d", "-b", "system", "-v", "threadtime",
+                 check=False, timeout=45)
+    (OUT / "production-events.txt").write_text(events[-130000:], encoding="utf-8")
+    (OUT / "production-system.txt").write_text(system[-130000:], encoding="utf-8")
+    bad_events = [line for line in events.splitlines()
+                  if re.search(r"am_(anr|crash)\\b", line)
+                  and (PACKAGE in line or "system_server" in line)]
+    bad_system = [line for line in system.splitlines()
+                  if (("ANR in " + PACKAGE) in line or
+                      "Process system isn't responding" in line or
+                      ("FATAL EXCEPTION" in line and PACKAGE in line))]
+    if bad_events or bad_system:
+        raise AssertionError("OS/app ANR or crash observed after v83 upgrade: " +
+                             repr((bad_events + bad_system)[-8:]))
+    if not adb("shell", "pidof", PACKAGE, check=False).strip():
+        raise AssertionError("Production app process absent at final gate")
+    print("PRODUCTION_ANDROID_EVENTS_SYSTEM_ANR_CRASH_GATE_PASS", flush=True)
+
+
+
 def main():
     if not APK.is_file():
         raise AssertionError("Pinned prior build APK not downloaded")
     prepare_public_v80_memory()
     print("CORE_EMULATOR_SMOKE_START: in-place v80 to unchanged v83 artifact", flush=True)
     original_pid = adb("shell", "pidof", PACKAGE, check=False).strip()
+    # Scope OS ANR/crash events to the actual upgrade and later v83 activity.
+    adb("logcat", "-c")
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
     if not re.search(r"versionCode=83\b", version):
         raise AssertionError("Installed Android package is not versionCode 83")
+    if PRODUCTION_MODE:
+        run_as = subprocess.run(["adb", "shell", "run-as", PACKAGE, "id"],
+                                capture_output=True, text=True, timeout=25)
+        evidence = (run_as.stdout + run_as.stderr).lower()
+        if run_as.returncode == 0 or "not debuggable" not in evidence:
+            raise AssertionError("Production APK run-as refusal not proven: " +
+                                 repr((run_as.returncode, evidence[-400:])))
+        print("PRODUCTION_INSTALLED_NONDEBUG_RUN_AS_REFUSAL_PASS", flush=True)
     launch()
     await_fresh_v83_home(original_pid)
+    if PRODUCTION_MODE:
+        verify_production_home_call_home()
     verify_v80_to_v83_memory_migration()
     verify_migrated_memory_correction_and_forget()
     check_mode("aus")
@@ -971,7 +1064,8 @@ def main():
     check_mode("Stufe 3")
     ciphertext()
     screenshot("01-active-persona.png")
-    print("DIRECT_USER_ACTIVATION_AND_ENCRYPTED_SAVE_PASS", flush=True)
+    print("PRODUCTION_DIRECT_USER_ACTIVATION_UI_PASS" if PRODUCTION_MODE
+          else "DIRECT_USER_ACTIVATION_AND_ENCRYPTED_SAVE_PASS", flush=True)
 
     adb("shell", "am", "force-stop", PACKAGE)
     launch()
@@ -993,10 +1087,12 @@ def main():
     send_user("Normalmodus")
     assert_control_turn_visible("Normalmodus", "Normalmodus aktiviert.")
     check_mode("aus")
-    snapshot = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if "celine_persona_state_cipher_v1" in snapshot:
-        raise AssertionError("Persona ciphertext remains after explicit exit")
-    print("NORMALMODE_KEYSTORE_CLEAR_PASS", flush=True)
+    if not PRODUCTION_MODE:
+        snapshot = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+        if "celine_persona_state_cipher_v1" in snapshot:
+            raise AssertionError("Persona ciphertext remains after explicit exit")
+    print("PRODUCTION_NORMALMODE_UI_CLEAR_PASS" if PRODUCTION_MODE
+          else "NORMALMODE_KEYSTORE_CLEAR_PASS", flush=True)
 
     # Case-insensitive standalone opt-in must route differently from prose.
     send_user("NUTTE 1")
@@ -1005,10 +1101,12 @@ def main():
     print("UPPERCASE_DIRECT_OPT_IN_PASS", flush=True)
     send_user("Nutte aus")
     check_mode("aus")
-    cleared = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
-    if "celine_persona_state_cipher_v1" in cleared:
-        raise AssertionError("Encrypted persona state remains after uppercase activation and exit")
-    print("UPPERCASE_PERSONA_EXIT_CLEAR_PASS", flush=True)
+    if not PRODUCTION_MODE:
+        cleared = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
+        if "celine_persona_state_cipher_v1" in cleared:
+            raise AssertionError("Encrypted persona state remains after uppercase activation and exit")
+    print("PRODUCTION_UPPERCASE_PERSONA_UI_EXIT_PASS" if PRODUCTION_MODE
+          else "UPPERCASE_PERSONA_EXIT_CLEAR_PASS", flush=True)
     adb("shell", "am", "force-stop", PACKAGE)
     launch()
     check_mode("aus")
@@ -1019,9 +1117,17 @@ def main():
     check_mode("Stufe 3")
     ciphertext()
     verify_settings_only_exit()
-    verify_tampered_android_keystore_state_fails_closed()
-
-    print("CORE_EMULATOR_SMOKE_PASS: real v83 install, UI activation/exit, AndroidKeyStore save/restore/clear", flush=True)
+    if PRODUCTION_MODE:
+        # A non-debuggable app must refuse run-as. The prior independent
+        # debug #50 tamper proof is NOT promoted to a production tamper PASS.
+        assert_no_production_android_anr_or_crash()
+        print("PRODUCTION_V80_TO_V83_FUNCTIONAL_SMOKE_PASS:"
+              " genuine non-debuggable install, memory UI edit/delete/restart,"
+              " Persona activation/OFF/restart, HOME/CALL/HOME, no observed OS ANR/crash",
+              flush=True)
+    else:
+        verify_tampered_android_keystore_state_fails_closed()
+        print("CORE_EMULATOR_SMOKE_PASS: real v83 install, UI activation/exit, AndroidKeyStore save/restore/clear", flush=True)
 
 
 try:
