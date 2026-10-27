@@ -90,6 +90,11 @@ final class CelineCallUpperBodyPresenceV55 {
             if (!running) return;
             choreographer.postFrameCallback(this);
             if (paused) return;
+            // The emulator's Filament worker is the exclusive renderer and
+            // pose transaction owner. Do not race it with this legacy UI-vsync
+            // skinning driver. The v80 central production mixer already owns
+            // the body, face and CALL/HOME transition on that worker.
+            if (Celine3DView.usesSoftwareRenderThread()) return;
             Celine3DView view = find3D(decor);
             if (view == null || !view.isAttachedToWindow()) return;
             if (driver == null || boundView != view) {

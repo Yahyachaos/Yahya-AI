@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.opengl.Matrix;
 import android.os.Build;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.view.Choreographer;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -99,6 +100,22 @@ public final class Celine3DView extends FrameLayout {
     // run between submissions; it is NOT proof of an emulator/functional PASS.
     private static final long SOFTWARE_EMULATOR_FRAME_GAP_MS = 4000L;
     private final Choreographer choreographer;
+    // The ranchu/goldfish renderer can block for nearly 5 seconds inside one
+    // native frame. A delayed UI Choreographer callback still blocks input once
+    // it enters beginFrame/render/endFrame. The emulator owns a serialized
+    // Filament client queue on a dedicated thread; real devices keep v80 UI
+    // vsync unchanged. No synchronous UI -> renderer wait is introduced.
+    private final HandlerThread softwareRenderThread;
+    private final Handler softwareRenderHandler;
+    private volatile boolean softwareSurfaceValid;
+    private volatile boolean softwareWindowFocused = true;
+    private volatile boolean softwareCallStage;
+    private volatile int softwareSurfaceSerial;
+    private volatile int softwareWidth;
+    private volatile int softwareHeight;
+    private volatile int softwareRenderSerial;
+    private boolean softwareCallZoomHeld;
+    private float softwarePreCallZoom;
     private final Engine engine;
     private final Renderer renderer;
     private final Scene scene;
@@ -122,8 +139,8 @@ public final class Celine3DView extends FrameLayout {
     private BonePose spine01Bone;
     private BonePose spine02Bone;
 
-    private SwapChain swapChain;
-    private boolean running;
+    private volatile SwapChain swapChain;
+    private volatile boolean running;
     private boolean firstFrameLogged;
     private volatile Throwable renderError;
     private volatile float speechEnergy;
@@ -182,6 +199,44 @@ public final class Celine3DView extends FrameLayout {
             }
         }
     };
+
+    // Only the software emulator uses this queue. Its single native client owns
+    // the complete frame transaction AND swapchain/viewport operations; the
+    // main thread only snapshots view state and posts nonblocking work.
+    private void renderSoftwareFrame(final int serial) {
+        if (!running || serial != softwareRenderSerial) return;
+        try {
+            if (softwareWindowFocused && softwareSurfaceValid && swapChain != null) {
+                long frameNanos = System.nanoTime();
+                updateCameraPresence(frameNanos);
+                updateLivePose(frameNanos);
+                if (renderer.beginFrame(swapChain, frameNanos)) {
+                    renderer.render(filamentView);
+                    renderer.endFrame();
+                    if (!firstFrameLogged) {
+                        firstFrameLogged = true;
+                        Celine3DDiagnostics.record(appContext, "REN-331",
+                                "Erster Filament-Frame gerendert",
+                                "Surface=" + softwareWidth + "x" + softwareHeight);
+                    }
+                }
+            }
+        } catch (Throwable error) {
+            renderError = error;
+            running = false;
+            Celine3DDiagnostics.error(appContext, "REN-399",
+                    "Filament Software-Renderthread FEHLER", error);
+        } finally {
+            if (running && renderError == null && serial == softwareRenderSerial) {
+                softwareRenderHandler.postDelayed(
+                        () -> renderSoftwareFrame(serial),
+                        SOFTWARE_EMULATOR_FRAME_GAP_MS);
+            }
+        }
+    }
+
+    static boolean usesSoftwareRenderThread() { return SOFTWARE_EMULATOR; }
+    boolean softwareCallStage() { return softwareCallStage; }
 
     public Celine3DView(Context context) throws Exception { this(context, true); }
 
@@ -306,29 +361,77 @@ public final class Celine3DView extends FrameLayout {
 
         resetCameraSearch();
 
+        if (SOFTWARE_EMULATOR) {
+            softwareRenderThread = new HandlerThread("Celine-Filament-Render");
+            softwareRenderThread.start();
+            softwareRenderHandler = new Handler(softwareRenderThread.getLooper());
+        } else {
+            softwareRenderThread = null;
+            softwareRenderHandler = null;
+        }
+
         surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override public void surfaceCreated(SurfaceHolder holder) {
                 Celine3DDiagnostics.record(appContext, "REN-320", "Surface created", "valid=" + isSurfaceReady());
+                if (SOFTWARE_EMULATOR) {
+                    final int serial = ++softwareSurfaceSerial;
+                    softwareSurfaceValid = true;
+                    softwareRenderHandler.post(() -> {
+                        if (serial != softwareSurfaceSerial) return;
+                        try { createSwapChain(holder); }
+                        catch (Throwable error) {
+                            renderError = error;
+                            Celine3DDiagnostics.error(appContext, "REN-397",
+                                    "Software SwapChain create FEHLER", error);
+                        }
+                    });
+                    return;
+                }
                 try { createSwapChain(holder); }
-                catch (Throwable e) {
-                    renderError = e;
-                    Celine3DDiagnostics.error(appContext, "REN-397", "SwapChain bei surfaceCreated FEHLER", e);
+                catch (Throwable error) {
+                    renderError = error;
+                    Celine3DDiagnostics.error(appContext, "REN-397", "SwapChain bei surfaceCreated FEHLER", error);
                 }
             }
 
             @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                Celine3DDiagnostics.record(appContext, "REN-322", "Surface changed", width + "x" + height + " format=" + format);
+                Celine3DDiagnostics.record(appContext, "REN-322", "Surface changed",
+                        width + "x" + height + " format=" + format);
+                if (SOFTWARE_EMULATOR) {
+                    final int serial = ++softwareSurfaceSerial;
+                    softwareWidth = width;
+                    softwareHeight = height;
+                    softwareSurfaceValid = true;
+                    softwareRenderHandler.post(() -> {
+                        if (serial != softwareSurfaceSerial) return;
+                        try {
+                            if (swapChain == null) createSwapChain(holder);
+                            resizeViewport(width, height);
+                        } catch (Throwable error) {
+                            renderError = error;
+                            Celine3DDiagnostics.error(appContext, "REN-396",
+                                    "Software SwapChain/Viewport FEHLER", error);
+                        }
+                    });
+                    return;
+                }
                 try {
                     if (swapChain == null) createSwapChain(holder);
                     resizeViewport(width, height);
-                } catch (Throwable e) {
-                    renderError = e;
-                    Celine3DDiagnostics.error(appContext, "REN-396", "Viewport/SwapChain FEHLER", e);
+                } catch (Throwable error) {
+                    renderError = error;
+                    Celine3DDiagnostics.error(appContext, "REN-396", "Viewport/SwapChain FEHLER", error);
                 }
             }
 
             @Override public void surfaceDestroyed(SurfaceHolder holder) {
                 Celine3DDiagnostics.record(appContext, "REN-323", "Surface destroyed", "stop/destroy swapchain");
+                if (SOFTWARE_EMULATOR) {
+                    ++softwareSurfaceSerial;
+                    softwareSurfaceValid = false;
+                    softwareRenderHandler.post(() -> destroySwapChain());
+                    return;
+                }
                 destroySwapChain();
             }
         });
@@ -398,12 +501,13 @@ public final class Celine3DView extends FrameLayout {
     }
 
     private void updateCameraPresence(long frameTimeNanos) {
-        int width = Math.max(1, getWidth());
-        int height = Math.max(1, getHeight());
+        int width = Math.max(1, SOFTWARE_EMULATOR ? softwareWidth : getWidth());
+        int height = Math.max(1, SOFTWARE_EMULATOR ? softwareHeight : getHeight());
         camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM,
                 (double) width / (double) height, 0.05, 1000.0);
 
-        boolean callStage = CelineCallUpperBodyPresenceV55.isCallStage(this);
+        boolean callStage = SOFTWARE_EMULATOR ? softwareCallStage
+                : CelineCallUpperBodyPresenceV55.isCallStage(this);
         float baseZoom = callStage ? CALL_REFERENCE_BASE_ZOOM : 1.0f;
         float normalizedZoom = Math.max(0.10f, cameraZoom / baseZoom);
         double inverseZoom = 1.0 / normalizedZoom;
@@ -454,9 +558,13 @@ public final class Celine3DView extends FrameLayout {
         cameraZoom = 1.0f;
         diagnosticCameraOrbitEnabled = false;
         diagnosticCameraOrbitYawDeg = 0.0f;
-        camera.lookAt(REFERENCE_EYE_X, REFERENCE_EYE_Y, REFERENCE_EYE_Z,
-                REFERENCE_TARGET_X, REFERENCE_TARGET_Y, REFERENCE_TARGET_Z,
-                0.0, 1.0, 0.0);
+        // In the worker-render path the next queued frame is the sole camera
+        // writer. Constructor-time setup occurs before that worker starts.
+        if (!SOFTWARE_EMULATOR || softwareRenderHandler == null) {
+            camera.lookAt(REFERENCE_EYE_X, REFERENCE_EYE_Y, REFERENCE_EYE_Z,
+                    REFERENCE_TARGET_X, REFERENCE_TARGET_Y, REFERENCE_TARGET_Z,
+                    0.0, 1.0, 0.0);
+        }
         Celine3DDiagnostics.record(appContext, "V60-122", "Kamera auf Referenz-Default zurückgesetzt",
                 "pan=0,0 zoom=1 lens=" + REFERENCE_FOCAL_LENGTH_MM
                         + " target=" + REFERENCE_TARGET_X + "," + REFERENCE_TARGET_Y + "," + REFERENCE_TARGET_Z);
@@ -654,26 +762,62 @@ public final class Celine3DView extends FrameLayout {
     public void startRendering() {
         if (!running && renderError == null) {
             running = true;
-            Celine3DDiagnostics.record(appContext, "REN-330", "Rendering gestartet", "Choreographer callback aktiv");
-            choreographer.postFrameCallback(frameCallback);
+            Celine3DDiagnostics.record(appContext, "REN-330", "Rendering gestartet",
+                    SOFTWARE_EMULATOR ? "serialized Filament worker" : "Choreographer callback aktiv");
+            if (SOFTWARE_EMULATOR) {
+                final int serial = ++softwareRenderSerial;
+                softwareRenderHandler.post(() -> renderSoftwareFrame(serial));
+            } else {
+                choreographer.postFrameCallback(frameCallback);
+            }
         }
     }
 
     public void stopRendering() {
         running = false;
-        choreographer.removeFrameCallback(frameCallback);
+        if (SOFTWARE_EMULATOR) {
+            ++softwareRenderSerial;
+        } else {
+            choreographer.removeFrameCallback(frameCallback);
+        }
+    }
+
+    @Override protected void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (SOFTWARE_EMULATOR) softwareWindowFocused = hasFocus;
     }
 
     @Override protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        Celine3DDiagnostics.record(appContext, "REN-325", "Celine3DView attached", getWidth() + "x" + getHeight());
+        if (SOFTWARE_EMULATOR) {
+            // HOME/CALL reparenting is UI-owned. Snapshot the stage BEFORE
+            // the renderer thread reads it. Preserve interactive camera zoom.
+            boolean enteringCall = CelineCallUpperBodyPresenceV55.isCallStage(this);
+            softwareCallStage = enteringCall;
+            if (enteringCall && !softwareCallZoomHeld) {
+                softwarePreCallZoom = cameraZoom;
+                cameraZoom = CALL_REFERENCE_BASE_ZOOM;
+                softwareCallZoomHeld = true;
+            } else if (!enteringCall && softwareCallZoomHeld) {
+                cameraZoom = softwarePreCallZoom;
+                softwareCallZoomHeld = false;
+            }
+        }
+        Celine3DDiagnostics.record(appContext, "REN-325",
+                "Celine3DView attached", getWidth() + "x" + getHeight());
         startRendering();
     }
 
     @Override protected void onDetachedFromWindow() {
-        Celine3DDiagnostics.record(appContext, "REN-326", "Celine3DView detached", "stop renderer");
+        Celine3DDiagnostics.record(appContext, "REN-326",
+                "Celine3DView detached", "stop renderer");
         stopRendering();
-        destroySwapChain();
+        if (SOFTWARE_EMULATOR) {
+            softwareSurfaceValid = false;
+            softwareRenderHandler.post(() -> destroySwapChain());
+        } else {
+            destroySwapChain();
+        }
         super.onDetachedFromWindow();
     }
 

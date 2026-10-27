@@ -1236,6 +1236,11 @@ final class CelineProductionPresenceV80 {
     }
 
     private static boolean isCallStage(View view) {
+        // UI-owned parent tags are snapshotted on attach/reparent. Reading the
+        // View hierarchy from the software render worker is not thread-safe.
+        if (view instanceof Celine3DView && Celine3DView.usesSoftwareRenderThread()) {
+            return ((Celine3DView) view).softwareCallStage();
+        }
         View current = view;
         while (current != null) {
             Object tag = current.getTag();
