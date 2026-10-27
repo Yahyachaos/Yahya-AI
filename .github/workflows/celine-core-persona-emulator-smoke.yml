@@ -97,10 +97,14 @@ jobs:
           profile: pixel_2
           target: default
           disable-animations: true
-          # Emulator 37.2 rejects deprecated angle_indirect and silently falls
-          # back to auto/swangle on llvmpipe. Select a supported deterministic
-          # software GLES renderer to isolate system_server/UiAutomator ANRs.
-          emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          # #34: direct swiftshader caused a native de.yahya.ai crash on
+          # genuine public v80 startup (Android events am_crash Native crash).
+          # #32's rejected angle_indirect used fallback swangle successfully
+          # through real v80->v83 memory inspection before an OS ANR. Pin that
+          # proven baseline renderer explicitly and give system-server/UI a
+          # bounded 4-core AVD to test CPU starvation without masking ANRs.
+          cores: 4
+          emulator-options: -no-window -gpu swangle -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
             set -eu
             # Fail closed if official v80 cannot be upgraded in place to integrated v83.
