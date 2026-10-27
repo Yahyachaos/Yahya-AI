@@ -38,24 +38,36 @@ def hierarchy():
     UI observation to come from that read or to fail, never a leftover file.
     """
     error = ""
-    for attempt in range(5):
+    failed = []
+    # #29 genuine v83 HOME was visually intact, yet five consecutive
+    # UiAutomator processes returned an EMPTY freshly named XML. Logcat
+    # recorded repeated 70-166-frame UI rendering stalls on emulator API35.
+    # Let bounded accessibility recovery finish before declaring UI failure.
+    # Keep EACH read fresh and fail closed if none yields a real XML root.
+    for attempt in range(12):
         path = "/sdcard/core-persona-ui-" + str(time.monotonic_ns()) + ".xml"
         try:
-            # Android's genuine UiAutomator CLI can succeed with EMPTY stdout
-            # (#28), so require a parsable XML from this UNIQUE device path
-            # instead of an unreliable diagnostic message.
             adb("shell", "uiautomator", "dump", path, timeout=50)
             raw = adb("exec-out", "cat", path, timeout=15)
             i = raw.find("<?xml")
             if i >= 0:
-                return ET.fromstring(raw[i:])
-            error = "Fresh UiAutomator output contained no XML"
+                root = ET.fromstring(raw[i:])
+                if root.tag == "hierarchy":
+                    if failed:
+                        print("UIAUTOMATOR_FRESH_RECOVERY_PASS: attempts=" +
+                              str(attempt + 1), flush=True)
+                    return root
+            error = "Fresh UiAutomator output contained no XML hierarchy"
         except (RuntimeError, ET.ParseError, subprocess.TimeoutExpired) as exc:
             error = str(exc)
         finally:
             adb("shell", "rm", "-f", path, check=False, timeout=15)
-        time.sleep(2)
-    raise AssertionError("No fresh real Android UI hierarchy: " + error)
+        failed.append({"attempt": attempt + 1, "error": error})
+        time.sleep(min(2 + attempt, 7))
+    (OUT / "FAIL-uiautomator-fresh-attempts.json").write_text(
+        json.dumps(failed, ensure_ascii=False, indent=2), encoding="utf-8")
+    screenshot("FAIL-uiautomator-fresh.png")
+    raise AssertionError("No fresh real Android UI hierarchy after 12 reads: " + error)
 
 
 def node_with(attr, value, *, prefix=False):
