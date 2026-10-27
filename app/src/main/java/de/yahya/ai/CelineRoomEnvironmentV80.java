@@ -366,6 +366,21 @@ final class CelineRoomEnvironmentV80 {
                             "Linke Referenz-Wandbilder konnten nicht geladen werden", leftArtError);
                 }
 
+
+                // C149: Exact Android CALL #369 still has a bare foreground table.
+                // The source-faithful furniture GLBs never contained the laptop lid,
+                // although Refernzbild.png assigns it the dominant bottom-center
+                // quadrilateral. Re-enable the already reference-solved, Room-owned
+                // derived lid against the explicitly available shell (not the
+                // obsolete combined-room reflective field). No window, glass,
+                // backplane, source furniture or Celine transforms are changed.
+                try {
+                    CelineRoomForegroundLaptopV80.apply(view, shell, engine);
+                } catch (Throwable laptopError) {
+                    Celine3DDiagnostics.error(context, "ROOM-159",
+                            "Referenz-Laptop-Vordergrund konnte nicht geladen werden", laptopError);
+                }
+
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
                         "partitions=" + roomAssets.size() + " renderables=" + renderables
@@ -841,6 +856,7 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
+            CelineRoomForegroundLaptopV80.release(view);
             CelineRoomReferenceLeftArtworkV80.release(view, engine);
             CelineRoomReferenceArtworkV80.release(view, engine);
             CelineRoomWindowTextureV80.release(view, engine);

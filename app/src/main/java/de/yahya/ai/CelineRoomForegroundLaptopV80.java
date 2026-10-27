@@ -51,13 +51,19 @@ final class CelineRoomForegroundLaptopV80 {
     private CelineRoomForegroundLaptopV80() {}
 
     static void apply(Celine3DView view, Engine engine) throws Exception {
+        apply(view, currentRoomAsset(view), engine);
+    }
+
+    // Recovery room is partitioned: the sole shell must be passed explicitly.
+    // The former reflective combined-room "roomAsset" field no longer exists.
+    static void apply(Celine3DView view, FilamentAsset roomAsset, Engine engine)
+            throws Exception {
         if (view == null || engine == null) return;
         synchronized (STATES) {
             if (STATES.containsKey(view)) return;
         }
 
-        FilamentAsset roomAsset = currentRoomAsset(view);
-        if (roomAsset == null) throw new IllegalStateException("laptop: room asset missing");
+        if (roomAsset == null) throw new IllegalStateException("laptop: room shell missing");
         Scene scene = (Scene) field(view, "scene");
         if (scene == null) throw new IllegalStateException("laptop: scene missing");
         TransformManager transforms = engine.getTransformManager();
@@ -139,7 +145,7 @@ final class CelineRoomForegroundLaptopV80 {
         if (!(rawStates instanceof Map)) return null;
         Object state = ((Map<?, ?>) rawStates).get(view);
         if (state == null) return null;
-        Field assetField = state.getClass().getDeclaredField("roomAsset");
+        Field assetField = state.getClass().getDeclaredField("roomShellAsset");
         assetField.setAccessible(true);
         return (FilamentAsset) assetField.get(state);
     }
