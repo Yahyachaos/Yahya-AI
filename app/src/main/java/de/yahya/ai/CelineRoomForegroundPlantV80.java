@@ -180,6 +180,12 @@ final class CelineRoomForegroundPlantV80 {
         try {
             state.parts.add(createForegroundCandle(engine, scene, transforms,
                     parent, donor));
+            // C152: C151 physical silhouette is within the measured reference envelope,
+            // but authentic Android #374 exposes one uniform neon-orange slab.
+            // Keep the proven anchor/size and add only jar-local warm wax + flame
+            // surfaces, not a replacement furniture/window mesh or any app wiring.
+            state.parts.add(createCandleWax(engine, scene, transforms, parent, donor));
+            state.parts.add(createCandleFlame(engine, scene, transforms, parent, donor));
             synchronized (CANDLE_STATES) { CANDLE_STATES.put(view, state); }
             view.addOnAttachStateChangeListener(state);
             Celine3DDiagnostics.record(view.getContext(), "ROOM-160",
@@ -335,11 +341,50 @@ final class CelineRoomForegroundPlantV80 {
             indices[i * 3 + 1] = (short) (1 + next);
             indices[i * 3 + 2] = (short) (1 + i);
         }
+        // C151 pixel audit of true CALL #374: silhouette x=.0443..1250 and
+        // y=.7491..9274 hits source target x=.039..128/y=.748..928.
+        // Its near-solid [244,105,33] color fails the photographed candle's
+        // warm glass/jar look. Desaturate the outer jar without moving geometry.
         MaterialInstance material = duplicateSolid(donor, "v80-reference-foreground-candle",
-                0.58f, 0.25f, 0.075f, 1.0f, 0.62f);
+                0.36f, 0.28f, 0.20f, 1.0f, 0.72f);
         return createPart(engine, scene, transforms, parent, xy, indices,
                 CANDLE_CENTER_X, CANDLE_CENTER_Y, CANDLE_CENTER_Z,
                 CANDLE_WIDTH, CANDLE_HEIGHT, CANDLE_YAW_DEG, CANDLE_PITCH_DEG, material);
+    }
+
+    // C152 bounded reference candle detailing. Derived foreground decor only:
+    // the canonical 12 original furniture GLBs, shell, source drapes, both
+    // opaque backplanes, window-opening/GLASS contract and camera stay fixed.
+    private static Part createCandleWax(
+            Engine engine, Scene scene, TransformManager transforms, int parent,
+            MaterialInstance donor) {
+        float w = CANDLE_WIDTH * 0.72f;
+        float h = CANDLE_HEIGHT * 0.50f;
+        float[] xy = {-w * .5f, h * .5f, w * .5f, h * .5f,
+                w * .5f, -h * .5f, -w * .5f, -h * .5f};
+        short[] indices = {0, 3, 2, 0, 2, 1};
+        MaterialInstance material = duplicateSolid(donor, "v80-reference-candle-wax",
+                0.66f, 0.52f, 0.36f, 1.0f, 0.86f);
+        return createPart(engine, scene, transforms, parent, xy, indices,
+                CANDLE_CENTER_X, CANDLE_CENTER_Y - CANDLE_HEIGHT * 0.17f,
+                CANDLE_CENTER_Z - 0.004f,
+                w, h, CANDLE_YAW_DEG, CANDLE_PITCH_DEG, material);
+    }
+
+    private static Part createCandleFlame(
+            Engine engine, Scene scene, TransformManager transforms, int parent,
+            MaterialInstance donor) {
+        float w = CANDLE_WIDTH * 0.20f;
+        float h = CANDLE_HEIGHT * 0.21f;
+        float[] xy = {0f, h * 0.5f, -w * .5f, -h * .3f,
+                0f, -h * .5f, w * .5f, -h * .3f};
+        short[] indices = {0, 1, 2, 0, 2, 3};
+        MaterialInstance material = duplicateSolid(donor, "v80-reference-candle-flame",
+                0.94f, 0.71f, 0.43f, 1.0f, 0.88f);
+        return createPart(engine, scene, transforms, parent, xy, indices,
+                CANDLE_CENTER_X, CANDLE_CENTER_Y + CANDLE_HEIGHT * 0.25f,
+                CANDLE_CENTER_Z - 0.006f,
+                w, h, CANDLE_YAW_DEG, CANDLE_PITCH_DEG, material);
     }
 
     private static Part createPart(Engine engine, Scene scene, TransformManager transforms,
