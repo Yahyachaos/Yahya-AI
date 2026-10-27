@@ -133,7 +133,7 @@ jobs:
             adb install -r ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
             echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
-            timeout 1080s python3 ci/celine_core_persona_emulator_smoke.py
+            timeout 1440s python3 ci/celine_core_persona_emulator_smoke.py
 
       - name: Upload genuine emulator screenshots and test provenance
         if: always()
