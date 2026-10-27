@@ -470,7 +470,13 @@ def open_internal_settings():
     left the outer chooser on screen. Never silently pass on that screen.
     """
     trace = []
-    for attempt in range(6):
+    for attempt in range(10):
+        # #25 captured a real v83 Settings hub *between* this UI snapshot
+        # and node_with()'s second UiAutomator dump. That benign asynchronous
+        # transition made the second lookup for the former gear throw, even
+        # though the native tap actually opened the hub. Click the element
+        # from one consistent real Android hierarchy, then require the next
+        # hierarchy to prove the new screen. No mocked UI or success bypass.
         root = hierarchy()
         visible = [n.attrib.get("text", "") for n in root.iter("node")
                    if n.attrib.get("text")]
@@ -478,12 +484,14 @@ def open_internal_settings():
         if "Gedächtnis" in visible:
             print("ACTUAL_NESTED_SETTINGS_OPEN_PASS", flush=True)
             return
-        if "Weitere Einstellungen" in visible:
-            click(node_with("text", "Weitere Einstellungen"))
-        elif "⚙" in visible:
-            click(node_with("text", "⚙"))
-        else:
-            time.sleep(1)
+        target = None
+        for wanted in ("Weitere Einstellungen", "⚙"):
+            target = next((n for n in root.iter("node")
+                           if n.attrib.get("text") == wanted), None)
+            if target is not None:
+                break
+        if target is not None:
+            click(target)
         time.sleep(1)
     root = hierarchy()
     (OUT / "FAIL-nested-settings.xml").write_text(
