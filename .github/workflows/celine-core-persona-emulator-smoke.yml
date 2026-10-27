@@ -29,26 +29,26 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify exact release runtime equivalence with real production Android #1785
+      - name: Verify exact release runtime equivalence with real production Android #1789
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor f90ce507052945a1f19ecb0e4f769097cb28e38d HEAD
-          git diff --quiet f90ce507052945a1f19ecb0e4f769097cb28e38d HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "8c0bf81c54acbe953c64026f5115400093c50bd2e69b0fb69fed90feb11bc7fe"
-          echo 'PRODUCTION_V83_RUNTIME_EQUIVALENCE_PASS: real Android #1785 unchanged release package / G1 / Persona'
+          git merge-base --is-ancestor 123d49bba0c8c98fc4914e8c799106f44205b35d HEAD
+          git diff --quiet 123d49bba0c8c98fc4914e8c799106f44205b35d HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "b96441c377f2fc9080486b44943727213a9b40954fab3c14b78d139ad929d721"
+          echo 'PRODUCTION_V83_RUNTIME_EQUIVALENCE_PASS: real Android #1789 unchanged release package / G1 / Persona'
           echo 'No Android Gradle build or Room visual build is invoked by this workflow.'
 
-      - name: Reuse actual verified non-debuggable production Android #1785 APK (no Gradle)
+      - name: Reuse actual verified non-debuggable production Android #1789 APK (no Gradle)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40565848381 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          gh run download 40585480826 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
           test -s ci-apk/app-release.apk
-          echo '7ffbde56fd47aa1d8d0b5f359ebfb15fcfa3de5fab35eb4371540e58c8f321cf  ci-apk/app-release.apk' | sha256sum -c -
+          echo '666bd6b2b90effbadd27a9b0698d4d38e855b4813821d3d1e03ffb92cde2b077  ci-apk/app-release.apk' | sha256sum -c -
           sha256sum ci-apk/app-release.apk > core-persona-emulator-proof/production-apk-sha256.txt
           echo 'PINNED_PRODUCTION_APK_1785_SHA256_PASS'
           # The public v80 APK is the real installed/retained-data baseline.
@@ -127,7 +127,7 @@ jobs:
             # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
-            # Exact production APK #1785 pinned; fail-closed production UI and OS ANR checks remain.
+            # Exact production APK #1789 pinned; fail-closed production UI and OS ANR checks remain.
             # Confirm this software emulator matches the source renderer's paced hardware predicate.
             adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
             grep -Eq '^(ranchu|goldfish)$' core-persona-emulator-proof/emulator-hardware.txt
@@ -149,4 +149,4 @@ jobs:
           name: celine-v83-production-real-emulator-smoke
           path: core-persona-emulator-proof/
           if-no-files-found: warn
-# One targeted CI-only production validation (27 Oct 2026): reuse immutable signed #1785 APK; no Gradle build or stable publish.
+# One targeted CI-only production validation (27 Oct 2026): reuse immutable signed #1789 APK; no Gradle build or stable publish.
