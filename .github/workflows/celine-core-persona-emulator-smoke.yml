@@ -114,8 +114,18 @@ jobs:
             # bubble even without our visibility filter. Present enough real
             # chat viewport to inspect BOTH actual on-screen TextViews instead
             # of weakening exact-chat, persisted-memory or OS-ANR assertions.
-            adb shell wm density 280
-            adb shell wm density | grep 'Override density: 280'
+            # Real #42: 1080x1920 swangle guest suffered 3-6s GPU fences,
+            # ~4950ms GPU frames and 12/12 UiAutomator null-root returns
+            # AFTER the exact public-v80 memory was successfully seeded.
+            # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
+            # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
+            # This is an emulator-only isolation, NOT an app performance PASS.
+            # The unchanged APK, strict full text/memory and OS-ANR checks remain.
+            adb shell wm size 720x1280
+            adb shell wm density 185
+            adb shell wm size | grep 'Override size: 720x1280'
+            adb shell wm density | grep 'Override density: 185'
+            { adb shell wm size; adb shell wm density; } > core-persona-emulator-proof/emulator-geometry.txt
             adb install -r ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
             echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'

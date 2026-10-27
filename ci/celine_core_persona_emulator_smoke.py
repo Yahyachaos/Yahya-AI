@@ -171,6 +171,29 @@ def click(node):
     time.sleep(0.8)
 
 
+def scroll_settings_list():
+    """Keep the Settings gesture at its proven normalized display position.
+
+    Real CI #42 had severe software-GPU overload at 1080x1920; the next
+    emulator runs at lower physical resolution with almost identical dp size.
+    Coordinates must scale with *actual* adb wm size rather than silently
+    missing the Settings list on the narrower real emulator screenshot.
+    """
+    size = adb("shell", "wm", "size")
+    screen = re.search(r"Override size:\\s*(\\d+)x(\\d+)", size)
+    if not screen:
+        screen = re.search(r"Physical size:\\s*(\\d+)x(\\d+)", size)
+    if not screen:
+        raise AssertionError("Cannot identify actual Android screen size: " + repr(size))
+    width, height = int(screen.group(1)), int(screen.group(2))
+    if width < 300 or height < 600:
+        raise AssertionError("Unusable Android display for Settings gesture: " + repr(size))
+    x = str(round(width * 570 / 1080))
+    start = str(round(height * 1530 / 1920))
+    end = str(round(height * 670 / 1920))
+    adb("shell", "input", "swipe", x, start, x, end, "330")
+
+
 def check_mode(expected):
     open_internal_settings()
     found = False
@@ -184,7 +207,7 @@ def check_mode(expected):
         except AssertionError as error:
             last_error = error
         # The persona row is last in the long internal settings list.
-        adb("shell", "input", "swipe", "570", "1530", "570", "670", "330")
+        scroll_settings_list()
         time.sleep(0.6)
     try:
         if not found:
@@ -475,7 +498,7 @@ def verify_settings_only_exit():
             target = node_with("text", "Persona-Modus: Stufe 3")
             break
         except AssertionError:
-            adb("shell", "input", "swipe", "570", "1530", "570", "670", "330")
+            scroll_settings_list()
             time.sleep(0.6)
     if target is None:
         screenshot("FAIL-settings-persona-row.png")
