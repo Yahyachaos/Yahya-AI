@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.opengl.Matrix;
+import android.os.Build;
 import android.os.Handler;
 import android.view.Choreographer;
 import android.view.GestureDetector;
@@ -82,6 +83,13 @@ public final class Celine3DView extends FrameLayout {
 
     private final Context appContext;
     private final SurfaceView surfaceView;
+    // The Actions software GPU stalls SurfaceFlinger/system_server when a full
+    // Filament frame is submitted on *every* UI vsync. Keep the native device
+    // render path unchanged; give the Android emulator accessibility/IME and
+    // the main looper breathing room after each completed Filament frame.
+    private static final boolean SOFTWARE_EMULATOR =
+            "ranchu".equals(Build.HARDWARE) || "goldfish".equals(Build.HARDWARE);
+    private static final long SOFTWARE_EMULATOR_FRAME_GAP_MS = 100L;
     private final Choreographer choreographer;
     private final Engine engine;
     private final Renderer renderer;
@@ -124,7 +132,6 @@ public final class Celine3DView extends FrameLayout {
     private final Choreographer.FrameCallback frameCallback = new Choreographer.FrameCallback() {
         @Override public void doFrame(long frameTimeNanos) {
             if (!running) return;
-            choreographer.postFrameCallback(this);
             try {
                 if (swapChain == null || !isSurfaceReady()) return;
                 updateCameraPresence(frameTimeNanos);
@@ -143,6 +150,17 @@ public final class Celine3DView extends FrameLayout {
                 Celine3DDiagnostics.error(appContext, "REN-399", "Filament Frame FEHLER", e);
                 running = false;
                 choreographer.removeFrameCallback(this);
+            } finally {
+                // Re-arm *after* renderer.endFrame(): re-arming first makes
+                // the next callback immediately due after a multi-second
+                // software-GPU fence and can starve UiAutomator/system UI.
+                if (running && renderError == null) {
+                    if (SOFTWARE_EMULATOR) {
+                        choreographer.postFrameCallbackDelayed(this, SOFTWARE_EMULATOR_FRAME_GAP_MS);
+                    } else {
+                        choreographer.postFrameCallback(this);
+                    }
+                }
             }
         }
     };
