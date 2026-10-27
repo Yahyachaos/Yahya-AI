@@ -30,19 +30,32 @@ def adb(*args, check=True, timeout=65):
 
 
 def hierarchy():
+    """Read a newly written UI dump, never a cached outer dialog snapshot.
+
+    On genuine upgraded-v83 emulator #27 the screencap showed the INNER
+    Settings dialog with Gedächtnis while the reused dump-path XML still
+    exposed the previous OUTER chooser. A unique per-read path forces every
+    UI observation to come from that read or to fail, never a leftover file.
+    """
     error = ""
     for attempt in range(5):
+        path = "/sdcard/core-persona-ui-" + str(time.monotonic_ns()) + ".xml"
         try:
-            adb("shell", "uiautomator", "dump", "/sdcard/core-persona-ui.xml", timeout=50)
-            raw = adb("exec-out", "cat", "/sdcard/core-persona-ui.xml", timeout=15)
+            output = adb("shell", "uiautomator", "dump", path, timeout=50)
+            if path not in output:
+                raise RuntimeError("No fresh UiAutomator dump confirmation: " +
+                                   repr(output[-400:]))
+            raw = adb("exec-out", "cat", path, timeout=15)
             i = raw.find("<?xml")
             if i >= 0:
                 return ET.fromstring(raw[i:])
-            error = "no XML in uiautomator output"
+            error = "Fresh UiAutomator output contained no XML"
         except (RuntimeError, ET.ParseError, subprocess.TimeoutExpired) as exc:
             error = str(exc)
+        finally:
+            adb("shell", "rm", "-f", path, check=False, timeout=15)
         time.sleep(2)
-    raise AssertionError("No real Android UI hierarchy: " + error)
+    raise AssertionError("No fresh real Android UI hierarchy: " + error)
 
 
 def node_with(attr, value, *, prefix=False):
@@ -472,7 +485,10 @@ def open_internal_settings():
     trace = []
     clicked_gear = False
     clicked_inner = False
-    for attempt in range(14):
+    # Genuine #27 reached the inner dialog on screen only AFTER 12 dumps;
+    # the old 14-total-poll budget expired before accessibility caught up.
+    # Retain a bounded 28-poll fail-closed budget across both UI stages.
+    for attempt in range(28):
         # Real upgraded-v83 #25 showed the outer Settings hub; #26 showed a
         # *different* inner Settings row/dialog in the screenshot while the
         # UiAutomator XML still reported the old outer hub. Repeating a tap
@@ -487,9 +503,9 @@ def open_internal_settings():
         trace.append({"attempt": attempt, "visible": visible[-22:],
                       "gear_tapped": clicked_gear, "inner_tapped": clicked_inner})
         if "Gedächtnis" in visible:
-            print("ACTUAL_NESTED_SETTINGS_OPEN_PASS: real v83 inner rows",
+            print("ACTUAL_NESTED_SETTINGS_OPEN_PASS: real inner rows",
                   flush=True)
-            return
+            return root
         if any(v.startswith("Celines lokale Neural-Stimme") for v in visible):
             raise AssertionError("Wrong nested Settings action opened: " +
                                  repr(visible[-12:]))
@@ -555,8 +571,12 @@ def open_internal_settings():
 
 
 def open_memory_settings():
-    open_internal_settings()
-    click(node_with("text", "Gedächtnis"))
+    # Use the SAME fresh inner-dialog hierarchy that proved the row visible;
+    # a second immediate UiAutomator call could observe the previous dialog.
+    root = open_internal_settings()
+    memory_row = next(n for n in root.iter("node")
+                      if n.attrib.get("text") == "Gedächtnis")
+    click(memory_row)
 
 
 def prepare_public_v80_memory():
