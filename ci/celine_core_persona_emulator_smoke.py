@@ -41,10 +41,10 @@ def hierarchy():
     for attempt in range(5):
         path = "/sdcard/core-persona-ui-" + str(time.monotonic_ns()) + ".xml"
         try:
-            output = adb("shell", "uiautomator", "dump", path, timeout=50)
-            if path not in output:
-                raise RuntimeError("No fresh UiAutomator dump confirmation: " +
-                                   repr(output[-400:]))
+            # Android's genuine UiAutomator CLI can succeed with EMPTY stdout
+            # (#28), so require a parsable XML from this UNIQUE device path
+            # instead of an unreliable diagnostic message.
+            adb("shell", "uiautomator", "dump", path, timeout=50)
             raw = adb("exec-out", "cat", path, timeout=15)
             i = raw.find("<?xml")
             if i >= 0:
