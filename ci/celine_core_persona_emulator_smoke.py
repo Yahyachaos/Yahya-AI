@@ -69,7 +69,7 @@ def click(node):
 
 def check_mode(expected):
     click(node_with("text", "⚙"))
-    # v82 has a top-level App/Updates settings chooser above the existing
+    # v83 has a top-level App/Updates settings chooser above the existing
     # MainActivity 'Weitere Einstellungen' list. Do not mistake that chooser
     # for the actual Persona settings or claim a product failure.
     first = hierarchy()
@@ -494,23 +494,23 @@ def prepare_public_v80_memory():
     print("PUBLIC_V80_LEGACY_MEMORY_SEED_PASS", flush=True)
 
 
-def verify_v80_to_v82_memory_migration():
+def verify_v80_to_v83_memory_migration():
     # The old v80 flat-memory entry must survive the in-place installation and
     # become user-inspectable G1 memory, encrypted at rest, without a cleartext copy.
     raw = adb("shell", "run-as", PACKAGE, "cat", "shared_prefs/yahya_ai.xml")
     if LEGACY_MIGRATION_PROBE in raw or re.search(r'<string\s+name="memory"', raw):
-        raise AssertionError("Legacy plaintext remains in v82 shared preferences")
+        raise AssertionError("Legacy plaintext remains in v83 shared preferences")
     if not re.search(r'<boolean\s+name="celine_memory_v2_migrated"\s+value="true"', raw):
         raise AssertionError("v80 legacy memory migration was not durably recorded")
     if not re.search(r'<string\s+name="celine_memory_g1_5_protected"', raw):
-        raise AssertionError("v82 encrypted G1 memory envelope missing")
+        raise AssertionError("v83 encrypted G1 memory envelope missing")
     open_memory_settings()
     root = hierarchy()
     if not any(LEGACY_MIGRATION_PROBE in n.attrib.get("text", "")
                for n in root.iter("node")):
-        raise AssertionError("v80 memory was lost or hidden after v82 upgrade")
+        raise AssertionError("v80 memory was lost or hidden after v83 upgrade")
     back_to_chat()
-    print("PUBLIC_V80_TO_V82_ENCRYPTED_MEMORY_MIGRATION_PASS", flush=True)
+    print("PUBLIC_V80_TO_V83_ENCRYPTED_MEMORY_MIGRATION_PASS", flush=True)
 
 
 def find_memory_text(fragment):
@@ -603,13 +603,13 @@ def main():
     if not APK.is_file():
         raise AssertionError("Pinned prior build APK not downloaded")
     prepare_public_v80_memory()
-    print("CORE_EMULATOR_SMOKE_START: in-place v80 to unchanged v82 artifact", flush=True)
+    print("CORE_EMULATOR_SMOKE_START: in-place v80 to unchanged v83 artifact", flush=True)
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
-    if not re.search(r"versionCode=82\b", version):
+    if not re.search(r"versionCode=83\b", version):
         raise AssertionError("Installed Android package is not versionCode 82")
     launch()
-    verify_v80_to_v82_memory_migration()
+    verify_v80_to_v83_memory_migration()
     verify_migrated_memory_correction_and_forget()
     check_mode("aus")
     # Ordinary user prose mentioning the codeword must never opt in.
@@ -671,7 +671,7 @@ def main():
     verify_settings_only_exit()
     verify_tampered_android_keystore_state_fails_closed()
 
-    print("CORE_EMULATOR_SMOKE_PASS: real v82 install, UI activation/exit, AndroidKeyStore save/restore/clear", flush=True)
+    print("CORE_EMULATOR_SMOKE_PASS: real v83 install, UI activation/exit, AndroidKeyStore save/restore/clear", flush=True)
 
 
 try:

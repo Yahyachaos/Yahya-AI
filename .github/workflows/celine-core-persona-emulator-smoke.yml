@@ -3,7 +3,7 @@ name: Celine Core Persona Android Emulator Smoke
 on:
   push:
     branches:
-      - auto/celine/core-adult-persona-contract
+      - auto/celine/v80-human-videochat-presence
     paths:
       - '.github/workflows/celine-core-persona-emulator-smoke.yml'
       - 'ci/celine_core_persona_emulator_smoke.py'
@@ -19,39 +19,40 @@ concurrency:
 
 jobs:
   reuse-built-apk-and-test:
-    name: Real installed v82 persona UI and AndroidKeyStore persistence
+    name: Real combined v83 Room+Core persona UI and AndroidKeyStore persistence
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
-      - name: Checkout existing Core PR only
+      - name: Checkout existing Room integration PR
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: false
 
-      - name: Reject unbuilt runtime changes since current pinned v82 Android build
+      - name: Verify runtime equivalence with the actual combined v83 Android #1743
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git merge-base 7500822f30b5f4fcbf43c1dd7fc54e85a051297b HEAD)" = 7500822f30b5f4fcbf43c1dd7fc54e85a051297b
-          git diff --quiet 7500822f30b5f4fcbf43c1dd7fc54e85a051297b HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          echo 'RUNTIME_EQUIVALENCE_PASS: only tests/CI since already-built Core runtime head 7500822f'
+          git merge-base --is-ancestor d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2 HEAD
+          git diff --quiet d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137"
+          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: Room and Core integrated Android #1743 unchanged'
           echo 'No Android build or Room build will be started by this workflow.'
 
-      - name: Reuse and verify actual prior successful Core APK (no Gradle)
+      - name: Reuse actual integrated Room+Core Android #1743 APK (no second Gradle build)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40219218622 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          gh run download 40438653109 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
           test -f ci-apk/app-debug.apk
-          gh run download 40219218622 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-a51b95829c73501ce6ff1cbeeb7530d89755f989f3237d47db84d09d0c4f8782 -D ci-apk
+          gh run download 40438653109 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137 -D ci-apk
           python3 - <<'PY'
           import hashlib, json, pathlib
           metadata=json.loads(pathlib.Path("ci-apk/runtime-build.json").read_text())
-          assert metadata["runtime_fingerprint"]=="a51b95829c73501ce6ff1cbeeb7530d89755f989f3237d47db84d09d0c4f8782"
+          assert metadata["runtime_fingerprint"]=="e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137"
           # GitHub pull_request Android builds may set GITHUB_SHA to the
           # synthetic PR merge commit, not the source PR head_sha. The source
           # head is pinned independently by this exact GitHub run ID, APK
@@ -59,15 +60,15 @@ jobs:
           import re
           assert re.fullmatch(r"[0-9a-f]{40}", metadata["built_head"])
           print("ANDROID_BUILD_ACTUAL_GITHUB_SHA="+metadata["built_head"])
-          print("ANDROID_BUILD_SOURCE_HEAD=7500822f30b5f4fcbf43c1dd7fc54e85a051297b")
-          assert str(metadata["workflow_run_id"])=="40219218622"
+          print("ANDROID_BUILD_SOURCE_HEAD=d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2")
+          assert str(metadata["workflow_run_id"])=="40438653109"
           with pathlib.Path("ci-apk/app-debug.apk").open("rb") as apk:
               actual=hashlib.file_digest(apk,"sha256").hexdigest()
           assert actual==metadata["apk_sha256"],"built Android APK SHA-256 mismatch"
-          print("PINNED_V82_APK_INTEGRITY_PASS sha256="+actual)
+          print("COMBINED_V83_APK_INTEGRITY_PASS sha256="+actual)
           PY
           sha256sum ci-apk/app-debug.apk > core-persona-emulator-proof/apk-sha256.txt
-          echo 'PINNED_V82_APK_INTEGRITY_PASS'
+          echo 'COMBINED_V83_APK_INTEGRITY_PASS'
           # Public released v80 is the actual user's updater baseline, not an Actions debug artifact.
           gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' -D ci-apk
           test -f ci-apk/Yahya-AI-v80.apk
@@ -99,7 +100,7 @@ jobs:
           emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
             set -eu
-            # Fail closed if the exact public v80 app cannot be upgraded in place to v82.
+            # Fail closed if official v80 cannot be upgraded in place to integrated v83.
             adb install -r ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
             echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
@@ -109,6 +110,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: celine-core-v82-real-emulator-smoke
+          name: celine-v83-combined-real-emulator-smoke
           path: core-persona-emulator-proof/
           if-no-files-found: warn

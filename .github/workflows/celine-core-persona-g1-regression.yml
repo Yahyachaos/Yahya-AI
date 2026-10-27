@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - auto/celine/core-adult-persona-contract
+      - auto/celine/v80-human-videochat-presence
     paths:
       - '.github/workflows/celine-core-persona-g1-regression.yml'
       - 'ci/celine_persona_**'
@@ -30,7 +31,7 @@ concurrency:
 
 jobs:
   regression:
-    name: Exact-head persona JVM and borrowed G1 contracts
+    name: v83 exact Room+Core Persona JVM and G1 integration contracts
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
