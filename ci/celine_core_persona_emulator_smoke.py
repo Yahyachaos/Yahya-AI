@@ -516,6 +516,43 @@ def prepare_public_v80_memory():
     print("PUBLIC_V80_LEGACY_MEMORY_SEED_PASS", flush=True)
 
 
+def await_fresh_v83_home(previous_pid):
+    """Wait for the *new* installed activity, not a cached v80 screen.
+
+    Actual emulator #23 showed legacy v80 chat bubbles during initial
+    post-install UI reads and only later v83's onCreate greeting. A generic
+    composer node exists in BOTH versions and must not be used as proof
+    that upgraded activity has finished its first lifecycle transition.
+    Fail closed on a missing new process/home; never skip memory checks.
+    """
+    observations = []
+    for attempt in range(14):
+        pid = adb("shell", "pidof", PACKAGE, check=False).strip()
+        root = hierarchy()
+        texts = [n.attrib.get("text", "") for n in root.iter("node")
+                 if n.attrib.get("text")]
+        new_home = any("Hallo Yahya. Schön, dass du da bist." in t
+                       for t in texts)
+        observations.append({"attempt": attempt, "pid": pid,
+                             "new_home": new_home, "ui_tail": texts[-12:]})
+        if pid and pid != previous_pid and new_home:
+            time.sleep(5)
+            stable_pid = adb("shell", "pidof", PACKAGE, check=False).strip()
+            stable = hierarchy()
+            if stable_pid == pid and any(
+                    "Hallo Yahya. Schön, dass du da bist." in n.attrib.get("text", "")
+                    for n in stable.iter("node")):
+                print("FRESH_V83_ACTIVITY_STABLE_AFTER_IN_PLACE_UPGRADE_PASS",
+                      flush=True)
+                return
+        time.sleep(2)
+    (OUT / "FAIL-v83-activity-stability.json").write_text(
+        json.dumps(observations, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    screenshot("FAIL-v83-activity-stability.png")
+    raise AssertionError("v83's fresh MainActivity did not stabilize after upgrade")
+
+
 def verify_v80_to_v83_memory_migration():
     # The old v80 flat-memory entry must survive the in-place installation and
     # become user-inspectable G1 memory, encrypted at rest, without a cleartext copy.
@@ -626,11 +663,13 @@ def main():
         raise AssertionError("Pinned prior build APK not downloaded")
     prepare_public_v80_memory()
     print("CORE_EMULATOR_SMOKE_START: in-place v80 to unchanged v83 artifact", flush=True)
+    original_pid = adb("shell", "pidof", PACKAGE, check=False).strip()
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
     if not re.search(r"versionCode=83\b", version):
         raise AssertionError("Installed Android package is not versionCode 83")
     launch()
+    await_fresh_v83_home(original_pid)
     verify_v80_to_v83_memory_migration()
     verify_migrated_memory_correction_and_forget()
     check_mode("aus")
