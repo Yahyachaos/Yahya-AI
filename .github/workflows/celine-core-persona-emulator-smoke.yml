@@ -29,30 +29,30 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify runtime equivalence with the actual combined v83 Android #1769
+      - name: Verify runtime equivalence with the actual combined v83 Android #1772
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 023c3dd930aef78d394e3db2094416640678ccf1 HEAD
-          git diff --quiet 023c3dd930aef78d394e3db2094416640678ccf1 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "c5259dcf16803b1be2d5ac008cde881f8220eeae102399d8761a2ed3a7bd3c6f"
-          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: Room and Core integrated Android #1769 includes off-frame 3D diagnostic persistence and emulator Filament pacing'
+          git merge-base --is-ancestor abe92a22386b3b3a2c3e4ac416f1912c3dbe44ea HEAD
+          git diff --quiet abe92a22386b3b3a2c3e4ac416f1912c3dbe44ea HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "c3853d924ec293f528cd803a0095b9010da5c9b3a89730a12989184118f8863a"
+          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: exact Android #1772, same MainActivity/Persona/G1 plus #46 diagnostic dedup'
           echo 'No Android build or Room build will be started by this workflow.'
 
-      - name: Reuse actual integrated Room+Core Android #1769 APK (no second Gradle build)
+      - name: Reuse actual integrated Room+Core Android #1772 APK (no second Gradle build)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40477800266 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          gh run download 40480160532 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
           test -f ci-apk/app-debug.apk
-          gh run download 40477800266 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-c5259dcf16803b1be2d5ac008cde881f8220eeae102399d8761a2ed3a7bd3c6f -D ci-apk
+          gh run download 40480160532 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-c3853d924ec293f528cd803a0095b9010da5c9b3a89730a12989184118f8863a -D ci-apk
           python3 - <<'PY'
           import hashlib, json, pathlib
           metadata=json.loads(pathlib.Path("ci-apk/runtime-build.json").read_text())
-          assert metadata["runtime_fingerprint"]=="c5259dcf16803b1be2d5ac008cde881f8220eeae102399d8761a2ed3a7bd3c6f"
+          assert metadata["runtime_fingerprint"]=="c3853d924ec293f528cd803a0095b9010da5c9b3a89730a12989184118f8863a"
           # GitHub pull_request Android builds may set GITHUB_SHA to the
           # synthetic PR merge commit, not the source PR head_sha. The source
           # head is pinned independently by this exact GitHub run ID, APK
@@ -60,8 +60,8 @@ jobs:
           import re
           assert re.fullmatch(r"[0-9a-f]{40}", metadata["built_head"])
           print("ANDROID_BUILD_ACTUAL_GITHUB_SHA="+metadata["built_head"])
-          print("ANDROID_BUILD_SOURCE_HEAD=023c3dd930aef78d394e3db2094416640678ccf1")
-          assert str(metadata["workflow_run_id"])=="40477800266"
+          print("ANDROID_BUILD_SOURCE_HEAD=abe92a22386b3b3a2c3e4ac416f1912c3dbe44ea")
+          assert str(metadata["workflow_run_id"])=="40480160532"
           with pathlib.Path("ci-apk/app-debug.apk").open("rb") as apk:
               actual=hashlib.file_digest(apk,"sha256").hexdigest()
           assert actual==metadata["apk_sha256"],"built Android APK SHA-256 mismatch"
@@ -120,7 +120,7 @@ jobs:
             # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
-            # The exact #1769 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
+            # The exact #1772 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
             # Confirm this software emulator matches the source renderer's paced hardware predicate.
             adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
             grep -Eq '^(ranchu|goldfish)$' core-persona-emulator-proof/emulator-hardware.txt
