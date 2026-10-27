@@ -42,7 +42,15 @@ public final class Celine3DDiagnostics {
                     .putString(K_DETAIL, safeDetail)
                     .putString(K_TIME, time)
                     .putString(K_LOG, next)
-                    .commit();
+                    // This diagnostic trace is called from UI/Filament frame and
+                    // lifecycle callbacks. Actual v83 emulator #42/#43 logcat
+                    // showed 2-4 second fsyncs of this file and 100% janky
+                    // frames while Android Accessibility could not read UI.
+                    // apply() updates the in-process snapshot synchronously,
+                    // but schedules its optional disk trace off the UI thread.
+                    // Crash evidence is also emitted to Android logcat below.
+                    // Keep explicit user-requested clear() durable (commit).
+                    .apply();
             Log.i(TAG, safeCode + "  " + safeStage + "  |  " + safeDetail);
         } catch (Throwable ignored) {}
     }
