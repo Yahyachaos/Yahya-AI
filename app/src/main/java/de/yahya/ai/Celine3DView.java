@@ -484,7 +484,17 @@ public final class Celine3DView extends FrameLayout {
         try {
             if (swapChain != null) {
                 engine.destroySwapChain(swapChain);
-                engine.flushAndWait();
+                // Real production v83 emulator #54 (run 40555928281) recorded
+                // am_anr while BACK returned from CALL; its software GPU
+                // reports ~4950ms fences on every native frame. Never wait for
+                // a full native GPU drain on the UI thread while SurfaceView
+                // detaches/reparents during HOME/CALL/HOME on ranchu/goldfish.
+                // Filament commands remain ordered on this Engine; flush()
+                // submits deferred swapchain destruction without synchronously
+                // waiting for the virtual GPU. Physical devices retain the
+                // prior synchronous surface teardown until separately tested.
+                if (SOFTWARE_EMULATOR) engine.flush();
+                else engine.flushAndWait();
                 swapChain = null;
             }
         } catch (Throwable e) {
