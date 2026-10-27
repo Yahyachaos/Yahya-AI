@@ -111,6 +111,10 @@ final class CelineMeshyRigScaleV61 {
             if (!running) return;
             choreographer.postFrameCallback(this);
             if (paused) return;
+            // Emulator frames and rig repair are owned by the serialized
+            // Celine3DView Filament worker. This legacy UI-vsync repair must
+            // not mutate the same Engine concurrently.
+            if (Celine3DView.usesSoftwareRenderThread()) return;
 
             Celine3DView view = find3D(decor);
             if (view == null || !view.isAttachedToWindow()) {

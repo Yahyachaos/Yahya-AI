@@ -262,6 +262,14 @@ final class CelineCallUpperBodyPresenceV55 {
     }
 
     static boolean isCallStage(View view) {
+        // View parent traversal is UI-owned during HOME/CALL reparenting.
+        // Worker consumers (including the retired camera compatibility hook)
+        // use the snapshot captured by Celine3DView.onAttachedToWindow.
+        if (view instanceof Celine3DView
+                && Celine3DView.usesSoftwareRenderThread()
+                && android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            return ((Celine3DView) view).softwareCallStage();
+        }
         View cur = view;
         while (cur != null) {
             Object tag = cur.getTag();

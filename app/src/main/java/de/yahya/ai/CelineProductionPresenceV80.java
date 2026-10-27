@@ -131,6 +131,9 @@ final class CelineProductionPresenceV80 {
         if (activity == null || decor == null) return;
         Celine3DView view = find3D(decor);
         if (view == null) return;
+        // The software renderer initializes its Filament Mixer during the
+        // first worker-owned onFrame, not concurrently from MainActivity UI.
+        if (Celine3DView.usesSoftwareRenderThread()) return;
         mixerFor(view);
     }
 
