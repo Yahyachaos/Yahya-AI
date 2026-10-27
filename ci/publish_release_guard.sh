@@ -22,11 +22,13 @@ fi
 TAG="v${VERSION_CODE}"
 TITLE="Yahya AI v${VERSION_CODE}"
 APK_NAME="Yahya-AI-v${VERSION_CODE}.apk"
-SOURCE_APK="release-apk/app-debug.apk"
+SOURCE_APK="release-apk/app-release.apk"
 if [ ! -f "$SOURCE_APK" ]; then
   echo "Tested APK missing: $SOURCE_APK"
   exit 1
 fi
+# Never publish the separate debug Actions artifact under a production filename.
+case "$SOURCE_APK" in */app-release.apk) ;; *) echo 'Refusing non-release artifact'; exit 1 ;; esac
 cp "$SOURCE_APK" "$APK_NAME"
 LOCAL_DIGEST="sha256:$(sha256sum "$APK_NAME" | awk '{print $1}')"
 
@@ -38,6 +40,14 @@ APKSIGNER="${SDK_DIR}/build-tools/30.0.3/apksigner"
 BADGING="$("$AAPT" dump badging "$APK_NAME" | grep -m1 '^package:')"
 if [[ "$BADGING" != *"name='de.yahya.ai'"* || "$BADGING" != *"versionCode='$VERSION_CODE'"* ]]; then
   echo "Release package/version mismatch: $BADGING"; exit 1;
+fi
+if "$AAPT" dump badging "$APK_NAME" | grep -q '^application-debuggable'; then
+  echo 'FATAL: debuggable APK cannot be published as stable release'; exit 1
+fi
+"$APKSIGNER" verify "$APK_NAME" >/dev/null
+LIVE_MAIN_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')"
+if [ "$TARGET_SHA" != "$LIVE_MAIN_SHA" ]; then
+  echo "Refusing release unless exact validated target is current main"; exit 1
 fi
 SIGN_CHECK_DIR="$(mktemp -d)"
 gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' --dir "$SIGN_CHECK_DIR" >/dev/null

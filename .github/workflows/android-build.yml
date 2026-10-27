@@ -116,10 +116,41 @@ jobs:
       - run: gradle wrapper --gradle-version 7.5.1
       - name: Build debug APK
         run: ./gradlew assembleDebug --console=plain --stacktrace 2>&1 | tee build.log
+      - name: Build distinct signed non-debuggable production APK
+        run: ./gradlew assembleRelease --console=plain --stacktrace 2>&1 | tee release-build.log
+      - name: Verify production APK, official signer parity and package identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=app/build/outputs/apk/release/app-release.apk
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          AAPT="$SDK_ROOT/build-tools/30.0.3/aapt"
+          APKSIGNER="$SDK_ROOT/build-tools/30.0.3/apksigner"
+          [ -s "$APK" ] && [ -x "$AAPT" ] && [ -x "$APKSIGNER" ] || { echo 'Release APK or Android verifier missing'; exit 1; }
+          BADGING="$("$AAPT" dump badging "$APK")"
+          VERSION_CODE="$(grep -E '^[[:space:]]*versionCode[[:space:]]+[0-9]+' app/build.gradle | grep -oE '[0-9]+' | head -1)"
+          grep -Fq "package: name='de.yahya.ai' versionCode='$VERSION_CODE'" <<<"$BADGING" || { echo 'Release package/version mismatch'; exit 1; }
+          if grep -q '^application-debuggable' <<<"$BADGING"; then echo 'FATAL: production APK is debuggable'; exit 1; fi
+          "$APKSIGNER" verify "$APK" >/dev/null
+          mkdir -p "$RUNNER_TEMP/official-v80"
+          gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' --dir "$RUNNER_TEMP/official-v80"
+          OLD="$RUNNER_TEMP/official-v80/Yahya-AI-v80.apk"
+          [ -s "$OLD" ] || { echo 'Official v80 APK missing'; exit 1; }
+          cert() { "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1; }
+          OLD_CERT="$(cert "$OLD")"
+          NEW_CERT="$(cert "$APK")"
+          [ -n "$OLD_CERT" ] && [ "$OLD_CERT" = "$NEW_CERT" ] || { echo 'FATAL: production signer differs from installed official v80'; exit 1; }
+          sha256sum "$APK" > production-apk-sha256.txt
+          echo 'PRODUCTION_APK_PACKAGE_VERSION_NONDEBUG_SIGNER_PARITY_PASS' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
-        with: {name: gradle-build-log, path: build.log}
+        with:
+          name: gradle-build-log
+          path: |
+            build.log
+            release-build.log
       - name: Write runtime build metadata
         if: success()
         env:
@@ -133,6 +164,18 @@ jobs:
         with:
           name: yahya-ai-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload independently verified production release APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yahya-ai-production-release
+          path: app/build/outputs/apk/release/app-release.apk
+      - name: Upload production APK SHA-256
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yahya-ai-production-sha256
+          path: production-apk-sha256.txt
       - name: Upload runtime fingerprint metadata
         if: success()
         uses: actions/upload-artifact@v4
@@ -207,7 +250,14 @@ jobs:
           fetch-depth: 0
           lfs: true
       - uses: actions/download-artifact@v4
-        with: {name: yahya-ai-debug, path: release-apk}
+        with: {name: yahya-ai-production-release, path: release-apk}
+      - name: Ensure Android 30 build-tools for production guard
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          if [ ! -x "$SDK_ROOT/build-tools/30.0.3/apksigner" ]; then
+            "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" 'build-tools;30.0.3'
+          fi
       - name: Publish and read-back verify exact-version GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

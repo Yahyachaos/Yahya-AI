@@ -311,6 +311,15 @@ android {
         debug {
             signingConfig signingConfigs.debug
         }
+        // A distinct production variant must retain the installed v80/v82 certificate.
+        // The stable keystore above is historical but is also the in-place upgrade signer.
+        release {
+            signingConfig signingConfigs.debug
+            debuggable false
+            jniDebuggable false
+            minifyEnabled false
+            shrinkResources false
+        }
     }
     sourceSets {
         main {
