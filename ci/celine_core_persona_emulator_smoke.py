@@ -470,28 +470,45 @@ def open_internal_settings():
     left the outer chooser on screen. Never silently pass on that screen.
     """
     trace = []
-    for attempt in range(10):
-        # #25 captured a real v83 Settings hub *between* this UI snapshot
-        # and node_with()'s second UiAutomator dump. That benign asynchronous
-        # transition made the second lookup for the former gear throw, even
-        # though the native tap actually opened the hub. Click the element
-        # from one consistent real Android hierarchy, then require the next
-        # hierarchy to prove the new screen. No mocked UI or success bypass.
+    clicked_gear = False
+    clicked_inner = False
+    for attempt in range(14):
+        # Real upgraded-v83 #25 showed the outer Settings hub; #26 showed a
+        # *different* inner Settings row/dialog in the screenshot while the
+        # UiAutomator XML still reported the old outer hub. Repeating a tap
+        # every stale frame selected a different row on the NEXT dialog
+        # ("Lokale Neural-Stimme"), so the test sabotaged its own navigation.
+        # Tap each stage AT MOST ONCE, and wait for actual visible Gedächtnis
+        # instead of blindly re-tapping the stale coordinates. Never pass
+        # on a hub, error popup, or hidden data; fail after bounded polling.
         root = hierarchy()
         visible = [n.attrib.get("text", "") for n in root.iter("node")
                    if n.attrib.get("text")]
-        trace.append({"attempt": attempt, "visible": visible[-22:]})
+        trace.append({"attempt": attempt, "visible": visible[-22:],
+                      "gear_tapped": clicked_gear, "inner_tapped": clicked_inner})
         if "Gedächtnis" in visible:
-            print("ACTUAL_NESTED_SETTINGS_OPEN_PASS", flush=True)
+            print("ACTUAL_NESTED_SETTINGS_OPEN_PASS: real v83 inner rows",
+                  flush=True)
             return
-        target = None
-        for wanted in ("Weitere Einstellungen", "⚙"):
-            target = next((n for n in root.iter("node")
-                           if n.attrib.get("text") == wanted), None)
-            if target is not None:
-                break
-        if target is not None:
+        if any(v.startswith("Celines lokale Neural-Stimme") for v in visible):
+            raise AssertionError("Wrong nested Settings action opened: " +
+                                 repr(visible[-12:]))
+        if not clicked_inner and "Weitere Einstellungen" in visible:
+            target = next(n for n in root.iter("node")
+                          if n.attrib.get("text") == "Weitere Einstellungen")
+            clicked_inner = True
+            print("ACTUAL_NESTED_SETTINGS_INNER_TAP_SENT", flush=True)
             click(target)
+            time.sleep(3)
+            continue
+        if not clicked_gear and "⚙" in visible:
+            target = next(n for n in root.iter("node")
+                          if n.attrib.get("text") == "⚙")
+            clicked_gear = True
+            print("ACTUAL_NESTED_SETTINGS_GEAR_TAP_SENT", flush=True)
+            click(target)
+            time.sleep(3)
+            continue
         time.sleep(1)
     root = hierarchy()
     (OUT / "FAIL-nested-settings.xml").write_text(
