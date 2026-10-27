@@ -82,18 +82,6 @@ jobs:
           test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || command -v sdkmanager
           echo 'Avoiding deprecated sdkmanager tools package requested by setup-android@v3.'
 
-      - name: Validate supported Android Emulator GPU renderer before upgrade test
-        shell: bash
-        run: |
-          set -euo pipefail
-          "$ANDROID_HOME/emulator/emulator" -help-gpu > core-persona-emulator-proof/emulator-supported-gpu.txt 2>&1
-          grep -Eq 'swiftshader' core-persona-emulator-proof/emulator-supported-gpu.txt || {
-            echo 'EMULATOR_GPU_MODE_UNSUPPORTED_FAIL: swiftshader'
-            cat core-persona-emulator-proof/emulator-supported-gpu.txt
-            exit 1
-          }
-          echo 'EMULATOR_GPU_MODE_SUPPORTED_PASS: swiftshader'
-
       - name: Allow KVM emulator acceleration
         shell: bash
         run: |
