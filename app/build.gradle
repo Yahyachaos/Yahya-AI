@@ -296,8 +296,8 @@ android {
         applicationId 'de.yahya.ai'
         minSdkVersion 26
         targetSdkVersion 30
-        versionCode 81
-        versionName '1.0-celin-human-videochat-presence'
+        versionCode 83
+        versionName '1.0-celin-v83-functional-interim'
     }
     signingConfigs {
         debug {

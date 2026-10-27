@@ -1,0 +1,65 @@
+{
+  "schema": "celine-adult-persona-dispatch-acceptance/v1",
+  "issue": 112,
+  "work_order": "ci/work-orders/CELINE_ADULT_PERSONA_MODE.md",
+  "scope": "ownership-safe deterministic submit-routing contract; no Android/runtime wiring",
+  "invariant": "Continue the existing submit flow if and only if CelinePersonaMode.CommandResult.commandConsumed() is false.",
+  "downstream_surfaces_guarded_when_consumed": [
+    "local/device command routing",
+    "goal observation",
+    "reasoning provider request",
+    "inferred-memory extraction"
+  ],
+  "cases": [
+    {
+      "id": "activate-default-short-circuits",
+      "input": "Nutte",
+      "expected": {"command_consumed": true, "active": true, "intensity": 2, "continue_normal_flow": false}
+    },
+    {
+      "id": "activate-intensity-short-circuits",
+      "input": "Nutte 3",
+      "expected": {"command_consumed": true, "active": true, "intensity": 3, "continue_normal_flow": false}
+    },
+    {
+      "id": "deactivate-short-circuits",
+      "initial": {"active": true, "intensity": 2},
+      "input": "Nutte aus",
+      "expected": {"command_consumed": true, "active": false, "intensity": 0, "continue_normal_flow": false}
+    },
+    {
+      "id": "normalmode-short-circuits",
+      "initial": {"active": true, "intensity": 1},
+      "input": "Normalmodus",
+      "expected": {"command_consumed": true, "active": false, "intensity": 0, "continue_normal_flow": false}
+    },
+    {
+      "id": "invalid-intensity-short-circuits-preserves-state",
+      "initial": {"active": true, "intensity": 2},
+      "input": "Nutte 9",
+      "expected": {"command_consumed": true, "invalid_intensity": true, "active": true, "intensity": 2, "continue_normal_flow": false}
+    },
+    {
+      "id": "normal-text-passes-through-inactive",
+      "input": "Wie spät ist es?",
+      "expected": {"command_consumed": false, "active": false, "intensity": 0, "continue_normal_flow": true}
+    },
+    {
+      "id": "normal-text-passes-through-active",
+      "initial": {"active": true, "intensity": 2},
+      "input": "Erzähl mir etwas",
+      "expected": {"command_consumed": false, "active": true, "intensity": 2, "continue_normal_flow": true}
+    },
+    {
+      "id": "substring-passes-through",
+      "input": "Was bedeutet das Wort Nutte?",
+      "expected": {"command_consumed": false, "active": false, "intensity": 0, "continue_normal_flow": true}
+    },
+    {
+      "id": "blank-passes-through",
+      "input": "   ",
+      "expected": {"command_consumed": false, "active": false, "intensity": 0, "continue_normal_flow": true}
+    }
+  ],
+  "claim_boundary": "This proves only the isolated command-consumption routing seam. It does not claim MainActivity wiring, provider/tool/memory runtime regression acceptance, persistence integration, APK validation, or Room behavior."
+}

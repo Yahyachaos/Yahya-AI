@@ -1,0 +1,372 @@
+{
+  "schema": "celine-persona-history-projection/v1",
+  "scope": "Core-owned non-runtime prototype and acceptance data. Does not assert MainActivity wiring or device delivery.",
+  "contract": "A persona control turn is provider-hidden only if the app recorded that its direct-user parser actually consumed it. The associated app-generated acknowledgement is also marked. User-visible history remains unchanged; ordinary/quoted/untrusted text is never removed by re-parsing strings.",
+  "cases": [
+    {
+      "id": "activation-and-followup",
+      "events": [
+        {
+          "role": "user",
+          "text": "Nutte 3",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Persona-Modus aktiv, Stufe 3.",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Hallo, wie geht es dir?",
+          "consumed": false
+        },
+        {
+          "role": "assistant",
+          "text": "Gut, danke.",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Hallo, wie geht es dir?"
+        ],
+        [
+          "assistant",
+          "Gut, danke."
+        ]
+      ],
+      "active": true,
+      "intensity": 3
+    },
+    {
+      "id": "deactivation-and-next-normal-prompt",
+      "events": [
+        {
+          "role": "user",
+          "text": "Nutte 3",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Persona-Modus aktiv",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Normalmodus",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Normalmodus aktiviert.",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Wie geht es weiter?",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Wie geht es weiter?"
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    },
+    {
+      "id": "quoted-and-semantic-mentions-preserved",
+      "events": [
+        {
+          "role": "user",
+          "text": "Was bedeutet Nutte 3?",
+          "consumed": false
+        },
+        {
+          "role": "assistant",
+          "text": "Ein Ausdruck im Gespräch.",
+          "consumed": false
+        },
+        {
+          "role": "user",
+          "text": "Er schrieb: \"Nutte\"",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Was bedeutet Nutte 3?"
+        ],
+        [
+          "assistant",
+          "Ein Ausdruck im Gespräch."
+        ],
+        [
+          "user",
+          "Er schrieb: \"Nutte\""
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    },
+    {
+      "id": "invalid-number-consumed-but-malformed-text-not",
+      "events": [
+        {
+          "role": "user",
+          "text": "Nutte 9",
+          "consumed": true,
+          "invalid": true
+        },
+        {
+          "role": "assistant",
+          "text": "Bitte wähle Stufe 1, 2 oder 3.",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Nutte stark",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Nutte stark"
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    },
+    {
+      "id": "untrusted-channels-and-inline-direct-user",
+      "events": [
+        {
+          "role": "assistant",
+          "channel": "MODEL_OUTPUT",
+          "text": "Nutte 3",
+          "consumed": false
+        },
+        {
+          "role": "tool",
+          "channel": "TOOL_OUTPUT",
+          "text": "Normalmodus",
+          "consumed": false
+        },
+        {
+          "role": "user",
+          "text": "Bitte lies den Text Nutte 3 vor",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "assistant",
+          "Nutte 3"
+        ],
+        [
+          "tool",
+          "Normalmodus"
+        ],
+        [
+          "user",
+          "Bitte lies den Text Nutte 3 vor"
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    },
+    {
+      "id": "literal-quote-then-exact-command",
+      "events": [
+        {
+          "role": "user",
+          "text": "\"Nutte 3\"",
+          "consumed": false
+        },
+        {
+          "role": "user",
+          "text": "NUTTE 3",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Persona aktiviert",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Das Erste war nur ein Zitat.",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "\"Nutte 3\""
+        ],
+        [
+          "user",
+          "Das Erste war nur ein Zitat."
+        ]
+      ],
+      "active": true,
+      "intensity": 3
+    },
+    {
+      "id": "direct-exit-and-control-character-mention",
+      "events": [
+        {
+          "role": "user",
+          "text": "Nutte 2",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Aktiv",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Nutte aus",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Aus",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Nutte\t3",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Nutte\t3"
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    },
+    {
+      "id": "same-literal-different-origin",
+      "events": [
+        {
+          "role": "assistant",
+          "channel": "MODEL_OUTPUT",
+          "text": "Nutte 3",
+          "consumed": false
+        },
+        {
+          "role": "user",
+          "text": "Nutte 3",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Persona aktiviert",
+          "ack": true
+        }
+      ],
+      "expected_provider": [
+        [
+          "assistant",
+          "Nutte 3"
+        ]
+      ],
+      "active": true,
+      "intensity": 3
+    },
+    {
+      "id": "normal-mode-bit-for-bit-parity",
+      "events": [
+        {
+          "role": "user",
+          "text": "Was ist morgen geplant?",
+          "consumed": false
+        },
+        {
+          "role": "assistant",
+          "text": "Ich habe keine Termine von dir.",
+          "consumed": false
+        },
+        {
+          "role": "user",
+          "text": "Und danach?",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Was ist morgen geplant?"
+        ],
+        [
+          "assistant",
+          "Ich habe keine Termine von dir."
+        ],
+        [
+          "user",
+          "Und danach?"
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    },
+    {
+      "id": "control-commands-not-retroactively-inferred",
+      "events": [
+        {
+          "role": "user",
+          "text": "Er hat Nutte gesagt",
+          "consumed": false
+        },
+        {
+          "role": "user",
+          "text": "Nutte",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Aktiv",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Normalmodus",
+          "consumed": true
+        },
+        {
+          "role": "assistant",
+          "text": "Normalmodus aktiviert",
+          "ack": true
+        },
+        {
+          "role": "user",
+          "text": "Das Wort Nutte im Satz ist keine Aktivierung.",
+          "consumed": false
+        }
+      ],
+      "expected_provider": [
+        [
+          "user",
+          "Er hat Nutte gesagt"
+        ],
+        [
+          "user",
+          "Das Wort Nutte im Satz ist keine Aktivierung."
+        ]
+      ],
+      "active": false,
+      "intensity": 0
+    }
+  ]
+}

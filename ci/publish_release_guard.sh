@@ -30,8 +30,31 @@ fi
 cp "$SOURCE_APK" "$APK_NAME"
 LOCAL_DIGEST="sha256:$(sha256sum "$APK_NAME" | awk '{print $1}')"
 
+# Enforce exact Android package/version and unchanged installed-release signature.
+SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+AAPT="${SDK_DIR}/build-tools/30.0.3/aapt"
+APKSIGNER="${SDK_DIR}/build-tools/30.0.3/apksigner"
+[ -x "$AAPT" ] && [ -x "$APKSIGNER" ] || { echo "Required Android signing/package tools missing"; exit 1; }
+BADGING="$("$AAPT" dump badging "$APK_NAME" | grep -m1 '^package:')"
+if [[ "$BADGING" != *"name='de.yahya.ai'"* || "$BADGING" != *"versionCode='$VERSION_CODE'"* ]]; then
+  echo "Release package/version mismatch: $BADGING"; exit 1;
+fi
+SIGN_CHECK_DIR="$(mktemp -d)"
+gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' --dir "$SIGN_CHECK_DIR" >/dev/null
+OLD_APK="$SIGN_CHECK_DIR/Yahya-AI-v80.apk"
+[ -s "$OLD_APK" ] || { echo "Existing official v80 APK missing for signer comparison"; exit 1; }
+cert_digest() {
+  "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1
+}
+OLD_CERT="$(cert_digest "$OLD_APK")"
+NEW_CERT="$(cert_digest "$APK_NAME")"
+if [ -z "$OLD_CERT" ] || [ -z "$NEW_CERT" ] || [ "$OLD_CERT" != "$NEW_CERT" ]; then
+  echo "Release APK signature is not compatible with existing official v80/v82"; exit 1;
+fi
+echo "Package, versionCode, and installed-update signing parity: PASS" >> "$GITHUB_STEP_SUMMARY"
+
 NOTES_FILE="$(mktemp)"
-trap 'rm -f "$NOTES_FILE" release-readback.json' EXIT
+trap 'rm -rf "$SIGN_CHECK_DIR"; rm -f "$NOTES_FILE" release-readback.json' EXIT
 cat > "$NOTES_FILE" <<EOF
 # Yahya AI v${VERSION_CODE}
 
@@ -41,6 +64,16 @@ cat > "$NOTES_FILE" <<EOF
 - APK asset: \`${APK_NAME}\`.
 - This release is published only after the exact-main Android/emulator gates succeed.
 EOF
+
+# Owner-approved v83-specific known visual defects, never a whole-Room visual PASS.
+if [ "$VERSION_CODE" = "83" ]; then
+cat >> "$NOTES_FILE" <<'V83_VISUAL_FAIL_NOTES'
+
+## Known visual issues — explicitly accepted by the owner for this v83 interim release only
+
+This is an official **functional interim release**, not a claim of a reference-perfect Room. Real Android HOME/CALL comparison remains **VISUAL FAIL**: dark gray/strongly striped curtains, incorrect bright window bars/openings, room architecture/furnishings/materials/lighting/perspective gaps, and visibly non-reference Celine. The GLASS/open-window/backplane owner decision is still unresolved; **G2.3 PAUSED**. Room visual perfection continues after v83. Security, memory, updater, build and signing gates are NOT waived.
+V83_VISUAL_FAIL_NOTES
+fi
 
 # Guard against a stale copied release body before GitHub is touched.
 if ! grep -Fqx "# Yahya AI v${VERSION_CODE}" "$NOTES_FILE"; then
