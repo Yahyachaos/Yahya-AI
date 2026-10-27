@@ -74,14 +74,21 @@ final class CelineRoomForegroundPlantV80 {
     private static final float LEFT_ART_HEIGHT = 0.428704f;
     private static final float LEFT_ART_YAW_DEG = 90.0f;
 
-    // #1198 upright real CALL raster: x=0.044..0.123/y=0.738..0.943 versus the authoritative
-    // target x=0.039..0.128/y=0.748..0.928. Center and front-facing orientation are already right;
-    // widen by the measured 1.1303x factor and shorten by 0.876287x, changing no other geometry.
-    private static final float CANDLE_CENTER_X = -0.836842f;
-    private static final float CANDLE_CENTER_Y = 0.902352f;
-    private static final float CANDLE_CENTER_Z = 3.020114f;
-    private static final float CANDLE_WIDTH = 0.073639f;
-    private static final float CANDLE_HEIGHT = 0.179762f;
+    // C151: The genuine C150 Android HOME->CALL->HOME #373 (runtime cf7f129)
+    // logged ROOM-160 candle creation, but its candle was completely invisible.
+    // Root recovery rotates every partition 180 deg around Y and offsets Z=-4m:
+    // old local Z=+3.020 -> runtime Z=-7.020, BEHIND the opaque room.
+    // Solve the canonical x=.039..128/y=.748..928 CALL bounds analytically
+    // against the *real* camera eye=(-.380078,-.326563,-1.126563),
+    // target=(-.056563,-1.100,-4.300), 20.846874mm/36mm perspective,
+    // AND the established room table contact plane Y=.756-1.550=-.794m.
+    // The fixed source-local values below project that actual quadrilateral;
+    // no camera, shell, furniture-source, glass or backplane mutations.
+    private static final float CANDLE_CENTER_X = 0.730881f;
+    private static final float CANDLE_CENTER_Y = 0.834692f;
+    private static final float CANDLE_CENTER_Z = -2.352174f;
+    private static final float CANDLE_WIDTH = 0.055875f;
+    private static final float CANDLE_HEIGHT = 0.157384f;
     private static final float CANDLE_YAW_DEG = 0.0f;
     private static final float CANDLE_PITCH_DEG = 0.0f;
 
