@@ -116,20 +116,20 @@ public final class Celine3DView extends FrameLayout {
     private volatile int softwareRenderSerial;
     private boolean softwareCallZoomHeld;
     private float softwarePreCallZoom;
-    private final Engine engine;
-    private final Renderer renderer;
-    private final Scene scene;
-    private final com.google.android.filament.View filamentView;
-    private final Camera camera;
-    private final int cameraEntity;
-    private final int lightEntity;
-    private final UbershaderProvider materialProvider;
-    private final AssetLoader assetLoader;
-    private final ResourceLoader resourceLoader;
-    private final FilamentAsset asset;
-    private final Skybox skybox;
-    private final IndirectLight indirectLight;
-    private final TransformManager transformManager;
+    private volatile Engine engine;
+    private volatile Renderer renderer;
+    private volatile Scene scene;
+    private volatile com.google.android.filament.View filamentView;
+    private volatile Camera camera;
+    private int cameraEntity;
+    private int lightEntity;
+    private volatile UbershaderProvider materialProvider;
+    private volatile AssetLoader assetLoader;
+    private volatile ResourceLoader resourceLoader;
+    private volatile FilamentAsset asset;
+    private volatile Skybox skybox;
+    private volatile IndirectLight indirectLight;
+    private volatile TransformManager transformManager;
     private final GestureDetector gestureDetector;
     private final ScaleGestureDetector scaleGestureDetector;
 
@@ -290,6 +290,108 @@ public final class Celine3DView extends FrameLayout {
         Celine3DDiagnostics.record(appContext, "V60-119", "Bounded Kamera-Suche aktiv",
                 "1 Finger Pan/Orbit · Pinch Zoom · Doppeltipp Reset");
 
+        // Filament's JobSystem adopts the thread that creates Engine. The
+        // native #58 tombstone proved that Renderer.render on a later, unadopted
+        // HandlerThread aborts in JobSystem::getState. Create *all* Filament
+        // resources on the same serialized thread that owns frames, swapchains,
+        // and viewport changes. The UI only posts work and copies view state.
+        if (SOFTWARE_EMULATOR) {
+            softwareRenderThread = new HandlerThread("Celine-Filament-Render");
+            softwareRenderThread.start();
+            softwareRenderHandler = new Handler(softwareRenderThread.getLooper());
+            softwareRenderHandler.post(() -> {
+                try {
+                    initializeFilament(context);
+                } catch (Throwable error) {
+                    renderError = error;
+                    running = false;
+                    Celine3DDiagnostics.error(appContext, "REN-398",
+                            "Filament worker initialization FEHLER", error);
+                }
+            });
+        } else {
+            // Preserve the existing real-device UI/vsync Engine owner.
+            softwareRenderThread = null;
+            softwareRenderHandler = null;
+            initializeFilament(context);
+        }
+
+        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override public void surfaceCreated(SurfaceHolder holder) {
+                Celine3DDiagnostics.record(appContext, "REN-320", "Surface created", "valid=" + isSurfaceReady());
+                if (SOFTWARE_EMULATOR) {
+                    final int serial = ++softwareSurfaceSerial;
+                    softwareSurfaceValid = true;
+                    softwareRenderHandler.post(() -> {
+                        if (serial != softwareSurfaceSerial) return;
+                        try { createSwapChain(holder); }
+                        catch (Throwable error) {
+                            renderError = error;
+                            Celine3DDiagnostics.error(appContext, "REN-397",
+                                    "Software SwapChain create FEHLER", error);
+                        }
+                    });
+                    return;
+                }
+                try { createSwapChain(holder); }
+                catch (Throwable error) {
+                    renderError = error;
+                    Celine3DDiagnostics.error(appContext, "REN-397", "SwapChain bei surfaceCreated FEHLER", error);
+                }
+            }
+
+            @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                Celine3DDiagnostics.record(appContext, "REN-322", "Surface changed",
+                        width + "x" + height + " format=" + format);
+                if (SOFTWARE_EMULATOR) {
+                    final int serial = ++softwareSurfaceSerial;
+                    softwareWidth = width;
+                    softwareHeight = height;
+                    softwareSurfaceValid = true;
+                    softwareRenderHandler.post(() -> {
+                        if (serial != softwareSurfaceSerial) return;
+                        try {
+                            if (swapChain == null) createSwapChain(holder);
+                            resizeViewport(width, height);
+                        } catch (Throwable error) {
+                            renderError = error;
+                            Celine3DDiagnostics.error(appContext, "REN-396",
+                                    "Software SwapChain/Viewport FEHLER", error);
+                        }
+                    });
+                    return;
+                }
+                try {
+                    if (swapChain == null) createSwapChain(holder);
+                    resizeViewport(width, height);
+                } catch (Throwable error) {
+                    renderError = error;
+                    Celine3DDiagnostics.error(appContext, "REN-396", "Viewport/SwapChain FEHLER", error);
+                }
+            }
+
+            @Override public void surfaceDestroyed(SurfaceHolder holder) {
+                Celine3DDiagnostics.record(appContext, "REN-323", "Surface destroyed", "stop/destroy swapchain");
+                if (SOFTWARE_EMULATOR) {
+                    ++softwareSurfaceSerial;
+                    softwareSurfaceValid = false;
+                    softwareRenderHandler.post(() -> destroySwapChain());
+                    return;
+                }
+                destroySwapChain();
+            }
+        });
+        Celine3DDiagnostics.record(appContext, "REN-319", "3D-Konstruktor abgeschlossen", "warte auf Surface/Frames");
+    }
+
+    /** Initialize Engine, Renderer, glTF resources and initial scene on ONE adopted client thread.
+     * The software Handler queue guarantees initialization precedes all posted surface/frame work.
+     * Never block the Android UI while waiting for the emulator GPU.
+     */
+    private void initializeFilament(Context context) throws Exception {
+        if (SOFTWARE_EMULATOR && android.os.Looper.myLooper() != softwareRenderThread.getLooper()) {
+            throw new IllegalStateException("Filament Engine must be created on its render owner thread");
+        }
         engine = Engine.create();
         Celine3DDiagnostics.record(appContext, "REN-302", "Filament Engine erstellt", String.valueOf(engine != null));
         renderer = engine.createRenderer();
@@ -361,81 +463,8 @@ public final class Celine3DView extends FrameLayout {
 
         resetCameraSearch();
 
-        if (SOFTWARE_EMULATOR) {
-            softwareRenderThread = new HandlerThread("Celine-Filament-Render");
-            softwareRenderThread.start();
-            softwareRenderHandler = new Handler(softwareRenderThread.getLooper());
-        } else {
-            softwareRenderThread = null;
-            softwareRenderHandler = null;
-        }
-
-        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-            @Override public void surfaceCreated(SurfaceHolder holder) {
-                Celine3DDiagnostics.record(appContext, "REN-320", "Surface created", "valid=" + isSurfaceReady());
-                if (SOFTWARE_EMULATOR) {
-                    final int serial = ++softwareSurfaceSerial;
-                    softwareSurfaceValid = true;
-                    softwareRenderHandler.post(() -> {
-                        if (serial != softwareSurfaceSerial) return;
-                        try { createSwapChain(holder); }
-                        catch (Throwable error) {
-                            renderError = error;
-                            Celine3DDiagnostics.error(appContext, "REN-397",
-                                    "Software SwapChain create FEHLER", error);
-                        }
-                    });
-                    return;
-                }
-                try { createSwapChain(holder); }
-                catch (Throwable error) {
-                    renderError = error;
-                    Celine3DDiagnostics.error(appContext, "REN-397", "SwapChain bei surfaceCreated FEHLER", error);
-                }
-            }
-
-            @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                Celine3DDiagnostics.record(appContext, "REN-322", "Surface changed",
-                        width + "x" + height + " format=" + format);
-                if (SOFTWARE_EMULATOR) {
-                    final int serial = ++softwareSurfaceSerial;
-                    softwareWidth = width;
-                    softwareHeight = height;
-                    softwareSurfaceValid = true;
-                    softwareRenderHandler.post(() -> {
-                        if (serial != softwareSurfaceSerial) return;
-                        try {
-                            if (swapChain == null) createSwapChain(holder);
-                            resizeViewport(width, height);
-                        } catch (Throwable error) {
-                            renderError = error;
-                            Celine3DDiagnostics.error(appContext, "REN-396",
-                                    "Software SwapChain/Viewport FEHLER", error);
-                        }
-                    });
-                    return;
-                }
-                try {
-                    if (swapChain == null) createSwapChain(holder);
-                    resizeViewport(width, height);
-                } catch (Throwable error) {
-                    renderError = error;
-                    Celine3DDiagnostics.error(appContext, "REN-396", "Viewport/SwapChain FEHLER", error);
-                }
-            }
-
-            @Override public void surfaceDestroyed(SurfaceHolder holder) {
-                Celine3DDiagnostics.record(appContext, "REN-323", "Surface destroyed", "stop/destroy swapchain");
-                if (SOFTWARE_EMULATOR) {
-                    ++softwareSurfaceSerial;
-                    softwareSurfaceValid = false;
-                    softwareRenderHandler.post(() -> destroySwapChain());
-                    return;
-                }
-                destroySwapChain();
-            }
-        });
-        Celine3DDiagnostics.record(appContext, "REN-319", "3D-Konstruktor abgeschlossen", "warte auf Surface/Frames");
+        Celine3DDiagnostics.record(appContext, "REN-317", "Filament client thread owner",
+                SOFTWARE_EMULATOR ? "Celine-Filament-Render: adopted Engine + all frames" : "Android UI");
     }
 
     private int countRenderables(FilamentAsset loadedAsset) {
