@@ -220,8 +220,10 @@ def send_user(command, *, verify_public_v80_seed=False):
                      if n.attrib.get("content-desc") == "Celin Nachricht schreiben"
                      and n.attrib.get("class") == "android.widget.EditText"
                      and n.attrib.get("package") == PACKAGE]
-            return (nodes[0].attrib.get("text", ""), nodes[0].attrib.get("focused", ""))
-                   if len(nodes) == 1 else (None, None)
+            if len(nodes) != 1:
+                return None, None
+            return (nodes[0].attrib.get("text", ""),
+                    nodes[0].attrib.get("focused", ""))
         before, focused = read_composer()
         evidence.append({"phase": "focus", "observed": before, "focused": focused})
         if before not in ("", None) or focused != "true":
