@@ -82,6 +82,18 @@ jobs:
           test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || command -v sdkmanager
           echo 'Avoiding deprecated sdkmanager tools package requested by setup-android@v3.'
 
+      - name: Validate supported Android Emulator GPU renderer before upgrade test
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/emulator/emulator" -help-gpu > core-persona-emulator-proof/emulator-supported-gpu.txt 2>&1
+          grep -Eq 'swiftshader' core-persona-emulator-proof/emulator-supported-gpu.txt || {
+            echo 'EMULATOR_GPU_MODE_UNSUPPORTED_FAIL: swiftshader'
+            cat core-persona-emulator-proof/emulator-supported-gpu.txt
+            exit 1
+          }
+          echo 'EMULATOR_GPU_MODE_SUPPORTED_PASS: swiftshader'
+
       - name: Allow KVM emulator acceleration
         shell: bash
         run: |
@@ -97,7 +109,10 @@ jobs:
           profile: pixel_2
           target: default
           disable-animations: true
-          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          # Emulator 37.2 rejects deprecated angle_indirect and silently falls
+          # back to auto/swangle on llvmpipe. Select a supported deterministic
+          # software GLES renderer to isolate system_server/UiAutomator ANRs.
+          emulator-options: -no-window -gpu swiftshader -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
             set -eu
             # Fail closed if official v80 cannot be upgraded in place to integrated v83.

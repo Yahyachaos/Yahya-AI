@@ -84,6 +84,16 @@ def hierarchy():
                         n.attrib.get("content-desc", "").strip()
                         for n in root.iter("node")
                     )
+                    # #32 exposed an Android OS "Process system isn't
+                    # responding" modal above the real migrated-memory editor.
+                    # That is a hard functional test failure, never an EditText
+                    # miss to retry or a screenshot-only PASS.
+                    if any(
+                        "isn't responding" in n.attrib.get("text", "").lower()
+                        for n in root.iter("node")
+                    ):
+                        raise AssertionError(
+                            "Android OS/app ANR dialog visible in real accessibility hierarchy")
                     if readable:
                         if failed:
                             print("UIAUTOMATOR_FRESH_RECOVERY_PASS: attempts=" +
@@ -906,4 +916,28 @@ except BaseException as error:
             encoding="utf-8")
     except BaseException:
         pass
+    # On #32 Android's *system* process ANR displaced the real EditText.
+    # Collect the separate OS event/system buffers and focus/CPU/GPU state
+    # while the emulator is still alive; do not click 'Wait' or dismiss ANR.
+    diagnostics = {
+        "FAIL-android-events.txt": ("logcat", "-d", "-b", "events", "-t", "750", "-v", "threadtime"),
+        "FAIL-android-system.txt": ("logcat", "-d", "-b", "system", "-t", "550", "-v", "threadtime"),
+        "FAIL-system-anr-state.txt": ("shell", "dumpsys", "activity", "anr"),
+        "FAIL-system-cpuinfo.txt": ("shell", "dumpsys", "cpuinfo"),
+        "FAIL-window-focus.txt": ("shell", "dumpsys", "window", "windows"),
+        "FAIL-app-gfxinfo.txt": ("shell", "dumpsys", "gfxinfo", PACKAGE),
+    }
+    for filename, args in diagnostics.items():
+        try:
+            result = subprocess.run(["adb", *args], capture_output=True,
+                                    text=True, timeout=20)
+            (OUT / filename).write_text(
+                ("exit=" + str(result.returncode) + "\\n" +
+                 "stderr=" + result.stderr[-2000:] + "\\n" +
+                 "stdout=" + result.stdout[-30000:]),
+                encoding="utf-8")
+        except BaseException as diagnostic_error:
+            (OUT / filename).write_text(
+                "diagnostic_unavailable=" + repr(diagnostic_error),
+                encoding="utf-8")
     raise
