@@ -89,7 +89,15 @@ public final class Celine3DView extends FrameLayout {
     // the main looper breathing room after each completed Filament frame.
     private static final boolean SOFTWARE_EMULATOR =
             "ranchu".equals(Build.HARDWARE) || "goldfish".equals(Build.HARDWARE);
-    private static final long SOFTWARE_EMULATOR_FRAME_GAP_MS = 100L;
+    // Real v80->v83 Android #48: software ANGLE reports 31/55 GPU frames at
+    // 4950 ms, 100% jank, and 12 null UiAutomator roots even though HOME
+    // is visibly drawn. Avoid immediately re-queueing the next costly native
+    // frame: bound emulator-only submissions while preserving the complete
+    // real Filament scene and untouched physical-device vsync cadence.
+    // A 4 s inter-frame breathing interval is below the measured 4.95 s
+    // saturated GPU fence, letting system UI/accessibility service requests
+    // run between submissions; it is NOT proof of an emulator/functional PASS.
+    private static final long SOFTWARE_EMULATOR_FRAME_GAP_MS = 4000L;
     private final Choreographer choreographer;
     private final Engine engine;
     private final Renderer renderer;
