@@ -279,8 +279,20 @@ def send_user(command, *, verify_public_v80_seed=False):
             chat, bubbles = _chat_scroll_and_bubbles(root)
             visible = [n.attrib.get("text", "") for n in bubbles
                        if _visible_rect(n, chat)]
-            observed.append({"attempt": attempt + 1, "visible": visible[-8:]})
-            if any(_labeled_body(v, "Du") == command for v in visible):
+            # Public v80 addBubble() immediately scrolls to the newest
+            # assistant reply. On the actual #40 pixel_2 screenshot the chat
+            # viewport is shorter than that reply, so the previous "Du"
+            # TextView can exist in the real ScrollView accessibility tree
+            # while its bounds are clipped outside the visible viewport.
+            # Require an EXACT whole user bubble from the authentic Android
+            # UiAutomator hierarchy, not a screenshot, substring, field or
+            # guessed state. The subsequent legacy memory dialog still must
+            # independently expose the complete exact persisted probe.
+            all_bubbles = [n.attrib.get("text", "") for n in bubbles]
+            observed.append({"attempt": attempt + 1,
+                             "visible": visible[-8:],
+                             "all_chat_textviews": all_bubbles[-8:]})
+            if any(_labeled_body(v, "Du") == command for v in all_bubbles):
                 seen = True
                 break
             if attempt < 3:
