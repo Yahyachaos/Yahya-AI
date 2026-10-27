@@ -142,3 +142,4 @@ jobs:
           name: celine-v83-combined-real-emulator-smoke
           path: core-persona-emulator-proof/
           if-no-files-found: warn
+# One-time CI-only push-path trigger (27 Oct 2026): validate existing 1440s v80-to-v83 smoke; no test/runtime changes.
