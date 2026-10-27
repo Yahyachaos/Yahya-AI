@@ -226,7 +226,11 @@ def send_user(command, *, verify_public_v80_seed=False):
                     nodes[0].attrib.get("focused", ""))
         before, focused = read_composer()
         evidence.append({"phase": "focus", "observed": before, "focused": focused})
-        if before not in ("", None) or focused != "true":
+        # API35 UiAutomator exposes an empty focused EditText's HINT as
+        # its "text" attribute (real #39 screenshot: no typed characters).
+        # Accept ONLY this exact v80 static hint as empty, never a partial
+        # user command, and still demand focused=true before typing.
+        if before not in ("", "Nachricht an Celin …") or focused != "true":
             (OUT / "public-v80-seed-before-send.json").write_text(
                 json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
             screenshot("FAIL-public-v80-seed-composer.png")
