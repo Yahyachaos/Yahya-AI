@@ -133,6 +133,16 @@ public final class Celine3DView extends FrameLayout {
         @Override public void doFrame(long frameTimeNanos) {
             if (!running) return;
             try {
+                // Actual combined v83 #47 (2026-10-27): while an Android
+                // Settings dialog took focus, the software-GPU emulator
+                // reported a genuine app ANR and an *unsignaled surface
+                // buffer fence*. Its 63/63 UI frames were janky (median
+                // 4950 ms). Do not submit new Filament work behind a focused
+                // dialog on that renderer. A preserved last SurfaceView frame
+                // remains visible; real device rendering is unchanged.
+                // The finally block still re-arms, so HOME/CALL resumes on
+                // actual window focus without a lifecycle reset.
+                if (SOFTWARE_EMULATOR && !hasWindowFocus()) return;
                 if (swapChain == null || !isSurfaceReady()) return;
                 updateCameraPresence(frameTimeNanos);
                 updateLivePose(frameTimeNanos);
