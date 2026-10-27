@@ -491,6 +491,40 @@ def open_internal_settings():
     (OUT / "FAIL-nested-settings-trace.json").write_text(
         json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
     screenshot("FAIL-nested-settings.png")
+
+    # #24 proved fresh v83 activity and an enabled accessibility node yet taps
+    # did not open its settings hub. Before assuming a product/UI root cause,
+    # record actual focused/touchable Android windows and one DIFFERENT native
+    # touch target. Fail remains fail: this probe cannot waive UI acceptance.
+    for label, args in (
+        ("window", ("shell", "dumpsys", "window")),
+        ("input", ("shell", "dumpsys", "input")),
+        ("activities", ("shell", "dumpsys", "activity", "activities")),
+    ):
+        try:
+            dump = adb(*args, check=False, timeout=30)
+            (OUT / ("FAIL-settings-" + label + ".txt")).write_text(
+                dump[-90000:], encoding="utf-8")
+        except Exception as exc:
+            (OUT / ("FAIL-settings-" + label + ".txt")).write_text(
+                repr(exc), encoding="utf-8")
+    try:
+        # An independent, non-destructive touch on the actual chat composer
+        # must raise the Android IME if the app really receives input.
+        click(node_with("content-desc", "Celin Nachricht schreiben"))
+        time.sleep(2)
+        after = hierarchy()
+        (OUT / "FAIL-settings-independent-touch.xml").write_text(
+            ET.tostring(after, encoding="unicode"), encoding="utf-8")
+        screenshot("FAIL-settings-independent-touch.png")
+        print("FAIL_SETTINGS_INDEPENDENT_TOUCH_PROBE: composerFocus=" +
+              repr([(n.attrib.get("text"), n.attrib.get("focused"))
+                    for n in after.iter("node")
+                    if n.attrib.get("content-desc") == "Celin Nachricht schreiben"]),
+              flush=True)
+    except Exception as exc:
+        print("FAIL_SETTINGS_INDEPENDENT_TOUCH_PROBE_ERROR: " + repr(exc),
+              flush=True)
     raise AssertionError("Actual internal Settings not reachable: " +
                          repr(trace[-3:]))
 
