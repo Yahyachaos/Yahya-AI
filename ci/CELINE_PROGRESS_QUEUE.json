@@ -8,23 +8,23 @@
   "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
   "cognitive_work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
   "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "4d0f7669a602b431f4ab2f5ca7e1e6d54c890296",
-  "checkpoint_kind": "docs_only_v83_user_approved_functional_interim_release_scope_live_runtime_preserved",
-  "status": "V83_SCOPED_FUNCTIONAL_RELEASE_VALIDATION_ACTIVE__UNFINISHED_ROOM_AESTHETICS_EXCLUDED_FOR_V83_ONLY",
-  "latest_runtime_code_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
-  "latest_built_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+  "current_branch_head_checkpoint": "1f43c6172d930df95261fc33145dad79388dc431",
+  "checkpoint_kind": "docs_only_v83_scoped_functional_core_room_smoke50_PASS_clean_included_scope_handoff__release_not_published",
+  "status": "V83_SCOPED_FUNCTIONAL_WORKSTREAM_CHECKPOINT_COMPLETE_INTEGRATION_READY__FINAL_SIGNED_MAIN_AND_UPDATER_GATES_PENDING",
+  "latest_runtime_code_head": "ee518091a4971ff15fb446f3e3064104986772bf",
+  "latest_built_runtime_head": "ee518091a4971ff15fb446f3e3064104986772bf",
   "latest_visually_inspected_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
-  "runtime_fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
+  "runtime_fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
   "android_build": {
-    "run_number": 1743,
-    "run_id": 40438653109,
+    "run_number": 1776,
+    "run_id": 40485243392,
     "conclusion": "success",
-    "head_sha": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
-    "apk_artifact_id": 12704971784,
+    "head_sha": "ee518091a4971ff15fb446f3e3064104986772bf",
+    "apk_artifact_id": 12724313163,
     "apk_artifact_name": "yahya-ai-debug",
-    "apk_digest": "sha256:3b12ea88124288517f482f07cf5af5f6baaa9cbf8df282ef4df9e7eaccf44bc5",
-    "runtime_fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
-    "note": "Genuine Android Gradle build from combined v83 code; PR merge synthetic SHA may differ; not final signed stable release"
+    "apk_sha256": "e4cbcc9e625dcaf5ca94a60b658b9e25550f67699394d1a27d7f4cf595523a10",
+    "runtime_fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
+    "note": "Genuine Android Gradle debug development build of v83 combined source. Not a final non-debug release APK or in-app updater asset."
   },
   "g1_status": {
     "generation": "COMPLETE_BUILT_ACCEPTED",
@@ -156,10 +156,12 @@
     "workflow_conclusion": "success",
     "evidence_sha256_manifest": "7/7 verified",
     "manual_visual_verdict": "WHOLE_ROOM_VISUAL_FAIL_KNOWN_USER_ACCEPTED_ONLY_FOR_OFFICIAL_V83",
-    "structural_lifecycle_verdict": "PASS_actual_android_HOME_CALL_HOME_no_black_scene"
+    "structural_lifecycle_verdict": "PASS_actual_android_HOME_CALL_HOME_no_black_scene",
+    "exact_current_runtime_proof": false,
+    "note": "Structural HOME→CALL→HOME #376 was genuinely checked, but against prior combined d3f7a6dc/e3a2b2e7. New performance-only runtime ee518091/f6decb7b still requires exact-head structural lifecycle revalidation before main/release. Whole-scene VISUAL FAIL remains user-accepted for v83 only."
   },
-  "current_blocker": "v83 genuine combined emulator #23 still in_progress; full real v80→v83 memory/Persona/Keystore acceptance not yet established",
-  "exact_next_action": "Read terminal combined v83 emulator #23/run 40440152258 and inspect genuine logs/screenshots; if FAIL implement smallest confirmed CI/runtime correction with exact proof, if PASS perform clean scoped §10 handoff then final PR exact-head validation and serial exact-main stable updater publication.",
+  "current_blocker": "Functional upgrade/persona/Keystore smoke #50 PASS, but final exact-head/main gates, compatible signer and real updater installation unproven. Existing CI publish route still takes debug build app-debug.apk; do not present this development APK as non-debug production release. Need a same-signed non-debuggable production APK path with validated install and release.",
+  "exact_next_action": "As sole Room #111 shared/CI/release owner, make one minimal targeted production-package route correction so exact-head Android CI creates a non-debuggable same-signed release APK (retaining the verified draft-debug proof path), then genuinely validate release APK/versionCode 83/signature and exact-head lifecycle before any serial main merge.",
   "release_checkpoint_v83": {
     "owner_decision_date": "2026-10-27",
     "product_scope": "OFFICIAL_STABLE_FUNCTIONAL_INTERIM_WITH_KNOWN_ROOM_VISUAL_FAIL",
@@ -202,34 +204,73 @@
       "no_concurrent_core_writes": true
     },
     "combined_runtime": {
-      "code_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
-      "fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
-      "android_build_run_id": 40438653109,
-      "android_apk_artifact_id": 12704971784,
+      "code_head": "ee518091a4971ff15fb446f3e3064104986772bf",
+      "fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
+      "android_build_run_id": 40485243392,
+      "android_apk_artifact_id": 12724313163,
+      "apk_sha256": "e4cbcc9e625dcaf5ca94a60b658b9e25550f67699394d1a27d7f4cf595523a10",
+      "debug_only": true,
       "home_call_home_run_id": 40439363570,
-      "home_call_home_sha_manifest": "7/7 PASS",
-      "whole_scene_visual": "FAIL_user_accepted_v83_only"
+      "home_call_home_source_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+      "home_call_home_sha_manifest": "7/7 PASS (older fingerprint)",
+      "whole_scene_visual": "FAIL_user_accepted_v83_only",
+      "current_exact_lifecycle_gate": "PENDING"
     },
     "contract_run": {
       "id": 40439204418,
       "verdict": "PASS"
     },
     "combined_emulator": {
-      "run_id": 40440152258,
-      "head_sha": "4d0f7669a602b431f4ab2f5ca7e1e6d54c890296",
-      "status": "in_progress",
-      "conclusion": null,
-      "prior_failed_run_id": 40439204282,
-      "prior_failure": "outer Settings chooser remained visible; corrected bounded real nested UI navigation CI-only at head 4d0f7669"
+      "run_number": 50,
+      "run_id": 40507900777,
+      "job_id": 122201841894,
+      "head_sha": "1f43c6172d930df95261fc33145dad79388dc431",
+      "status": "completed",
+      "conclusion": "success",
+      "runtime_fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
+      "source_runtime_head": "ee518091a4971ff15fb446f3e3064104986772bf",
+      "artifact_id": 12736473828,
+      "artifact_sha256": "8283acab3655a4f6932ef43d7c009d629092a419d279ffe848190511f70f07d9",
+      "final_marker": "CORE_EMULATOR_SMOKE_PASS",
+      "verified_scoped": [
+        "real public-v80 versionCode80 in-place v83 install and encrypted G1 memory migration",
+        "real memory edit/save and encrypted correction restart persistence",
+        "individual forget after restart",
+        "real settings direct-user Persona stages and opt-out; consumed-control-message UI checks",
+        "AndroidKeyStore AES-GCM encrypted save/restart/clear and two tamper fail-closed restarts",
+        "explicit tamper recovery and G1 memory isolation"
+      ],
+      "not_a_proof_of": [
+        "non-debuggable production APK",
+        "official installed-v82 signature parity",
+        "exact-main production Android build",
+        "actual existing Settings updater download-install",
+        "physical Samsung performance",
+        "current-runtime HOME→CALL→HOME full exact-head proof",
+        "whole-room reference visual PASS"
+      ]
     },
     "security_release_still_required": [
-      "successful real v80_to_v83 installed persona memory/Keystore emulator",
-      "all scoped §10 workstreams cleanly handed off",
-      "exact PR final gates",
-      "serial merge and exact-main Android/emulator gates",
-      "signature de.yahya.ai versionCode 83 compatible official v80 and installed v82",
-      "GitHub stable releases/latest v83 real APK tag/asset/SHA readback",
-      "actual CelineUpdaterV47 in-app download and install"
-    ]
+      "non-debuggable, same-signed release APK of de.yahya.ai versionCode 83, distinct from debug development artifact",
+      "exact PR final source/runtime build and functional/lifecycle proof including unchanged G1 persona contract",
+      "serialized merge and exact-main Android + required emulator gates",
+      "compatible v80/v82 installed signing certificate checked on actual production APK",
+      "stable GitHub releases/latest v83 tag exact-main SHA, real release APK asset/digest and readback",
+      "actual CelineUpdaterV47 Settings download and Android installer upgrade validation"
+    ],
+    "included_scope_clean_handoff": {
+      "checkpoint": "SCOPED FUNCTIONAL SOURCE/EMULATOR ACCEPTANCE COMPLETE ONLY",
+      "room_source_runtime_head": "ee518091a4971ff15fb446f3e3064104986772bf",
+      "core_source_branch_pr": 113,
+      "core_source_head": "1382019f903d04c279b9a58b0d7bbea9ee92f6bd",
+      "core_state": "FROZEN_INTEGRATION_READY_NO_SHARED_WRITES",
+      "room_visual_original_workorder": "UNFINISHED_PAUSED_EXCLUDED_BY_2026_10_27_OWNER_SCOPE_FOR_V83_ONLY",
+      "visual_fail_known": true,
+      "g2_3": "PAUSED",
+      "room_v83_release_owner": 111,
+      "exclusive_shared_write_lease": "Room PR #111 only",
+      "workers": "No overlapping shared implementation in progress; both existing worker schedules stay active; do not concurrently write release paths",
+      "no_merge_or_stable_release_yet": true
+    }
   }
 }
