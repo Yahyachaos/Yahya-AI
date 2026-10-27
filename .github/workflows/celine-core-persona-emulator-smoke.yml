@@ -29,30 +29,30 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify runtime equivalence with the actual combined v83 Android #1767
+      - name: Verify runtime equivalence with the actual combined v83 Android #1769
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 72a5a2ba5b25cb22fd4fcad562df3752588487cc HEAD
-          git diff --quiet 72a5a2ba5b25cb22fd4fcad562df3752588487cc HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "6272acc9be8b485f13c171cc6fae2c5957e1e0aa8677e3a0ad9b41846eb1c3c1"
-          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: Room and Core integrated Android #1767 includes off-frame 3D diagnostic persistence fix'
+          git merge-base --is-ancestor 023c3dd930aef78d394e3db2094416640678ccf1 HEAD
+          git diff --quiet 023c3dd930aef78d394e3db2094416640678ccf1 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "c5259dcf16803b1be2d5ac008cde881f8220eeae102399d8761a2ed3a7bd3c6f"
+          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: Room and Core integrated Android #1769 includes off-frame 3D diagnostic persistence and emulator Filament pacing'
           echo 'No Android build or Room build will be started by this workflow.'
 
-      - name: Reuse actual integrated Room+Core Android #1767 APK (no second Gradle build)
+      - name: Reuse actual integrated Room+Core Android #1769 APK (no second Gradle build)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40471824574 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          gh run download 40477800266 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
           test -f ci-apk/app-debug.apk
-          gh run download 40471824574 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-6272acc9be8b485f13c171cc6fae2c5957e1e0aa8677e3a0ad9b41846eb1c3c1 -D ci-apk
+          gh run download 40477800266 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-c5259dcf16803b1be2d5ac008cde881f8220eeae102399d8761a2ed3a7bd3c6f -D ci-apk
           python3 - <<'PY'
           import hashlib, json, pathlib
           metadata=json.loads(pathlib.Path("ci-apk/runtime-build.json").read_text())
-          assert metadata["runtime_fingerprint"]=="6272acc9be8b485f13c171cc6fae2c5957e1e0aa8677e3a0ad9b41846eb1c3c1"
+          assert metadata["runtime_fingerprint"]=="c5259dcf16803b1be2d5ac008cde881f8220eeae102399d8761a2ed3a7bd3c6f"
           # GitHub pull_request Android builds may set GITHUB_SHA to the
           # synthetic PR merge commit, not the source PR head_sha. The source
           # head is pinned independently by this exact GitHub run ID, APK
@@ -60,8 +60,8 @@ jobs:
           import re
           assert re.fullmatch(r"[0-9a-f]{40}", metadata["built_head"])
           print("ANDROID_BUILD_ACTUAL_GITHUB_SHA="+metadata["built_head"])
-          print("ANDROID_BUILD_SOURCE_HEAD=72a5a2ba5b25cb22fd4fcad562df3752588487cc")
-          assert str(metadata["workflow_run_id"])=="40471824574"
+          print("ANDROID_BUILD_SOURCE_HEAD=023c3dd930aef78d394e3db2094416640678ccf1")
+          assert str(metadata["workflow_run_id"])=="40477800266"
           with pathlib.Path("ci-apk/app-debug.apk").open("rb") as apk:
               actual=hashlib.file_digest(apk,"sha256").hexdigest()
           assert actual==metadata["apk_sha256"],"built Android APK SHA-256 mismatch"
@@ -120,7 +120,30 @@ jobs:
             # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
-            # The exact #1767 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
+            # The exact #1769 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
+            # Confirm hardware ID on which the source-owned Filament frame
+            # pacing is enabled; a false runtime condition cannot masquerade
+            # as an emulator performance regression fix.
+            adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
+            grep -Eq '^(ranchu|goldfish)
+            adb shell wm density 185
+            adb shell wm size | grep 'Override size: 720x1280'
+            adb shell wm density | grep 'Override density: 185'
+            { adb shell wm size; adb shell wm density; } > core-persona-emulator-proof/emulator-geometry.txt
+            adb install -r ci-apk/Yahya-AI-v80.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
+            echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
+            timeout 1080s python3 ci/celine_core_persona_emulator_smoke.py
+
+      - name: Upload genuine emulator screenshots and test provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-v83-combined-real-emulator-smoke
+          path: core-persona-emulator-proof/
+          if-no-files-found: warn
+ core-persona-emulator-proof/emulator-hardware.txt
+            echo 'SOFTWARE_EMULATOR_PACER_TARGET_HARDWARE_PASS'
             adb shell wm size 720x1280
             adb shell wm density 185
             adb shell wm size | grep 'Override size: 720x1280'
