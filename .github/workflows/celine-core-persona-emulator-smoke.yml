@@ -103,7 +103,7 @@ jobs:
           # through real v80->v83 memory inspection before an OS ANR. Pin that
           # proven baseline renderer explicitly and give system-server/UI a
           # bounded 4-core AVD to test CPU starvation without masking ANRs.
-          cores: 4
+          # Use emulator-runner default 2 vCPUs: #32 seeded exact public v80 successfully; #35/#36 with four cores lost ADB-injected text.
           emulator-options: -no-window -gpu swangle -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
             set -eu
