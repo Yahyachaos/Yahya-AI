@@ -108,6 +108,14 @@ jobs:
           script: |
             set -eu
             # Fail closed if official v80 cannot be upgraded in place to integrated v83.
+            # Genuine #40/#41 proved every character in the real v80 EditText,
+            # but pixel_2 at 420 dpi exposed only the LAST assistant bubble in
+            # its ~125px chat viewport; UiAutomator pruned the earlier user
+            # bubble even without our visibility filter. Present enough real
+            # chat viewport to inspect BOTH actual on-screen TextViews instead
+            # of weakening exact-chat, persisted-memory or OS-ANR assertions.
+            adb shell wm density 280
+            adb shell wm density | grep 'Override density: 280'
             adb install -r ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
             echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
