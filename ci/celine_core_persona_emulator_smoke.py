@@ -68,13 +68,7 @@ def click(node):
 
 
 def check_mode(expected):
-    click(node_with("text", "⚙"))
-    # v83 has a top-level App/Updates settings chooser above the existing
-    # MainActivity 'Weitere Einstellungen' list. Do not mistake that chooser
-    # for the actual Persona settings or claim a product failure.
-    first = hierarchy()
-    if any(n.attrib.get("text") == "Weitere Einstellungen" for n in first.iter("node")):
-        click(node_with("text", "Weitere Einstellungen"))
+    open_internal_settings()
     found = False
     last_error = None
     for attempt in range(4):
@@ -275,10 +269,7 @@ def verify_settings_only_exit():
 
     Never mistake a submitted direct chat command for a Settings-only exit.
     """
-    click(node_with("text", "⚙"))
-    first = hierarchy()
-    if any(n.attrib.get("text") == "Weitere Einstellungen" for n in first.iter("node")):
-        click(node_with("text", "Weitere Einstellungen"))
+    open_internal_settings()
     target = None
     for attempt in range(4):
         try:
@@ -470,11 +461,42 @@ def back_to_chat():
     raise AssertionError("Cannot return to chat after legacy memory inspection")
 
 
+def open_internal_settings():
+    """Traverse the real outer updater chooser AND inner settings dialog.
+
+    A freshly upgraded v83 can take more than one UI-automation frame to
+    expose inner Settings after tapping "Weitere Einstellungen". The old
+    single-tap assumption failed on the actual v80->v83 emulator #22 and
+    left the outer chooser on screen. Never silently pass on that screen.
+    """
+    trace = []
+    for attempt in range(6):
+        root = hierarchy()
+        visible = [n.attrib.get("text", "") for n in root.iter("node")
+                   if n.attrib.get("text")]
+        trace.append({"attempt": attempt, "visible": visible[-22:]})
+        if "Gedächtnis" in visible:
+            print("ACTUAL_NESTED_SETTINGS_OPEN_PASS", flush=True)
+            return
+        if "Weitere Einstellungen" in visible:
+            click(node_with("text", "Weitere Einstellungen"))
+        elif "⚙" in visible:
+            click(node_with("text", "⚙"))
+        else:
+            time.sleep(1)
+        time.sleep(1)
+    root = hierarchy()
+    (OUT / "FAIL-nested-settings.xml").write_text(
+        ET.tostring(root, encoding="unicode"), encoding="utf-8")
+    (OUT / "FAIL-nested-settings-trace.json").write_text(
+        json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
+    screenshot("FAIL-nested-settings.png")
+    raise AssertionError("Actual internal Settings not reachable: " +
+                         repr(trace[-3:]))
+
+
 def open_memory_settings():
-    click(node_with("text", "⚙"))
-    first = hierarchy()
-    if any(n.attrib.get("text") == "Weitere Einstellungen" for n in first.iter("node")):
-        click(node_with("text", "Weitere Einstellungen"))
+    open_internal_settings()
     click(node_with("text", "Gedächtnis"))
 
 
@@ -607,7 +629,7 @@ def main():
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
     if not re.search(r"versionCode=83\b", version):
-        raise AssertionError("Installed Android package is not versionCode 82")
+        raise AssertionError("Installed Android package is not versionCode 83")
     launch()
     verify_v80_to_v83_memory_migration()
     verify_migrated_memory_correction_and_forget()
