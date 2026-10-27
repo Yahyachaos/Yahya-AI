@@ -965,6 +965,58 @@ def verify_migrated_memory_correction_and_forget():
 
 
 
+def grant_visible_call_permission(grant_count):
+    """Grant only a real, focused Android audio/camera prompt after the CALL tap.
+
+    #51: public-v80 -> production-v83 upgrade succeeded, but Android's
+    first-use RECORD_AUDIO GrantPermissionsActivity remained on screen.
+    Never use adb pm grant or dismiss an unexpected/system ANR dialog.
+    """
+    window = adb("shell", "dumpsys", "window", "windows", check=False, timeout=25)
+    focused = [line.strip() for line in window.splitlines()
+               if "mCurrentFocus=" in line]
+    if not any("GrantPermissionsActivity" in line for line in focused):
+        return None
+    if grant_count >= 2:
+        screenshot("FAIL-production-unexpected-extra-permission.png")
+        raise AssertionError("More than two focused CALL runtime permission dialogs")
+
+    root = hierarchy()
+    os_nodes = [n for n in root.iter("node")
+                if n.attrib.get("package", "").endswith("permissioncontroller")]
+    prompt = " ".join(n.attrib.get("text", "") for n in os_nodes).casefold()
+    if "allow yahya ai to record audio?" in prompt:
+        kind = "microphone"
+    elif "allow yahya ai to take pictures and record video?" in prompt:
+        kind = "camera"
+    else:
+        screenshot("FAIL-production-unexpected-call-permission.png")
+        raise AssertionError("Focused OS permission request not expected CALL audio/camera: " +
+                             repr(prompt[:700]))
+
+    choices = [n for n in os_nodes
+               if n.attrib.get("text", "").strip().casefold() == "while using the app"
+               and n.attrib.get("clickable") == "true"]
+    if len(choices) != 1:
+        screenshot("FAIL-production-permission-no-explicit-while-using.png")
+        raise AssertionError("OS permission has no unique visible While using the app button")
+    label = "10-production-" + kind + "-permission-"
+    (OUT / (label + "focus-before.txt")).write_text(
+        "\n".join(focused) + "\n" + prompt + "\n", encoding="utf-8")
+    screenshot(label + "before.png")
+    click(choices[0])
+    screenshot(label + "after.png")
+    after = adb("shell", "dumpsys", "window", "windows",
+                check=False, timeout=25)
+    (OUT / (label + "focus-after.txt")).write_text(
+        "\n".join(line.strip() for line in after.splitlines()
+                  if "mCurrentFocus=" in line) + "\n", encoding="utf-8")
+    print("PRODUCTION_VISIBLE_ANDROID_CALL_PERMISSION_GRANTED: " + kind,
+          flush=True)
+    return kind
+
+
+
 def verify_production_home_call_home():
     """Real HOME/CALL/HOME entry and source lifecycle events, not visual PASS."""
     root = hierarchy()
@@ -976,7 +1028,16 @@ def verify_production_home_call_home():
     screenshot("10-production-home.png")
     click(targets[-1])
     entered = False
+    granted = set()
     for _ in range(22):
+        # Only a focused, real OS audio/video GrantPermissionsActivity may be
+        # granted. No blind tap, blanket appops/pm grant or acceptance shortcut.
+        permission = grant_visible_call_permission(len(granted))
+        if permission is not None:
+            if permission in granted:
+                raise AssertionError("CALL repeatedly requested the same OS permission: " + permission)
+            granted.add(permission)
+            continue
         logs = adb("logcat", "-d", "-t", "1600", check=False, timeout=25)
         if "target=CALL eased=true snap=false" in logs and "V80-420" in logs:
             entered = True
@@ -1012,8 +1073,19 @@ def assert_no_production_android_anr_or_crash():
                  check=False, timeout=45)
     (OUT / "production-events.txt").write_text(events[-130000:], encoding="utf-8")
     (OUT / "production-system.txt").write_text(system[-130000:], encoding="utf-8")
+    # Positive + negative matcher regression: a literal backslash-b must
+    # never silently turn actual Android am_anr/am_crash records into PASS.
+    fatal_tag = re.compile(r"\\bam_(?:anr|crash)\\b")
+    positive = ("10-27 16:00:00.000  1000  1000 I am_anr: [0,system_server]",
+                "10-27 16:00:01.000  1000  1000 I am_crash: [0,de.yahya.ai]")
+    negative = ("10-27 16:00:02.000  1000  1000 I am_anr_preview: [0,de.yahya.ai]",
+                "10-27 16:00:03.000  1000  1000 I activity_launch: [0,de.yahya.ai]")
+    if not all(fatal_tag.search(line) for line in positive) or any(
+            fatal_tag.search(line) for line in negative):
+        raise AssertionError("Fail-closed Android ANR/crash event-tag matcher regression")
+    print("PRODUCTION_ANDROID_EVENT_TAG_REGEX_POSITIVE_NEGATIVE_PASS", flush=True)
     bad_events = [line for line in events.splitlines()
-                  if re.search(r"am_(anr|crash)\\b", line)
+                  if fatal_tag.search(line)
                   and (PACKAGE in line or "system_server" in line)]
     bad_system = [line for line in system.splitlines()
                   if (("ANR in " + PACKAGE) in line or
