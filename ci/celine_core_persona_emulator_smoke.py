@@ -205,29 +205,59 @@ def check_mode(expected):
 
 def send_user(command, *, verify_public_v80_seed=False):
     click(node_with("content-desc", "Celin Nachricht schreiben"))
-    adb("shell", "input", "text", command.replace(" ", "%s"))
-    time.sleep(0.6)
     if verify_public_v80_seed:
-        # #35 showed just "celine" in public v80's memory dialog, where
-        # #32 had correctly persisted the entire probe. v80 MainActivity
-        # rememberExplicit() stores precisely the substring AFTER "merk dir".
-        # Inspect the REAL EditText before sending; never accept ADB's exit=0
-        # as proof that a heavily stalled emulator delivered every keyevent.
-        before = hierarchy()
-        composer = [n for n in before.iter("node")
-                    if n.attrib.get("content-desc") == "Celin Nachricht schreiben"
-                    and n.attrib.get("class") == "android.widget.EditText"
-                    and n.attrib.get("package") == PACKAGE]
-        observed = composer[0].attrib.get("text", "") if len(composer) == 1 else None
-        (OUT / "public-v80-seed-before-send.json").write_text(
-            json.dumps({"expected": command, "observed": observed,
-                        "composer_matches": len(composer)}, ensure_ascii=False, indent=2),
-            encoding="utf-8")
-        if observed != command:
+        # Genuine public-v80 #36/#37 ADB full-string injection returned OK
+        # while real focused EditText held only "mer" (4 cores) or
+        # "merk dir celine_upgr" (2 cores). The unchanged v80
+        # rememberExplicit() persists exactly what its composer submits.
+        # Therefore pace ONLY this legacy seed through short, confirmed
+        # real Android keyevent batches rather than submitting a partial
+        # command or pretending the memory subsystem lost the suffix.
+        evidence = []
+        def read_composer():
+            root = hierarchy()
+            nodes = [n for n in root.iter("node")
+                     if n.attrib.get("content-desc") == "Celin Nachricht schreiben"
+                     and n.attrib.get("class") == "android.widget.EditText"
+                     and n.attrib.get("package") == PACKAGE]
+            return (nodes[0].attrib.get("text", ""), nodes[0].attrib.get("focused", ""))
+                   if len(nodes) == 1 else (None, None)
+        before, focused = read_composer()
+        evidence.append({"phase": "focus", "observed": before, "focused": focused})
+        if before not in ("", None) or focused != "true":
+            (OUT / "public-v80-seed-before-send.json").write_text(
+                json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
             screenshot("FAIL-public-v80-seed-composer.png")
-            raise AssertionError("PUBLIC_V80_SEED_INPUT_MISMATCH: real EditText=" +
-                                 repr(observed) + " expected=" + repr(command))
-        print("PUBLIC_V80_SEED_EXACT_COMPOSER_PASS", flush=True)
+            raise AssertionError("PUBLIC_V80_SEED_COMPOSER_NOT_FOCUSED_OR_EMPTY: " +
+                                 repr((before, focused)))
+        for offset in range(0, len(command), 6):
+            chunk = command[offset:offset + 6]
+            expected_prefix = command[:offset + len(chunk)]
+            adb("shell", "input", "text", chunk.replace(" ", "%s"))
+            observed, focused = read_composer()
+            if observed != expected_prefix:
+                # One additional fresh read distinguishes delayed Android UI
+                # propagation from permanently dropped injected keyevents.
+                observed, focused = read_composer()
+            evidence.append({"phase": "chunk", "index": offset // 6,
+                             "expected_prefix": expected_prefix,
+                             "actual": observed, "focused": focused})
+            if observed != expected_prefix or focused != "true":
+                (OUT / "public-v80-seed-before-send.json").write_text(
+                    json.dumps(evidence, ensure_ascii=False, indent=2),
+                    encoding="utf-8")
+                screenshot("FAIL-public-v80-seed-composer.png")
+                raise AssertionError(
+                    "PUBLIC_V80_SEED_CHUNK_INPUT_MISMATCH: expected=" +
+                    repr(expected_prefix) + " actual=" + repr(observed))
+        (OUT / "public-v80-seed-before-send.json").write_text(
+            json.dumps(evidence, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        print("PUBLIC_V80_SEED_EXACT_COMPOSER_PASS: feedback-paced keyevents",
+              flush=True)
+    else:
+        adb("shell", "input", "text", command.replace(" ", "%s"))
+        time.sleep(0.6)
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     time.sleep(0.6)
     click(node_with("text", "➤"))
