@@ -70,7 +70,7 @@ final class CelineRoomForegroundLaptopV80 {
         int roomRootTransform = transforms.getInstance(roomAsset.getRoot());
         if (roomRootTransform == 0) throw new IllegalStateException("laptop: room root transform missing");
 
-        MaterialInstance donor = firstMaterial(roomAsset, engine, "room_back_wall");
+        MaterialInstance donor = firstMaterial(roomAsset, engine, "room_shell_left");
         MaterialInstance material = null;
         VertexBuffer vertices = null;
         IndexBuffer indices = null;
