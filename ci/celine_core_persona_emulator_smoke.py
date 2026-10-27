@@ -46,10 +46,31 @@ def hierarchy():
     # Keep EACH read fresh and fail closed if none yields a real XML root.
     for attempt in range(12):
         path = "/sdcard/core-persona-ui-" + str(time.monotonic_ns()) + ".xml"
+        # Preserve the tool's actual exit codes, stdout/stderr and on-device
+        # file evidence: a screen image cannot explain a missing XML file.
+        diagnostics = {}
+        error = ""
         try:
-            adb("shell", "uiautomator", "dump", path, timeout=50)
-            raw = adb("exec-out", "cat", path, timeout=15)
-            i = raw.find("<?xml")
+            dump = subprocess.run(
+                ["adb", "shell", "uiautomator", "dump", path],
+                capture_output=True, text=True, timeout=50)
+            cat = subprocess.run(
+                ["adb", "exec-out", "cat", path],
+                capture_output=True, timeout=15)
+            raw = cat.stdout.decode("utf-8", errors="replace")
+            diagnostics.update({
+                "dump_exit": dump.returncode,
+                "dump_stdout_tail": dump.stdout[-800:],
+                "dump_stderr_tail": dump.stderr[-800:],
+                "cat_exit": cat.returncode,
+                "cat_stderr_tail": cat.stderr.decode("utf-8", errors="replace")[-800:],
+                "cat_bytes": len(cat.stdout),
+                "cat_prefix": raw[:120],
+            })
+            if dump.returncode or cat.returncode:
+                error = "UiAutomator dump/read failed: dump_exit=" + str(dump.returncode) + (
+                    " cat_exit=" + str(cat.returncode))
+            i = raw.find("<?xml") if not error else -1
             if i >= 0:
                 root = ET.fromstring(raw[i:])
                 if root.tag == "hierarchy":
@@ -76,11 +97,44 @@ def hierarchy():
         except (RuntimeError, ET.ParseError, subprocess.TimeoutExpired) as exc:
             error = str(exc)
         finally:
+            if error:
+                try:
+                    st = subprocess.run(
+                        ["adb", "shell", "ls", "-ln", path],
+                        capture_output=True, text=True, timeout=12)
+                    diagnostics.update({
+                        "remote_file_stat_exit": st.returncode,
+                        "remote_file_stat_stdout": st.stdout[-800:],
+                        "remote_file_stat_stderr": st.stderr[-800:],
+                    })
+                except subprocess.TimeoutExpired:
+                    diagnostics["remote_file_stat_timeout"] = True
             adb("shell", "rm", "-f", path, check=False, timeout=15)
-        failed.append({"attempt": attempt + 1, "error": error})
+        failed.append({"attempt": attempt + 1, "error": error, **diagnostics})
         time.sleep(min(2 + attempt, 7))
     (OUT / "FAIL-uiautomator-fresh-attempts.json").write_text(
         json.dumps(failed, ensure_ascii=False, indent=2), encoding="utf-8")
+    # A failed test remains FAIL. Capture Android focus/accessibility/process
+    # context to distinguish emulator service failure from app UI starvation.
+    device_state = {}
+    for label, command in {
+        "window": ["adb", "shell", "dumpsys", "window", "windows"],
+        "activity": ["adb", "shell", "dumpsys", "activity", "top"],
+        "accessibility": ["adb", "shell", "dumpsys", "accessibility"],
+        "app_pid": ["adb", "shell", "pidof", PACKAGE],
+    }.items():
+        try:
+            probe = subprocess.run(command, capture_output=True, text=True,
+                                   timeout=18)
+            device_state[label] = {
+                "exit": probe.returncode,
+                "stdout_tail": probe.stdout[-12000:],
+                "stderr_tail": probe.stderr[-1200:],
+            }
+        except subprocess.TimeoutExpired:
+            device_state[label] = {"timeout": True}
+    (OUT / "FAIL-uiautomator-device-state.json").write_text(
+        json.dumps(device_state, ensure_ascii=False, indent=2), encoding="utf-8")
     screenshot("FAIL-uiautomator-fresh.png")
     raise AssertionError("No fresh real Android UI hierarchy after 12 reads: " + error)
 
