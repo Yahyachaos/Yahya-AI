@@ -203,14 +203,61 @@ def check_mode(expected):
     print("UI_SETTINGS_MODE_PASS:", expected, flush=True)
 
 
-def send_user(command):
+def send_user(command, *, verify_public_v80_seed=False):
     click(node_with("content-desc", "Celin Nachricht schreiben"))
     adb("shell", "input", "text", command.replace(" ", "%s"))
     time.sleep(0.6)
+    if verify_public_v80_seed:
+        # #35 showed just "celine" in public v80's memory dialog, where
+        # #32 had correctly persisted the entire probe. v80 MainActivity
+        # rememberExplicit() stores precisely the substring AFTER "merk dir".
+        # Inspect the REAL EditText before sending; never accept ADB's exit=0
+        # as proof that a heavily stalled emulator delivered every keyevent.
+        before = hierarchy()
+        composer = [n for n in before.iter("node")
+                    if n.attrib.get("content-desc") == "Celin Nachricht schreiben"
+                    and n.attrib.get("class") == "android.widget.EditText"
+                    and n.attrib.get("package") == PACKAGE]
+        observed = composer[0].attrib.get("text", "") if len(composer) == 1 else None
+        (OUT / "public-v80-seed-before-send.json").write_text(
+            json.dumps({"expected": command, "observed": observed,
+                        "composer_matches": len(composer)}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        if observed != command:
+            screenshot("FAIL-public-v80-seed-composer.png")
+            raise AssertionError("PUBLIC_V80_SEED_INPUT_MISMATCH: real EditText=" +
+                                 repr(observed) + " expected=" + repr(command))
+        print("PUBLIC_V80_SEED_EXACT_COMPOSER_PASS", flush=True)
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     time.sleep(0.6)
     click(node_with("text", "➤"))
     time.sleep(1.8)
+    if verify_public_v80_seed:
+        # Public v80 addBubble() creates exact TextView text "Du\\n" + command
+        # in the chat ScrollView. Confirm submission before inspecting storage.
+        # This catches send/touch loss separately from typing or memory writes.
+        observed = []
+        seen = False
+        for attempt in range(4):
+            root = hierarchy()
+            chat, bubbles = _chat_scroll_and_bubbles(root)
+            visible = [n.attrib.get("text", "") for n in bubbles
+                       if _visible_rect(n, chat)]
+            observed.append({"attempt": attempt + 1, "visible": visible[-8:]})
+            if any(_labeled_body(v, "Du") == command for v in visible):
+                seen = True
+                break
+            if attempt < 3:
+                _reveal_previous_chat_bubble(chat)
+        (OUT / "public-v80-seed-after-send.json").write_text(
+            json.dumps({"expected": command, "exact_user_bubble_seen": seen,
+                        "observations": observed}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        if not seen:
+            screenshot("FAIL-public-v80-seed-chat.png")
+            raise AssertionError(
+                "PUBLIC_V80_SEED_CHAT_MISMATCH: exact submitted user TextView missing")
+        print("PUBLIC_V80_SEED_EXACT_USER_CHAT_PASS", flush=True)
 
 
 
@@ -676,7 +723,8 @@ def prepare_public_v80_memory():
         raise AssertionError("Public v80 must be installed before legacy memory seed")
     launch()
     # This is disposable CI test data, never personal memory or a cloud credential.
-    send_user("merk dir " + LEGACY_MIGRATION_PROBE)
+    send_user("merk dir " + LEGACY_MIGRATION_PROBE,
+              verify_public_v80_seed=True)
     open_memory_settings()
     root = hierarchy()
     if not any(LEGACY_MIGRATION_PROBE in n.attrib.get("text", "")
