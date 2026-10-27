@@ -1035,6 +1035,7 @@ def verify_production_home_call_home():
     click(targets[-1])
     entered = False
     granted = set()
+    awaiting_explicit_retry_after_grant = None
     for _ in range(22):
         # Only a focused, real OS audio/video GrantPermissionsActivity may be
         # granted. No blind tap, blanket appops/pm grant or acceptance shortcut.
@@ -1043,11 +1044,36 @@ def verify_production_home_call_home():
             if permission in granted:
                 raise AssertionError("CALL repeatedly requested the same OS permission: " + permission)
             granted.add(permission)
+            awaiting_explicit_retry_after_grant = permission
             continue
         logs = adb("logcat", "-d", "-t", "1600", check=False, timeout=25)
         if "target=CALL eased=true snap=false" in logs and "V80-420" in logs:
             entered = True
             break
+        if awaiting_explicit_retry_after_grant is not None:
+            # CelineVideoCallV45.installEntryButton intentionally returns after
+            # requesting first-use RECORD_AUDIO and explicitly instructs the
+            # user to start the videochat again AFTER the OS grant. #53 proved
+            # the permission click succeeded but the app correctly stayed HOME.
+            # Repeat exactly that real, visible user action; never fake a CALL
+            # frame, grant permissions with adb or weaken lifecycle assertions.
+            root = hierarchy()
+            retry_buttons = [node for node in root.iter("node")
+                             if "Mit Celin videochatten" in node.attrib.get("text", "")
+                             and node.attrib.get("package") == PACKAGE
+                             and node.attrib.get("clickable") == "true"]
+            if len(retry_buttons) != 1:
+                screenshot("FAIL-production-os-grant-no-reentry-button.png")
+                raise AssertionError("Expected exactly one real HOME CALL button after visible "
+                                     "OS grant, found " + str(len(retry_buttons)))
+            kind = awaiting_explicit_retry_after_grant
+            screenshot("10-production-" + kind + "-granted-home-reentry-before.png")
+            click(retry_buttons[0])
+            screenshot("10-production-" + kind + "-granted-call-reentry-after.png")
+            print("PRODUCTION_REAL_UI_CALL_RESTART_AFTER_OS_GRANT: " + kind,
+                  flush=True)
+            awaiting_explicit_retry_after_grant = None
+            continue
         time.sleep(1)
     if not entered:
         screenshot("FAIL-production-call-transition.png")
