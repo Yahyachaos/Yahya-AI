@@ -29,30 +29,30 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify runtime equivalence with the actual combined v83 Android #1743
+      - name: Verify runtime equivalence with the actual combined v83 Android #1767
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2 HEAD
-          git diff --quiet d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137"
-          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: Room and Core integrated Android #1743 unchanged'
+          git merge-base --is-ancestor 72a5a2ba5b25cb22fd4fcad562df3752588487cc HEAD
+          git diff --quiet 72a5a2ba5b25cb22fd4fcad562df3752588487cc HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "6272acc9be8b485f13c171cc6fae2c5957e1e0aa8677e3a0ad9b41846eb1c3c1"
+          echo 'COMBINED_V83_RUNTIME_EQUIVALENCE_PASS: Room and Core integrated Android #1767 includes off-frame 3D diagnostic persistence fix'
           echo 'No Android build or Room build will be started by this workflow.'
 
-      - name: Reuse actual integrated Room+Core Android #1743 APK (no second Gradle build)
+      - name: Reuse actual integrated Room+Core Android #1767 APK (no second Gradle build)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40438653109 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          gh run download 40471824574 --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
           test -f ci-apk/app-debug.apk
-          gh run download 40438653109 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137 -D ci-apk
+          gh run download 40471824574 --repo "$GITHUB_REPOSITORY" -n runtime-fingerprint-6272acc9be8b485f13c171cc6fae2c5957e1e0aa8677e3a0ad9b41846eb1c3c1 -D ci-apk
           python3 - <<'PY'
           import hashlib, json, pathlib
           metadata=json.loads(pathlib.Path("ci-apk/runtime-build.json").read_text())
-          assert metadata["runtime_fingerprint"]=="e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137"
+          assert metadata["runtime_fingerprint"]=="6272acc9be8b485f13c171cc6fae2c5957e1e0aa8677e3a0ad9b41846eb1c3c1"
           # GitHub pull_request Android builds may set GITHUB_SHA to the
           # synthetic PR merge commit, not the source PR head_sha. The source
           # head is pinned independently by this exact GitHub run ID, APK
@@ -60,8 +60,8 @@ jobs:
           import re
           assert re.fullmatch(r"[0-9a-f]{40}", metadata["built_head"])
           print("ANDROID_BUILD_ACTUAL_GITHUB_SHA="+metadata["built_head"])
-          print("ANDROID_BUILD_SOURCE_HEAD=d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2")
-          assert str(metadata["workflow_run_id"])=="40438653109"
+          print("ANDROID_BUILD_SOURCE_HEAD=72a5a2ba5b25cb22fd4fcad562df3752588487cc")
+          assert str(metadata["workflow_run_id"])=="40471824574"
           with pathlib.Path("ci-apk/app-debug.apk").open("rb") as apk:
               actual=hashlib.file_digest(apk,"sha256").hexdigest()
           assert actual==metadata["apk_sha256"],"built Android APK SHA-256 mismatch"
@@ -120,7 +120,7 @@ jobs:
             # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
-            # The unchanged APK, strict full text/memory and OS-ANR checks remain.
+            # The exact #1767 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
             adb shell wm size 720x1280
             adb shell wm density 185
             adb shell wm size | grep 'Override size: 720x1280'
