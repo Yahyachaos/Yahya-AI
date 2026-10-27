@@ -121,28 +121,9 @@ jobs:
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
             # The exact #1769 newly built APK is pinned; strict full text/memory and OS-ANR checks remain.
-            # Confirm hardware ID on which the source-owned Filament frame
-            # pacing is enabled; a false runtime condition cannot masquerade
-            # as an emulator performance regression fix.
+            # Confirm this software emulator matches the source renderer's paced hardware predicate.
             adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
-            grep -Eq '^(ranchu|goldfish)
-            adb shell wm density 185
-            adb shell wm size | grep 'Override size: 720x1280'
-            adb shell wm density | grep 'Override density: 185'
-            { adb shell wm size; adb shell wm density; } > core-persona-emulator-proof/emulator-geometry.txt
-            adb install -r ci-apk/Yahya-AI-v80.apk
-            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
-            echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
-            timeout 1080s python3 ci/celine_core_persona_emulator_smoke.py
-
-      - name: Upload genuine emulator screenshots and test provenance
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: celine-v83-combined-real-emulator-smoke
-          path: core-persona-emulator-proof/
-          if-no-files-found: warn
- core-persona-emulator-proof/emulator-hardware.txt
+            grep -Eq '^(ranchu|goldfish)$' core-persona-emulator-proof/emulator-hardware.txt
             echo 'SOFTWARE_EMULATOR_PACER_TARGET_HARDWARE_PASS'
             adb shell wm size 720x1280
             adb shell wm density 185
