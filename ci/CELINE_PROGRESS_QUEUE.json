@@ -8,22 +8,23 @@
   "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
   "cognitive_work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
   "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "51d41c2789035b89217a525e5995e13957a25222",
-  "checkpoint_kind": "docs_only_truth_reconciliation_after_real_home_call_proof_1179",
-  "status": "ROOM_REBUILD_440x420__REAL_HOME_CALL_RASTER_RECONCILIATION_ACTIVE",
-  "latest_runtime_code_head": "51d41c2789035b89217a525e5995e13957a25222",
-  "latest_built_runtime_head": "51d41c2789035b89217a525e5995e13957a25222",
-  "latest_visually_inspected_runtime_head": "51d41c2789035b89217a525e5995e13957a25222",
-  "runtime_fingerprint": "e44dbd9b2e23c80fc13c415a6bc357f79e9d1273fdab6e71653868794c54aa87",
+  "current_branch_head_checkpoint": "4d0f7669a602b431f4ab2f5ca7e1e6d54c890296",
+  "checkpoint_kind": "docs_only_v83_user_approved_functional_interim_release_scope_live_runtime_preserved",
+  "status": "V83_SCOPED_FUNCTIONAL_RELEASE_VALIDATION_ACTIVE__UNFINISHED_ROOM_AESTHETICS_EXCLUDED_FOR_V83_ONLY",
+  "latest_runtime_code_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+  "latest_built_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+  "latest_visually_inspected_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+  "runtime_fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
   "android_build": {
-    "run_number": 1270,
-    "run_id": 34012931374,
+    "run_number": 1743,
+    "run_id": 40438653109,
     "conclusion": "success",
-    "head_sha": "51d41c2789035b89217a525e5995e13957a25222",
-    "apk_artifact_id": 9983043652,
+    "head_sha": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+    "apk_artifact_id": 12704971784,
     "apk_artifact_name": "yahya-ai-debug",
-    "apk_digest": "sha256:0956090e0daf4d01cf85e3189252514492baaf6c6aefda8b4c8d4312bfaa264a",
-    "fingerprint_artifact_id": 9983043791
+    "apk_digest": "sha256:3b12ea88124288517f482f07cf5af5f6baaa9cbf8df282ef4df9e7eaccf44bc5",
+    "runtime_fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
+    "note": "Genuine Android Gradle build from combined v83 code; PR merge synthetic SHA may differ; not final signed stable release"
   },
   "g1_status": {
     "generation": "COMPLETE_BUILT_ACCEPTED",
@@ -40,9 +41,17 @@
     "g2_6": "BLOCKED_ON_G2_5"
   },
   "active_room_rebuild": {
-    "status": "ACTIVE_REFERENCE_CONSTRAINED_REAL_PRODUCT_PROOF",
-    "dimensions_m": {"x_width": 4.40, "z_depth": 4.20, "y_height": 2.65},
-    "origin_user_xyz": [0.0, 0.0, 0.0],
+    "status": "VISUAL_FAIL_KNOWN_UNFINISHED_USER_EXCLUDED_FROM_OFFICIAL_V83_ONLY__RESUME_AFTER_PUBLISH",
+    "dimensions_m": {
+      "x_width": 4.4,
+      "z_depth": 4.2,
+      "y_height": 2.65
+    },
+    "origin_user_xyz": [
+      0,
+      0,
+      0
+    ],
     "root_empty": "room_world_root",
     "unique_source_glbs": 12,
     "instances": 13,
@@ -54,7 +63,10 @@
     "old_oversized_geometry_forbidden": true,
     "image_generation_forbidden": true,
     "reference_image": "Refernzbild.png",
-    "reference_grid_px": [1376, 1100],
+    "reference_grid_px": [
+      1376,
+      1100
+    ],
     "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
     "projection_solver": "tools/blender/solve_celine_room_reference_layout.py",
     "clean_renderer": "tools/blender/render_celine_room_440x420_proof.py",
@@ -66,8 +78,11 @@
       "call_default_zoom": 0.55,
       "reference_pan_x": 0.071327,
       "reference_pan_y": -0.192402,
-      "lens_mm": 32.0,
-      "real_call_stage_px": [1016, 813]
+      "lens_mm": 32,
+      "real_call_stage_px": [
+        1016,
+        813
+      ]
     },
     "accepted_derived_trs_steps_pending_whole_scene_acceptance": [
       "foreground table",
@@ -85,12 +100,29 @@
     ],
     "fresh_raster_findings_proof_1179": {
       "whole_room_visual_verdict": "FAIL",
-      "call_stage_px": [1016, 813],
+      "call_stage_px": [
+        1016,
+        813
+      ],
       "window_drapes": {
-        "projection_solver_claimed_bbox_norm": [0.205, 0.588, 0.086, 0.477],
-        "actual_visible_horizontal_bbox_px": [251, 578],
-        "actual_visible_horizontal_bbox_norm": [0.2470, 0.5689],
-        "target_horizontal_bbox_norm": [0.205, 0.588],
+        "projection_solver_claimed_bbox_norm": [
+          0.205,
+          0.588,
+          0.086,
+          0.477
+        ],
+        "actual_visible_horizontal_bbox_px": [
+          251,
+          578
+        ],
+        "actual_visible_horizontal_bbox_norm": [
+          0.247,
+          0.5689
+        ],
+        "target_horizontal_bbox_norm": [
+          0.205,
+          0.588
+        ],
         "actual_visible_top_px": 119,
         "actual_visible_top_norm": 0.1464,
         "target_top_norm": 0.086,
@@ -98,7 +130,12 @@
         "priority": "LARGEST_RELIABLE_GEOMETRY_DELTA"
       },
       "room_plant_small": {
-        "derived_trs_target_envelope": [0.934, 0.983, 0.463, 0.522],
+        "derived_trs_target_envelope": [
+          0.934,
+          0.983,
+          0.463,
+          0.522
+        ],
         "visible_semantic_verdict": "FAIL__POT_BODY_VISIBLE_BUT_REFERENCE_LEAF_CROWN_NOT_VISIBLE",
         "classification": "MATERIAL_OR_SUBMESH_VISIBILITY_AFTER_GEOMETRY"
       },
@@ -109,15 +146,90 @@
     }
   },
   "latest_real_home_call_proof": {
-    "run_number": 1179,
-    "run_id": 34012931368,
-    "artifact_id": 9983124305,
-    "artifact_digest": "sha256:81558db32a715e751fbeab64fd589c668d354f3be4482d2616f0828a98e9f3c3",
-    "head_sha": "51d41c2789035b89217a525e5995e13957a25222",
-    "workflow_conclusion": "failure",
-    "workflow_note": "HOME->CALL->HOME-return and all room screenshots completed successfully. The job failed later in the unrelated zoom checkpoint because 1.20x was not closer than normal CALL; room evidence is valid and was opened manually.",
-    "manual_visual_verdict": "WHOLE_ROOM_FAIL__WINDOW_VISIBLE_RASTER_REOPENED"
+    "run_number": 376,
+    "run_id": 40439363570,
+    "artifact_id": 12705197395,
+    "artifact_digest": "sha256:f9e0d3f4fbd32e363150ec3746ce6e1681ee2f57c5c54f5e4cf7cb6758989652",
+    "head_sha": "1a0a5a150d681374fb57707e55e4925ff229eb19",
+    "source_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+    "runtime_fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
+    "workflow_conclusion": "success",
+    "evidence_sha256_manifest": "7/7 verified",
+    "manual_visual_verdict": "WHOLE_ROOM_VISUAL_FAIL_KNOWN_USER_ACCEPTED_ONLY_FOR_OFFICIAL_V83",
+    "structural_lifecycle_verdict": "PASS_actual_android_HOME_CALL_HOME_no_black_scene"
   },
-  "current_blocker": "No technical blocker. Full-mesh projection bounds are not sufficient visual evidence for the window: real CALL raster on exact 1016x813 stage shows its visible drape silhouette too narrow/right and its top too low versus Refernzbild.png. Whole-room acceptance remains forbidden.",
-  "exact_next_action": "Fresh-reconcile PR/head/workflows. Starting from runtime head 51d41c2789035b89217a525e5995e13957a25222, perform one bounded raster-aware room_window_drapes correction using the actual CALL visible silhouette (x=251..578 px / 0.2470..0.5689, top=119 px / 0.1464) toward canonical x=0.205..0.588 and top=0.086 while preserving window depth/yaw, room shell, camera, all other furniture and Celine. Then exactly one Android build and one smallest real HOME->CALL->HOME proof; open the actual images. Do not touch materials/small-plant leaf visibility until this larger geometry mismatch is closed."
+  "current_blocker": "v83 genuine combined emulator #23 still in_progress; full real v80→v83 memory/Persona/Keystore acceptance not yet established",
+  "exact_next_action": "Read terminal combined v83 emulator #23/run 40440152258 and inspect genuine logs/screenshots; if FAIL implement smallest confirmed CI/runtime correction with exact proof, if PASS perform clean scoped §10 handoff then final PR exact-head validation and serial exact-main stable updater publication.",
+  "release_checkpoint_v83": {
+    "owner_decision_date": "2026-10-27",
+    "product_scope": "OFFICIAL_STABLE_FUNCTIONAL_INTERIM_WITH_KNOWN_ROOM_VISUAL_FAIL",
+    "included": [
+      "frozen Room C152 source runtime",
+      "surgically integrated frozen Core PR113 persona/Keystore/G1 source",
+      "app v83 updater/lifecycle"
+    ],
+    "explicitly_excluded_only_from_v83": [
+      "original full Room reference-perfect scene acceptance",
+      "furniture/curtain/material microcorrections before v83",
+      "G2.3 progression",
+      "unresolved GLASS versus source openings/backplanes semantic decision"
+    ],
+    "remaining_visually_failed": [
+      "opaque dark-gray dense striped curtains",
+      "narrow incorrect bright window slots/bars",
+      "room architecture furnishing material lighting perspective",
+      "Celine not matching reference"
+    ],
+    "original_full_room_acceptance": "FAIL",
+    "g2_3": "PAUSED",
+    "core_workstream": {
+      "pr": 113,
+      "head": "1382019f903d04c279b9a58b0d7bbea9ee92f6bd",
+      "status": "FROZEN_TESTED_INTEGRATION_READY_SOURCE_HANDOFF",
+      "no_shared_edit_lease": true
+    },
+    "sole_serial_integrator": {
+      "pr": 111,
+      "branch": "auto/celine/v80-human-videochat-presence",
+      "shared_owned": [
+        "MainActivity",
+        "app/build.gradle",
+        "CI",
+        "updater",
+        "signing",
+        "release"
+      ],
+      "no_concurrent_core_writes": true
+    },
+    "combined_runtime": {
+      "code_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
+      "fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
+      "android_build_run_id": 40438653109,
+      "android_apk_artifact_id": 12704971784,
+      "home_call_home_run_id": 40439363570,
+      "home_call_home_sha_manifest": "7/7 PASS",
+      "whole_scene_visual": "FAIL_user_accepted_v83_only"
+    },
+    "contract_run": {
+      "id": 40439204418,
+      "verdict": "PASS"
+    },
+    "combined_emulator": {
+      "run_id": 40440152258,
+      "head_sha": "4d0f7669a602b431f4ab2f5ca7e1e6d54c890296",
+      "status": "in_progress",
+      "conclusion": null,
+      "prior_failed_run_id": 40439204282,
+      "prior_failure": "outer Settings chooser remained visible; corrected bounded real nested UI navigation CI-only at head 4d0f7669"
+    },
+    "security_release_still_required": [
+      "successful real v80_to_v83 installed persona memory/Keystore emulator",
+      "all scoped §10 workstreams cleanly handed off",
+      "exact PR final gates",
+      "serial merge and exact-main Android/emulator gates",
+      "signature de.yahya.ai versionCode 83 compatible official v80 and installed v82",
+      "GitHub stable releases/latest v83 real APK tag/asset/SHA readback",
+      "actual CelineUpdaterV47 in-app download and install"
+    ]
+  }
 }
