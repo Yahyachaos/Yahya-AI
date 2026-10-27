@@ -23,6 +23,23 @@ LEGACY_MIGRATION_PROBE = "celine_upgrade_probe_20261025"
 PERSONA_G1_ISOLATION_PROBE = "celine_persona_g1_isolation_20261025"
 ACTIVITY = PACKAGE + "/.MainActivity"
 
+# Keep the FIRST native abort/Filament frames before the emulator log ring rolls.
+# Only v83 production startup is captured; no change to functional assertions.
+NATIVE_STARTUP_LOG = None
+NATIVE_STARTUP_STREAM = None
+
+
+def start_native_startup_capture():
+    global NATIVE_STARTUP_LOG, NATIVE_STARTUP_STREAM
+    if not PRODUCTION_MODE:
+        return
+    NATIVE_STARTUP_LOG = (OUT / "production-v83-startup-native-logcat.txt").open(
+        "w", encoding="utf-8")
+    NATIVE_STARTUP_STREAM = subprocess.Popen(
+        ["adb", "logcat", "-v", "threadtime", "-b", "main", "-b", "crash"],
+        stdout=NATIVE_STARTUP_LOG, stderr=subprocess.DEVNULL)
+
+
 
 def adb(*args, check=True, timeout=65):
     p = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout)
@@ -1172,6 +1189,7 @@ def main():
     original_pid = adb("shell", "pidof", PACKAGE, check=False).strip()
     # Scope OS ANR/crash events to the actual upgrade and later v83 activity.
     adb("logcat", "-c")
+    start_native_startup_capture()
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
     if not re.search(r"versionCode=83\b", version):
@@ -1301,4 +1319,38 @@ except BaseException as error:
             (OUT / filename).write_text(
                 "diagnostic_unavailable=" + repr(diagnostic_error),
                 encoding="utf-8")
+    # #57 genuinely aborted natively during v83 startup. Its prior 220-line
+    # logcat tail began at native frame #30 and lost the abort/first frames.
+    # Preserve full CRASH buffer and system tombstone evidence, fail closed.
+    for filename, args in {
+        "FAIL-native-crash-buffer.txt":
+            ("logcat", "-d", "-b", "crash", "-v", "threadtime"),
+        "FAIL-native-tombstone-dropbox.txt":
+            ("shell", "dumpsys", "dropbox", "--print", "SYSTEM_TOMBSTONE"),
+        "FAIL-native-tombstone-direct.txt":
+            ("shell", "cat", "/data/tombstones/tombstone_00"),
+        "FAIL-native-tombstone-list.txt":
+            ("shell", "ls", "-l", "/data/tombstones"),
+    }.items():
+        try:
+            result = subprocess.run(["adb", *args], capture_output=True,
+                                    text=True, timeout=30)
+            (OUT / filename).write_text(
+                ("exit=" + str(result.returncode) + "\\n" +
+                 "stderr=" + result.stderr[-2500:] + "\\n" +
+                 "stdout=" + result.stdout[:2500000]), encoding="utf-8")
+        except BaseException as diagnostic_error:
+            (OUT / filename).write_text(
+                "diagnostic_unavailable=" + repr(diagnostic_error),
+                encoding="utf-8")
     raise
+finally:
+    if NATIVE_STARTUP_STREAM is not None:
+        NATIVE_STARTUP_STREAM.terminate()
+        try:
+            NATIVE_STARTUP_STREAM.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            NATIVE_STARTUP_STREAM.kill()
+            NATIVE_STARTUP_STREAM.wait(timeout=5)
+    if NATIVE_STARTUP_LOG is not None:
+        NATIVE_STARTUP_LOG.close()
