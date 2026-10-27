@@ -53,11 +53,26 @@ def hierarchy():
             if i >= 0:
                 root = ET.fromstring(raw[i:])
                 if root.tag == "hierarchy":
-                    if failed:
-                        print("UIAUTOMATOR_FRESH_RECOVERY_PASS: attempts=" +
-                              str(attempt + 1), flush=True)
-                    return root
-            error = "Fresh UiAutomator output contained no XML hierarchy"
+                    # #30 actual memory-detail screenshot showed the correct
+                    # migrated record and actions, but a fresh UiAutomator
+                    # hierarchy had zero readable node text. Treat that as an
+                    # accessibility/rendering stall, NOT as missing memory or
+                    # proof of success. Recover with another fresh XML read.
+                    readable = any(
+                        n.attrib.get("text", "").strip() or
+                        n.attrib.get("content-desc", "").strip()
+                        for n in root.iter("node")
+                    )
+                    if readable:
+                        if failed:
+                            print("UIAUTOMATOR_FRESH_RECOVERY_PASS: attempts=" +
+                                  str(attempt + 1), flush=True)
+                        return root
+                    error = "Fresh Android UI hierarchy has no readable nodes"
+                else:
+                    error = "Fresh XML root is not Android hierarchy"
+            else:
+                error = "Fresh UiAutomator output contained no XML hierarchy"
         except (RuntimeError, ET.ParseError, subprocess.TimeoutExpired) as exc:
             error = str(exc)
         finally:
