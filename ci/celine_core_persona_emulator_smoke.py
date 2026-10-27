@@ -94,6 +94,38 @@ def hierarchy():
                         "isn't responding" in n.attrib.get("text", "").lower()
                         for n in root.iter("node")
                     ):
+                        # Genuine production #55: Android emitted am_anr for
+                        # de.yahya.ai during first-use microphone permission,
+                        # with 4950ms swangle GPU fences. Preserve the complete
+                        # fatal UI assertion while obtaining original Android
+                        # ANR *thread stacks* before the emulator is torn down.
+                        # Earlier #55's uploaded event/gfx buffers alone did
+                        # not identify which app main-thread native call held
+                        # the input dispatcher. No silent retry or PASS.
+                        for label, command in {
+                            "dropbox": ["adb", "shell", "dumpsys",
+                                        "dropbox", "--print", "data_app_anr"],
+                            "lastanr": ["adb", "shell", "dumpsys",
+                                        "activity", "lastanr"],
+                            "anr-trace": ["adb", "shell", "sh", "-c",
+                                          "f=$(ls -t /data/anr/anr_* 2>/dev/null | head -n 1); "
+                                          "[ -n \"$f\" ] && cat \"$f\""],
+                            "anr-files": ["adb", "shell", "ls", "-lt",
+                                           "/data/anr"],
+                        }.items():
+                            try:
+                                result = subprocess.run(
+                                    command, capture_output=True, text=True,
+                                    timeout=35)
+                                record = ("exit=" + str(result.returncode) +
+                                          "\\nstdout:\\n" + result.stdout[-300000:] +
+                                          "\\nstderr:\\n" + result.stderr[-2000:])
+                            except subprocess.TimeoutExpired:
+                                record = "timeout=35s"
+                            (OUT / ("FAIL-real-anr-" + label + ".txt")).write_text(
+                                record, encoding="utf-8")
+                        print("REAL_ANDROID_ANR_THREAD_DIAGNOSTICS_CAPTURED_FAIL_CLOSED",
+                              flush=True)
                         raise AssertionError(
                             "Android OS/app ANR dialog visible in real accessibility hierarchy")
                     if readable:
