@@ -253,10 +253,26 @@ def verify_native_composer_touch_phase(phase):
         raise AssertionError("REAL_NATIVE_COMPOSER_TOUCH_FAIL_" + phase +
                              ": focused=" + repr(evidence["after_focused"]))
     print("REAL_NATIVE_COMPOSER_TOUCH_" + phase.upper() + "_PASS", flush=True)
-    # Close only the genuinely focused keyboard; do not fake Settings success.
+    # Do not blindly press BACK: on API35 the editor is focused but the
+    # IME can still be hidden. In real #68 that BACK finished MainActivity
+    # (wm_finish_activity ... app-request), then the next UI assertion found
+    # Android Launcher instead of Yahya AI. Only dismiss a genuinely visible
+    # OS input-method window in the real UiAutomator hierarchy.
     time.sleep(1.2)
-    adb("shell", "input", "keyevent", "KEYCODE_BACK")
-    time.sleep(0.5)
+    current = hierarchy()
+    visible_imes = sorted({
+        n.attrib.get("package", "") for n in current.iter("node")
+        if "inputmethod" in n.attrib.get("package", "").lower()
+    })
+    (OUT / ("native-touch-" + phase + "-ime.json")).write_text(
+        json.dumps({"visible_input_method_packages": visible_imes,
+                    "back_pressed": bool(visible_imes)}, indent=2),
+        encoding="utf-8")
+    if visible_imes:
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        time.sleep(0.5)
+    else:
+        print("REAL_NATIVE_COMPOSER_NO_VISIBLE_IME_NO_BACK_PASS", flush=True)
     node_with("content-desc", "Celin Nachricht schreiben")
 
 
@@ -483,10 +499,10 @@ def recover_verified_legacy_pico_modal(root):
                 windows[-50000:], encoding="utf-8")
             if (sdk != "27" or len(titles) != 1 or other_buttons
                     or not re.search(
-                        r"mCurrentFocus=Window\\{[^\\n]*Application Error: com\\.svox\\.pico\\}",
+                        r"mCurrentFocus=Window\{[^\n]*Application Error: com\.svox\.pico\}",
                         windows)
                     or not re.search(
-                        r"mFocusedApp=[^\\n]*de\\.yahya\\.ai/\\.MainActivity",
+                        r"mFocusedApp=[^\n]*de\.yahya\.ai/\.MainActivity",
                         windows)):
                 raise AssertionError(
                     "API27 Pico OS modal lacks a source-proven, focused system-owned dismissal")
