@@ -39,7 +39,8 @@ const NAMES = {
 };
 
 const stage = $('viewport');
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const E2E_PROOF = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') && new URLSearchParams(location.search).get('e2e') === '1';
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: E2E_PROOF });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(stage.clientWidth, stage.clientHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -592,6 +593,61 @@ $('reference-file').onchange=(e)=>{
   refVisible=true;
   $('reference-toggle').classList.add('active');
 };
+
+// E2E-only camera/probe access makes real mouse interaction measurable without
+// programmatically selecting or transforming furniture. Not available outside
+// localhost with ?e2e=1. The Android runtime is completely separate.
+if (E2E_PROOF) {
+  window.__celineRoomEditorE2E = Object.freeze({
+    focus(id, direction = [1, 0.35, 1]) {
+      const entry = entries.get(id);
+      if (!entry || !entry.loaded) throw new Error('No loaded GLB for ' + id);
+      const bounds = new THREE.Box3().setFromObject(entry.group);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const distance = Math.max(2.8, size.length() * 1.25);
+      const offset = new THREE.Vector3(...direction).normalize().multiplyScalar(distance);
+      camera.position.copy(center).add(offset);
+      camera.near = 0.01;
+      camera.far = 250;
+      camera.updateProjectionMatrix();
+      orbit.target.copy(center);
+      orbit.update();
+      renderer.render(scene, camera);
+      return { id, center: center.toArray(), size: size.toArray() };
+    },
+    probeCenter() {
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const meshes = [...entries.values()].flatMap(e => e.group.children);
+      const hit = raycaster.intersectObjects(meshes, true).find(h => {
+        let p = h.object;
+        while (p && !p.userData.editorObjectId) p = p.parent;
+        return !!p?.userData.editorObjectId;
+      });
+      if (!hit) return null;
+      let node = hit.object;
+      while (node && !node.userData.editorObjectId) node = node.parent;
+      return node?.userData.editorObjectId || null;
+    },
+    viewport() {
+      const r = renderer.domElement.getBoundingClientRect();
+      return { x: r.left, y: r.top, width: r.width, height: r.height };
+    },
+    selectedOrigin() {
+      if (!selected) return null;
+      const v = selected.group.getWorldPosition(new THREE.Vector3()).project(camera);
+      const r = renderer.domElement.getBoundingClientRect();
+      return { x: r.left + (v.x + 1) * r.width / 2,
+               y: r.top + (1 - v.y) * r.height / 2 };
+    },
+    activeAxis() { return transform.axis; },
+    framePng() {
+      // Render deliberately before reading the preserved WebGL framebuffer.
+      renderer.render(scene, camera);
+      return renderer.domElement.toDataURL('image/png');
+    }
+  });
+}
 
 async function start() {
   try {
