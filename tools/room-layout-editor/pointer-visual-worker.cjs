@@ -978,6 +978,147 @@ async function main() {
       measuredAabbResidualV5:v5Residual,measuredAabbResidualV6:v6Residual,
       manualVisual:'PENDING',androidVisual:'FAIL_G2_3_PAUSED'});
 
+
+    // V7 BED ANCHOR: bounded local geometric depth trials, genuine loaded 13
+    // source-GLB WebGL images. The strict visual verdict is ALWAYS pending
+    // manual comparison; a green structural test cannot approve any bed.
+    const v7Path=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-29-room-bed-depth-fit-v7.json');
+    const v7Source=JSON.parse(fs.readFileSync(v7Path,'utf8'));
+    assert.deepEqual(v7Source.room,{width:4.4,depth:4.2,height:2.65});
+    assert.equal(v7Source.objects.length,13);
+    const v7ById=Object.fromEntries(v7Source.objects.map(o=>[o.id,o]));
+    for(const o of v7Source.objects)
+      if(o.id!=='room_bed')assert.deepEqual(o,v6ById[o.id],
+        'V7 must freeze the V6 dresser and all 11 other GLBs: '+o.id);
+    assert.deepEqual(v7ById.room_bed.translation_m,[1.08,.588966,-.12]);
+    assert.deepEqual(v7ById.room_bed.rotation_euler_deg,[0,180,0]);
+    assert.deepEqual(v7ById.room_bed.scale_xyz,[.96,.96,.96]);
+    assert.equal(v7ById.room_bed.locked,true);
+    assert.equal(v7ById.room_dresser.locked,true);
+    for(const [id,hash] of Object.entries(v6Source.original_source_hashes))
+      assert.equal(v7Source.original_source_hashes[id],hash,'V7 immutable source hash '+id);
+    const bedVariant=(translation,uniformScale)=>{
+      const state=JSON.parse(JSON.stringify(v7Source));
+      const o=state.objects.find(o=>o.id==='room_bed');
+      o.translation_m=translation;
+      o.scale_xyz=[uniformScale,uniformScale,uniformScale];
+      return state;
+    };
+    const bedTrials=[
+      {name:'baseline-v6',state:v6Source},
+      {name:'saved-v7',state:v7Source},
+      {name:'back-deeper',state:bedVariant([1.08,.588966,-.24],.96)},
+      {name:'forward',state:bedVariant([1.08,.588966,.22],.96)},
+      {name:'compact-back',state:bedVariant([1.18,.539886,-.12],.88)}
+    ];
+    const bedProof=[];
+    for(const trial of bedTrials){
+      const tempPath=path.join(output,'trial-v7-bed-'+trial.name+'.json');
+      fs.writeFileSync(tempPath,JSON.stringify(trial.state,null,2)+'\\n');
+      await page.locator('#file').setInputFiles(tempPath);
+      await page.waitForFunction(name=>document.querySelector('#status')?.textContent?.includes(
+        'Gespeichertes Layout geladen: '+name),path.basename(tempPath),{timeout:60000});
+      await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+        framingCamera.camera_proposal);
+      const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+      for(const [label,actual,expected] of [
+        ['position',projection.camera_position_m,effectiveCamera.position_m],
+        ['target',projection.camera_target_m,effectiveCamera.target_m]
+      ])assert(actual.length===3&&actual.every((n,i)=>Number.isFinite(n)&&
+        Math.abs(n-expected[i])<1e-9),'V7 frozen '+label+' camera within 1nm');
+      assert.deepEqual(projection.canvas_px,[700,560]);
+      assert(Math.abs(projection.aspect-1402/1122)<.002);
+      const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+      assert.deepEqual(audit.room_m,{width:4.4,depth:4.2,height:2.65});
+      assert.equal(audit.model_count,13);
+      assert.equal(audit.all_source_fidelity_glbs_loaded,true);
+      const all=Object.fromEntries(audit.objects.map(o=>[o.id,o]));
+      const failures=audit.objects.flatMap(o=>Object.entries(o.overflow_faces_m)
+        .filter(([,meters])=>meters>.012)
+        .map(([face,meters])=>({id:o.id,face,meters})));
+      assert.deepEqual(failures,[],'V7 source GLB room bounds: '+trial.name);
+      for(const obj of audit.objects){
+        assert.equal(obj.source_sha256,v6Source.original_source_hashes[obj.id],
+          'V7 uses ONLY original source GLBs: '+obj.id);
+        if(obj.id!=='room_bed'){
+          assert.deepEqual(obj.transform,v6Objects[obj.id].transform,
+            'V7 must freeze every other GLB transform '+obj.id);
+          assert.equal(obj.locked,v6Objects[obj.id].locked,
+            'V7 must not change any other lock '+obj.id);
+        }
+      }
+      assert.equal(all.room_bed.locked,true,'V7 bed remains independently locked');
+      assert.equal(all.room_dresser.locked,true,'V6 dresser lock must remain intact');
+      assert(Math.abs(all.room_bed.floor_bottom_y_m)<.012,'V7 bed floor contact');
+      const bedBox=all.room_bed.conservative_world_aabb_m;
+      const dresserBox=all.room_dresser.conservative_world_aabb_m;
+      assert(bedBox.min[0]>dresserBox.max[0]+.025,
+        'V7 bed/dresser original-model conservative physical clearance');
+      const screen=png('layout-v7-bed-'+trial.name+'-real-webgl.png',
+        await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+      assert.deepEqual([screen.width,screen.height],[700,560]);
+      const projected=projectedWorldAabb(all.room_bed,projection);
+      bedProof.push({trial:trial.name,realWebgl:screen,bedTransform:all.room_bed.transform,
+        bedLocked:all.room_bed.locked,bedFloorY_m:all.room_bed.floor_bottom_y_m,
+        originalModelWorldBounds:bedBox,conservativeProjectedAabb:projected,
+        dresserFrozen:true,other11Frozen:true,roomOverflows:failures,
+        manualVisualVerdict:'FAIL_PENDING_GENUINE_FRAME_INSPECTION'});
+    }
+    // Export the actual saved V7 candidate + genuine same-camera original image
+    // together (not a synthetic recoloring or inferred polygon).
+    await page.locator('#file').setInputFiles(v7Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-29-room-bed-depth-fit-v7.json'),
+      null,{timeout:60000});
+    await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+      framingCamera.camera_proposal);
+    const v7SavedAudit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(v7SavedAudit.objects.length,13);
+    assert.equal(v7SavedAudit.objects.find(o=>o.id==='room_bed').locked,true);
+    assert.equal(v7SavedAudit.objects.find(o=>o.id==='room_dresser').locked,true);
+    const v7Side=png('layout-v7-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw new Error('V7 original reference absent');
+        const image=new Image();
+        image.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((resolve,reject)=>{
+          if(image.complete&&image.naturalWidth)return resolve();
+          image.onload=resolve;image.onerror=reject;
+        });
+        const c=document.createElement('canvas');c.width=1400;c.height=560;
+        const ctx=c.getContext('2d');
+        ctx.drawImage(ref,0,0,700,560);ctx.drawImage(image,700,0,700,560);
+        return c.toDataURL('image/png');
+      }));
+    assert.deepEqual([v7Side.width,v7Side.height],[1400,560]);
+    const v7ReportName='layout-v7-bed-depth-audit.json';
+    const v7Report={
+      sourceSha:process.env.GITHUB_SHA||null,
+      candidateFile:path.relative(root,v7Path),
+      originalReference:'reference-original.png',originalReferencePx:[1402,1122],
+      cameraFrozenV3:true,room_m:v7SavedAudit.room_m,immutableSourceGLBCount:13,
+      v6BedReferenceEstimate:v6Source.reference_bbox_estimates_normalized.room_bed,
+      referenceOcclusion:'Person obscures exact foot/left edge; bound uncertainty +/- 0.06 normalized',
+      trials:bedProof,
+      realSameCameraSideBySide:v7Side,allOther12InstanceTransformsFrozen:true,
+      sourceAabbRoomCheck:'PASS',meshCollisionCertification:'NOT_PROVEN',
+      manualBedVisual:'FAIL_PENDING_REAL_FRAME_REVIEW',
+      manualDresserVisual:'FAIL_V6_BEST_BOUNDED_APPROXIMATION_LOCKED',
+      manualChairVisual:'FAIL_NOT_TOUCHED',
+      wholeRoomVisual:'FAIL',androidG2_3:'PAUSED'
+    };
+    fs.writeFileSync(path.join(output,v7ReportName),JSON.stringify(v7Report,null,2)+'\\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,v7ReportName),'utf8'))
+      .trials.length,5,'V7 all five genuine WebGL variants audited');
+    evidence('V7_GENUINE_BED_DEPTH_PROJECTION_TRIALS_NOT_VISUALLY_APPROVED',{
+      candidate:path.relative(root,v7Path),
+      images:bedProof.map(t=>t.realWebgl.file),sideBySide:v7Side.file,
+      audit:v7ReportName,cameraFrozen:true,originalSourceInstances:13,
+      bedLocked:true,dresserLocked:true,othersFrozen:true,
+      visualAcceptance:'FAIL_PENDING_MANUAL',android:'FAIL_G2_3_PAUSED'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
