@@ -157,6 +157,35 @@ async function main() {
     assert.equal(await page.locator('#x').isDisabled(),true);
     assert(Math.abs(Number(await page.locator('#x').inputValue())-movedX)<0.002);
     evidence('REAL_MOUSE_DRAG_PERSISTED_AND_LOCKED_AFTER_RELOAD_PASS',{id:picked.id,x:movedX});
+
+    // New coherent *experimental* furniture arrangement, built from the real
+    // AABBs of the thirteen source GLBs and the measured reference sectors.
+    // Import using the actual end-user JSON control. A geometry-fit test is
+    // deliberately not a reference-pixel, collision or Android visual PASS.
+    const draftPath=path.join(root, "tools/room-layout-editor/layout-candidates/2026-10-28-room-aabb-reference-coarse-v1.json");
+    await page.locator('#file').setInputFiles(draftPath);
+    await page.waitForFunction(()=>
+      document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen:'),
+      null,{timeout:30000});
+    const candidateAudit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(candidateAudit.model_count,13);
+    assert.deepEqual(candidateAudit.room_m,{width:4.4,depth:4.2,height:2.65});
+    assert.equal(candidateAudit.all_source_fidelity_glbs_loaded,true);
+    const violations=candidateAudit.objects.flatMap(o=>
+      Object.entries(o.overflow_faces_m).filter(([,v])=>v>0.012).map(([face,meters])=>
+        ({id:o.id,face,meters})));
+    fs.writeFileSync(path.join(output,'layout-candidate-aabb.json'),
+      JSON.stringify({...candidateAudit,sourceSha:process.env.GITHUB_SHA||null,
+        candidateFile:path.relative(root,draftPath),violations,referenceComparison:'NOT_TESTED'},null,2)+'\\n');
+    assert.deepEqual(violations,[],
+      'Candidate GLB geometry must fit the room within conservative 12mm AABB tolerance');
+    evidence('EXPERIMENTAL_ALL_13_GLB_BOUNDS_INSIDE_ROOM_PASS_NOT_VISUAL',
+      {candidate:path.relative(root,draftPath),aabbViolations:violations.length,
+       modelCount:candidateAudit.model_count});
+    await page.locator('#camera-call').click();
+    const candidateImage=png('layout-candidate-call.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng()));
+    evidence('EXPERIMENTAL_DRAFT_ROOM_REAL_WEBGL_RASTER_NOT_REFERENCE_ACCEPTED',candidateImage);
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
