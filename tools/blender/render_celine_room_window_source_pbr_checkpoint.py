@@ -267,6 +267,164 @@ def render_alpha_owner_isolation(scene):
     }
 
 
+
+def audit_source_face_projection(scene, camera):
+    """Project sampled ORIGINAL Blender-imported window polygon centroids into the solved camera.
+
+    Purely diagnostic geometry/depth/UV evidence. A projected polygon may be
+    occluded; a projected atlas color never proves fabric/frame identity.
+    Neither source data nor camera/material/transforms are modified.
+    """
+    from bpy_extras.object_utils import world_to_camera_view
+
+    root = bpy.data.objects.get(WINDOW_GEOMETRY)
+    meshes = [item for item in descendants(root) if item.type == "MESH" and item.data]
+    if len(meshes) != 1:
+        fail("source face projection requires one canonical window mesh")
+    obj = meshes[0]
+    mesh = obj.data
+    if not mesh.uv_layers.active or len(mesh.polygons) < 100_000:
+        fail("canonical window mesh UV/topology unexpectedly missing")
+
+    width = int(scene.render.resolution_x)
+    height = int(scene.render.resolution_y)
+    sample_stride = max(1, (len(mesh.polygons) + 59999) // 60000)
+    face_ids, centers, uv_centers = [], [], []
+    uv_data = mesh.uv_layers.active.data
+    for poly_index in range(0, len(mesh.polygons), sample_stride):
+        poly = mesh.polygons[poly_index]
+        if len(poly.vertices) != 3 or len(poly.loop_indices) != 3:
+            fail("nontriangular source window polygon: fail closed")
+        points = [mesh.vertices[int(v)].co[:] for v in poly.vertices]
+        centers.append(np.mean(np.asarray(points, dtype=np.float64), axis=0))
+        uv_centers.append(np.mean(
+            np.asarray([uv_data[int(i)].uv[:] for i in poly.loop_indices], dtype=np.float64),
+            axis=0))
+        face_ids.append(poly_index)
+
+    xyz = np.asarray(centers, dtype=np.float64)
+    uv = np.asarray(uv_centers, dtype=np.float64)
+    homog = np.column_stack((xyz, np.ones(len(xyz), dtype=np.float64)))
+    view = np.asarray(camera.matrix_world.inverted() @ obj.matrix_world, dtype=np.float64)
+    projection = np.asarray(camera.calc_matrix_camera(
+        bpy.context.evaluated_depsgraph_get(), x=width, y=height, scale_x=1.0, scale_y=1.0
+    ), dtype=np.float64)
+    eye = homog @ view.T
+    clip = eye @ projection.T
+    front = (eye[:, 2] < -0.01) & (clip[:, 3] > 0.01) & np.all(np.isfinite(clip), axis=1)
+    if not bool(front.any()):
+        fail("source window projection has no in-front polygon centers")
+    safe_w = np.where(front, clip[:, 3], 1.0)
+    px = (clip[:, 0] / safe_w + 1.0) * 0.5
+    py = (1.0 - clip[:, 1] / safe_w) * 0.5
+    depth = -eye[:, 2]
+
+    # Independent Blender camera projection checks: do not trust an unvalidated
+    # NDC matrix convention or substitute synthetic camera coordinates.
+    for index in np.flatnonzero(front)[:3]:
+        world = obj.matrix_world @ Vector(xyz[index].tolist())
+        check = world_to_camera_view(scene, camera, world)
+        if max(abs(px[index] - check.x), abs(py[index] - (1.0 - check.y))) > 1e-4:
+            fail("source face projection disagrees with Blender world_to_camera_view")
+
+    roi = (0.20, 0.60, 0.08, 0.55)
+    region = front & (px >= roi[0]) & (px <= roi[1]) & (py >= roi[2]) & (py <= roi[3])
+    if int(region.sum()) < 100:
+        fail("canonical window target ROI lacks enough authentic projected faces")
+    cuts = np.quantile(depth[region], [1/3, 2/3])
+    x_edges = np.linspace(roi[0], roi[1], 21)
+    y_edges = np.linspace(roi[2], roi[3], 17)
+    sampled_face_ids = np.asarray(face_ids, dtype=np.int64)
+    cells = []
+    for y_index in range(16):
+        for x_index in range(20):
+            chosen = region & (px >= x_edges[x_index]) & (px < x_edges[x_index+1]) & (
+                py >= y_edges[y_index]) & (py < y_edges[y_index+1])
+            if not bool(chosen.any()):
+                continue
+            cell_depth = depth[chosen]
+            cell_uv = uv[chosen]
+            cells.append({
+                "grid_xy": [x_index, y_index],
+                "projected_face_samples": int(chosen.sum()),
+                "depth_m_min_median_max": [round(float(v), 5) for v in (
+                    cell_depth.min(), np.median(cell_depth), cell_depth.max())],
+                "source_uv_centroid_min_max": [
+                    [round(float(cell_uv[:, axis].min()), 5),
+                     round(float(cell_uv[:, axis].max()), 5)]
+                    for axis in range(2)],
+                "example_blender_polygon_indices": [
+                    int(v) for v in sampled_face_ids[chosen][:5]],
+                "semantic_fabric_or_frame": "UNKNOWN",
+            })
+
+    # Two original images and a projected sample/depth overlay. SVG points are
+    # NOT visibility-tested fragments, semantic segmentation or a visual PASS.
+    overlay = PROOF_DIR / "window-source-face-depth-projection.svg"
+    indices = np.flatnonzero(region)
+    step = max(1, (len(indices) + 7999) // 8000)
+    colors = ("#008c68", "#e39627", "#7047c3")
+    circles = []
+    for i in indices[::step]:
+        layer = 0 if depth[i] <= cuts[0] else (1 if depth[i] <= cuts[1] else 2)
+        circles.append(
+            f'<circle cx="{width + px[i]*width:.1f}" cy="{py[i]*height:.1f}" '
+            f'r="1.75" fill="{colors[layer]}" fill-opacity=".62"/>'
+        )
+    overlay.write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width*2}" height="{height+58}" '
+        f'viewBox="0 0 {width*2} {height+58}">'
+        f'<rect width="100%" height="100%" fill="#111"/>'
+        f'<image href="Refernzbild.png" width="{width}" height="{height}" x="0"/>'
+        f'<image href="{ARCH_OUTPUT.name}" width="{width}" height="{height}" x="{width}"/>'
+        + "".join(circles)
+        + f'<text x="12" y="{height+32}" fill="white" font-size="21">'
+          'LEFT canonical reference | RIGHT source-PBR + projected face centroids '
+          '(green near / orange middle / purple far; NOT occlusion or material identity)</text>'
+          '</svg>\n', encoding="utf-8")
+
+    summary = {
+        "schema": "room-window-source-face-camera-projection/v1",
+        "head_sha": HEAD_SHA,
+        "source_hierarchy": WINDOW_GEOMETRY,
+        "actual_mesh_object": obj.name,
+        "mesh": mesh.name,
+        "total_imported_polygons": len(mesh.polygons),
+        "total_imported_vertices": len(mesh.vertices),
+        "sampling_stride": sample_stride,
+        "sampled_polygon_centroids": len(xyz),
+        "in_front_camera_samples": int(front.sum()),
+        "reference_target_roi_norm_xy": list(roi),
+        "samples_projected_into_target_roi": int(region.sum()),
+        "roi_depth_tertiles_m": [round(float(v), 6) for v in cuts],
+        "grid_size": [20, 16],
+        "screen_cells_with_projected_samples": cells,
+        "reference": REFERENCE.name,
+        "architecture_png": ARCH_OUTPUT.name,
+        "diagnostic_overlay": overlay.name,
+        "projection_crosscheck": "Blender world_to_camera_view / 3 source samples PASS",
+        "material_slots_preserved": True,
+        "source_geometry_modified": False,
+        "source_uvs_modified": False,
+        "camera_modified": False,
+        "visibility_tested_per_fragment": False,
+        "fabric_frame_face_ownership_proven": False,
+        "glass_opening_or_backplane_decision": "NONE",
+        "visual_acceptance": "NOT_TESTED",
+        "limitation": "Sampled polygon centroid projections and depth are not ray-tested visibility "
+                      "or material ownership; UNKNOWN cannot be converted to fabric/rail labels.",
+    }
+    report = PROOF_DIR / "window-source-face-depth-projection.json"
+    report.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    print(
+        "WINDOW_SOURCE_FACE_DEPTH_PROJECTION PASS "
+        f"samples={len(xyz)} target_roi={int(region.sum())} "
+        f"grid_cells={len(cells)} sourceModified=false "
+        "fabricFrameProven=false visualAcceptance=NOT_TESTED", flush=True
+    )
+    return {"json": report.name, "svg": overlay.name, "source_face_ownership": "UNKNOWN"}
+
+
 def main():
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     audits, meshes, material_slots, image_nodes = audit_source_window_without_mutation()
@@ -278,13 +436,14 @@ def main():
     original_hide = {obj.name: bool(obj.hide_render) for obj in bpy.data.objects}
     architecture_hidden = []
     alpha_diagnostic = None
+    projection_audit = None
     try:
         front.hide_render = True
         render(scene, WHOLE_OUTPUT)
         architecture_hidden = hide_non_window_geometry_for_architecture()
         front.hide_render = True
         render(scene, ARCH_OUTPUT)
-        alpha_diagnostic = render_alpha_owner_isolation(scene)
+        projection_audit = audit_source_face_projection(scene, camera)
     finally:
         for obj in bpy.data.objects:
             if obj.name in original_hide:
@@ -304,6 +463,8 @@ def main():
         "whole_scene_render": WHOLE_OUTPUT.name,
         "architecture_render": ARCH_OUTPUT.name,
         "alpha_diagnostic": alpha_diagnostic,
+        "repeated_global_alpha_experiment": False,
+        "source_face_projection_audit": projection_audit,
         "reference": REFERENCE.name,
         "engine": engine_name,
         "render_size": [1376, 1100],
@@ -351,7 +512,7 @@ def main():
         "CELINE_ROOM_WINDOW_SOURCE_PBR_CHECKPOINT PASS "
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
         f"architectureHidden={len(architecture_hidden)} sourceMeshAudits={len(audits)} "
-        f"alphaAB={ALPHA_DIAG_OUTPUT.name} "
+        f"faceProjection={projection_audit['json']} "
         f"materialSlots={material_slots} imageTextureNodes={image_nodes} "
         "sourceBytesImmutable=true geometryMutated=false materialsMutated=false "
         "sourceMaterialSlotsPreserved=true sourceBaseColorAtlasBypassed=false "
