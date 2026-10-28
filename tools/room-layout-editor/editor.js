@@ -63,7 +63,7 @@ sun.position.set(-3, 6, 5);
 scene.add(sun);
 
 const transform = new TransformControls(camera, renderer.domElement);
-scene.add(transform.getHelper());
+scene.add(transform);
 transform.setMode('translate');
 transform.setSpace('world');
 transform.addEventListener('dragging-changed', (e) => { orbit.enabled = !e.value; });
