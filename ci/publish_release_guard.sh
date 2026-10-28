@@ -82,12 +82,20 @@ cat >> "$NOTES_FILE" <<'V83_VISUAL_FAIL_NOTES'
 ## Known visual issues — explicitly accepted by the owner for this v83 interim release only
 
 This is an official **functional interim release**, not a claim of a reference-perfect Room. Real Android HOME/CALL comparison remains **VISUAL FAIL**: dark gray/strongly striped curtains, incorrect bright window bars/openings, room architecture/furnishings/materials/lighting/perspective gaps, and visibly non-reference Celine. The GLASS/open-window/backplane owner decision is still unresolved; **G2.3 PAUSED**. Room visual perfection continues after v83. Security, memory, updater, build and signing gates are NOT waived.
+
+## Critical signing risk — explicitly accepted for this interim version
+
+**The historical Android production signing private key was publicly exposed in the project's public source repository.** This v83 APK intentionally uses the same certificate as previously installed v80/v82 to preserve in-place upgrade compatibility. Matching the certificate does **not** establish a secure or exclusive publisher identity: anyone who obtained the exposed private key could produce an apparently correctly signed replacement. The owner explicitly authorized this known risk for the v83 functional interim release; this does not heal the compromise, and safe key-custody/rotation and Android 8 migration remain unresolved future security work. Obtain the APK only from the project's verified GitHub Release and check its published SHA-256 digest. The digest detects changes relative to that release, but does not restore an uncompromised signing identity.
 V83_VISUAL_FAIL_NOTES
 fi
 
 # Guard against a stale copied release body before GitHub is touched.
 if ! grep -Fqx "# Yahya AI v${VERSION_CODE}" "$NOTES_FILE"; then
   echo "Generated release notes do not identify the current version."
+  exit 1
+fi
+if [ "$VERSION_CODE" = "83" ] && ! grep -Fq 'historical Android production signing private key was publicly exposed' "$NOTES_FILE"; then
+  echo "Refusing v83 release without the required compromised-signer risk disclosure."
   exit 1
 fi
 
