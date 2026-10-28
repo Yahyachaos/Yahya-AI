@@ -752,8 +752,16 @@ async function main() {
       await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
         framingCamera.camera_proposal);
       const actualCamera=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
-      assert.deepEqual(actualCamera.camera_position_m,effectiveCamera.position_m,'V5 camera position frozen');
-      assert.deepEqual(actualCamera.camera_target_m,effectiveCamera.target_m,'V5 camera target frozen');
+      // Three.js camera matrix arithmetic can introduce insignificant IEEE-754 roundoff.
+      // 0.10179999999999999m and 0.1018m differ by far less than 1 nanometer.
+      for(const [label,actual,expected] of [
+        ['position',actualCamera.camera_position_m,effectiveCamera.position_m],
+        ['target',actualCamera.camera_target_m,effectiveCamera.target_m]
+      ]){
+        assert.equal(actual.length,3,'V5 camera '+label+' has XYZ');
+        assert(actual.every((v,i)=>Number.isFinite(v)&&Math.abs(v-expected[i])<1e-9),
+          'V5 camera '+label+' frozen within 1nm');
+      }
       const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
       const proj=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
       assert.equal(audit.model_count,13,'V5 source-fidelity instances');
