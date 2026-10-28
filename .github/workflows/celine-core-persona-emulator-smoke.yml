@@ -111,7 +111,12 @@ jobs:
           # proven baseline renderer explicitly and give system-server/UI a
           # bounded 4-core AVD to test CPU starvation without masking ANRs.
           # Use emulator-runner default 2 vCPUs: #32 seeded exact public v80 successfully; #35/#36 with four cores lost ADB-injected text.
-          emulator-options: -no-window -gpu swangle -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          # #61 produced a real 5014ms input ANR with swangle: HWUI drawFrame, gfxstream HWC fences
+          # and Filament beginFrame contend on the emulator graphics backend. This is ONE
+          # controlled same-APK backend A/B isolation (Linux Mesa lavapipe) against #61;
+          # no runtime/code change, no ANR/Persona/memory gate weakening and no claimed PASS.
+          # A rejected/unsupported backend or v80 startup failure is a genuine FAIL, not a fix.
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
             set -eu
             # Fail closed if official v80 cannot be upgraded in place to integrated v83.
