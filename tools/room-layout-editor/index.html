@@ -35,7 +35,7 @@
   <span class="pill" id="loaded">Starte…</span>
 </header>
 <main>
-  <div id="viewport"><img id="reference-overlay" alt="Originalreferenz" hidden><div class="hint">Maus: Objekt anklicken · Ziehen: bewegen · Rechtsklick: Kamera drehen · Mausrad: zoomen · Ansicht jederzeit wechseln</div></div>
+  <div id="viewport"><img id="reference-overlay" alt="Originalreferenz" hidden><div class="hint">Möbel anklicken · Verschieben / Drehen / Skalieren · X/Y/Z einzeln ändern · Verankern · Nächstes Möbel · Maus rechts: Kamera · Rad: Zoom</div></div>
   <aside>
     <section>
       <h2>Raumgröße – Referenzmaß</h2>
@@ -62,12 +62,27 @@
       <label for="object">Möbel / Raumobjekt</label>
       <select id="object" aria-label="Objekt auswählen"></select>
       <div class="button-row"><button id="move" class="active">Verschieben</button><button id="rotate">Drehen</button><button id="scale-mode">Skalieren</button></div>
+      <div class="button-row"><button id="lock-object">🔒 Möbel verankern</button><button id="next-unlocked">Nächstes freies Möbel</button></div>
+      <p id="lock-state" class="small" role="status">Noch nicht ausgewählt</p>
+      <p class="small">Ein verankertes Möbel bleibt auswählbar, kann aber weder gezogen noch gedreht oder skaliert werden. Erst bewusst entsperren.</p>
       <div class="fields">
         <label>X (m)<input id="x" type="number" step="0.01"></label>
         <label>Y (m)<input id="y" type="number" step="0.01"></label>
         <label>Z (m)<input id="z" type="number" step="0.01"></label>
       </div>
-      <label for="yaw">Drehung um Y (Grad)</label><input id="yaw" type="number" step="1">
+      <label>Winkel: Drehen und Wenden in allen drei Achsen (Grad)</label>
+      <div class="fields">
+        <label>X (kippen)<input id="pitch" type="number" step="1"></label>
+        <label>Y (drehen)<input id="yaw" type="number" step="1"></label>
+        <label>Z (rollen)<input id="roll" type="number" step="1"></label>
+      </div>
+      <div class="button-row"><button id="flip-x">X um 180°</button><button id="flip-y">Y um 180°</button><button id="flip-z">Z um 180°</button></div>
+      <h2>Präzise bewegen – Richtung in Meter</h2>
+      <p class="small">X: links/rechts · Y: unten/oben · Z: hinten/vorne (zur Kamera +Z). Schrittweite individuell.</p>
+      <label for="nudge-step">Schrittweite in m</label><input id="nudge-step" type="number" min="0.001" max="1" value="0.05" step="0.005">
+      <div class="button-row"><button data-nudge="x:-1">← X−</button><button data-nudge="x:1">X+ →</button></div>
+      <div class="button-row"><button data-nudge="y:-1">↓ Y−</button><button data-nudge="y:1">Y+ ↑</button></div>
+      <div class="button-row"><button data-nudge="z:-1">Z− hinten</button><button data-nudge="z:1">Z+ vorne</button></div>
       <label for="scale">Größe (einheitlicher Faktor)</label><input id="scale" type="number" min="0.01" max="20" step="0.01">
       <div class="button-row"><button id="reset-object">Objekt zurücksetzen</button><button id="reset-all">Alle zurücksetzen</button></div>
     </section>
@@ -85,7 +100,7 @@
       <h2>Positionen sichern</h2>
       <div class="button-row"><button id="save">Layout speichern (.json)</button><button id="export-assembly">Assembly exportieren</button></div>
       <div class="button-row"><label class="file-label" for="file">Layout laden (.json)</label><input id="file" type="file" accept=".json,application/json"></div>
-      <p class="small">Speichern lädt eine JSON-Datei herunter. Nichts wird in den laufenden Android-Build geschrieben. Die Übernahme in den tatsächlichen Filament-Raum ist ein eigener Schritt.</p>
+      <p class="small">Speichern enthält die exakten X/Y/Z-Positionen, X/Y/Z-Winkel, Maßstab sowie die Verankerung für alle 13 Objekte. Ein Assembly-Export bleibt ein Kandidat – seine zusätzlichen X-/Z-Winkel benötigen vor einer Android-Übernahme noch einen eigenen Importer. Keine App-Datei wird automatisch geändert.</p>
     </section>
     <section>
       <h2>Modellstatus</h2>
