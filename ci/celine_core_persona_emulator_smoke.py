@@ -23,6 +23,7 @@ LEGACY_MIGRATION_PROBE = "celine_upgrade_probe_20261025"
 PERSONA_G1_ISOLATION_PROBE = "celine_persona_g1_isolation_20261025"
 ACTIVITY = PACKAGE + "/.MainActivity"
 LEGACY_PICO_NATIVE_CRASH_COUNT = 0
+LEGACY_PICO_OBSERVED_CRASH_BANNERS = set()
 
 # Keep the FIRST native abort/Filament frames before the emulator log ring rolls.
 # Only v83 production startup is captured; no change to functional assertions.
@@ -268,11 +269,16 @@ def verify_native_composer_touch_phase(phase):
     window_blocks = re.findall(
         r"(?ms)^  Window #\d+ Window\{[^\n]*\}:\n.*?(?=^  Window #\d+ Window\{|\Z)",
         windows)
+    # API26/27 original OS dumps use mViewVisibility/mHasSurface and
+    # isReadyForDisplay instead of the newer isVisible flag. #70 API26
+    # screenshot visibly retained the keyboard and hid the CALL button.
     visible_ime_windows = [
         b.splitlines()[0].strip() for b in window_blocks
         if " InputMethod}:" in b.splitlines()[0]
-        and "isVisible=true" in b
         and "Surface: shown=true" in b
+        and ("isVisible=true" in b or
+             ("mViewVisibility=0x0" in b and "mHasSurface=true" in b
+              and "isReadyForDisplay()=true" in b))
     ]
     keyboard_visible = bool(ui_ime_packages or visible_ime_windows)
     (OUT / ("native-touch-" + phase + "-ime.json")).write_text(
@@ -456,20 +462,31 @@ def recover_verified_legacy_pico_modal(root):
     This allows separate data-migration evidence, but never declares the
     legacy TTS/voice behavior healthy. Any app/system ANR still fails closed.
     """
-    global LEGACY_PICO_NATIVE_CRASH_COUNT
+    global LEGACY_PICO_NATIVE_CRASH_COUNT, LEGACY_PICO_OBSERVED_CRASH_BANNERS
     if not PRODUCTION_MODE or adb("shell", "getprop", "ro.build.version.sdk").strip() not in ("26", "27"):
         return root
     for attempt in range(6):
         texts = [n.attrib.get("text", "") for n in root.iter("node")]
         if not any(t in ("Pico TTS has stopped", "Pico TTS keeps stopping") for t in texts):
             return root
-        if LEGACY_PICO_NATIVE_CRASH_COUNT:
+        # A second independently proven system crash may be isolated ONLY to
+        # finish data-retention diagnostics. Voice/release stay RED, including
+        # repeat crashes; a third occurrence is an explicit hard stop.
+        if LEGACY_PICO_NATIVE_CRASH_COUNT >= 2:
             screenshot("FAIL-repeated-legacy-pico-modal.png")
-            raise AssertionError("Repeated stock Pico native TTS crash on Android 8")
+            raise AssertionError("Third stock Pico native TTS crash on Android 8")
         crash = adb("logcat", "-d", "-b", "crash", "-v", "threadtime", check=False, timeout=35)
         events = adb("logcat", "-d", "-b", "events", "-v", "threadtime", check=False, timeout=35)
         if not all(t in crash for t in ("com.svox.pico", "SIGSEGV", "libttspico.so")):
             raise AssertionError("Pico crash dialog without matching native SIGSEGV proof")
+        # A repeated popup must have a NEW native crash PID/timestamp banner.
+        # An old logcat SIGSEGV cannot authorize closing an unrelated dialog.
+        pico_banners = re.findall(
+            r"(?m)^.*\bpid:\s*\d+,\s*tid:\s*\d+.*>>>\s*com\.svox\.pico\s*<<<",
+            crash)
+        if not pico_banners or pico_banners[-1] in LEGACY_PICO_OBSERVED_CRASH_BANNERS:
+            raise AssertionError("Pico popup lacks a distinct new native crash record")
+        crash_banner = pico_banners[-1]
         if any(("am_crash" in l or "am_anr" in l) and
                (PACKAGE in l or "system_server" in l) for l in events.splitlines()):
             raise AssertionError("App/system ANR or crash during Pico dialog")
@@ -523,12 +540,17 @@ def recover_verified_legacy_pico_modal(root):
             # app chat returns. A noncancelable modal stays a hard FAIL.
             adb("shell", "input", "keyevent", "KEYCODE_BACK")
             dismissal = "verified_api27_system_pico_modal_back"
+        LEGACY_PICO_OBSERVED_CRASH_BANNERS.add(crash_banner)
         LEGACY_PICO_NATIVE_CRASH_COUNT += 1
+        (OUT / ("legacy-pico-native-crash-" +
+                str(LEGACY_PICO_NATIVE_CRASH_COUNT) + ".txt")).write_text(
+                    crash[-28000:], encoding="utf-8")
         (OUT / "legacy-pico-isolation.json").write_text(
             json.dumps({"native_process": "com.svox.pico", "signal": "SIGSEGV",
                         "library": "libttspico.so", "dialog_dismissed": True,
                         "dismissal": dismissal, "migration_proof_allowed": True,
-                        "voice_acceptance": "FAIL", "release_gate": "BLOCKED"},
+                        "voice_acceptance": "FAIL", "release_gate": "BLOCKED",
+                        "distinct_pico_native_crashes": LEGACY_PICO_NATIVE_CRASH_COUNT},
                        indent=2), encoding="utf-8")
         print("LEGACY_PICO_NATIVE_TTS_VOICE_CRASH_PROVEN: "
               "dismissed only to inspect separate installed data migration",
@@ -933,6 +955,13 @@ def open_internal_settings():
         root = hierarchy()
         visible = [n.attrib.get("text", "") for n in root.iter("node")
                    if n.attrib.get("text")]
+        if any(t in ("Pico TTS has stopped", "Pico TTS keeps stopping")
+               for t in visible):
+            # Only the exact OS-owned native Pico dialog may be cleared to
+            # inspect data migration. Never waive voice/ANR/release gates.
+            root = recover_verified_legacy_pico_modal(root)
+            visible = [n.attrib.get("text", "") for n in root.iter("node")
+                       if n.attrib.get("text")]
         trace.append({"attempt": attempt, "visible": visible[-22:],
                       "gear_tapped": clicked_gear, "inner_tapped": clicked_inner})
         if "Gedächtnis" in visible:
