@@ -269,6 +269,10 @@ final class CelineRoomEnvironmentV80 {
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
         boolean failureLogged;
+        // Read by Android Canvas/UI while gltfio imports run on the Filament owner.
+        // Do not lock a multi-second native ResourceLoader transaction from onDraw.
+        // Publish true only after the entire Room (including lights/materials) is ready.
+        private volatile boolean roomBuilt;
 
         State(Context context, Celine3DView view) throws Exception {
             this.context = context;
@@ -280,8 +284,8 @@ final class CelineRoomEnvironmentV80 {
             resourceLoader = (ResourceLoader) field(view, "resourceLoader");
         }
 
-        synchronized boolean isBuilt() {
-            return roomShellAsset != null && !roomAssets.isEmpty();
+        boolean isBuilt() {
+            return roomBuilt;
         }
 
         synchronized boolean ensureBuilt() {
@@ -442,6 +446,7 @@ final class CelineRoomEnvironmentV80 {
                                 + FLOOR_LAMP_SPOT_INNER_RAD + "/" + FLOOR_LAMP_SPOT_OUTER_RAD
                                 + " materialEmission=false");
                 failureLogged = false;
+                roomBuilt = true;
                 return true;
             } catch (Throwable error) {
                 for (FilamentAsset candidate : candidates) {
@@ -866,6 +871,8 @@ final class CelineRoomEnvironmentV80 {
         }
 
         synchronized void destroyRoom() {
+            // Stop Canvas/interaction readers before releasing owner-thread Filament state.
+            roomBuilt = false;
             ArrayList<FilamentAsset> current = new ArrayList<>(roomAssets);
             int roomKeyLight = recoveryRoomKeyLightEntity;
             int floorFillLight = warmFloorFillLightEntity;
