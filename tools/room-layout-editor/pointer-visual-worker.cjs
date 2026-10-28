@@ -192,7 +192,10 @@ async function main() {
     // Lock and reload preserve the actual mouse-driven transform.
     await page.locator('#lock-object').click();
     assert.equal(await page.locator('#x').isDisabled(),true);
-    await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+    // SwiftShader WebGL/PNG capture can delay DOMContentLoaded after reload.
+    // Wait for the actual navigation COMMIT, then require 13/13 real GLBs and
+    // the locked, mouse-dragged coordinate below. No proof assertion is bypassed.
+    await page.reload({waitUntil:'commit',timeout:120000});
     await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),
       null,{timeout:240000});
     await page.locator('#object').selectOption(picked.id);
