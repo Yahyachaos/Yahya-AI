@@ -47,12 +47,29 @@ def cross(a, b):
 def camera_contract(camera_java, world_java, width, height):
     camera_source = camera_java.read_text(encoding="utf-8")
     world_source = world_java.read_text(encoding="utf-8")
+    # There are TWO production projection paths: real hardware reads live CALL
+    # stage and initial zoom=1; ranchu/goldfish snapshots CALL on UI attach and
+    # temporarily replaces cameraZoom with CALL_REFERENCE_BASE_ZOOM. Guard both.
+    # Merely deleting the legacy source-string expectation would silently
+    # invalidate the rug projection after the Filament owner-thread change.
     required = (
         "camera.setLensProjection(REFERENCE_FOCAL_LENGTH_MM",
-        "boolean callStage = CelineCallUpperBodyPresenceV55.isCallStage(this)",
+        "private volatile float cameraZoom = 1.0f;",
+        "private volatile boolean softwareCallStage;",
+        "boolean callStage = SOFTWARE_EMULATOR ? softwareCallStage",
+        ": CelineCallUpperBodyPresenceV55.isCallStage(this);",
         "float baseZoom = callStage ? CALL_REFERENCE_BASE_ZOOM : 1.0f;",
+        "float normalizedZoom = Math.max(0.10f, cameraZoom / baseZoom);",
         "double inverseZoom = 1.0 / normalizedZoom;",
+        "double eyeX = targetX + (REFERENCE_EYE_X - REFERENCE_TARGET_X) * inverseZoom;",
+        "double eyeY = targetY + (REFERENCE_EYE_Y - REFERENCE_TARGET_Y) * inverseZoom;",
+        "double eyeZ = targetZ + (REFERENCE_EYE_Z - REFERENCE_TARGET_Z) * inverseZoom;",
         "camera.lookAt(eyeX, eyeY, eyeZ, targetX, targetY, targetZ",
+        "boolean enteringCall = CelineCallUpperBodyPresenceV55.isCallStage(this);",
+        "softwareCallStage = enteringCall;",
+        "cameraZoom = CALL_REFERENCE_BASE_ZOOM;",
+        "softwareCallZoomHeld = true;",
+        "cameraZoom = softwarePreCallZoom;",
     )
     if not all(item in camera_source for item in required):
         raise ValueError("Production CALL projection owner/semantics changed; re-audit")
@@ -64,10 +81,17 @@ def camera_contract(camera_java, world_java, width, height):
     base = java_float(camera_source, "CALL_REFERENCE_BASE_ZOOM")
     if not (0 < base <= 1 and focal > 0 and width > 0 and height > 0):
         raise ValueError("Invalid CALL default camera")
-    # cameraZoom=1 is the production reset default. Pan and pinch are excluded.
-    if "private volatile float cameraZoom = 1.0f;" not in camera_source:
-        raise ValueError("Default zoom changed; no valid no-pinch CALL projection")
-    eye = tuple(t + (e-t)*base for e, t in zip(eye_ref, target))
+    # With CALL stage true, hardware default zoom is 1.0, so the pre-render
+    # inverseZoom is base/1.0. The software emulator sets cameraZoom=base
+    # upon UI attach; its inverseZoom is base/base=1.0. Do not conflate the
+    # two snapshots or claim either is a live Filament matrix readback.
+    hardware_call_zoom = 1.0
+    emulator_call_zoom = base
+    hardware_inverse_zoom = 1.0 / max(0.10, hardware_call_zoom / base)
+    emulator_inverse_zoom = 1.0 / max(0.10, emulator_call_zoom / base)
+    eye = tuple(t + (e-t)*hardware_inverse_zoom for e, t in zip(eye_ref, target))
+    emulator_eye = tuple(t + (e-t)*emulator_inverse_zoom
+                         for e, t in zip(eye_ref, target))
     forward = normalize(tuple(t-e for t, e in zip(target, eye)))
     right = normalize(cross(forward, (0., 1., 0.)))
     up = normalize(cross(right, forward))
@@ -85,9 +109,15 @@ def camera_contract(camera_java, world_java, width, height):
         "world_offset": offset, "lens_mm": focal,
         "modeled_vertical_sensor_mm": 24.0,
         "focal_pixels": fpx, "viewport": (width, height),
-        "assumption": "default CALL cameraZoom=1, no pinch/pan/orbit; "
-                      "1016x813 historical CALL viewport supplied as proxy, "
-                      "NOT a live per-frame Filament projection matrix",
+        "physical_device_default_call_zoom": hardware_call_zoom,
+        "physical_device_call_inverse_zoom": hardware_inverse_zoom,
+        "software_emulator_attach_call_zoom": emulator_call_zoom,
+        "software_emulator_call_inverse_zoom": emulator_inverse_zoom,
+        "software_emulator_call_eye_NOT_USED_FOR_THIS_PHYSICAL_PROFILE": emulator_eye,
+        "projection_profile": "physical hardware CALL no-pinch default",
+        "assumption": "physical CALL cameraZoom=1, emulator CALL attach cameraZoom=base; "
+                      "no pinch/pan/orbit; 1016x813 historical CALL viewport proxy, "
+                      "NOT a live Filament projection matrix",
     }
 
 
