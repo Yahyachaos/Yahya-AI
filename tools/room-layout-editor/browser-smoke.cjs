@@ -98,6 +98,22 @@ async function run() {
   await page.locator('#file').setInputFiles(path.join(out,'layout-saved.json'));
   assert.equal(await page.locator('#x').isDisabled(),true,'lock persists on import');
   record('REAL_BROWSER_AUTOSAVE_RELOAD_AND_JSON_REIMPORT_PASS');
+  // Malformed user JSON must fail closed instead of silently leaving stale pieces
+  // of the scene or applying the same instance twice.
+  const duplicate={...data,objects:data.objects.map((o,i)=>i===12?data.objects[0]:o)};
+  const duplicatePath=path.join(out,'layout-rejected-duplicate.json');
+  fs.writeFileSync(duplicatePath,JSON.stringify(duplicate));
+  await page.locator('#file').setInputFiles(duplicatePath);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Doppelte Objekt-ID'));
+  assert.equal(await page.locator('#x').inputValue(),lastX,'duplicate input cannot move locked bed');
+  const incomplete={...data,objects:data.objects.slice(0,-1)};
+  const incompletePath=path.join(out,'layout-rejected-incomplete.json');
+  fs.writeFileSync(incompletePath,JSON.stringify(incomplete));
+  await page.locator('#file').setInputFiles(incompletePath);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('genau 13 Möbelinstanzen'));
+  assert.equal(await page.locator('#x').inputValue(),lastX,'incomplete input cannot alter saved bed');
+  assert.equal(await page.locator('#x').isDisabled(),true,'failed imports cannot unlock bed');
+  record('REAL_BROWSER_MALFORMED_IMPORT_DUPLICATE_AND_PARTIAL_REJECTED_PASS');
   assert.deepEqual(errors,[],'browser page / network errors');
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({
     verdict:'PASS',testedHead:process.env.GITHUB_SHA||null,proof:steps,browserErrors:errors

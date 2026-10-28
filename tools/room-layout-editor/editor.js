@@ -195,10 +195,18 @@ function applyState(state) {
   if (![width,depth,height].every(Number.isFinite) ||
       width < 1 || width > 20 || depth < 1 || depth > 20 ||
       height < 1.8 || height > 10) throw new Error('Ungültige Raummaße');
+  // Import must be a complete bijection to the immutable set of 13 source instances.
+  // Reject partial, duplicated or unknown IDs *before* applying any room/object state.
+  if (entries.size !== 13 || state.objects.length !== entries.size)
+    throw new Error('Layout muss genau 13 Möbelinstanzen enthalten.');
+  const seen = new Set();
   const candidate = [];
   for (const item of state.objects) {
-    const entry = entries.get(item.id);
-    if (!entry) continue; // unknown objects cannot alter the source scene
+    const id = item && item.id;
+    const entry = entries.get(id);
+    if (!entry) throw new Error('Unbekannte Objekt-ID: ' + String(id));
+    if (seen.has(id)) throw new Error('Doppelte Objekt-ID: ' + id);
+    seen.add(id);
     const pos = item.translation_m;
     const angles = item.rotation_euler_deg ?? [0,item.rotation_y_deg,0];
     const scales = item.scale_xyz ?? [item.uniform_scale,item.uniform_scale,item.uniform_scale];
