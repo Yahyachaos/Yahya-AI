@@ -751,9 +751,9 @@ async function main() {
         'Gespeichertes Layout geladen: '+name),path.basename(trialFile),{timeout:60000});
       await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
         framingCamera.camera_proposal);
-      const actualCamera=await page.evaluate(()=>window.__celineRoomEditorE2E.effectiveCamera());
-      assert.deepEqual(actualCamera.position_m,effectiveCamera.position_m,'V5 camera position frozen');
-      assert.deepEqual(actualCamera.target_m,effectiveCamera.target_m,'V5 camera target frozen');
+      const actualCamera=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+      assert.deepEqual(actualCamera.camera_position_m,effectiveCamera.position_m,'V5 camera position frozen');
+      assert.deepEqual(actualCamera.camera_target_m,effectiveCamera.target_m,'V5 camera target frozen');
       const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
       const proj=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
       assert.equal(audit.model_count,13,'V5 source-fidelity instances');
@@ -785,8 +785,8 @@ async function main() {
       assert.deepEqual([image.width,image.height],[700,560]);
       facingResults.push({trial:trial.name,screen:image,sourceSha:process.env.GITHUB_SHA||null,
         candidate:trial.name==='proposed-180'?path.relative(root,v5Path):path.relative(output,trialFile),
-        measuredCamera:{position_m:actualCamera.position_m,
-          target_m:actualCamera.target_m,vertical_fov_deg:actualCamera.vertical_fov_deg},
+        measuredCamera:{position_m:actualCamera.camera_position_m,
+          target_m:actualCamera.camera_target_m,vertical_fov_deg:actualCamera.vertical_fov_deg},
         room_m:audit.room_m,original_source_glb_instances:audit.model_count,
         true_source_bounds_overflows:failures,
         dresser:{transform:objects.room_dresser.transform,locked:true,
