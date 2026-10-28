@@ -64,6 +64,16 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.retrieve("Katze",data,0,NOW).size(),0,"zero result bound");
         eq(top("Katze",Arrays.asList(c("b","Katze B"),c("a","Katze A"))),"a","deterministic tie");
         eq(CelineFutureMemoryRecall.retrieve("Katze",data,100,NOW).size(),1,"bounded result");
+        List<CelineFutureMemoryRecall.Candidate> capacity = new ArrayList<>();
+        capacity.add(x("old-capacity", "Meine Katze heißt Paul", "", true, 0));
+        for (int i=1; i<2048; i++) capacity.add(c("noise-"+i, "Anderes Thema Nummer "+i));
+        eq(top("Meine Katze", capacity),"old-capacity","maximum allowed capacity remains searchable");
+        capacity.add(new CelineFutureMemoryRecall.Candidate("late-private-successor",
+                "Meine Katze heißt Luna", "old-capacity",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, true, true, NOW, 0, 1));
+        eq(top("Meine Katze", capacity),"", "overflow privacy must fail closed");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Luna", capacity, NOW),
+                "", "overflow correction suggestion must fail closed");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
