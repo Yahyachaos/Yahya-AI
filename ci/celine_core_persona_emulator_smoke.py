@@ -22,6 +22,7 @@ PACKAGE = "de.yahya.ai"
 LEGACY_MIGRATION_PROBE = "celine_upgrade_probe_20261025"
 PERSONA_G1_ISOLATION_PROBE = "celine_persona_g1_isolation_20261025"
 ACTIVITY = PACKAGE + "/.MainActivity"
+LEGACY_PICO_NATIVE_CRASH_COUNT = 0
 
 # Keep the FIRST native abort/Filament frames before the emulator log ring rolls.
 # Only v83 production startup is captured; no change to functional assertions.
@@ -387,7 +388,7 @@ def send_user(command, *, verify_public_v80_seed=False):
         observed = []
         seen = False
         for attempt in range(4):
-            root = hierarchy()
+            root = recover_verified_legacy_pico_modal(hierarchy())
             chat, bubbles = _chat_scroll_and_bubbles(root)
             visible = [n.attrib.get("text", "") for n in bubbles
                        if _visible_rect(n, chat)]
@@ -419,6 +420,66 @@ def send_user(command, *, verify_public_v80_seed=False):
                 "PUBLIC_V80_SEED_CHAT_MISMATCH: exact submitted user TextView missing")
         print("PUBLIC_V80_SEED_EXACT_USER_CHAT_PASS", flush=True)
 
+
+
+def recover_verified_legacy_pico_modal(root):
+    """Close only a source-proven stock Android 8 Pico crash system dialog.
+
+    This allows separate data-migration evidence, but never declares the
+    legacy TTS/voice behavior healthy. Any app/system ANR still fails closed.
+    """
+    global LEGACY_PICO_NATIVE_CRASH_COUNT
+    if not PRODUCTION_MODE or adb("shell", "getprop", "ro.build.version.sdk").strip() not in ("26", "27"):
+        return root
+    for attempt in range(6):
+        texts = [n.attrib.get("text", "") for n in root.iter("node")]
+        if not any(t in ("Pico TTS has stopped", "Pico TTS keeps stopping") for t in texts):
+            return root
+        if LEGACY_PICO_NATIVE_CRASH_COUNT:
+            screenshot("FAIL-repeated-legacy-pico-modal.png")
+            raise AssertionError("Repeated stock Pico native TTS crash on Android 8")
+        crash = adb("logcat", "-d", "-b", "crash", "-v", "threadtime", check=False, timeout=35)
+        events = adb("logcat", "-d", "-b", "events", "-v", "threadtime", check=False, timeout=35)
+        if not all(t in crash for t in ("com.svox.pico", "SIGSEGV", "libttspico.so")):
+            raise AssertionError("Pico crash dialog without matching native SIGSEGV proof")
+        if any(("am_crash" in l or "am_anr" in l) and
+               (PACKAGE in l or "system_server" in l) for l in events.splitlines()):
+            raise AssertionError("App/system ANR or crash during Pico dialog")
+        if not adb("shell", "pidof", PACKAGE, check=False).strip():
+            raise AssertionError("Public v80 app process absent during Pico crash")
+        (OUT / "legacy-pico-native-crash.txt").write_text(crash[-28000:], encoding="utf-8")
+        (OUT / "legacy-pico-android-events.txt").write_text(events[-28000:], encoding="utf-8")
+        (OUT / "legacy-pico-os-modal.xml").write_text(
+            ET.tostring(root, encoding="unicode"), encoding="utf-8")
+        screenshot("legacy-pico-os-modal.png")
+        buttons = [n for n in root.iter("node")
+                   if n.attrib.get("text") == "Close app"
+                   and n.attrib.get("class") == "android.widget.Button"
+                   and n.attrib.get("package") != PACKAGE]
+        if len(buttons) != 1:
+            if attempt == 5:
+                raise AssertionError("Verified Pico crash modal lacks safe Close app button")
+            time.sleep(1.3)
+            root = hierarchy()
+            continue
+        click(buttons[0])
+        LEGACY_PICO_NATIVE_CRASH_COUNT += 1
+        (OUT / "legacy-pico-isolation.json").write_text(
+            json.dumps({"native_process": "com.svox.pico", "signal": "SIGSEGV",
+                        "library": "libttspico.so", "dialog_dismissed": True,
+                        "migration_proof_allowed": True,
+                        "voice_acceptance": "FAIL", "release_gate": "BLOCKED"},
+                       indent=2), encoding="utf-8")
+        print("LEGACY_PICO_NATIVE_TTS_VOICE_CRASH_PROVEN: "
+              "dismissed only to inspect separate installed data migration",
+              flush=True)
+        time.sleep(1.2)
+        root = hierarchy()
+        if not any(n.attrib.get("content-desc") == "Celin Nachricht schreiben"
+                   and n.attrib.get("package") == PACKAGE for n in root.iter("node")):
+            raise AssertionError("App chat not restored after verified Pico OS modal")
+        return root
+    return root
 
 
 def _chat_scroll_and_bubbles(root):
@@ -1315,6 +1376,10 @@ def main():
         # A non-debuggable app must refuse run-as. The prior independent
         # debug #50 tamper proof is NOT promoted to a production tamper PASS.
         assert_no_production_android_anr_or_crash()
+        if LEGACY_PICO_NATIVE_CRASH_COUNT:
+            print("LEGACY_V80_V83_MEMORY_MIGRATION_CHECKS_COMPLETED_BUT_"
+                  "STOCK_PICO_VOICE_FAIL_REMAINS", flush=True)
+            raise AssertionError("LEGACY_PICO_NATIVE_VOICE_FAIL_NOT_RELEASE_ACCEPTED")
         print("PRODUCTION_V80_TO_V83_FUNCTIONAL_SMOKE_PASS:"
               " genuine non-debuggable install, memory UI edit/delete/restart,"
               " Persona activation/OFF/restart, HOME/CALL/HOME, no observed OS ANR/crash",
