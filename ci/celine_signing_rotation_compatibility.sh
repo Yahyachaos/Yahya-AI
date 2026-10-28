@@ -15,7 +15,8 @@ mkdir -p "$work" "$proof"
 sign_args=(--ks-pass pass:ephemeral-test-only --key-pass pass:ephemeral-test-only)
 make_manifest() {
   local version="$1"
-  cat > "$work/manifest-$version.xml" <<EOF
+  mkdir -p "$work/manifest-$version"
+  cat > "$work/manifest-$version/AndroidManifest.xml" <<EOF
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="de.yahya.signingprobe"
     android:versionCode="$version" android:versionName="$version">
@@ -29,7 +30,7 @@ EOF
   cat > "$work/res/values/strings.xml" <<'RESOURCES'
 <resources><string name="app_name">Disposable Signing Probe</string></resources>
 RESOURCES
-  "$aapt" package -f -M "$work/manifest-$version.xml" -S "$work/res" \
+  "$aapt" package -f -M "$work/manifest-$version/AndroidManifest.xml" -S "$work/res" \
     -I "$sdk/platforms/android-35/android.jar" -F "$work/unsigned-$version.apk"
   if ! unzip -Z1 "$work/unsigned-$version.apk" | grep -Fxq AndroidManifest.xml; then
     echo "FAIL: synthetic APK $version lacks packaged AndroidManifest.xml" >&2
