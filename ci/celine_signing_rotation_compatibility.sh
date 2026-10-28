@@ -32,6 +32,15 @@ EOF
 RESOURCES
   "$aapt" package -f -M "$work/manifest-$version/AndroidManifest.xml" -S "$work/res" \
     -I "$sdk/platforms/android-35/android.jar" -F "$work/unsigned-$version.apk"
+  # Android 26+ rejects a package declaring code if its base.apk has no classes.dex.
+  # Compile only a disposable, inert fixture class; never reuse app/project bytecode.
+  (cd "$work/probe-dex" && "$aapt" add "$work/unsigned-$version.apk" classes.dex >/dev/null)
+  if ! unzip -Z1 "$work/unsigned-$version.apk" | grep -Fxq classes.dex ||
+     ! unzip -p "$work/unsigned-$version.apk" classes.dex |
+        cmp -s - "$work/probe-dex/classes.dex"; then
+    echo "FAIL: synthetic APK $version missing exact disposable classes.dex" >&2
+    exit 1
+  fi
   if ! unzip -Z1 "$work/unsigned-$version.apk" | grep -Fxq AndroidManifest.xml; then
     echo "FAIL: synthetic APK $version lacks packaged AndroidManifest.xml" >&2
     exit 1
@@ -45,6 +54,21 @@ RESOURCES
 }
 if [ "$mode" = "prepare" ]; then
   command -v keytool >/dev/null
+  command -v javac >/dev/null
+  test -x "$sdk/build-tools/35.0.0/d8"
+  mkdir -p "$work/probe-src/de/yahya/signingprobe" "$work/probe-classes" "$work/probe-dex"
+  cat > "$work/probe-src/de/yahya/signingprobe/Probe.java" <<'PROBE_JAVA'
+package de.yahya.signingprobe;
+public final class Probe {
+    private Probe() {}
+    public static int marker() { return 83; }
+}
+PROBE_JAVA
+  javac -source 8 -target 8 -d "$work/probe-classes" \
+    "$work/probe-src/de/yahya/signingprobe/Probe.java"
+  "$sdk/build-tools/35.0.0/d8" --min-api 26 --output "$work/probe-dex" \
+    "$work/probe-classes/de/yahya/signingprobe/Probe.class"
+  test -s "$work/probe-dex/classes.dex"
   for exe in "$aapt" "$align" "$signer"; do test -x "$exe"; done
   for label in old new; do
     keytool -genkeypair -noprompt -storetype JKS -keystore "$work/$label.jks" \
