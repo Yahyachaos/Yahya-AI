@@ -13,12 +13,14 @@ concurrency:
   group: celine-room-editor-experiment-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  actual-chromium-glb-layout:
-    name: Real Chromium GLB / pointer interaction / visual evidence
+  functional_browser:
+    name: Required editor functional WebGL / 13 GLBs / save and lock
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    env:
+      ROOM_EDITOR_EVIDENCE_DIR: /tmp/celine-room-editor-functional
     steps:
-      - name: Checkout only isolated editor, original GLBs, assembly and reference
+      - name: Checkout isolated editor and original assets
         uses: actions/checkout@v4
         with:
           lfs: true
@@ -29,36 +31,82 @@ jobs:
             app/src/main/assets/models/room/source-fidelity/**
             app/src/main/assets/models/room/celine_room_v80_assembly.json
             Refernzbild.png
-      - name: Rehydrate any LFS source files, without changing originals
+      - name: Fetch unchanged LFS GLB models
         run: git lfs pull
       - name: Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned actual Chromium/Three.js test runner
+      - name: Install pinned Chromium and Three.js
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
           npx playwright install --with-deps chromium
-      - name: Fast fail-closed static source check
-        run: node tools/room-layout-editor/smoke-check.cjs
-      - name: Serve unchanged repository assets locally
+      - name: Serve source assets
         run: |
-          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/celine-editor-http.log 2>&1 &
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-http.log 2>&1 &
           sleep 2
           curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
-      - name: Verify real WebGL and original 13 GLBs with all edit-save-lock flows
+      - name: Fail-closed static editor check
+        run: node tools/room-layout-editor/smoke-check.cjs
+      - name: Required real Chromium editor functional check (no screenshots)
         run: node tools/room-layout-editor/browser-smoke.cjs
-      - name: Test real canvas click, gizmo drag, WebGL screenshots and reload
-        run: |
-          node --check tools/room-layout-editor/pointer-visual-worker.cjs
-          node tools/room-layout-editor/pointer-visual-worker.cjs
-      - name: Preserve screenshots, actual JSON and diagnostics on failure too
+      - name: Upload functional evidence independently
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: celine-room-editor-real-chromium-evidence
+          name: celine-room-editor-functional-evidence
           path: |
-            /tmp/celine-room-editor-browser/
+            /tmp/celine-room-editor-functional/
+            /tmp/celine-editor-http.log
+          if-no-files-found: warn
+          retention-days: 14
+  optional_visual:
+    name: Optional direct canvas and screenshot proof (nonblocking)
+    needs: functional_browser
+    if: ${{ needs.functional_browser.result == 'success' }}
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ROOM_EDITOR_EVIDENCE_DIR: /tmp/celine-room-editor-visual
+    steps:
+      - name: Checkout isolated editor and original assets
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/workflows/celine-room-editor-browser-experiment.yml
+            tools/room-layout-editor/**
+            app/src/main/assets/models/room/source-fidelity/**
+            app/src/main/assets/models/room/celine_room_v80_assembly.json
+            Refernzbild.png
+      - name: Fetch unchanged LFS GLB models
+        run: git lfs pull
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Chromium and Three.js
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
+          npx playwright install --with-deps chromium
+      - name: Serve source assets
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-http.log 2>&1 &
+          sleep 2
+          curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
+      - name: Actual canvas click, drag, WebGL screenshot and reload
+        run: |
+          node --check tools/room-layout-editor/pointer-visual-worker.cjs
+          node tools/room-layout-editor/pointer-visual-worker.cjs
+      - name: Upload separate optional visual evidence, even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-editor-optional-visual-evidence
+          path: |
+            /tmp/celine-room-editor-visual/
             /tmp/celine-editor-http.log
           if-no-files-found: warn
           retention-days: 14

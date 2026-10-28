@@ -49,9 +49,7 @@ async function run() {
   }));
   assert.equal(rendererStatus.gl,true,'real WebGL context required');
   record('REAL_WEBGL_13_GLB_REFERENCE_LOADED_PASS',{rendererStatus});
-  // Screenshot capture with heavy source meshes is optional evidence, not a proxy for GLB/UI acceptance.
-  try { await page.screenshot({path:path.join(out,'initial-editor.png'),fullPage:false,timeout:12000}); }
-  catch(e) { record('OPTIONAL_SCREENSHOT_SLOW', {diagnostic:String(e.message||e)}); }
+  // Screenshots and mouse gizmo proof are handled by a distinct optional job.
   const list=await page.locator('#object option').evaluateAll(options=>options.map(o=>o.value));
   for(const id of list){
     await page.locator('#object').selectOption(id);
@@ -100,8 +98,6 @@ async function run() {
   await page.locator('#file').setInputFiles(path.join(out,'layout-saved.json'));
   assert.equal(await page.locator('#x').isDisabled(),true,'lock persists on import');
   record('REAL_BROWSER_AUTOSAVE_RELOAD_AND_JSON_REIMPORT_PASS');
-  try { await page.screenshot({path:path.join(out,'saved-locked-editor.png'),fullPage:false,timeout:12000}); }
-  catch(e) { record('OPTIONAL_FINAL_SCREENSHOT_SLOW', {diagnostic:String(e.message||e)}); }
   assert.deepEqual(errors,[],'browser page / network errors');
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({
     verdict:'PASS',testedHead:process.env.GITHUB_SHA||null,proof:steps,browserErrors:errors
