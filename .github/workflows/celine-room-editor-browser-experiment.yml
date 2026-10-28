@@ -1,4 +1,4 @@
-name: Celine Room Editor Real Browser Experiment
+name: Celine Room Editor Chromium Worker
 on:
   push:
     branches:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   actual-chromium-glb-layout:
-    name: Real Chromium WebGL / 13 original GLB / JSON lock roundtrip
+    name: Real Chromium GLB / pointer interaction / visual evidence
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -48,6 +48,10 @@ jobs:
           curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
       - name: Verify real WebGL and original 13 GLBs with all edit-save-lock flows
         run: node tools/room-layout-editor/browser-smoke.cjs
+      - name: Test real canvas click, gizmo drag, WebGL screenshots and reload
+        run: |
+          node --check tools/room-layout-editor/pointer-visual-worker.cjs
+          node tools/room-layout-editor/pointer-visual-worker.cjs
       - name: Preserve screenshots, actual JSON and diagnostics on failure too
         if: always()
         uses: actions/upload-artifact@v4
