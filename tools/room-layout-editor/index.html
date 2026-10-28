@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yahya AI – Raumeditor (isolierter Prototyp)</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color-scheme:dark;background:#111827;color:#e5e7eb}
+    *{box-sizing:border-box} body{margin:0} header{padding:14px 20px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+    h1{font-size:1.15rem;margin:0} .small{font-size:.78rem;color:#cbd5e1} .pill{background:#334155;border-radius:15px;padding:4px 10px}
+    main{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:calc(100dvh - 76px);min-height:520px}
+    #viewport{position:relative;overflow:hidden;background:#0b1220} #viewport canvas{display:block}
+    .hint{position:absolute;bottom:12px;left:12px;background:#111827dd;padding:8px 12px;border-radius:8px;max-width:calc(100% - 24px);font-size:.8rem;pointer-events:none}
+    aside{overflow-y:auto;padding:16px;border-left:1px solid #334155;background:#172033}
+    section{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid #334155} h2{font-size:.95rem;margin:0 0 10px}
+    button,select,input{font:inherit} button,.file-label{background:#334155;color:#f8fafc;border:1px solid #64748b;padding:9px 11px;border-radius:7px;cursor:pointer}
+    button:hover,.file-label:hover{background:#475569} button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #38bdf8}
+    button:disabled{opacity:.5;cursor:not-allowed} button.active{border-color:#38bdf8;background:#164e63}
+    .button-row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0} .button-row>*{flex:1}
+    select,input[type=number]{width:100%;border-radius:7px;background:#0f172a;color:#f8fafc;border:1px solid #64748b;padding:8px}
+    label{display:block;font-size:.84rem;margin:10px 0 4px} .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .fields label{font-size:.74rem}.fields input{margin-top:5px}
+    .status{min-height:45px;white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;border:1px solid #334155;border-radius:7px;padding:9px;font-size:.8rem}
+    .warn{color:#fbbf24} .ok{color:#86efac}
+    #file{display:none}
+    @media(max-width:780px){main{grid-template-columns:1fr;height:auto}#viewport{height:52dvh;min-height:350px}aside{border-left:0;border-top:1px solid #334155}}
+  </style>
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+  </script>
+</head>
+<body>
+<header>
+  <div><h1>Celine – visueller Raumeditor</h1><div class="small">Separater Entwicklungsprototyp · keine Änderung an der Android-App</div></div>
+  <span class="pill" id="loaded">Starte…</span>
+</header>
+<main>
+  <div id="viewport"><div class="hint">Maus: Objekt anklicken · Ziehen: bewegen · Rechtsklick: Kamera drehen · Mausrad: zoomen · Ansicht jederzeit wechseln</div></div>
+  <aside>
+    <section>
+      <h2>Objekt bearbeiten</h2>
+      <label for="object">Möbel / Raumobjekt</label>
+      <select id="object" aria-label="Objekt auswählen"></select>
+      <div class="button-row"><button id="move" class="active">Verschieben</button><button id="rotate">Drehen</button></div>
+      <div class="fields">
+        <label>X (m)<input id="x" type="number" step="0.01"></label>
+        <label>Y (m)<input id="y" type="number" step="0.01"></label>
+        <label>Z (m)<input id="z" type="number" step="0.01"></label>
+      </div>
+      <label for="yaw">Drehung um Y (Grad)</label><input id="yaw" type="number" step="1">
+      <label for="scale">Größe (einheitlicher Faktor)</label><input id="scale" type="number" min="0.01" max="20" step="0.01">
+      <div class="button-row"><button id="reset-object">Objekt zurücksetzen</button><button id="reset-all">Alle zurücksetzen</button></div>
+    </section>
+    <section>
+      <h2>Kamera / Ansicht</h2>
+      <div class="button-row"><button id="camera-persp">Freie 3D-Sicht</button><button id="camera-call">CALL-Sicht (+Z)</button><button id="camera-top">Draufsicht</button></div>
+      <label><input type="checkbox" id="snap" checked> Einrasten: 5 cm / 5°</label>
+    </section>
+    <section>
+      <h2>Positionen sichern</h2>
+      <div class="button-row"><button id="save">Layout speichern (.json)</button><button id="export-assembly">Assembly exportieren</button></div>
+      <div class="button-row"><label class="file-label" for="file">Layout laden (.json)</label><input id="file" type="file" accept=".json,application/json"></div>
+      <p class="small">Speichern lädt eine JSON-Datei herunter. Nichts wird in den laufenden Android-Build geschrieben. Die Übernahme in den tatsächlichen Filament-Raum ist ein eigener Schritt.</p>
+    </section>
+    <section>
+      <h2>Modellstatus</h2>
+      <div id="status" class="status" role="status" aria-live="polite">Lade Raumdaten…</div>
+      <p class="small">GLB-Dateien werden unverändert aus dem Repository geladen. Bei Ladefehlern werden Platzhalter angezeigt – damit ist die optische Übereinstimmung nicht bestätigt.</p>
+    </section>
+  </aside>
+</main>
+<script type="module" src="./editor.js"></script>
+</body>
+</html>
