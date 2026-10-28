@@ -133,7 +133,15 @@ public final class VoiceLifecycleContract {
     }
 
     private boolean current(long id, long nowMs) {
-        return id == generation && id > 0 && nowMs >= 0 && nowMs >= lastProgressMs;
+        if (id != generation || id <= 0 || nowMs < 0 || nowMs < lastProgressMs) return false;
+        if (active()) {
+            long timeout = phase == Phase.PREPARING ? PREPARE_TIMEOUT_MS : PROGRESS_TIMEOUT_MS;
+            if (nowMs - lastProgressMs > timeout) {
+                fail(phase == Phase.PREPARING ? "synthesis timeout" : "playback/synthesis stalled");
+                return false;
+            }
+        }
+        return true;
     }
 
     private void complete() {
