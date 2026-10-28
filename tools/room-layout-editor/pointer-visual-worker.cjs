@@ -55,6 +55,34 @@ async function main() {
     assert.equal(await page.evaluate(()=>!!window.__celineRoomEditorE2E),true);
     evidence('ORIGINAL_13_GLB_WEBGL_READY');
 
+    // Real source-derived spatial evidence before any mouse manipulation:
+    // quantify complete geometry envelopes, wall/floor protrusion and transforms.
+    // No reference alignment is inferred from this uncalibrated browser camera.
+    const roomAudit = await page.evaluate(() => window.__celineRoomEditorE2E.auditScene());
+    assert.deepEqual(roomAudit.room_m, { width: 4.4, depth: 4.2, height: 2.65 });
+    assert.equal(roomAudit.objects.length, 13);
+    assert.equal(roomAudit.all_source_fidelity_glbs_loaded, true);
+    assert(roomAudit.objects.every(o =>
+      o.source_sha256 && o.loaded &&
+      o.conservative_world_aabb_m.size.every(v => Number.isFinite(v) && v > 0) &&
+      o.conservative_world_aabb_m.min.every(Number.isFinite) &&
+      o.conservative_world_aabb_m.max.every(Number.isFinite)),
+      'Every unchanged source GLB needs finite nonempty geometry bounds');
+    fs.writeFileSync(path.join(output, 'room-bounds-audit.json'),
+      JSON.stringify({ ...roomAudit, testedHead: process.env.GITHUB_SHA || null }, null, 2) + '\n');
+    const protruding = roomAudit.objects.filter(o =>
+      Object.values(o.overflow_faces_m).some(v => v > 0.01)).map(o => o.id);
+    evidence('ACTUAL_13_GLB_WORLD_BOUNDS_AUDITED_NOT_COLLISION_CERTIFIED',
+      { room: roomAudit.room_m, protrudingCount: protruding.length,
+        protrudingIds: protruding, report: 'room-bounds-audit.json' });
+
+    // A WHOLE-room actual WebGL raster, separate from the focused bed/gizmo
+    // images. This is a browser-preview checkpoint, NOT an Android visual PASS.
+    await page.locator('#camera-call').click();
+    const overview = png('room-overview-call.png',
+      await page.evaluate(() => window.__celineRoomEditorE2E.framePng()));
+    evidence('GENUINE_ROOM_OVERVIEW_WEBGL_NOT_REFERENCE_CALIBRATED', overview);
+
     // Camera positioning is a test setup. The selection itself is ALWAYS a real
     // Playwright mouse click on the model's visible WebGL triangles.
     const directions=[[1,.35,1],[0,.2,1],[-1,.4,1],[1,.4,-1],[0,.4,-1]];

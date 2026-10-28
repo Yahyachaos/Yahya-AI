@@ -637,6 +637,54 @@ if (E2E_PROOF) {
       while (node && !node.userData.editorObjectId) node = node.parent;
       return node?.userData.editorObjectId || null;
     },
+    auditScene() {
+      // These are conservative world-axis AABBs of the genuine loaded GLBs,
+      // including each wrapper transform. They are NOT a mesh collision proof.
+      // The editor's reference camera is not calibrated to Refernzbild.png.
+      const faces = ['left', 'right', 'floor', 'ceiling', 'back', 'front'];
+      const objects = [...entries.values()].map(entry => {
+        entry.group.updateWorldMatrix(true, true);
+        const box = new THREE.Box3().setFromObject(entry.group);
+        const min = box.min.toArray(), max = box.max.toArray();
+        const size = box.getSize(new THREE.Vector3()).toArray();
+        const overflow = [
+          Math.max(0, -room.width / 2 - min[0]),
+          Math.max(0, max[0] - room.width / 2),
+          Math.max(0, -min[1]),
+          Math.max(0, max[1] - room.height),
+          Math.max(0, -room.depth / 2 - min[2]),
+          Math.max(0, max[2] - room.depth / 2)
+        ];
+        const original = assembly?.objects?.find(o => o.id === entry.id);
+        return {
+          id: entry.id,
+          source_glb: FILES[entry.id],
+          source_sha256: original?.source_sha256 ?? null,
+          loaded: entry.loaded,
+          locked: entry.locked,
+          transform: {
+            translation_m: entry.group.position.toArray(),
+            rotation_euler_deg: ['x', 'y', 'z'].map(a => THREE.MathUtils.radToDeg(entry.group.rotation[a])),
+            scale_xyz: entry.group.scale.toArray()
+          },
+          conservative_world_aabb_m: { min, max, size },
+          overflow_faces_m: Object.fromEntries(faces.map((face, i) => [face, overflow[i]])),
+          floor_bottom_y_m: min[1]
+        };
+      });
+      return {
+        schema: 'celine-room-editor-world-bounds/v1',
+        room_m: { ...room },
+        units: 'meters',
+        axes: 'X left/right, Y up, Z depth, origin floor center',
+        model_count: objects.length,
+        all_source_fidelity_glbs_loaded: objects.every(o => o.loaded),
+        bounds_method: 'Three.js Box3.setFromObject on original source-fidelity GLB instances; conservative world-axis envelopes',
+        visual_acceptance: 'NOT_TESTED',
+        projection_camera_calibrated_to_reference: false,
+        objects
+      };
+    },
     viewport() {
       const r = renderer.domElement.getBoundingClientRect();
       return { x: r.left, y: r.top, width: r.width, height: r.height };
