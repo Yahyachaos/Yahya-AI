@@ -22,7 +22,7 @@
     .fields label{font-size:.74rem}.fields input{margin-top:5px}
     .status{min-height:45px;white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;border:1px solid #334155;border-radius:7px;padding:9px;font-size:.8rem}
     .warn{color:#fbbf24} .ok{color:#86efac}
-    #file{display:none}
+    #file{display:none} #reference-overlay{position:absolute;z-index:3;top:12px;left:12px;max-width:38%;max-height:45%;object-fit:contain;border:1px solid #f8fafc;border-radius:6px;pointer-events:none;background:#0f172a} #reference-overlay[hidden]{display:none}
     @media(max-width:780px){main{grid-template-columns:1fr;height:auto}#viewport{height:52dvh;min-height:350px}aside{border-left:0;border-top:1px solid #334155}}
   </style>
   <script type="importmap">
@@ -35,7 +35,7 @@
   <span class="pill" id="loaded">Starte…</span>
 </header>
 <main>
-  <div id="viewport"><div class="hint">Maus: Objekt anklicken · Ziehen: bewegen · Rechtsklick: Kamera drehen · Mausrad: zoomen · Ansicht jederzeit wechseln</div></div>
+  <div id="viewport"><img id="reference-overlay" alt="Originalreferenz" hidden><div class="hint">Maus: Objekt anklicken · Ziehen: bewegen · Rechtsklick: Kamera drehen · Mausrad: zoomen · Ansicht jederzeit wechseln</div></div>
   <aside>
     <section>
       <h2>Raumgröße – Referenzmaß</h2>
@@ -49,6 +49,13 @@
       <label>Raumdarstellung (nur Editor)</label>
       <div class="button-row"><button id="toggle-walls">Wände ein-/ausblenden</button><button id="reset-room">Referenzmaße wiederherstellen</button></div>
       <p class="small">Die Möbel bleiben unabhängig davon frei beweglich. Eine Maßänderung verändert keine Original-GLB-Datei und keine laufende App.</p>
+    </section>
+    <section>
+      <h2>Original-Referenzbild</h2>
+      <div class="button-row"><button id="reference-toggle">Referenz anzeigen</button><label class="file-label" for="reference-file">Eigenes Bild laden</label><input id="reference-file" type="file" accept="image/*" hidden></div>
+      <label>Bild-Deckkraft <input id="reference-opacity" type="range" min="15" max="100" value="80"></label>
+      <img id="reference-preview" alt="Referenzbild-Vorschau" style="max-width:100%;max-height:170px;object-fit:contain;border:1px solid #334155;border-radius:7px" hidden>
+      <p class="small">Standard: echtes <code>Refernzbild.png</code> aus dem Repository. Die Vorschau kann mit dem 3D-Raum verglichen werden; der freie Blick ist keine kalibrierte Android-Kamera.</p>
     </section>
     <section>
       <h2>Objekt bearbeiten</h2>
@@ -65,6 +72,11 @@
       <div class="button-row"><button id="reset-object">Objekt zurücksetzen</button><button id="reset-all">Alle zurücksetzen</button></div>
     </section>
     <section>
+      <h2>Bearbeitungsverlauf</h2>
+      <div class="button-row"><button id="undo">↶ Rückgängig</button><button id="redo">↷ Wiederholen</button></div>
+      <p class="small">Änderungen werden zusätzlich lokal im Browser zwischengespeichert. Die heruntergeladene JSON ist die portable Sicherung.</p>
+    </section>
+    <section>
       <h2>Kamera / Ansicht</h2>
       <div class="button-row"><button id="camera-persp">Freie 3D-Sicht</button><button id="camera-call">CALL-Sicht (+Z)</button><button id="camera-top">Draufsicht</button></div>
       <label><input type="checkbox" id="snap" checked> Einrasten: 5 cm / 5°</label>
@@ -77,7 +89,7 @@
     </section>
     <section>
       <h2>Modellstatus</h2>
-      <div id="status" class="status" role="status" aria-live="polite">Lade Raumdaten…</div>
+      <div id="status" class="status" role="status" aria-live="polite">Lade Raumdaten…</div><div id="warnings" class="status warn" style="margin-top:8px" role="status"></div>
       <p class="small">GLB-Dateien werden unverändert aus dem Repository geladen. Bei Ladefehlern werden Platzhalter angezeigt – damit ist die optische Übereinstimmung nicht bestätigt.</p>
     </section>
   </aside>
