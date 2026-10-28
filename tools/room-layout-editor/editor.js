@@ -74,7 +74,14 @@ transform.addEventListener('objectChange', () => {
   refreshWarnings();
 });
 transform.addEventListener('mouseUp', () => {
-  if (moving) commitEdit();
+  if (moving && selected) {
+    for(const axis of ['x','y','z']) {
+      const sc=selected.group.scale[axis];
+      selected.group.scale[axis]=THREE.MathUtils.clamp(Math.abs(sc),0.01,20);
+    }
+    refreshFields();
+    commitEdit();
+  }
   moving = false;
 });
 
@@ -462,17 +469,55 @@ $('snap').onchange=()=>{
 };
 $('snap').dispatchEvent(new Event('change'));
 $('object').onchange=()=>setSelected($('object').value);
-for(const id of ['x','y','z','yaw','scale']) {
+for(const id of ['x','y','z','pitch','yaw','roll','scale']) {
   $(id).addEventListener('change',()=>{
-    if (!selected) return;
+    if(!selected || selected.locked)return;
     const v=Number($(id).value);
-    if (!Number.isFinite(v)) {refreshFields();return;}
+    if(!Number.isFinite(v)) {refreshFields();return;}
     if(id==='scale' && (v<0.01||v>20)){refreshFields();return;}
-    if(id==='yaw')selected.group.rotation.set(0,THREE.MathUtils.degToRad(v),0);
-    else if(id==='scale')selected.group.scale.setScalar(v);
+    if(['pitch','yaw','roll'].includes(id)) {
+      const axis={pitch:'x',yaw:'y',roll:'z'}[id];
+      if(Math.abs(v)>36000){refreshFields();return;}
+      selected.group.rotation[axis]=THREE.MathUtils.degToRad(v);
+    } else if(id==='scale')selected.group.scale.setScalar(v);
     else if(Math.abs(v)<=100)selected.group.position[id]=v;
     refreshFields();commitEdit();
   });
+}
+$('lock-object').onclick=()=>{
+  if(!selected)return;
+  selected.locked=!selected.locked;
+  updateObjectOption(selected);
+  setSelected(selected.id);
+  commitEdit();
+};
+$('next-unlocked').onclick=()=>{
+  const list=[...entries.values()];
+  const start=selected?list.findIndex(e=>e.id===selected.id):-1;
+  for(let i=1;i<=list.length;i++) {
+    const candidate=list[(start+i)%list.length];
+    if(candidate&&!candidate.locked){setSelected(candidate.id);return;}
+  }
+  $('lock-state').textContent='Alle Möbel verankert. Zum Weiterarbeiten ein Möbel entsperren.';
+};
+for(const [id,axis] of [['flip-x','x'],['flip-y','y'],['flip-z','z']]) {
+  $(id).onclick=()=>{
+    if(!selected||selected.locked)return;
+    selected.group.rotation[axis]+=Math.PI;
+    refreshFields();commitEdit();
+  };
+}
+for(const btn of document.querySelectorAll('[data-nudge]')) {
+  btn.onclick=()=>{
+    if(!selected||selected.locked)return;
+    const [axis,sign]=btn.dataset.nudge.split(':');
+    const step=Number($('nudge-step').value);
+    if(!['x','y','z'].includes(axis)||!Number.isFinite(step)||step<0.001||step>1)return;
+    const next=selected.group.position[axis]+step*Number(sign);
+    if(Math.abs(next)>100)return;
+    selected.group.position[axis]=next;
+    refreshFields();commitEdit();
+  };
 }
 $('reset-object').onclick=()=>{
   if(!selected||selected.locked)return;
