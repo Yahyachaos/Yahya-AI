@@ -1,0 +1,116 @@
+{
+  "schema": "celine-room-editor-reference-framing-hypothesis/v3",
+  "status": "DIAGNOSTIC_CAMERA_AND_ONE_FURNITURE_COMPENSATION__NOT_VISUAL_PASS",
+  "date": "2026-10-28",
+  "source_model_head": "eb472931e85e08c036e61b63d1eb37679931a769",
+  "source_reference_image": "Refernzbild.png",
+  "source_reference_pixels": [
+    1402,
+    1122
+  ],
+  "inspected_original_webgl_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40709385553",
+  "inspected_original_optional_visual_artifact_id": 12826580932,
+  "input_layout": "tools/room-layout-editor/layout-candidates/2026-10-28-room-phaseB-coherent-v2.json",
+  "adjusted_layout": "tools/room-layout-editor/layout-candidates/2026-10-28-room-framing-coherent-v3.json",
+  "physical_room_m": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "camera_proposal": {
+    "position_m": [
+      0.1472,
+      1.75,
+      3.3204
+    ],
+    "target_m": [
+      0.2381,
+      0.5282,
+      0.1018
+    ],
+    "vertical_fov_deg": 71.3,
+    "reference_aspect": 1.249554367201426
+  },
+  "calibration_method": "Constrained perspective fit to measured real WebGL source-GLB AABB centers and rear ceiling/curtain projection, with front-floor screen-edge coverage. Not a visually accepted or Android camera.",
+  "proof_only_not_a_production_camera": true,
+  "predicted_front_floor_center_normalized_v": 0.9779,
+  "measured_v2_front_floor_center_normalized_v": 0.6595,
+  "predicted_foreground_table_center_uv": [
+    0.474,
+    0.835
+  ],
+  "measured_phaseB_foreground_table_center_uv": [
+    0.402,
+    0.588
+  ],
+  "measured_reference_table_target_uv": [
+    0.5,
+    0.9
+  ],
+  "predicted_bed_center_uv": [
+    0.661,
+    0.481
+  ],
+  "measured_phaseB_bed_center_uv": [
+    0.608,
+    0.426
+  ],
+  "measured_reference_bed_target_uv": [
+    0.753,
+    0.482
+  ],
+  "predicted_dresser_at_adjusted_z_0_85_uv": [
+    0.137,
+    0.594
+  ],
+  "measured_reference_dresser_target_uv": [
+    0.09,
+    0.526
+  ],
+  "architecture_targets_normalized": {
+    "backwall_ceiling_left": {
+      "u": 0.19,
+      "v": 0.078
+    },
+    "backwall_ceiling_right": {
+      "u": 0.748,
+      "v": 0.098
+    },
+    "curtain_world_aabb_projected_bbox": {
+      "left": 0.205,
+      "right": 0.588,
+      "top": 0.086,
+      "bottom": 0.477
+    }
+  },
+  "predicted_architecture": {
+    "backwall_ceiling_left": {
+      "u": 0.2024,
+      "v": 0.0922
+    },
+    "backwall_ceiling_right": {
+      "u": 0.7207,
+      "v": 0.0957
+    },
+    "curtain_world_aabb_projected_bbox": {
+      "left": 0.1941,
+      "right": 0.6306,
+      "top": 0.1025,
+      "bottom": 0.4993
+    }
+  },
+  "architecture_tolerance_unchanged": {
+    "corner_abs": 0.04,
+    "curtain_aabb_abs": 0.045
+  },
+  "valid_only_if_actual_13_source_models_fit": true,
+  "physical_collision_certification": "NOT_CLAIMED_CONSERVATIVE_AABB_ONLY",
+  "known_visual_limitations": [
+    "Original photo has a person centered and a foreground desk/laptop/candle; this editor only loads 13 furniture instances and cannot claim pixel-identical composition.",
+    "Fitted camera shifts dresser forward perspective: one coherent dresser-depth compensation from z=1.74m to z=0.85m is independently proposed.",
+    "Even when projected geometry and screenshot pass, manual image acceptance remains FAIL until directly inspected.",
+    "No automatic promotion to real Android camera or Filament layouts."
+  ],
+  "visual_acceptance": "FAIL_PENDING_REAL_WEBGL_PNG_AND_MANUAL_REFERENCE_COMPARISON",
+  "android_visual_acceptance": "FAIL_UNTOUCHED_G2_3_PAUSED"
+}

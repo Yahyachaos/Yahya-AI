@@ -399,6 +399,120 @@ async function main() {
        manualVisualAcceptance:'PENDING_REFERENCE_PNG_INSPECTION',
        androidVisualAcceptance:'UNCHANGED_FAIL'});
 
+    // Third independently archived reference-geometry framing trial: the
+    // original V2 remains a verified baseline, while this V3 moves only the
+    // dresser depth and changes the diagnostic camera, not Android assets.
+    const framingPath=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-28-room-framing-coherent-v3.json');
+    const framingSource=JSON.parse(fs.readFileSync(framingPath,'utf8'));
+    const framingCamera=JSON.parse(fs.readFileSync(path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-28-reference-framing-camera-v3.json'),'utf8'));
+    assert.equal(framingSource.objects.length,13);
+    assert.deepEqual(framingSource.room,{width:4.4,depth:4.2,height:2.65});
+    const oldById=Object.fromEntries(
+      JSON.parse(fs.readFileSync(phaseBPath,'utf8')).objects.map(o=>[o.id,o]));
+    const moved=framingSource.objects.filter(o=>
+      JSON.stringify(o)!==JSON.stringify(oldById[o.id])).map(o=>o.id);
+    assert.deepEqual(moved,['room_dresser'],
+      'Only the documented dresser depth may differ from Phase B');
+    assert.equal(framingSource.objects.find(o=>o.id==='room_dresser').translation_m[2],0.85);
+    await page.locator('#file').setInputFiles(framingPath);
+    await page.waitForFunction(()=>
+      document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen:'),
+      null,{timeout:30000});
+    const framingBounds=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(framingBounds.model_count,13);
+    assert.equal(framingBounds.all_source_fidelity_glbs_loaded,true);
+    assert.deepEqual(framingBounds.room_m,{width:4.4,depth:4.2,height:2.65});
+    const framingViolations=framingBounds.objects.flatMap(o=>
+      Object.entries(o.overflow_faces_m).filter(([,meters])=>meters>0.012)
+        .map(([face,meters])=>({id:o.id,face,meters})));
+    assert.deepEqual(framingViolations,[],
+      'Proposed framing layout must fit all 13 real GLB AABBs');
+    const framingObjects=Object.fromEntries(framingBounds.objects.map(o=>[o.id,o]));
+    assert(framingObjects.room_dresser.conservative_world_aabb_m.min[2]>
+      framingObjects.room_lounge_chair.conservative_world_aabb_m.max[2]+0.10,
+      'Moved dresser must clear the genuine lounge-chair conservative depth');
+    fs.writeFileSync(path.join(output,'layout-framing-v3-aabb.json'),
+      JSON.stringify({...framingBounds,sourceSha:process.env.GITHUB_SHA||null,
+        candidateFile:path.relative(root,framingPath),violations:framingViolations,
+        collisionCertification:'NOT_CERTIFIED_CONSERVATIVE_AABB_ONLY'},null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,'layout-framing-v3-aabb.json'),'utf8')).model_count,13);
+    const effectiveCamera=await page.evaluate(v=>
+      window.__celineRoomEditorE2E.previewMeasuredCamera(v),
+      framingCamera.camera_proposal);
+    const framingProjection=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.cameraProjection());
+    assert.deepEqual(framingProjection.canvas_px,[700,560]);
+    assert(Math.abs(framingProjection.aspect-1402/1122)<0.002);
+    assert(Math.abs(effectiveCamera.vertical_fov_deg-71.3)<0.00001);
+    const v2Floor=phaseBProjection.architecture.front_floor_center.v;
+    const v3Floor=framingProjection.architecture.front_floor_center.v;
+    assert(v3Floor>v2Floor+0.20 && v3Floor>0.85,
+      'True front-room floor must cover substantially more reference vertical frame');
+    const v2Table=phaseBProjection.projected_centers.room_foreground_table.v;
+    const v3Table=framingProjection.projected_centers.room_foreground_table.v;
+    assert(v3Table>v2Table+0.16,
+      'Genuine original table must project closer to lower foreground');
+    const framingArch={};
+    for(const id of ['backwall_ceiling_left','backwall_ceiling_right']) {
+      const p=framingProjection.architecture[id];
+      const t=framingCamera.architecture_targets_normalized[id];
+      const tolerance=framingCamera.architecture_tolerance_unchanged.corner_abs;
+      assert(Math.abs(p.u-t.u)<tolerance&&Math.abs(p.v-t.v)<tolerance,
+        'Reference ceiling architecture must not be sacrificed by framing: '+id);
+      framingArch[id]={actual:p,target:t};
+    }
+    const curtain=framingProjection.architecture.curtain_world_aabb_projected_bbox;
+    const ct=framingCamera.architecture_targets_normalized.curtain_world_aabb_projected_bbox;
+    for(const edge of ['left','right','top','bottom'])
+      assert(Math.abs(curtain[edge]-ct[edge])<
+          framingCamera.architecture_tolerance_unchanged.curtain_aabb_abs,
+        'True source-GLB curtain landmark outside existing tolerance: '+edge);
+    framingArch.curtain_world_aabb_projected_bbox={actual:curtain,target:ct};
+    const comparison={};
+    for(const id of ['room_bed','room_dresser','room_lounge_chair',
+                     'room_rug','room_foreground_table']){
+      const t=referenceProposal.center_targets_normalized[id];
+      const v2=phaseBProjection.projected_centers[id];
+      const v3=framingProjection.projected_centers[id];
+      comparison[id]={target:t,previous_v2:v2,new_v3:v3,
+        old_error_norm:Math.hypot(v2.u-t.u,v2.v-t.v),
+        new_error_norm:Math.hypot(v3.u-t.u,v3.v-t.v)};
+    }
+    assert(comparison.room_foreground_table.new_error_norm<
+      comparison.room_foreground_table.old_error_norm,
+      'Framing must improve reference foreground table center residual');
+    assert(comparison.room_rug.new_error_norm<
+      comparison.room_rug.old_error_norm,
+      'Framing must improve reference foreground rug center residual');
+    const framingName='layout-framing-v3-reference-audit.json';
+    fs.writeFileSync(path.join(output,framingName),JSON.stringify({
+      sourceSha:process.env.GITHUB_SHA||null,
+      candidateFile:path.relative(root,framingPath),
+      cameraProposal:path.relative(root,path.join(root,
+        'tools/room-layout-editor/layout-candidates/2026-10-28-reference-framing-camera-v3.json')),
+      actualCamera:effectiveCamera,
+      realSourceGLBs:13,room_m:framingBounds.room_m,
+      projection:framingProjection,
+      architectureComparisons:framingArch,
+      frontFloorScreenVChange:{old_v2:v2Floor,new_v3:v3Floor},
+      primaryCenterComparisons:comparison,
+      visuallyAccepted:false,androidVisualStatus:'FAIL_UNTOUCHED',
+      warning:'Only source-derived projected centers and conservative geometry. A CI green cannot certify reference silhouettes, materials or Android scene.'
+    },null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,framingName),'utf8'))
+      .visuallyAccepted,false,'Actual diagnostic audit must parse');
+    const framingPng=png('layout-framing-v3-reference-projection.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+    assert.deepEqual([framingPng.width,framingPng.height],[700,560]);
+    evidence('REAL_V3_DIAGNOSTIC_13_GLB_FRAMING_IMAGE_NOT_VISUAL_PASS',
+      {...framingPng,candidate:path.relative(root,framingPath),
+       audit:framingName,bounds:'layout-framing-v3-aabb.json',
+       originalReference:'reference-original.png',
+       manualVisualAcceptance:'PENDING_ACTUAL_PNG_INSPECTION',
+       androidVisualAcceptance:'UNCHANGED_FAIL'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,

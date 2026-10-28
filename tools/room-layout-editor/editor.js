@@ -636,6 +636,21 @@ if (E2E_PROOF) {
       renderer.render(scene, camera);
       return { id, center: center.toArray(), size: size.toArray() };
     },
+    previewMeasuredCamera(config) {
+      // E2E-only diagnostic: do not change the user-facing accepted camera
+      // or the 13 source models until a real reference visual inspection.
+      const { position_m, target_m, vertical_fov_deg } = config || {};
+      if (![position_m,target_m].every(v =>
+        Array.isArray(v) && v.length===3 && v.every(Number.isFinite)) ||
+          !Number.isFinite(vertical_fov_deg) ||
+          vertical_fov_deg<35 || vertical_fov_deg>95 ||
+          position_m[2]<=room.depth/2)
+        throw new Error('Invalid diagnostic perspective camera proposal');
+      viewPreset(position_m,target_m,vertical_fov_deg);
+      renderer.render(scene,camera);
+      return { position_m:camera.position.toArray(),
+        target_m:orbit.target.toArray(), vertical_fov_deg:camera.fov };
+    },
     probeCenter() {
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const meshes = [...entries.values()].flatMap(e => e.group.children);
@@ -741,6 +756,7 @@ if (E2E_PROOF) {
           return {
             backwall_ceiling_left:project(-room.width/2,room.height,-room.depth/2),
             backwall_ceiling_right:project(room.width/2,room.height,-room.depth/2),
+            front_floor_center:project(0,0,room.depth/2),
             curtain_world_aabb_projected_bbox:{
               left:Math.min(...corners.map(p=>p.u)),
               right:Math.max(...corners.map(p=>p.u)),
