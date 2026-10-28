@@ -995,7 +995,7 @@ def open_internal_settings():
             window = adb("shell", "dumpsys", "window", "windows",
                          check=False, timeout=30)
             foreground_home = bool(re.search(
-                r"mCurrentFocus=Window\\{[^\\n]*de\\.yahya\\.ai/de\\.yahya\\.ai\\.MainActivity\\}",
+                r"mCurrentFocus=Window\{[^\n]*de\.yahya\.ai/de\.yahya\.ai\.MainActivity\}",
                 window))
             if (len(live_gear) == 1 and foreground_home
                     and "mObscuringWindow=null" in window
