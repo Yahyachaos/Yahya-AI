@@ -939,6 +939,7 @@ def open_internal_settings():
     """
     trace = []
     clicked_gear = False
+    retried_gear = False
     clicked_inner = False
     # Genuine #27 reached the inner dialog on screen only AFTER 12 dumps;
     # the old 14-total-poll budget expired before accessibility caught up.
@@ -963,7 +964,8 @@ def open_internal_settings():
             visible = [n.attrib.get("text", "") for n in root.iter("node")
                        if n.attrib.get("text")]
         trace.append({"attempt": attempt, "visible": visible[-22:],
-                      "gear_tapped": clicked_gear, "inner_tapped": clicked_inner})
+                      "gear_tapped": clicked_gear, "gear_retried": retried_gear,
+                      "inner_tapped": clicked_inner})
         if "Gedächtnis" in visible:
             print("ACTUAL_NESTED_SETTINGS_OPEN_PASS: real inner rows",
                   flush=True)
@@ -971,6 +973,44 @@ def open_internal_settings():
         if any(v.startswith("Celines lokale Neural-Stimme") for v in visible):
             raise AssertionError("Wrong nested Settings action opened: " +
                                  repr(visible[-12:]))
+        # Actual API35 #71: a single real gear tap under severe 4.95-s GPU
+        # stalls left the *unchanged* HOME hierarchy for 28 polls. The gear
+        # click is not evidence that Android delivered it. One bounded second
+        # native touch is allowed ONLY after eight unchanged fresh UI reads,
+        # while Android confirms the actual foreground MainActivity, no
+        # obscuring window, no visible keyboard and the same accessible gear.
+        # This never accepts HOME as Settings, never re-taps a stale outer/inner
+        # dialog, and stays FAIL if the second real tap also gets no response.
+        if (clicked_gear and not retried_gear and not clicked_inner
+                and attempt >= 8 and "⚙" in visible
+                and "Weitere Einstellungen" not in visible
+                and adb("shell", "getprop", "ro.build.version.sdk").strip() == "35"):
+            live_gear = [n for n in root.iter("node")
+                         if n.attrib.get("text") == "⚙"
+                         and n.attrib.get("package") == PACKAGE
+                         and n.attrib.get("class") == "android.widget.Button"
+                         and n.attrib.get("content-desc") == "Einstellungen"
+                         and n.attrib.get("clickable") == "true"
+                         and n.attrib.get("enabled") == "true"]
+            window = adb("shell", "dumpsys", "window", "windows",
+                         check=False, timeout=30)
+            foreground_home = bool(re.search(
+                r"mCurrentFocus=Window\\{[^\\n]*de\\.yahya\\.ai/de\\.yahya\\.ai\\.MainActivity\\}",
+                window))
+            if (len(live_gear) == 1 and foreground_home
+                    and "mObscuringWindow=null" in window
+                    and "mImeShowing=false" in window):
+                (OUT / "settings-gear-verified-retry-window.txt").write_text(
+                    window[-60000:], encoding="utf-8")
+                (OUT / "settings-gear-verified-retry.xml").write_text(
+                    ET.tostring(root, encoding="unicode"), encoding="utf-8")
+                screenshot("settings-gear-verified-retry-before.png")
+                retried_gear = True
+                print("ACTUAL_NESTED_SETTINGS_GEAR_VERIFIED_ONE_RETRY_SENT",
+                      flush=True)
+                click(live_gear[0])
+                time.sleep(3)
+                continue
         if not clicked_inner and "Weitere Einstellungen" in visible:
             target = next(n for n in root.iter("node")
                           if n.attrib.get("text") == "Weitere Einstellungen")
