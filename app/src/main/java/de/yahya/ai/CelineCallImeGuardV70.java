@@ -147,12 +147,15 @@ final class CelineCallImeGuardV70 {
             boolean focused = composer.isFocused();
             hideIme(composer);
             if (focused) composer.clearFocus();
-            // Do not restore editor focusability immediately: Android 35 can select the HOME editor
-            // again several seconds after the CALL overlay has gone. Keep only this editor out of
-            // the focus chain until the user's next explicit touch, while leaving it clickable.
-            composer.setFocusableInTouchMode(false);
+            // Android's first touch cannot reliably reach an EditText that remains
+            // non-focusable after CALL: #66 showed a visible/clickable composer but
+            // real ACTION_DOWN left focused=false. Neutralize accidental CALL focus
+            // on the decor first, then restore native touch focusability. A later
+            // layout-driven ghost focus is still cleared while suppressReturnFocus
+            // remains true, until the next explicit composer ACTION_DOWN.
             decor.setFocusableInTouchMode(true);
             decor.requestFocus();
+            composer.setFocusableInTouchMode(true);
             return focused;
         }
 
@@ -164,7 +167,12 @@ final class CelineCallImeGuardV70 {
                     suppressReturnFocus = false;
                     returnGeneration++;
                     composer.setFocusableInTouchMode(true);
-                    composer.post(composer::requestFocus);
+                    // Restore synchronously for this real native touch; posting
+                    // after the touch can leave the first HOME tap unfocused.
+                    composer.requestFocus();
+                    Celine3DDiagnostics.record(activity, "V70-153",
+                            "HOME Composer durch expliziten Tap reaktiviert",
+                            "callVisible=false · returnSuppressionCleared=true");
                 }
                 return false;
             });
