@@ -706,6 +706,152 @@ async function main() {
         manualDresserVerdict:'PENDING',manualChairVerdict:'FAIL_UNTOUCHED',
         androidVisualVerdict:'FAIL_G2_3_PAUSED'});
 
+
+    // Isolated V5 facing investigation. The same genuine V3 camera is frozen,
+    // the V4 bed stays locked, and the other eleven original furniture instances
+    // are byte-for-byte identical. This is real Chromium/WebGL, not AABB-only.
+    const v5Path=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-28-room-bed-dresser-refacing-v5.json');
+    const v5Source=JSON.parse(fs.readFileSync(v5Path,'utf8'));
+    assert.deepEqual(v5Source.room,{width:4.4,depth:4.2,height:2.65});
+    assert.equal(v5Source.objects.length,13);
+    const v5ById=Object.fromEntries(v5Source.objects.map(o=>[o.id,o]));
+    const v4ById=Object.fromEntries(anchorSource.objects.map(o=>[o.id,o]));
+    for(const o of v5Source.objects){
+      if(o.id!=='room_dresser')
+        assert.deepEqual(o,v4ById[o.id],'V5 freezes all non-dresser transforms and locks: '+o.id);
+    }
+    assert.equal(v5ById.room_bed.locked,true);
+    assert.equal(v5ById.room_dresser.locked,true);
+    assert.equal(v5ById.room_lounge_chair.locked,false);
+    assert.deepEqual(v5ById.room_dresser.rotation_euler_deg,[0,180,0]);
+    assert.deepEqual(v5ById.room_dresser.translation_m,v4ById.room_dresser.translation_m);
+    assert.deepEqual(v5ById.room_dresser.scale_xyz,v4ById.room_dresser.scale_xyz);
+    for(const [id,hash] of Object.entries(anchorSource.original_source_hashes))
+      assert.equal(v5Source.original_source_hashes[id],hash,
+        'V5 cannot replace a source-fidelity model: '+id);
+    const facingTrials=[
+      {name:'proposed-180',state:v5Source},
+      {name:'angle-165',state:(()=>{
+        const alt=JSON.parse(JSON.stringify(v5Source));
+        const o=alt.objects.find(o=>o.id==='room_dresser');
+        // 15-degree front-angle trial shifted inward just enough to remain
+        // inside the -2.2m wall; no other object/camera may change.
+        o.translation_m=[-1.80,0.502665,0.40];
+        o.rotation_y_deg=165;o.rotation_euler_deg=[0,165,0];
+        return alt;
+      })()}
+    ];
+    const facingResults=[];
+    for(const trial of facingTrials){
+      const trialFile=path.join(output,'trial-v5-'+trial.name+'.json');
+      fs.writeFileSync(trialFile,JSON.stringify(trial.state,null,2)+'\n');
+      await page.locator('#file').setInputFiles(trialFile);
+      await page.waitForFunction(name=>document.querySelector('#status')?.textContent?.includes(
+        'Gespeichertes Layout geladen: '+name),path.basename(trialFile),{timeout:60000});
+      await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+        framingCamera.camera_proposal);
+      const actualCamera=await page.evaluate(()=>window.__celineRoomEditorE2E.effectiveCamera());
+      assert.deepEqual(actualCamera.position_m,effectiveCamera.position_m,'V5 camera position frozen');
+      assert.deepEqual(actualCamera.target_m,effectiveCamera.target_m,'V5 camera target frozen');
+      const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+      const proj=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+      assert.equal(audit.model_count,13,'V5 source-fidelity instances');
+      assert.equal(audit.all_source_fidelity_glbs_loaded,true,'V5 original assets');
+      assert.deepEqual(audit.room_m,{width:4.4,depth:4.2,height:2.65});
+      assert.deepEqual(proj.canvas_px,[700,560]);
+      assert(Math.abs(proj.aspect-1402/1122)<.002);
+      const failures=audit.objects.flatMap(o=>Object.entries(o.overflow_faces_m)
+        .filter(([,depth])=>depth>.012).map(([face,meters])=>({id:o.id,face,meters})));
+      assert.deepEqual(failures,[],'V5 all furniture source-bounds remain in room');
+      const objects=Object.fromEntries(audit.objects.map(o=>[o.id,o]));
+      for(const id of ['room_bed','room_dresser']){
+        assert.equal(objects[id].locked,true);
+        assert(Math.abs(objects[id].floor_bottom_y_m)<.012,'V5 anchor grounded: '+id);
+      }
+      for(const o of audit.objects){
+        if(o.id==='room_dresser')continue;
+        assert.deepEqual(o.transform,
+          altReports[0].anchors[o.id]?.transform||(
+            o.id==='room_lounge_chair'?altReports[0].chairFrozenTransform:o.transform),
+          'V5 excludes non-dresser furniture mutation: '+o.id);
+      }
+      const cabinet=objects.room_dresser.conservative_world_aabb_m;
+      const chair=objects.room_lounge_chair.conservative_world_aabb_m;
+      assert([0,1,2].some(i=>cabinet.max[i]+.025<chair.min[i]||
+        chair.max[i]+.025<cabinet.min[i]),'V5 dresser/chair conservative physical separation');
+      const image=png('layout-v5-'+trial.name+'-real-webgl.png',
+        await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+      assert.deepEqual([image.width,image.height],[700,560]);
+      facingResults.push({trial:trial.name,screen:image,sourceSha:process.env.GITHUB_SHA||null,
+        candidate:trial.name==='proposed-180'?path.relative(root,v5Path):path.relative(output,trialFile),
+        measuredCamera:{position_m:actualCamera.position_m,
+          target_m:actualCamera.target_m,vertical_fov_deg:actualCamera.vertical_fov_deg},
+        room_m:audit.room_m,original_source_glb_instances:audit.model_count,
+        true_source_bounds_overflows:failures,
+        dresser:{transform:objects.room_dresser.transform,locked:true,
+          conservative_world_aabb_m:cabinet,
+          projected_world_aabb_normalized:projectedWorldAabb(objects.room_dresser,proj),
+          projected_center_normalized:proj.projected_centers.room_dresser,
+          reference_estimate:anchorSource.reference_bbox_estimates_normalized.room_dresser},
+        bed:{transform:objects.room_bed.transform,locked:true,
+          projected_world_aabb_normalized:projectedWorldAabb(objects.room_bed,proj)},
+        chairFrozen:objects.room_lounge_chair.transform,
+        manualVisuallyApproved:false});
+    }
+    // Restore the ACTUAL versioned V5 saved layout, not a temporary variant.
+    await page.locator('#file').setInputFiles(v5Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-28-room-bed-dresser-refacing-v5.json'),
+      null,{timeout:60000});
+    await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+      framingCamera.camera_proposal);
+    const v5Side=png('layout-v5-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw new Error('Original reference not loaded for V5');
+        const raster=new Image();
+        raster.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((resolve,reject)=>{
+          if(raster.complete&&raster.naturalWidth)return resolve();
+          raster.onload=resolve;raster.onerror=reject;
+        });
+        const canvas=document.createElement('canvas');
+        canvas.width=1400;canvas.height=560;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(ref,0,0,700,560);
+        ctx.drawImage(raster,700,0,700,560);
+        return canvas.toDataURL('image/png');
+      }));
+    assert.deepEqual([v5Side.width,v5Side.height],[1400,560]);
+    const v5AuditName='layout-v5-dresser-facing-audit.json';
+    const v5Report={
+      sourceSha:process.env.GITHUB_SHA||null,
+      exactParentHead:'7556b2ef7eccbda77fe6443f967053105cab41aa',
+      initialV4Proof:'https://github.com/Yahyachaos/Yahya-AI/actions/runs/40748778047',
+      originalReference:'reference-original.png',
+      originalReferencePixels:[1402,1122],
+      sourceRoom_m:{width:4.4,depth:4.2,height:2.65},
+      frozenCamera:true,
+      sideBySide:v5Side,
+      priorSelectedV4:altReports[0],
+      facingTrials:facingResults,
+      sourceModels:13,
+      bedVisual:'FAIL_UNCHANGED_FROM_V4',
+      dresserVisual:'PENDING_MANUAL_IMAGE_REVIEW',
+      chairVisual:'FAIL_UNCHANGED',
+      fullSceneVisual:'FAIL',androidG2_3:'PAUSED',
+      caveat:'AABB fit and Chromium PASS are not silhouette, orientation, material or Android visual acceptance.'
+    };
+    fs.writeFileSync(path.join(output,v5AuditName),JSON.stringify(v5Report,null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,v5AuditName),'utf8'))
+      .facingTrials.length,2,'V5 proof report must be complete and parseable');
+    evidence('V5_GENUINE_13_GLB_DRESSER_FACING_TRIALS_PENDING_VISUAL_INSPECTION',
+      {candidate:path.relative(root,v5Path),screens:facingResults.map(r=>r.screen.file),
+       sideBySide:v5Side.file,audit:v5AuditName,
+       physicalBounds:true,bedLocked:true,dresserLocked:true,
+       cameraFrozen:true,manualVisual:'PENDING',androidVisual:'FAIL_G2_3_PAUSED'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
