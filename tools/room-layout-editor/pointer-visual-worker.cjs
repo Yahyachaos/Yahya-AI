@@ -313,6 +313,92 @@ async function main() {
        camera:referenceProposal.camera_proposal,
        sourceReferenceDimensions:referenceProposal.reference_original_pixels,
        furnitureTransformedByCameraTest:false});
+
+    // Coherent phase-B original 13-GLB arrangement AFTER v1 and architecture
+    // proof. It remains an isolated browser hypothesis, not Android VISUAL PASS.
+    const phaseBPath=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-28-room-phaseB-coherent-v2.json');
+    await page.locator('#file').setInputFiles(phaseBPath);
+    await page.waitForFunction(()=>
+      document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen:'),
+      null,{timeout:30000});
+    await page.locator('#camera-reference').click();
+    await page.waitForTimeout(350);
+    const phaseBAudit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(phaseBAudit.model_count,13);
+    assert.equal(phaseBAudit.all_source_fidelity_glbs_loaded,true);
+    assert.deepEqual(phaseBAudit.room_m,{width:4.4,depth:4.2,height:2.65});
+    const phaseBViolations=phaseBAudit.objects.flatMap(o=>
+      Object.entries(o.overflow_faces_m).filter(([,value])=>value>0.012)
+        .map(([face,meters])=>({id:o.id,face,meters})));
+    assert.deepEqual(phaseBViolations,[],
+      'Each Phase-B original source-fidelity GLB must stay inside room');
+    const phaseBObjects=Object.fromEntries(phaseBAudit.objects.map(o=>[o.id,o]));
+    const bedB=phaseBObjects.room_bed.conservative_world_aabb_m;
+    const tableB=phaseBObjects.room_foreground_table.conservative_world_aabb_m;
+    const nightB=phaseBObjects.room_nightstand_front.conservative_world_aabb_m;
+    const dresserB=phaseBObjects.room_dresser.conservative_world_aabb_m;
+    const chairB=phaseBObjects.room_lounge_chair.conservative_world_aabb_m;
+    assert(tableB.min[2]>bedB.max[2]+0.06,
+      'Original table must not intersect bed in conservative depth');
+    assert(nightB.min[2]>bedB.max[2]+0.08,
+      'Original front nightstand must clear the moved bed');
+    assert(dresserB.min[2]>chairB.max[2]+0.10,
+      'Original dresser must not occupy chair depth');
+    const phaseBProjection=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.cameraProjection());
+    assert.deepEqual(phaseBProjection.canvas_px,[700,560]);
+    const phaseBResiduals={};
+    for(const id of ['room_bed','room_dresser','room_lounge_chair',
+                       'room_rug','room_foreground_table']){
+      const target=referenceProposal.center_targets_normalized[id];
+      const previous=projection.projected_centers[id];
+      const after=phaseBProjection.projected_centers[id];
+      assert(target && previous && after,'Projected original model center: '+id);
+      function dist(p){return Math.hypot(p.u-target.u,p.v-target.v);}
+      phaseBResiduals[id]={target,previous,after,
+        previous_error_norm:dist(previous),phaseB_error_norm:dist(after),
+        improved:dist(after)<dist(previous)};
+    }
+    for(const id of ['room_bed','room_dresser','room_lounge_chair']) {
+      assert(phaseBResiduals[id].improved,
+        'Phase-B must reduce actual center residual for: '+id);
+    }
+    assert(phaseBProjection.projected_centers.room_foreground_table.v>
+      projection.projected_centers.room_foreground_table.v+0.025,
+      'The original table must move toward image foreground');
+    const phaseBProofName='layout-phaseB-reference-residuals.json';
+    fs.writeFileSync(path.join(output,phaseBProofName),JSON.stringify({
+      sourceSha:process.env.GITHUB_SHA||null,
+      candidateFile:path.relative(root,phaseBPath),
+      cameraProposal:'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v2.json',
+      originalReferenceImage:'reference-original.png',originalReferencePixels:[1402,1122],
+      referencePixelVisualAcceptance:'FAIL_NOT_REFERENCE_MATCHED',
+      androidVisualAcceptance:'FAIL_UNTOUCHED',
+      boundsMethod:phaseBAudit.bounds_method,
+      all13OriginalGLBsFitRoom:phaseBViolations.length===0,
+      measuredScreenCenterResiduals:phaseBResiduals,
+      note:'Only source-GLB primary projected centers and conservative bounds. No screen silhouette or Android visual PASS.'
+    },null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,phaseBProofName),'utf8'))
+      .all13OriginalGLBsFitRoom,true,'Phase-B JSON must be actually parseable');
+    const phaseBAabbName='layout-phaseB-aabb.json';
+    fs.writeFileSync(path.join(output,phaseBAabbName),JSON.stringify({
+      ...phaseBAudit,sourceSha:process.env.GITHUB_SHA||null,
+      candidateFile:path.relative(root,phaseBPath),violations:phaseBViolations,
+      collisionCertification:'NOT_CERTIFIED_CONSERVATIVE_AABB_SEPARATIONS_ONLY'
+    },null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,phaseBAabbName),'utf8'))
+      .model_count,13,'Phase-B world AABB JSON must be parseable');
+    const phaseBPng=png('layout-phaseB-reference-projection.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+    evidence('PHASE_B_ORIGINAL_ROOM_FIT_AND_PRIMARY_PROJECTION_IMPROVEMENTS_NOT_VISUAL_PASS',
+      {...phaseBPng,candidate:path.relative(root,phaseBPath),
+       residuals:phaseBProofName,aabb:phaseBAabbName,
+       actualSourceGlbs:13,conservativeRoomOverflowCount:phaseBViolations.length,
+       manualVisualAcceptance:'PENDING_REFERENCE_PNG_INSPECTION',
+       androidVisualAcceptance:'UNCHANGED_FAIL'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
