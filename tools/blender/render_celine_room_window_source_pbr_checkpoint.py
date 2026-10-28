@@ -32,6 +32,7 @@ FRONT_SHELL = "room_shell_front"
 LIGHT_NAME = "CELINE_WINDOW_SOURCE_PBR_CAMERA_FILL"
 WHOLE_OUTPUT = PROOF_DIR / "candidate_front_wide.png"
 ARCH_OUTPUT = PROOF_DIR / "architecture_window_source_pbr.png"
+ALPHA_DIAG_OUTPUT = PROOF_DIR / "architecture_window_alpha_half_diagnostic.png"
 META = PROOF_DIR / "window-source-pbr-checkpoint.json"
 FILL_ENERGY = 95.0
 FILL_SIZE = 8.0
@@ -215,6 +216,57 @@ def render(scene, path):
         fail(f"render missing or unexpectedly small: {path}")
 
 
+def render_alpha_owner_isolation(scene):
+    """Proof-only half-alpha A/B; NEVER a curtain/frame/glass or release candidate.
+
+    The original source GLB has one OPAQUE material for the entire window.
+    Temporarily replace only the Blender mesh material reference with a COPY.
+    This demonstrates how global alpha affects the observed stripe raster, but
+    it cannot establish which triangles are sheers versus rails/frame.
+    """
+    root = bpy.data.objects.get(WINDOW_GEOMETRY)
+    meshes = [obj for obj in descendants(root) if obj.type == "MESH" and obj.data]
+    if len(meshes) != 1 or len(meshes[0].data.materials) != 1:
+        fail("half-alpha diagnostic requires exactly one original window mesh/slot")
+    mesh = meshes[0].data
+    original = mesh.materials[0]
+    if original is None or not original.use_nodes or original.node_tree is None:
+        fail("half-alpha diagnostic requires existing PBR material nodes")
+    if ALPHA_DIAG_OUTPUT.exists():
+        ALPHA_DIAG_OUTPUT.unlink()
+
+    experiment = original.copy()
+    experiment.name = "CELINE_PROOF_ONLY_50PCT_ALPHA_ALL_WINDOW"
+    try:
+        bsdfs = [n for n in experiment.node_tree.nodes if n.type == "BSDF_PRINCIPLED"]
+        if len(bsdfs) != 1 or bsdfs[0].inputs.get("Alpha") is None:
+            fail("half-alpha diagnostic cannot locate a unique Principled Alpha socket")
+        alpha = bsdfs[0].inputs["Alpha"]
+        for link in list(alpha.links):
+            experiment.node_tree.links.remove(link)
+        alpha.default_value = 0.5
+        experiment.blend_method = "BLEND"
+        mesh.materials[0] = experiment
+        bpy.context.view_layer.update()
+        render(scene, ALPHA_DIAG_OUTPUT)
+    finally:
+        mesh.materials[0] = original
+        bpy.context.view_layer.update()
+        if experiment.users == 0:
+            bpy.data.materials.remove(experiment)
+    if mesh.materials[0] is not original:
+        fail("diagnostic did not restore the unmodified source material")
+    return {
+        "render": ALPHA_DIAG_OUTPUT.name,
+        "ab_variable": "one copied material, global alpha 1.0 -> 0.5",
+        "source_pbr_slot_original_restored": True,
+        "source_mesh_and_all_12_source_glbs_immutable": True,
+        "not_a_selective_sheer_or_frame_material": True,
+        "not_a_glass_or_backplane_decision": True,
+        "visual_acceptance": "UNASSESSED_REQUIRES_MANUAL_COMPARISON",
+    }
+
+
 def main():
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     audits, meshes, material_slots, image_nodes = audit_source_window_without_mutation()
@@ -225,12 +277,14 @@ def main():
 
     original_hide = {obj.name: bool(obj.hide_render) for obj in bpy.data.objects}
     architecture_hidden = []
+    alpha_diagnostic = None
     try:
         front.hide_render = True
         render(scene, WHOLE_OUTPUT)
         architecture_hidden = hide_non_window_geometry_for_architecture()
         front.hide_render = True
         render(scene, ARCH_OUTPUT)
+        alpha_diagnostic = render_alpha_owner_isolation(scene)
     finally:
         for obj in bpy.data.objects:
             if obj.name in original_hide:
@@ -249,6 +303,7 @@ def main():
         "head_sha": HEAD_SHA,
         "whole_scene_render": WHOLE_OUTPUT.name,
         "architecture_render": ARCH_OUTPUT.name,
+        "alpha_diagnostic": alpha_diagnostic,
         "reference": REFERENCE.name,
         "engine": engine_name,
         "render_size": [1376, 1100],
@@ -296,6 +351,7 @@ def main():
         "CELINE_ROOM_WINDOW_SOURCE_PBR_CHECKPOINT PASS "
         f"whole={WHOLE_OUTPUT.name} architecture={ARCH_OUTPUT.name} "
         f"architectureHidden={len(architecture_hidden)} sourceMeshAudits={len(audits)} "
+        f"alphaAB={ALPHA_DIAG_OUTPUT.name} "
         f"materialSlots={material_slots} imageTextureNodes={image_nodes} "
         "sourceBytesImmutable=true geometryMutated=false materialsMutated=false "
         "sourceMaterialSlotsPreserved=true sourceBaseColorAtlasBypassed=false "
