@@ -2,7 +2,6 @@ package de.yahya.ai;
 
 import android.content.Context;
 import android.opengl.Matrix;
-import android.view.View;
 
 import com.google.android.filament.Engine;
 import com.google.android.filament.EntityManager;
@@ -163,6 +162,12 @@ final class CelineRoomEnvironmentV80 {
 
     static boolean ensure(Context context, Celine3DView view) {
         if (context == null || view == null) return false;
+        // Main-thread attachment callbacks must not enter the worker-owned gltfio.
+        // This dispatch never blocks UI and does not claim Room built until proven.
+        if (!view.isFilamentOwnerThread()) {
+            view.dispatchFilamentWork(() -> ensure(context, view));
+            return false;
+        }
         State state;
         synchronized (STATES) {
             state = STATES.get(view);
@@ -178,6 +183,17 @@ final class CelineRoomEnvironmentV80 {
             }
         }
         return state.ensureBuilt();
+    }
+
+    static void release(Celine3DView view) {
+        if (view == null) return;
+        // Detach may arrive from both the backdrop and avatar. This serial
+        // cleanup is idempotent and runs after any already-queued room import.
+        view.dispatchFilamentWork(() -> {
+            State state;
+            synchronized (STATES) { state = STATES.remove(view); }
+            if (state != null) state.destroyRoom();
+        });
     }
 
     static boolean isActive(Celine3DView view) {
@@ -216,15 +232,26 @@ final class CelineRoomEnvironmentV80 {
      * built room state without taking transform ownership from CelineProductionPresenceV80.
      */
     static boolean toggleActiveFloorLamp() {
+        State target = null;
         synchronized (STATES) {
             for (State state : STATES.values()) {
-                if (state != null && state.isBuilt()) return state.toggleFloorLamp();
+                if (state != null && state.isBuilt()) { target = state; break; }
             }
         }
-        return false;
+        if (target == null) return false;
+        final State active = target;
+        // A successful enqueue is an accepted interaction, not proof of a
+        // synchronous GPU effect; the light JNI always runs on Engine owner.
+        active.view.dispatchFilamentWork(() -> {
+            synchronized (STATES) {
+                if (STATES.get(active.view) != active) return;
+            }
+            active.toggleFloorLamp();
+        });
+        return true;
     }
 
-    private static final class State implements View.OnAttachStateChangeListener {
+    private static final class State {
         final Context context;
         final Celine3DView view;
         final Engine engine;
@@ -235,13 +262,12 @@ final class CelineRoomEnvironmentV80 {
 
         final ArrayList<FilamentAsset> roomAssets = new ArrayList<>();
         FilamentAsset roomShellAsset;
-        SeatAnchor seatAnchor;
-        CelineRoomWorldContractV80 worldContract;
+        volatile SeatAnchor seatAnchor;
+        volatile CelineRoomWorldContractV80 worldContract;
         int recoveryRoomKeyLightEntity;
         int warmFloorFillLightEntity;
         int floorLampLightEntity;
         boolean floorLampLightEnabled;
-        boolean listenerInstalled;
         boolean failureLogged;
 
         State(Context context, Celine3DView view) throws Exception {
@@ -252,7 +278,6 @@ final class CelineRoomEnvironmentV80 {
             transforms = engine.getTransformManager();
             assetLoader = (AssetLoader) field(view, "assetLoader");
             resourceLoader = (ResourceLoader) field(view, "resourceLoader");
-            installListener();
         }
 
         synchronized boolean isBuilt() {
@@ -838,20 +863,6 @@ final class CelineRoomEnvironmentV80 {
                             + " type=FOCUSED_SPOT lumens=" + FLOOR_LAMP_LIGHT_LUMENS
                             + " handContact=false switchTarget=false cameraFixed=true");
             return true;
-        }
-
-        private void installListener() {
-            if (listenerInstalled) return;
-            listenerInstalled = true;
-            view.addOnAttachStateChangeListener(this);
-        }
-
-        @Override public void onViewAttachedToWindow(View v) {
-            // CelineRoomBackdropView owns the safe rebuild request and fallback invalidation.
-        }
-
-        @Override public void onViewDetachedFromWindow(View v) {
-            destroyRoom();
         }
 
         synchronized void destroyRoom() {

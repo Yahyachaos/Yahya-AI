@@ -235,6 +235,26 @@ public final class Celine3DView extends FrameLayout {
         }
     }
 
+    // Filament's native client / gltfio calls must stay on the Engine creator's
+    // adopted thread. Software emulator room work shares one queue with
+    // initialization, frames, surfaces and teardown. Hardware keeps UI ownership.
+    boolean isFilamentOwnerThread() {
+        return SOFTWARE_EMULATOR
+                ? android.os.Looper.myLooper() == softwareRenderThread.getLooper()
+                : android.os.Looper.myLooper() == android.os.Looper.getMainLooper();
+    }
+
+    void dispatchFilamentWork(Runnable operation) {
+        if (operation == null) return;
+        if (isFilamentOwnerThread()) {
+            operation.run();
+        } else if (SOFTWARE_EMULATOR) {
+            softwareRenderHandler.post(operation);
+        } else {
+            post(operation);
+        }
+    }
+
     static boolean usesSoftwareRenderThread() { return SOFTWARE_EMULATOR; }
     boolean softwareCallStage() { return softwareCallStage; }
 
@@ -841,6 +861,9 @@ public final class Celine3DView extends FrameLayout {
         Celine3DDiagnostics.record(appContext, "REN-326",
                 "Celine3DView detached", "stop renderer");
         stopRendering();
+        // Never invoke Room gltfio teardown on Android's unadopted UI thread.
+        // The owner queue orders this after any pending Room creation.
+        CelineRoomEnvironmentV80.release(this);
         if (SOFTWARE_EMULATOR) {
             softwareSurfaceValid = false;
             softwareRenderHandler.post(() -> destroySwapChain());

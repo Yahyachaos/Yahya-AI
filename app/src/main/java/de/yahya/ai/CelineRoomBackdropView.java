@@ -31,6 +31,7 @@ final class CelineRoomBackdropView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private boolean seatedCallMode;
+    private volatile int roomRequestGeneration;
 
     CelineRoomBackdropView(Context context) {
         super(context);
@@ -44,6 +45,9 @@ final class CelineRoomBackdropView extends View {
     }
 
     @Override protected void onDetachedFromWindow() {
+        ++roomRequestGeneration; // Discard Room work requested by an old attachment.
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null) CelineRoomEnvironmentV80.release(threeD);
         super.onDetachedFromWindow();
     }
 
@@ -51,14 +55,24 @@ final class CelineRoomBackdropView extends View {
         if (this.seatedCallMode == seatedCallMode) return;
         this.seatedCallMode = seatedCallMode;
         Celine3DView threeD = findSibling3D();
-        if (threeD != null) activateRecoveryRoom(threeD);
+        if (threeD != null && isAttachedToWindow()) activateRecoveryRoom(threeD);
         invalidate();
     }
 
     private void activateRecoveryRoom(Celine3DView threeD) {
-        if (!CelineRoomEnvironmentV80.ensure(getContext(), threeD)) return;
-        // Partition-aware layout validation plus the isolated Room light are the only recovery owners.
-        CelineRoomReferenceLayoutV80.ensure(threeD);
+        final int request = ++roomRequestGeneration;
+        final Context context = getContext().getApplicationContext();
+        // The whole gltfio import, material setup, scene writes and layout
+        // contract execute on the adopted Engine owner, never on the UI thread.
+        // Existing hardware devices retain the previous UI-thread owner.
+        threeD.dispatchFilamentWork(() -> {
+            if (request != roomRequestGeneration) return;
+            if (!CelineRoomEnvironmentV80.ensure(context, threeD)) return;
+            CelineRoomReferenceLayoutV80.ensure(threeD);
+            post(() -> {
+                if (request == roomRequestGeneration && isAttachedToWindow()) invalidate();
+            });
+        });
     }
 
     @Override protected void onDraw(Canvas canvas) {
