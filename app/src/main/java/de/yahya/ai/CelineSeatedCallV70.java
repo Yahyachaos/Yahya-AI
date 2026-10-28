@@ -37,6 +37,9 @@ final class CelineSeatedCallV70 {
 
     static void install(Activity activity, View decor) {
         if (!(activity instanceof MainActivity) || decor == null) return;
+        // v80 central mixer alone owns seated transforms on the Filament
+        // software-render thread; never initialize a concurrent UI driver.
+        if (Celine3DView.usesSoftwareRenderThread()) return;
         Controller controller;
         synchronized (CONTROLLERS) {
             controller = CONTROLLERS.get(activity);

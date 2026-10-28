@@ -45,6 +45,12 @@ final class CelineVideoChatV44 {
         hideDiagnosticBadge(threeD.getParent() instanceof ViewGroup ? (ViewGroup) threeD.getParent() : null);
         installDiagnosticsLongPress(activity, threeD);
 
+        // Production #59: the legacy UI-vsync MotionState dereferenced an
+        // asynchronously initialized Camera and crashed MainActivity. On
+        // software emulators the adopted Filament worker is the only native
+        // camera/render/swapchain owner; retain UI room presentation only.
+        if (Celine3DView.usesSoftwareRenderThread()) return;
+
         if (isCallLocked(threeD)) {
             MotionState existing;
             synchronized (STATES) { existing = STATES.get(threeD); }

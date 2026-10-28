@@ -47,6 +47,10 @@ final class CelineCameraZoomV70 {
 
     static void install(Activity activity, View decor) {
         if (!(activity instanceof MainActivity) || decor == null) return;
+        // v83's software worker is the sole Filament camera/culling client;
+        // UI-vsync Driver would race its asynchronous Engine construction.
+        // Celine3DView owns bounded zoom and exact HOME/CALL lens itself.
+        if (Celine3DView.usesSoftwareRenderThread()) return;
         Controller controller;
         synchronized (CONTROLLERS) {
             controller = CONTROLLERS.get(activity);

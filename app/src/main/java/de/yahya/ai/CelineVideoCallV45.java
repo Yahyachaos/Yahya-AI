@@ -497,6 +497,9 @@ final class CelineVideoCallV45 {
         }
 
         void applyCallLens() {
+            // Never touch a worker-owned Filament Camera from MainActivity UI;
+            // the renderer applies the software CALL snapshot/default lens.
+            if (Celine3DView.usesSoftwareRenderThread()) return;
             try {
                 Celine3DView threeD = find3D(avatarStage);
                 if (threeD == null) return;
