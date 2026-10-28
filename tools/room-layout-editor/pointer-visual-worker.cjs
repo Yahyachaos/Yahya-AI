@@ -613,9 +613,17 @@ async function main() {
         assert(Math.abs(objs[id].floor_bottom_y_m)<.012,
           'Original furniture must be grounded: '+id);
       }
-      assert(objs.room_dresser.conservative_world_aabb_m.max[0]<
-        objs.room_lounge_chair.conservative_world_aabb_m.min[0]-.025,
-        'Dresser must be conservatively separated from frozen chair');
+      // The alternate dresser can overlap the chair's X projection while
+      // remaining physically well separated in depth. Require a real disjoint
+      // world-space AABB axis (with 25mm clearance); X-only falsely rejected
+      // non-colliding, source-fidelity furniture.
+      const dresserBox=objs.room_dresser.conservative_world_aabb_m;
+      const chairBox=objs.room_lounge_chair.conservative_world_aabb_m;
+      const separatedAxes=[0,1,2].filter(axis=>
+        dresserBox.max[axis]+.025<chairBox.min[axis] ||
+        chairBox.max[axis]+.025<dresserBox.min[axis]);
+      assert(separatedAxes.length>0,
+        'Dresser must be 3D-AABB-separated from frozen chair by at least 25mm');
       assert(objs.room_bed.conservative_world_aabb_m.min[0]>
         objs.room_lounge_chair.conservative_world_aabb_m.max[0]+.025,
         'Bed must be conservatively separated from frozen chair');
