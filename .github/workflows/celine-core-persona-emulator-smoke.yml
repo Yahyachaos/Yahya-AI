@@ -29,28 +29,28 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify exact release runtime equivalence with real production Android #1799
+      - name: Verify exact release runtime equivalence with real production Android #1814
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 16d43292d6f7458def4304030d822c1112340d13 HEAD
-          git diff --quiet 16d43292d6f7458def4304030d822c1112340d13 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "d7e6ef58941d1ebd05d89fe3f17c8a6c8d8cd6541db2dd9f9bfddcb554e3e07f"
-          echo 'PRODUCTION_V83_RUNTIME_EQUIVALENCE_PASS: real Android #1799 unchanged release package / G1 / Persona'
+          git merge-base --is-ancestor 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD
+          git diff --quiet 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "5c3d9b7ac67f95d6e0b9cc8da4dd7eaa6f667ab717b6ba302fe0a58a57f979cc"
+          echo 'PRODUCTION_V83_RUNTIME_EQUIVALENCE_PASS: real Android #1814 exact post-CALL focus-fix release package / G1 / Persona'
           echo 'No Android Gradle build or Room visual build is invoked by this workflow.'
 
-      - name: Reuse actual verified non-debuggable production Android #1799 APK (no Gradle)
+      - name: Reuse actual verified non-debuggable production Android #1814 APK (no Gradle)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40629439886 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          gh run download 40737651707 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
           test -s ci-apk/app-release.apk
-          echo '5a0d1a0c0d1ab8487f50e2d446ab8c0bc867b87df6f8d7058a6e1eecb5bdbfc5  ci-apk/app-release.apk' | sha256sum -c -
+          echo '8fa84a5b0cfbe6c1e749f541aadb82b0ba0aca942f7a54a153eb796da97df15d  ci-apk/app-release.apk' | sha256sum -c -
           sha256sum ci-apk/app-release.apk > core-persona-emulator-proof/production-apk-sha256.txt
-          echo 'PINNED_PRODUCTION_APK_1799_SHA256_PASS'
+          echo 'PINNED_PRODUCTION_APK_1814_SHA256_PASS'
           # The public v80 APK is the real installed/retained-data baseline.
           gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' -D ci-apk
           test -s ci-apk/Yahya-AI-v80.apk
@@ -132,7 +132,7 @@ jobs:
             # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
             # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
             # This is an emulator-only isolation, NOT an app performance PASS.
-            # Exact production APK #1799 pinned; fail-closed production UI and OS ANR checks remain.
+            # Exact production APK #1814 pinned; fail-closed production UI and OS ANR checks remain.
             # Confirm this software emulator matches the source renderer's paced hardware predicate.
             adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
             grep -Eq '^(ranchu|goldfish)$' core-persona-emulator-proof/emulator-hardware.txt
@@ -183,9 +183,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 16d43292d6f7458def4304030d822c1112340d13 HEAD
-          git diff --quiet 16d43292d6f7458def4304030d822c1112340d13 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = 'd7e6ef58941d1ebd05d89fe3f17c8a6c8d8cd6541db2dd9f9bfddcb554e3e07f'
+          git merge-base --is-ancestor 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD
+          git diff --quiet 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = '5c3d9b7ac67f95d6e0b9cc8da4dd7eaa6f667ab717b6ba302fe0a58a57f979cc'
           echo 'LEGACY_PRODUCTION_V83_SOURCE_EQUIVALENCE_PASS'
 
       - name: Download real published v80 and proven non-debuggable v83 only
@@ -195,9 +195,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40629439886 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          gh run download 40737651707 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
           test -s ci-apk/app-release.apk
-          echo '5a0d1a0c0d1ab8487f50e2d446ab8c0bc867b87df6f8d7058a6e1eecb5bdbfc5  ci-apk/app-release.apk' | sha256sum -c -
+          echo '8fa84a5b0cfbe6c1e749f541aadb82b0ba0aca942f7a54a153eb796da97df15d  ci-apk/app-release.apk' | sha256sum -c -
           gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern Yahya-AI-v80.apk -D ci-apk
           test -s ci-apk/Yahya-AI-v80.apk
           echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
