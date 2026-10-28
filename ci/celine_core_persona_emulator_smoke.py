@@ -1028,6 +1028,73 @@ def open_internal_settings():
             time.sleep(3)
             continue
         time.sleep(1)
+    # A true HOME UI can remain unchanged through the entire bounded poll
+    # while a slow GPU/IME transition is settling. The exact #73 post-failure
+    # UI/window proof confirms the HOME gear still had a real clickable node,
+    # MainActivity was focused and the IME was hidden, yet the guarded in-loop
+    # retry never fired. Grant one FINAL source-verified retry on THAT state.
+    # This does NOT pass on HOME or skip Settings/G1 checks.
+    if clicked_gear and not retried_gear and not clicked_inner:
+        final_root = hierarchy()
+        final_visible = [n.attrib.get("text", "") for n in final_root.iter("node")
+                         if n.attrib.get("text")]
+        final_gears = [n for n in final_root.iter("node")
+                       if n.attrib.get("text") == "⚙"
+                       and n.attrib.get("package") == PACKAGE
+                       and n.attrib.get("class") == "android.widget.Button"
+                       and n.attrib.get("content-desc") == "Einstellungen"
+                       and n.attrib.get("clickable") == "true"
+                       and n.attrib.get("enabled") == "true"]
+        final_window = adb("shell", "dumpsys", "window", "windows",
+                           check=False, timeout=30)
+        focused = bool(re.search(
+            r"mCurrentFocus=Window\{[^\n]*de\.yahya\.ai/de\.yahya\.ai\.MainActivity\}",
+            final_window))
+        unobscured = "mObscuringWindow=null" in final_window
+        ime_hidden = "mImeShowing=false" in final_window
+        sdk = adb("shell", "getprop", "ro.build.version.sdk").strip()
+        exact_home = (len(final_gears) == 1
+                      and "Weitere Einstellungen" not in final_visible
+                      and "Gedächtnis" not in final_visible)
+        eligible = (sdk == "35" and focused and unobscured
+                    and ime_hidden and exact_home)
+        (OUT / "settings-final-retry-guard.json").write_text(
+            json.dumps({"sdk": sdk, "home_gear_count": len(final_gears),
+                        "foreground_main": focused, "unobscured": unobscured,
+                        "ime_hidden": ime_hidden, "exact_home": exact_home,
+                        "retry_eligible": eligible}, indent=2),
+            encoding="utf-8")
+        if eligible:
+            retried_gear = True
+            screenshot("settings-final-retry-before.png")
+            click(final_gears[0])
+            print("ACTUAL_NESTED_SETTINGS_FINAL_VERIFIED_GEAR_RETRY_SENT",
+                  flush=True)
+            time.sleep(3)
+            for followup in range(16):
+                actual_root = hierarchy()
+                actual_visible = [n.attrib.get("text", "") for n in
+                                  actual_root.iter("node") if n.attrib.get("text")]
+                if "Gedächtnis" in actual_visible:
+                    print("ACTUAL_NESTED_SETTINGS_OPEN_PASS: real inner rows",
+                          flush=True)
+                    return actual_root
+                if any(v.startswith("Celines lokale Neural-Stimme")
+                       for v in actual_visible):
+                    raise AssertionError(
+                        "Wrong Settings action after final guarded gear retry")
+                if not clicked_inner and "Weitere Einstellungen" in actual_visible:
+                    inner = [n for n in actual_root.iter("node")
+                             if n.attrib.get("text") == "Weitere Einstellungen"
+                             and n.attrib.get("package") == PACKAGE
+                             and n.attrib.get("clickable") == "true"]
+                    if len(inner) != 1:
+                        raise AssertionError("Settings hub has ambiguous inner action")
+                    clicked_inner = True
+                    click(inner[0])
+                    time.sleep(3)
+                    continue
+                time.sleep(1)
     root = hierarchy()
     (OUT / "FAIL-nested-settings.xml").write_text(
         ET.tostring(root, encoding="unicode"), encoding="utf-8")
