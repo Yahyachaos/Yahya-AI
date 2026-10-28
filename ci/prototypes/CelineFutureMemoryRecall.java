@@ -70,6 +70,9 @@ public final class CelineFutureMemoryRecall {
     public static List<Match> retrieve(String query, List<Candidate> candidates, int maxResults, long now) {
         if (maxResults <= 0 || candidates == null || candidates.isEmpty())
             return Collections.emptyList();
+        // Never silently truncate the supersession graph: a later sensitive
+        // replacement must not let an earlier eligible record leak through.
+        if (candidates.size() > MAX_CANDIDATES) return Collections.emptyList();
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
         List<Candidate> live = liveCandidates(candidates, now);
