@@ -1,6 +1,6 @@
 {
   "schema": "yahya-room-layout-editor/v1",
-  "status": "EXPERIMENTAL_V4_LOCKED_BED_DRESSER__BROWSER_PROOF_PENDING",
+  "status": "EXPERIMENTAL_V4_BEST_VERIFIED_DUAL_ANCHOR__STRICT_VISUAL_FAIL",
   "saved_at": "2026-10-28",
   "units": "meters",
   "coordinate_system": "X horizontal, Y height, Z depth; origin room-floor center",
@@ -23,17 +23,19 @@
     "original_reference": "celine-room-editor-optional-visual-evidence/reference-original.png",
     "original_v3_webgl": "celine-room-editor-optional-visual-evidence/layout-framing-v3-reference-projection.png",
     "source_visual_artifact_id": 12834213508,
-    "v4_chromium_run": "PENDING_ONE_EXACT_HEAD_CI",
+    "v4_chromium_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40740904494",
     "source_reference_visual_acceptance": "FAIL",
-    "bed_visual_acceptance": "FAIL_UNREVIEWED_V4",
-    "dresser_visual_acceptance": "FAIL_UNREVIEWED_V4",
-    "whole_android_visual_acceptance": "FAIL_G2_3_PAUSED"
+    "bed_visual_acceptance": "FAIL__PARTIAL_SILHOUETTE_IMPROVEMENT_MANUALLY_REVIEWED",
+    "dresser_visual_acceptance": "FAIL__PARTIAL_SILHOUETTE_IMPROVEMENT_MANUALLY_REVIEWED",
+    "whole_android_visual_acceptance": "FAIL_G2_3_PAUSED",
+    "v4_verified_head": "b61d98cc075dc21637f5166035841738bfc76d5f",
+    "chair_visual_acceptance": "FAIL__UNTOUCHED"
   },
   "reference_image": "Refernzbild.png",
   "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json (Room branch, measured 1376x1100)",
   "reference_source_visual_status": "PHASE_B_V2_ACTUAL_BROWSER_IMAGE_MANUALLY_SEEN__FAIL_REFERENCE",
-  "layout_visual_acceptance": "FAIL_PENDING_ACTUAL_V4_700x560_WEBGL_AND_MANUAL_REFERENCE_COMPARISON",
-  "collision_acceptance": "NOT_CERTIFIED_WORLD_AABBS_MUST_BE_RECHECKED_IN_CHROMIUM",
+  "layout_visual_acceptance": "FAIL__MANUALLY_REVIEWED_TRUE_V4_REFERENCE_WEBGL",
+  "collision_acceptance": "13_WORLD_AABBS_INSIDE_ROOM__CHAIR_SEPARATION_CHECK__NOT_TRUE_MESH_COLLISION_CERTIFIED",
   "method": "Manual visual comparison of genuine Chromium #40729395023 V3 (700x560) against byte-original Refernzbild.png (1402x1122). Freeze camera V3, keep 11 other instance transforms unchanged. Correct the visible structural problem that source bed currently points toward the camera, whereas the reference headboard is on the right wall and bed extends toward left-center: rotate source bed Y from -90 to 180 (no source GLB mutation), scale to 0.96, ground it, keep conservative world AABB within fixed room. Reorient genuine dresser along left wall, scale to 0.90, ground and keep separated from chair. Both anchors locked provisionally; only real WebGL A/B can determine whether the silhouettes actually improve. No claim of visual acceptance.",
   "original_source_hashes": {
     "room_bed": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
@@ -410,9 +412,101 @@
     "room_dresser"
   ],
   "all_others_frozen": true,
-  "manual_reference_check_required": true,
-  "bed_visual_verdict": "FAIL_PENDING_NEW_REAL_FRAME",
-  "dresser_visual_verdict": "FAIL_PENDING_NEW_REAL_FRAME",
+  "manual_reference_check_required": false,
+  "bed_visual_verdict": "FAIL_PARTIAL_IMPROVEMENT__NOT_VISUALLY_APPROVED",
+  "dresser_visual_verdict": "FAIL_PARTIAL_IMPROVEMENT__SIDE_FACING_MATERIAL_MISMATCH",
   "chair_visual_verdict": "FAIL_UNCHANGED_NOT_OPTIMIZED_THIS_RUN",
-  "candidate_name": "V4 provisional dual-anchor (bed/dresser)"
+  "candidate_name": "V4 provisional dual-anchor (bed/dresser)",
+  "manual_reference_check_outcome": "ACTUAL_1402x1122_REFERENCE_AND_700x560_WEBGL_INSPECTED__STRICT_FAIL",
+  "visual_review_2026_10_28": {
+    "source_head_tested": "b61d98cc075dc21637f5166035841738bfc76d5f",
+    "exact_chromium_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40740904494",
+    "jobs": {
+      "required_functional": "PASS",
+      "optional_visual": "PASS",
+      "full_visual_acceptance": "FAIL"
+    },
+    "genuine_artifact": {
+      "id": 12839698325,
+      "sha256": "72d3a21239e3069c56a92976288518e8e69d9b3311f78aff0d92c784b072554c"
+    },
+    "original_reference": {
+      "file": "reference-original.png",
+      "width": 1402,
+      "height": 1122,
+      "sha256": "394c95cff3cfbbdff92572c2bab4689f39c3cc48df8eda233ec924c6ba2179dd"
+    },
+    "selected_real_webgl": "layout-v4-selected-locked-real-webgl.png",
+    "selected_real_webgl_sha256": "750e391495e4a4482043464e523d2f6919f16bb19b5065f48985bb9b6018056b",
+    "side_by_side": "layout-v4-original-reference-side-by-side.png",
+    "side_by_side_sha256": "aff304f5a6eb7e46026e75fb7810b9e1117f302e051225e61e4083d55ced4525",
+    "reference_box_basis": "Approximate visually observed bounding targets in existing reference_bbox_estimates_normalized; bed partially occluded by person, dresser cropped at left. NOT pixel segmentation.",
+    "metrics_method": "Same frozen V3 camera, source-GLB conservative world-AABB 8-corner projection to 700x560, clipped to visible [0,1] image, 2D IoU with approximate reference bbox; this quantifies AABB alignment only, not silhouette/material equivalence.",
+    "bed": {
+      "reference_approx_bbox": [
+        0.47,
+        1,
+        0.325,
+        0.665
+      ],
+      "v3_bbox_projected": [
+        0.4829,
+        1.1045,
+        0.3041,
+        0.8091
+      ],
+      "selected_v4_bbox_projected": [
+        0.445539,
+        0.950014,
+        0.339629,
+        0.702196
+      ],
+      "estimated_aabb_iou": {
+        "v3": 0.6621,
+        "selected_v4": 0.7548,
+        "compact_alternative_v4": 0.7131
+      },
+      "manual_verdict": "PARTIAL_IMPROVEMENT__STRICT_VISUAL_FAIL",
+      "visual_reason": "Actual source bed is horizontal to right wall rather than foot-on to camera. Headboard/front silhouette and fill still differ; reference woman occludes bed.",
+      "source_transform_unchanged_from_selected_v4": true,
+      "locked_provisionally": true
+    },
+    "dresser": {
+      "reference_approx_bbox": [
+        0,
+        0.19,
+        0.425,
+        0.715
+      ],
+      "v3_bbox_projected": [
+        -0.0551,
+        0.2991,
+        0.4667,
+        0.7201
+      ],
+      "selected_v4_bbox_projected": [
+        -0.08321,
+        0.220618,
+        0.38929,
+        0.732818
+      ],
+      "estimated_aabb_iou": {
+        "v3": 0.5637,
+        "selected_v4": 0.727,
+        "original_facing_alternative_v4": 0.5719
+      },
+      "manual_verdict": "PARTIAL_GEOMETRIC_IMPROVEMENT__STRICT_VISUAL_FAIL",
+      "visual_reason": "Selected V4 fills closer to reference left-cropped cabinet sector; however presented side/end-panel orientation lacks the reference front-door appearance. Yaw90 alternative exposes front but remains too low/wide.",
+      "source_transform_unchanged_from_selected_v4": true,
+      "locked_provisionally": true
+    },
+    "chair": {
+      "manual_verdict": "FAIL_UNTOUCHED",
+      "transform_frozen": true
+    },
+    "chosen_existing_saved_candidate": "2026-10-28-room-bed-dresser-anchors-v4.json",
+    "rationale": "The actual three WebGL frames and original reference were opened. Best measured two-anchor balance is the already saved selected-locked candidate; avoid speculative geometry change without a measured visual improvement.",
+    "next_target": "Target only dresser source-facing appearance with fixed V3 camera, frozen bed and all other 11 objects; real WebGL trials required before any replacement. No Android integration.",
+    "whole_scene": "VISUAL_FAIL_G2_3_PAUSED"
+  }
 }
