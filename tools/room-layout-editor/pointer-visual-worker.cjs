@@ -96,10 +96,31 @@ async function main() {
         context.drawImage(img,0,0);
         return canvas.toDataURL('image/png');
       }));
-    assert.equal(referenceImage.width,1376,'Original reference width');
-    assert.equal(referenceImage.height,1100,'Original reference height');
+    // The live original repository PNG is 1402x1122. The archived Room
+    // landmark manifest was measured on a *historical 1376x1100 grid*;
+    // these are not interchangeable pixel coordinates. Normalized targets
+    // remain useful, but report both spaces honestly instead of failing the
+    // genuine image proof for an obsolete hardcoded image size.
+    const sourceReference = await page.locator('#reference-preview').evaluate(img => ({
+      sourcePath: new URL(img.currentSrc, document.baseURI).pathname,
+      width: img.naturalWidth, height: img.naturalHeight
+    }));
+    assert(sourceReference.sourcePath.endsWith('/Refernzbild.png'),
+      'The reference must be the unchanged repository Refernzbild.png');
+    assert.deepEqual({width:referenceImage.width,height:referenceImage.height},
+      {width:sourceReference.width,height:sourceReference.height},
+      'Archived PNG must match the actually displayed original dimensions');
+    assert.deepEqual({width:referenceImage.width,height:referenceImage.height},
+      {width:1402,height:1122},
+      'Known original source raster dimensions (change requires provenance review)');
+    const landmarkMeasurementGrid = {width:1376,height:1100};
     evidence('ORIGINAL_REPOSITORY_REFERENCE_PIXELS_CAPTURED_FOR_MANUAL_COMPARISON',
-      referenceImage);
+      {...referenceImage, sourcePath:sourceReference.sourcePath,
+       historicalLandmarkMeasurementGridPx:landmarkMeasurementGrid,
+       historicalGridToSourceScale:{
+         x:referenceImage.width/landmarkMeasurementGrid.width,
+         y:referenceImage.height/landmarkMeasurementGrid.height
+       },referenceProjectionCalibrated:false});
     const overview = png('room-overview-call.png',
       await page.evaluate(() => window.__celineRoomEditorE2E.framePng()));
     evidence('GENUINE_ROOM_OVERVIEW_WEBGL_NOT_REFERENCE_CALIBRATED', overview);
