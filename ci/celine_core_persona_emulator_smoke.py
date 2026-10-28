@@ -992,7 +992,7 @@ def open_internal_settings():
                          and n.attrib.get("content-desc") == "Einstellungen"
                          and n.attrib.get("clickable") == "true"
                          and n.attrib.get("enabled") == "true"]
-            window = adb("shell", "dumpsys", "window", "windows",
+            window = adb("shell", "dumpsys", "window",
                          check=False, timeout=30)
             foreground_home = bool(re.search(
                 r"mCurrentFocus=Window\{[^\n]*de\.yahya\.ai/de\.yahya\.ai\.MainActivity\}",
@@ -1045,7 +1045,7 @@ def open_internal_settings():
                        and n.attrib.get("content-desc") == "Einstellungen"
                        and n.attrib.get("clickable") == "true"
                        and n.attrib.get("enabled") == "true"]
-        final_window = adb("shell", "dumpsys", "window", "windows",
+        final_window = adb("shell", "dumpsys", "window",
                            check=False, timeout=30)
         focused = bool(re.search(
             r"mCurrentFocus=Window\{[^\n]*de\.yahya\.ai/de\.yahya\.ai\.MainActivity\}",
