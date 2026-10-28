@@ -1,0 +1,60 @@
+name: Celine Room Editor Real Browser Experiment
+on:
+  push:
+    branches:
+      - experiment/visual-room-editor-v83
+    paths:
+      - .github/workflows/celine-room-editor-browser-experiment.yml
+      - tools/room-layout-editor/**
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: celine-room-editor-experiment-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  actual-chromium-glb-layout:
+    name: Real Chromium WebGL / 13 original GLB / JSON lock roundtrip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout only isolated editor, original GLBs, assembly and reference
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/workflows/celine-room-editor-browser-experiment.yml
+            tools/room-layout-editor/**
+            app/src/main/assets/models/room/source-fidelity/**
+            app/src/main/assets/models/room/celine_room_v80_assembly.json
+            Refernzbild.png
+      - name: Rehydrate any LFS source files, without changing originals
+        run: git lfs pull
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned actual Chromium/Three.js test runner
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
+          npx playwright install --with-deps chromium
+      - name: Fast fail-closed static source check
+        run: node tools/room-layout-editor/smoke-check.cjs
+      - name: Serve unchanged repository assets locally
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/celine-editor-http.log 2>&1 &
+          sleep 2
+          curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
+      - name: Verify real WebGL and original 13 GLBs with all edit-save-lock flows
+        run: node tools/room-layout-editor/browser-smoke.cjs
+      - name: Preserve screenshots, actual JSON and diagnostics on failure too
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-editor-real-chromium-evidence
+          path: |
+            /tmp/celine-room-editor-browser/
+            /tmp/celine-editor-http.log
+          if-no-files-found: warn
+          retention-days: 14
