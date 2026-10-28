@@ -79,6 +79,14 @@ public final class VoiceLifecycleContractTest {
         ok(!c.prepared(invalid, 15999), "backward time rejected");
         ok(!c.playbackHead(invalid, 1, 16004), "head before PCM rejected");
         ok(!c.tick(16000), "backward timer ignored");
+        long overdue = c.begin(20000);
+        ok(!c.prepared(overdue, 27001), "late preparation must time out without scheduled watchdog");
+        eq(VoiceLifecycleContract.Phase.FAILED, c.phase(), "late preparation has failed phase");
+        long overdueChunk = c.begin(28000);
+        ok(c.prepared(overdueChunk, 28001), "late chunk setup");
+        ok(!c.acceptPcm(overdueChunk, 20, VoiceLifecycleContract.Mouth.OPEN, 31502),
+                "late PCM must time out without scheduled watchdog");
+        eq(VoiceLifecycleContract.Phase.FAILED, c.phase(), "late PCM has failed phase");
         System.out.println("VOICE_LIFECYCLE_CONTRACT_PASS checks=" + passed);
     }
 }
