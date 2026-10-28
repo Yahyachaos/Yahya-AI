@@ -89,7 +89,11 @@ async function run() {
   assert.equal(data.objects.find(o=>o.id==='room_bed').rotation_euler_deg.length,3);
   assert.equal(data.objects.find(o=>o.id==='room_bed').scale_xyz.length,3);
   record('REAL_BROWSER_JSON_LAYOUT_ALL_TRANSFORMS_LOCKS_PASS');
-  await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+  // On software-rendered SwiftShader with all 13 genuine GLBs, teardown and
+  // domcontentloaded may exceed 30s even after every preceding test passed.
+  // Preserve the exact reload + lock/import assertions; only raise the
+  // navigation timeout to avoid treating runner latency as a functional FAIL.
+  await page.reload({waitUntil:'domcontentloaded',timeout:120000});
   await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),
                              null,{timeout:240000});
   await page.locator('#object').selectOption('room_bed');
