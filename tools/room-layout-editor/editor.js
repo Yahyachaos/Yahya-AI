@@ -379,7 +379,7 @@ function showReference(src) {
 showReference(REFERENCE_URL);
 
 function selectFromPointer(e) {
-  if (moving) return;
+  if (moving || transform.axis !== null) return;
   const rect=renderer.domElement.getBoundingClientRect();
   pointer.x=((e.clientX-rect.left)/rect.width)*2-1;
   pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;
@@ -422,15 +422,19 @@ $('camera-persp').onclick=()=>viewPreset([5.3,3.7,6.5],[0,1.15,0]);
 $('camera-call').onclick=()=>viewPreset([0,1.55,5.5],[0,1.3,0]);
 $('camera-top').onclick=()=>viewPreset([0,8,0.001],[0,0,0]);
 $('move').onclick=()=>{
-  transform.setMode('translate');$('move').classList.add('active');$('rotate').classList.remove('active');
+  transform.setMode('translate');$('move').classList.add('active');$('rotate').classList.remove('active');$('scale-mode').classList.remove('active');
 };
 $('rotate').onclick=()=>{
-  transform.setMode('rotate');$('rotate').classList.add('active');$('move').classList.remove('active');
+  transform.setMode('rotate');$('rotate').classList.add('active');$('move').classList.remove('active');$('scale-mode').classList.remove('active');
+};
+$('scale-mode').onclick=()=>{
+  transform.setMode('scale');$('scale-mode').classList.add('active');$('move').classList.remove('active');$('rotate').classList.remove('active');
 };
 $('snap').onchange=()=>{
   const on=$('snap').checked;
   transform.setTranslationSnap(on?.05:null);
   transform.setRotationSnap(on?THREE.MathUtils.degToRad(5):null);
+  transform.setScaleSnap(on?0.05:null);
 };
 $('snap').dispatchEvent(new Event('change'));
 $('object').onchange=()=>setSelected($('object').value);
