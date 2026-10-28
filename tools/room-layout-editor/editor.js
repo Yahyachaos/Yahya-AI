@@ -1,0 +1,567 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+/**
+ * Isolated development prototype. No changes to app Java/Filament, originals or releases.
+ * Units = meters; X horizontal, Y vertical, Z depth. Source positions in the
+ * legacy assembly are ONLY a starting draft; the canonical room is 4.40 x 4.20 x 2.65 m.
+ */
+const $ = (id) => document.getElementById(id);
+const CANONICAL = Object.freeze({ width: 4.40, depth: 4.20, height: 2.65 });
+const STORAGE_KEY = 'yahya-ai-room-editor-experiment-v1';
+const ROOT = '../../app/src/main/assets/models/room/';
+const GLB_ROOT = ROOT + 'source-fidelity/';
+const REFERENCE_URL = '../../Refernzbild.png';
+const FILES = {
+  room_bed: 'room_bed.glb',
+  room_dresser: 'room_dresser.glb',
+  room_plant_large: 'room_plant_large.glb',
+  room_plant_small: 'room_plant_small.glb',
+  room_floor_lamp: 'room_floor_lamp.glb',
+  room_nightstand_back: 'room_nightstand_rear.glb',
+  room_nightstand_front: 'room_nightstand_front.glb',
+  room_lounge_chair: 'room_lounge_chair.glb',
+  room_rug: 'room_rug.glb',
+  room_foreground_table: 'room_foreground_table.glb',
+  room_window_drapes: 'room_window_drapes.glb',
+  room_wall_shelf_books: 'room_wall_shelf_books.glb',
+  room_round_mirror: 'room_round_mirror.glb'
+};
+const NAMES = {
+  room_bed:'Bett', room_dresser:'Kommode', room_plant_large:'Große Pflanze',
+  room_plant_small:'Kleine Pflanze', room_floor_lamp:'Stehlampe',
+  room_nightstand_back:'Nachttisch hinten', room_nightstand_front:'Nachttisch vorne',
+  room_lounge_chair:'Sessel', room_rug:'Teppich', room_foreground_table:'Vorderer Tisch',
+  room_window_drapes:'Fenster / Gardinen', room_wall_shelf_books:'Wandregal / Bücher',
+  room_round_mirror:'Wandspiegel'
+};
+
+const stage = $('viewport');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+stage.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x172033);
+const camera = new THREE.PerspectiveCamera(53, stage.clientWidth / stage.clientHeight, 0.01, 250);
+camera.position.set(5.3, 3.7, 6.5);
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.target.set(0, 1.15, 0);
+orbit.enableDamping = true;
+orbit.minDistance = 0.8;
+orbit.maxDistance = 30;
+orbit.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x64748b, 2.3));
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.position.set(-3, 6, 5);
+scene.add(sun);
+
+const transform = new TransformControls(camera, renderer.domElement);
+scene.add(transform.getHelper());
+transform.setMode('translate');
+transform.setSpace('world');
+transform.addEventListener('dragging-changed', (e) => { orbit.enabled = !e.value; });
+let moving = false;
+transform.addEventListener('mouseDown', () => { moving = true; });
+transform.addEventListener('objectChange', () => {
+  refreshFields();
+  refreshWarnings();
+});
+transform.addEventListener('mouseUp', () => {
+  if (moving) commitEdit();
+  moving = false;
+});
+
+const floor = new THREE.Group(), walls = new THREE.Group();
+scene.add(floor, walls);
+let room = { ...CANONICAL };
+let wallVisible = true;
+
+function buildRoom() {
+  for (const group of [floor, walls]) {
+    for (const child of [...group.children]) {
+      group.remove(child);
+      child.geometry?.dispose();
+      child.material?.dispose();
+    }
+  }
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(room.width, room.depth),
+    new THREE.MeshStandardMaterial({color:0x91867a, roughness:0.93, side:THREE.DoubleSide})
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.014;
+  floor.add(ground);
+  const grid = new THREE.GridHelper(Math.max(room.width, room.depth), 20, 0x64748b, 0x64748b);
+  grid.scale.set(room.width / Math.max(room.width,room.depth), 1,
+                 room.depth / Math.max(room.width,room.depth));
+  grid.position.y = 0.007;
+  floor.add(grid);
+  // Transparent non-selectable walls: the model can always be reached with the mouse.
+  const wallMat = () => new THREE.MeshStandardMaterial({
+    color:0xbeb7a8, side:THREE.DoubleSide, transparent:true, opacity:0.16,
+    roughness:1, depthWrite:false
+  });
+  const wallDef = [
+    [room.width, room.height, 0.045, 0, room.height/2, -room.depth/2],
+    [0.045, room.height, room.depth, -room.width/2, room.height/2, 0],
+    [0.045, room.height, room.depth, room.width/2, room.height/2, 0],
+    [room.width, 0.045, room.depth, 0, room.height, 0]
+  ];
+  for (const [w,h,d,x,y,z] of wallDef) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wallMat());
+    wall.position.set(x,y,z);
+    walls.add(wall);
+  }
+  const outline = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(room.width,room.height,room.depth)),
+    new THREE.LineBasicMaterial({color:0x94a3b8,transparent:true,opacity:0.6})
+  );
+  outline.position.y = room.height/2;
+  walls.add(outline);
+  walls.visible = wallVisible;
+  refreshWarnings();
+}
+buildRoom();
+
+const entries = new Map();
+let assembly;
+let selected = null;
+const loader = new GLTFLoader();
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const history = [];
+const future = [];
+let lastSnapshot = '';
+let loadCount = 0, failCount = 0;
+let refReady = false;
+let refVisible = false;
+let referenceBlobUrl;
+
+function status(message, type='') {
+  $('status').textContent = message;
+  $('status').className = 'status ' + type;
+}
+function snapshot() {
+  return JSON.stringify({
+    room: { ...room },
+    objects: [...entries.values()].map((entry) => ({
+      id: entry.id,
+      translation_m: entry.group.position.toArray(),
+      rotation_y_deg: THREE.MathUtils.radToDeg(entry.group.rotation.y),
+      uniform_scale: entry.group.scale.x
+    }))
+  });
+}
+function autosave() {
+  try { localStorage.setItem(STORAGE_KEY, snapshot()); } catch (_) { /* optional */ }
+}
+function commitEdit() {
+  const next = snapshot();
+  if (next === lastSnapshot) return;
+  if (lastSnapshot) {
+    history.push(lastSnapshot);
+    if (history.length > 80) history.shift();
+  }
+  future.length = 0;
+  lastSnapshot = next;
+  autosave();
+  refreshWarnings();
+  updateHistoryButtons();
+}
+function updateHistoryButtons() {
+  $('undo').disabled = history.length === 0;
+  $('redo').disabled = future.length === 0;
+}
+function applyState(state) {
+  if (!state || !state.room || !Array.isArray(state.objects)) throw new Error('Ungültiges Layout');
+  const {width,depth,height} = state.room;
+  if (![width,depth,height].every(Number.isFinite) ||
+      width < 1 || width > 20 || depth < 1 || depth > 20 ||
+      height < 1.8 || height > 10) throw new Error('Ungültige Raummaße');
+  const candidate = [];
+  for (const item of state.objects) {
+    const entry = entries.get(item.id);
+    if (!entry) continue; // unknown objects cannot alter the source scene
+    const pos = item.translation_m;
+    const yaw = item.rotation_y_deg, scale = item.uniform_scale;
+    if (!Array.isArray(pos) || pos.length !== 3 ||
+        !pos.every((v) => Number.isFinite(v) && Math.abs(v) <= 100) ||
+        !Number.isFinite(yaw) || !Number.isFinite(scale) || scale < 0.01 || scale > 20) {
+      throw new Error('Ungültige Position, Winkel oder Größe für ' + item.id);
+    }
+    candidate.push({entry,pos,yaw,scale});
+  }
+  room = {width,depth,height};
+  buildRoom();
+  for (const {entry,pos,yaw,scale} of candidate) {
+    entry.group.position.fromArray(pos);
+    entry.group.rotation.set(0,THREE.MathUtils.degToRad(yaw),0);
+    entry.group.scale.setScalar(scale);
+  }
+  const changedRoom = Object.keys(CANONICAL).some(k=>Math.abs(room[k]-CANONICAL[k]) > 0.0001);
+  $('edit-room').checked = changedRoom;
+  for (const [key,id] of [['width','room-width'],['depth','room-depth'],['height','room-height']]) {
+    $(id).value = room[key].toFixed(2);
+    $(id).disabled = !changedRoom;
+  }
+  refreshFields();
+  refreshWarnings();
+}
+function undo() {
+  if (!history.length) return;
+  future.push(snapshot());
+  const prev = history.pop();
+  applyState(JSON.parse(prev));
+  lastSnapshot = snapshot();
+  autosave(); updateHistoryButtons();
+}
+function redo() {
+  if (!future.length) return;
+  history.push(snapshot());
+  const next = future.pop();
+  applyState(JSON.parse(next));
+  lastSnapshot = snapshot();
+  autosave(); updateHistoryButtons();
+}
+function setSelected(id) {
+  selected = entries.get(id) || null;
+  $('object').value = selected?.id || '';
+  if (selected) transform.attach(selected.group); else transform.detach();
+  refreshFields();
+  refreshWarnings();
+}
+function refreshFields() {
+  for (const id of ['x','y','z','yaw','scale']) $(id).disabled = !selected;
+  if (!selected) return;
+  const g = selected.group;
+  for (const key of ['x','y','z']) $(key).value = g.position[key].toFixed(3);
+  $('yaw').value = THREE.MathUtils.radToDeg(g.rotation.y).toFixed(2);
+  $('scale').value = g.scale.x.toFixed(3);
+}
+function refreshWarnings() {
+  if (!entries.size) { $('warnings').textContent=''; return; }
+  const outside = [...entries.values()].filter(e => {
+    const {x,y,z}=e.group.position;
+    return Math.abs(x)>room.width/2 || Math.abs(z)>room.depth/2 || y<0 || y>room.height;
+  }).map(e=>NAMES[e.id]);
+  const problems=[];
+  if (outside.length) problems.push('Außerhalb des Raumvolumens (Ankerpunkte): ' + outside.join(', ') + '.');
+  if (failCount) problems.push(failCount + ' GLB-Modell(e) nicht geladen – Platzhalter sind keine visuelle Abnahme.');
+  if (Object.keys(CANONICAL).some(k=>Math.abs(room[k]-CANONICAL[k])>0.0001))
+    problems.push('Raum weicht von der ermittelten Referenzgröße ab.');
+  if (outside.length) problems.push('Die Startpositionen stammen aus einem älteren, nicht akzeptierten Layout. Bitte visuell neu positionieren.');
+  $('warnings').textContent = problems.length ? problems.join('\n') : 'Keine Ankerposition außerhalb der Raumgrenzen. Dies ist keine Kollision-/Realismus-Freigabe.';
+}
+
+function placeholder(id) {
+  const sizes = {
+    room_bed:[1.8,.65,2.0], room_dresser:[1.3,1.1,.65],
+    room_plant_large:[.5,1.5,.5], room_plant_small:[.35,.7,.35],
+    room_floor_lamp:[.25,1.45,.25], room_nightstand_back:[.48,.58,.46],
+    room_nightstand_front:[.48,.58,.46], room_lounge_chair:[.7,.85,.75],
+    room_rug:[2,.025,1.7], room_foreground_table:[1.3,.75,.62],
+    room_window_drapes:[1.8,1.5,.18],room_wall_shelf_books:[1,.35,.25],
+    room_round_mirror:[.65,.65,.06]
+  };
+  const [w,h,d]=sizes[id] || [.6,.6,.6];
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({color:0xf59e0b, transparent:true,opacity:0.48}));
+  mesh.name = 'PLATZHALTER – ' + id;
+  return mesh;
+}
+
+async function loadModel(entry) {
+  const url=GLB_ROOT+encodeURIComponent(FILES[entry.id]);
+  try {
+    const gltf = await loader.loadAsync(url);
+    const model = gltf.scene;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    if (box.isEmpty()) throw new Error('Leeres Modell');
+    // Normalize the geometry to its center. World placement is owned solely by the
+    // editor wrapper; never rewrite or export the source GLB's mesh vertices.
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.sub(center);
+    entry.group.add(model);
+    entry.loaded = true;
+  } catch (err) {
+    entry.group.add(placeholder(entry.id));
+    entry.loaded = false;
+    failCount++;
+    console.warn('GLB-Ladefehler',entry.id,err);
+  }
+  loadCount++;
+  $('loaded').textContent = loadCount + '/13 Objekte';
+  status(loadCount + '/13 Modelle versucht, ' + failCount +
+    ' Fehler. ' + (loadCount===13 ? 'Editor bereit (Modellqualität siehe Warnungen).' : 'Ladevorgang…'),
+    failCount?'warn':'ok');
+  refreshWarnings();
+}
+
+function getStateForExport() {
+  return JSON.parse(snapshot());
+}
+function download(name, data) {
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+'\n'],
+                                         {type:'application/json;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function exportEditorLayout() {
+  const state=getStateForExport();
+  download('celine-room-layout-editor.json',{
+    schema:'yahya-room-layout-editor/v1',
+    units:'meters',
+    coordinate_system:'X horizontal, Y height, Z depth; origin room-floor center',
+    original_room_m:CANONICAL,
+    ...state,
+    source_assembly:ROOT+'celine_room_v80_assembly.json',
+    reference_image:'Refernzbild.png',
+    note:'Editor export only. Android/Filament placement not automatically modified or validated.',
+    saved_at:new Date().toISOString()
+  });
+}
+function exportAssembly() {
+  const state=getStateForExport();
+  const byId = new Map(state.objects.map(o=>[o.id,o]));
+  const copy=JSON.parse(JSON.stringify(assembly));
+  copy.room_shell_m={...state.room};
+  copy.status='experimental_visual_editor_export_not_runtime_accepted';
+  for(const obj of copy.objects){
+    const edited=byId.get(obj.id);
+    if (!edited) continue;
+    obj.transform = {
+      translation_m: edited.translation_m,
+      rotation_y_deg:edited.rotation_y_deg,
+      uniform_scale:edited.uniform_scale
+    };
+  }
+  copy.editor_provenance = {
+    original_room_m:CANONICAL,
+    reference:'Refernzbild.png',
+    note:'Requires separate Filament transform-chain, source-GLB bounds and camera validation before runtime adoption.'
+  };
+  download('celine_room_v80_assembly_EDITOR_CANDIDATE.json',copy);
+}
+function stateFromImported(data) {
+  if(data.schema==='yahya-room-layout-editor/v1') return {
+    room:data.room, objects:data.objects
+  };
+  if(Array.isArray(data.objects) && data.room_shell_m){
+    return {room:data.room_shell_m,
+      objects:data.objects.map(o=>({
+        id:o.id, translation_m:o.transform?.translation_m,
+        rotation_y_deg:o.transform?.rotation_y_deg,
+        uniform_scale:o.transform?.uniform_scale
+      }))
+    };
+  }
+  throw new Error('Unbekanntes Dateiformat: keine Editor- oder Assembly-JSON.');
+}
+
+function showReference(src) {
+  const preview = $('reference-preview'), overlay=$('reference-overlay');
+  preview.onload=()=>{refReady=true;preview.hidden=false;overlay.src=src;
+    overlay.hidden=!refVisible; status('Referenzbild geladen. Alle Maße und Winkel werden in Metern bzw. Grad gespeichert.', 'ok');};
+  preview.onerror=()=>{refReady=false; preview.hidden=true; overlay.hidden=true;
+    status('Referenzbild nicht geladen. Bitte eigenes Bild auswählen; restlicher Editor bleibt nutzbar.','warn');};
+  preview.src=src;
+}
+showReference(REFERENCE_URL);
+
+function selectFromPointer(e) {
+  if (moving) return;
+  const rect=renderer.domElement.getBoundingClientRect();
+  pointer.x=((e.clientX-rect.left)/rect.width)*2-1;
+  pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  const meshes=[...entries.values()].flatMap(e=>e.group.children);
+  const hits=raycaster.intersectObjects(meshes,true);
+  for(const hit of hits) {
+    let parent=hit.object;
+    while(parent && !parent.userData.editorObjectId) parent=parent.parent;
+    if(parent?.userData.editorObjectId) {
+      setSelected(parent.userData.editorObjectId);
+      return;
+    }
+  }
+}
+renderer.domElement.addEventListener('pointerdown',(e)=>{
+  if(e.button===0 && !transform.dragging) selectFromPointer(e);
+});
+window.addEventListener('resize',()=>{
+  const w=stage.clientWidth,h=stage.clientHeight;
+  if(!w||!h)return;
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+});
+new ResizeObserver(()=>{
+  const w=stage.clientWidth,h=stage.clientHeight;
+  if(!w||!h)return;
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+}).observe(stage);
+renderer.setAnimationLoop(()=>{orbit.update();renderer.render(scene,camera);});
+
+function viewPreset(position,target) {
+  camera.position.set(...position);
+  orbit.target.set(...target);
+  camera.up.set(0,1,0);
+  orbit.update();
+}
+$('camera-persp').onclick=()=>viewPreset([5.3,3.7,6.5],[0,1.15,0]);
+$('camera-call').onclick=()=>viewPreset([0,1.55,5.5],[0,1.3,0]);
+$('camera-top').onclick=()=>viewPreset([0,8,0.001],[0,0,0]);
+$('move').onclick=()=>{
+  transform.setMode('translate');$('move').classList.add('active');$('rotate').classList.remove('active');
+};
+$('rotate').onclick=()=>{
+  transform.setMode('rotate');$('rotate').classList.add('active');$('move').classList.remove('active');
+};
+$('snap').onchange=()=>{
+  const on=$('snap').checked;
+  transform.setTranslationSnap(on?.05:null);
+  transform.setRotationSnap(on?THREE.MathUtils.degToRad(5):null);
+};
+$('snap').dispatchEvent(new Event('change'));
+$('object').onchange=()=>setSelected($('object').value);
+for(const id of ['x','y','z','yaw','scale']) {
+  $(id).addEventListener('change',()=>{
+    if (!selected) return;
+    const v=Number($(id).value);
+    if (!Number.isFinite(v)) {refreshFields();return;}
+    if(id==='scale' && (v<0.01||v>20)){refreshFields();return;}
+    if(id==='yaw')selected.group.rotation.set(0,THREE.MathUtils.degToRad(v),0);
+    else if(id==='scale')selected.group.scale.setScalar(v);
+    else if(Math.abs(v)<=100)selected.group.position[id]=v;
+    refreshFields();commitEdit();
+  });
+}
+$('reset-object').onclick=()=>{
+  if(!selected)return;
+  const base=selected.initial;
+  selected.group.position.fromArray(base.translation_m);
+  selected.group.rotation.set(0,THREE.MathUtils.degToRad(base.rotation_y_deg),0);
+  selected.group.scale.setScalar(base.uniform_scale);
+  refreshFields();commitEdit();
+};
+$('reset-all').onclick=()=>{
+  if (!confirm('Alle Möbelpositionen auf den Ausgangsentwurf zurücksetzen?'))return;
+  for(const entry of entries.values()){
+    const base=entry.initial;
+    entry.group.position.fromArray(base.translation_m);
+    entry.group.rotation.set(0,THREE.MathUtils.degToRad(base.rotation_y_deg),0);
+    entry.group.scale.setScalar(base.uniform_scale);
+  }
+  refreshFields();commitEdit();
+};
+$('edit-room').onchange=()=>{
+  const on=$('edit-room').checked;
+  for(const id of ['room-width','room-depth','room-height'])$(id).disabled=!on;
+};
+for(const [key,id] of [['width','room-width'],['depth','room-depth'],['height','room-height']]){
+  $(id).onchange=()=>{
+    const v=Number($(id).value);
+    const lo=key==='height'?1.8:1;
+    const hi=key==='height'?10:20;
+    if(!Number.isFinite(v)||v<lo||v>hi){$(id).value=room[key].toFixed(2);return;}
+    room[key]=v;buildRoom();commitEdit();
+  };
+}
+$('reset-room').onclick=()=>{
+  room={...CANONICAL};
+  for(const [key,id] of [['width','room-width'],['depth','room-depth'],['height','room-height']]){
+    $(id).value=room[key].toFixed(2);$(id).disabled=true;
+  }
+  $('edit-room').checked=false;buildRoom();commitEdit();
+};
+$('toggle-walls').onclick=()=>{wallVisible=!wallVisible;walls.visible=wallVisible;};
+$('undo').onclick=undo;
+$('redo').onclick=redo;
+window.addEventListener('keydown',(e)=>{
+  if(!(e.ctrlKey||e.metaKey)||['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;
+  if(e.key.toLowerCase()==='z'){e.preventDefault(); if(e.shiftKey)redo(); else undo();}
+  if(e.key.toLowerCase()==='y'){e.preventDefault();redo();}
+});
+$('save').onclick=exportEditorLayout;
+$('export-assembly').onclick=exportAssembly;
+$('file').onchange=async(e)=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{
+    const data=JSON.parse(await file.text());
+    applyState(stateFromImported(data));commitEdit();
+    status('Gespeichertes Layout geladen: '+file.name,'ok');
+  }catch(err){status('Layout nicht importiert: '+err.message,'warn');}
+  e.target.value='';
+};
+$('reference-toggle').onclick=()=>{
+  refVisible=!refVisible;
+  $('reference-overlay').hidden=!refVisible||!refReady;
+  $('reference-toggle').classList.toggle('active',refVisible);
+};
+$('reference-opacity').oninput=()=>{$('reference-overlay').style.opacity=
+  String(Number($('reference-opacity').value)/100);};
+$('reference-opacity').dispatchEvent(new Event('input'));
+$('reference-file').onchange=(e)=>{
+  const file=e.target.files?.[0];if(!file)return;
+  if(referenceBlobUrl)URL.revokeObjectURL(referenceBlobUrl);
+  referenceBlobUrl=URL.createObjectURL(file);
+  showReference(referenceBlobUrl);
+  refVisible=true;
+  $('reference-toggle').classList.add('active');
+};
+
+async function start() {
+  try {
+    const res=await fetch(ROOT+'celine_room_v80_assembly.json',{cache:'no-store'});
+    if(!res.ok)throw new Error('Assembly HTTP '+res.status);
+    assembly=await res.json();
+    if(!Array.isArray(assembly.objects) || assembly.objects.length!==13)
+      throw new Error('13 Objekte im Raumvertrag erwartet.');
+    for(const object of assembly.objects){
+      if (!FILES[object.id]) throw new Error('Unbekannter Modellname '+object.id);
+      const g=new THREE.Group();
+      g.name=object.id;
+      g.userData.editorObjectId=object.id;
+      const t=object.transform;
+      g.position.fromArray(t.translation_m);
+      g.rotation.y=THREE.MathUtils.degToRad(t.rotation_y_deg);
+      g.scale.setScalar(t.uniform_scale);
+      scene.add(g);
+      const entry={
+        id:object.id, group:g, initial:JSON.parse(JSON.stringify(t)),
+        loaded:false
+      };
+      entries.set(object.id,entry);
+      const option=document.createElement('option');
+      option.value=object.id;
+      option.textContent=NAMES[object.id]||object.id;
+      $('object').append(option);
+    }
+    lastSnapshot=snapshot();
+    try {
+      const saved=localStorage.getItem(STORAGE_KEY);
+      if(saved)applyState(JSON.parse(saved));
+    }catch(err){status('Lokale Sicherung wurde ignoriert: '+err.message,'warn');}
+    lastSnapshot=snapshot();
+    setSelected('room_bed');
+    updateHistoryButtons();
+    status('13 Objekte vorbereitet. GLBs werden geladen …');
+    await Promise.all([...entries.values()].map(loadModel));
+  }catch(err){
+    status('Editor konnte nicht vollständig starten: '+err.message+
+      '. Bitte über einen HTTP-Server vom Repository-Stamm öffnen (siehe README).','warn');
+    $('loaded').textContent='Startfehler';
+    console.error(err);
+  }
+}
+start();
