@@ -244,11 +244,11 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
-            set -eu
-            EXPECTED_API="${{ matrix.api-level }}"
-            REAL_API="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
-            test "$REAL_API" = "$EXPECTED_API"
-            echo "ACTUAL_ANDROID_API_LEVEL=$REAL_API" | tee core-persona-emulator-proof/actual-api-level.txt
+            # android-emulator-runner invokes each script line in a separate
+            # /bin/sh -c process; shell variables MUST be set/tested/recorded
+            # inside ONE command. Old #67 emitted empty API values and
+            # accidentally compared empty == empty: fail closed instead.
+            bash -euo pipefail -c 'real_api="$(adb shell getprop ro.build.version.sdk | tr -d "\r")"; [[ "$real_api" == "${{ matrix.api-level }}" ]]; printf "ACTUAL_ANDROID_API_LEVEL=%s\n" "$real_api" | tee core-persona-emulator-proof/actual-api-level.txt'
             adb shell wm size 720x1280
             adb shell wm density 185
             adb install -r ci-apk/Yahya-AI-v80.apk

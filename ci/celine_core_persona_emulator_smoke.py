@@ -456,18 +456,50 @@ def recover_verified_legacy_pico_modal(root):
                    if n.attrib.get("text") == "Close app"
                    and n.attrib.get("class") == "android.widget.Button"
                    and n.attrib.get("package") != PACKAGE]
-        if len(buttons) != 1:
-            if attempt == 5:
-                raise AssertionError("Verified Pico crash modal lacks safe Close app button")
-            time.sleep(1.3)
-            root = hierarchy()
-            continue
-        click(buttons[0])
+        # API26 exposes android:id/aerr_close; the genuine API27 OS
+        # screenshot/XML has ONLY android:id/alertTitle (no action buttons).
+        # Never tap guessed coordinates or dismiss an unverified modal.
+        dismissal = "verified_android_close_app_button"
+        if len(buttons) == 1:
+            if buttons[0].attrib.get("resource-id") != "android:id/aerr_close":
+                raise AssertionError("Unexpected Pico Android system close-button identity")
+            click(buttons[0])
+        else:
+            if len(buttons) > 1:
+                raise AssertionError("Ambiguous Pico Android system close buttons")
+            if attempt < 5:
+                time.sleep(1.3)
+                root = hierarchy()
+                continue
+            sdk = adb("shell", "getprop", "ro.build.version.sdk").strip()
+            titles = [n for n in root.iter("node")
+                      if n.attrib.get("package") == "android"
+                      and n.attrib.get("resource-id") == "android:id/alertTitle"
+                      and n.attrib.get("text") == "Pico TTS has stopped"]
+            other_buttons = [n for n in root.iter("node")
+                             if n.attrib.get("class") == "android.widget.Button"]
+            windows = adb("shell", "dumpsys", "window", "windows", timeout=35)
+            (OUT / "legacy-pico-no-button-window.txt").write_text(
+                windows[-50000:], encoding="utf-8")
+            if (sdk != "27" or len(titles) != 1 or other_buttons
+                    or not re.search(
+                        r"mCurrentFocus=Window\\{[^\\n]*Application Error: com\\.svox\\.pico\\}",
+                        windows)
+                    or not re.search(
+                        r"mFocusedApp=[^\\n]*de\\.yahya\\.ai/\\.MainActivity",
+                        windows)):
+                raise AssertionError(
+                    "API27 Pico OS modal lacks a source-proven, focused system-owned dismissal")
+            # Exactly one BACK for the identified android-owned, focused
+            # 'Application Error: com.svox.pico' OS dialog, then verify real
+            # app chat returns. A noncancelable modal stays a hard FAIL.
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
+            dismissal = "verified_api27_system_pico_modal_back"
         LEGACY_PICO_NATIVE_CRASH_COUNT += 1
         (OUT / "legacy-pico-isolation.json").write_text(
             json.dumps({"native_process": "com.svox.pico", "signal": "SIGSEGV",
                         "library": "libttspico.so", "dialog_dismissed": True,
-                        "migration_proof_allowed": True,
+                        "dismissal": dismissal, "migration_proof_allowed": True,
                         "voice_acceptance": "FAIL", "release_gate": "BLOCKED"},
                        indent=2), encoding="utf-8")
         print("LEGACY_PICO_NATIVE_TTS_VOICE_CRASH_PROVEN: "
@@ -475,6 +507,9 @@ def recover_verified_legacy_pico_modal(root):
               flush=True)
         time.sleep(1.2)
         root = hierarchy()
+        if any(n.attrib.get("text") in ("Pico TTS has stopped", "Pico TTS keeps stopping")
+               for n in root.iter("node")):
+            raise AssertionError("Verified Pico OS dialog still visible after single dismissal")
         if not any(n.attrib.get("content-desc") == "Celin Nachricht schreiben"
                    and n.attrib.get("package") == PACKAGE for n in root.iter("node")):
             raise AssertionError("App chat not restored after verified Pico OS modal")
@@ -1280,14 +1315,54 @@ def assert_no_production_android_anr_or_crash():
 
 
 
+def prepare_production_upgrade_crash_log_scope():
+    """Scope actual app/system crash buffers to the upgrade, fail-closed.
+
+    Stock API26 #67 denied clearing only the main log. The release gate
+    actually reads Android events + system, and native startup has its own
+    new streaming capture. Permit selective verified buffer clears ONLY
+    for that exact old-Android main-buffer refusal; never ignore failures.
+    """
+    clear = subprocess.run(["adb", "logcat", "-c"],
+                           capture_output=True, text=True, timeout=35)
+    if clear.returncode == 0:
+        return
+    sdk = adb("shell", "getprop", "ro.build.version.sdk").strip()
+    failure = clear.stdout + clear.stderr
+    result = {"sdk": sdk, "initial_full_clear_exit": clear.returncode,
+              "initial_full_clear_error": failure[-2000:], "buffers": {}}
+    if not (PRODUCTION_MODE and sdk in ("26", "27")
+            and "failed to clear the 'main' log" in failure):
+        (OUT / "FAIL-upgrade-log-clear.json").write_text(
+            json.dumps(result, indent=2), encoding="utf-8")
+        raise RuntimeError("No verified legacy main-only logcat clear exception: " +
+                           repr(failure[-400:]))
+    for buffer in ("events", "system"):
+        attempt = subprocess.run(["adb", "logcat", "-b", buffer, "-c"],
+                                 capture_output=True, text=True, timeout=35)
+        result["buffers"][buffer] = {
+            "exit": attempt.returncode,
+            "stderr": attempt.stderr[-800:], "stdout": attempt.stdout[-800:]}
+        if attempt.returncode:
+            (OUT / "FAIL-upgrade-log-clear.json").write_text(
+                json.dumps(result, indent=2), encoding="utf-8")
+            raise RuntimeError("Cannot isolate post-upgrade Android " + buffer +
+                               " crash/ANR buffer: " + repr(attempt.stderr[-400:]))
+    (OUT / "legacy-upgrade-crash-log-scope.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8")
+    print("LEGACY_MAIN_LOG_CLEAR_DENIED_EVENTS_SYSTEM_ISOLATED_PASS:"
+          " genuine crash/ANR checks still read both cleared OS buffers",
+          flush=True)
+
+
 def main():
     if not APK.is_file():
         raise AssertionError("Pinned prior build APK not downloaded")
     prepare_public_v80_memory()
     print("CORE_EMULATOR_SMOKE_START: in-place v80 to unchanged v83 artifact", flush=True)
     original_pid = adb("shell", "pidof", PACKAGE, check=False).strip()
-    # Scope OS ANR/crash events to the actual upgrade and later v83 activity.
-    adb("logcat", "-c")
+    # Still hard-fail if the real app/system crash/ANR buffers cannot be scoped.
+    prepare_production_upgrade_crash_log_scope()
     start_native_startup_capture()
     adb("install", "-r", str(APK), timeout=130)
     version = adb("shell", "dumpsys", "package", PACKAGE)
