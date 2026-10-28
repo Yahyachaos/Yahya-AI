@@ -135,7 +135,6 @@ function buildRoom() {
   walls.visible = wallVisible;
   refreshWarnings();
 }
-buildRoom();
 
 const entries = new Map();
 let assembly;
@@ -596,6 +595,7 @@ $('reference-file').onchange=(e)=>{
 
 async function start() {
   try {
+    buildRoom();
     const res=await fetch(ROOT+'celine_room_v80_assembly.json',{cache:'no-store'});
     if(!res.ok)throw new Error('Assembly HTTP '+res.status);
     assembly=await res.json();
