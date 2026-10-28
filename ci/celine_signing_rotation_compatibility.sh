@@ -20,11 +20,26 @@ make_manifest() {
     package="de.yahya.signingprobe"
     android:versionCode="$version" android:versionName="$version">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="28"/>
-    <application android:label="Disposable Signing Probe" android:debuggable="true"/>
+    <application android:label="@string/app_name" android:debuggable="true"/>
 </manifest>
 EOF
-  "$aapt" package -f -M "$work/manifest-$version.xml" \
+  # aapt requires at least one real resource input to package a binary AndroidManifest.xml.
+  # An otherwise empty synthetic APK may be a ZIP with no manifest and cannot be signed.
+  mkdir -p "$work/res/values"
+  cat > "$work/res/values/strings.xml" <<'RESOURCES'
+<resources><string name="app_name">Disposable Signing Probe</string></resources>
+RESOURCES
+  "$aapt" package -f -M "$work/manifest-$version.xml" -S "$work/res" \
     -I "$sdk/platforms/android-35/android.jar" -F "$work/unsigned-$version.apk"
+  if ! unzip -Z1 "$work/unsigned-$version.apk" | grep -Fxq AndroidManifest.xml; then
+    echo "FAIL: synthetic APK $version lacks packaged AndroidManifest.xml" >&2
+    exit 1
+  fi
+  if ! "$aapt" dump badging "$work/unsigned-$version.apk" |
+       grep -Fq "package: name='$pkg' versionCode='$version'"; then
+    echo "FAIL: synthetic APK $version lacks valid compiled manifest/package/version" >&2
+    exit 1
+  fi
   "$align" -f -p 4 "$work/unsigned-$version.apk" "$work/aligned-$version.apk"
 }
 if [ "$mode" = "prepare" ]; then
