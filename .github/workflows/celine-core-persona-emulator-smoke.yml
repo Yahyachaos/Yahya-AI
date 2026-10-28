@@ -155,3 +155,109 @@ jobs:
           path: core-persona-emulator-proof/
           if-no-files-found: warn
 # One targeted CI-only production validation (28 Oct 2026): validate fixed worker-ownership signed #1799 APK; no Gradle build or stable publish.
+
+
+  legacy-api-v80-to-v83:
+    name: Genuine public v80 to production v83 on Android API${{ matrix.api-level }}
+    # Keep legacy OS probes serial and after the existing validated API35 job.
+    # They test only the pinned existing APK; no additional Android Gradle builds.
+    needs: reuse-built-apk-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        api-level: [26, 27]
+    steps:
+      - name: Checkout exact Room integration branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Reconcile unchanged compiled production v83 runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 16d43292d6f7458def4304030d822c1112340d13 HEAD
+          git diff --quiet 16d43292d6f7458def4304030d822c1112340d13 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = 'd7e6ef58941d1ebd05d89fe3f17c8a6c8d8cd6541db2dd9f9bfddcb554e3e07f'
+          echo 'LEGACY_PRODUCTION_V83_SOURCE_EQUIVALENCE_PASS'
+
+      - name: Download real published v80 and proven non-debuggable v83 only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk core-persona-emulator-proof
+          gh run download 40629439886 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          test -s ci-apk/app-release.apk
+          echo '5a0d1a0c0d1ab8487f50e2d446ab8c0bc867b87df6f8d7058a6e1eecb5bdbfc5  ci-apk/app-release.apk' | sha256sum -c -
+          gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern Yahya-AI-v80.apk -D ci-apk
+          test -s ci-apk/Yahya-AI-v80.apk
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          sha256sum ci-apk/app-release.apk ci-apk/Yahya-AI-v80.apk > core-persona-emulator-proof/apk-sources-sha256.txt
+          echo 'AUTHENTIC_OLD_AND_NEW_APK_RAW_SHA256_PASS'
+
+      - name: Fail closed on package/version, debuggability and API-specific signer parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDK_ROOT/build-tools/30.0.3/apksigner" ] || "$SDKMANAGER" 'build-tools;30.0.3'
+          APKSIGNER="$SDK_ROOT/build-tools/30.0.3/apksigner"
+          AAPT="$SDK_ROOT/build-tools/30.0.3/aapt"
+          OLD=ci-apk/Yahya-AI-v80.apk
+          NEW=ci-apk/app-release.apk
+          "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$OLD"
+          "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$NEW"
+          "$AAPT" dump badging "$OLD" | grep -F "package: name='de.yahya.ai' versionCode='80'"
+          "$AAPT" dump badging "$NEW" | grep -F "package: name='de.yahya.ai' versionCode='83'"
+          ! "$AAPT" dump badging "$NEW" | grep -q '^application-debuggable'
+          C80="$("$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$OLD" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          C83="$("$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$NEW" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          [ -n "$C80" ] && [ "$C80" = "$C83" ]
+          printf 'API=%s\npackage=de.yahya.ai\nold_code=80\nnew_code=83\nsame_historical_certificate_sha256=%s\nnondebug=true\n' "${{ matrix.api-level }}" "$C80" > core-persona-emulator-proof/signing-compatibility.txt
+          echo 'API_SPECIFIC_PUBLIC_V80_V83_SIGNATURE_PACKAGE_NONDEBUG_PASS'
+          echo 'RISK: historical production private signer publicly exposed; parity is not secure publisher custody'
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Real API${{ matrix.api-level }} installed upgrade, memory retention and OS crash gate
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: |
+            set -eu
+            EXPECTED_API="${{ matrix.api-level }}"
+            REAL_API="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+            test "$REAL_API" = "$EXPECTED_API"
+            echo "ACTUAL_ANDROID_API_LEVEL=$REAL_API" | tee core-persona-emulator-proof/actual-api-level.txt
+            adb shell wm size 720x1280
+            adb shell wm density 185
+            adb install -r ci-apk/Yahya-AI-v80.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
+            echo 'AUTHENTIC_PUBLIC_V80_INSTALLED_ON_LEGACY_ANDROID_PASS'
+            YAHYA_PRODUCTION_SMOKE=1 timeout 1560s python3 ci/celine_core_persona_emulator_smoke.py
+            echo "REAL_V80_V83_LEGACY_API${{ matrix.api-level }}_DATA_RETENTION_AND_FUNCTIONAL_PASS"
+
+      - name: Always upload original Android evidence and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-v83-real-public-upgrade-api${{ matrix.api-level }}
+          path: core-persona-emulator-proof/
+          if-no-files-found: warn
