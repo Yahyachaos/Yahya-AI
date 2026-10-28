@@ -253,28 +253,40 @@ def verify_native_composer_touch_phase(phase):
         raise AssertionError("REAL_NATIVE_COMPOSER_TOUCH_FAIL_" + phase +
                              ": focused=" + repr(evidence["after_focused"]))
     print("REAL_NATIVE_COMPOSER_TOUCH_" + phase.upper() + "_PASS", flush=True)
-    # Do not blindly press BACK: on API35 the editor is focused but the
-    # IME can still be hidden. In real #68 that BACK finished MainActivity
-    # (wm_finish_activity ... app-request), then the next UI assertion found
-    # Android Launcher instead of Yahya AI. Only dismiss a genuinely visible
-    # OS input-method window in the real UiAutomator hierarchy.
+    # The real API35 #69 proof showed a *visible* Latin IME window, but
+    # UiAutomator listed zero input-method nodes. In #68 blind BACK finished
+    # MainActivity. Only press BACK when the OS window dump proves the keyboard
+    # surface itself is visible. Never rely on focus alone.
     time.sleep(1.2)
     current = hierarchy()
-    visible_imes = sorted({
+    ui_ime_packages = sorted({
         n.attrib.get("package", "") for n in current.iter("node")
         if "inputmethod" in n.attrib.get("package", "").lower()
     })
+    windows = adb("shell", "dumpsys", "window", "windows",
+                  check=False, timeout=30)
+    window_blocks = re.findall(
+        r"(?ms)^  Window #\d+ Window\{[^\n]*\}:\n.*?(?=^  Window #\d+ Window\{|\Z)",
+        windows)
+    visible_ime_windows = [
+        b.splitlines()[0].strip() for b in window_blocks
+        if " InputMethod}:" in b.splitlines()[0]
+        and "isVisible=true" in b
+        and "Surface: shown=true" in b
+    ]
+    keyboard_visible = bool(ui_ime_packages or visible_ime_windows)
     (OUT / ("native-touch-" + phase + "-ime.json")).write_text(
-        json.dumps({"visible_input_method_packages": visible_imes,
-                    "back_pressed": bool(visible_imes)}, indent=2),
+        json.dumps({"ui_input_method_packages": ui_ime_packages,
+                    "verified_visible_ime_windows": visible_ime_windows,
+                    "back_pressed": keyboard_visible}, indent=2),
         encoding="utf-8")
-    if visible_imes:
+    if keyboard_visible:
         adb("shell", "input", "keyevent", "KEYCODE_BACK")
         time.sleep(0.5)
+        print("REAL_NATIVE_COMPOSER_VISIBLE_IME_CLOSED_PASS", flush=True)
     else:
         print("REAL_NATIVE_COMPOSER_NO_VISIBLE_IME_NO_BACK_PASS", flush=True)
     node_with("content-desc", "Celin Nachricht schreiben")
-
 
 
 def scroll_settings_list():
@@ -1176,9 +1188,16 @@ def grant_visible_call_permission(grant_count):
     # '#0 Window{...permissioncontroller/...GrantPermissionsActivity}' without
     # any mCurrentFocus line. Check only that OS-owned foreground or explicit
     # mCurrentFocus; never grant an arbitrary background permission window.
+    sdk = adb("shell", "getprop", "ro.build.version.sdk").strip()
+    # Real API26 #68 evidence: com.android.packageinstaller and 'ALLOW'.
+    # Android 35 uses com.android.permissioncontroller and a different label.
+    if sdk in ("26", "27"):
+        os_owner, button_label = "com.android.packageinstaller", "allow"
+    else:
+        os_owner, button_label = "com.android.permissioncontroller", "while using the app"
     focused = [line.strip() for line in window.splitlines()
                if ("mCurrentFocus=" in line or "#0 Window{" in line)
-               and "com.android.permissioncontroller/" in line
+               and os_owner + "/" in line
                and "GrantPermissionsActivity" in line]
     if not focused:
         return None
@@ -1188,7 +1207,7 @@ def grant_visible_call_permission(grant_count):
 
     root = hierarchy()
     os_nodes = [n for n in root.iter("node")
-                if n.attrib.get("package", "").endswith("permissioncontroller")]
+                if n.attrib.get("package") == os_owner]
     prompt = " ".join(n.attrib.get("text", "") for n in os_nodes).casefold()
     if "allow yahya ai to record audio?" in prompt:
         kind = "microphone"
@@ -1200,11 +1219,11 @@ def grant_visible_call_permission(grant_count):
                              repr(prompt[:700]))
 
     choices = [n for n in os_nodes
-               if n.attrib.get("text", "").strip().casefold() == "while using the app"
+               if n.attrib.get("text", "").strip().casefold() == button_label
                and n.attrib.get("clickable") == "true"]
     if len(choices) != 1:
         screenshot("FAIL-production-permission-no-explicit-while-using.png")
-        raise AssertionError("OS permission has no unique visible While using the app button")
+        raise AssertionError("OS permission has no unique visible " + repr(button_label) + " button")
     label = "10-production-" + kind + "-permission-"
     (OUT / (label + "focus-before.txt")).write_text(
         "\n".join(focused) + "\n" + prompt + "\n", encoding="utf-8")
