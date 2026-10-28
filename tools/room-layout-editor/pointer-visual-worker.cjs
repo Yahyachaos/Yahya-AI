@@ -860,6 +860,124 @@ async function main() {
        physicalBounds:true,bedLocked:true,dresserLocked:true,
        cameraFrozen:true,manualVisual:'PENDING',androidVisual:'FAIL_G2_3_PAUSED'});
 
+    // Source-fidelity V6 local silhouette-height trial: one changed dresser only.
+    // Evaluates a physically grounded uniform shrink based on real V5 projection
+    // against approximate original-reference bounds; NEVER visual-accepts AABB.
+    const v6Path=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-28-room-dresser-scale-fit-v6.json');
+    const v6Source=JSON.parse(fs.readFileSync(v6Path,'utf8'));
+    assert.deepEqual(v6Source.room,{width:4.4,depth:4.2,height:2.65});
+    assert.equal(v6Source.objects.length,13);
+    const v6ById=Object.fromEntries(v6Source.objects.map(o=>[o.id,o]));
+    for(const o of v6Source.objects)
+      if(o.id!=='room_dresser')assert.deepEqual(o,v5ById[o.id],
+        'V6 furniture other than original dresser must remain untouched: '+o.id);
+    assert.deepEqual(v6ById.room_dresser.rotation_euler_deg,[0,180,0]);
+    assert.deepEqual(v6ById.room_dresser.translation_m,[-1.95,.446813,.4]);
+    assert.deepEqual(v6ById.room_dresser.scale_xyz,[.8,.8,.8]);
+    assert.equal(v6ById.room_bed.locked,true);
+    assert.equal(v6ById.room_dresser.locked,true);
+    for(const [id,hash] of Object.entries(anchorSource.original_source_hashes))
+      assert.equal(v6Source.original_source_hashes[id],hash,
+        'V6 must preserve original source-fidelity SHA: '+id);
+    await page.locator('#file').setInputFiles(v6Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-28-room-dresser-scale-fit-v6.json'),
+      null,{timeout:60000});
+    await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+      framingCamera.camera_proposal);
+    const v6Camera=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+    for(const [label,actual,expected] of [
+      ['position',v6Camera.camera_position_m,effectiveCamera.position_m],
+      ['target',v6Camera.camera_target_m,effectiveCamera.target_m]
+    ]){
+      assert.equal(actual.length,3,'V6 frozen camera '+label+' XYZ');
+      assert(actual.every((v,i)=>Number.isFinite(v)&&Math.abs(v-expected[i])<1e-9),
+        'V6 frozen camera '+label+' within 1 nanometer');
+    }
+    const v6World=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(v6World.model_count,13);
+    assert.equal(v6World.all_source_fidelity_glbs_loaded,true);
+    assert.deepEqual(v6World.room_m,{width:4.4,depth:4.2,height:2.65});
+    assert.deepEqual(v6Camera.canvas_px,[700,560]);
+    assert(Math.abs(v6Camera.aspect-1402/1122)<.002);
+    const v6Overflows=v6World.objects.flatMap(o=>Object.entries(o.overflow_faces_m)
+      .filter(([,v])=>v>.012).map(([face,meters])=>({id:o.id,face,meters})));
+    assert.deepEqual(v6Overflows,[],'V6 13 actual source models must fit fixed room');
+    const v6Objects=Object.fromEntries(v6World.objects.map(o=>[o.id,o]));
+    for(const id of ['room_bed','room_dresser']){
+      assert.equal(v6Objects[id].locked,true);
+      assert(Math.abs(v6Objects[id].floor_bottom_y_m)<.012,'V6 locked anchor must be grounded: '+id);
+    }
+    assert.deepEqual(v6Objects.room_bed.transform,facingResults[0].bed.transform,
+      'V6 bed must remain identical to V5');
+    assert.deepEqual(v6Objects.room_lounge_chair.transform,
+      facingResults[0].chairFrozen,'V6 chair untouched');
+    const v6Cabinet=v6Objects.room_dresser.conservative_world_aabb_m;
+    const v6Chair=v6Objects.room_lounge_chair.conservative_world_aabb_m;
+    assert([0,1,2].some(i=>v6Cabinet.max[i]+.025<v6Chair.min[i]||
+      v6Chair.max[i]+.025<v6Cabinet.min[i]),
+      'V6 original dresser must remain separated from untouched chair');
+    const v6Box=projectedWorldAabb(v6Objects.room_dresser,v6Camera);
+    const v5Box=facingResults[0].dresser.projected_world_aabb_normalized;
+    const referenceBox=anchorSource.reference_bbox_estimates_normalized.room_dresser;
+    const approxBoxResidual=b=>['left','right','top','bottom'].reduce((s,k)=>
+      s+Math.abs(Math.max(0,Math.min(1,b[k]))-referenceBox[k]),0);
+    const v5Residual=approxBoxResidual(v5Box);
+    const v6Residual=approxBoxResidual(v6Box);
+    assert(v6Residual<v5Residual,
+      'V6 source-true projected cabinet must measurably improve approximate bbox before subjective image review');
+    const v6Image=png('layout-v6-dresser-scale-080-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+    assert.deepEqual([v6Image.width,v6Image.height],[700,560]);
+    const v6Side=png('layout-v6-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw new Error('V6 original reference not loaded');
+        const image=new Image();
+        image.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((resolve,reject)=>{
+          if(image.complete&&image.naturalWidth)return resolve();
+          image.onload=resolve;image.onerror=reject;
+        });
+        const c=document.createElement('canvas');
+        c.width=1400;c.height=560;
+        const ctx=c.getContext('2d');
+        ctx.drawImage(ref,0,0,700,560);
+        ctx.drawImage(image,700,0,700,560);
+        return c.toDataURL('image/png');
+      }));
+    assert.deepEqual([v6Side.width,v6Side.height],[1400,560]);
+    const v6ReportName='layout-v6-dresser-scale-audit.json';
+    const v6Report={
+      sourceSha:process.env.GITHUB_SHA||null,
+      predecessorExactHead:'1a0d94831e2a89d43a1de38c4924f60450ebd7b6',
+      predecessorRun:'https://github.com/Yahyachaos/Yahya-AI/actions/runs/40766493530',
+      candidateFile:path.relative(root,v6Path),
+      originalReference:'reference-original.png',
+      realWebgl:v6Image,sideBySide:v6Side,room_m:v6World.room_m,
+      source_fidelity_glbs:v6World.model_count,source_assets_unmodified:true,
+      exactCameraFrozen:true,
+      dresserOriginalWorldAabb:v6Cabinet,
+      dresserOriginalProjectedAabb:v6Box,referenceBoxWithUncertainty:referenceBox,
+      predecessorV5ProjectedAabb:v5Box,
+      projectedClippedAabbAbsSum:{v5:v5Residual,v6:v6Residual,improvement:v5Residual-v6Residual},
+      other11ObjectsUnchanged:true,bedLocked:true,dresserLocked:true,
+      sourceAabbRoomOverflows:v6Overflows,
+      evidenceIsNotExactMeshCollision:true,
+      manualBedVisual:'FAIL_FROZEN',manualDresserVisual:'PENDING_REAL_IMAGE_INSPECTION',
+      manualChairVisual:'FAIL_FROZEN',wholeRoomVisual:'FAIL',androidG2_3:'PAUSED'
+    };
+    fs.writeFileSync(path.join(output,v6ReportName),JSON.stringify(v6Report,null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,v6ReportName),'utf8'))
+      .source_fidelity_glbs,13,'V6 JSON report must parse and contain all original instances');
+    evidence('V6_SOURCE_TRUE_DRESSER_HEIGHT_PROJECTION_AND_REAL_WEBGL_NOT_VISUAL_PASS',{
+      candidate:path.relative(root,v6Path),image:v6Image.file,
+      sideBySide:v6Side.file,audit:v6ReportName,
+      modelCount:13,cameraFrozen:true,
+      measuredAabbResidualV5:v5Residual,measuredAabbResidualV6:v6Residual,
+      manualVisual:'PENDING',androidVisual:'FAIL_G2_3_PAUSED'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
