@@ -79,6 +79,27 @@ async function main() {
     // A WHOLE-room actual WebGL raster, separate from the focused bed/gizmo
     // images. This is a browser-preview checkpoint, NOT an Android visual PASS.
     await page.locator('#camera-call').click();
+    // Preserve the ORIGINAL repository reference raster in the same evidence
+    // bundle as the candidate, so later visual comparisons inspect real pixels
+    // rather than guessing geometry from written landmarks. Same-origin image;
+    // pixel-identical canvas copy, not generated/altered reference content.
+    const referenceImage = png('reference-original.png',
+      await page.evaluate(() => {
+        const img=document.querySelector('#reference-preview');
+        if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight)
+          throw new Error('Original Refernzbild.png not fully loaded');
+        const canvas=document.createElement('canvas');
+        canvas.width=img.naturalWidth;
+        canvas.height=img.naturalHeight;
+        const context=canvas.getContext('2d');
+        if (!context) throw new Error('2D reference canvas unavailable');
+        context.drawImage(img,0,0);
+        return canvas.toDataURL('image/png');
+      }));
+    assert.equal(referenceImage.width,1376,'Original reference width');
+    assert.equal(referenceImage.height,1100,'Original reference height');
+    evidence('ORIGINAL_REPOSITORY_REFERENCE_PIXELS_CAPTURED_FOR_MANUAL_COMPARISON',
+      referenceImage);
     const overview = png('room-overview-call.png',
       await page.evaluate(() => window.__celineRoomEditorE2E.framePng()));
     evidence('GENUINE_ROOM_OVERVIEW_WEBGL_NOT_REFERENCE_CALIBRATED', overview);
@@ -176,7 +197,13 @@ async function main() {
         ({id:o.id,face,meters})));
     fs.writeFileSync(path.join(output,'layout-candidate-aabb.json'),
       JSON.stringify({...candidateAudit,sourceSha:process.env.GITHUB_SHA||null,
-        candidateFile:path.relative(root,draftPath),violations,referenceComparison:'NOT_TESTED'},null,2)+'\\n');
+        candidateFile:path.relative(root,draftPath),violations,referenceComparison:'NOT_TESTED'},null,2)+'\n');
+    // A valid .json extension is not a JSON guarantee; fail the proof closed
+    // if the downloaded artifact cannot be parsed as ordinary JSON.
+    const writtenAudit=JSON.parse(fs.readFileSync(path.join(output,
+      'layout-candidate-aabb.json'),'utf8'));
+    assert.equal(writtenAudit.model_count,13);
+    assert.deepEqual(writtenAudit.violations,violations);
     assert.deepEqual(violations,[],
       'Candidate GLB geometry must fit the room within conservative 12mm AABB tolerance');
     evidence('EXPERIMENTAL_ALL_13_GLB_BOUNDS_INSIDE_ROOM_PASS_NOT_VISUAL',
