@@ -1,0 +1,84 @@
+{
+  "schema": "celine-room-editor-reference-projection/v1",
+  "status": "UNVERIFIED_CAMERA_HYPOTHESIS_NOT_VISUAL_PASS",
+  "units": "meters",
+  "source_reference": "Refernzbild.png",
+  "reference_original_pixels": {
+    "width": 1402,
+    "height": 1122
+  },
+  "historical_measurement_grid_px": {
+    "width": 1376,
+    "height": 1100
+  },
+  "room_m": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "source_glb_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40690793699",
+  "source_glb_head": "84f65d56d9884660415db55f2927b7d3db6fb9eb",
+  "model_centers_origin": "world-AABB centers from candidate-v1 13 unchanged GLBs, not optical mesh silhouette centers",
+  "method": "Least-squares fit of experimental view camera to approximate manually observed normalized furniture/reference centers, with no shape matching; photo occlusion and lens distortion not corrected.",
+  "camera_proposal": {
+    "position_m": [
+      0.09,
+      1.8,
+      3.78
+    ],
+    "target_m": [
+      -0.05,
+      0.67,
+      0
+    ],
+    "vertical_fov_deg": 45.7,
+    "reference_aspect": 1.249554367201426
+  },
+  "center_targets_normalized": {
+    "room_window_drapes": {
+      "u": 0.395,
+      "v": 0.278,
+      "uncertainty": 0.07
+    },
+    "room_bed": {
+      "u": 0.753,
+      "v": 0.482,
+      "uncertainty": 0.06
+    },
+    "room_dresser": {
+      "u": 0.09,
+      "v": 0.526,
+      "uncertainty": 0.07
+    },
+    "room_lounge_chair": {
+      "u": 0.27,
+      "v": 0.434,
+      "uncertainty": 0.08
+    },
+    "room_foreground_table": {
+      "u": 0.5,
+      "v": 0.9,
+      "uncertainty": 0.12
+    },
+    "room_round_mirror": {
+      "u": 0.04,
+      "v": 0.237,
+      "uncertainty": 0.06
+    },
+    "room_rug": {
+      "u": 0.505,
+      "v": 0.657,
+      "uncertainty": 0.07
+    },
+    "room_wall_shelf_books": {
+      "u": 0.663,
+      "v": 0.208,
+      "uncertainty": 0.08
+    }
+  },
+  "conclusions": "The current uncalibrated CALL preview differs substantially from the real photo. This camera proposal improves rough back-wall/table composition theoretically but bed is predicted ~11% of picture width too far left and chair ~12% of picture height too low; do not mark layout accepted. Actual WebGL evidence to follow.",
+  "room_candidate": "tools/room-layout-editor/layout-candidates/2026-10-28-room-aabb-reference-coarse-v1.json",
+  "reference_image_unchanged": true,
+  "original_glb_unchanged": true,
+  "android_app_unchanged": true
+}

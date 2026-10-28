@@ -10,6 +10,14 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  */
 const $ = (id) => document.getElementById(id);
 const CANONICAL = Object.freeze({ width: 4.40, depth: 4.20, height: 2.65 });
+// Approximate reference-center camera, fitted to eight manually identified
+// image centers and actual 13-GLB world AABBs. NOT a visual acceptance camera.
+// It does not change, scale or rotate any source model or furniture placement.
+const REFERENCE_CAMERA_PROPOSAL = Object.freeze({
+  position: [0.09, 1.80, 3.78],
+  target: [-0.05, 0.67, 0],
+  fov: 45.7
+});
 const STORAGE_KEY = 'yahya-ai-room-editor-experiment-v1';
 const ROOT = '../../app/src/main/assets/models/room/';
 const GLB_ROOT = ROOT + 'source-fidelity/';
@@ -451,8 +459,10 @@ new ResizeObserver(()=>{
 }).observe(stage);
 renderer.setAnimationLoop(()=>{orbit.update();renderer.render(scene,camera);});
 
-function viewPreset(position,target) {
+function viewPreset(position,target,fov=53) {
   camera.position.set(...position);
+  camera.fov=fov;
+  camera.updateProjectionMatrix();
   orbit.target.set(...target);
   camera.up.set(0,1,0);
   orbit.update();
@@ -460,6 +470,9 @@ function viewPreset(position,target) {
 $('camera-persp').onclick=()=>viewPreset([5.3,3.7,6.5],[0,1.15,0]);
 $('camera-call').onclick=()=>viewPreset([0,1.55,5.5],[0,1.3,0]);
 $('camera-top').onclick=()=>viewPreset([0,8,0.001],[0,0,0]);
+$('camera-reference').onclick=()=>viewPreset(
+  REFERENCE_CAMERA_PROPOSAL.position,REFERENCE_CAMERA_PROPOSAL.target,
+  REFERENCE_CAMERA_PROPOSAL.fov);
 $('move').onclick=()=>{
   transform.setMode('translate');$('move').classList.add('active');$('rotate').classList.remove('active');$('scale-mode').classList.remove('active');
 };
@@ -697,10 +710,43 @@ if (E2E_PROOF) {
                y: r.top + (1 - v.y) * r.height / 2 };
     },
     activeAxis() { return transform.axis; },
-    framePng() {
-      // Render deliberately before reading the preserved WebGL framebuffer.
-      renderer.render(scene, camera);
-      return renderer.domElement.toDataURL('image/png');
+    cameraProjection() {
+      // Screen-space centers of the true source-GLB world AABBs for comparison
+      // with approximate observed reference centers. Not a silhouette fit.
+      const projected_centers = {};
+      for (const entry of entries.values()) {
+        const center=new THREE.Box3().setFromObject(entry.group)
+          .getCenter(new THREE.Vector3()).project(camera);
+        projected_centers[entry.id]={
+          u:(center.x+1)/2, v:(1-center.y)/2,
+          ndc_depth:center.z
+        };
+      }
+      return {
+        camera_position_m:camera.position.toArray(),
+        camera_target_m:orbit.target.toArray(),
+        vertical_fov_deg:camera.fov,
+        aspect:camera.aspect,
+        canvas_px:[renderer.domElement.width,renderer.domElement.height],
+        projected_centers
+      };
+    },
+    framePng(options={}) {
+      // An optional CLEAN screenshot hides only editing aids temporarily;
+      // all 13 source meshes, scene lighting, walls and geometry remain real.
+      const grid=floor.children.find(child=>child.isGridHelper);
+      const prevGrid=grid?.visible, prevGizmo=transform.visible;
+      if(options.clean) {
+        if(grid)grid.visible=false;
+        transform.visible=false;
+      }
+      try {
+        renderer.render(scene,camera);
+        return renderer.domElement.toDataURL('image/png');
+      } finally {
+        if(grid)grid.visible=prevGrid;
+        transform.visible=prevGizmo;
+      }
     }
   });
 }

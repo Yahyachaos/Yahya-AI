@@ -234,6 +234,59 @@ async function main() {
     const candidateImage=png('layout-candidate-call.png',
       await page.evaluate(()=>window.__celineRoomEditorE2E.framePng()));
     evidence('EXPERIMENTAL_DRAFT_ROOM_REAL_WEBGL_RASTER_NOT_REFERENCE_ACCEPTED',candidateImage);
+
+    // Additional genuine WebGL proof at the ORIGINAL image's aspect ratio.
+    // Camera-only hypothesis: the actual furniture transforms remain unchanged.
+    // Keep both the legacy CALL comparison and the reference-calibration attempt.
+    const referenceProposal=JSON.parse(fs.readFileSync(path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v1.json'),'utf8'));
+    await page.setViewportSize({width:1240,height:760});
+    await page.evaluate(()=>{
+      const stage=document.querySelector('#viewport');
+      stage.style.width='700px'; stage.style.height='560px';
+    });
+    await page.waitForFunction(()=>{
+      const canvas=document.querySelector('#viewport canvas');
+      return canvas?.width===700 && canvas?.height===560;
+    },null,{timeout:15000});
+    await page.locator('#camera-reference').click();
+    await page.waitForTimeout(350);
+    const projection=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.cameraProjection());
+    assert.deepEqual(projection.canvas_px,[700,560]);
+    assert(Math.abs(projection.aspect-1402/1122)<0.002,
+      'Proof aspect ratio must match original reference image');
+    assert.equal(Object.keys(projection.projected_centers).length,13);
+    const comparisons=Object.fromEntries(Object.entries(
+      referenceProposal.center_targets_normalized).map(([id,target])=>{
+        const actual=projection.projected_centers[id];
+        assert(actual && Number.isFinite(actual.u) && Number.isFinite(actual.v),
+          'Real GLB center must be projectable: '+id);
+        return [id,{target,actual,
+          delta_u:actual.u-target.u,delta_v:actual.v-target.v}];
+      }));
+    const projectionFile='layout-candidate-reference-projection-audit.json';
+    fs.writeFileSync(path.join(output,projectionFile),JSON.stringify({
+      sourceSha:process.env.GITHUB_SHA||null,
+      layoutCandidate:path.relative(root,draftPath),
+      landmarkProposal:'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v1.json',
+      referenceOriginalPixels:referenceProposal.reference_original_pixels,
+      camera:projection,
+      comparisons,
+      visualVerdict:'NOT_ACCEPTED',
+      note:'Approximate image centers vs AABB centers only; no pixel-perfect comparison or Android visual PASS.'
+    },null,2)+'\n');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output,projectionFile),'utf8'))
+      .camera.canvas_px,[700,560],'Projection evidence must parse');
+    const calibrated=png('layout-candidate-reference-projection.png',
+      await page.evaluate(()=>
+        window.__celineRoomEditorE2E.framePng({clean:true})));
+    assert.deepEqual([calibrated.width,calibrated.height],[700,560]);
+    evidence('REAL_WEBGL_REFERENCE_ASPECT_CAMERA_PROPOSAL_NOT_VISUALLY_ACCEPTED',
+      {...calibrated,projectionAudit:projectionFile,
+       camera:referenceProposal.camera_proposal,
+       sourceReferenceDimensions:referenceProposal.reference_original_pixels,
+       furnitureTransformedByCameraTest:false});
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
