@@ -222,6 +222,44 @@ def click(node):
     time.sleep(0.8)
 
 
+
+def verify_native_composer_touch_phase(phase):
+    """Diagnose genuine native UI input before versus after the real CALL cycle.
+
+    Retain the same original v80/v83 APK, renderer and all functional gates.
+    This probe never changes application data or treats graphics stalls as PASS.
+    """
+    if phase not in ("before_call", "after_call"):
+        raise AssertionError("Unexpected touch probe phase: " + repr(phase))
+    node = node_with("content-desc", "Celin Nachricht schreiben")
+    before = node.attrib.get("focused", "unknown")
+    bounds = node.attrib.get("bounds", "")
+    click(node)
+    root = hierarchy()
+    matched = [n for n in root.iter("node")
+               if n.attrib.get("content-desc") == "Celin Nachricht schreiben"]
+    focused = len(matched) == 1 and matched[0].attrib.get("focused") == "true"
+    evidence = {"phase": phase, "before_focused": before, "node_bounds": bounds,
+                "after_focused": [n.attrib.get("focused") for n in matched],
+                "app": PACKAGE, "production_mode": PRODUCTION_MODE}
+    (OUT / ("native-touch-" + phase + ".json")).write_text(
+        json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
+    gfx = adb("shell", "dumpsys", "gfxinfo", PACKAGE, check=False, timeout=30)
+    (OUT / ("native-touch-" + phase + "-gfxinfo.txt")).write_text(
+        gfx[-40000:], encoding="utf-8")
+    if not focused:
+        screenshot("FAIL-native-touch-" + phase + ".png")
+        raise AssertionError("REAL_NATIVE_COMPOSER_TOUCH_FAIL_" + phase +
+                             ": focused=" + repr(evidence["after_focused"]))
+    print("REAL_NATIVE_COMPOSER_TOUCH_" + phase.upper() + "_PASS", flush=True)
+    # Close only the genuinely focused keyboard; do not fake Settings success.
+    time.sleep(1.2)
+    adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    time.sleep(0.5)
+    node_with("content-desc", "Celin Nachricht schreiben")
+
+
+
 def scroll_settings_list():
     """Keep the Settings gesture at its proven normalized display position.
 
@@ -1205,7 +1243,9 @@ def main():
     launch()
     await_fresh_v83_home(original_pid)
     if PRODUCTION_MODE:
+        verify_native_composer_touch_phase("before_call")
         verify_production_home_call_home()
+        verify_native_composer_touch_phase("after_call")
     verify_v80_to_v83_memory_migration()
     verify_migrated_memory_correction_and_forget()
     check_mode("aus")

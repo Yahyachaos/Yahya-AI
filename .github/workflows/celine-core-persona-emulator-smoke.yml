@@ -159,8 +159,11 @@ jobs:
 
   legacy-api-v80-to-v83:
     name: Genuine public v80 to production v83 on Android API${{ matrix.api-level }}
-    # Keep legacy OS probes serial and after the existing validated API35 job.
-    # They test only the pinned existing APK; no additional Android Gradle builds.
+    # Keep independent legacy OS probes serial and AFTER API35 finishes.
+    # An API35 UI failure stays a hard failing release gate, but must not hide
+    # the separate API26/27 installation/data-retention evidence as SKIPPED.
+    # This is not a bypass: BOTH API35 and API26/27 must independently pass.
+    if: ${{ !cancelled() }}
     needs: reuse-built-apk-and-test
     runs-on: ubuntu-latest
     timeout-minutes: 38
