@@ -155,7 +155,10 @@ function snapshot() {
       id: entry.id,
       translation_m: entry.group.position.toArray(),
       rotation_y_deg: THREE.MathUtils.radToDeg(entry.group.rotation.y),
-      uniform_scale: entry.group.scale.x
+      rotation_euler_deg: ['x','y','z'].map(a=>THREE.MathUtils.radToDeg(entry.group.rotation[a])),
+      scale_xyz: entry.group.scale.toArray(),
+      uniform_scale: entry.group.scale.x,
+      locked: entry.locked
     }))
   });
 }
@@ -190,20 +193,23 @@ function applyState(state) {
     const entry = entries.get(item.id);
     if (!entry) continue; // unknown objects cannot alter the source scene
     const pos = item.translation_m;
-    const yaw = item.rotation_y_deg, scale = item.uniform_scale;
-    if (!Array.isArray(pos) || pos.length !== 3 ||
-        !pos.every((v) => Number.isFinite(v) && Math.abs(v) <= 100) ||
-        !Number.isFinite(yaw) || !Number.isFinite(scale) || scale < 0.01 || scale > 20) {
-      throw new Error('Ungültige Position, Winkel oder Größe für ' + item.id);
-    }
-    candidate.push({entry,pos,yaw,scale});
+    const angles = item.rotation_euler_deg ?? [0,item.rotation_y_deg,0];
+    const scales = item.scale_xyz ?? [item.uniform_scale,item.uniform_scale,item.uniform_scale];
+    const locked = item.locked ?? false;
+    if (!Array.isArray(pos) || pos.length !== 3 || !pos.every(v=>Number.isFinite(v)&&Math.abs(v)<=100) ||
+        !Array.isArray(angles) || angles.length!==3 || !angles.every(v=>Number.isFinite(v)&&Math.abs(v)<=36000) ||
+        !Array.isArray(scales) || scales.length!==3 || !scales.every(v=>Number.isFinite(v)&&v>=0.01&&v<=20) ||
+        typeof locked!=='boolean') throw new Error('Ungültiger Objektzustand: '+item.id);
+    candidate.push({entry,pos,angles,scales,locked});
   }
   room = {width,depth,height};
   buildRoom();
-  for (const {entry,pos,yaw,scale} of candidate) {
+  for (const {entry,pos,angles,scales,locked} of candidate) {
     entry.group.position.fromArray(pos);
-    entry.group.rotation.set(0,THREE.MathUtils.degToRad(yaw),0);
-    entry.group.scale.setScalar(scale);
+    entry.group.rotation.set(...angles.map(v=>THREE.MathUtils.degToRad(v)));
+    entry.group.scale.fromArray(scales);
+    entry.locked=locked;
+    updateObjectOption(entry);
   }
   const changedRoom = Object.keys(CANONICAL).some(k=>Math.abs(room[k]-CANONICAL[k]) > 0.0001);
   $('edit-room').checked = changedRoom;
@@ -211,7 +217,7 @@ function applyState(state) {
     $(id).value = room[key].toFixed(2);
     $(id).disabled = !changedRoom;
   }
-  refreshFields();
+  setSelected(selected?.id||'room_bed');
   refreshWarnings();
 }
 function undo() {
@@ -230,20 +236,31 @@ function redo() {
   lastSnapshot = snapshot();
   autosave(); updateHistoryButtons();
 }
+function updateObjectOption(entry) {
+  const option=[...$('object').options].find(o=>o.value===entry.id);
+  if(option)option.textContent=(entry.locked?'🔒 ':'')+(NAMES[entry.id]||entry.id);
+}
 function setSelected(id) {
-  selected = entries.get(id) || null;
-  $('object').value = selected?.id || '';
-  if (selected) transform.attach(selected.group); else transform.detach();
-  refreshFields();
-  refreshWarnings();
+  selected=entries.get(id)||null;
+  $('object').value=selected?.id||'';
+  if(selected&&!selected.locked)transform.attach(selected.group);
+  else transform.detach();
+  refreshFields();refreshWarnings();
 }
 function refreshFields() {
-  for (const id of ['x','y','z','yaw','scale']) $(id).disabled = !selected;
-  if (!selected) return;
-  const g = selected.group;
-  for (const key of ['x','y','z']) $(key).value = g.position[key].toFixed(3);
-  $('yaw').value = THREE.MathUtils.radToDeg(g.rotation.y).toFixed(2);
-  $('scale').value = g.scale.x.toFixed(3);
+  const canEdit=!!selected&&!selected.locked;
+  for(const id of ['x','y','z','pitch','yaw','roll','scale','reset-object','flip-x','flip-y','flip-z']) $(id).disabled=!canEdit;
+  for(const b of document.querySelectorAll('[data-nudge]'))b.disabled=!canEdit;
+  $('lock-object').disabled=!selected;
+  $('lock-object').textContent=selected?.locked?'🔓 Verankerung lösen':'🔒 Möbel verankern';
+  $('lock-state').textContent=!selected?'Kein Möbel gewählt':selected.locked?
+    '🔒 '+NAMES[selected.id]+' verankert – vor Änderungen entsperren.':
+    '✏️ '+NAMES[selected.id]+' frei bearbeitbar.';
+  if(!selected)return;
+  const g=selected.group;
+  for(const a of ['x','y','z'])$(a).value=g.position[a].toFixed(3);
+  for(const [id,a] of [['pitch','x'],['yaw','y'],['roll','z']])$(id).value=THREE.MathUtils.radToDeg(g.rotation[a]).toFixed(2);
+  $('scale').value=g.scale.x.toFixed(3);
 }
 function refreshWarnings() {
   if (!entries.size) { $('warnings').textContent=''; return; }
@@ -342,13 +359,17 @@ function exportAssembly() {
     obj.transform = {
       translation_m: edited.translation_m,
       rotation_y_deg:edited.rotation_y_deg,
+      rotation_euler_deg:edited.rotation_euler_deg,
+      scale_xyz:edited.scale_xyz,
       uniform_scale:edited.uniform_scale
     };
+    obj.editor_locked=edited.locked;
   }
   copy.editor_provenance = {
     original_room_m:CANONICAL,
     reference:'Refernzbild.png',
-    note:'Requires separate Filament transform-chain, source-GLB bounds and camera validation before runtime adoption.'
+    note:'Extended rotation_euler_deg/scale_xyz/editor_locked need a separate Filament importer and runtime validation.',
+    requires_extended_transform_support:true
   };
   download('celine_room_v80_assembly_EDITOR_CANDIDATE.json',copy);
 }
@@ -361,7 +382,10 @@ function stateFromImported(data) {
       objects:data.objects.map(o=>({
         id:o.id, translation_m:o.transform?.translation_m,
         rotation_y_deg:o.transform?.rotation_y_deg,
-        uniform_scale:o.transform?.uniform_scale
+        rotation_euler_deg:o.transform?.rotation_euler_deg,
+        scale_xyz:o.transform?.scale_xyz,
+        uniform_scale:o.transform?.uniform_scale,
+        locked:o.editor_locked ?? false
       }))
     };
   }
@@ -451,7 +475,7 @@ for(const id of ['x','y','z','yaw','scale']) {
   });
 }
 $('reset-object').onclick=()=>{
-  if(!selected)return;
+  if(!selected||selected.locked)return;
   const base=selected.initial;
   selected.group.position.fromArray(base.translation_m);
   selected.group.rotation.set(0,THREE.MathUtils.degToRad(base.rotation_y_deg),0);
@@ -461,6 +485,7 @@ $('reset-object').onclick=()=>{
 $('reset-all').onclick=()=>{
   if (!confirm('Alle Möbelpositionen auf den Ausgangsentwurf zurücksetzen?'))return;
   for(const entry of entries.values()){
+    if(entry.locked)continue;
     const base=entry.initial;
     entry.group.position.fromArray(base.translation_m);
     entry.group.rotation.set(0,THREE.MathUtils.degToRad(base.rotation_y_deg),0);
@@ -543,7 +568,7 @@ async function start() {
       scene.add(g);
       const entry={
         id:object.id, group:g, initial:JSON.parse(JSON.stringify(t)),
-        loaded:false
+        loaded:false, locked:false
       };
       entries.set(object.id,entry);
       const option=document.createElement('option');
