@@ -239,7 +239,7 @@ async function main() {
     // Camera-only hypothesis: the actual furniture transforms remain unchanged.
     // Keep both the legacy CALL comparison and the reference-calibration attempt.
     const referenceProposal=JSON.parse(fs.readFileSync(path.join(root,
-      'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v1.json'),'utf8'));
+      'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v2.json'),'utf8'));
     await page.setViewportSize({width:1240,height:760});
     await page.evaluate(()=>{
       const stage=document.querySelector('#viewport');
@@ -257,6 +257,31 @@ async function main() {
     assert(Math.abs(projection.aspect-1402/1122)<0.002,
       'Proof aspect ratio must match original reference image');
     assert.equal(Object.keys(projection.projected_centers).length,13);
+    // Architecture targets are measured reference land-marks, not aesthetic acceptance.
+    const archTargets=referenceProposal.architecture_targets_normalized;
+    const architectureComparisons={};
+    for(const name of ['backwall_ceiling_left','backwall_ceiling_right']){
+      const actual=projection.architecture[name],target=archTargets[name];
+      assert(actual&&Number.isFinite(actual.u)&&Number.isFinite(actual.v));
+      const deltas={u:actual.u-target.u,v:actual.v-target.v};
+      assert(Math.abs(deltas.u)<=referenceProposal.architecture_tolerance.corner_abs &&
+             Math.abs(deltas.v)<=referenceProposal.architecture_tolerance.corner_abs,
+             'Real back-wall ceiling projection outside target envelope: '+name);
+      architectureComparisons[name]={actual,target,deltas};
+    }
+    const curtainActual=projection.architecture.curtain_world_aabb_projected_bbox;
+    const curtainTarget=archTargets.curtain_world_aabb_projected_bbox;
+    const curtainDeltas={};
+    for(const edge of ['left','right','top','bottom']){
+      const value=curtainActual[edge];
+      assert(Number.isFinite(value),'No actual GLB curtain projection: '+edge);
+      curtainDeltas[edge]=value-curtainTarget[edge];
+      assert(Math.abs(curtainDeltas[edge])<=referenceProposal.architecture_tolerance.curtain_aabb_abs,
+             'Real curtain projection exceeds measured envelope: '+edge);
+    }
+    architectureComparisons.curtain_world_aabb_projected_bbox={
+      actual:curtainActual,target:curtainTarget,deltas:curtainDeltas
+    };
     const comparisons=Object.fromEntries(Object.entries(
       referenceProposal.center_targets_normalized).map(([id,target])=>{
         const actual=projection.projected_centers[id];
@@ -269,9 +294,10 @@ async function main() {
     fs.writeFileSync(path.join(output,projectionFile),JSON.stringify({
       sourceSha:process.env.GITHUB_SHA||null,
       layoutCandidate:path.relative(root,draftPath),
-      landmarkProposal:'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v1.json',
+      landmarkProposal:'tools/room-layout-editor/layout-candidates/2026-10-28-reference-camera-proposal-v2.json',
       referenceOriginalPixels:referenceProposal.reference_original_pixels,
       camera:projection,
+      architectureComparisons,
       comparisons,
       visualVerdict:'NOT_ACCEPTED',
       note:'Approximate image centers vs AABB centers only; no pixel-perfect comparison or Android visual PASS.'

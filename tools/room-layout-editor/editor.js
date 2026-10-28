@@ -10,13 +10,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  */
 const $ = (id) => document.getElementById(id);
 const CANONICAL = Object.freeze({ width: 4.40, depth: 4.20, height: 2.65 });
-// Approximate reference-center camera, fitted to eight manually identified
-// image centers and actual 13-GLB world AABBs. NOT a visual acceptance camera.
-// It does not change, scale or rotate any source model or furniture placement.
+// Reference architecture-first CAMERA v2: rear ceiling seam + real curtain GLB AABB.
+// This view does not change the original models, candidate furniture or Android app.
 const REFERENCE_CAMERA_PROPOSAL = Object.freeze({
-  position: [0.09, 1.80, 3.78],
-  target: [-0.05, 0.67, 0],
-  fov: 45.7
+  position: [0.923, 1.55, 7.0],
+  target: [0.469, 0.241, 0],
+  fov: 41.1
 });
 const STORAGE_KEY = 'yahya-ai-room-editor-experiment-v1';
 const ROOT = '../../app/src/main/assets/models/room/';
@@ -728,7 +727,28 @@ if (E2E_PROOF) {
         vertical_fov_deg:camera.fov,
         aspect:camera.aspect,
         canvas_px:[renderer.domElement.width,renderer.domElement.height],
-        projected_centers
+        projected_centers,
+        architecture: (() => {
+          const project=(x,y,z)=>{
+            const p=new THREE.Vector3(x,y,z).project(camera);
+            return {u:(p.x+1)/2,v:(1-p.y)/2};
+          };
+          const box=new THREE.Box3().setFromObject(entries.get('room_window_drapes').group);
+          const corners=[];
+          for(const x of [box.min.x,box.max.x])
+            for(const y of [box.min.y,box.max.y])
+              for(const z of [box.min.z,box.max.z]) corners.push(project(x,y,z));
+          return {
+            backwall_ceiling_left:project(-room.width/2,room.height,-room.depth/2),
+            backwall_ceiling_right:project(room.width/2,room.height,-room.depth/2),
+            curtain_world_aabb_projected_bbox:{
+              left:Math.min(...corners.map(p=>p.u)),
+              right:Math.max(...corners.map(p=>p.u)),
+              top:Math.min(...corners.map(p=>p.v)),
+              bottom:Math.max(...corners.map(p=>p.v))
+            }
+          };
+        })()
       };
     },
     framePng(options={}) {

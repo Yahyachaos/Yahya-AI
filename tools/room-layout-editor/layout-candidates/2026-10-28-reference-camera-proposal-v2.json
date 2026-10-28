@@ -1,0 +1,122 @@
+{
+  "schema": "celine-room-editor-architecture-camera/v2",
+  "status": "ARCHITECTURE_CAMERA_HYPOTHESIS_NOT_VISUAL_PASS",
+  "units": "meters",
+  "source_reference": "Refernzbild.png",
+  "reference_original_pixels": {
+    "width": 1402,
+    "height": 1122
+  },
+  "historical_measurement_grid_px": {
+    "width": 1376,
+    "height": 1100
+  },
+  "room_m": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "source_glb_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40700079007",
+  "source_glb_head": "eaa3d11d87da95424138f57e15feb2a56454715b",
+  "model_centers_origin": "world-AABB centers from candidate-v1 13 unchanged GLBs, not optical mesh silhouette centers",
+  "method": "Least-squares fitted camera to immutable 4.4m backwall ceiling corners and conservative real curtain world-AABB, not bed/table centers. Original reference 1402x1122; 1376x1100 remains historical measurement grid. New visual proof required.",
+  "camera_proposal": {
+    "position_m": [
+      0.923,
+      1.55,
+      7
+    ],
+    "target_m": [
+      0.469,
+      0.241,
+      0
+    ],
+    "vertical_fov_deg": 41.1,
+    "reference_aspect": 1.249554367201426
+  },
+  "center_targets_normalized": {
+    "room_window_drapes": {
+      "u": 0.395,
+      "v": 0.278,
+      "uncertainty": 0.07
+    },
+    "room_bed": {
+      "u": 0.753,
+      "v": 0.482,
+      "uncertainty": 0.06
+    },
+    "room_dresser": {
+      "u": 0.09,
+      "v": 0.526,
+      "uncertainty": 0.07
+    },
+    "room_lounge_chair": {
+      "u": 0.27,
+      "v": 0.434,
+      "uncertainty": 0.08
+    },
+    "room_foreground_table": {
+      "u": 0.5,
+      "v": 0.9,
+      "uncertainty": 0.12
+    },
+    "room_round_mirror": {
+      "u": 0.04,
+      "v": 0.237,
+      "uncertainty": 0.06
+    },
+    "room_rug": {
+      "u": 0.505,
+      "v": 0.657,
+      "uncertainty": 0.07
+    },
+    "room_wall_shelf_books": {
+      "u": 0.663,
+      "v": 0.208,
+      "uncertainty": 0.08
+    }
+  },
+  "conclusions": "Camera z=7m is diagnostic view outside the physical room, NOT an Android camera or Filament conversion. No changes to room layout or asset geometry. The camera fit can be architecture-accurate while furniture visually FAILS; that is expected and must be reported.",
+  "room_candidate": "tools/room-layout-editor/layout-candidates/2026-10-28-room-aabb-reference-coarse-v1.json",
+  "reference_image_unchanged": true,
+  "original_glb_unchanged": true,
+  "android_app_unchanged": true,
+  "architecture_targets_normalized": {
+    "backwall_ceiling_left": {
+      "u": 0.19,
+      "v": 0.078
+    },
+    "backwall_ceiling_right": {
+      "u": 0.748,
+      "v": 0.098
+    },
+    "curtain_world_aabb_projected_bbox": {
+      "left": 0.205,
+      "right": 0.588,
+      "top": 0.086,
+      "bottom": 0.477
+    }
+  },
+  "architecture_tolerance": {
+    "corner_abs": 0.04,
+    "curtain_aabb_abs": 0.045
+  },
+  "predicted_architecture_projection": {
+    "backwall_ceiling_left": {
+      "u": 0.198,
+      "v": 0.084
+    },
+    "backwall_ceiling_right": {
+      "u": 0.73,
+      "v": 0.078
+    },
+    "curtain_world_aabb_projected_bbox": {
+      "left": 0.199,
+      "right": 0.613,
+      "top": 0.095,
+      "bottom": 0.497
+    }
+  },
+  "predicted_secondary_visual_failures": "At v2 view, furniture AABBs remain wrong: bed approximately u .332..702 vs source reference .500..998; table approximately u .233..523/v .427..658 vs foreground band u 0..1/v .782..1. Needs phase-B coherent layout correction AFTER actual architecture screenshot.",
+  "visual_acceptance": "NOT_ACCEPTED"
+}
