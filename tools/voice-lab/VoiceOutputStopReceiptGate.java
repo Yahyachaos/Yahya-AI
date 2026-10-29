@@ -49,6 +49,7 @@ public final class VoiceOutputStopReceiptGate {
             long observedPlan, long observedAudio, long stoppedNs) {
         if (!matches(request, observedPlan, observedAudio) || externallyStopped) return false;
         if (!fresh(stoppedNs)) {
+            if (stoppedNs > lastEventNs) lastEventNs = stoppedNs;
             pending = null; // fail closed on clock reversal / expiry
             externallyStopped = false;
             return false;
@@ -64,9 +65,9 @@ public final class VoiceOutputStopReceiptGate {
         if (!matches(request, observedPlan, observedAudio) || !externallyStopped)
             return false;
         boolean valid = fresh(nowNs);
+        if (nowNs > lastEventNs) lastEventNs = nowNs;
         pending = null;
         externallyStopped = false;
-        if (valid) lastEventNs = nowNs;
         return valid;
     }
 
