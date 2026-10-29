@@ -46,9 +46,11 @@ public final class VoiceOutputStopReceiptGateTest {
         var b = gate.request(2, 2, 120);
         check(b != null, "fresh plan after poison");
         reject(gate.acknowledgeStopped(b, 2, 2, 321), "expired ACK poisons");
+        reject(gate.request(3, 3, 320) != null, "expired ACK must advance observed clock");
         var c = gate.request(3, 3, 400);
         check(gate.acknowledgeStopped(c, 3, 3, 500), "ack inside lease");
         reject(gate.consumeForExplicitAbort(c, 3, 3, 601), "old ACK cannot be consumed late");
+        reject(gate.request(4, 4, 600) != null, "expired consume must advance observed clock");
         var d = gate.request(4, 4, 650);
         check(gate.acknowledgeStopped(d, 4, 4, 700), "new ACK");
         reject(gate.consumeForExplicitAbort(d, 4, 4, 699), "time reversal poisons consume");
