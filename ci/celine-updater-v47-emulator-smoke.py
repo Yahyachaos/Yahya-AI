@@ -91,11 +91,23 @@ def native_source_toggle(root):
             if n.attrib.get("text","").strip().casefold()=="allow from this source"]
     switches=[n for n in allnodes(root) if n.attrib.get("class","").endswith("Switch")
               and n.attrib.get("enabled","true")!="false" and n.attrib.get("bounds")]
-    if len(labels)!=1 or len(switches)!=1:
+    if len(labels)!=1 or len(switches)>1:
         raise AssertionError("Native unknown-source toggle not unique")
-    switch=switches[0]
-    target=switch
     parents={child:parent for parent in allnodes(root) for child in list(parent)}
+    if switches:
+        switch=switches[0]
+        target=switch
+    else:
+        # Android 15 Settings exposes this Compose preference as a checked,
+        # clickable row rather than an android.widget.Switch.
+        target=labels[0]
+        while target in parents and not (
+                target.attrib.get("clickable")=="true" and
+                target.attrib.get("checked") in ("true","false") and
+                target.attrib.get("enabled","true")!="false" and
+                target.attrib.get("bounds")):
+            target=parents[target]
+        switch=target
     while target.attrib.get("clickable")!="true" and target in parents:
         target=parents[target]
     if target.attrib.get("clickable")!="true" or not target.attrib.get("bounds"):
@@ -103,6 +115,13 @@ def native_source_toggle(root):
     if target is not switch and labels[0] not in list(target.iter("node")):
         raise AssertionError("Native unknown-source toggle row does not own its label")
     return switch,target
+
+def native_source_enabled(root):
+    try:
+        switch,_=native_source_toggle(root)
+        return switch.attrib.get("checked")=="true"
+    except AssertionError:
+        return False
 
 def unknown_sources(root):
     if not contains(root,"Einmalige Android-Freigabe"): return False
@@ -113,10 +132,7 @@ def unknown_sources(root):
     switch,target=native_source_toggle(settings)
     evidence("native-settings-before",settings)
     if switch.attrib.get("checked")=="false": ui.click(target)
-    enabled=wait_for(lambda r:contains(r,"Allow from this source") and
-                     any(n.attrib.get("class","").endswith("Switch") and
-                         n.attrib.get("checked")=="true" for n in allnodes(r)),
-                     "native source enabled",40)
+    enabled=wait_for(native_source_enabled,"native source enabled",40)
     evidence("native-settings-after",enabled)
     adb("shell","input","keyevent","KEYCODE_BACK")
     record("USER_CONFIRMED_NATIVE_OS_UNKNOWN_SOURCE_PERMISSION")
