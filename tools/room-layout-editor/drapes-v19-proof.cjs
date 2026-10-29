@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const root=path.resolve(__dirname,'../..'),out=path.resolve(process.env.ROOM_EDITOR_EVIDENCE_DIR||'/tmp/celine-room-editor-drapes-v19');
 fs.mkdirSync(out,{recursive:true});
 const from=JSON.parse(fs.readFileSync(path.join(__dirname,'layout-candidates/2026-10-29-room-wallshelf-source-screened-v18.json'),'utf8'));
-const to=JSON.parse(fs.readFileSync(path.join(__dirname,'layout-candidates/2026-10-29-room-drapes-source-screened-v18.json'),'utf8'));
+const to=JSON.parse(fs.readFileSync(path.join(__dirname,'layout-candidates/2026-10-29-room-window-drapes-screened-v19.json'),'utf8'));
 const camera=JSON.parse(fs.readFileSync(path.join(__dirname,'layout-candidates/2026-10-28-reference-framing-camera-v3.json'),'utf8')).camera_proposal;
 const errors=[];
 const hash='24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c';
@@ -21,8 +21,8 @@ function proposal(name,x,y,z,scale=1.10,yaw=0){
 async function run(){
  assert.deepEqual(to.room,{width:4.4,depth:4.2,height:2.65});assert.equal(to.objects.length,13);
  assert.deepEqual(to.original_source_hashes,from.original_source_hashes);
- assert.equal(to.original_source_hashes.room_wall_drapes_books,hash);
- for(const a of from.objects)if(a.id!=='room_wall_drapes_books')assert.deepEqual(to.objects.find(x=>x.id===a.id),a,'Frozen '+a.id);
+ assert.equal(to.original_source_hashes.room_window_drapes,hash);
+ for(const a of from.objects)if(a.id!=='room_window_drapes')assert.deepEqual(to.objects.find(x=>x.id===a.id),a,'Frozen '+a.id);
  const choices=[
  {name:'baseline-v18',state:from},
  {name:'saved-selected',state:to},
@@ -68,20 +68,20 @@ async function run(){
  assert.deepEqual(a.transform.rotation_euler_deg,expect.rotation_euler_deg);
  assert.deepEqual(a.transform.scale_xyz,expect.scale_xyz);assert.equal(a.locked,expect.locked);
  assert.deepEqual(Object.entries(a.overflow_faces_m).filter(([,v])=>v>.012),[],'Source bounds '+a.id);
- if(a.id!=='room_wall_drapes_books')assert.deepEqual(expect,from.objects.find(v=>v.id===a.id),'Freeze '+a.id);
+ if(a.id!=='room_window_drapes')assert.deepEqual(expect,from.objects.find(v=>v.id===a.id),'Freeze '+a.id);
  }
- const a=scene.objects.find(o=>o.id==='room_wall_drapes_books');
+ const a=scene.objects.find(o=>o.id==='room_window_drapes');
  assert(a.conservative_world_aabb_m.min[0]>=-2.212&&a.conservative_world_aabb_m.max[0]<=2.212,'Drapes X room bounds '+entry.name);
  assert(a.conservative_world_aabb_m.min[1]>=-.012&&a.conservative_world_aabb_m.max[1]<=2.662,'Drapes room height '+entry.name);
  assert(a.conservative_world_aabb_m.min[2]>=-2.112&&a.conservative_world_aabb_m.max[2]<=2.112,'Drapes depth room bounds '+entry.name);
  assert(Math.abs(a.conservative_world_aabb_m.min[2]+2.1)<.12,'Drapes adjacent to rear wall '+entry.name);
  const picture=img('layout-v19-drapes-'+entry.name+'-real-webgl.png',
  await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
- audits.push({name:entry.name,picture,transform:a.transform,worldAabb:a.conservative_world_aabb_m,projectedCenter:proj.projected_centers.room_wall_drapes_books,locked:a.locked,source_sha256:a.source_sha256,visual:'FAIL_PENDING_MANUAL'});
+ audits.push({name:entry.name,picture,transform:a.transform,worldAabb:a.conservative_world_aabb_m,projectedCenter:proj.projected_centers.room_window_drapes,locked:a.locked,source_sha256:a.source_sha256,visual:'FAIL_PENDING_MANUAL'});
  }
- const file=path.join(__dirname,'layout-candidates/2026-10-29-room-drapes-source-screened-v18.json');
+ const file=path.join(__dirname,'layout-candidates/2026-10-29-room-window-drapes-screened-v19.json');
  await page.locator('#file').setInputFiles(file);
- await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-drapes-source-screened-v18.json'),null,{timeout:60000});
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
  await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),camera);
  for(const a of to.objects.filter(o=>o.locked)){await page.locator('#object').selectOption(a.id);assert.equal(await page.locator('#x').isDisabled(),true);}
  const pending=page.waitForEvent('download');await page.locator('#save').click();const downloaded=await pending;
@@ -102,7 +102,7 @@ async function run(){
  for(const a of to.objects){const b=reloaded.objects.find(x=>x.id===a.id);assert.equal(b.locked,a.locked,'Lock reload '+a.id);
  for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(b.transform[k],a[k],'Transform reload '+a.id+' '+k);}
  assert.deepEqual(errors,[],'No browser errors');
- const report={sourceSha:process.env.GITHUB_SHA||null,previousHead:to.based_on_exact_source_head,candidate:'tools/room-layout-editor/layout-candidates/2026-10-29-room-drapes-source-screened-v18.json',camera,room:to.room,sourceGlbCount:13,sourceDrapesSha:hash,reference:[1402,1122],drapesReferenceApprox:{left:.205,right:.588,top:.086,bottom:.477,uncertainty:'approx',sourceMaterialMismatch:true},other12Frozen:true,audits,selected,side,nativeSaveReload:true,technical:'PASS',visual:'FAIL_PENDING_MANUAL',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'};
+ const report={sourceSha:process.env.GITHUB_SHA||null,previousHead:to.based_on_exact_source_head,candidate:'tools/room-layout-editor/layout-candidates/2026-10-29-room-window-drapes-screened-v19.json',camera,room:to.room,sourceGlbCount:13,sourceDrapesSha:hash,reference:[1402,1122],drapesReferenceApprox:{left:.205,right:.588,top:.086,bottom:.477,uncertainty:'approx',sourceMaterialMismatch:true},other12Frozen:true,audits,selected,side,nativeSaveReload:true,technical:'PASS',visual:'FAIL_PENDING_MANUAL',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'};
  fs.writeFileSync(path.join(out,'layout-v19-drapes-reference-audit.json'),JSON.stringify(report,null,2)+'\n');
  console.log('CELINE_ROOM_DRAPES_V19_GENUINE_WEBGL_PASS');
  }finally{await browser.close();}
