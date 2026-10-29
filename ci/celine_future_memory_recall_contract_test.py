@@ -932,6 +932,37 @@ public final class FutureMemoryRecallContract {
         eq(top("Kedi Luna " + sunEmoji + "?",
             Arrays.asList(c("sun-script-positive", "Kedi Luna"))),
             "sun-script-positive", "punctuation emoji remains supported after script gate");
+        // FUTURE ONLY: raw 512-code-unit input bounds must apply BEFORE trim.
+        StringBuilder padding513 = new StringBuilder();
+        for (int i=0; i<513; i++) padding513.append(' ');
+        String oversizedLeading = padding513 + "Meine Katze heisst Luna";
+        String oversizedTrailing = "Meine Katze heisst Luna" + padding513;
+        StringBuilder exactly512 = new StringBuilder("Meine Katze heisst Luna");
+        while (exactly512.length() < 512) exactly512.append(' ');
+        String exactly513 = exactly512.toString() + " ";
+        eq(top(oversizedLeading, Arrays.asList(c("over-query-leading", "Meine Katze heisst Luna"))),
+            "", "oversized raw leading-pad query must abstain");
+        eq(top(oversizedTrailing, Arrays.asList(c("over-query-trailing", "Meine Katze heisst Luna"))),
+            "", "oversized raw trailing-pad query must abstain");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(c("over-summary-leading", oversizedLeading))),
+            "", "oversized raw leading-pad summary must be withheld");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(c("over-summary-trailing", oversizedTrailing))),
+            "", "oversized raw trailing-pad summary must be withheld");
+        eq(top(exactly512.toString(), Arrays.asList(c("exact512-query", "Meine Katze heisst Luna"))),
+            "exact512-query", "512-unit bounded query remains searchable");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(c("exact512-summary", exactly512.toString()))),
+            "exact512-summary", "512-unit bounded memory remains searchable");
+        eq(top(exactly513, Arrays.asList(c("exact513-query", "Meine Katze heisst Luna"))),
+            "", "513-unit padded query fails closed");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(c("exact513-summary", exactly513))),
+            "", "513-unit padded memory fails closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            c("old-raw-bound", "Meine Katze heisst Paul"),
+            x("oversized-successor", oversizedLeading, "old-raw-bound", true, 0))),
+            "", "invalid oversized successor still retires ancestor");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(oversizedLeading,
+            Arrays.asList(c("over-correction", "Meine Katze heisst Luna")), NOW),
+            "", "oversized padded text cannot auto-select a correction ID");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
