@@ -290,6 +290,11 @@ public final class CelineFutureMemoryRecall {
         if (matches.isEmpty()) return "";
         Match best = matches.get(0);
         if (best.sharedTerms < 2 || best.sharedTerms * 2 < query.size()) return "";
+        // Only a record that actually survived the full lineage/privacy policy
+        // may be treated as an ordinary visible match. Raw permission flags do
+        // not prove a G1 conflict or pruned ancestor has been resolved.
+        Set<String> eligibleMatchIds = new HashSet<>();
+        for (Match match : matches) eligibleMatchIds.add(match.candidate.id);
         // Provider-safe recall deliberately excludes sensitive, unconsented and
         // untrusted G1 records. Those records can nevertheless be what the user
         // intends to correct. Do not mistake a single exportable hit for an
@@ -303,14 +308,21 @@ public final class CelineFutureMemoryRecall {
             // A current G1 record with no usable summary might be the intended
             // correction target; neither privacy filtering nor a malformed
             // importance weight proves it is unrelated. Fall back to exact ID.
-            boolean potentiallyCurrent = now >= 0 && rival.updatedAtMs >= 0
-                    && rival.updatedAtMs <= now && rival.expiresAtMs >= 0
-                    && (rival.expiresAtMs == 0 || (rival.expiresAtMs > now
-                        && rival.expiresAtMs > rival.updatedAtMs));
+            // Malformed source timestamps do not prove a record has expired.
+            // Retrieval withholds it, but correction targeting must account
+            // for the uncertain rival rather than guessing a visible ID.
+            boolean corruptTime = rival.updatedAtMs < 0 || rival.expiresAtMs < 0
+                    || (rival.expiresAtMs > 0 && rival.expiresAtMs <= rival.updatedAtMs);
+            boolean potentiallyCurrent = now >= 0 && (corruptTime
+                    || (rival.updatedAtMs <= now
+                        && (rival.expiresAtMs == 0 || rival.expiresAtMs > now)));
             if (!potentiallyCurrent) continue;
+            if (retiredIds.contains(rival.id)) continue;
             if (rival.summary.isEmpty()) return "";
-            if (rival.live(now) && rival.authorizedForProvider && rival.userExplicit
-                    && rival.privacy == Privacy.LOCAL_PRIVATE) continue;
+            // A raw eligible record may be absent from retrieve because its
+            // conflict, fork or retired-parent ancestry is unresolved. It is
+            // still a plausible user correction target: abstain on equal text.
+            if (eligibleMatchIds.contains(rival.id)) continue;
             int rivalSharedTerms = overlap(query, terms(rival.summary));
             if (rivalSharedTerms >= 2 && rivalSharedTerms >= best.sharedTerms)
                 return "";

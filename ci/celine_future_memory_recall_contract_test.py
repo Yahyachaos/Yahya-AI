@@ -850,6 +850,82 @@ public final class FutureMemoryRecallContract {
                 x("retired-fork-max", "Meine Katze heisst Max", "unknown-parent", true, 0)),
             retiredParent, retiredParent, 8, NOW).size(), 0,
             "visible correction siblings remain unresolved despite attestation");
+        // Post-compaction correction ambiguity: a caller cannot treat a live
+        // *export-authorized* but quarantined record as an irrelevant rival.
+        // Provider recall excludes disputed/orphaned memories by design;
+        // selected-ID correction must not guess while their lineage is unknown.
+        CelineFutureMemoryRecall.Candidate cleanCorrection =
+            c("clean-correction", "Meine Katze heisst Luna");
+        CelineFutureMemoryRecall.Candidate disputedLive =
+            new CelineFutureMemoryRecall.Candidate("disputed-live",
+                "Meine Katze heisst Luna", "", "missing-conflict-end",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true,
+                NOW-100, 0, 0.5);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection, disputedLive), NOW), "",
+            "live conflicted authorized rival must block speculative correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(disputedLive, cleanCorrection), NOW), "",
+            "conflict rival correction independent of order");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection, orphan), retiredParent, NOW), "",
+            "bare retired-parent tombstone does not justify correction while orphan rival remains");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(orphan, cleanCorrection), retiredParent, NOW), "",
+            "bare retired lineage ambiguity independent of input order");
+        CelineFutureMemoryRecall.Candidate quarantineChild =
+            x("quarantined-child", "Meine Katze heisst Luna", "disputed-live", true, 0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                disputedLive, quarantineChild), NOW), "",
+            "descendant of conflicted rival must not disappear from correction ambiguity");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                c("normal-independent", "Damu Markt verkauft Getränke")), NOW),
+            "clean-correction", "independent unrelated memory still permits correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                x("expired-orphan", "Meine Katze heisst Luna", "unknown-parent", true, NOW-1)),
+                retiredParent, NOW), "clean-correction",
+            "genuinely expired orphan is not a live correction rival");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                x("retired-candidate", "Meine Katze heisst Luna", "", true, 0)),
+                Collections.singleton("retired-candidate"), NOW), "clean-correction",
+            "source-retired record is not a live correction rival");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection), NOW),
+            "clean-correction", "unique eligible correction remains usable");
+        // If G1 timestamp metadata is corrupt, it cannot prove that a competing
+        // correction candidate no longer exists. Provider retrieval can reject
+        // it, but correction-by-guess must fall back to explicit selected ID.
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                x("negative-expiry-rival", "Meine Katze heisst Luna", "unknown-parent", true, -1)),
+                retiredParent, NOW), "",
+            "negative expiry on pruned rival must block guessed correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                new CelineFutureMemoryRecall.Candidate("negative-updated-rival",
+                    "Meine Katze heisst Luna", "", "missing-conflict-end",
+                    CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, -1, 0, 0.5)), NOW), "",
+            "negative updatedAt on conflicted rival cannot prove absence");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                new CelineFutureMemoryRecall.Candidate("reversed-expiry-rival",
+                    "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                    true, true, NOW-100, NOW-200, 0.5)), NOW), "",
+            "expiry before last update is corrupt lineage, not proof of retirement");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                new CelineFutureMemoryRecall.Candidate("corrupt-time-redacted",
+                    "", "", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
+                    false, true, NOW-100, -1, 0.5)), NOW), "",
+            "corrupt timestamp and redacted summary must block speculative correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
+                x("truly-expired-rival", "Meine Katze heisst Luna", "", true, NOW-1)), NOW),
+            "clean-correction", "valid expired rival does not block correction");
         // FUTURE ONLY: invisible Unicode FORMAT code points must not be
         // normalized away into a seemingly complete lexical query/summary.
         eq(top("Meine Katze heisst Lu\u200Bna",Arrays.asList(
