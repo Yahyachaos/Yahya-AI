@@ -1325,10 +1325,13 @@ def grant_visible_call_permission(grant_count):
     # any mCurrentFocus line. Check only that OS-owned foreground or explicit
     # mCurrentFocus; never grant an arbitrary background permission window.
     sdk = adb("shell", "getprop", "ro.build.version.sdk").strip()
-    # Real API26 #68 evidence: com.android.packageinstaller and 'ALLOW'.
-    # Android 35 uses com.android.permissioncontroller and a different label.
+    # API29 #40809426070 / artifact 12869838403: focused permissioncontroller
+    # displays legacy "ALLOW", while API35 displays "While using the app".
+    # Keep OS ownership, expected audio/camera prompt and unique clickable gate.
     if sdk in ("26", "27"):
         os_owner, button_label = "com.android.packageinstaller", "allow"
+    elif sdk == "29":
+        os_owner, button_label = "com.android.permissioncontroller", "allow"
     else:
         os_owner, button_label = "com.android.permissioncontroller", "while using the app"
     focused = [line.strip() for line in window.splitlines()
@@ -1354,11 +1357,16 @@ def grant_visible_call_permission(grant_count):
         raise AssertionError("Focused OS permission request not expected CALL audio/camera: " +
                              repr(prompt[:700]))
 
+    # Preserve the SAME fresh UiAutomator XML used for the decision. The
+    # original API29 artifact only saved screenshot/focus, not the node tree.
+    # No click is allowed without a unique real OS-owned clickable node.
+    (OUT / ("10-production-" + kind + "-permission-uiautomator.xml")).write_text(
+        ET.tostring(root, encoding="unicode"), encoding="utf-8")
     choices = [n for n in os_nodes
                if n.attrib.get("text", "").strip().casefold() == button_label
                and n.attrib.get("clickable") == "true"]
     if len(choices) != 1:
-        screenshot("FAIL-production-permission-no-explicit-while-using.png")
+        screenshot("FAIL-production-permission-no-unique-os-grant.png")
         raise AssertionError("OS permission has no unique visible " + repr(button_label) + " button")
     label = "10-production-" + kind + "-permission-"
     (OUT / (label + "focus-before.txt")).write_text(
