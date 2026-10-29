@@ -963,6 +963,43 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(oversizedLeading,
             Arrays.asList(c("over-correction", "Meine Katze heisst Luna")), NOW),
             "", "oversized padded text cannot auto-select a correction ID");
+        // FUTURE ONLY: keycap/enclosing marks and strike overlays must not
+        // become false lexical facts when NFD strips Unicode combining MARKs.
+        eq(top("Meine Katze heisst Luna\u20E3",
+            Arrays.asList(c("keycap-query", "Meine Katze heisst Luna"))),
+            "", "enclosing keycap query must abstain");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("keycap-stored", "Meine Katze heisst Luna\u20E3"))),
+            "", "enclosing keycap memory must abstain");
+        eq(top("Meine Katze heisst Luna\u20DD",
+            Arrays.asList(c("enclosed-query", "Meine Katze heisst Luna"))),
+            "", "enclosing circle query must abstain");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("enclosed-stored", "Meine Katze heisst Luna\u20DD"))),
+            "", "enclosing circle memory must abstain");
+        eq(top("Meine Katze heisst Luna\u0338",
+            Arrays.asList(c("overlay-query", "Meine Katze heisst Luna"))),
+            "", "strike overlay query must abstain");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("overlay-stored", "Meine Katze heisst Luna\u0338"))),
+            "", "strike overlay memory must abstain");
+        eq(top("Meine Katze heisst Luna\u0334",
+            Arrays.asList(c("tilde-overlay-query", "Meine Katze heisst Luna"))),
+            "", "tilde overlay query must abstain");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("tilde-overlay-stored", "Meine Katze heisst Luna\u0334"))),
+            "", "tilde overlay memory must abstain");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            c("old-overlaid-lineage", "Meine Katze heisst Paul"),
+            x("struck-successor", "Meine Katze heisst Luna\u0338",
+                "old-overlaid-lineage", true, 0))),
+            "", "invalid struck successor still retires ancestor");
+        eq(top("Meine Katze heisst Lu\u0301na",
+            Arrays.asList(c("accent-query", "Meine Katze heisst Luna"))),
+            "accent-query", "normal Latin decomposed accent remains searchable");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("accent-stored", "Meine Katze heisst Lu\u0301na"))),
+            "accent-stored", "normal Latin accent in stored record is searchable");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
