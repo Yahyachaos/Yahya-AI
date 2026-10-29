@@ -854,6 +854,45 @@ public final class FutureMemoryRecallContract {
             x("heart-corrupt-successor", "Meine Katze heisst Luna" + heartEmoji,
                 "old-heart-ancestor", true, 0))), "",
             "corrupt emoji successor still suppresses obsolete ancestor");
+        // FUTURE ONLY: allow a tiny safe punctuation separator after a
+        // standalone VS16 emoji; do not normalize glued words or bad marks.
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "!",
+            Arrays.asList(c("heart-bang", "Meine Katze heisst Luna"))),
+            "heart-bang", "standalone heart at sentence end remains searchable");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + ", heute",
+            Arrays.asList(c("heart-comma", "Meine Katze heisst Luna"))),
+            "heart-comma", "standalone heart with comma and whitespace searchable");
+        eq(top("Kedi Luna " + sunEmoji + "?",
+            Arrays.asList(c("turkish-sun", "Kedi Luna"))),
+            "turkish-sun", "Latin-script Turkish query with sun question mark");
+        eq(top("Meine Katze heisst Luna " + flightEmoji + ". Heute",
+            Arrays.asList(c("flight-period", "Meine Katze heisst Luna"))),
+            "flight-period", "standalone airplane followed by sentence boundary");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("heart-stored-bang",
+                "Meine Katze heisst Luna " + heartEmoji + "!"))),
+            "heart-stored-bang", "memory summary with terminal heart punctuation");
+        eq(top("Kedi Luna", Arrays.asList(c("sun-stored-question",
+            "Kedi Luna " + sunEmoji + "?"))),
+            "sun-stored-question", "memory summary with sun question punctuation");
+        eq(top("Meine Katze heisst Luna" + heartEmoji + "!",
+            Arrays.asList(c("heart-glued-prev", "Meine Katze heisst Luna"))),
+            "", "heart attached before punctuation to a word remains denied");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + ",Na",
+            Arrays.asList(c("heart-glued-next-comma", "Meine Katze heisst Luna"))),
+            "", "punctuation cannot launder immediately attached next word");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "!Na",
+            Arrays.asList(c("heart-glued-next-bang", "Meine Katze heisst Luna"))),
+            "", "exclamation cannot launder immediately attached next word");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "!!",
+            Arrays.asList(c("heart-double-punct", "Meine Katze heisst Luna"))),
+            "", "multiple punctuation conservative boundary denial");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "\\uFE0F!",
+            Arrays.asList(c("heart-double-selector-punct", "Meine Katze heisst Luna"))),
+            "", "double variation selector still denied with punctuation");
+        eq(top("Meine Katze heisst Luna " + "\\u25C6\\uFE0F!",
+            Arrays.asList(c("unsupported-selector-punct", "Meine Katze heisst Luna"))),
+            "", "unsupported variation selector still denied with punctuation");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
