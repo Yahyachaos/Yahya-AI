@@ -64,6 +64,9 @@ public final class GermanSpeechChunkPlanner {
             case "dr": case "prof": case "fr": case "hr": case "nr": case "ca":
             case "bzw": case "usw": case "vgl": case "z": case "b": case "u":
             case "a": case "d": case "h": case "evtl": case "ggf":
+            // Standard professional/academic German title fragments: avoid a spoken
+            // sentence pause between abbreviated qualifications and surnames.
+            case "dipl": case "ing": case "med": case "kfm":
                 return true;
             default:
                 if (!token.isEmpty()) return false;
