@@ -485,6 +485,56 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",
             Arrays.asList(c("negative-query-now", "Meine Katze heißt Luna")), 8, -1).size(),
             0, "negative evaluation clock must not expose any candidate");
+        // FUTURE ONLY: corrupt non-finite importance is not an authorized
+        // evidence weight, even when flags claim provider and user permission.
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("nan-importance",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, Double.NaN))), "",
+                "NaN importance must not expose memory");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("positive-infinity",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, Double.POSITIVE_INFINITY))), "",
+                "positive infinity importance withheld");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("negative-infinity",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, Double.NEGATIVE_INFINITY))), "",
+                "negative infinity importance withheld");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("valid-zero-importance",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 0))), "valid-zero-importance",
+                "valid zero importance remains retrievable");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("valid-one-importance",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 1))), "valid-one-importance",
+                "valid unit importance remains retrievable");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("old-finite",
+                "Meine Katze heisst Paul", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 0.5),
+            new CelineFutureMemoryRecall.Candidate("bad-successor",
+                "Meine Katze heisst Luna", "old-finite", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, Double.NaN))), "",
+                "invalid relevance successor still suppresses obsolete fact");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-bad-weight", "Meine Katze heisst Luna", "", "LOCAL_PRIVATE",
+                "EXPLICIT", "user_explicit", true, true, NOW-100, 0, Double.POSITIVE_INFINITY))),
+                "", "G1 projection cannot bypass non-finite relevance validation");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("clamped-high",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 5.0))), "clamped-high",
+                "finite high importance retains existing normalization");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("clamped-low",
+                "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, -1.0))), "clamped-low",
+                "finite low importance retains existing normalization");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

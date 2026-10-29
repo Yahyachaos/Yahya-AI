@@ -53,7 +53,10 @@ public final class CelineFutureMemoryRecall {
             // expiry to the G1 zero/unbounded sentinel resurrects stale facts.
             this.updatedAtMs = updatedAtMs;
             this.expiresAtMs = expiresAtMs;
-            this.importance = Math.max(0d, Math.min(1d, importance));
+            // Non-finite relevance metadata cannot authorize a recalled fact.
+            // Keep finite out-of-range weights bounded as before.
+            this.importance = Double.isFinite(importance)
+                    ? Math.max(0d, Math.min(1d, importance)) : Double.NaN;
         }
         /**
          * Bounded, scalar-only projection of the exact G1 privacy enum values.
@@ -105,7 +108,7 @@ public final class CelineFutureMemoryRecall {
 
         boolean live(long now) { return !id.isEmpty() && !summary.isEmpty()
                 && now >= 0L && updatedAtMs >= 0L && updatedAtMs <= now
-                && expiresAtMs >= 0L
+                && expiresAtMs >= 0L && Double.isFinite(importance)
                 && (expiresAtMs == 0L || (expiresAtMs > now && expiresAtMs > updatedAtMs)); }
     }
 
