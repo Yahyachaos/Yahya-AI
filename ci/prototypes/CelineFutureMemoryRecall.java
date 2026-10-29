@@ -124,6 +124,7 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
     private static final int MAX_CANDIDATES = 2048;
@@ -156,7 +157,9 @@ public final class CelineFutureMemoryRecall {
         for (Candidate c : candidates) {
             // A missing/invalid entry could be the only evidence of a private
             // successor or conflict. Never proceed with a partial lineage graph.
-            if (c == null || c.id.isEmpty() || !ids.add(c.id))
+            if (c == null || !validId(c.id, false)
+                    || !validId(c.supersedesId, true)
+                    || !validId(c.conflictWithId, true) || !ids.add(c.id))
                 return Collections.emptyList();
         }
         Set<String> wanted = terms(query);
@@ -168,7 +171,7 @@ public final class CelineFutureMemoryRecall {
         Set<String> replaced = new HashSet<>();
         for (String retiredId : retiredIds) {
             String id = safe(retiredId);
-            if (id.isEmpty()) return Collections.emptyList();
+            if (!validId(id, false)) return Collections.emptyList();
             replaced.add(id);
         }
         // G1 conflictWithId records an unresolved contradiction, NOT a vetted
@@ -292,6 +295,19 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
+    }
+
+    // IDs originate from G1 prefix+UUID; exceptionally large or control-laden
+    // lineage keys are corrupt metadata, not authoritative correction evidence.
+    private static boolean validId(String id, boolean allowEmpty) {
+        if (id.isEmpty()) return allowEmpty;
+        if (id.length() > MAX_ID_CHARS) return false;
+        for (int i = 0; i < id.length(); i++) {
+            char c = id.charAt(i);
+            if (Character.isISOControl(c) || Character.isWhitespace(c)
+                    || Character.isSpaceChar(c)) return false;
+        }
+        return true;
     }
 
     private static String safe(String v) { return v == null ? "" : v.trim(); }

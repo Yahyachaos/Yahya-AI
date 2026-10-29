@@ -535,6 +535,43 @@ public final class FutureMemoryRecallContract {
                 "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                 true, true, NOW-100, 0, -1.0))), "clamped-low",
                 "finite low importance retains existing normalization");
+        // FUTURE ONLY: G1 uses prefix+UUID identifiers. Malformed, oversized
+        // or control-laden correction keys cannot authorize a projection.
+        StringBuilder tooLongIdBuilder = new StringBuilder();
+        for (int i=0; i<257; i++) tooLongIdBuilder.append('a');
+        String tooLongId = tooLongIdBuilder.toString();
+        String normalG1Id = "control-correction-12345678-1234-1234-1234-123456789abc";
+        eq(top("Meine Katze heisst", Arrays.asList(x(normalG1Id,
+            "Meine Katze heisst Luna", "", true, 0))), normalG1Id,
+            "normal G1 prefixed UUID remains valid");
+        eq(top("Meine Katze heisst", Arrays.asList(x(tooLongId,
+            "Meine Katze heisst Luna", "", true, 0))), "",
+            "oversized candidate ID fails closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("old-id", "Meine Katze heisst Paul", "", true, 0),
+            x(tooLongId, "Meine Katze heisst Luna", "old-id", true, 0))), "",
+            "oversized correction ID withholds old and invalid successor");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("safe-id", "Meine Katze heisst Paul", "", true, 0),
+            x("bad-parent", "Anderes Thema", tooLongId, true, 0))), "",
+            "oversized supersedes pointer rejects complete projection");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("safe-id", "Meine Katze heisst Paul", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("bad-conflict", "Anderes Thema",
+                "", tooLongId, CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 0.5))), "",
+            "oversized conflict key rejects complete projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+            Arrays.asList(x("safe-id", "Meine Katze heisst Paul", "", true, 0)),
+            Collections.singleton(tooLongId), 8, NOW).size(), 0,
+            "oversized retired ID rejects complete projection");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("broken\nkey", "Meine Katze heisst Luna", "", true, 0))), "",
+            "internal control character in ID fails closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("safe-id", "Meine Katze heisst Paul", "", true, 0),
+            x("broken-link", "Anderes Thema", "safe-id\nnoise", true, 0))), "",
+            "control character in correction pointer rejects projection");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
