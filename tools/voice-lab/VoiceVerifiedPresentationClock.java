@@ -10,6 +10,7 @@ public final class VoiceVerifiedPresentationClock {
     private long generation;
     private int sampleRate;
     private long lastPresented, lastRaw, lastAccepted, lastCaptureNs, lastPollNs;
+    private long maxObservedExternalCaptureNs;
     private boolean hasEvidence, hasBaseline, stopped, poisoned;
 
     public synchronized void begin(long id, int rate) {
@@ -18,6 +19,7 @@ public final class VoiceVerifiedPresentationClock {
         generation = id;
         sampleRate = rate;
         lastPresented = lastRaw = lastAccepted = lastCaptureNs = lastPollNs = 0;
+        maxObservedExternalCaptureNs = 0;
         hasEvidence = hasBaseline = stopped = poisoned = false;
     }
 
@@ -30,6 +32,20 @@ public final class VoiceVerifiedPresentationClock {
     public synchronized boolean observe(long id, EvidenceKind kind, long presentedFrames,
             long rawHeadFrames, long acceptedFrames, long captureNs, long pollNs) {
         if (id != generation || id <= 0 || stopped || poisoned) return false;
+        // Even an otherwise malformed EXTERNAL_CAPTURE reports the physical
+        // capture time it observed. Do not accept an older capture after a newer
+        // malformed one: that would launder an out-of-order frame into fresh proof.
+        // RAW_HEAD_ONLY and nonsensical/stale timestamps carry no trusted capture
+        // provenance; existing tests still allow a later valid independent claim.
+        if (kind == EvidenceKind.EXTERNAL_CAPTURE && captureNs >= 0
+                && pollNs >= captureNs && pollNs - captureNs <= MAX_AGE_NS) {
+            if (captureNs < maxObservedExternalCaptureNs) {
+                hasEvidence = false;
+                poisoned = true;
+                return false;
+            }
+            maxObservedExternalCaptureNs = captureNs;
+        }
         // A demonstrated same-epoch reset is fatal even if this callback also has
         // inconsistent range/proof metadata. Do not lose reset evidence by treating
         // that callback as a merely recoverable invalid sample.

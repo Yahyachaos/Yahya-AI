@@ -428,3 +428,24 @@ VOICE_GERMAN_PLACE_ABBREVIATION_PASS checks=8
 **Actually executed, isolated OpenJDK 21:** source-exact pre-fix negative test EXIT=1; fixed `VoiceVerifiedPresentationClockTest` 39 PASS and new `VoiceCaptureFreshnessRegressionTest` 13 PASS, total **52 focused assertions PASS**, including an unchanged gate fixture, all compiled together by `javac -encoding UTF-8`. Full `run_tests.sh` (now 39 sources / 28 mains), especially the German STOP receipt and explicit-abort integration, has **not** been executed in a complete reconstructed checkout. Neither Android TTS, S25 Ultra speech/acoustics, physical lip sync nor native Pico Android-8 is proven. The change remains isolated to `tools/voice-lab/**`; no Android/Room/Core/CI/shared/updater/signing/release writes, model downloads or workflows requested.
 
 **exact_next_action:** Obtain every exact GitHub `tools/voice-lab/**` Java source and runner for this draft head and execute `sh tools/voice-lab/run_tests.sh` (including both pending STOP/abort integration mains), hash-checking all original blobs; correct only a reproduced Voice-owned failure, then continue independent future speech continuity/audio diagnostics. Build & Release owns any later explicitly serialized Android integration, and this future-only draft stays excluded from published v83.
+
+## 29 October 2026, 18:23 Europe/Berlin — external capture clock rollback after invalid newer claim
+
+**Source-exact RED:** On PR #118 previous HEAD `cf656197b110bcd851b16bafedbb5116f8e34907`, original `VoiceVerifiedPresentationClock.java` Git blob `036830504925feabd103641a095b2c1d77a971c1` accepted a backdated same-audio-epoch EXTERNAL_CAPTURE after a rejected newer (but timestamp-plausible) external capture with invalid frame counts. The independent JVM regression `VoiceCaptureInvalidClockRollbackTest` genuinely exited nonzero: `AssertionError: later valid-shaped capture must not backdate an invalid external event`. This is a *synthetic contract/provenance* bug, not a reproduced physical Samsung problem.
+
+**FIX:** Maintain a monotonic high-water `maxObservedExternalCaptureNs` for current-epoch, timestamp-plausible EXTERNAL_CAPTURE events even when other frame metadata are rejected; reject and poison an external claim that rewinds that observed clock. RAW_HEAD_ONLY does not acquire capture provenance. Isolate epoch reset in `begin`. New deterministic 120-epoch regression also tests correct recovery only through a new audio generation, preserving RAW_HEAD_ONLY rejection, and the cross-component `GermanSpeakerTailProofGate` prevents the next text chunk from leasing after backdated full-tail proof. No Android/runtime sources altered.
+
+**Actually executed locally using exact source blobs, OpenJDK 21, six Java files:**
+```text
+Original source + new regression -> RED (exit 1)
+VOICE_CAPTURE_INVALID_CLOCK_ROLLBACK_PASS checks=847
+VOICE_VERIFIED_PRESENTATION_CLOCK_PASS checks=39
+VOICE_VERIFIED_PRESENTATION_REPLAY_PASS checks=27324
+VOICE_CAPTURE_FRESHNESS_PASS checks=13
+TOTAL FOCUSED JVM ASSERTIONS = 28223
+```
+Changed source Git blob `c2fb78de4da23d938fa97e325c16568e22429e61`; new fixture Git blob `c5b3e1fe0e35e1ed19ab9693dc63e464d92e976b`. All four unmodified preexisting fixtures/dependencies were locally verified against source blobs: clock test `ee5e4a229fc74c26205596cca2b3a9785d2152be`, seeded replay `078a6e2b87c58dc19c7d008dc0344f75bbdeea6c`, freshness test `1e703bec74966d45b2503e6b9fb89947e9b181dd`, tail gate `fe797aa9829486d8f99967d22ecbe7782f310917`. Runner now registers new main. **Full 40 Java / 29 JVM-main runner has NOT yet been executed**; earlier STOP/abort combined tests remain unverified. Android build workflow signer failure on this PR is unrelated to the scoped Java proof.
+
+**Ownership:** existing single Voice writer, exclusively `tools/voice-lab/**`, DRAFT PR #118, FUTURE-ONLY and excluded from published v83 (issue #117). Build & Release worker owns any later Android integration/API29/S25 test/signing/APK/release; Room/Core/CI/shared paths untouched. No real external capture source, physical speaker proof, naturally fluent German female voice, S25 Ultra playback or lip-sync acceptance.
+
+**exact_next_action:** Stage all exact current Voice Git blobs into a coherent local Java checkout, verify each blob and execute the full `sh tools/voice-lab/run_tests.sh` including both STOP receipt and explicit-abort integration mains; fix only verified new failures inside the exclusively owned future-only Voice scope, then continue the next evidence-backed voice lifecycle regression.
