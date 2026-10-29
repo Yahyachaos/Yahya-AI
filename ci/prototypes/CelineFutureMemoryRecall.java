@@ -94,7 +94,8 @@ public final class CelineFutureMemoryRecall {
             else if ("LOCAL_SENSITIVE".equals(privacyScope)) scope = Privacy.LOCAL_SENSITIVE;
             else if ("SHAREABLE_ON_REQUEST".equals(privacyScope)) scope = Privacy.SHAREABLE_ON_REQUEST;
             boolean trustedUserOrigin = "EXPLICIT".equals(knowledgeState) && userExplicit
-                    && ("user_explicit".equals(provenance) || "user_correction".equals(provenance));
+                    && ("user_explicit".equals(provenance) || "user_correction".equals(provenance)
+                        || "user_memory_control".equals(provenance));
             return new Candidate(id, summary, supersedesId, conflictWithId, scope,
                     scope == Privacy.LOCAL_PRIVATE && providerPermission && trustedUserOrigin,
                     userExplicit, updatedAtMs, expiresAtMs, importance);
