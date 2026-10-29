@@ -181,7 +181,7 @@ public final class CelineFutureMemoryRecall {
         List<Match> matches = new ArrayList<>();
         for (Candidate c : live) {
             if (replaced.contains(c.id) || conflicted.contains(c.id)
-                    || !c.authorizedForProvider
+                    || !c.authorizedForProvider || !c.userExplicit
                     || c.privacy != Privacy.LOCAL_PRIVATE) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
