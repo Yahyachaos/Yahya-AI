@@ -317,7 +317,8 @@ public final class CelineFutureMemoryRecall {
 
     private static Set<String> terms(String text) {
         Set<String> result = new HashSet<>();
-        if (!wellFormedUtf16(text) || hasNonTextControl(text)) return result;
+        if (!wellFormedUtf16(text) || hasNonTextControl(text)
+                || hasUnrepresentableLexicalChars(text)) return result;
         String value = safe(text);
         if (value.isEmpty()) return result;
         if (value.length() > MAX_INPUT) return result;
@@ -334,6 +335,27 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
+    }
+
+    // A query or memory containing a lexical script that this Latin/German
+    // tokenizer cannot represent must not be partially matched as if the
+    // unsupported word/digit had never been present. Latin accent decomposition
+    // and the existing German aliases remain supported.
+    private static boolean hasUnrepresentableLexicalChars(String value) {
+        for (int i = 0; i < value.length();) {
+            int cp = value.codePointAt(i);
+            if (Character.isLetterOrDigit(cp)) {
+                String scalar = new String(Character.toChars(cp))
+                    .toLowerCase(Locale.GERMANY)
+                    .replace("ä", "ae").replace("ö", "oe")
+                    .replace("ü", "ue").replace("ß", "ss");
+                scalar = Normalizer.normalize(scalar, Normalizer.Form.NFD)
+                    .replaceAll("\\p{M}+", "");
+                if (!scalar.matches("[a-z0-9]+")) return true;
+            }
+            i += Character.charCount(cp);
+        }
+        return false;
     }
 
     // IDs originate from G1 prefix+UUID; exceptionally large or control-laden
