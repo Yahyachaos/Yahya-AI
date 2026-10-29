@@ -177,7 +177,29 @@ async function run(){
    const uploadName='v25-rug-'+spec.name+'.json';
    await page.locator('#file').setInputFiles({name:uploadName,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
    await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),uploadName,{timeout:60000});
-   const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+   // The original rug's *measured* WebGL AABB is the only placement authority.
+   // Repair temporary V25 X/Z hypotheses without relaxing the fit criterion.
+   let audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+   let subject=audit.objects.find(o=>o.id==='room_rug');
+   assert(subject,'Missing original source rug');
+   const initialAabb=JSON.parse(JSON.stringify(subject.conservative_world_aabb_m));
+   const initialOverflow=JSON.parse(JSON.stringify(subject.overflow_faces_m));
+   assert(initialAabb.size[0]<=layout.room.width+.005&&initialAabb.size[2]<=layout.room.depth+.005,
+    'Source rug cannot physically fit room at scale '+spec.s);
+   const boundsCorrection={x_m:initialOverflow.left-initialOverflow.right,
+    z_m:initialOverflow.back-initialOverflow.front};
+   if(Math.abs(boundsCorrection.x_m)>1e-7||Math.abs(boundsCorrection.z_m)>1e-7){
+    rug.translation_m[0]+=boundsCorrection.x_m;
+    rug.translation_m[2]+=boundsCorrection.z_m;
+    const correctedName='v25-rug-'+spec.name+'-measured-bounds.json';
+    await page.locator('#file').setInputFiles({name:correctedName,
+     mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
+    await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),
+     correctedName,{timeout:60000});
+    audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    subject=audit.objects.find(o=>o.id==='room_rug');
+    assert(subject,'Original source rug missing after bounds correction');
+   }
    const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
    assert.equal(audit.model_count,13);
    assert.equal(audit.all_source_fidelity_glbs_loaded,true);
@@ -194,7 +216,6 @@ async function run(){
       assert.deepEqual(found.transform[key],original[key],'V25 froze '+original.id+' '+key);
     }
    }
-   const subject=audit.objects.find(o=>o.id==='room_rug');
    assert(Math.abs(subject.floor_bottom_y_m)<.005,'Original rug must remain grounded');
    assert(subject.overflow_faces_m.front<.005&&subject.overflow_faces_m.rear<.005&&
           subject.overflow_faces_m.left<.005&&subject.overflow_faces_m.right<.005,
@@ -210,7 +231,10 @@ async function run(){
       const ctx=canvas.getContext('2d');ctx.drawImage(ref,0,0,700,560);ctx.drawImage(im,700,0,700,560);
       return canvas.toDataURL('image/png');
      }),[1400,560]);
-   v25RugCandidates.push({spec,sourceAabb:subject.conservative_world_aabb_m,
+   v25RugCandidates.push({spec,
+     requestedTransform:{translation_m:[spec.x,0.026595*spec.s/1.08,spec.z],uniform_scale:spec.s},
+     effectiveTransform:{translation_m:rug.translation_m,uniform_scale:spec.s},
+     initialAabb,initialOverflow,boundsCorrection,sourceAabb:subject.conservative_world_aabb_m,
      projectedCenter:projection.projected_centers.room_rug,
      floorY:subject.floor_bottom_y_m,technical:'PASS',
      trueMeshOrPixelSilhouetteProof:false,manualVisual:'FAIL_PENDING_ACTUAL_IMAGE_REVIEW',
