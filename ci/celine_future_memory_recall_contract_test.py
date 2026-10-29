@@ -243,6 +243,34 @@ public final class FutureMemoryRecallContract {
                     "independent-g1", "Damu Markt verkauft Getränke", "", "",
                     "LOCAL_PRIVATE", "EXPLICIT", "user_explicit", true, true, NOW, 0, 1))),
                 "independent-g1","empty G1 conflict metadata preserves trusted record");
+        // G1's selected-ID memory correction emits the first-party
+        // user_memory_control provenance, independently of user_correction.
+        eq(top("Meine Katze heißt", Arrays.asList(
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "control-edit", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
+                    "EXPLICIT", "user_memory_control", true, true, NOW, 0, 1))),
+                "control-edit", "selected-ID UI correction provenance retained");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "forged-control", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
+                    "EXPLICIT", "user_memory_control", true, false, NOW, 0, 1))),
+                "", "UI correction tag alone cannot bypass user-origin flag");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "inferred-control", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
+                    "INFERRED", "user_memory_control", true, true, NOW, 0, 1))),
+                "", "UI correction tag cannot bypass EXPLICIT knowledge state");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "unapproved-control", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
+                    "EXPLICIT", "user_memory_control", false, true, NOW, 0, 1))),
+                "", "UI correction still needs separate provider authorization");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                c("ui-old", "Meine Katze heißt Paul"),
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "ui-new", "Meine Katze heißt Luna", "ui-old", "LOCAL_PRIVATE",
+                    "EXPLICIT", "user_memory_control", true, true, NOW, 0, 1))),
+                "ui-new", "selected-ID correction supersedes stale fact");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
