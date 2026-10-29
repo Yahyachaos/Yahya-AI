@@ -1045,6 +1045,48 @@ public final class FutureMemoryRecallContract {
         eq(top(sourceFact + " 🙂",
             Arrays.asList(c("valid-visible-emoji", sourceFact))),
             "valid-visible-emoji", "ordinary separate emoji retained");
+
+        // Source-origin overlay marks must never normalize into false evidence.
+        eq(top(sourceFact + "\u20D2",
+            Arrays.asList(c("overlay-q-20D2", sourceFact))),
+            "", "overlay U+20D2 query cannot match plain memory");
+        eq(top(sourceFact,
+            Arrays.asList(c("overlay-s-20D2", sourceFact + "\u20D2"))),
+            "", "overlay U+20D2 stored fact must abstain");
+        eq(top(sourceFact + "\u20D3",
+            Arrays.asList(c("overlay-q-20D3", sourceFact))),
+            "", "overlay U+20D3 query cannot match plain memory");
+        eq(top(sourceFact,
+            Arrays.asList(c("overlay-s-20D3", sourceFact + "\u20D3"))),
+            "", "overlay U+20D3 stored fact must abstain");
+        eq(top(sourceFact + "\u20E5",
+            Arrays.asList(c("overlay-q-20E5", sourceFact))),
+            "", "overlay U+20E5 query cannot match plain memory");
+        eq(top(sourceFact,
+            Arrays.asList(c("overlay-s-20E5", sourceFact + "\u20E5"))),
+            "", "overlay U+20E5 stored fact must abstain");
+        eq(top(sourceFact + "\u20E6",
+            Arrays.asList(c("overlay-q-20E6", sourceFact))),
+            "", "overlay U+20E6 query cannot match plain memory");
+        eq(top(sourceFact,
+            Arrays.asList(c("overlay-s-20E6", sourceFact + "\u20E6"))),
+            "", "overlay U+20E6 stored fact must abstain");
+        eq(top(sourceFact + "\u20EA",
+            Arrays.asList(c("overlay-q-20EA", sourceFact))),
+            "", "overlay U+20EA query cannot match plain memory");
+        eq(top(sourceFact,
+            Arrays.asList(c("overlay-s-20EA", sourceFact + "\u20EA"))),
+            "", "overlay U+20EA stored fact must abstain");
+        eq(top("Meine Katze", Arrays.asList(
+            x("overlay-old", "Meine Katze heisst Paul", "", true, 0),
+            x("overlay-next", sourceFact + "\u20D2", "overlay-old", true, 0))),
+            "", "overlay successor still retires old fact");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            sourceFact + "\u20D3",
+            Arrays.asList(c("overlay-correction", sourceFact)), NOW),
+            "", "overlay-corruped correction cannot select ID");
+        eq(top("Luná", Arrays.asList(c("overlay-accent-ok", "Luna"))),
+            "overlay-accent-ok", "legitimate Latin accent search survives overlay guard");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

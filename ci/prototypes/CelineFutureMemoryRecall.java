@@ -410,6 +410,10 @@ public final class CelineFutureMemoryRecall {
                     || ((cp & 0xFFFE) == 0xFFFE && cp <= 0x10FFFF)
                     || Character.getType(cp) == Character.ENCLOSING_MARK
                     || (cp >= 0x0334 && cp <= 0x0338)
+                    // Nonspacing overlay modifiers also alter visible lexical evidence;
+                    // NFD + \\p{M} would otherwise erase these modifiers.
+                    || cp == 0x20D2 || cp == 0x20D3
+                    || cp == 0x20E5 || cp == 0x20E6 || cp == 0x20EA
                     // NFD plus \\p{M} silently drops default-ignorable MARKs.
                     || cp == 0x034F // Combining Grapheme Joiner
                     || (cp >= 0x180B && cp <= 0x180F) // Mongolian selectors
