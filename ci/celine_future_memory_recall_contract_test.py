@@ -197,6 +197,52 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
             "Meine Katze heißt Paul",uncertainSuccessor,NOW),"",
                 "withheld successor cannot select old correction target");
+        // The actual G1 item has conflictWithId in addition to supersedesId.
+        // Unlike a confirmed supersession, an unresolved conflict does not
+        // authorize choosing a winner based on timestamp or importance.
+        CelineFutureMemoryRecall.Candidate trustedConflict =
+            new CelineFutureMemoryRecall.Candidate("new-conflict", "Meine Katze heißt Luna", "",
+                "old-conflict", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW, 0, 1);
+        CelineFutureMemoryRecall.Candidate trustedOld =
+            c("old-conflict", "Meine Katze heißt Paul");
+        eq(top("Meine Katze heißt", Arrays.asList(trustedOld, trustedConflict)),"",
+                "unresolved conflict withholds both candidate values");
+        eq(top("Meine Katze heißt", Arrays.asList(trustedConflict, trustedOld)),"",
+                "conflict resolution independent of projection order");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Paul",
+                Arrays.asList(trustedOld, trustedConflict), NOW),"",
+                "no unreviewed conflict auto-correction");
+        eq(top("Meine Katze heißt", Arrays.asList(trustedConflict)),"",
+                "missing conflict opponent means fail closed");
+        eq(top("Meine Katze heißt", Arrays.asList(trustedOld,
+                new CelineFutureMemoryRecall.Candidate("expired-conflict", "Meine Katze heißt Luna", "",
+                    "old-conflict", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                    true, true, NOW, NOW-1, 1))),"",
+                "expired conflict metadata still withholds old fact");
+        eq(top("Meine Katze heißt", Arrays.asList(trustedOld,
+                new CelineFutureMemoryRecall.Candidate("private-conflict", "Meine Katze heißt Luna", "",
+                    "old-conflict", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
+                    false, true, NOW, 0, 1))),"",
+                "sensitive conflicting record still withholds old fact");
+        eq(top("Damu Markt Getränke", Arrays.asList(trustedOld, trustedConflict,
+                c("unrelated-store", "Damu Markt verkauft Getränke"))),"unrelated-store",
+                "unrelated trusted memory remains available during conflict");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                new CelineFutureMemoryRecall.Candidate("self-conflict", "Meine Katze heißt Paul", "",
+                    "self-conflict", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                    true, true, NOW, 0, 1))),"",
+                "self-referential conflict withheld");
+        eq(top("Meine Katze heißt", Arrays.asList(trustedOld,
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "untrusted-conflict", "Meine Katze heißt Luna", "", "old-conflict",
+                    "LOCAL_PRIVATE", "INFERRED", "inferred", true, false, NOW, 0, 1))),"",
+                "G1 unknown-trust conflict still withholds prior record");
+        eq(top("Damu Markt Getränke", Arrays.asList(
+                CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                    "independent-g1", "Damu Markt verkauft Getränke", "", "",
+                    "LOCAL_PRIVATE", "EXPLICIT", "user_explicit", true, true, NOW, 0, 1))),
+                "independent-g1","empty G1 conflict metadata preserves trusted record");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
