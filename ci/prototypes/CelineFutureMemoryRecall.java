@@ -327,7 +327,12 @@ public final class CelineFutureMemoryRecall {
             // conflict, fork or retired-parent ancestry is unresolved. It is
             // still a plausible user correction target: abstain on equal text.
             if (eligibleMatchIds.contains(rival.id)) continue;
-            int rivalSharedTerms = overlap(query, terms(rival.summary));
+            // The tokenizer fails closed for mixed scripts, malformed or
+            // over-budget lexical inputs. Its empty result is not evidence
+            // that this still-current source record is unrelated to the edit.
+            Set<String> rivalTerms = terms(rival.summary);
+            if (rivalTerms.isEmpty()) return "";
+            int rivalSharedTerms = overlap(query, rivalTerms);
             if (rivalSharedTerms >= 2 && rivalSharedTerms >= best.sharedTerms)
                 return "";
         }

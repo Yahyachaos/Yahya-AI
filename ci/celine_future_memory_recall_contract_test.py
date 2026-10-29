@@ -1375,6 +1375,39 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
             capped,NOW), "", "capped hidden rival must be input-order independent");
 
+        // FUTURE-ONLY: a redacted/unindexable live rival can have the same
+        // correction topic. A zero-term projection is UNKNOWN, not unrelated.
+        CelineFutureMemoryRecall.Candidate aVisible =
+            c("script-visible", "Meine Katze heisst Luna");
+        CelineFutureMemoryRecall.Candidate mixedArabic =
+            c("script-arabic", "Meine Katze heisst Luna عربي");
+        CelineFutureMemoryRecall.Candidate mixedCjk =
+            c("script-cjk", "Meine Katze heisst Luna 猫");
+        CelineFutureMemoryRecall.Candidate brokenLong =
+            c("script-many", "Meine Katze heisst Luna eins zwei drei vier fuenf sechs sieben acht neun zehn elf zwoelf dreizehn vierzehn fuenfzehn sechzehn siebzehn achtzehn neunzehn zwanzig einundzwanzig zweiundzwanzig dreiundzwanzig vierundzwanzig fuenfundzwanzig sechsundzwanzig siebenundzwanzig achtundzwanzig neunundzwanzig dreissig einunddreissig zweiunddreissig dreiunddreissig");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,mixedArabic),NOW), "",
+            "mixed Arabic and German rival cannot be dismissed as unrelated");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(mixedCjk,aVisible),NOW), "",
+            "mixed CJK and German rival correction must abstain independent of order");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,brokenLong),NOW), "",
+            "oversized tokenizer vocabulary on source rival is unknown, not irrelevant");
+        eq(top("Meine Katze heisst Luna",Arrays.asList(aVisible,mixedArabic)),
+            "script-visible", "provider retrieval remains strict while correction abstains");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
+                "script-expired", "Meine Katze heisst Luna عربي", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,NOW-1,0.5)),NOW),
+            "script-visible", "expired unindexable rival does not block correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,mixedCjk),Collections.singleton("script-cjk"),NOW),
+            "script-visible", "owner-retired rival cannot be auto-selected");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("script-unrelated", "Damu Markt verkauft Getraenke")),NOW),
+            "script-visible", "valid unrelated indexed rival does not block correction");
+
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
