@@ -287,6 +287,20 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heißt", Arrays.asList(
                 c("good-old", "Meine Katze heißt Paul"), null)),
                 "", "null G1 projection cannot be silently ignored");
+        // Direct scalar records also require first-party origin evidence.
+        eq(top("Meine Katze heißt", Arrays.asList(
+                new CelineFutureMemoryRecall.Candidate(
+                    "raw-inferred", "Meine Katze heißt Luna", "",
+                    CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                    true, false, NOW, 0, 1))),
+                "", "direct record missing user origin is unavailable");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                c("raw-old", "Meine Katze heißt Paul"),
+                new CelineFutureMemoryRecall.Candidate(
+                    "raw-new", "Meine Katze heißt Luna", "raw-old",
+                    CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                    true, false, NOW, 0, 1))),
+                "", "untrusted successor leaves earlier record unavailable");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
