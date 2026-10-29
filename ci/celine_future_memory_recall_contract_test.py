@@ -350,6 +350,37 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",
                 Arrays.asList(unresolvedReimport), Collections.singleton("reimport-old"),
                 8, NOW).size(), 0, "retired opponent does not clear unresolved conflict");
+        // A conflict at an ancestor cannot be laundered into a trusted fact
+        // by a subsequent supersession, including after reimport/compaction.
+        CelineFutureMemoryRecall.Candidate disputedRoot =
+            new CelineFutureMemoryRecall.Candidate("disputed-root", "Meine Katze heißt Paul", "",
+                "absent-opponent", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW, 0, 1);
+        CelineFutureMemoryRecall.Candidate disputedChild =
+            x("disputed-child", "Meine Katze heißt Luna", "disputed-root", true, 0);
+        CelineFutureMemoryRecall.Candidate disputedGrandchild =
+            x("disputed-grandchild", "Meine Katze heißt Max", "disputed-child", true, 0);
+        List<CelineFutureMemoryRecall.Candidate> descendantConflict = Arrays.asList(
+            disputedRoot, disputedChild, disputedGrandchild);
+        eq(top("Meine Katze heißt", Arrays.asList(disputedRoot, disputedChild)), "",
+            "unresolved conflict quarantines direct successor");
+        eq(top("Meine Katze heißt", descendantConflict), "",
+            "unresolved conflict quarantines transitive successor");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heißt Max", descendantConflict, NOW), "",
+            "unresolved conflict descendants never auto-select correction target");
+        eq(top("Meine Katze heißt", Arrays.asList(disputedGrandchild,
+            disputedChild, disputedRoot)), "", "conflict quarantine independent of projection order");
+        eq(top("Damu Markt Getränke", Arrays.asList(disputedRoot, disputedChild,
+            disputedGrandchild, c("safe-store", "Damu Markt verkauft Getränke"))),
+            "safe-store", "unrelated memory remains eligible after descendant quarantine");
+        CelineFutureMemoryRecall.Candidate missingOppositeMarker =
+            new CelineFutureMemoryRecall.Candidate("marker", "Anderes Thema", "",
+                "missing-old", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
+                false, false, NOW, NOW-1, 1);
+        eq(top("Meine Katze heißt", Arrays.asList(missingOppositeMarker,
+            x("child-of-missing-old", "Meine Katze heißt Luna", "missing-old", true, 0))),
+            "", "expired sensitive conflict with missing opponent quarantines its successors");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
