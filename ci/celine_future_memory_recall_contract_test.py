@@ -103,6 +103,21 @@ public final class FutureMemoryRecallContract {
             x("same-id", "Meine Katze heißt Paul", "", true, 0),
             x("same-id", "Meine Katze heißt Luna", "", true, NOW-1))),
             "", "expired duplicate ID also fails closed");
+        // G1 may consolidate an expired successor away. An authoritative,
+        // separately retained retraction ID prevents stale-memory resurrection.
+        List<CelineFutureMemoryRecall.Candidate> prunedProjection = Arrays.asList(
+            x("retired-cat", "Meine Katze heißt Paul", "", true, 0),
+            c("valid-work", "Damu Markt verkauft Getränke"));
+        Set<String> retired = Collections.singleton("retired-cat");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",prunedProjection,retired,8,NOW).size(),
+            0,"explicit retraction suppresses old record without successor projection");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heißt Paul",prunedProjection,retired,NOW),
+            "","explicit retraction prevents stale correction suggestion");
+        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",prunedProjection,retired,8,NOW)
+            .get(0).candidate.id,"valid-work","unrelated candidate remains available");
+        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",prunedProjection,null,8,NOW).size(),
+            0,"missing authoritative retraction set fails closed");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
