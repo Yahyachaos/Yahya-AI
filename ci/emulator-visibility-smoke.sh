@@ -202,7 +202,9 @@ if ! grep -q 'Live mit Celin' emulator-call.xml; then
   fail_with_log "Live videochat overlay did not open"
 fi
 
-# The same avatar stage must grow into the call slot instead of retaining HOME's compact height.
+# The same avatar stage must grow beyond HOME and preserve the authoritative 1280:1024 CALL
+# reference viewport. The aspect-constrained stage deliberately letterboxes inside the taller
+# shell, so a raw 45%-of-screen height threshold would reject the accepted 1016x813 geometry.
 if ! python3 - <<'PY'
 import re
 import sys
@@ -221,12 +223,18 @@ if root_node is None or stage is None or b(root_node) is None or b(stage) is Non
     print('CALL stage layout marker missing', file=sys.stderr)
     sys.exit(1)
 rb, sb = b(root_node), b(stage)
+screen_w = rb[2] - rb[0]
 screen_h = rb[3] - rb[1]
+stage_w = sb[2] - sb[0]
 stage_h = sb[3] - sb[1]
-if stage_h < int(screen_h * 0.45):
-    print(f'CALL avatar stage did not fill call slot: {stage_h}/{screen_h}', file=sys.stderr)
+aspect = stage_w / stage_h if stage_h else 0.0
+if stage_w < int(screen_w * 0.90) or stage_h < int(screen_h * 0.40):
+    print(f'CALL avatar stage did not occupy the reference slot: {stage_w}x{stage_h}/{screen_w}x{screen_h}', file=sys.stderr)
     sys.exit(1)
-print(f'CALL layout OK: stage={sb}, screenH={screen_h}')
+if abs(aspect - 1.25) > 0.02:
+    print(f'CALL avatar stage lost 1280:1024 reference aspect: {aspect:.4f}', file=sys.stderr)
+    sys.exit(1)
+print(f'CALL layout OK: stage={sb}, screen={screen_w}x{screen_h}, aspect={aspect:.4f}')
 PY
 then
   cat emulator-call.xml

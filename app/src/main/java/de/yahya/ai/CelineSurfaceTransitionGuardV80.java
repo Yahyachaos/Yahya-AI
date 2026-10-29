@@ -284,7 +284,7 @@ final class CelineSurfaceTransitionGuardV80 {
                         "CALL Surface-Transition Cover Timeout",
                         "coverRetained=false attempts=" + attempts + " elapsed=" + elapsed);
                 removeCover(true);
-                main.post(snapshotLoop);
+                waitForCoverFreeDirectFrame(POST_REMOVAL_UI_FRAMES, 0);
                 return;
             }
             if (elapsed < MIN_READY_MS || nextStable < 3 || snapshotInFlight) {
