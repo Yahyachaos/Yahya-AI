@@ -7,6 +7,11 @@
 public final class GermanStreamingSpeakerGatedSession {
     private final GermanStreamingRawDrainCoordinator raw = new GermanStreamingRawDrainCoordinator();
     private final GermanSpeakerTailProofGate speaker = new GermanSpeakerTailProofGate();
+    // Strict future-only STOP identity; 500ms is an experimental CLAIM TTL.
+    private final VoiceOutputStopReceiptGate outputStops =
+            new VoiceOutputStopReceiptGate(500_000_000L);
+    private VoiceOutputStopReceiptGate.StopRequest pendingStopRequest;
+    private long lastAudioGeneration;
     private final int sampleRate;
     private GermanStreamingRawDrainCoordinator.Dispatch pendingTail;
     private GermanStreamingRawDrainCoordinator.Dispatch activeDispatch;
@@ -39,27 +44,69 @@ public final class GermanStreamingSpeakerGatedSession {
         }
     }
 
+    /** True only for an old session with uncertain physical output and no active dispatch. */
+    private boolean abandonable() {
+        GermanStreamingDeliveryLedger.Phase phase = raw.phase();
+        return activeDispatch == null && (
+                (pendingTail != null && (phase == GermanStreamingDeliveryLedger.Phase.READY
+                        || phase == GermanStreamingDeliveryLedger.Phase.COMPLETE))
+                || (pendingTail == null && phase == GermanStreamingDeliveryLedger.Phase.UNCERTAIN));
+    }
+
+    /** Issue a one-shot STOP request bound to the currently unresolved old audio epoch. */
+    public synchronized VoiceOutputStopReceiptGate.StopRequest requestExplicitAbortStop(
+            long expectedPlanGeneration, long nowNs) {
+        if (!abandonable() || pendingStopRequest != null
+                || expectedPlanGeneration <= 0 || expectedPlanGeneration != raw.generation()
+                || lastAudioGeneration <= 0 || nowNs < 0) return null;
+        pendingStopRequest = outputStops.request(raw.generation(), lastAudioGeneration, nowNs);
+        return pendingStopRequest;
+    }
+
+    /** The STOP acknowledgement is still a caller-supplied CLAIM, not hardware proof. */
+    public synchronized boolean acknowledgeExplicitAbortStop(
+            VoiceOutputStopReceiptGate.StopRequest request,
+            long observedPlanGeneration, long observedAudioGeneration, long stoppedNs) {
+        if (request == null || request != pendingStopRequest) return false;
+        boolean accepted = outputStops.acknowledgeStopped(request,
+                observedPlanGeneration, observedAudioGeneration, stoppedNs);
+        if (!outputStops.hasPendingStop()) pendingStopRequest = null;
+        return accepted;
+    }
+
+    /** Explicit cancellation is required if the old output stop was not confirmed. */
+    public synchronized boolean cancelExplicitAbortStop(
+            VoiceOutputStopReceiptGate.StopRequest request) {
+        if (request == null || request != pendingStopRequest
+                || !outputStops.invalidate(request)) return false;
+        pendingStopRequest = null;
+        return true;
+    }
+
     /**
-     * Explicit user-directed abort/new text, NOT replay or skipped-chunk ACK.
-     * A future serialized Android adapter MUST verify user intent AND actually
-     * stop old output before providing these typed claims. Neither is device
-     * evidence here; no Samsung acoustic/voice integration is performed.
+     * Explicit user-directed new plan, never a replay or a speaker-tail ACK.
+     * Caller must independently verify actual user intent and physical output STOP.
+     * No adapter, microphone, Samsung playback or real human action is present here.
      */
     public synchronized AbandonReceipt abortAndBeginNewSession(long expectedPlanGeneration,
             VoiceExplicitAbortGate.UserAction userAction,
-            VoiceExplicitAbortGate.OldOutputStop externalOldOutputStop, String newText) {
-        GermanStreamingDeliveryLedger.Phase phase = raw.phase();
-        VoiceExplicitAbortGate.PriorState priorState = VoiceExplicitAbortGate.PriorState.OTHER;
-        if (pendingTail != null && (phase == GermanStreamingDeliveryLedger.Phase.READY
-                || phase == GermanStreamingDeliveryLedger.Phase.COMPLETE)) {
-            priorState = VoiceExplicitAbortGate.PriorState.RAW_DRAINED_SPEAKER_UNPROVEN;
-        } else if (pendingTail == null
-                && phase == GermanStreamingDeliveryLedger.Phase.UNCERTAIN) {
-            priorState = VoiceExplicitAbortGate.PriorState.INTERRUPTED_UNCERTAIN;
-        }
-        if (!VoiceExplicitAbortGate.mayAbandon(expectedPlanGeneration, raw.generation(),
-                activeDispatch != null, priorState, userAction, externalOldOutputStop))
+            VoiceOutputStopReceiptGate.StopRequest oldStopRequest, String newText, long nowNs) {
+        if (!abandonable() || oldStopRequest == null || oldStopRequest != pendingStopRequest
+                || oldStopRequest.planGeneration != expectedPlanGeneration
+                || oldStopRequest.audioGeneration != lastAudioGeneration
+                || !VoiceExplicitAbortGate.mayAbandon(expectedPlanGeneration, raw.generation(),
+                    activeDispatch != null,
+                    pendingTail != null
+                            ? VoiceExplicitAbortGate.PriorState.RAW_DRAINED_SPEAKER_UNPROVEN
+                            : VoiceExplicitAbortGate.PriorState.INTERRUPTED_UNCERTAIN,
+                    userAction, VoiceExplicitAbortGate.OldOutputStop.EXTERNALLY_CONFIRMED_STOPPED))
             return null;
+        if (!outputStops.consumeForExplicitAbort(oldStopRequest, expectedPlanGeneration,
+                lastAudioGeneration, nowNs)) {
+            if (!outputStops.hasPendingStop()) pendingStopRequest = null;
+            return null;
+        }
+        pendingStopRequest = null;
         int oldRawCount = raw.confirmedChunks();
         String oldRawText = raw.confirmedText();
         long oldSpeakerEpoch = pendingTail == null ? -1L : pendingTail.audioGeneration;
@@ -72,10 +119,18 @@ public final class GermanStreamingSpeakerGatedSession {
                 oldRawCount, oldRawText, oldSpeakerEpoch);
     }
 
+    /** Legacy enum-only STOP is deliberately rejected: it has no epoch/nonce/TTL. */
+    @Deprecated
+    public synchronized AbandonReceipt abortAndBeginNewSession(long expectedPlanGeneration,
+            VoiceExplicitAbortGate.UserAction userAction,
+            VoiceExplicitAbortGate.OldOutputStop unscopedStop, String newText) {
+        return null;
+    }
+
     /** Refuses lease if the previous raw-drained chunk still lacks speaker proof. */
     public synchronized GermanStreamingRawDrainCoordinator.Dispatch lease(
             long planGeneration, long nowMs, long nowNs) {
-        if (planGeneration != raw.generation() || nowMs < 0 || nowNs < 0
+        if (pendingStopRequest != null || planGeneration != raw.generation() || nowMs < 0 || nowNs < 0
                 || raw.phase() != GermanStreamingDeliveryLedger.Phase.READY) return null;
         if (pendingTail != null) {
             if (!speaker.permitNextChunk(pendingTail.audioGeneration, nowNs)) return null;
@@ -85,6 +140,7 @@ public final class GermanStreamingSpeakerGatedSession {
         if (dispatch != null) {
             speaker.begin(dispatch.audioGeneration, sampleRate);
             activeDispatch = dispatch;
+            lastAudioGeneration = dispatch.audioGeneration;
         }
         return dispatch;
     }
@@ -146,7 +202,7 @@ public final class GermanStreamingSpeakerGatedSession {
 
     /** Only an explicitly proven SILENT recovery is allowed by this gate. */
     public synchronized long restartProvenSilent(long oldPlanGeneration) {
-        if (pendingTail != null) return -1L;
+        if (pendingTail != null || pendingStopRequest != null) return -1L;
         stopDeadAudioEpoch();
         return raw.restart(oldPlanGeneration,
                 GermanStreamingDeliveryLedger.Recovery.REPLAY_ONLY_IF_EXTERNALLY_PROVEN_SILENT);
@@ -163,7 +219,8 @@ public final class GermanStreamingSpeakerGatedSession {
 
     /** A final chunk also needs a speaker-tail proof before a NEW text plan. */
     public synchronized boolean confirmFinalTail(long nowNs) {
-        if (pendingTail == null || raw.phase() != GermanStreamingDeliveryLedger.Phase.COMPLETE)
+        if (pendingStopRequest != null || pendingTail == null
+                || raw.phase() != GermanStreamingDeliveryLedger.Phase.COMPLETE)
             return false;
         if (!speaker.permitNextChunk(pendingTail.audioGeneration, nowNs)) return false;
         pendingTail = null;

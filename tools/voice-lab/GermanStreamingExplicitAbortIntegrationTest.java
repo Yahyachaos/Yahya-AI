@@ -36,7 +36,16 @@ public final class GermanStreamingExplicitAbortIntegrationTest {
     ok(s.abortAndBeginNewSession(plan,null,STOP,"Neu.")==null,"user choice required");
     ok(s.abortAndBeginNewSession(plan,USER,null,"Neu.")==null,"external stop required");
     ok(s.abortAndBeginNewSession(plan+1,USER,STOP,"Neu.")==null,"no wrong epoch");
-    var receipt=s.abortAndBeginNewSession(plan,USER,STOP,"Neu. Fertig.");
+    var stop=s.requestExplicitAbortStop(plan,ns+40_000_000L);
+    ok(stop!=null,"exact old output stop lease");
+    no(s.acknowledgeExplicitAbortStop(stop,plan+1,d.audioGeneration,ns+41_000_000L),"wrong plan stop");
+    ok(s.abortAndBeginNewSession(plan,USER,stop,"Neu.",ns+41_000_000L)==null,
+      "unacknowledged stop cannot allow abort");
+    ok(s.acknowledgeExplicitAbortStop(stop,plan,d.audioGeneration,ns+42_000_000L),
+      "matching externally claimed stop");
+    ok(s.abortAndBeginNewSession(plan+1,USER,stop,"Neu.",ns+42_000_000L)==null,
+      "wrong generation cannot consume stop");
+    var receipt=s.abortAndBeginNewSession(plan,USER,stop,"Neu. Fertig.",ns+43_000_000L);
     ok(receipt!=null,"explicit abort accepted");
     ok(receipt.previousSpeechAudibilityUnknown,"never promote RAW to heard");
     ok(receipt.previousRawDrainedChunks==1,"diagnostic old raw count");
@@ -67,7 +76,11 @@ public final class GermanStreamingExplicitAbortIntegrationTest {
     ok(s.phase()==GermanStreamingDeliveryLedger.Phase.UNCERTAIN,"uncertain not confirmed");
     blocked(s);
     ok(s.abortAndBeginNewSession(plan,null,STOP,"Neu.")==null,"must choose abort");
-    var receipt=s.abortAndBeginNewSession(plan,USER,STOP,"Ganz neuer Satz.");
+    var stop=s.requestExplicitAbortStop(plan,2_050_000_000L);
+    ok(stop!=null,"engine death stop lease");
+    ok(s.acknowledgeExplicitAbortStop(stop,plan,d.audioGeneration,2_060_000_000L),
+      "matching stopped old engine");
+    var receipt=s.abortAndBeginNewSession(plan,USER,stop,"Ganz neuer Satz.",2_070_000_000L);
     ok(receipt!=null,"explicit old-uncertain abort");
     ok(receipt.previousRawDrainedChunks==0,"no old chunk falsely confirmed");
     ok(receipt.unresolvedSpeakerAudioGeneration==-1,"no drained speaker tail");
