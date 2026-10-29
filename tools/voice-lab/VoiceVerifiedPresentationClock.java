@@ -75,10 +75,15 @@ public final class VoiceVerifiedPresentationClock {
         return true;
     }
 
-    /** -1 is the ONLY correct result with no fresh independent capture proof. */
+    /**
+     * Freshness is measured from the actual externally captured sample, not from
+     * a later poll of that sample. Otherwise two independent 200ms allowances
+     * could turn a 380ms-old speaker observation into a new chunk permit.
+     */
     public synchronized long presentedFrame(long id, long nowNs) {
         if (!hasEvidence || stopped || poisoned || id != generation
-                || nowNs < lastPollNs || nowNs - lastPollNs > MAX_AGE_NS) return -1L;
+                || nowNs < lastPollNs || nowNs - lastPollNs > MAX_AGE_NS
+                || nowNs < lastCaptureNs || nowNs - lastCaptureNs > MAX_AGE_NS) return -1L;
         return lastPresented;
     }
 
