@@ -43,7 +43,7 @@ public final class CelineFutureMemoryRecall {
                 String conflictWithId, Privacy privacy, boolean authorizedForProvider,
                 boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
             this.id = rawId(id);
-            this.summary = safe(summary);
+            this.summary = hasNonTextControl(summary) ? "" : safe(summary);
             this.supersedesId = rawId(supersedesId);
             this.conflictWithId = rawId(conflictWithId);
             this.privacy = privacy;
@@ -279,7 +279,7 @@ public final class CelineFutureMemoryRecall {
 
     private static Set<String> terms(String text) {
         Set<String> result = new HashSet<>();
-        if (!wellFormedUtf16(text)) return result;
+        if (!wellFormedUtf16(text) || hasNonTextControl(text)) return result;
         String value = safe(text);
         if (value.isEmpty()) return result;
         if (value.length() > MAX_INPUT) return result;
@@ -330,6 +330,19 @@ public final class CelineFutureMemoryRecall {
             } else if (Character.isLowSurrogate(ch)) return false;
         }
         return true;
+    }
+
+    // Source summaries and queries must not turn NUL/DEL/C1 control bytes into
+    // separators or silently trim them into seemingly trustworthy evidence.
+    // Newlines/tabs/carriage returns remain valid natural-text whitespace.
+    private static boolean hasNonTextControl(String value) {
+        if (value == null) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isISOControl(ch) && ch != '\n' && ch != '\r' && ch != '\t')
+                return true;
+        }
+        return false;
     }
 
     // Never trim identity/lineage keys: normalization can launder a corrupt G1 ID.

@@ -665,6 +665,26 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna",
             Arrays.asList(c("utf16-valid", "Meine Katze heisst Luna" + validSupplementary))),
             "utf16-valid", "well-formed supplementary stored text remains supported");
+        // FUTURE ONLY: G1 source text with non-text control characters
+        // cannot silently normalize into a trusted partial memory. Lineage
+        // remains active to suppress superseded facts even if text is rejected.
+        String nul = Character.toString((char)0);
+        eq(top("Meine Katze" + nul + " heisst Luna", Arrays.asList(
+            c("nul-query-valid", "Meine Katze heisst Luna"))), "",
+            "NUL source query must not normalize into partial evidence");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(
+            c("nul-summary", "Meine Katze" + nul + " heisst Luna"))), "",
+            "NUL in stored summary cannot produce provider recall evidence");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(
+            c("trailing-nul-summary", "Meine Katze heisst Luna" + nul))), "",
+            "trailing NUL must be rejected before summary.trim()");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(
+            c("valid-multiline", "Meine Katze\nheisst Luna"))), "valid-multiline",
+            "normal multiline German text remains retrievable");
+        eq(top("Meine Katze heisst Paul", Arrays.asList(
+            c("valid-old", "Meine Katze heisst Paul"),
+            x("nul-successor", "Meine Katze heisst Luna" + nul, "valid-old", true, 0))), "",
+            "invalid control successor still supersedes and suppresses old fact");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
