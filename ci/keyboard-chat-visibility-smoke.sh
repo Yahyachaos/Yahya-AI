@@ -237,13 +237,19 @@ if missing:
 cb=bounds(content); sb=bounds(stage); capb=bounds(caption); mb=bounds(mic); eb=bounds(end)
 if cb[3] < int(screen_h*.85):
     raise SystemExit(f"CALL content is still IME-compressed: content={cb} screenH={screen_h}")
-if sb[3]-sb[1] < int(screen_h*.45):
-    raise SystemExit(f"CALL avatar stage is too short after HOME keyboard transition: stage={sb} screenH={screen_h}")
+content_w=cb[2]-cb[0]
+stage_w=sb[2]-sb[0]
+stage_h=sb[3]-sb[1]
+aspect=stage_w/stage_h if stage_h else 0.0
+if stage_w < int(content_w*.90) or stage_h < int(screen_h*.40):
+    raise SystemExit(f"CALL avatar stage did not occupy the reference slot after HOME keyboard transition: stage={sb} content={cb} screenH={screen_h}")
+if abs(aspect-1.25) > .02:
+    raise SystemExit(f"CALL avatar stage lost 1280:1024 reference aspect after HOME keyboard transition: {aspect:.4f}")
 if capb[3] > cb[3] or mb[3] > cb[3] or eb[3] > cb[3]:
     raise SystemExit(f"CALL caption/controls extend outside visible content: content={cb} caption={capb} mic={mb} end={eb}")
 if home_edit is not None and home_edit.attrib.get("focused")=="true":
     raise SystemExit("HOME composer still owns focus underneath CALL")
-print(f"CALL keyboard inheritance fixed: content={cb} stage={sb} caption={capb} mic={mb} end={eb}")
+print(f"CALL keyboard inheritance fixed: content={cb} stage={sb} aspect={aspect:.4f} caption={capb} mic={mb} end={eb}")
 PY
 
 python3 ci/check-magenta-avatar.py emulator-call.png CALL_KEYBOARD_TRANSITION || fail "CALL avatar pixels missing after HOME keyboard transition"
