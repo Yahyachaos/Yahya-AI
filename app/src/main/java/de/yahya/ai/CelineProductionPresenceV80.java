@@ -99,7 +99,7 @@ final class CelineProductionPresenceV80 {
     private static final float FINAL_TURN_SPEED_DPS = 120.0f;
     private static final float ROOM_FLOOR_BLEND_PER_SECOND = 2.4f;
     private static final float TABLE_LEAN_BLEND_PER_SECOND = 2.2f;
-    private static final float MAX_NOMINAL_SOLE_OFFSET_M = 0.65f;
+    private static final float MAX_ROOM_FLOOR_CORRECTION_M = 0.65f;
 
     private static final WeakHashMap<Celine3DView, Mixer> MIXERS = new WeakHashMap<>();
 
@@ -355,16 +355,19 @@ final class CelineProductionPresenceV80 {
         private float resolveRoomFloorCorrectionY() {
             if (probeModel) return 0.0f;
             float correction = talkAnchor.worldY - rootBase[13];
-            float expectedRoomOffset = CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-            float nominalSoleDrift = correction - expectedRoomOffset;
+            float localOriginCorrection = CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
+            boolean alreadyRoomGrounded = Math.abs(correction) <= MAX_ROOM_FLOOR_CORRECTION_M;
+            boolean localOriginModel = Math.abs(correction - localOriginCorrection)
+                    <= MAX_ROOM_FLOOR_CORRECTION_M;
             if (Float.isNaN(correction) || Float.isInfinite(correction)
-                    || Float.isNaN(nominalSoleDrift) || Float.isInfinite(nominalSoleDrift)
-                    || Math.abs(nominalSoleDrift) > MAX_NOMINAL_SOLE_OFFSET_M) {
+                    || correction > 0.0f
+                    || (!alreadyRoomGrounded && !localOriginModel)) {
                 throw new IllegalStateException(
                         "Ungültige 9R Floor-Kalibrierung: floor=" + talkAnchor.worldY
                                 + " sole=" + rootBase[13] + " correction=" + correction
-                                + " expectedRoomOffset=" + expectedRoomOffset
-                                + " nominalSoleDrift=" + nominalSoleDrift);
+                                + " localOriginCorrection=" + localOriginCorrection
+                                + " alreadyRoomGrounded=" + alreadyRoomGrounded
+                                + " localOriginModel=" + localOriginModel);
             }
             return correction;
         }
