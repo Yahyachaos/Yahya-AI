@@ -301,6 +301,55 @@ public final class FutureMemoryRecallContract {
                     CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                     true, false, NOW, 0, 1))),
                 "", "untrusted successor leaves earlier record unavailable");
+        // A G1 snapshot can contain two competing corrections to the same
+        // historical ID after import/compaction. Until the owner proves a
+        // winner, neither correction nor its descendants is a safe recall fact.
+        List<CelineFutureMemoryRecall.Candidate> fork = Arrays.asList(
+            x("fork-old", "Meine Katze heißt Paul", "", true, 0),
+            x("fork-luna", "Meine Katze heißt Luna", "fork-old", true, 0),
+            x("fork-max", "Meine Katze heißt Max", "fork-old", true, 0),
+            c("fork-unrelated", "Damu Markt verkauft Getränke"));
+        eq(top("Meine Katze heißt", fork), "", "two correction children abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heißt Luna", fork, NOW), "", "fork cannot auto-select correction");
+        eq(top("Damu Markt Getränke", fork), "fork-unrelated",
+            "unrelated fact available despite correction fork");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            x("fork-old", "Meine Katze heißt Paul", "", true, 0),
+            x("fork-luna", "Meine Katze heißt Luna", "fork-old", true, 0),
+            x("fork-expired", "Meine Katze heißt Max", "fork-old", true, NOW-1))), "",
+            "expired sibling still leaves winner unresolved");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            x("fork-old", "Meine Katze heißt Paul", "", true, 0),
+            x("fork-luna", "Meine Katze heißt Luna", "fork-old", true, 0),
+            new CelineFutureMemoryRecall.Candidate("fork-sensitive",
+                "Meine Katze heißt Max", "fork-old",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
+                false, true, NOW, 0, 1))), "",
+            "private sibling still blocks unsupported winner");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            x("fork-old", "Meine Katze heißt Paul", "", true, 0),
+            x("fork-luna", "Meine Katze heißt Luna", "fork-old", true, 0),
+            x("fork-max", "Meine Katze heißt Max", "fork-old", true, 0),
+            x("fork-luna-child", "Meine Katze heißt Luna heute", "fork-luna", true, 0))), "",
+            "descendant of unresolved correction also withheld");
+        // A reimported stale record needs source-owned durable retraction ID.
+        List<CelineFutureMemoryRecall.Candidate> reimport = Arrays.asList(
+            x("reimport-old", "Meine Katze heißt Paul", "", true, 0),
+            c("reimport-winner", "Meine Katze heißt Luna"));
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt", reimport,
+                Collections.singleton("reimport-old"), 8, NOW).get(0).candidate.id,
+            "reimport-winner", "authoritative tombstone blocks stale reimport");
+        // A retired opponent ID alone does not prove an unresolved G1 conflict
+        // was adjudicated; only cleared conflict metadata can make a winner
+        // eligible, with independent provenance and permission checks.
+        CelineFutureMemoryRecall.Candidate unresolvedReimport =
+            new CelineFutureMemoryRecall.Candidate("unresolved-reimport",
+                "Meine Katze heißt Luna", "", "reimport-old",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW, 0, 1);
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",
+                Arrays.asList(unresolvedReimport), Collections.singleton("reimport-old"),
+                8, NOW).size(), 0, "retired opponent does not clear unresolved conflict");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
