@@ -251,6 +251,87 @@ async function run(){
   await page.locator('#file').setInputFiles(local);
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
 
+
+  // V27 source-fidelity rug partial selection; true visual PASS is not claimed.
+  const v27Path=path.join(__dirname,'layout-candidates/2026-10-30-room-rug-partial-screened-v27.json');
+  const v27Layout=JSON.parse(fs.readFileSync(v27Path,'utf8'));
+  assert.deepEqual(v27Layout.room,layout.room);assert.deepEqual(v27Layout.original_source_hashes,layout.original_source_hashes);
+  assert.equal(v27Layout.objects.length,13);
+  for(const obj of layout.objects){const other=v27Layout.objects.find(o=>o.id===obj.id);assert(other&&other.locked===obj.locked);
+   if(obj.id!=='room_rug')for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+    assert.deepEqual(other[k],obj[k],'V27 freeze '+obj.id);
+  }
+  await page.locator('#file').setInputFiles(v27Path);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-30-room-rug-partial-screened-v27.json'),null,{timeout:60000});
+  const v27Scene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  assert.equal(v27Scene.model_count,13);assert(v27Scene.all_source_fidelity_glbs_loaded);
+  for(const obj of v27Layout.objects){const got=v27Scene.objects.find(o=>o.id===obj.id);assert(got);
+   assert(got.locked===obj.locked&&got.source_sha256===layout.original_source_hashes[obj.id]);
+   for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(got.transform[k],obj[k]);
+  }
+  const v27Rug=v27Scene.objects.find(o=>o.id==='room_rug');
+  assert(Math.abs(v27Rug.floor_bottom_y_m)<.005);
+  for(const f of ['left','right','floor','ceiling','back','front'])
+   assert(Number.isFinite(v27Rug.overflow_faces_m[f])&&v27Rug.overflow_faces_m[f]<.005,'V27 AABB '+f);
+  const v27Screenshot=png('layout-v27-rug-selected-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  const v27PairImage=async()=>page.evaluate(async()=>{
+   const ref=document.querySelector('#reference-preview'),img=new Image();
+   img.src=window.__celineRoomEditorE2E.framePng({clean:true});
+   await new Promise((ok,bad)=>{if(img.complete&&img.naturalWidth)return ok();img.onload=ok;img.onerror=bad;});
+   const c=document.createElement('canvas');c.width=1400;c.height=560;
+   c.getContext('2d').drawImage(ref,0,0,700,560);c.getContext('2d').drawImage(img,700,0,700,560);
+   return c.toDataURL('image/png');
+  });
+  const v27Comparison=png('layout-v27-rug-selected-reference-side-by-side.png',await v27PairImage(),[1400,560]);
+  const v27SaveEvent=page.waitForEvent('download');
+  await page.locator('#save').click();
+  const v27SavePath=path.join(out,'layout-v27-browser-saved.json');
+  await (await v27SaveEvent).saveAs(v27SavePath);
+  const v27Saved=JSON.parse(fs.readFileSync(v27SavePath,'utf8'));
+  assert.deepEqual(v27Saved.room,v27Layout.room);assert.equal(v27Saved.objects.length,13);
+  for(const obj of v27Layout.objects){const got=v27Saved.objects.find(o=>o.id===obj.id);assert(got&&got.locked===obj.locked);
+   for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(got[k],obj[k],'V27 Save '+obj.id);
+  }
+  await page.locator('#file').setInputFiles({name:'v27-saved-reimport.json',mimeType:'application/json',buffer:fs.readFileSync(v27SavePath)});
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: v27-saved-reimport.json'),null,{timeout:60000});
+  const v27Reimport=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  for(const obj of v27Layout.objects){const got=v27Reimport.objects.find(o=>o.id===obj.id);assert(got);
+   assert(got.locked===obj.locked&&got.source_sha256===layout.original_source_hashes[obj.id]);
+   for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(got.transform[k],obj[k],'V27 Reload '+obj.id);
+  }
+  const v28Specs=[{name:'baseline',x:1.08,z:.22,s:.96},{name:'left',x:.95,z:.22,s:.96},
+   {name:'larger',x:.91,z:.22,s:1.04},{name:'front',x:.92,z:.37,s:1.04},{name:'back',x:.92,z:.05,s:1.04}];
+  const v28Frames=[];
+  for(const spec of v28Specs){
+   const candidate=JSON.parse(JSON.stringify(v27Layout));candidate.status='V28_BED_SCREEN_UNREVIEWED';
+   const bed=candidate.objects.find(o=>o.id==='room_bed');
+   bed.translation_m=[spec.x,.588966*spec.s/.96,spec.z];bed.scale_xyz=[spec.s,spec.s,spec.s];bed.uniform_scale=spec.s;
+   const upload='v28-bed-'+spec.name+'.json';
+   await page.locator('#file').setInputFiles({name:upload,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
+   await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),upload,{timeout:60000});
+   const state=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+   const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+   assert.equal(state.model_count,13);assert(state.all_source_fidelity_glbs_loaded);assert.deepEqual(state.room_m,layout.room);
+   assert.deepEqual(projection.canvas_px,[700,560]);
+   for(const obj of v27Layout.objects){const got=state.objects.find(o=>o.id===obj.id);assert(got);
+    assert(got.locked===obj.locked&&got.source_sha256===layout.original_source_hashes[obj.id]);
+    if(obj.id!=='room_bed')for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+     assert.deepEqual(got.transform[k],obj[k],'V28 freeze '+obj.id);
+   }
+   const trialBed=state.objects.find(o=>o.id==='room_bed');
+   assert(Math.abs(trialBed.floor_bottom_y_m)<.005,'V28 grounded');
+   for(const f of ['left','right','floor','ceiling','back','front'])
+    assert(Number.isFinite(trialBed.overflow_faces_m[f])&&trialBed.overflow_faces_m[f]<.005,'V28 AABB '+f);
+   const real=png('layout-v28-bed-'+spec.name+'-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+   const paired=png('layout-v28-bed-'+spec.name+'-reference-side-by-side.png',await v27PairImage(),[1400,560]);
+   v28Frames.push({spec,real,paired,actualAabb:trialBed.conservative_world_aabb_m,
+    projectedCenter:projection.projected_centers.room_bed,manualVisual:'FAIL_PENDING_IMAGE_INSPECTION'});
+  }
+  await page.locator('#file').setInputFiles(local);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
+
   const v24Restored=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
   for(const original of layout.objects){
    const found=v24Restored.objects.find(o=>o.id===original.id);assert(found);
@@ -300,6 +381,8 @@ async function run(){
     trialGenuineWebgl:v23Trial,originalReferenceSideBySide:v23Comparison},
    v24ForegroundTableDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v24Candidates,manualVisual:'FAIL_PENDING_HUMAN_COMPARISON'},
    v25RugDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v25RugCandidates,manualVisual:'FAIL_PENDING_GENUINE_WEBGL_REVIEW'},
+   v27RugPartial:{real:v27Screenshot,paired:v27Comparison,nativeSaveReload:true,visual:'FAIL_PARTIAL_BETTER'},
+   v28BedTests:{other12Frozen:true,realSourceFrames:v28Frames,visual:'FAIL_PENDING_REAL_REVIEW'},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS');

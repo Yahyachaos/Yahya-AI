@@ -1,0 +1,72 @@
+{
+  "reviewed_at": "2026-10-30",
+  "run_id": 40964855802,
+  "exact_head": "c4059b92d6dcc706bf25f984bd5d3667d25393b7",
+  "artifact_id": 12937119292,
+  "zip_sha256": "6cf36dbec541d555e3459d6c28a9f8fb3cd8dcc1894860feac5175cfaf474af2",
+  "genuine_webgl_700x560_opened": 6,
+  "original_reference_pairs_1400x560_opened": 6,
+  "source_reference_px": [
+    1402,
+    1122
+  ],
+  "reference_rug_bbox_coarse_norm": {
+    "left": 0.14,
+    "right": 0.82,
+    "top": 0.52,
+    "bottom": 0.81,
+    "uncertainty": "HIGH: person/bed/table occlusion, NOT pixel segmentation"
+  },
+  "candidates": [
+    {
+      "name": "baseline-108",
+      "technical": "PASS",
+      "visual": "FAIL",
+      "reason": "large white foreground/right coverage"
+    },
+    {
+      "name": "rear-035",
+      "technical": "PASS",
+      "visual": "FAIL",
+      "reason": "bright-white rug still overexposed"
+    },
+    {
+      "name": "rear-020",
+      "technical": "PASS",
+      "visual": "FAIL",
+      "reason": "back shift still incompatible with photo"
+    },
+    {
+      "name": "compact-100",
+      "technical": "PASS",
+      "visual": "FAIL",
+      "reason": "less rug coverage but still too broad"
+    },
+    {
+      "name": "compact-092",
+      "technical": "PASS",
+      "visual": "FAIL_PARTIAL_BETTER",
+      "reason": "best visible carpet extent, still wrong source texture/material and overall composition"
+    },
+    {
+      "name": "left-compact-100",
+      "technical": "PASS",
+      "visual": "FAIL",
+      "reason": "left move does not improve overall silhouette"
+    }
+  ],
+  "chosen_provisional": {
+    "id": "room_rug",
+    "translation_m": [
+      0.18,
+      0.022655,
+      0.25
+    ],
+    "uniform_scale": 0.92,
+    "locked": true
+  },
+  "other12_frozen": true,
+  "source_hashes_unchanged": true,
+  "camera_frozen": true,
+  "whole_visual": "VISUAL_FAIL_G2_3_PAUSED"
+}

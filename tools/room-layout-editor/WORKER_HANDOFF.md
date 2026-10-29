@@ -224,3 +224,15 @@ Isolated single-batch workflow-only fix: leave required Chromium functional job 
 - Whole-room **VISUAL FAIL / G2.3 PAUSED**; V19 ENOENT is long since fixed and must not be repeated. No V25 rug VISUAL PASS and no new saved production layout pending genuine images.
 
 **exact_next_action:** After this one push-triggered existing experiment Chromium run becomes terminal, confirm exact commit and all job conclusions; download/check original artifact SHA, inspect six genuine 700×560 V25 rug WebGL PNGs and six genuine 1400×560 original-reference comparisons, verify AABB/13 hashes/locks/native Save Reload, then only save an objectively closer rug candidate or retain the baseline on FAIL. Immediately continue the next documented unresolved room object inside the exclusive editor scope without Android integration.
+
+
+---
+## 30 Oct 2026 — V26 terminal proof; V25 rug genuine review; V27 partial locked candidate and V28 bed next
+
+- Live source experiment HEAD before write `c4059b92d6dcc706bf25f984bd5d3667d25393b7`, [exact Chromium #40964855802](https://github.com/Yahyachaos/Yahya-AI/actions/runs/40964855802) terminal SUCCESS, 12/12 jobs technical PASS. Both earlier one-time V19 ENOENT and V26 six-face `rear→back` corrections are finished; do NOT redo. Original screenshot ZIP #12937119292 downloaded SHA256 `6cf36dbec541d555e3459d6c28a9f8fb3cd8dcc1894860feac5175cfaf474af2`.
+- Actually opened all six 700×560 V25 rug WebGL images and all six 1400×560 original-reference PNGs; all six visual FAIL. Compact-092 provides limited better carpet coverage compared with source baseline, still stark white vs warm tan reference and table/camera errors. Details `visual-reviews/v25-rug-reviewed.json`.
+- Only locked rug updated in NEW provisional V27 layout JSON: XYZ [0.18,0.026595,0.52]→[0.18,0.022655,0.25], scale 1.08→0.92. All 12 other GLB transforms/locks, all 13 source hashes, fixed camera and immutable 4.40×4.20×2.65m room untouched. No Android integration. V27 remains VISUAL FAIL.
+- Own architecture Chromium script extended to assert 13 original SHA, strict six-face room/floor, native Save/download/reimport of V27, real V27 700×560+1400×560 PNG; immediately five V28 bed-only trial renders while freezing all other 12, then restore V19. No V28 bed candidate approved yet; exact-head CI and genuine new PNGs pending. Full edited script parsed in V8 before push. One atomic editor-only commit for JSON+script+manual review+handoff; no other workflow/branch/PR/main/Gradle/APK/release writes.
+- **Visual FAIL / G2.3 PAUSED** until actual photographic and separate acceptance.
+
+**exact_next_action (CURRENT):** After terminal new exact-head editor Chromium, verify all relevant jobs, download/hash original V27/V28 artifact, view genuine V27 native saved output and all five 700×560 V28 bed WebGLs plus 1400×560 photo pairs. Accept a better bed position only with real pixel/ground/Lock/Save evidence; otherwise preserve currently verified provisional state, record discrepancy and proceed to dresser next. No Android/v83 integration.
