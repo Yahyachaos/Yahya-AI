@@ -137,3 +137,18 @@ Minimal FUTURE-only prototype/source update: allow ASCII letters, digits, hyphen
 **Validation truth:** earlier \`128/128\` exact-Git-blob PASS belongs to predecessor files; \`138\` current pre-change tests and now **146 expected** after eight added cases are **NOT executed on the exact checked-in Java/test files** in this checkpoint. Only new compiled Java PASS is isolated 12-case reproduction. Do not claim Android, privacy adapter, durable memory, learning, or v83 acceptance from this probe. No app/Android/shared/CI/Room/Voice/release files touched; PR #116 excluded from v83.
 
 **exact_next_action:** Run full 146-case \`python3 ci/celine_future_memory_recall_contract_test.py\` with javac/java on exact new Git Java/test blobs; fix any actual failure only inside the two FUTURE-only paths, and record tested blob SHAs before proceeding to next source-grounded memory boundary.
+
+
+## 29 Oct 2026 — FUTURE ONLY: malformed UTF-16 evidence abstention (source/test hardening)
+
+**Ownership:** existing issue #115 / DRAFT #116, only the pure Java prototype, its direct contract and this work-order. Excluded from v83. Frozen Core #113, Room #111, Build & Release, Voice #118, app wiring, Gradle, CI/workflows, AGENTS, main Queue, signing, updater and releases remain untouched.
+
+**Reproduced source defect:** Original `terms()` normalizes text through NFD and a non-alphanumeric separator regex. Java Strings can contain unmatched UTF-16 surrogate code units; an incomplete query such as `Meine Katze heisst Luna + U+D800` is silently reduced to the same lexical terms as a complete query. A local OpenJDK method-level reproduction emitted `RED_REPRODUCED original accepts malformed UTF-16 query`. This is a partial-evidence recall ambiguity, not a proven Android leak.
+
+**Bounded fix:** `terms()` now checks that surrogate pairs are well formed *before* normalization. Malformed queries and malformed stored summaries yield no terms, while valid supplementary code points (for example emoji) remain allowed and do not change their neighboring German lexical terms. Successor/conflict lineage remains processed even when a summary cannot be matched; no permissions or memory persistence changed. Five direct contract assertions added (146 → expected 151).
+
+**Actual validation:** Locally compiled standalone Java reproduction of the original and corrected text normalizer: baseline RED, corrected `MALFORMED_UTF16_POLICY_PASS cases=5`. This is **method-level surrogate evidence**, NOT the full checked-in class. The exact GitHub source+test 151-case `python3 ci/celine_future_memory_recall_contract_test.py` has NOT been executed; historical 128/128 belongs to older blobs. No Android G1/provider/device proof or learning claim. The source/test/workorder are one coherent FUTURE-ONLY commit and do not belong to v83.
+
+**Other discovered post-v83 integration limitation:** existing G1 `CelineMemoryItem` trims IDs and clamps negative expiry to zero; `CelineStructuredMemory.fromJson` defaults unknown privacyScope to LOCAL_PRIVATE and missing updated timestamp to zero. The policy's raw-ID, negative-expiry and unknown-privacy checks cannot retroactively inspect metadata already sanitized by G1. A later separately owned G1 raw-ingest validation is needed before any production promotion; no frozen v83 G1 files were modified.
+
+**exact_next_action:** Materialize the precise GitHub Java and Python launcher blobs from this new #116 head into a local javac/java environment; run all **151 expected** canonical tests, fix any real failure within owned FUTURE-ONLY paths, and pin exact tested Git blobs and output in this handoff. Only then move to another authorized bounded recall task.

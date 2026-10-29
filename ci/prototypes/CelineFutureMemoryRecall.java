@@ -279,6 +279,7 @@ public final class CelineFutureMemoryRecall {
 
     private static Set<String> terms(String text) {
         Set<String> result = new HashSet<>();
+        if (!wellFormedUtf16(text)) return result;
         String value = safe(text);
         if (value.isEmpty()) return result;
         if (value.length() > MAX_INPUT) return result;
@@ -311,6 +312,22 @@ public final class CelineFutureMemoryRecall {
             if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
                     || (c >= '0' && c <= '9') || c == '-' || c == '_'
                     || c == '.' || c == ':')) return false;
+        }
+        return true;
+    }
+
+    // A broken UTF-16 scalar can turn into a separator during normalization,
+    // creating false partial evidence. Only complete, well-formed user text
+    // may contribute recall terms; valid supplementary characters are allowed.
+    private static boolean wellFormedUtf16(String value) {
+        if (value == null) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isHighSurrogate(ch)) {
+                if (i + 1 >= value.length()
+                        || !Character.isLowSurrogate(value.charAt(i + 1))) return false;
+                i++;
+            } else if (Character.isLowSurrogate(ch)) return false;
         }
         return true;
     }

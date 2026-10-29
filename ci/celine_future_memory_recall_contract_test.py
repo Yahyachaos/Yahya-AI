@@ -644,6 +644,27 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst", Arrays.asList(
             x("fixture_id:v1.2", "Meine Katze heisst Luna", "", true, 0))),
             "fixture_id:v1.2", "valid ASCII contract fixture retained");
+        // FUTURE ONLY: Java strings may contain unpaired UTF-16 surrogates.
+        // Normalizer would otherwise silently erase malformed evidence, letting
+        // a partial recall query or source memory produce a false trusted match.
+        String unpairedHigh = Character.toString((char)0xD800);
+        String unpairedLow = Character.toString((char)0xDC00);
+        String validSupplementary = new String(Character.toChars(0x1F600));
+        eq(top("Meine Katze heisst Luna" + unpairedHigh,
+            Arrays.asList(c("utf16-valid", "Meine Katze heisst Luna"))), "",
+            "malformed high surrogate in query abstains");
+        eq(top("Meine Katze heisst Luna" + unpairedLow,
+            Arrays.asList(c("utf16-valid", "Meine Katze heisst Luna"))), "",
+            "malformed low surrogate in query abstains");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("utf16-malformed", "Meine Katze heisst Luna" + unpairedHigh))), "",
+            "malformed stored memory text cannot provide recall evidence");
+        eq(top("Meine Katze heisst Luna" + validSupplementary,
+            Arrays.asList(c("utf16-valid", "Meine Katze heisst Luna"))), "utf16-valid",
+            "well-formed supplementary query remains supported");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("utf16-valid", "Meine Katze heisst Luna" + validSupplementary))),
+            "utf16-valid", "well-formed supplementary stored text remains supported");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
