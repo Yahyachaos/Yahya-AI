@@ -887,10 +887,10 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna " + heartEmoji + "!!",
             Arrays.asList(c("heart-double-punct", "Meine Katze heisst Luna"))),
             "", "multiple punctuation conservative boundary denial");
-        eq(top("Meine Katze heisst Luna " + heartEmoji + "\\uFE0F!",
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "\uFE0F!",
             Arrays.asList(c("heart-double-selector-punct", "Meine Katze heisst Luna"))),
             "", "double variation selector still denied with punctuation");
-        eq(top("Meine Katze heisst Luna " + "\\u25C6\\uFE0F!",
+        eq(top("Meine Katze heisst Luna " + "\u25C6\uFE0F!",
             Arrays.asList(c("unsupported-selector-punct", "Meine Katze heisst Luna"))),
             "", "unsupported variation selector still denied with punctuation");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
