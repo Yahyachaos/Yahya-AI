@@ -147,7 +147,9 @@ public final class CelineFutureMemoryRecall {
         // duplicate IDs before this policy can return any candidate.
         Set<String> ids = new HashSet<>();
         for (Candidate c : candidates) {
-            if (c != null && !c.id.isEmpty() && !ids.add(c.id))
+            // A missing/invalid entry could be the only evidence of a private
+            // successor or conflict. Never proceed with a partial lineage graph.
+            if (c == null || c.id.isEmpty() || !ids.add(c.id))
                 return Collections.emptyList();
         }
         Set<String> wanted = terms(query);
