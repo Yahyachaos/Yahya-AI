@@ -121,6 +121,46 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
             Arrays.asList(visibleCorrection),NOW), "correct-visible",
             "isolated three-token fact still yields an unambiguous correction ID");
+        // A G1 record may be privacy-redacted or malformed before projection.
+        // The correction selector cannot prove its topic is unrelated merely
+        // because no lexical summary is available. Retain source-ID UI fallback.
+        CelineFutureMemoryRecall.Candidate absentSensitiveSummary =
+            new CelineFutureMemoryRecall.Candidate("redacted-live", "", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true,
+                NOW-100, 0, 0.8);
+        CelineFutureMemoryRecall.Candidate corruptSensitiveSummary =
+            new CelineFutureMemoryRecall.Candidate("corrupt-live", "Meine Katze heisst Lu\u200Bna", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true,
+                NOW-100, 0, 0.8);
+        CelineFutureMemoryRecall.Candidate expiredAbsentSummary =
+            new CelineFutureMemoryRecall.Candidate("redacted-expired", "", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true,
+                NOW-100, NOW-1, 0.8);
+        CelineFutureMemoryRecall.Candidate futureAbsentSummary =
+            new CelineFutureMemoryRecall.Candidate("redacted-future", "", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true,
+                NOW+1000, 0, 0.8);
+        CelineFutureMemoryRecall.Candidate invalidImportance =
+            new CelineFutureMemoryRecall.Candidate("invalid-importance", fullCorrection, "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, false, true,
+                NOW-100, 0, Double.NaN);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,absentSensitiveSummary),NOW), "",
+            "redacted live memory with missing summary prevents speculative correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,corruptSensitiveSummary),NOW), "",
+            "corrupted live hidden memory prevents speculative correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,invalidImportance),NOW), "",
+            "malformed importance must not make a competing correction target disappear");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,expiredAbsentSummary),NOW), "correct-visible",
+            "expired redacted memory does not suppress active correction evidence");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,futureAbsentSummary),NOW), "correct-visible",
+            "not-yet-created redacted memory does not suppress correction evidence");
+        eq(top(fullCorrection,Arrays.asList(visibleCorrection,absentSensitiveSummary)),
+            "correct-visible", "privacy-filtered retrieval unchanged by absent-summary correction guard");
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Tee",data,NOW),"","single-token correction fail closed");
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Mein Lieblingsgetränk ist Kaffee",data,NOW),
             "","correction without discriminating target must request ID");

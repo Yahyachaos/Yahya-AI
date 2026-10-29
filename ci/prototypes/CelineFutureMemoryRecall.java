@@ -298,9 +298,19 @@ public final class CelineFutureMemoryRecall {
         // selects it automatically; the existing selected-ID UI remains the
         // fallback. Tombstoned/expired records are not live correction targets.
         for (Candidate rival : candidates) {
-            if (rival == null || rival.id.equals(best.candidate.id) || !rival.live(now)
-                    || (rival.authorizedForProvider && rival.userExplicit
-                        && rival.privacy == Privacy.LOCAL_PRIVATE)) continue;
+            if (rival == null || rival.id.equals(best.candidate.id)) continue;
+            // Compaction/redaction may strip lexical evidence before projection.
+            // A current G1 record with no usable summary might be the intended
+            // correction target; neither privacy filtering nor a malformed
+            // importance weight proves it is unrelated. Fall back to exact ID.
+            boolean potentiallyCurrent = now >= 0 && rival.updatedAtMs >= 0
+                    && rival.updatedAtMs <= now && rival.expiresAtMs >= 0
+                    && (rival.expiresAtMs == 0 || (rival.expiresAtMs > now
+                        && rival.expiresAtMs > rival.updatedAtMs));
+            if (!potentiallyCurrent) continue;
+            if (rival.summary.isEmpty()) return "";
+            if (rival.live(now) && rival.authorizedForProvider && rival.userExplicit
+                    && rival.privacy == Privacy.LOCAL_PRIVATE) continue;
             int rivalSharedTerms = overlap(query, terms(rival.summary));
             if (rivalSharedTerms >= 2 && rivalSharedTerms >= best.sharedTerms)
                 return "";
