@@ -1492,6 +1492,164 @@ async function main() {
       originalGlbs:13,other12Unchanged:true,androidG2_3:'PAUSED',
       visualAcceptance:'FAIL_PENDING_MANUAL'});
 
+
+    // V11 source-fidelity rug: coherent placement candidates on the same
+    // unchanged 13-GLB scene and frozen camera, not a visual approval claim.
+    // Reference bounds are partly hidden by the foreground desk and person.
+    const v11Path=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-29-room-rug-grounded-v11.json');
+    const v11=JSON.parse(fs.readFileSync(v11Path,'utf8'));
+    assert.equal(v11.objects.length,13);
+    assert.deepEqual(v11.room,{width:4.4,depth:4.2,height:2.65});
+    assert.deepEqual(v11.original_source_hashes,v10.original_source_hashes);
+    for(const original of v10.objects)if(original.id!=='room_rug')
+      assert.deepEqual(v11.objects.find(o=>o.id===original.id),original,
+        'V11 must preserve each of 12 other source-fidelity instances '+original.id);
+    const approvedForTest=v11.objects.find(o=>o.id==='room_rug');
+    assert(approvedForTest?.locked===true);
+    assert.deepEqual(approvedForTest.translation_m,[.18,.026595,.52]);
+    assert.deepEqual(approvedForTest.scale_xyz,[1.08,1.08,1.08]);
+    const rugTrial=(name,x,z,s)=>{
+      const state=JSON.parse(JSON.stringify(v10));
+      const rug=state.objects.find(o=>o.id==='room_rug');
+      rug.translation_m=[x,Number((.02462456*s).toFixed(6)),z];
+      rug.scale_xyz=[s,s,s];rug.uniform_scale=s;rug.locked=true;
+      return {name,state};
+    };
+    const rugTrials=[
+      {name:'baseline-v10',state:v10},
+      {name:'grounded-left-forward',state:v11},
+      rugTrial('wider-back',.25,.32,1.17),
+      rugTrial('middle-left',-.05,.40,1.08),
+      rugTrial('near-original-alignment',.32,.40,1.08)
+    ];
+    const rugEvidence=[];
+    const rugReferenceCenter={u:.505,v:.657,uncertainty:.07,
+      kind:'historical 1376x1100 landmark; cropped/occluded rug boundary'};
+    for(const variant of rugTrials){
+      const scratch=path.join(output,'trial-v11-rug-'+variant.name+'.json');
+      fs.writeFileSync(scratch,JSON.stringify(variant.state,null,2)+'\n');
+      await page.locator('#file').setInputFiles(scratch);
+      await page.waitForFunction(name=>
+        document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+name),
+        path.basename(scratch),{timeout:60000});
+      await page.evaluate(camera=>window.__celineRoomEditorE2E.previewMeasuredCamera(camera),
+        framingCamera.camera_proposal);
+      const scene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+      const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+      assert.deepEqual(scene.room_m,{width:4.4,depth:4.2,height:2.65});
+      assert.equal(scene.model_count,13);
+      assert.equal(scene.all_source_fidelity_glbs_loaded,true);
+      assert.deepEqual(projection.canvas_px,[700,560]);
+      assert(Math.abs(projection.aspect-1402/1122)<.002);
+      for(const actual of scene.objects){
+        const wanted=variant.state.objects.find(o=>o.id===actual.id);
+        assert.equal(actual.source_sha256,v11.original_source_hashes[actual.id],
+          'V11 original GLB SHA256 '+actual.id);
+        assert.deepEqual(actual.transform.translation_m,wanted.translation_m);
+        assert.deepEqual(actual.transform.rotation_euler_deg,wanted.rotation_euler_deg);
+        assert.deepEqual(actual.transform.scale_xyz,wanted.scale_xyz);
+        assert.equal(actual.locked,wanted.locked);
+        assert.deepEqual(Object.entries(actual.overflow_faces_m).filter(([,v])=>v>.012),[],
+          'V11 fixed room envelope '+actual.id);
+        if(actual.id!=='room_rug')assert.deepEqual(wanted,
+          v10.objects.find(o=>o.id===actual.id),'V11 other 12 strictly frozen');
+      }
+      const rug=scene.objects.find(o=>o.id==='room_rug');
+      assert(Math.abs(rug.floor_bottom_y_m)<.02,
+        'V11 rug must touch floor within 20mm, including baseline');
+      const center=projection.projected_centers?.room_rug||null;
+      const residual=center?Math.hypot(center.u-rugReferenceCenter.u,
+        center.v-rugReferenceCenter.v):null;
+      const frame=png('layout-v11-rug-'+variant.name+'-real-webgl.png',
+        await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+      assert.deepEqual([frame.width,frame.height],[700,560]);
+      rugEvidence.push({name:variant.name,frame,locked:rug.locked,
+        transform:rug.transform,worldBounds:rug.conservative_world_aabb_m,
+        floorBottomY_m:rug.floor_bottom_y_m,projectedCenter:center,
+        historicalLandmarkCenterResidual:residual,sourceOriginal:true,
+        other12Unchanged:true,visualApproval:'PENDING_MANUAL'});
+    }
+    await page.locator('#file').setInputFiles(v11Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-29-room-rug-grounded-v11.json'),
+      null,{timeout:60000});
+    await page.evaluate(camera=>window.__celineRoomEditorE2E.previewMeasuredCamera(camera),
+      framingCamera.camera_proposal);
+    await page.locator('#object').selectOption('room_rug');
+    assert.equal(await page.locator('#x').isDisabled(),true,
+      'V11 rug independently locked in native browser');
+    const downloadPromise=page.waitForEvent('download');
+    await page.locator('#save').click();
+    const nativeDownload=await downloadPromise;
+    const nativePath=path.join(output,'layout-v11-browser-downloaded.json');
+    await nativeDownload.saveAs(nativePath);
+    const nativeState=JSON.parse(fs.readFileSync(nativePath,'utf8'));
+    assert.deepEqual(nativeState.room,v11.room);
+    assert.equal(nativeState.objects.length,13);
+    for(const original of v11.objects){
+      const saved=nativeState.objects.find(o=>o.id===original.id);
+      assert(saved,'Native V11 download missing '+original.id);
+      assert.equal(saved.locked,original.locked);
+      for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+        assert(saved[k].every((n,i)=>Number.isFinite(n)&&Math.abs(n-original[k][i])<1e-8),
+          'V11 native browser JSON '+original.id+' '+k);
+    }
+    const v11Frame=png('layout-v11-rug-saved-locked-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+    assert.deepEqual([v11Frame.width,v11Frame.height],[700,560]);
+    const v11Side=png('layout-v11-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw Error('Original V11 reference absent');
+        const im=new Image();im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((resolve,reject)=>{
+          if(im.complete&&im.naturalWidth)return resolve();
+          im.onload=resolve;im.onerror=reject;
+        });
+        const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=560;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(ref,0,0,700,560);ctx.drawImage(im,700,0,700,560);
+        return canvas.toDataURL('image/png');
+      }));
+    assert.deepEqual([v11Side.width,v11Side.height],[1400,560]);
+    // Actual browser reload: loading the saved candidate must retain every lock
+    // and transform, independently of the existing functional save smoke test.
+    await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+    await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),
+      null,{timeout:240000});
+    const reloaded=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(reloaded.model_count,13);
+    for(const original of v11.objects){
+      const actual=reloaded.objects.find(o=>o.id===original.id);
+      assert(actual,'Reload missing '+original.id);
+      assert.equal(actual.locked,original.locked,'Reload lock '+original.id);
+      for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+        assert.deepEqual(actual.transform[k],original[k],'Reload transform '+original.id+' '+k);
+    }
+    const v11Report={sourceSha:process.env.GITHUB_SHA||null,
+      candidate:path.relative(root,v11Path),
+      originalReference:{width:1402,height:1122,sha256:referenceImage.sha256},
+      immutableOriginalGlbInstances:13,room_m:v11.room,
+      cameraFrozen:framingCamera.camera_proposal,
+      referenceRugCenter:rugReferenceCenter,trials:rugEvidence,
+      chosenProvisional:'grounded-left-forward',
+      savedFrame:v11Frame,referenceSideBySide:v11Side,
+      downloadedJson:path.basename(nativePath),reloadAll13:true,
+      other12Frozen:true,trueTriangleCollisionCertified:false,
+      rugVisual:'FAIL_PENDING_MANUAL_IMAGE_REVIEW',
+      furnitureVisual:'BED_FAIL_DRESSER_FAIL_CHAIR_FAIL_TABLE_FAIL',
+      wholeRoom:'VISUAL_FAIL',androidG2_3:'PAUSED'};
+    fs.writeFileSync(path.join(output,'layout-v11-rug-reference-audit.json'),
+      JSON.stringify(v11Report,null,2)+'\n');
+    evidence('V11_REAL_WEBGL_RUG_FIVE_VARIANTS_NATIVE_SAVE_RELOAD_NOT_VISUAL_PASS',{
+      candidate:path.relative(root,v11Path),
+      images:rugEvidence.map(x=>x.frame.file),savedFrame:v11Frame.file,
+      referenceSideBySide:v11Side.file,
+      nativeJson:path.basename(nativePath),report:'layout-v11-rug-reference-audit.json',
+      room_frozen:true,camera_frozen:true,other12_frozen:true,
+      glbs:13,strictVisual:'FAIL_PENDING_MANUAL',android:'G2_3_PAUSED'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,

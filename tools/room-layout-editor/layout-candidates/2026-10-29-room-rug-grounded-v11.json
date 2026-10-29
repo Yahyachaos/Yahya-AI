@@ -1,0 +1,899 @@
+{
+  "schema": "yahya-room-layout-editor/v1",
+  "status": "EXPERIMENTAL_V11_GROUNDED_RUG_WEBGL_PENDING",
+  "saved_at": "2026-10-29",
+  "units": "meters",
+  "coordinate_system": "X horizontal, Y height, Z depth; origin room-floor center",
+  "room": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "original_room_m": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "source_assembly": "app/src/main/assets/models/room/celine_room_v80_assembly.json",
+  "source_assembly_blob_sha": "95d0f186cd609a2bb3a2ec845aa7eef0475e8b4f",
+  "evidence_source_head": "dd54f6121733687eed319565e99e5407ce38c97a",
+  "evidence_proof": {
+    "source_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40729395023",
+    "source_head": "12c917993c392bd3486f34e1a4739857bceaad13",
+    "original_reference": "celine-room-editor-optional-visual-evidence/reference-original.png",
+    "original_v3_webgl": "celine-room-editor-optional-visual-evidence/layout-framing-v3-reference-projection.png",
+    "source_visual_artifact_id": 12834213508,
+    "v4_chromium_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40740904494",
+    "source_reference_visual_acceptance": "FAIL",
+    "bed_visual_acceptance": "FAIL__PARTIAL_SILHOUETTE_IMPROVEMENT_MANUALLY_REVIEWED",
+    "dresser_visual_acceptance": "FAIL__PARTIAL_SILHOUETTE_IMPROVEMENT_MANUALLY_REVIEWED",
+    "whole_android_visual_acceptance": "FAIL_G2_3_PAUSED",
+    "v4_verified_head": "b61d98cc075dc21637f5166035841738bfc76d5f",
+    "chair_visual_acceptance": "FAIL__UNTOUCHED",
+    "v5_exact_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40766493530",
+    "v5_exact_head": "1a0d94831e2a89d43a1de38c4924f60450ebd7b6",
+    "v5_visual_artifact_id": 12851640614,
+    "v5_visual_artifact_sha256": "bd7d6a7391ddbb581baac9a1d4cdc172ab52f5a5e36a8f35feb89c5a3ca54e5d",
+    "reference": "reference-original.png (1402x1122 original)",
+    "v5_screens": [
+      "layout-v5-proposed-180-real-webgl.png",
+      "layout-v5-angle-165-real-webgl.png"
+    ],
+    "v6_screens_expected": [
+      "layout-v6-dresser-scale-080-real-webgl.png",
+      "layout-v6-original-reference-side-by-side.png"
+    ],
+    "v7_run_id": 40791595387,
+    "v7_source_head": "5c77fc94cb05d9b82fd495cb56e426397b2bd4fc",
+    "v7_functional_artifact": 12862057103,
+    "v7_visual_artifact": 12861928240,
+    "v7_visual_zip_sha256": "c5fc22617570d455d8d9776c9fbc4509e7f6bf777b7d2233f4b06f5c823e2503",
+    "v8_bed_selected_genuine_webgl_png": "layout-v7-bed-forward-real-webgl.png",
+    "v8_bed_png_sha256": "118b2ee8100bfbe18f469435e7892cf2e56659c06ad758d46677be3b7b399985",
+    "reference_png_sha256": "394c95cff3cfbbdff92572c2bab4689f39c3cc48df8eda233ec924c6ba2179dd",
+    "optical_visual_pass": false,
+    "v8_chair_verification_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40795230437",
+    "v8_chair_verification_sha": "c2ad31afdc7e96ba57634ee80464ad868ec3b10b",
+    "v8_chair_original_visual_artifact_id": 12864024035,
+    "v8_chair_visual_zip_sha256": "5b57b9cb4e049ca5412c7efdf71703345888e2aecff92cc96d4265e9c469c681",
+    "v8_genuine_chair_selected_png": "layout-v8-chair-left-rear-big-real-webgl.png",
+    "v8_genuine_chair_selected_png_sha256": "5ba9451aaa69c2f157487a7e59e7e7903d27ecd10116a943847bd2d28e8de8a9",
+    "original_reference_sha256": "394c95cff3cfbbdff92572c2bab4689f39c3cc48df8eda233ec924c6ba2179dd",
+    "v9_import_and_save_browser_test": "PENDING_NEXT_EXACT_HEAD_CI"
+  },
+  "reference_image": "Refernzbild.png",
+  "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json (Room branch, measured 1376x1100)",
+  "reference_source_visual_status": "PHASE_B_V2_ACTUAL_BROWSER_IMAGE_MANUALLY_SEEN__FAIL_REFERENCE",
+  "layout_visual_acceptance": "FAIL__BED_DRESSER_CHAIR_SOURCE_FIDELITY_NOT_VISUALLY_ACCEPTED",
+  "collision_acceptance": "13_WORLD_AABBS_INSIDE_ROOM__CHAIR_SEPARATION_CHECK__NOT_TRUE_MESH_COLLISION_CERTIFIED",
+  "method": "Manual visual comparison of genuine Chromium #40729395023 V3 (700x560) against byte-original Refernzbild.png (1402x1122). Freeze camera V3, keep 11 other instance transforms unchanged. Correct the visible structural problem that source bed currently points toward the camera, whereas the reference headboard is on the right wall and bed extends toward left-center: rotate source bed Y from -90 to 180 (no source GLB mutation), scale to 0.96, ground it, keep conservative world AABB within fixed room. Reorient genuine dresser along left wall, scale to 0.90, ground and keep separated from chair. Both anchors locked provisionally; only real WebGL A/B can determine whether the silhouettes actually improve. No claim of visual acceptance.",
+  "original_source_hashes": {
+    "room_bed": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+    "room_dresser": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+    "room_plant_large": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+    "room_plant_small": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+    "room_floor_lamp": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+    "room_nightstand_back": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+    "room_nightstand_front": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+    "room_lounge_chair": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+    "room_rug": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+    "room_foreground_table": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+    "room_window_drapes": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+    "room_wall_shelf_books": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+    "room_round_mirror": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0"
+  },
+  "per_object_rationale": {
+    "room_bed": "Current V3 screenshot shows a front-facing bed with long axis into camera, inconsistent with original reference where bed headboard sits against right wall and bed extends into center. Rotate source model to Y=180 (headboard toward right) and reduce from 1.11 to .96 so right edge still fits x=2.2m; preserve floor grounding at y≈.589m. Locked=TRUE provisionally; manual screenshot criterion remains FAIL until actual proof. V7 29-Oct bounded experiment: frozen camera V3; genuine V6 reference shows bed foot/headboard too low. Trial moves ONLY bed 22cm backward in Z, original source bounds/lock preserved; genuine WebGL and manual silhouette review REQUIRED; visual FAIL until proof.",
+    "room_dresser": "V5 yaw180 real WebGL exposes source furniture ribbed front but cabinet appears taller than 1402x1122 reference. With frozen V3 camera, source projected AABB V5 top .38929/bottom .73282 vs approximate reference top .425/bottom .715; V6 tests bounded uniformly smaller source dresser (.8 vs .9), adjusts pivot Y only to stay floor-grounded; X/Z and 180° yaw stay fixed. No visual approval prior to genuine V6 WebGL review.",
+    "room_plant_large": "Rear left; original GLB bounds crossed left/back walls, moved inward by actual measured penetration and grounded.",
+    "room_plant_small": "Visible front-right bedside plant; conservative GLB bottom placed near actual front nightstand tabletop height 0.40m.",
+    "room_floor_lamp": "Secondary left/back zone near chair/window according to reference landmarks; grounded measured source envelope; placement is exploratory.",
+    "room_nightstand_back": "Back-right of bed in source model, moved inside right/back boundaries, grounded; next to bed rather than over its conservative X envelope.",
+    "room_nightstand_front": "Shift small foreground bedside cabinet to near-right room front, conservatively separated in depth from moved bed; no source changes.",
+    "room_lounge_chair": "Scale chair from miniature 0.5 to visible 0.73, reposition behind near-left dresser and in front of back-left plant, keep depth separation.",
+    "room_rug": "Shift rug toward open lower middle/right; real world bounds remain in fixed room and under bed where appropriate.",
+    "room_foreground_table": "Move small genuine original table to near front, reduce visual overlap with bed; full-width near-camera reference table not yet reproducible, still visually rejected.",
+    "room_window_drapes": "Old source GLB 3.418m tall, extended beyond 2.65m ceiling, rear wall and floor; 1.55→1.10 scale gives 3.14m width/2.43m height, placed near back wall.",
+    "room_wall_shelf_books": "Move actual wall shelf right on back wall toward reference sector; wall elevation unchanged.",
+    "room_round_mirror": "Advance mirror on left wall toward left-cropped reference sector; wall elevation unchanged."
+  },
+  "objects": [
+    {
+      "id": "room_bed",
+      "translation_m": [
+        1.08,
+        0.588966,
+        0.22
+      ],
+      "rotation_y_deg": 180,
+      "rotation_euler_deg": [
+        0,
+        180,
+        0
+      ],
+      "scale_xyz": [
+        0.96,
+        0.96,
+        0.96
+      ],
+      "uniform_scale": 0.96,
+      "locked": true
+    },
+    {
+      "id": "room_dresser",
+      "translation_m": [
+        -1.95,
+        0.446813,
+        0.4
+      ],
+      "rotation_y_deg": 180,
+      "rotation_euler_deg": [
+        0,
+        180,
+        0
+      ],
+      "scale_xyz": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "uniform_scale": 0.8,
+      "locked": true
+    },
+    {
+      "id": "room_plant_large",
+      "translation_m": [
+        -1.8,
+        0.905,
+        -1.73
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.98,
+        0.98,
+        0.98
+      ],
+      "uniform_scale": 0.98,
+      "locked": false
+    },
+    {
+      "id": "room_plant_small",
+      "translation_m": [
+        1.93,
+        0.464,
+        0.47
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.64,
+        0.64,
+        0.64
+      ],
+      "uniform_scale": 0.64,
+      "locked": false
+    },
+    {
+      "id": "room_floor_lamp",
+      "translation_m": [
+        -1.11,
+        0.649,
+        -1.39
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.86,
+        0.86,
+        0.86
+      ],
+      "uniform_scale": 0.86,
+      "locked": false
+    },
+    {
+      "id": "room_nightstand_back",
+      "translation_m": [
+        1.96,
+        0.319,
+        -1.68
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90,
+        0
+      ],
+      "scale_xyz": [
+        0.64,
+        0.64,
+        0.64
+      ],
+      "uniform_scale": 0.64,
+      "locked": false
+    },
+    {
+      "id": "room_nightstand_front",
+      "translation_m": [
+        1.98,
+        0.2,
+        1.85
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90,
+        0
+      ],
+      "scale_xyz": [
+        0.64,
+        0.64,
+        0.64
+      ],
+      "uniform_scale": 0.64,
+      "locked": false
+    },
+    {
+      "id": "room_lounge_chair",
+      "translation_m": [
+        -1.4,
+        0.5076,
+        -1.05
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "uniform_scale": 0.9,
+      "locked": true
+    },
+    {
+      "id": "room_rug",
+      "translation_m": [
+        0.18,
+        0.026595,
+        0.52
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.08,
+        1.08,
+        1.08
+      ],
+      "uniform_scale": 1.08,
+      "locked": true
+    },
+    {
+      "id": "room_foreground_table",
+      "translation_m": [
+        0,
+        0.402,
+        1.72
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.35,
+        1.35,
+        1.35
+      ],
+      "uniform_scale": 1.35,
+      "locked": true
+    },
+    {
+      "id": "room_window_drapes",
+      "translation_m": [
+        -0.34,
+        1.248,
+        -1.68
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.1,
+        1.1,
+        1.1
+      ],
+      "uniform_scale": 1.1,
+      "locked": false
+    },
+    {
+      "id": "room_wall_shelf_books",
+      "translation_m": [
+        1.55,
+        1.74937,
+        -1.9
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.72,
+        0.72,
+        0.72
+      ],
+      "uniform_scale": 0.72,
+      "locked": false
+    },
+    {
+      "id": "room_round_mirror",
+      "translation_m": [
+        -2.05,
+        1.75,
+        0.78
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90,
+        0
+      ],
+      "scale_xyz": [
+        0.55,
+        0.55,
+        0.55
+      ],
+      "uniform_scale": 0.55,
+      "locked": false
+    }
+  ],
+  "based_on_exact_source_head": "dd54f6121733687eed319565e99e5407ce38c97a",
+  "based_on_last_verified_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40795230437",
+  "derived_from_candidate": "tools/room-layout-editor/layout-candidates/2026-10-29-room-foreground-table-provisional-v10.json",
+  "camera_source": "layout-candidates/2026-10-28-reference-framing-camera-v3.json (FROZEN for this 2-anchor fitting round)",
+  "phase_b_limits": {
+    "reference_original_px": [
+      1402,
+      1122
+    ],
+    "historical_reference_landmark_grid_px": [
+      1376,
+      1100
+    ],
+    "known_problem": "The single unchanged in-room table mesh cannot replicate the full-width near-lens reference table/laptop band with the current exact room and architecture-calibrated camera. Prefer reducing bed occlusion, not claiming table acceptance.",
+    "android_visual_status": "WHOLE_ROOM_VISUAL_FAIL__G2.3_PAUSED",
+    "no_automatic_import_or_release": true
+  },
+  "framing_proposal_metadata": {
+    "camera_reference_proposal": "tools/room-layout-editor/layout-candidates/2026-10-28-reference-framing-camera-v3.json",
+    "moved_ids": [
+      "room_dresser"
+    ],
+    "untouched_original_GLBS": 12,
+    "all_original_instances": 13,
+    "physical_room_frozen": true,
+    "source_SHA": "7556b2ef7eccbda77fe6443f967053105cab41aa",
+    "phaseB_image_verdict": "FAIL",
+    "new_visual_acceptance": "PENDING_NEW_V5_WEBGL__NO_CI_YET",
+    "android_and_main_untouched": true
+  },
+  "reference_bbox_estimates_normalized": {
+    "origin": "Manual approximate 700x560 visual outlines after directly opening ORIGINAL reference (1402x1122) and real Chromium V3; images contain unavoidable person/occlusion/crop. Not machine segmentation and not precise targets.",
+    "room_bed": {
+      "left": 0.47,
+      "right": 1,
+      "top": 0.325,
+      "bottom": 0.665,
+      "uncertainty_abs": 0.06,
+      "occluded_by_reference_person": true
+    },
+    "room_dresser": {
+      "left": 0,
+      "right": 0.19,
+      "top": 0.425,
+      "bottom": 0.715,
+      "uncertainty_abs": 0.05,
+      "cropped_at_left_edge": true,
+      "exclude_vase_and_flowers": true
+    },
+    "original_v3_visual_estimates": {
+      "room_bed": {
+        "left": 0.49,
+        "right": 0.92,
+        "top": 0.3,
+        "bottom": 0.77
+      },
+      "room_dresser": {
+        "left": 0,
+        "right": 0.29,
+        "top": 0.55,
+        "bottom": 0.71
+      }
+    },
+    "caveat": "Direct projected AABB is larger than the visible mesh silhouette, and person/lighting/mesh-front semantics prevent numerical alone from certifying visual fidelity."
+  },
+  "primary_anchor_changes_only": [
+    "room_rug"
+  ],
+  "all_others_frozen": true,
+  "manual_reference_check_required": true,
+  "bed_visual_verdict": "FAIL__SCREENED_V7_FORWARD_Z_POSITIVE_0_22_SAVED_AS_V8",
+  "dresser_visual_verdict": "FAIL__V6_LOCKED_PARTIAL_IMPROVEMENT",
+  "chair_visual_verdict": "FAIL__V9_LOCKED_SCREENED_BOUNDING_POSITION__ORIGINAL_MODEL_SHAPE_MATERIAL_CONFLICT",
+  "candidate_name": "V11 source-true rug grounding and camera-frozen placement A/B; not visually approved",
+  "manual_reference_check_outcome": "V10 five genuine table PNGs visually checked on 29 Oct: narrow four-leg source GLB cannot reproduce huge original desk plus monitor; provisional V10 retained with TABLE VISUAL FAIL, no variant visually approved. V11 requires genuine WebGL PNG and overlay review.",
+  "v5_proposal": {
+    "source_head_parent": "7556b2ef7eccbda77fe6443f967053105cab41aa",
+    "exact_comparison_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40748778047",
+    "reference_original": "Refernzbild.png (1402x1122; unmodified)",
+    "camera": "2026-10-28-reference-framing-camera-v3.json (frozen, no camera adjustment)",
+    "source_asset_count": 12,
+    "source_instance_count": 13,
+    "room_m": {
+      "width": 4.4,
+      "depth": 4.2,
+      "height": 2.65
+    },
+    "single_changed_object_id": "room_dresser",
+    "before": {
+      "translation_m": [
+        -1.95,
+        0.502665,
+        0.4
+      ],
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "uniform_scale": 0.9,
+      "locked": true
+    },
+    "proposed": {
+      "translation_m": [
+        -1.95,
+        0.502665,
+        0.4
+      ],
+      "rotation_euler_deg": [
+        0,
+        180,
+        0
+      ],
+      "uniform_scale": 0.9,
+      "locked": true
+    },
+    "reason": "Genuine run21 V4 yaw0 WebGL exposed visually blank/side-facing long cabinet; yaw90 alternative exposed ribbed front but rotated cabinet broadside and appeared too squat. A 180-degree pivot preserves same cabinet wall footprint/AABB and tests whether the other source-facing side displays doors toward room center. This is a hypothesis, not established improvement.",
+    "uncertainties": [
+      "Reference cabinet clipped at left edge and partly obscured by vase/flowers",
+      "Original GLB has materially different finish and back/front-face uncertain until WebGL",
+      "No optical PASS based on AABB or unrendered geometry"
+    ],
+    "expected_genuine_visual_artifacts": [
+      "layout-v5-proposed-180-real-webgl.png",
+      "layout-v5-angle-165-real-webgl.png",
+      "layout-v5-original-reference-side-by-side.png",
+      "layout-v5-dresser-facing-audit.json"
+    ],
+    "actual_v5_render": "PENDING",
+    "manual_visually_approved": false,
+    "android_room_visual": "FAIL_G2.3_PAUSED"
+  },
+  "inherited_prior_v4_review": {
+    "source_head_tested": "b61d98cc075dc21637f5166035841738bfc76d5f",
+    "exact_chromium_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40740904494",
+    "jobs": {
+      "required_functional": "PASS",
+      "optional_visual": "PASS",
+      "full_visual_acceptance": "FAIL"
+    },
+    "genuine_artifact": {
+      "id": 12839698325,
+      "sha256": "72d3a21239e3069c56a92976288518e8e69d9b3311f78aff0d92c784b072554c"
+    },
+    "original_reference": {
+      "file": "reference-original.png",
+      "width": 1402,
+      "height": 1122,
+      "sha256": "394c95cff3cfbbdff92572c2bab4689f39c3cc48df8eda233ec924c6ba2179dd"
+    },
+    "selected_real_webgl": "layout-v4-selected-locked-real-webgl.png",
+    "selected_real_webgl_sha256": "750e391495e4a4482043464e523d2f6919f16bb19b5065f48985bb9b6018056b",
+    "side_by_side": "layout-v4-original-reference-side-by-side.png",
+    "side_by_side_sha256": "aff304f5a6eb7e46026e75fb7810b9e1117f302e051225e61e4083d55ced4525",
+    "reference_box_basis": "Approximate visually observed bounding targets in existing reference_bbox_estimates_normalized; bed partially occluded by person, dresser cropped at left. NOT pixel segmentation.",
+    "metrics_method": "Same frozen V3 camera, source-GLB conservative world-AABB 8-corner projection to 700x560, clipped to visible [0,1] image, 2D IoU with approximate reference bbox; this quantifies AABB alignment only, not silhouette/material equivalence.",
+    "bed": {
+      "reference_approx_bbox": [
+        0.47,
+        1,
+        0.325,
+        0.665
+      ],
+      "v3_bbox_projected": [
+        0.4829,
+        1.1045,
+        0.3041,
+        0.8091
+      ],
+      "selected_v4_bbox_projected": [
+        0.445539,
+        0.950014,
+        0.339629,
+        0.702196
+      ],
+      "estimated_aabb_iou": {
+        "v3": 0.6621,
+        "selected_v4": 0.7548,
+        "compact_alternative_v4": 0.7131
+      },
+      "manual_verdict": "PARTIAL_IMPROVEMENT__STRICT_VISUAL_FAIL",
+      "visual_reason": "Actual source bed is horizontal to right wall rather than foot-on to camera. Headboard/front silhouette and fill still differ; reference woman occludes bed.",
+      "source_transform_unchanged_from_selected_v4": true,
+      "locked_provisionally": true
+    },
+    "dresser": {
+      "reference_approx_bbox": [
+        0,
+        0.19,
+        0.425,
+        0.715
+      ],
+      "v3_bbox_projected": [
+        -0.0551,
+        0.2991,
+        0.4667,
+        0.7201
+      ],
+      "selected_v4_bbox_projected": [
+        -0.08321,
+        0.220618,
+        0.38929,
+        0.732818
+      ],
+      "estimated_aabb_iou": {
+        "v3": 0.5637,
+        "selected_v4": 0.727,
+        "original_facing_alternative_v4": 0.5719
+      },
+      "manual_verdict": "PARTIAL_GEOMETRIC_IMPROVEMENT__STRICT_VISUAL_FAIL",
+      "visual_reason": "Selected V4 fills closer to reference left-cropped cabinet sector; however presented side/end-panel orientation lacks the reference front-door appearance. Yaw90 alternative exposes front but remains too low/wide.",
+      "source_transform_unchanged_from_selected_v4": true,
+      "locked_provisionally": true
+    },
+    "chair": {
+      "manual_verdict": "FAIL_UNTOUCHED",
+      "transform_frozen": true
+    },
+    "chosen_existing_saved_candidate": "2026-10-28-room-bed-dresser-anchors-v4.json",
+    "rationale": "The actual three WebGL frames and original reference were opened. Best measured two-anchor balance is the already saved selected-locked candidate; avoid speculative geometry change without a measured visual improvement.",
+    "next_target": "Target only dresser source-facing appearance with fixed V3 camera, frozen bed and all other 11 objects; real WebGL trials required before any replacement. No Android integration.",
+    "whole_scene": "VISUAL_FAIL_G2_3_PAUSED"
+  },
+  "v6_proposal": {
+    "source_head_parent": "1a0d94831e2a89d43a1de38c4924f60450ebd7b6",
+    "frozen_camera": "2026-10-28-reference-framing-camera-v3.json; position=(0.1472,1.75,3.3204); target=(0.2381,0.5282,0.1018); vertical FOV=71.3°",
+    "source_and_dimensions": "13 unchanged source GLB instances; 4.40x4.20x2.65 meters",
+    "original_reference": "Refernzbild.png original 1402x1122",
+    "only_changed_instance": "room_dresser",
+    "prior_v5_transform": {
+      "translation_m": [
+        -1.95,
+        0.502665,
+        0.4
+      ],
+      "rotation_euler_deg": [
+        0,
+        180,
+        0
+      ],
+      "scale_xyz": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "locked": true
+    },
+    "proposed_v6_transform": {
+      "translation_m": [
+        -1.95,
+        0.446813,
+        0.4
+      ],
+      "rotation_euler_deg": [
+        0,
+        180,
+        0
+      ],
+      "scale_xyz": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "locked": true
+    },
+    "reason": "Authentic V5 Chromium projection at yaw180: conservative dresser box clipped to [left=0,right=0.22062,top=0.38929,bottom=0.73282]; approximate original target [0,0.19,0.425,0.715] with ±0.05 uncertainty, object partly left-cropped and flowers obscuring silhouette. Reduce uniform 0.90 to 0.80, scale anchored Y proportionally for floor contact. This is a data-driven local trial, not a claimed actual-pixel silhouette PASS.",
+    "evaluated_alternatives": {
+      "v4_yaw_0": "long oblique box; material/face not front-aligned",
+      "v5_yaw_180": "better showing cabinet front; too visually tall",
+      "v5_yaw_165_x_minus1_80": "front face visible but extends right and looks more prominent than reference"
+    },
+    "expected_webgl": "layout-v6-dresser-scale-080-real-webgl.png",
+    "required_visual": "Compare side-by-side and per-object front/height/crop; no acceptance from AABB metrics alone",
+    "locked_anchors": [
+      "room_bed",
+      "room_dresser"
+    ],
+    "other_instances_unchanged": 11,
+    "visual_result": "NOT_TESTED_YET",
+    "android_room": "VISUAL_FAIL_G2.3_PAUSED"
+  },
+  "v7_bed_hypothesis": {
+    "source_head_before_mutation": "fa1d5df0a1f5277a2a5b23c9aa54330c5d9096d3",
+    "baseline": "V6 bed x=1.08 y=.588966 z=.10 yaw180 uniform .96; locked true",
+    "proposed": "Move only bed backwards in Z by .22m: x=1.08 y=.588966 z=-.12 yaw180 uniform .96; locked true",
+    "reason": "Opened and visually compared genuine original 1402x1122 reference and #40782257722 V6 700x560 WebGL. Bed foot and headboard appear vertically too low and source headboard shape differs. A bounded backward Z move is a physically grounded trial, not a proven improvement.",
+    "trials": [
+      "baseline-v6",
+      "saved-v7",
+      "back-deeper",
+      "forward",
+      "compact-back"
+    ],
+    "camera": "tools/room-layout-editor/layout-candidates/2026-10-28-reference-framing-camera-v3.json frozen",
+    "true_glb_mesh_bounds_check_required": true,
+    "person_reference_occlusion": true,
+    "manual_visual_approval": "FAIL_PENDING_PROOF",
+    "no_other_12_instances_changed": true
+  },
+  "v8_bed_review": {
+    "source_head": "5c77fc94cb05d9b82fd495cb56e426397b2bd4fc",
+    "real_browser_run": 40791595387,
+    "reference_px": [
+      1402,
+      1122
+    ],
+    "chromium_px": [
+      700,
+      560
+    ],
+    "camera_frozen": "2026-10-28-reference-framing-camera-v3.json",
+    "bed_z_m_selected": 0.22,
+    "bed_z_m_previous": -0.12,
+    "bed_yaw_deg": 180,
+    "bed_scale": 0.96,
+    "bed_locked": true,
+    "dresser_locked": true,
+    "other_objects_unmodified": 12,
+    "manual_visual_result": "PARTIAL_FIT_IMPROVEMENT_STRICT_FAIL",
+    "original_png": "layout-v7-bed-forward-real-webgl.png",
+    "original_png_sha256": "118b2ee8100bfbe18f469435e7892cf2e56659c06ad758d46677be3b7b399985",
+    "source_aabb_overflow": "NONE_OVER_12_MM",
+    "true_collision_certified": false,
+    "uncertainty": "Original person occludes bed foot/left border, estimated bbox +/- .06 normalized"
+  },
+  "v9_chair_review": {
+    "frozen_camera": "tools/room-layout-editor/layout-candidates/2026-10-28-reference-framing-camera-v3.json",
+    "actual_chair_variant": "left-rear-big",
+    "exact_chromium_head": "c2ad31afdc7e96ba57634ee80464ad868ec3b10b",
+    "run_id": 40795230437,
+    "artifact_id": 12864024035,
+    "artifact_digest_sha256": "5b57b9cb4e049ca5412c7efdf71703345888e2aecff92cc96d4265e9c469c681",
+    "reference_original_px": [
+      1402,
+      1122
+    ],
+    "selected_actual_png_700x560": "layout-v8-chair-left-rear-big-real-webgl.png",
+    "original_before": {
+      "translation_m": [
+        -1.22,
+        0.41172,
+        -0.8
+      ],
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "uniform_scale": 0.73,
+      "locked": false
+    },
+    "selected_after": {
+      "translation_m": [
+        -1.4,
+        0.5076,
+        -1.05
+      ],
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "uniform_scale": 0.9,
+      "locked": true
+    },
+    "original_reference_chair_bbox_normalized_estimate": {
+      "left": 0.16,
+      "right": 0.285,
+      "top": 0.32,
+      "bottom": 0.51,
+      "uncertainty": 0.045,
+      "estimated_manually": true
+    },
+    "baseline_conservative_projected_bbox": {
+      "left": 0.23357242561149338,
+      "right": 0.36666120160196713,
+      "top": 0.3905429907021057,
+      "bottom": 0.5518224990277107
+    },
+    "selected_conservative_projected_bbox": {
+      "left": 0.201467766696939,
+      "right": 0.36291768142134406,
+      "top": 0.35231105449069944,
+      "bottom": 0.5402623212411358
+    },
+    "conservative_bbox_note": "Bounds include empty GLB source envelope, not a pixel-accurate visible chair mask. Manual referent is partially obscured by lamp/plant. Selected chair is closer in upper-left positioning but still wider than target AABB. Neither AABB nor workflow SUCCESS grants visual PASS.",
+    "geometry": "13 original source-fidelity GLBs unchanged; 25mm conservative chair/dresser and chair/bed separation gates passed on exact V8 trial; all 13 original model AABBs inside room; not true mesh collision certificate.",
+    "verdict": {
+      "bed": "FAIL",
+      "dresser": "FAIL",
+      "chair": "FAIL_SOURCE_MODEL_STYLE",
+      "room": "VISUAL_FAIL_G2_3_PAUSED"
+    },
+    "no_android_integration": true
+  },
+  "table_visual_verdict": "FAIL_ORIGINAL_SOURCE_NARROW_COFFEE_TABLE_NOT_REFERENCE_WIDE_DESK_OR_MONITOR",
+  "v10_table_hypothesis": {
+    "parent_source_head": "b1162b63d1bb971d8c7a78062bb4591d86a4ff42",
+    "reference_sha256": "394c95cff3cfbbdff92572c2bab4689f39c3cc48df8eda233ec924c6ba2179dd",
+    "from_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40799765886",
+    "reference_px": [
+      1402,
+      1122
+    ],
+    "camera": "2026-10-28-reference-framing-camera-v3.json frozen",
+    "source_originals": 13,
+    "room_m": {
+      "width": 4.4,
+      "depth": 4.2,
+      "height": 2.65
+    },
+    "only_instance": "room_foreground_table",
+    "baseline": {
+      "id": "room_foreground_table",
+      "translation_m": [
+        0.1,
+        0.226311,
+        1.87
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.76,
+        0.76,
+        0.76
+      ],
+      "uniform_scale": 0.76,
+      "locked": false
+    },
+    "provisional": {
+      "id": "room_foreground_table",
+      "translation_m": [
+        0,
+        0.402,
+        1.72
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.35,
+        1.35,
+        1.35
+      ],
+      "uniform_scale": 1.35,
+      "locked": true
+    },
+    "rationale": "Original screenshot shows near-camera wooden desk with black display; V9 native GLB low narrow 4-legged table too far inside and too small. Test multiple coherent original GLB transforms while preserving room, camera and other twelve originals.",
+    "uncertainty": "Source model differs in geometry/content; full visual PASS may be impossible without prohibited GLB changes.",
+    "planned_real_chromium_images": [
+      "baseline-v9",
+      "medium-forward",
+      "provisional-wide-near",
+      "large-slightly-rear",
+      "wide-right"
+    ],
+    "no_android_write": true,
+    "no_glb_replacement": true
+  },
+  "rug_visual_verdict": "FAIL_PENDING_V11_GENUINE_WEBGL_MANUAL_REVIEW",
+  "v11_rug_hypothesis": {
+    "source_parent_head": "dd54f6121733687eed319565e99e5407ce38c97a",
+    "unchanged_13_source_fidelity_glbs": true,
+    "reference_png_sha256": "394c95cff3cfbbdff92572c2bab4689f39c3cc48df8eda233ec924c6ba2179dd",
+    "v10_verified_run": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40805690514",
+    "v10_optional_artifact_id": 12868729625,
+    "v10_optional_zip_sha256": "30bb25211ed74683728806e1216c55d87d3efdd134e4b4076bdfb5d845b7a964",
+    "frozen_camera": "2026-10-28-reference-framing-camera-v3.json",
+    "stable_room_m": [
+      4.4,
+      4.2,
+      2.65
+    ],
+    "only_rug_change": true,
+    "before": {
+      "translation_m": [
+        0.42,
+        0.0378,
+        0.39
+      ],
+      "scale": [
+        1.08,
+        1.08,
+        1.08
+      ],
+      "locked": false
+    },
+    "provisional": {
+      "translation_m": [
+        0.18,
+        0.026595,
+        0.52
+      ],
+      "scale": [
+        1.08,
+        1.08,
+        1.08
+      ],
+      "locked": true
+    },
+    "rationale": "Original GLB rug conservative floor bottom is about 11mm above ground in V10; source-derived lowest local Y -0.02462456m gives grounded pivot 0.026595m at uniform scale1.08. Move 24cm to image left, 13cm toward camera to test center/coverage versus source target u=.505,v=.657 with high .07 uncertainty. Other 12 original source GLB transforms and camera unchanged.",
+    "variants": [
+      "baseline-v10",
+      "grounded-left-forward",
+      "wider-back",
+      "middle-left",
+      "near-original-alignment"
+    ],
+    "expected_original_proofs": [
+      "layout-v11-rug-reference-audit.json",
+      "layout-v11-original-reference-side-by-side.png",
+      "layout-v11-rug-saved-locked-real-webgl.png",
+      "layout-v11-browser-downloaded.json"
+    ],
+    "strict_status": "NOT_VISUALLY_ACCEPTED_UNTIL_GENUINE_PNG_MANUAL_REVIEW",
+    "android_state": "VISUAL_FAIL_G2.3_PAUSED"
+  }
+}
