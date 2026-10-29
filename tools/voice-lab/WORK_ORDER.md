@@ -375,3 +375,20 @@ SH_SYNTAX_PASS
 **NOT PASS:** This checkpoint did not execute the complete source-exact `run_tests.sh` or its 23 JVM mains, including the pending `GermanStreamingExplicitAbortIntegrationTest` and `GermanStreamingStopReceiptIntegrationTest`. The old `VoicePlaybackHeadTrackerTest` and its `VoiceLifecycleContract` dependency were not recompiled locally during this focused check. A complete Android TTS engine, actual speaker audio and natural German female voice, real-device S25 Ultra acoustic latency/STOP, mouth-video lip-sync, hardware capture and future integration remain unverified. Do not infer full integration PASS.
 
 **exact_next_action (supersedes earlier Voice handoffs):** Reconcile exact fresh PR #118 HEAD and the sole Voice writer lease; stage all `tools/voice-lab/**` Java dependencies with matching Git blob SHA and execute complete `sh tools/voice-lab/run_tests.sh`, paying special attention to the adjusted tracker test and both pending STOP/abort cross-contract integration suites. Correct only reproduced failures under owned scope, rerun, then advance the next proven streaming/voice regression. Keep future Voice explicitly excluded from v83.
+
+
+## 29 Oct 2026, 15:23 Europe/Berlin — German Sankt place-name chunking, FUTURE-ONLY
+
+**Isolated scope and actual TDD:** DRAFT PR #118, owned only `tools/voice-lab/**`; v83 remains released without Voice-Lab. Exact previous GitHub `GermanSpeechChunkPlanner.java` blob `4cf33477f318bda8ee2dcf1fc54f75b0f064fe66` was copied byte-for-byte and verified by local `git hash-object`. A new deterministic `GermanPlaceAbbreviationTest` first exited **RED / exit=1**, because `Wir fahren nach St. Pauli. Danach essen wir.` incorrectly produced three chunks (`Wir fahren nach St.`, `Pauli.`, `Danach essen wir.`). This is a real pure-Java boundary defect, NOT confirmed acoustic trouble.
+
+**Minimal correction:** Recognize `St.` as a conservative German place-name abbreviation, preserving the text and the rest of punctuation policy; other app/Android integration remains untouched. Local OpenJDK 21 compiled the source-exact prior baselines for both historical planner tests (their original Git blobs `95412cc240be68479b8ef8ddff996f9b200e34f5`, `e92db94945c2cabdf76940d2278f2cd87a6d36c2`) and the new fixture. On the corrected local file, genuine outputs:
+```
+VOICE_GERMAN_TEXT_PLANNER_PASS checks=20
+VOICE_GERMAN_ADVERSARIAL_PASS checks=34
+VOICE_GERMAN_PLACE_ABBREVIATION_PASS checks=8
+```
+**62 focused checks PASS**, including three Sankt place names, standard sentence boundaries and exact text preservation; not a complete integration suite. Planned Git blob identities after push: fixed planner `20b48334a6e59cedd1c654b8cfd9a53d0c868304`, new regression `f349982b715e73969a34cab044fb31eaa8f47dfc`. `run_tests.sh` includes the new fixture, but the **complete 35+ Java / 24+ test-main runner was NOT executed here**, and the two STOP integration mains remain PENDING until a complete exact-source checkout is available.
+
+**Unchanged ownership and acceptance:** Voice is FUTURE-ONLY, explicitly excluded from v83; Build & Release solely owns any later serialized Android/API29/APK/updater/release integration; no Room/Core/shared source/CI/Gradle/model downloads/device proof changed. No real Samsung S25 Ultra capture, naturalness/listening acceptance, audio-playback or lipsync validation. Old Android-8 Pico OS faults remain separate.
+
+**exact_next_action (supersedes earlier partial test handoffs):** Obtain all exact-source `tools/voice-lab/**` Java dependencies, verify each Git blob, run `sh tools/voice-lab/run_tests.sh` including both STOP/abort integration tests, fix only reproduced owned-scope failures, and then continue the next evidence-backed streaming continuity defect. Remain FUTURE-ONLY and do not touch app/Room/Core/CI/release.
