@@ -89,3 +89,36 @@ A production integrator must later measure actual S25 Ultra output/timestamp lat
 **exact_next_action:** Extend the isolated German text-planner adversarial vectors for URL/email, quoted sentence endings, numeric dates and long unbroken tokens; fix only reproducible split/loss cases, rerun exact-source JVM tests, then independently study a timestamp-to-viseme latency calibration contract. Remain FUTURE ONLY; never touch v83/Room/Core files.
 
 
+
+
+## 29 Oct 2026 — continued Voice-Lab implementation (FUTURE ONLY, v83 excluded)
+
+**Current release ownership correction:** The newly approved, existing **Yahya AI — Build & Release** worker (automation ID \`6ae29695b7a48191af25b982ab3606f0\`) owns all v83 builds, shared integration, signing/updater and releases. Older references above to Room #111 as the sole release publisher describe the former arrangement, not the latest product decision. Room #111 still exclusively owns its Room source; Core #113 remains its frozen v83 handoff. **Voice-Lab #118 is a separate future-only writer, not an included v83 release gate.**
+
+### Real bounded changes and TDD evidence
+
+- **German chunk-planner repair:** A new independent adversarial test initially **FAILED** on \`Sie schrieb: "Hallo!" Danach ging sie.\` (the entire text was wrongly grouped in one chunk). The actual planner now considers trailing quotation/parenthesis characters, grouped punctuation such as \`?!\`, ordinals before spelled-out German month names (e.g. \`5. November\`), and distinguishes a short \`29.10.\` date fragment from the completed \`29.10.2026.\` sentence boundary. Mail addresses/URLs are preserved; oversize unbroken tokens are preserved rather than silently truncated. None of these heuristics establishes spoken German naturalness.
+- **Conservative timing contract:** New standalone \`VoiceAcousticTimingContract\` rejects uncalibrated/stale/future/non-monotonic/overaccepted hardware-head samples, wrong generation and impossible jumps. An externally measured acoustic delay (not guessed by this lab) is mandatory before returning a conservative mouth-frame cursor. No optimistic playback-head extrapolation. This is only a JVM contract, not a Samsung timestamp measurement; actual sound-card latency, visual pipeline latency and conversion from real \`AudioTimestamp\` remain unknown.
+
+**Source-exact OpenJDK 21 local regression, no Android:**
+\`\`\`text
+VOICE_GERMAN_TEXT_PLANNER_PASS checks=20
+VOICE_GERMAN_ADVERSARIAL_PASS checks=18
+VOICE_ACOUSTIC_TIMING_CONTRACT_PASS checks=27
+\`\`\`
+**65 checks actually executed in this continuation.** Earlier 53,176 lifecycle/adversarial/head/planner assertions from the prior run are recorded above but were **not rerun** by this local verification. The updated \`run_tests.sh\` includes all six test mains for the next exact checkout. Local \`git hash-object\` matched the fetched GitHub Git blob IDs for every newly/changed executable source tested:
+
+- \`GermanSpeechChunkPlanner.java\` \`742e66ef73e9e8ea14c83f53d0f2a6dcb73fd6a1\`;
+- \`GermanSpeechChunkPlannerRegressionTest.java\` \`3924c9f8de3357731de53ff2002aae0b9cb0525f\`;
+- \`VoiceAcousticTimingContract.java\` \`500adfa86b59181b8010402f7befcbcd9b66dac4\`;
+- \`VoiceAcousticTimingContractTest.java\` \`8d7a9f6038f9c8b73af43e21f149337bc2e79bd0\`;
+- existing unchanged \`GermanSpeechChunkPlannerTest.java\` \`95412cc240be68479b8ef8ddff996f9b200e34f5\`.
+- new runner blob \`16558d5a996b38c9d5ceaef4be5f5b91f5a530d1\` (full runner not locally executed during this continuation).
+
+**New source commits:** \`e0076a9140a0cf55ba3a00fb57075545e81ae7e2\`, \`be8e9dbad236fea40273c61a9d3d799ebaf6bce0\`, \`0ef4691fa925ea7c71d718cd3af1f4c588d09df5\`, \`75d184a5ee26320b3d82917fee8d115a0368267e\`, \`c207f8988ee64fd0f7a490e3168ff50e6261ca71\`, \`8421c5ef954f3809019908bd2a6e92a1c88382f8\`. All commits are \`tools/voice-lab/**\` only.
+
+**For the Build & Release worker — deferred integration handoff, NOT v83:** Do not build/integrate Voice-Lab now. A later explicitly serialized post-v83 adapter would need \`VoicePlaybackHeadTracker\` (fresh AudioTrack generation and unsigned wrap), measured acoustic output delay and valid \`AudioTimestamp\` normalization, \`VoiceAcousticTimingContract\` (conservative UI cursor), \`VoiceLifecycleContract\` (accepted PCM/engine cancellation), and per-device actual listening/lip-sync acceptance. The existing Supertonic local model is untouched and no Android APK or physical S25 evidence exists. Old Android 8 Pico OS native crashes are not a v83 gate under the user's now approved Android 10/API29 minimum decision; the build worker owns any version/minSdk change.
+
+**Open limitations / acceptance:** Whole future Voice-Lab is still \`IN_PROGRESS\`. A 240-character bound is intentionally relaxed for a single unsplittable token rather than losing text; unnatural phrasing, abbreviation ambiguity, unsupported markup, drift, underrun and true live synthesis quality remain unmeasured. Neither real speaker output nor a naturally flowing German female voice is claimed.
+
+**exact_next_action:** In \`tools/voice-lab/**\` only, add and run an Android-free cross-contract regression that feeds a calibrated conservative presentation cursor into the existing PCM/mouth lifecycle across stop/restart, stale timestamp and actual drain completion, then refine only a reproduced issue; preserve the future-only boundary and clean handoff.
