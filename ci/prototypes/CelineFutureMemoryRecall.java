@@ -43,7 +43,7 @@ public final class CelineFutureMemoryRecall {
                 String conflictWithId, Privacy privacy, boolean authorizedForProvider,
                 boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
             this.id = rawId(id);
-            this.summary = hasNonTextControl(summary) ? "" : safe(summary);
+            this.summary = summary == null || summary.length() > MAX_INPUT || hasNonTextControl(summary) ? "" : safe(summary);
             this.supersedesId = rawId(supersedesId);
             this.conflictWithId = rawId(conflictWithId);
             this.privacy = privacy;
@@ -317,8 +317,8 @@ public final class CelineFutureMemoryRecall {
 
     private static Set<String> terms(String text) {
         Set<String> result = new HashSet<>();
-        if (!wellFormedUtf16(text) || hasNonTextControl(text)
-                || hasUnrepresentableLexicalChars(text)) return result;
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text)) return result;
         String value = safe(text);
         if (value.isEmpty()) return result;
         if (value.length() > MAX_INPUT) return result;
