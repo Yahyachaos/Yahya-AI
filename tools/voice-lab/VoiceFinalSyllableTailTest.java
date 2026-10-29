@@ -94,10 +94,53 @@ public final class VoiceFinalSyllableTailTest {
         eq(VoiceLifecycleContract.Mouth.CLOSED, v.calibratedMouthAt(id, 10, 304),
                 "no tail after interruption");
     }
+    private static void optInAndPostDrainSafety() {
+        VoiceLifecycleContract v = new VoiceLifecycleContract();
+        long id = v.begin(400);
+        ok(v.prepared(id, 401), "opt-in phase ready");
+        ok(!v.enableBoundedPresentationTail(id, 401), "tail opt-in requires calibration");
+        ok(v.enableCalibratedPresentation(id, 401), "opt-in calibration");
+        ok(v.enableBoundedPresentationTail(id, 401), "tail opt-in once");
+        ok(!v.enableBoundedPresentationTail(id, 401), "duplicate tail opt-in rejected");
+        ok(v.acceptPcm(id, 60, VoiceLifecycleContract.Mouth.OPEN, 402), "PCM for post-drain death");
+        ok(v.synthesisDone(id, 403), "post-drain death synth");
+        ok(v.playbackHead(id, 60, 404), "post-drain death raw completed");
+        ok(v.engineDied(id, 405), "engine death after drain silences UI tail");
+        eq(VoiceLifecycleContract.Phase.COMPLETED, v.phase(),
+                "engine death after raw drain does not relabel physical completion");
+        eq(0, v.retainedCueCount(), "engine death drops terminal cues");
+        eq(VoiceLifecycleContract.Mouth.CLOSED, v.calibratedMouthAt(id, 40, 406),
+                "late acoustic callback after death silent");
+        ok(!v.engineDied(id, 407), "duplicate engine death not accepted");
+
+        id = v.begin(500);
+        ok(v.prepared(id, 501), "legacy-calibrated ready");
+        ok(v.enableCalibratedPresentation(id, 501), "legacy calibration without new tail opt-in");
+        ok(v.acceptPcm(id, 50, VoiceLifecycleContract.Mouth.TEETH, 502), "legacy calibration PCM");
+        ok(v.synthesisDone(id, 503), "legacy calibration synthesis");
+        ok(v.playbackHead(id, 50, 504), "legacy calibration physical drain");
+        eq(0, v.retainedCueCount(), "legacy calibrated behavior unchanged without opt-in");
+        eq(VoiceLifecycleContract.Mouth.CLOSED, v.calibratedMouthAt(id, 40, 505),
+                "no retroactive tail for earlier behavior");
+
+        id = v.begin(600);
+        ok(v.prepared(id, 601), "watchdog-ready stream");
+        ok(v.enableCalibratedPresentation(id, 601), "watchdog calibration");
+        ok(v.enableBoundedPresentationTail(id, 601), "watchdog bounded tail opt-in");
+        ok(v.acceptPcm(id, 10, VoiceLifecycleContract.Mouth.ROUNDED, 602), "watchdog PCM");
+        ok(v.synthesisDone(id, 603), "watchdog synthesis");
+        ok(v.playbackHead(id, 10, 604), "watchdog raw drain");
+        ok(!v.tick(1354), "exact 750ms watchdog boundary retains cue");
+        ok(v.tick(1355), "watchdog closes missing acoustic end after 751ms");
+        eq(0, v.retainedCueCount(), "watchdog frees bounded tail without UI callback");
+        eq(VoiceLifecycleContract.Phase.COMPLETED, v.phase(),
+                "watchdog only affects UI, never physical phase");
+    }
     public static void main(String[] args) {
         tailAfterRawDrain();
         timeoutAndCancellation();
         failClosedAndLegacy();
+        optInAndPostDrainSafety();
         System.out.println("VOICE_FINAL_SYLLABLE_TAIL_PASS checks=" + checks);
     }
 }
