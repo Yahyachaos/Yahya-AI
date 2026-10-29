@@ -370,15 +370,18 @@ public final class CelineFutureMemoryRecall {
         return true;
     }
 
-    // Source summaries and queries must not turn NUL/DEL/C1 control bytes into
-    // separators or silently trim them into seemingly trustworthy evidence.
-    // Newlines/tabs/carriage returns remain valid natural-text whitespace.
+    // Never normalize invisible Unicode FORMAT marks (zero-width/bidi)
+    // into separators: this can turn a partially corrupted statement into
+    // seemingly complete lexical evidence. Normal CR/LF/tab stay permitted.
+    // Traverse code points so supplementary FORMAT characters are covered.
     private static boolean hasNonTextControl(String value) {
         if (value == null) return false;
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            if (Character.isISOControl(ch) && ch != '\n' && ch != '\r' && ch != '\t')
+        for (int i = 0; i < value.length();) {
+            int cp = value.codePointAt(i);
+            if ((Character.isISOControl(cp) && cp != '\n' && cp != '\r' && cp != '\t')
+                    || Character.getType(cp) == Character.FORMAT)
                 return true;
+            i += Character.charCount(cp);
         }
         return false;
     }
