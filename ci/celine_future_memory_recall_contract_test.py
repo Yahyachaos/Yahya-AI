@@ -407,6 +407,84 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("token-new", manyTerms.toString(), "token-old",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW, 0, 1))),
             "", "over-token replacement still withholds superseded memory");
+        // FUTURE ONLY: malformed temporal metadata must never be rewritten to
+        // the special G1 expiry=0 (unbounded) sentinel, even if provider-approved.
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("negative-expiry",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, -1, 1))), "",
+                "negative expiry is corrupt, not an unlimited lifetime");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("minimum-expiry",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, Long.MIN_VALUE, 1))), "",
+                "minimum-long expiry is never converted to unlimited lifetime");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("negative-updated",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, -1, 0, 1))), "", "negative updated timestamp withheld");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("minimum-updated",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, Long.MIN_VALUE, 0, 1))), "", "minimum-long updated timestamp withheld");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("future-updated",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW+1, 0, 1))), "", "future-dated update is not yet authoritative");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("future-updated-expiry",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW+1, NOW+1000, 1))), "", "future update with later expiry withheld");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("expiry-before-update",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW+2000, NOW+1000, 1))), "", "expiry before changed-at is corrupt");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("valid-no-expiry",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 1))), "valid-no-expiry",
+                "valid unbounded lifetime remains available");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("valid-future-expiry",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, NOW+1000, 1))), "valid-future-expiry",
+                "valid future expiry remains available");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            new CelineFutureMemoryRecall.Candidate("zero-update",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, 0, 0, 1))), "zero-update",
+                "G1 zero timestamp historical record remains available");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            x("negative-old", "Meine Katze heißt Paul", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("negative-successor",
+                "Meine Katze heißt Luna", "negative-old",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true,
+                NOW-100, -1, 1))), "", "invalid successor still suppresses obsolete parent");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            x("future-old", "Meine Katze heißt Paul", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("future-successor",
+                "Meine Katze heißt Luna", "future-old",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true,
+                NOW+1, 0, 1))), "", "future successor still suppresses old fact");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            c("negative-conflicted", "Meine Katze heißt Paul"),
+            new CelineFutureMemoryRecall.Candidate("negative-conflict",
+                "Meine Katze heißt Luna", "", "negative-conflicted",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true,
+                NOW-100, -1, 1))), "", "invalid conflict holder still quarantines opponent");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Luna",
+            Arrays.asList(new CelineFutureMemoryRecall.Candidate("negative-correction",
+                "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, -1, 1)), NOW), "",
+                "invalid memory must never become automatic correction target");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-negative-expiry", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
+                "EXPLICIT", "user_explicit", true, true, NOW-100, -1, 1))), "",
+                "source-grounded G1 negative expiry remains invalid");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",
+            Arrays.asList(c("negative-query-now", "Meine Katze heißt Luna")), 8, -1).size(),
+            0, "negative evaluation clock must not expose any candidate");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

@@ -49,8 +49,10 @@ public final class CelineFutureMemoryRecall {
             this.privacy = privacy;
             this.authorizedForProvider = authorizedForProvider;
             this.userExplicit = userExplicit;
-            this.updatedAtMs = Math.max(0L, updatedAtMs);
-            this.expiresAtMs = Math.max(0L, expiresAtMs);
+            // Preserve corrupt negative source timestamps. Converting negative
+            // expiry to the G1 zero/unbounded sentinel resurrects stale facts.
+            this.updatedAtMs = updatedAtMs;
+            this.expiresAtMs = expiresAtMs;
             this.importance = Math.max(0d, Math.min(1d, importance));
         }
         /**
@@ -102,7 +104,9 @@ public final class CelineFutureMemoryRecall {
         }
 
         boolean live(long now) { return !id.isEmpty() && !summary.isEmpty()
-                && (expiresAtMs == 0L || expiresAtMs > now); }
+                && now >= 0L && updatedAtMs >= 0L && updatedAtMs <= now
+                && expiresAtMs >= 0L
+                && (expiresAtMs == 0L || (expiresAtMs > now && expiresAtMs > updatedAtMs)); }
     }
 
     public static final class Match {
