@@ -1015,7 +1015,7 @@ async function main() {
     const bedProof=[];
     for(const trial of bedTrials){
       const tempPath=path.join(output,'trial-v7-bed-'+trial.name+'.json');
-      fs.writeFileSync(tempPath,JSON.stringify(trial.state,null,2)+'\\n');
+      fs.writeFileSync(tempPath,JSON.stringify(trial.state,null,2)+'\n');
       await page.locator('#file').setInputFiles(tempPath);
       await page.waitForFunction(name=>document.querySelector('#status')?.textContent?.includes(
         'Gespeichertes Layout geladen: '+name),path.basename(tempPath),{timeout:60000});
@@ -1109,7 +1109,7 @@ async function main() {
       manualChairVisual:'FAIL_NOT_TOUCHED',
       wholeRoomVisual:'FAIL',androidG2_3:'PAUSED'
     };
-    fs.writeFileSync(path.join(output,v7ReportName),JSON.stringify(v7Report,null,2)+'\\n');
+    fs.writeFileSync(path.join(output,v7ReportName),JSON.stringify(v7Report,null,2)+'\n');
     assert.equal(JSON.parse(fs.readFileSync(path.join(output,v7ReportName),'utf8'))
       .trials.length,5,'V7 all five genuine WebGL variants audited');
     evidence('V7_GENUINE_BED_DEPTH_PROJECTION_TRIALS_NOT_VISUALLY_APPROVED',{
