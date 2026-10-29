@@ -403,9 +403,18 @@ public final class CelineFutureMemoryRecall {
         if (base != 0x2764 && base != 0x2600 && base != 0x2708) return false;
         int baseStart = selectorIndex - Character.charCount(base);
         int nextIndex = selectorIndex + 1; // VS16 occupies one UTF-16 code unit.
-        return (baseStart == 0 || Character.isWhitespace(text.codePointBefore(baseStart)))
-                && (nextIndex == text.length()
-                    || Character.isWhitespace(text.codePointAt(nextIndex)));
+        if (baseStart != 0 && !Character.isWhitespace(text.codePointBefore(baseStart)))
+            return false;
+        if (nextIndex == text.length() || Character.isWhitespace(text.codePointAt(nextIndex)))
+            return true;
+        // Punctuation may terminate a standalone visible emoji, but never
+        // silently glue a variation selector to the following lexical word.
+        int punctuation = text.codePointAt(nextIndex);
+        return (punctuation == ',' || punctuation == '.' || punctuation == '!'
+                || punctuation == '?' || punctuation == ';' || punctuation == ':')
+                && (nextIndex + Character.charCount(punctuation) == text.length()
+                    || Character.isWhitespace(text.codePointAt(
+                        nextIndex + Character.charCount(punctuation))));
     }
 
     // Never trim identity/lineage keys: normalization can launder a corrupt G1 ID.
