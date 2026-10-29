@@ -309,3 +309,20 @@ VOICE_GERMAN_GATED_STREAM_SESSION_PASS checks=48
 **Owner/version handoff:** Voice #118 remains DRAFT FUTURE-ONLY and explicitly excluded from v83 (issue #117). Build & Release worker ID 6ae29695b7a48191af25b982ab3606f0 remains the exclusive eventual integration/Android minSdk29/APK/updater/release owner; Room #111 owns its separate scene domain and Core #113 stays frozen. No lease conflict or overlapping source path was observed at the time of this continuation.
 
 **exact_next_action (supersedes earlier):** Under tools/voice-lab/** only, build an independent seeded multi-generation strict-wrapper replay oracle that checks that confirmed transcript order survives raw/drain/capture expiry/clock reset/crash/restart without double speak or unauthorized next-chunk issuance; fix only any reproduced source defect and rerun exact-source JVM checks. Keep v83 and app/shared/CI/Room/Core/release entirely untouched.
+
+## 29 Oct 2026 — fourth same-run bounded step: strict speaker-gated multi-generation replay
+
+Added exact Git blob \`4cd37057b6c636dbf80767b143a98366ef376da6\` for a FUTURE-ONLY seeded GermanStreamingSpeakerGatedReplayTest.java. It uses independent fixed German text/transcript fixtures and 120 deterministic 3-chunk conversations with randomized partial PCM writes, TTS engine death, user interruption, explicit *externally claimed* silent restart, synthesis-before/after-head, terminal raw drain, stale callback, rejected RAW_HEAD_ONLY, incomplete captured speaker tails, 200ms expired capture, refusal of backdated clock resurrection, fresh captured tail recovery and one-shot final acoustic proof. It verifies plan text prefix after every physical raw head completion and enforces no next-chunk lease prior to the correctly matched full external presentation claim.
+
+**Actual source-exact OpenJDK 21 run after this test (ALL four targeted suites recompiled and rerun locally using the exact 10 GitHub blob-identical Java files, not an Android build):**
+\`\`\`
+VOICE_GERMAN_RAW_DRAIN_COORDINATOR_PASS checks=3422
+VOICE_GERMAN_SPEAKER_TAIL_GATE_PASS checks=1027
+VOICE_GERMAN_GATED_STREAM_SESSION_PASS checks=48
+VOICE_GERMAN_GATED_REPLAY_PASS checks=8882
+\`\`\`
+**13,379 fresh targeted deterministic checks PASS.** The new standalone 120-run test alone reports **8,882**. A deliberate temporary mutation to the session's proof-permit guard caused this test to exit with nonzero \`IllegalStateException: unresolved previous audible tail\` at the first premature next lease, while exact original passed. This is mutation sensitivity, not a real device regression/production defect. Full historical 17-main runner was not executed as a whole; it is updated to include this new main and local shell syntax requires a source-exact check. All code remains strictly under tools/voice-lab/** on the existing draft PR.
+
+**Known limitation:** The simulated EXTERNAL_CAPTURE tag is not real recorded sound. Confirmed text prefix in this test means only an independent *synthetic oracle* consistent with the events; it cannot establish actually audible German words or true physical end-of-speech. Poisoned/external-capture clock resets and explicit plan abandonment after an irrecoverable speaker proof need separately bounded future tests. No natural German female listening PASS, S25 Ultra, Android AudioTrack adapter, v83, app/ci/shared/Gradle/signing/updater/release action occurred.
+
+**exact_next_action (supersedes earlier):** In tools/voice-lab/** only, reproduce a poisoned speaker-capture epoch after a fully raw-drained chunk and design explicit user-driven *abort-and-new-session* semantics that never silently replay, skip, or unblock an uncertain spoken chunk. Add a deterministic fail-closed JVM regression for capture rollback and lifecycle reset; require an explicit external decision rather than self-recovery. Do not touch app/v83/Room/Core/shared/build/release surfaces.
