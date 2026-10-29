@@ -100,6 +100,7 @@ scene.add(floor, walls);
 let room = { ...CANONICAL };
 let wallVisible = true;
 let guideGridVisible = false; // Keep a usable editor grid on demand, not in reference views.
+let referenceShellPreview = false; // V23 opt-in architecture color test; not a saved GLB change.
 // V22 editor-only source-fidelity preview. Cache original immutable GLB material objects.
 const sourceDrapeMaterials = new WeakMap();
 const SHEER_SOURCE_MATERIAL = 'material.010'; // original map-bearing white drape slot
@@ -139,8 +140,21 @@ function buildRoom() {
     [0.045, room.height, room.depth, room.width/2, room.height/2, 0],
     [room.width, 0.045, room.depth, 0, room.height, 0]
   ];
-  for (const [w,h,d,x,y,z] of wallDef) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wallMat());
+  for (const [index, def] of wallDef.entries()) {
+    const [w,h,d,x,y,z] = def;
+    // V23 isolates the photo's warmer ceiling from the darker walls. Reversible
+    // editor-only shell colors; actual source furniture/materials stay untouched.
+    const material = !referenceShellPreview ? wallMat()
+      : index === 3
+        ? new THREE.MeshBasicMaterial({
+            color:0x966944, side:THREE.DoubleSide, transparent:true,
+            opacity:0.96, depthWrite:false, toneMapped:false
+          })
+        : new THREE.MeshStandardMaterial({
+            color:0x704420, side:THREE.DoubleSide, transparent:true,
+            opacity:0.36, roughness:1, depthWrite:false
+          });
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
     wall.position.set(x,y,z);
     walls.add(wall);
   }
@@ -626,6 +640,10 @@ $('sheer-preview').onchange=()=>{
   if (preview.ready && preview.enabled && preview.affectedMaterialSlots!==1)
     status('Gardinen-Vorschau nicht angewendet: Originalmaterial nicht eindeutig.', 'warn');
 };
+$('reference-shell-preview').onchange=()=>{
+  referenceShellPreview=$('reference-shell-preview').checked;
+  buildRoom(); // Geometry and 13 loaded GLB object transforms are not rebuilt.
+};
 $('show-grid').onchange=()=>{
   guideGridVisible=$('show-grid').checked;
   const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
@@ -905,6 +923,17 @@ if (E2E_PROOF) {
         grid_exists:!!grid,
         grid_visible:grid?.visible,
         guide_control_checked:$('show-grid').checked
+      };
+    },
+    shellPreviewAudit() {
+      const m=walls.children.filter(child=>child.isMesh);
+      return {
+        enabled:referenceShellPreview,
+        room_m:{...room}, wall_count:m.length,
+        wall_hex:m[0]?.material?.color?.getHexString()||null,
+        wall_opacity:m[0]?.material?.opacity??null,
+        ceiling_hex:m[3]?.material?.color?.getHexString()||null,
+        ceiling_opacity:m[3]?.material?.opacity??null
       };
     },
     framePng(options={}) {

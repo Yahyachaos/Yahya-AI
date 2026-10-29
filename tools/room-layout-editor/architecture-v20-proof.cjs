@@ -63,6 +63,40 @@ async function run(){
    const c=document.createElement('canvas');c.width=1400;c.height=560;
    const ctx=c.getContext('2d');ctx.drawImage(r,0,0,700,560);ctx.drawImage(im,700,0,700,560);return c.toDataURL('image/png');
   }),[1400,560]);
+  // V23: actual WebGL screen comparison, never infer a visual PASS from geometry.
+  const baselineShell=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
+  assert.deepEqual(baselineShell,{
+   enabled:false,room_m:layout.room,wall_count:4,
+   wall_hex:'c3a98a',wall_opacity:.36,
+   ceiling_hex:'c3a98a',ceiling_opacity:.36
+  });
+  await page.locator('#reference-shell-preview').check();
+  const trialShell=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
+  assert.deepEqual(trialShell,{
+   enabled:true,room_m:layout.room,wall_count:4,
+   wall_hex:'704420',wall_opacity:.36,
+   ceiling_hex:'966944',ceiling_opacity:.96
+  });
+  const v23Trial=png('layout-v23-warm-wall-ceiling-trial-genuine-webgl.png',
+   await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  const v23Comparison=png('layout-v23-original-reference-wall-ceiling-side-by-side.png',await page.evaluate(async()=>{
+   const r=document.querySelector('#reference-preview'),im=new Image();
+   im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+   await new Promise((resolve,reject)=>{if(im.complete&&im.naturalWidth)return resolve();im.onload=resolve;im.onerror=reject;});
+   const c=document.createElement('canvas');c.width=1400;c.height=560;
+   const ctx=c.getContext('2d');ctx.drawImage(r,0,0,700,560);ctx.drawImage(im,700,0,700,560);return c.toDataURL('image/png');
+  }),[1400,560]);
+  await page.locator('#reference-shell-preview').uncheck();
+  const restoredShell=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
+  assert.deepEqual(restoredShell,baselineShell,'V23 must fully restore previous wall and ceiling materials');
+  const afterTrialScene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  assert.deepEqual(afterTrialScene.room_m,s.room_m);
+  for(const a of s.objects){
+   const b=afterTrialScene.objects.find(o=>o.id===a.id);assert(b);
+   assert.equal(b.source_sha256,a.source_sha256);
+   assert.equal(b.locked,a.locked);
+   assert.deepEqual(b.transform,a.transform,'Shell preview must not move '+a.id);
+  }
   await page.locator('#show-grid').check();
   const gridOn=await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit());
   assert.equal(gridOn.grid_visible,true);
@@ -90,6 +124,8 @@ async function run(){
    unchangedOriginalFurniture:13,unchangedOriginalHashes:layout.original_source_hashes,
    sourceLayout:'tools/room-layout-editor/layout-candidates/2026-10-29-room-window-drapes-screened-v19.json',
    architecturalPalette:arch,gridOn,clean,comparison,withGrid,gridClean,
+   v23SourcePreservingPreview:{baselineShell,trialShell,restoredShell,
+    trialGenuineWebgl:v23Trial,originalReferenceSideBySide:v23Comparison},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS');
