@@ -47,4 +47,45 @@ Source frozen for v83: [Room #111](https://github.com/Yahyachaos/Yahya-AI/pull/1
 
 The current prototype retains all accepted cue intervals until terminal completion; production should age out intervals as the playback head advances, use a stable audio-head wrap/latency mapping, and avoid emitting UI callbacks from a stale/finished epoch.
 
-**exact_next_action:** Add an isolated, deterministic adversarial callback-sequence/replay fixture under `tools/voice-lab/**` that stresses mixed engine callbacks, partial `AudioTrack.write` acceptance, head jitter and cancellation over hundreds of synthetic events; establish a bounded-cue-retention policy before any production wiring. Keep v83 entirely untouched.
+## Continued implementation and source-exact tests — 29 Oct 2026, later Voice-Lab run
+
+This remains **one FUTURE-ONLY voice workstream**, not v83 integration and not a completed natural voice. Sole owned file prefix `tools/voice-lab/**`, existing DRAFT PR #118. No `app/**`, `ci/**`, Room #111/Core #113, Gradle, shared Queue, signing, updater, workflows, Android APK or release changes.
+
+### Executed coherent substeps
+
+1. **Actual partial-write/replay + bounded cue buffer.** `VoiceLifecycleContract` now retires fully consumed cue segments without discarding the last *played* sample at exact head boundaries; it coalesces adjacent equal mouth shapes. A maximum of 256 retained cue segments is enforced without silently discarding unheard visemes. Queue overrun is **FAIL-STOP** (`cue backlog exceeded`), and `canAcceptPcm` provides an advisory pre-write budget check. The caller must serialize this preflight with `AudioTrack.write` and the actual returned accepted frame-count callback; a concurrent reservation is NOT claimed. The Android adapter must stop an actual track on fail-stop.
+2. **Adversarial deterministic regression.** New `VoiceLifecycleAdversarialTest` covers 5,000 sequential short writes + head advances, a 256-segment silent-head backlog/overflow/recovery, positive/zero/negative partial writes, exact cue boundary, backwards-head jitter, synthesis-before-drain, 60 seeded utterance replays × 180 callbacks against an independent frame-by-frame oracle, cancelled generations and late engine events. Genuine initial RED: `first cue pruned after crossing its end` expected 1 but got 2; source correction and all tests PASS. A prior missing `retainedCueCount` accessor caused the initial test to fail compilation; tests were made executable and the behavioral failure then reproduced.
+3. **Signed 32-bit playback-head unwrapping.** New Android-free `VoicePlaybackHeadTracker` and focused test convert signed `AudioTrack.getPlaybackHeadPosition()` observations relative to a fresh stream baseline into monotonic 64-bit positions. Rejects stale generation, backwards jitter, impossible future head, unsigned half-wrap ambiguity and observations after stop; exact wrap and integration with playback-head-driven viseme selection are covered. Assumes no in-place AudioTrack reset and head polling more often than 2^31 frames; these are adapter requirements, not measured device properties.
+4. **Conservative spoken-German text chunk planning.** New `GermanSpeechChunkPlanner` and tests preserve words, split natural sentence boundaries and long text at whitespace, and avoid mistaken splits for `Dr.`, `z. B.`, decimals and `29.10.`. It **does not** synthesize German speech or claim to solve spoken `Punkt Punkt`; it does not silently remove the user's words/markup. Numeric-date/ordinal boundary was first RED (`Nr. 4.` incorrectly grouped), then corrected and PASS.
+
+### Exactly executed local JVM test evidence (OpenJDK 21)
+
+From a clean temporary class-output directory using **the same Java source blobs as the GitHub PR files**, executed `sh tools/voice-lab/run_tests.sh`:
+
+```text
+VOICE_LIFECYCLE_CONTRACT_PASS checks=62
+VOICE_ADVERSARIAL_PASS checks=53059
+VOICE_HEAD_TRACKER_PASS checks=35
+VOICE_GERMAN_TEXT_PLANNER_PASS checks=20
+```
+
+Total **53,176 deterministic assertions**. Local `git hash-object` matched fetched GitHub file blob IDs for all 8 files listed below (source/runner, not Android binaries):
+
+- `VoiceLifecycleContract.java` = `770212539268e8e73325fdb8d3890d390887eb51`
+- `VoiceLifecycleContractTest.java` = `6f545fdbf66a97a97484cdb8532476755328fc04`
+- `VoiceLifecycleAdversarialTest.java` = `bad04e83ee1a884d0b51ea5da5f8bf2d865e4ed8`
+- `VoicePlaybackHeadTracker.java` = `4ab9ee3bc2e4deff3ccfe91df56f453ae8d60004`
+- `VoicePlaybackHeadTrackerTest.java` = `33d4d2264cff188805b0f4797e7a038f080d19aa`
+- `GermanSpeechChunkPlanner.java` = `879159f4e3150a08d79e9d4f80a705a3214e5d66`
+- `GermanSpeechChunkPlannerTest.java` = `95412cc240be68479b8ef8ddff996f9b200e34f5`
+- `run_tests.sh` = `42727bc3096dc03ee222544b137dca83781a5c2b`
+
+None of this validates synthesis, speaker output, German naturalness, Android hardware timing, lip movement on S25 Ultra, third-party model licensing, or the old `com.svox.pico` Android-8 SIGSEGV. In particular `AudioTrack` head counter is *not* a calibrated acoustic presentation timestamp; sound hardware latency and drift need future device measurements. The existing Supertonic 3 / sherpa-onnx female preset implementation remains untouched.
+
+### Remaining technical gap / handoff
+
+A production integrator must later measure actual S25 Ultra output/timestamp latency and preserve epoch-safe ownership across neural/offline, device TTS and online MP3 fallback; this future prototype may be used only after an exclusive post-v83 ownership transfer and genuine device acceptance. Android 8 OS Pico failure is separately tracked and not declared fixed.
+
+**exact_next_action:** Extend the isolated German text-planner adversarial vectors for URL/email, quoted sentence endings, numeric dates and long unbroken tokens; fix only reproducible split/loss cases, rerun exact-source JVM tests, then independently study a timestamp-to-viseme latency calibration contract. Remain FUTURE ONLY; never touch v83/Room/Core files.
+
+
