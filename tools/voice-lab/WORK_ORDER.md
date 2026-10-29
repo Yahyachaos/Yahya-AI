@@ -177,3 +177,25 @@ VOICE_CROSS_CONTRACT_PASS checks=585
 **Open blocker:** no measured S25 Ultra speaker latency, natural German female voice listening result, native synthesis/AudioTrack integration or actual mouth-video comparison. External simulated latency values above are test fixtures, not real device measurements. Physical final syllable timing remains unresolved; no new effect on v83/AP29 or the old Android-8 Pico issue.
 
 **exact_next_action (replaces the preceding one):** Add a seeded, independent acoustic-presentation-vs-raw-head frame oracle to `tools/voice-lab/**` under interrupted generations, stale timestamps and randomized partial writes. Run it with the unchanged five JVM suites; fix only a proven contract regression before making any later Android wiring proposal. Keep v83/Room/Core/build ownership strictly separate.
+
+
+### Same run, third bounded substep — seeded independent calibrated-PCM oracle
+
+Added `VoiceCalibratedOracleTest.java` to the FUTURE-ONLY Voice branch; source blob `6ca8ab807c1a47b82881305c949e29e4262c6146`, create commit `6129ddd8f0c7b477a5978b2f0a1e54ba1a1f5d43`. The independent per-frame expected-mouth oracle covers **30 sequential utterance generations × 250 step streams** with seeded randomized returned partial PCM writes, actual accepted frame records, raw head advancement, simulated (explicit) measured-delay values 0..39 frames, conservative fresh presentation timestamps, independent frame-by-frame viseme comparison, cue cap, stale/wrong-epoch observations, interruption of every third utterance and physical raw-tail completion of the rest. It is deterministic and does **not** generate, hear, or play real audio. All tests run on the actual modified lifecycle blob verified above; the new seeded fixture itself has a matching source-exact GitHub blob SHA.
+
+**Genuine OpenJDK 21 execution in this run, locally sourced matching GitHub blobs, no Android:**
+
+```
+VOICE_LIFECYCLE_CONTRACT_PASS checks=62
+VOICE_ADVERSARIAL_PASS checks=53059
+VOICE_HEAD_TRACKER_PASS checks=35
+VOICE_ACOUSTIC_TIMING_CONTRACT_PASS checks=27
+VOICE_CROSS_CONTRACT_PASS checks=585
+VOICE_CALIBRATED_ORACLE_PASS checks=64306
+```
+
+**118,074 deterministic assertions PASS** in the six listed suites; the unchanged two German planner suites were not rerun here, so this is not a claim that the complete 8-main runner was executed. Runner now includes all 8 mains and only uses a temporary local Java output directory; no CI, Android/Room/Core source/build, model asset or v83 binary altered. Changed files remain only `tools/voice-lab/**`; actual output SHA and commit should be read back before any future integration.
+
+**Unproven:** true S25 speaker/codec latency, round-trip real presentation timestamps, end-of-stream final-syllable timing and naturally sounding German female TTS. The raw hardware head is used for terminal lifecycle completion; a delayed acoustic cursor can be behind at that moment, and the safe terminal CLOSED result may clip the last synthetic mouth cue in a real UI. This remains an *explicit acceptance gap*, not a completed sync solution. Replacing actual playback completion authority with acoustic cursor would be unsafe without measured real output evidence.
+
+**exact_next_action (supersedes older):** In this **same Voice-Lab future-only PR** inspect and test the unresolved final-syllable display tail with a conservative Android-free latency/terminal policy fixture that never keeps an old generation alive after physical stop, and documents the tradeoff versus early-close mouth pose. Fix only a reproducible contract issue; avoid speculative real-device compensation. A future explicit exclusive Build & Release handoff is needed before **post-v83** Android adapter implementation.
