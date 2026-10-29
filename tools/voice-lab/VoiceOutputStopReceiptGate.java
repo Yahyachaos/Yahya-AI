@@ -49,7 +49,17 @@ public final class VoiceOutputStopReceiptGate {
     /** A typed external STOP claim; never independently proves speaker silence. */
     public synchronized boolean acknowledgeStopped(StopRequest request,
             long observedPlan, long observedAudio, long stoppedNs) {
-        if (!matches(request, observedPlan, observedAudio) || externallyStopped) return false;
+        if (!matches(request, observedPlan, observedAudio)) return false;
+        if (externallyStopped) {
+            // Even a duplicate current-epoch callback reveals a later clock value.
+            // It never grants a second ACK; an expired/backward claim poisons the lease.
+            if (stoppedNs > lastEventNs) lastEventNs = stoppedNs;
+            if (!fresh(stoppedNs)) {
+                pending = null;
+                externallyStopped = false;
+            }
+            return false;
+        }
         if (!fresh(stoppedNs)) {
             if (stoppedNs > lastEventNs) lastEventNs = stoppedNs;
             pending = null; // fail closed on clock reversal / expiry
