@@ -785,6 +785,38 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna\uD83D\uDC08",Arrays.asList(
             c("emoji-valid","Meine Katze heisst Luna"))),"emoji-valid",
             "valid supplementary emoji must remain harmless");
+        // Default-ignorable Unicode marks are MARK (not FORMAT) in Java.
+        // NFD/mark-stripping otherwise launders corrupted lexical evidence.
+        String cgj = "\u034F";
+        String vs16 = "\uFE0F";
+        String mongolianVs = "\u180B";
+        String supVs = new String(Character.toChars(0xE0100));
+        eq(top("Meine Katze heisst Lu"+cgj+"na",
+            Arrays.asList(c("ignorable-valid", "Meine Katze heisst Luna"))), "",
+            "CGJ invisible query mark must abstain");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("ignorable-stored", "Meine Katze heisst Lu"+cgj+"na"))), "",
+            "CGJ invisible stored evidence must abstain");
+        eq(top("Meine Katze heisst Lu"+vs16+"na",
+            Arrays.asList(c("variation-valid", "Meine Katze heisst Luna"))), "",
+            "variation selector U+FE0F query mark must abstain");
+        eq(top("Meine Katze heisst Lu"+supVs+"na",
+            Arrays.asList(c("supp-variation-valid", "Meine Katze heisst Luna"))), "",
+            "supplementary variation-selector query must abstain");
+        eq(top("Meine Katze heisst Lu"+mongolianVs+"na",
+            Arrays.asList(c("mongolian-variation-valid", "Meine Katze heisst Luna"))), "",
+            "Mongolian selector embedded in Latin query must abstain");
+        eq(top("Meine Katze heisst Paul", Arrays.asList(
+            c("ignorable-predecessor", "Meine Katze heisst Paul"),
+            x("ignorable-successor", "Meine Katze heisst Lu"+cgj+"na",
+                "ignorable-predecessor", true, 0))), "",
+            "withheld corrupt successor still suppresses predecessor");
+        eq(top("Cafe\u0301", Arrays.asList(
+            c("valid-decomposed-accent", "Ich mag Café"))),
+            "valid-decomposed-accent", "ordinary combining accent remains supported");
+        eq(top("Meine Katze heisst Luna" + new String(Character.toChars(0x1F600)),
+            Arrays.asList(c("valid-emoji", "Meine Katze heisst Luna"))),
+            "valid-emoji", "well-formed ordinary emoji remains supported");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
