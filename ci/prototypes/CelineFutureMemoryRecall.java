@@ -45,6 +45,23 @@ public final class CelineFutureMemoryRecall {
             this.expiresAtMs = Math.max(0L, expiresAtMs);
             this.importance = Math.max(0d, Math.min(1d, importance));
         }
+        /**
+         * Bounded, scalar-only projection of the exact G1 privacy enum values.
+         * Unknown scopes remain in the lineage graph but are never exportable.
+         * The permission bit must be supplied by the owning app, never inferred.
+         */
+        public static Candidate fromG1Projection(String id, String summary,
+                String supersedesId, String privacyScope, boolean providerPermission,
+                boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
+            Privacy scope = null;
+            if ("LOCAL_PRIVATE".equals(privacyScope)) scope = Privacy.LOCAL_PRIVATE;
+            else if ("LOCAL_SENSITIVE".equals(privacyScope)) scope = Privacy.LOCAL_SENSITIVE;
+            else if ("SHAREABLE_ON_REQUEST".equals(privacyScope)) scope = Privacy.SHAREABLE_ON_REQUEST;
+            return new Candidate(id, summary, supersedesId, scope,
+                    scope == Privacy.LOCAL_PRIVATE && providerPermission,
+                    userExplicit, updatedAtMs, expiresAtMs, importance);
+        }
+
         boolean live(long now) { return !id.isEmpty() && !summary.isEmpty()
                 && (expiresAtMs == 0L || expiresAtMs > now); }
     }
