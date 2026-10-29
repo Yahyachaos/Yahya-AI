@@ -1665,7 +1665,8 @@ def main():
 
 
 try:
-    main()
+    if __name__ == "__main__":
+        main()
 except BaseException as error:
     print("CORE_EMULATOR_SMOKE_FAIL:", repr(error), file=sys.stderr, flush=True)
     screenshot("FAIL-actual-emulator-state.png")

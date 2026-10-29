@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/celine-v83-updater-install-proof.yml'
       - 'ci/celine-updater-v47-emulator-smoke.py'
+      - 'ci/celine_core_persona_emulator_smoke.py'
   workflow_dispatch:
 
 permissions:
@@ -86,6 +87,12 @@ jobs:
           test -n "$C79" && test "$C79" = "$C80"
           echo 'REAL_PUBLIC_V79_V80_SIGNATURE_VERSION_NONDEBUG_PASS'
           echo 'Historical public key compromise remains an explicit signing risk.'
+
+      - name: Verify shared Android UI helper imports without launching its own smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; sys.path.insert(0, "ci"); import celine_core_persona_emulator_smoke as ui; assert callable(ui.hierarchy) and callable(ui.adb); print("UPDATER_UI_IMPORT_NO_MAIN_PASS")'
 
       - name: Allow Android emulator KVM acceleration
         shell: bash
