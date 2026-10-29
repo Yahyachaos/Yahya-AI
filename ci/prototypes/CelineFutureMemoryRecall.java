@@ -73,11 +73,27 @@ public final class CelineFutureMemoryRecall {
         // Never silently truncate the supersession graph: a later sensitive
         // replacement must not let an earlier eligible record leak through.
         if (candidates.size() > MAX_CANDIDATES) return Collections.emptyList();
+        // Contradictory projections (e.g. the same ID first public, then private)
+        // must never be settled by input order. Require the owning store to resolve
+        // duplicate IDs before this policy can return any candidate.
+        Set<String> ids = new HashSet<>();
+        for (Candidate c : candidates) {
+            if (c != null && !c.id.isEmpty() && !ids.add(c.id))
+                return Collections.emptyList();
+        }
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
-        List<Candidate> live = liveCandidates(candidates, now);
+        // Build the correction lineage from ALL supplied records, including expired
+        // or private successors. A successor's expiry must not make an obsolete
+        // ancestor eligible again. The owning G1 store must retain lineage data;
+        // a removed successor cannot be reconstructed by this stateless policy.
         Set<String> replaced = new HashSet<>();
-        for (Candidate c : live) if (!c.supersedesId.isEmpty()) replaced.add(c.supersedesId);
+        for (Candidate c : candidates) {
+            if (c != null && !c.id.isEmpty() && !c.supersedesId.isEmpty()) {
+                replaced.add(c.supersedesId);
+            }
+        }
+        List<Candidate> live = liveCandidates(candidates, now);
         List<Match> matches = new ArrayList<>();
         for (Candidate c : live) {
             if (replaced.contains(c.id) || !c.authorizedForProvider
