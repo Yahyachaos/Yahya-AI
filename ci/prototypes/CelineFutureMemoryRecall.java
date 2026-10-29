@@ -144,8 +144,22 @@ public final class CelineFutureMemoryRecall {
      */
     public static List<Match> retrieve(String query, List<Candidate> candidates,
             Set<String> retiredIds, int maxResults, long now) {
+        // A tombstone alone does not attest pruned conflict/fork resolution.
+        return retrieve(query, candidates, retiredIds,
+                Collections.<String>emptySet(), maxResults, now);
+    }
+
+    /**
+     * Future-only explicit G1 owner attestation of resolved/complete history
+     * for pruned parent IDs. This prototype does not mint that evidence.
+     */
+    public static List<Match> retrieve(String query, List<Candidate> candidates,
+            Set<String> retiredIds, Set<String> confirmedRetiredParentIds,
+            int maxResults, long now) {
         if (maxResults <= 0 || candidates == null || candidates.isEmpty()
-                || retiredIds == null || retiredIds.size() > MAX_CANDIDATES)
+                || retiredIds == null || retiredIds.size() > MAX_CANDIDATES
+                || confirmedRetiredParentIds == null
+                || confirmedRetiredParentIds.size() > MAX_CANDIDATES)
             return Collections.emptyList();
         // Never silently truncate the supersession graph: a later sensitive
         // replacement must not let an earlier eligible record leak through.
@@ -174,6 +188,12 @@ public final class CelineFutureMemoryRecall {
             if (!validId(id, false)) return Collections.emptyList();
             replaced.add(id);
         }
+        // Only the source owner can certify complete and adjudicated history.
+        // A purported certificate outside the authoritative retired set is invalid.
+        for (String confirmed : confirmedRetiredParentIds) {
+            if (!validId(rawId(confirmed), false) || !retiredIds.contains(confirmed))
+                return Collections.emptyList();
+        }
         // G1 conflictWithId records an unresolved contradiction, NOT a vetted
         // supersession. Without the owning G1 resolver's durable winner proof,
         // neither endpoint may be silently presented as an authoritative fact.
@@ -190,16 +210,13 @@ public final class CelineFutureMemoryRecall {
                 conflicted.add(c.conflictWithId);
             }
         }
-        // If a correction points to a pruned parent, do not silently assume
-        // the missing ancestor has no unresolved conflict. The owner must
-        // either retain the parent projection or explicitly supply its retired
-        // identity. Any orphan and all descendants stay out of recall.
-        // A retired-ID marker is NOT itself a G1 conflict-winner proof; live
-        // conflict metadata still quarantines its endpoints below.
+        // A missing parent requires a distinct G1 owner attestation of full
+        // historical conflict/fork resolution, not just a retired-ID tombstone.
+        // Orphans and their descendants are quarantined without such evidence.
         Set<String> orphaned = new HashSet<>();
         for (Candidate c : candidates) {
             if (!c.supersedesId.isEmpty() && !ids.contains(c.supersedesId)
-                    && !retiredIds.contains(c.supersedesId))
+                    && !confirmedRetiredParentIds.contains(c.supersedesId))
                 orphaned.add(c.id);
         }
         // Compaction/reimport can preserve competing corrections without a G1
@@ -259,9 +276,17 @@ public final class CelineFutureMemoryRecall {
 
     public static String unambiguousCorrectionTarget(String correctionText,
             List<Candidate> candidates, Set<String> retiredIds, long now) {
+        return unambiguousCorrectionTarget(correctionText, candidates, retiredIds,
+                Collections.<String>emptySet(), now);
+    }
+
+    public static String unambiguousCorrectionTarget(String correctionText,
+            List<Candidate> candidates, Set<String> retiredIds,
+            Set<String> confirmedRetiredParentIds, long now) {
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
-        List<Match> matches = retrieve(correctionText, candidates, retiredIds, 8, now);
+        List<Match> matches = retrieve(correctionText, candidates,
+                retiredIds, confirmedRetiredParentIds, 8, now);
         if (matches.isEmpty()) return "";
         Match best = matches.get(0);
         if (best.sharedTerms < 2 || best.sharedTerms * 2 < query.size()) return "";

@@ -700,12 +700,59 @@ public final class FutureMemoryRecallContract {
             c("orphan-unrelated-work", "Damu Markt verkauft Getränke"))),
             "orphan-unrelated-work", "independent trusted memory survives orphan quarantine");
         eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
-            Arrays.asList(orphan), Collections.singleton("unknown-parent"), 8, NOW)
+            Arrays.asList(orphan), Collections.singleton("unknown-parent"),
+            Collections.singleton("unknown-parent"), 8, NOW)
             .get(0).candidate.id, "orphan-new",
-            "owner-supplied retired-parent record supports normal correction chain");
+            "separately confirmed retired-parent history permits correction chain");
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
             Arrays.asList(orphan), NOW), "",
             "orphan is never suggested as natural-language correction target");
+
+        // Bare tombstone is not reliable proof of a pruned conflict winner.
+        Set<String> retiredParent = Collections.singleton("unknown-parent");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(orphan), retiredParent, 8, NOW).size(), 0,
+            "tombstone-only pruned parent must abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(orphan), retiredParent, NOW), "",
+            "tombstone-only correction target must abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Luna", Arrays.asList(orphan),
+            retiredParent, retiredParent, NOW), "orphan-new",
+            "source-confirmed lineage permits precise correction target");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Max",
+            Arrays.asList(orphan, orphanDescendant), retiredParent, retiredParent, 8, NOW)
+            .get(0).candidate.id, "orphan-grandchild",
+            "source-confirmed ancestor permits safe descendant");
+        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",
+            Arrays.asList(orphan, c("safe-independent", "Damu Markt verkauft Getränke")),
+            retiredParent, 8, NOW).get(0).candidate.id, "safe-independent",
+            "independent memory survives unconfirmed compacted ancestor");
+        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",
+            Arrays.asList(c("independent-only", "Damu Markt verkauft Getränke")),
+            Collections.<String>emptySet(), retiredParent, 8, NOW).size(), 0,
+            "unmatched confirmation fails complete projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(orphan), retiredParent, null, 8, NOW).size(), 0,
+            "missing confirmation set fails complete projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(orphan), retiredParent,
+            Collections.singleton("invalid!proof"), 8, NOW).size(), 0,
+            "invalid confirmation key fails complete projection");
+        CelineFutureMemoryRecall.Candidate unresolvedCompactedConflict =
+            new CelineFutureMemoryRecall.Candidate("conflicted-compacted",
+                "Meine Katze heisst Luna", "unknown-parent", "missing-opponent",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW-100, 0, 0.5);
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(unresolvedCompactedConflict), retiredParent, retiredParent,
+            8, NOW).size(), 0,
+            "visible unresolved conflict still wins over owner attestation");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(
+                x("retired-fork-luna", "Meine Katze heisst Luna", "unknown-parent", true, 0),
+                x("retired-fork-max", "Meine Katze heisst Max", "unknown-parent", true, 0)),
+            retiredParent, retiredParent, 8, NOW).size(), 0,
+            "visible correction siblings remain unresolved despite attestation");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
