@@ -99,7 +99,7 @@ final class CelineProductionPresenceV80 {
     private static final float FINAL_TURN_SPEED_DPS = 120.0f;
     private static final float ROOM_FLOOR_BLEND_PER_SECOND = 2.4f;
     private static final float TABLE_LEAN_BLEND_PER_SECOND = 2.2f;
-    private static final float MAX_ROOM_FLOOR_CORRECTION_M = 0.65f;
+    private static final float MAX_NOMINAL_SOLE_OFFSET_M = 0.65f;
 
     private static final WeakHashMap<Celine3DView, Mixer> MIXERS = new WeakHashMap<>();
 
@@ -355,12 +355,16 @@ final class CelineProductionPresenceV80 {
         private float resolveRoomFloorCorrectionY() {
             if (probeModel) return 0.0f;
             float correction = talkAnchor.worldY - rootBase[13];
+            float expectedRoomOffset = CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
+            float nominalSoleDrift = correction - expectedRoomOffset;
             if (Float.isNaN(correction) || Float.isInfinite(correction)
-                    || correction > 0.0f
-                    || correction < -MAX_ROOM_FLOOR_CORRECTION_M) {
+                    || Float.isNaN(nominalSoleDrift) || Float.isInfinite(nominalSoleDrift)
+                    || Math.abs(nominalSoleDrift) > MAX_NOMINAL_SOLE_OFFSET_M) {
                 throw new IllegalStateException(
                         "Ungültige 9R Floor-Kalibrierung: floor=" + talkAnchor.worldY
-                                + " sole=" + rootBase[13] + " correction=" + correction);
+                                + " sole=" + rootBase[13] + " correction=" + correction
+                                + " expectedRoomOffset=" + expectedRoomOffset
+                                + " nominalSoleDrift=" + nominalSoleDrift);
             }
             return correction;
         }
