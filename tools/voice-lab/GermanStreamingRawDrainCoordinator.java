@@ -29,6 +29,23 @@ public final class GermanStreamingRawDrainCoordinator {
     private final VoiceLifecycleContract audio = new VoiceLifecycleContract();
     private Dispatch active;
 
+    /**
+     * Explicit-user-abort primitive; NEVER a playback acknowledgement. Its
+     * caller must separately confirm user choice and old-output stop. Retaining
+     * this coordinator preserves monotonic audio callback epochs across plans.
+     */
+    public synchronized long abandonForExplicitNewPlan(long expectedGeneration, String newText) {
+        GermanStreamingDeliveryLedger.Phase phase = plan.phase();
+        if (expectedGeneration <= 0 || expectedGeneration != plan.generation()
+                || active != null
+                || !(phase == GermanStreamingDeliveryLedger.Phase.READY
+                    || phase == GermanStreamingDeliveryLedger.Phase.COMPLETE
+                    || phase == GermanStreamingDeliveryLedger.Phase.UNCERTAIN
+                    || phase == GermanStreamingDeliveryLedger.Phase.SUSPENDED))
+            return -1L;
+        return plan.begin(newText);
+    }
+
     /** A new plan may not silently discard an unfinished or uncertain prior plan. */
     public synchronized long begin(String text) {
         if (active != null || (plan.phase() != GermanStreamingDeliveryLedger.Phase.IDLE
