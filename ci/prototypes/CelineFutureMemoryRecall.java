@@ -302,12 +302,15 @@ public final class CelineFutureMemoryRecall {
     private static boolean validId(String id, boolean allowEmpty) {
         if (id.isEmpty()) return allowEmpty;
         if (id.length() > MAX_ID_CHARS) return false;
+        // Source-owned G1 IDs are ASCII prefix + UUID. Do not accept
+        // invisible combining marks, private-use or noncharacter code points:
+        // those can look identical while naming a different lineage record.
+        // The remaining punctuation supports existing synthetic contract IDs.
         for (int i = 0; i < id.length(); i++) {
             char c = id.charAt(i);
-            if (Character.isISOControl(c) || Character.isWhitespace(c)
-                    || Character.isSpaceChar(c)
-                    || Character.getType(c) == Character.FORMAT
-                    || Character.isSurrogate(c)) return false;
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '-' || c == '_'
+                    || c == '.' || c == ':')) return false;
         }
         return true;
     }

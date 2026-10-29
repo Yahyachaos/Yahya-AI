@@ -612,6 +612,38 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst", Arrays.asList(
             x("valid-id", "  Meine Katze heisst Luna  ", "", true, 0))),
             "valid-id", "summary-only whitespace cleanup remains supported");
+        // FUTURE ONLY: G1 creates ASCII prefix+UUID owner keys.
+        // Invisible combining marks/private-use/noncharacters and non-G1
+        // symbols must never become distinct trusted lineage identities.
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("cat\u0301", "Meine Katze heisst Luna", "", true, 0))), "",
+            "combining-mark candidate ID fails closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("valid-cat", "Meine Katze heisst Paul", "", true, 0),
+            x("bad-link-mark", "Anderes Thema", "missing\u0301", false, 0))), "",
+            "combining-mark supersession key fails complete projection");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("valid-cat", "Meine Katze heisst Paul", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("conflict-private-use", "Anderes Thema",
+                "", "missing\uE000", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true, true, NOW-100, 0, 0.5))), "",
+            "private-use conflict key fails complete projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+            Arrays.asList(x("valid-cat", "Meine Katze heisst Paul", "", true, 0)),
+            Collections.singleton("retired\uFDD0"), 8, NOW).size(), 0,
+            "noncharacter retired-ID fails complete projection");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("caf\u00E9", "Meine Katze heisst Luna", "", true, 0))), "",
+            "non-ASCII confusable source key rejected");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("cat@external", "Meine Katze heisst Luna", "", true, 0))), "",
+            "non-G1 symbol in source key rejected");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("cat\uFDD0", "Meine Katze heisst Luna", "", true, 0))), "",
+            "noncharacter candidate ID rejected");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("fixture_id:v1.2", "Meine Katze heisst Luna", "", true, 0))),
+            "fixture_id:v1.2", "valid ASCII contract fixture retained");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
