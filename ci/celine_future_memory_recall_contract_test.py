@@ -1087,6 +1087,41 @@ public final class FutureMemoryRecallContract {
             "", "overlay-corruped correction cannot select ID");
         eq(top("Luná", Arrays.asList(c("overlay-accent-ok", "Luna"))),
             "overlay-accent-ok", "legitimate Latin accent search survives overlay guard");
+
+        // FUTURE ONLY: Unicode PRIVATE_USE codepoints must not be silently
+        // discarded into seemingly complete lexical evidence. Some Android/
+        // provider transcripts contain icon-font or app-internal PUA glyphs;
+        // their semantics are not present in this Latin-only memory policy.
+        String puaBmp = "\uE000";
+        String puaPlane15 = new String(Character.toChars(0xF0000));
+        String puaPlane16 = new String(Character.toChars(0x100000));
+        eq(top(sourceFact + puaBmp, Arrays.asList(c("pua-bmp-query", sourceFact))),
+            "", "BMP private-use query must not normalize to plain fact");
+        eq(top(sourceFact, Arrays.asList(c("pua-bmp-stored", sourceFact + puaBmp))),
+            "", "BMP private-use stored summary must not normalize to plain fact");
+        eq(top(sourceFact + puaPlane15, Arrays.asList(c("pua-15-query", sourceFact))),
+            "", "plane-15 private-use query must abstain");
+        eq(top(sourceFact, Arrays.asList(c("pua-15-stored", sourceFact + puaPlane15))),
+            "", "plane-15 private-use memory must abstain");
+        eq(top(sourceFact + puaPlane16, Arrays.asList(c("pua-16-query", sourceFact))),
+            "", "plane-16 private-use query must abstain");
+        eq(top(sourceFact, Arrays.asList(c("pua-16-stored", sourceFact + puaPlane16))),
+            "", "plane-16 private-use memory must abstain");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("pua-old", "Meine Katze heisst Paul", "", true, 0),
+            x("pua-new", sourceFact + puaBmp, "pua-old", true, 0))),
+            "", "withheld PUA successor still retires old fact");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            sourceFact + puaPlane15, Arrays.asList(c("pua-correction", sourceFact)), NOW),
+            "", "PUA-carrying correction cannot auto-select a memory ID");
+        eq(top("Meine Katze heisst Lu" + puaBmp + "na",
+            Arrays.asList(c("pua-within-word", sourceFact))),
+            "", "private-use inserted inside a lexical word must abstain");
+        eq(top(sourceFact, Arrays.asList(c("pua-clean", sourceFact))),
+            "pua-clean", "ordinary Unicode-safe fact remains searchable");
+        eq(top(sourceFact + " 🙂", Arrays.asList(c("pua-emoji-allowed", sourceFact))),
+            "pua-emoji-allowed", "ordinary visible supplementary emoji unaffected");
+
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

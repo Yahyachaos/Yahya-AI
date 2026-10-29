@@ -402,6 +402,9 @@ public final class CelineFutureMemoryRecall {
             int cp = value.codePointAt(i);
             if ((Character.isISOControl(cp) && cp != '\n' && cp != '\r' && cp != '\t')
                     || Character.getType(cp) == Character.FORMAT
+                    // Private-use glyphs have no supported lexical meaning here.
+                    // NFD/tokenization would otherwise drop them as separators.
+                    || Character.getType(cp) == Character.PRIVATE_USE
                     // Enclosing keycap marks and combining strike overlays alter
                     // visible evidence but NFD + \\p{M} would erase them.
                     // Preserve normal Latin accent/umlaut decomposition.
