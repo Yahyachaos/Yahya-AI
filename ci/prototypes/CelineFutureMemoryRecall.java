@@ -379,7 +379,12 @@ public final class CelineFutureMemoryRecall {
         for (int i = 0; i < value.length();) {
             int cp = value.codePointAt(i);
             if ((Character.isISOControl(cp) && cp != '\n' && cp != '\r' && cp != '\t')
-                    || Character.getType(cp) == Character.FORMAT)
+                    || Character.getType(cp) == Character.FORMAT
+                    // NFD plus \\p{M} silently drops default-ignorable MARKs.
+                    || cp == 0x034F // Combining Grapheme Joiner
+                    || (cp >= 0x180B && cp <= 0x180F) // Mongolian selectors
+                    || (cp >= 0xFE00 && cp <= 0xFE0F) // Variation Selectors
+                    || (cp >= 0xE0100 && cp <= 0xE01EF)) // Supplementary selectors
                 return true;
             i += Character.charCount(cp);
         }
