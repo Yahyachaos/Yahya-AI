@@ -406,3 +406,15 @@ VOICE_GERMAN_PLACE_ABBREVIATION_PASS checks=8
 **Ownership/handoff:** Voice-only timing contract, 1 existing timing test, 1 new focused regression, own runner and this work-order checkpoint; no protected shared file, Room/Core branch, Android test/build, model download, merge or release.
 
 **exact_next_action:** Materialize all exact GitHub Java blobs for the existing isolated runner, verify their Git object hashes, run `sh tools/voice-lab/run_tests.sh` and both STOP/abort mains; then fix any actually reproduced integration failure inside Voice-only paths. Continue future-only independent development without falsely promoting focused Java checks to device or full integration PASS.
+
+## 29 October 2026 — follow-on acoustic calibration/STOP single-use guard
+
+**Fresh exact source before write:** Existing Voice-only DRAFT PR #118 prior HEAD `6de822eff3453bbb655cdc5b00c3f51efc75ed1c`; previous new acoustic contract blob `3fe5e5302412b658c84d2d26e25f09d1a63dfd55`. Workstream ownership remains only `tools/voice-lab/**`; all Android/CI/Room/Core/v83 and release rights remain excluded.
+
+**Source-exact RED:** The prior class accepted a *second* `acceptMeasuredDelay` for the same active audio generation, erasing its trusted head baseline so a backwards head could be presented as a new sample. The standalone `VoiceAcousticStopRearmTest` failed nonzero with `AssertionError: same epoch must not wipe trusted baseline with recalibration`. Also, after a normal `stop(id)`, the class previously allowed calibration to rearm the same released generation.
+
+**Bounded FIX:** Accept external measured delay at most once per live audio generation; mark `stop(id)` terminal/poisoned. A genuinely new `begin(newId,...)` resets these conditions. Neither change affects app runtime or third-party TTS. No real timing calibration was performed.
+
+**Actually run OpenJDK 21 local JVM:** Original timing `27` PASS, invalid-proof quarantine `744` PASS, new single-use/STOP replay `1015` PASS = **1,786 focused assertions PASS**. The first new fixture ran RED against exact previous GitHub class, then the same suite ran green after bounded fix. All relevant Java Git blob hashes checked against live GitHub after commit. This cannot be called a full voice-suite, streaming, speaker, Android or S25 PASS; full `run_tests.sh` (now 27 main programs) remains unrun.
+
+**exact_next_action:** Stage the complete exact GitHub Voice-only Java dependency set, verify all blobs and run the full `tools/voice-lab/run_tests.sh` including both STOP/abort integration mains; fix only directly reproduced failures in owned files before any future handoff to Build & Release. Keep PR draft/unmerged and future-only.

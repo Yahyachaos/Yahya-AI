@@ -42,7 +42,7 @@ public final class VoiceAcousticTimingContract {
      * Zero is legal if measured; it must not be used as an unmeasured default.
      */
     public synchronized boolean acceptMeasuredDelay(long id, long measuredFrames) {
-        if (id != generation || id <= 0 || poisoned || measuredFrames < 0
+        if (id != generation || id <= 0 || calibrated || poisoned || measuredFrames < 0
                 || measuredFrames > sampleRate / 2L) return false;
         measuredDelayFrames = measuredFrames;
         calibrated = true;
@@ -108,6 +108,7 @@ public final class VoiceAcousticTimingContract {
         if (generation == id) {
             calibrated = false;
             hasObservation = false;
+            poisoned = true; // terminal: a stopped track may only restart under begin(newId)
         }
     }
 }
