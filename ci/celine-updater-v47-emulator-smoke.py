@@ -165,9 +165,10 @@ def main():
                 raise AssertionError("Installer before entire APK downloaded")
             clicked=installer(root)
             checked=clicked
-        if size==SIZE and not checked:
-            verify_file()
-            checked=True
+        # A full-size DownloadManager destination may still be writing data.
+        # Do not treat Content-Length as completion. installer() verifies the
+        # exact APK SHA-256 after Android hands it to its native Installer,
+        # and strictly before tapping the actual Install/Update button.
         if contains(root,"Update kann noch nicht installiert werden") or contains(root,"Download konnte nicht gestartet werden"):
             evidence("FAIL-updater-native-error",root)
             raise AssertionError("Actual app reported download/installer failure")
