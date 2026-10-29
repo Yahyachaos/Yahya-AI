@@ -72,6 +72,12 @@ public final class VoiceLifecycleAdversarialTest {
             ok(c.acceptPcm(id, 1, m, 202 + i), "backlog accepted within cap " + i);
         }
         eq(256, c.retainedCueCount(), "cap reached exactly");
+        ok(!c.canAcceptPcm(id, 1, VoiceLifecycleContract.Mouth.OPEN, 459),
+                "preflight must reject an additional distinct cue before AudioTrack.write");
+        ok(c.canAcceptPcm(id, 1, VoiceLifecycleContract.Mouth.CLOSED, 459),
+                "preflight can extend final identical cue at budget cap");
+        ok(!c.canAcceptPcm(id, 0, VoiceLifecycleContract.Mouth.CLOSED, 459),
+                "zero frame preflight rejected");
         ok(!c.acceptPcm(id, 1, VoiceLifecycleContract.Mouth.OPEN, 459), "backlog rejects overflowing cue");
         eq(VoiceLifecycleContract.Phase.FAILED, c.phase(), "backlog failure stops lifecycle");
         eq("cue backlog exceeded", c.failureReason(), "backlog failure explicit");
