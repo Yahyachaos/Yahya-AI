@@ -18,8 +18,8 @@ public final class VoiceAcousticTimingContract {
     private boolean hasObservation;
 
     public synchronized void begin(long generation, int sampleRate) {
-        if (generation <= 0 || sampleRate < 8000 || sampleRate > 192000) {
-            throw new IllegalArgumentException("invalid stream identity or sample rate");
+        if (generation <= this.generation || sampleRate < 8000 || sampleRate > 192000) {
+            throw new IllegalArgumentException("fresh stream generation and valid sample rate required");
         }
         this.generation = generation;
         this.sampleRate = sampleRate;
