@@ -16,9 +16,12 @@ public final class VoiceLifecycleContract {
 
     private static final long PREPARE_TIMEOUT_MS = 6000L;
     private static final long PROGRESS_TIMEOUT_MS = 3500L;
+    // A single utterance may not indefinitely accumulate as-yet-unplayed cue boundaries.
+    private static final int MAX_RETAINED_CUES = 256;
 
     private static final class Segment {
-        final long start, end;
+        final long start;
+        long end;
         final Mouth mouth;
         Segment(long start, long end, Mouth mouth) {
             this.start = start; this.end = end; this.mouth = mouth;
@@ -58,7 +61,24 @@ public final class VoiceLifecycleContract {
                 || frameCount <= 0 || mouth == null || acceptedFrames > Long.MAX_VALUE - frameCount) {
             return false;
         }
-        acceptedCues.add(new Segment(acceptedFrames, acceptedFrames + frameCount, mouth));
+        // Retire fully consumed intervals, but preserve the cue of playedFrames-1
+        // (the last actually emitted sample) even when the head is at its boundary.
+        pruneConsumed();
+        int retained = acceptedCues.size();
+        Segment last = retained == 0 ? null : acceptedCues.get(retained - 1);
+        if (last != null && last.end == acceptedFrames && last.mouth == mouth) {
+            // Adjacent identical visemes never need duplicate cue objects.
+            last.end += frameCount;
+        } else {
+            if (retained >= MAX_RETAINED_CUES) {
+                // Post-write detection is fail-stop: integration must stop the track and
+                // preflight its queue budget BEFORE the next write; never silently
+                // drop unplayed cues or claim a sample was rendered correctly.
+                fail("cue backlog exceeded");
+                return false;
+            }
+            acceptedCues.add(new Segment(acceptedFrames, acceptedFrames + frameCount, mouth));
+        }
         acceptedFrames += frameCount;
         lastProgressMs = nowMs;
         phase = Phase.PLAYING;
@@ -71,6 +91,7 @@ public final class VoiceLifecycleContract {
                 || framePosition < playedFrames || framePosition > acceptedFrames) return false;
         if (framePosition > playedFrames) lastProgressMs = nowMs;
         playedFrames = framePosition;
+        pruneConsumed();
         if (phase == Phase.DRAINING && playedFrames == acceptedFrames) complete();
         return true;
     }
@@ -126,6 +147,16 @@ public final class VoiceLifecycleContract {
     public synchronized long generation() { return generation; }
     public synchronized long acceptedFrames() { return acceptedFrames; }
     public synchronized long playedFrames() { return playedFrames; }
+    /** Test-only diagnostic; a production caller should not depend on the queue shape. */
+    public synchronized int retainedCueCount() { return acceptedCues.size(); }
+
+    private void pruneConsumed() {
+        // Strict < retains the segment containing last emitted sample
+        // at an exact frame boundary. Only samples earlier than that are gone.
+        int count = 0;
+        while (count < acceptedCues.size() && acceptedCues.get(count).end < playedFrames) count++;
+        if (count > 0) acceptedCues.subList(0, count).clear();
+    }
 
     private boolean active() {
         return phase == Phase.PREPARING || phase == Phase.BUFFERING
