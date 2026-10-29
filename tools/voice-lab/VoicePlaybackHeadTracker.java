@@ -19,9 +19,11 @@ public final class VoicePlaybackHeadTracker {
     private long playedFrames;
     private boolean started;
 
-    /** Supply the first raw value from the actual new AudioTrack. */
+    /** Supply the first raw value from a fresh AudioTrack with a strictly newer epoch. */
     public synchronized void begin(long id, int initialSignedRaw) {
-        if (id <= 0) throw new IllegalArgumentException("invalid generation");
+        // A duplicate or rewound begin must not revive an old callback identity or
+        // overwrite the current PCM head, even after stop() invalidated the track.
+        if (id <= generation) throw new IllegalArgumentException("fresh generation required");
         generation = id;
         unsignedRaw = Integer.toUnsignedLong(initialSignedRaw);
         playedFrames = 0L;

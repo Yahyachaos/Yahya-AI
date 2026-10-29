@@ -42,23 +42,24 @@ public final class VoicePlaybackHeadTrackerTest {
         eq(8, h.observe(2, 4, 10), "valid continuation after rejected wrap");
 
         // Integration semantics: only accepted frames may affect the mouth cue.
+        VoicePlaybackHeadTracker integratedHead = new VoicePlaybackHeadTracker();
         VoiceLifecycleContract c = new VoiceLifecycleContract();
         long id = c.begin(100);
         ok(c.prepared(id, 101), "integrated contract prepared");
         ok(c.acceptPcm(id, 3, VoiceLifecycleContract.Mouth.LABIAL, 102), "integrated first PCM write");
         ok(c.acceptPcm(id, 4, VoiceLifecycleContract.Mouth.TEETH, 103), "integrated second PCM write");
-        h.begin(id, 0);
-        long relativeHead = h.observe(id, 3, c.acceptedFrames());
+        integratedHead.begin(id, 0);
+        long relativeHead = integratedHead.observe(id, 3, c.acceptedFrames());
         eq(3, relativeHead, "integrated head first boundary");
         ok(c.playbackHead(id, relativeHead, 104), "first cue delivered at head");
         ok(c.playedMouth() == VoiceLifecycleContract.Mouth.LABIAL, "first viseme at sample 2");
-        relativeHead = h.observe(id, 4, c.acceptedFrames());
+        relativeHead = integratedHead.observe(id, 4, c.acceptedFrames());
         eq(4, relativeHead, "integrated head second cue");
         ok(c.playbackHead(id, relativeHead, 105), "second cue delivered");
         ok(c.playedMouth() == VoiceLifecycleContract.Mouth.TEETH, "second viseme at sample 3");
-        eq(-1, h.observe(id, 40, c.acceptedFrames()), "no cue can lead unwritten frames");
+        eq(-1, integratedHead.observe(id, 40, c.acceptedFrames()), "no cue can lead unwritten frames");
         ok(c.synthesisDone(id, 106), "integrated synth done");
-        relativeHead = h.observe(id, 7, c.acceptedFrames());
+        relativeHead = integratedHead.observe(id, 7, c.acceptedFrames());
         ok(c.playbackHead(id, relativeHead, 107), "integrated drain complete");
         ok(c.phase() == VoiceLifecycleContract.Phase.COMPLETED, "integrated completed state");
         System.out.println("VOICE_HEAD_TRACKER_PASS checks=" + checks);
