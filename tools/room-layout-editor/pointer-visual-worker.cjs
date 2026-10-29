@@ -1119,6 +1119,120 @@ async function main() {
       bedLocked:true,dresserLocked:true,othersFrozen:true,
       visualAcceptance:'FAIL_PENDING_MANUAL',android:'FAIL_G2_3_PAUSED'});
 
+
+    // V8: the selected bed is EXACTLY the previously genuine-WebGL V7-forward trial.
+    // Do not accept chair placement from numeric bounds or CI green alone.
+    const v8Path=path.join(root,'tools/room-layout-editor/layout-candidates/2026-10-29-room-bed-chair-fit-v8.json');
+    const v8=JSON.parse(fs.readFileSync(v8Path,'utf8'));
+    assert.equal(v8.objects.length,13);
+    assert.deepEqual(v8.room,{width:4.4,depth:4.2,height:2.65});
+    assert.deepEqual(v8.objects,bedTrials[3].state.objects,
+      'Saved V8 bed must equal previously genuine-WebGL forward variant');
+    const chairBuild=(x,z,s,yaw)=>{
+      const state=JSON.parse(JSON.stringify(v8));
+      const o=state.objects.find(o=>o.id==='room_lounge_chair');
+      o.translation_m=[x,Number((.41172*s/.73).toFixed(6)),z];
+      o.rotation_y_deg=yaw;o.rotation_euler_deg=[0,yaw,0];
+      o.scale_xyz=[s,s,s];o.uniform_scale=s;return state;
+    };
+    const chairTrials=[
+      {name:'baseline',state:v8},
+      {name:'left-large',state:chairBuild(-1.40,-.85,.85,0)},
+      {name:'left-rear-big',state:chairBuild(-1.40,-1.05,.90,0)},
+      {name:'forward-angle',state:chairBuild(-1.30,-.70,.85,15)},
+      {name:'left-angle',state:chairBuild(-1.48,-.92,.82,-20)}
+    ];
+    const chairProof=[];
+    for(const trial of chairTrials){
+      const file=path.join(output,'trial-v8-chair-'+trial.name+'.json');
+      fs.writeFileSync(file,JSON.stringify(trial.state,null,2)+'\n');
+      assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).objects.length,13);
+      await page.locator('#file').setInputFiles(file);
+      await page.waitForFunction(name=>document.querySelector('#status')?.textContent?.includes(
+        'Gespeichertes Layout geladen: '+name),path.basename(file),{timeout:60000});
+      await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+        framingCamera.camera_proposal);
+      const proj=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+      for(const [label,actual,expected] of [
+        ['position',proj.camera_position_m,effectiveCamera.position_m],
+        ['target',proj.camera_target_m,effectiveCamera.target_m]
+      ])assert(actual.every((v,i)=>Number.isFinite(v)&&Math.abs(v-expected[i])<1e-9),
+        'V8 reference camera remains frozen: '+label);
+      assert.deepEqual(proj.canvas_px,[700,560]);
+      const a=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+      assert.deepEqual(a.room_m,{width:4.4,depth:4.2,height:2.65});
+      assert.equal(a.model_count,13);assert.equal(a.all_source_fidelity_glbs_loaded,true);
+      const all=Object.fromEntries(a.objects.map(o=>[o.id,o]));
+      const overflows=a.objects.flatMap(o=>Object.entries(o.overflow_faces_m)
+        .filter(([,n])=>n>.012).map(([face,meters])=>({id:o.id,face,meters})));
+      assert.deepEqual(overflows,[],'All 13 genuine GLB AABBs inside fixed room: '+trial.name);
+      for(const obj of a.objects){
+        assert.equal(obj.source_sha256,v8.original_source_hashes[obj.id],
+          'Unmodified source-GLB SHA: '+obj.id);
+        if(obj.id!=='room_lounge_chair'){
+          const expected=v8.objects.find(o=>o.id===obj.id);
+          assert.deepEqual(obj.transform.translation_m,expected.translation_m);
+          assert.deepEqual(obj.transform.rotation_euler_deg,expected.rotation_euler_deg);
+          assert.deepEqual(obj.transform.scale_xyz,expected.scale_xyz);
+          assert.equal(obj.locked,expected.locked);
+        }
+      }
+      assert.equal(all.room_bed.locked,true);assert.equal(all.room_dresser.locked,true);
+      assert.equal(all.room_lounge_chair.locked,false);
+      assert(Math.abs(all.room_lounge_chair.floor_bottom_y_m)<.012,'Chair source foot on floor');
+      const c=all.room_lounge_chair.conservative_world_aabb_m;
+      const separated=(a,b)=>[0,1,2].some(i=>a.max[i]+.025<b.min[i]||
+        b.max[i]+.025<a.min[i]);
+      assert(separated(c,all.room_dresser.conservative_world_aabb_m),
+        '25mm dresser-chair conservative AABB clearance');
+      assert(separated(c,all.room_bed.conservative_world_aabb_m),
+        '25mm bed-chair conservative AABB clearance');
+      const image=png('layout-v8-chair-'+trial.name+'-real-webgl.png',
+        await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+      assert.deepEqual([image.width,image.height],[700,560]);
+      chairProof.push({trial:trial.name,image,transform:all.room_lounge_chair.transform,
+        projectedConservativeAabb:projectedWorldAabb(all.room_lounge_chair,proj),
+        groundedY_m:all.room_lounge_chair.floor_bottom_y_m,
+        noRoomOverflow:true,other12Frozen:true,
+        referenceChairApproxNormalized:[.21,.33,.36,.50],
+        referenceUncertainty:.045,manualVisual:'FAIL_PENDING_ACTUAL_SCREENSHOT_REVIEW'});
+    }
+    await page.locator('#file').setInputFiles(v8Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-29-room-bed-chair-fit-v8.json'),
+      null,{timeout:60000});
+    await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+      framingCamera.camera_proposal);
+    const chairSide=png('layout-v8-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw new Error('Source reference not loaded');
+        const im=new Image();im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((res,rej)=>{if(im.complete&&im.naturalWidth)return res();im.onload=res;im.onerror=rej;});
+        const c=document.createElement('canvas');c.width=1400;c.height=560;
+        const ctx=c.getContext('2d');ctx.drawImage(ref,0,0,700,560);
+        ctx.drawImage(im,700,0,700,560);return c.toDataURL('image/png');
+      }));
+    assert.deepEqual([chairSide.width,chairSide.height],[1400,560]);
+    const chairAudit={sourceSha:process.env.GITHUB_SHA||null,
+      savedCandidate:path.relative(root,v8Path),room_m:{width:4.4,depth:4.2,height:2.65},
+      originalReference:'reference-original.png',originalReferencePx:[1402,1122],
+      fixedCamera:true,sourceGLBCount:13,bedAndDresserLocked:true,
+      sourceChairDifferentFromReference:true,
+      chairReferenceApprox:[.21,.33,.36,.50],uncertainty:.045,
+      trials:chairProof,referenceComparison:chairSide,
+      manualChairVisual:'FAIL_PENDING_REAL_IMAGE_REVIEW',
+      manualBedVisual:'FAIL_PARTIAL_BETTER',manualDresserVisual:'FAIL_V6_LOCKED',
+      wholeSceneVisual:'FAIL',android:'G2_3_PAUSED'};
+    fs.writeFileSync(path.join(output,'layout-v8-chair-audit.json'),
+      JSON.stringify(chairAudit,null,2)+'\n');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output,'layout-v8-chair-audit.json'),'utf8'))
+      .trials.length,5);
+    evidence('V8_SAVED_GENUINE_BED_AND_REAL_CHAIR_TRIALS_NOT_VISUALLY_ACCEPTED',{
+      chairImages:chairProof.map(x=>x.image.file),realOriginalSideBySide:chairSide.file,
+      audit:'layout-v8-chair-audit.json',sourceInstances:13,bedLocked:true,
+      dresserLocked:true,androidVisual:'FAIL_G2_3_PAUSED'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
