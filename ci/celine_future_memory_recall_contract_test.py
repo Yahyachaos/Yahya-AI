@@ -394,6 +394,19 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("oversized-successor", oversized.toString(), "older",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW, 0, 1))),
             "", "oversized withheld successor still suppresses older fact");
+        // A bounded-length input can still exceed the distinct token cap.
+        // Never convert it to an apparently complete 32-term query silently.
+        StringBuilder manyTerms = new StringBuilder("Meine Katze heißt Luna");
+        for (int i = 0; i < 35; i++) manyTerms.append(" wort").append(i);
+        eq(top(manyTerms.toString(), Arrays.asList(c("normal-cat", "Meine Katze heißt Luna"))),
+            "", "excess query token count abstains instead of prefix matching");
+        eq(top("Meine Katze heißt", Arrays.asList(c("over-token-memory", manyTerms.toString()))),
+            "", "excess summary token count abstains instead of partial matching");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            c("token-old", "Meine Katze heißt Paul"),
+            new CelineFutureMemoryRecall.Candidate("token-new", manyTerms.toString(), "token-old",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW, 0, 1))),
+            "", "over-token replacement still withholds superseded memory");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
