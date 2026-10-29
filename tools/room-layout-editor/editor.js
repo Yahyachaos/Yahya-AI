@@ -55,7 +55,9 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 stage.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x172033);
+// V20 architecture-only color study: reference room is warm, not blue/gray.
+// Furniture source GLB materials, frozen camera and fixed dimensions are untouched.
+scene.background = new THREE.Color(0x947257);
 const camera = new THREE.PerspectiveCamera(53, stage.clientWidth / stage.clientHeight, 0.01, 250);
 camera.position.set(5.3, 3.7, 6.5);
 const orbit = new OrbitControls(camera, renderer.domElement);
@@ -97,6 +99,7 @@ const floor = new THREE.Group(), walls = new THREE.Group();
 scene.add(floor, walls);
 let room = { ...CANONICAL };
 let wallVisible = true;
+let guideGridVisible = false; // Keep a usable editor grid on demand, not in reference views.
 
 function buildRoom() {
   for (const group of [floor, walls]) {
@@ -108,7 +111,7 @@ function buildRoom() {
   }
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(room.width, room.depth),
-    new THREE.MeshStandardMaterial({color:0x91867a, roughness:0.93, side:THREE.DoubleSide})
+    new THREE.MeshStandardMaterial({color:0x67482c, roughness:0.93, side:THREE.DoubleSide})
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.014;
@@ -117,10 +120,12 @@ function buildRoom() {
   grid.scale.set(room.width / Math.max(room.width,room.depth), 1,
                  room.depth / Math.max(room.width,room.depth));
   grid.position.y = 0.007;
+  grid.userData.roomEditorGuideGrid = true;
+  grid.visible = guideGridVisible;
   floor.add(grid);
   // Transparent non-selectable walls: the model can always be reached with the mouse.
   const wallMat = () => new THREE.MeshStandardMaterial({
-    color:0xbeb7a8, side:THREE.DoubleSide, transparent:true, opacity:0.16,
+    color:0xc3a98a, side:THREE.DoubleSide, transparent:true, opacity:0.36,
     roughness:1, depthWrite:false
   });
   const wallDef = [
@@ -579,6 +584,11 @@ $('reset-room').onclick=()=>{
   $('edit-room').checked=false;buildRoom();commitEdit();
 };
 $('toggle-walls').onclick=()=>{wallVisible=!wallVisible;walls.visible=wallVisible;};
+$('show-grid').onchange=()=>{
+  guideGridVisible=$('show-grid').checked;
+  const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
+  if(grid)grid.visible=guideGridVisible;
+};
 $('undo').onclick=undo;
 $('redo').onclick=redo;
 window.addEventListener('keydown',(e)=>{
@@ -767,10 +777,25 @@ if (E2E_PROOF) {
         })()
       };
     },
+    architectureSurfaceAudit() {
+      const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
+      const ground=floor.children.find(child=>child.isMesh);
+      const wall=walls.children.find(child=>child.isMesh);
+      return {
+        room_m:{...room},
+        background_hex:scene.background.getHexString(),
+        ground_hex:ground?.material?.color.getHexString(),
+        wall_hex:wall?.material?.color.getHexString(),
+        wall_opacity:wall?.material?.opacity,
+        grid_exists:!!grid,
+        grid_visible:grid?.visible,
+        guide_control_checked:$('show-grid').checked
+      };
+    },
     framePng(options={}) {
       // An optional CLEAN screenshot hides only editing aids temporarily;
       // all 13 source meshes, scene lighting, walls and geometry remain real.
-      const grid=floor.children.find(child=>child.isGridHelper);
+      const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
       const prevGrid=grid?.visible, prevGizmo=transform.visible;
       if(options.clean) {
         if(grid)grid.visible=false;

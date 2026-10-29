@@ -510,3 +510,53 @@ jobs:
             /tmp/celine-editor-http.log
           if-no-files-found: warn
           retention-days: 14
+
+  architecture_v20:
+    name: Targeted V20 fixed-camera warm room shell and grid-free original-WebGL proof
+    needs: functional_browser
+    if: ${{ needs.functional_browser.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ROOM_EDITOR_EVIDENCE_DIR: /tmp/celine-room-editor-architecture-v20
+    steps:
+      - name: Checkout isolated editor and original assets
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/workflows/celine-room-editor-browser-experiment.yml
+            tools/room-layout-editor/**
+            app/src/main/assets/models/room/source-fidelity/**
+            app/src/main/assets/models/room/celine_room_v80_assembly.json
+            Refernzbild.png
+      - name: Fetch unchanged source GLBs
+        run: git lfs pull
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Chromium and Three.js
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
+          npx playwright install --with-deps chromium
+      - name: Serve editor and original source assets
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-http.log 2>&1 &
+          sleep 2
+          curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
+      - name: Real V20 source-fidelity WebGL shell and native grid/save/reload
+        run: |
+          node --check tools/room-layout-editor/architecture-v20-proof.cjs
+          node tools/room-layout-editor/architecture-v20-proof.cjs
+      - name: Upload exact-head architecture V20 evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-editor-architecture-v20-evidence
+          path: |
+            /tmp/celine-room-editor-architecture-v20/
+            /tmp/celine-editor-http.log
+          if-no-files-found: warn
+          retention-days: 14
