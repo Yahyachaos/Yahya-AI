@@ -381,6 +381,19 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heißt", Arrays.asList(missingOppositeMarker,
             x("child-of-missing-old", "Meine Katze heißt Luna", "missing-old", true, 0))),
             "", "expired sensitive conflict with missing opponent quarantines its successors");
+        // Reject inputs that would be silently truncated into a different query
+        // or memory fact. Partial text is not sufficient retrieval evidence.
+        StringBuilder oversized = new StringBuilder("Meine Katze heißt Luna ");
+        while (oversized.length() <= 512) oversized.append(" und Anderes Thema");
+        eq(top(oversized.toString(), Arrays.asList(c("normal-cat", "Meine Katze heißt Luna"))),
+            "", "overlong query abstains rather than using truncated prefix");
+        eq(top("Meine Katze heißt", Arrays.asList(c("oversized-memory", oversized.toString()))),
+            "", "overlong summary not partially matched");
+        eq(top("Meine Katze heißt", Arrays.asList(
+            c("older", "Meine Katze heißt Paul"),
+            new CelineFutureMemoryRecall.Candidate("oversized-successor", oversized.toString(), "older",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW, 0, 1))),
+            "", "oversized withheld successor still suppresses older fact");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
