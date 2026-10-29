@@ -753,6 +753,38 @@ public final class FutureMemoryRecallContract {
                 x("retired-fork-max", "Meine Katze heisst Max", "unknown-parent", true, 0)),
             retiredParent, retiredParent, 8, NOW).size(), 0,
             "visible correction siblings remain unresolved despite attestation");
+        // FUTURE ONLY: invisible Unicode FORMAT code points must not be
+        // normalized away into a seemingly complete lexical query/summary.
+        eq(top("Meine Katze heisst Lu\u200Bna",Arrays.asList(
+            c("format-query","Meine Katze heisst Luna"))),"",
+            "zero-width query corruption must abstain");
+        eq(top("Meine Katze heisst Luna",Arrays.asList(
+            c("format-summary","Meine Katze heisst Lu\u200Bna"))),"",
+            "zero-width source corruption must abstain");
+        eq(top("Meine Katze heisst Lu\u202Ena",Arrays.asList(
+            c("bidi-query","Meine Katze heisst Luna"))),"",
+            "bidi override in query must abstain");
+        eq(top("Meine Katze heisst Luna",Arrays.asList(
+            c("word-joiner-summary","Meine Katze heisst Lu\u2060na"))),"",
+            "word joiner in source summary must abstain");
+        eq(top("Meine Katze heisst Lu\uDB40\uDC01na",Arrays.asList(
+            c("supplementary-format","Meine Katze heisst Luna"))),"",
+            "supplementary Unicode FORMAT query must abstain");
+        eq(top("Meine Katze heisst",Arrays.asList(
+            x("old-format-ancestor","Meine Katze heisst Paul","",true,0),
+            x("hidden-format-successor","Meine Katze heisst Lu\u200Bna",
+                "old-format-ancestor",true,0))),"",
+            "invalid format successor still retires ancestor");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heisst Lu\u200Bna",Arrays.asList(
+                c("format-correction","Meine Katze heisst Luna")),NOW),"",
+            "format-corrupted correction must not select memory ID");
+        eq(top("Meine Katze\nheisst Luna",Arrays.asList(
+            c("multiline-valid","Meine Katze heisst Luna"))),"multiline-valid",
+            "ordinary multiline German query still accepted");
+        eq(top("Meine Katze heisst Luna\uD83D\uDC08",Arrays.asList(
+            c("emoji-valid","Meine Katze heisst Luna"))),"emoji-valid",
+            "valid supplementary emoji must remain harmless");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
