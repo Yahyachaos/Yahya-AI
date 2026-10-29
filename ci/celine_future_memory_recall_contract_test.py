@@ -118,6 +118,35 @@ public final class FutureMemoryRecallContract {
             .get(0).candidate.id,"valid-work","unrelated candidate remains available");
         eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",prunedProjection,null,8,NOW).size(),
             0,"missing authoritative retraction set fails closed");
+        // Exact scope strings verified against v83 Room CelineBrain.java; this
+        // fixture stays FUTURE ONLY and never reads protected Android classes.
+        CelineFutureMemoryRecall.Candidate mappedPrivate =
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-private", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE", true,
+                true, NOW, 0, 1);
+        eq(top("Meine Katze heißt",Arrays.asList(mappedPrivate)),"g1-private",
+                "G1 LOCAL_PRIVATE explicit provider authorization");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-unapproved", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE", false,
+                true, NOW, 0, 1))),"","G1 private without permission blocked");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-sensitive", "Meine Katze heißt Luna", "", "LOCAL_SENSITIVE", true,
+                true, NOW, 0, 1))),"","G1 LOCAL_SENSITIVE never exported");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-shareable", "Meine Katze heißt Luna", "", "SHAREABLE_ON_REQUEST", true,
+                true, NOW, 0, 1))),"","G1 SHAREABLE requires future explicit adapter");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            x("g1-old", "Meine Katze heißt Paul", "", true, 0),
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-unknown-new", "Meine Katze heißt Luna", "g1-old", "UNRECOGNIZED", true,
+                true, NOW, 0, 1))),"","unknown G1 privacy still suppresses old fact");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-lowercase", "Meine Katze heißt Luna", "", "local_private", true,
+                true, NOW, 0, 1))),"","privacy enum mapping case-exact and fail closed");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
