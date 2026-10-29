@@ -86,6 +86,81 @@ async function run(){
    const c=document.createElement('canvas');c.width=1400;c.height=560;
    const ctx=c.getContext('2d');ctx.drawImage(r,0,0,700,560);ctx.drawImage(im,700,0,700,560);return c.toDataURL('image/png');
   }),[1400,560]);
+
+  // V24: actual WebGL trials for only the original front table, keeping
+  // all 12 other source-fidelity instances (including the small plant) locked.
+  const v24Specs=[
+   {name:'baseline-135',x:0,z:1.72,s:1.35},
+   {name:'front-135',x:0,z:1.76,s:1.35},
+   {name:'wide-150',x:0,z:1.72,s:1.50},
+   {name:'wide-165',x:0,z:1.66,s:1.65},
+   {name:'wide-180',x:0,z:1.64,s:1.80},
+   {name:'wide-190',x:0,z:1.60,s:1.90},
+   {name:'wide-210',x:0,z:1.54,s:2.10},
+   {name:'compact-120',x:0,z:1.80,s:1.20}
+  ];
+  const v24Candidates=[];
+  const v24Candidate=(spec)=>{
+   const candidate=JSON.parse(JSON.stringify(layout));
+   candidate.status='V24_TABLE_ONLY_SCREEN_TEST_VISUAL_FAIL_UNACCEPTED';
+   candidate.candidate_name='v24-'+spec.name;
+   const table=candidate.objects.find(o=>o.id==='room_foreground_table');
+   assert(table&&table.locked);
+   table.translation_m=[spec.x,0.4021549077199255*spec.s/1.35,spec.z];
+   table.scale_xyz=[spec.s,spec.s,spec.s];
+   table.uniform_scale=spec.s;
+   return candidate;
+  };
+  for(const spec of v24Specs){
+   const candidate=v24Candidate(spec),name='v24-table-'+spec.name+'.json';
+   await page.locator('#file').setInputFiles({name,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
+   await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),name,{timeout:60000});
+   const a=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+   const proj=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+   assert.equal(a.model_count,13);assert(a.all_source_fidelity_glbs_loaded);
+   assert.deepEqual(a.room_m,layout.room);
+   assert.deepEqual(proj.canvas_px,[700,560]);assert(Math.abs(proj.aspect-1402/1122)<.002);
+   for(const original of layout.objects){
+    const found=a.objects.find(o=>o.id===original.id);assert(found);
+    assert.equal(found.source_sha256,layout.original_source_hashes[original.id]);
+    assert.equal(found.locked,original.locked);
+    if(original.id!=='room_foreground_table')
+     for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+      assert.deepEqual(found.transform[k],original[k],'V24 must freeze '+original.id+' '+k);
+   }
+   const t=a.objects.find(o=>o.id==='room_foreground_table');
+   const plant=a.objects.find(o=>o.id==='room_plant_small');
+   assert(Math.abs(t.floor_bottom_y_m)<.005,'V24 table must be grounded');
+   assert(t.overflow_faces_m.front<.005&&t.overflow_faces_m.left<.005&&t.overflow_faces_m.right<.005,
+    'V24 table must fit immutable room');
+   const real=png('layout-v24-'+spec.name+'-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+   const paired=png('layout-v24-'+spec.name+'-reference-side-by-side.png',
+    await page.evaluate(async()=>{
+     const ref=document.querySelector('#reference-preview'),im=new Image();
+     im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+     await new Promise((resolve,reject)=>{if(im.complete&&im.naturalWidth)return resolve();im.onload=resolve;im.onerror=reject;});
+     const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=560;
+     const ctx=canvas.getContext('2d');ctx.drawImage(ref,0,0,700,560);ctx.drawImage(im,700,0,700,560);
+     return canvas.toDataURL('image/png');
+    }),[1400,560]);
+   v24Candidates.push({spec,
+    aabb:t.conservative_world_aabb_m,projectedCenter:proj.projected_centers.room_foreground_table,
+    floorY:t.floor_bottom_y_m,lockedPlantBottomY:plant.floor_bottom_y_m,
+    plantVerticalOverlapProxyM:Math.max(0,Math.min(t.conservative_world_aabb_m.max[1],plant.conservative_world_aabb_m.max[1])-
+      Math.max(t.conservative_world_aabb_m.min[1],plant.conservative_world_aabb_m.min[1])),
+    note:'AABB is not a real silhouette or true object collision. Visual PASS not granted.',
+    real,paired,technical:'PASS',manualVisual:'FAIL_PENDING_IMAGE_INSPECTION'});
+  }
+  await page.locator('#file').setInputFiles(local);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
+  const v24Restored=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  for(const original of layout.objects){
+   const found=v24Restored.objects.find(o=>o.id===original.id);assert(found);
+   assert.equal(found.locked,original.locked);
+   for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+    assert.deepEqual(found.transform[k],original[k],'Restore V19 '+original.id+' '+k);
+  }
   await page.locator('#reference-shell-preview').uncheck();
   const restoredShell=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
   assert.deepEqual(restoredShell,baselineShell,'V23 must fully restore previous wall and ceiling materials');
@@ -126,6 +201,7 @@ async function run(){
    architecturalPalette:arch,gridOn,clean,comparison,withGrid,gridClean,
    v23SourcePreservingPreview:{baselineShell,trialShell,restoredShell,
     trialGenuineWebgl:v23Trial,originalReferenceSideBySide:v23Comparison},
+   v24ForegroundTableDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v24Candidates,manualVisual:'FAIL_PENDING_HUMAN_COMPARISON'},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS');
