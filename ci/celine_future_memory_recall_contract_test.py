@@ -1122,6 +1122,37 @@ public final class FutureMemoryRecallContract {
         eq(top(sourceFact + " 🙂", Arrays.asList(c("pua-emoji-allowed", sourceFact))),
             "pua-emoji-allowed", "ordinary visible supplementary emoji unaffected");
 
+
+        // FUTURE ONLY: unassigned Unicode scalars have no known lexical
+        // semantics. They must not vanish into a false exact recall match.
+        String unassignedGreek = "\u0378";
+        String unassignedGreekNeighbor = "\u0379";
+        String unassignedSupplementary = new String(Character.toChars(0xE0002));
+        eq(top(sourceFact + unassignedGreek, Arrays.asList(c("cn-0378-q", sourceFact))),
+            "", "unassigned Greek codepoint in query must abstain");
+        eq(top(sourceFact, Arrays.asList(c("cn-0378-s", sourceFact + unassignedGreek))),
+            "", "unassigned Greek codepoint in stored fact must abstain");
+        eq(top(sourceFact + unassignedGreekNeighbor, Arrays.asList(c("cn-0379-q", sourceFact))),
+            "", "second unassigned Greek scalar in query must abstain");
+        eq(top(sourceFact, Arrays.asList(c("cn-0379-s", sourceFact + unassignedGreekNeighbor))),
+            "", "second unassigned Greek scalar in memory must abstain");
+        eq(top(sourceFact + unassignedSupplementary, Arrays.asList(c("cn-supp-q", sourceFact))),
+            "", "unassigned supplementary scalar in query must abstain");
+        eq(top(sourceFact, Arrays.asList(c("cn-supp-s", sourceFact + unassignedSupplementary))),
+            "", "unassigned supplementary scalar in memory must abstain");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("cn-old", "Meine Katze heisst Paul", "", true, 0),
+            x("cn-new", sourceFact + unassignedGreek, "cn-old", true, 0))),
+            "", "unassigned successor cannot resurrect obsolete ancestor");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            sourceFact + unassignedSupplementary, Arrays.asList(c("cn-correction", sourceFact)), NOW),
+            "", "unassigned correction content cannot select ID");
+        eq(top("Meine Katze heisst Lu" + unassignedGreek + "na",
+            Arrays.asList(c("cn-midword", sourceFact))),
+            "", "unassigned scalar inside lexical word must abstain");
+        eq(top(sourceFact + " 🙂", Arrays.asList(c("cn-visible-emoji-ok", sourceFact))),
+            "cn-visible-emoji-ok", "assigned visible emoji remains searchable");
+
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

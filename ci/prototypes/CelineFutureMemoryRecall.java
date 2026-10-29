@@ -405,6 +405,8 @@ public final class CelineFutureMemoryRecall {
                     // Private-use glyphs have no supported lexical meaning here.
                     // NFD/tokenization would otherwise drop them as separators.
                     || Character.getType(cp) == Character.PRIVATE_USE
+                    // Unknown/unassigned scalars cannot be lexical evidence.
+                    || Character.getType(cp) == Character.UNASSIGNED
                     // Enclosing keycap marks and combining strike overlays alter
                     // visible evidence but NFD + \\p{M} would erase them.
                     // Preserve normal Latin accent/umlaut decomposition.
