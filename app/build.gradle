@@ -294,7 +294,7 @@ android {
     compileSdkVersion 30
     defaultConfig {
         applicationId 'de.yahya.ai'
-        minSdkVersion 26
+        minSdkVersion 29
         targetSdkVersion 30
         versionCode 83
         versionName '1.0-celin-v83-functional-interim'
