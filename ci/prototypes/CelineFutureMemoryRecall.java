@@ -169,19 +169,41 @@ public final class CelineFutureMemoryRecall {
         // neither endpoint may be silently presented as an authoritative fact.
         // Include expired/private/withheld records to prevent stale resurrection.
         Set<String> conflicted = new HashSet<>();
+        Map<String, List<String>> successorsByParent = new HashMap<>();
         for (Candidate c : candidates) {
-            if (c == null || c.id.isEmpty()) continue;
-            if (!c.supersedesId.isEmpty()) replaced.add(c.supersedesId);
+            if (!c.supersedesId.isEmpty()) {
+                replaced.add(c.supersedesId);
+                successorsByParent.computeIfAbsent(c.supersedesId, k -> new ArrayList<>()).add(c.id);
+            }
             if (!c.conflictWithId.isEmpty()) {
                 conflicted.add(c.id);
                 conflicted.add(c.conflictWithId);
+            }
+        }
+        // Compaction/reimport can preserve multiple purported corrections to one
+        // ancestor without a G1 winner decision. Neither fork is authoritative.
+        // Withhold ALL descendants as well: a later child cannot legitimize one
+        // fork just because it carries a newer timestamp or higher importance.
+        Set<String> unresolvedFork = new HashSet<>();
+        List<String> pending = new ArrayList<>();
+        for (List<String> siblings : successorsByParent.values()) {
+            if (siblings.size() < 2) continue;
+            for (String child : siblings) {
+                if (unresolvedFork.add(child)) pending.add(child);
+            }
+        }
+        for (int i = 0; i < pending.size(); i++) {
+            List<String> children = successorsByParent.get(pending.get(i));
+            if (children == null) continue;
+            for (String child : children) {
+                if (unresolvedFork.add(child)) pending.add(child);
             }
         }
         List<Candidate> live = liveCandidates(candidates, now);
         List<Match> matches = new ArrayList<>();
         for (Candidate c : live) {
             if (replaced.contains(c.id) || conflicted.contains(c.id)
-                    || !c.authorizedForProvider || !c.userExplicit
+                    || unresolvedFork.contains(c.id) || !c.authorizedForProvider || !c.userExplicit
                     || c.privacy != Privacy.LOCAL_PRIVATE) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
