@@ -274,3 +274,20 @@ exact_next_action: In tools/voice-lab/** only, independently cross-check chunk a
 **Ownership/readback:** single Voice-Lab DRAFT writer retains only tools/voice-lab/** on the existing workstream; release worker ID 6ae29695b7a48191af25b982ab3606f0 alone owns post-handoff Android integration. This source remains FUTURE-ONLY and is not an integration-ready product.
 
 **exact_next_action (supersedes earlier):** Within tools/voice-lab/** only, design a separate externally captured speaker-tail acknowledgement gate for advancing the *next* spoken chunk; add deterministic negative tests for missing/expired/stale/poisoned physical presentation evidence, and refuse auto-advance if real audible completion is unprovable. Do not change v83, app/CI/shared files or invent device measurement.
+
+## 29 Oct 2026 — second bounded FUTURE-ONLY step: external speaker-tail proof gate
+
+**After** the same-run 3,422-check source-exact raw-head coordinator PASS, added independent pure-Java GermanSpeakerTailProofGate.java and GermanSpeakerTailProofGateTest.java under the same Voice-only DRAFT branch. It wraps pre-existing VoiceVerifiedPresentationClock.java Git blob `8b7293a25ae8b62647c4ee6928e98b3d474587c6`, requires matching raw drained accepted frame count and a *fresh EXTERNAL_CAPTURE typed claim* at that exact final presented frame, rejects RAW_HEAD_ONLY, missing/partial/expired/wrong-generation/poisoned proof, and issues at most one permit. The permit remains ADVISORY until a future serial adapter wires it into the chunk lease: current independent coordinator is not changed or protected against bypass.
+
+**Real RED→FIX→PASS:** Initial simulated proof-gate code had no monotonic permit-query clock. A 302ms-old expired captured sample was mistakenly accepted when a caller re-queried with a backdated 102ms value, producing actual local AssertionError `FAIL backdated clock cannot revive expired proof` (exit 1). Added lastPermitPollNs monotonic guard; new valid later external-capture samples may recover while backdated queries fail. This is a JVM test/harness issue, not a found Samsung malfunction.
+
+**Actually executed local OpenJDK 21 source-exact targeted combined checks:**
+```
+VOICE_GERMAN_RAW_DRAIN_COORDINATOR_PASS checks=3422
+VOICE_GERMAN_SPEAKER_TAIL_GATE_PASS checks=1027
+```
+Total **4,449 freshly executed deterministic assertions PASS** for these two new suites, compiled with exact GitHub source blobs GermanSpeechChunkPlanner.java `742e66ef73e9e8ea14c83f53d0f2a6dcb73fd6a1`, GermanStreamingDeliveryLedger.java `dbaaf76fbf38f95add351b23678bc504dec36f51`, VoiceLifecycleContract.java `4be28a3f59174bdce848dc13f1d8c5944d998cf0`, VoiceVerifiedPresentationClock.java `8b7293a25ae8b62647c4ee6928e98b3d474587c6`. Source/test new blobs `fe797aa9829486d8f99967d22ecbe7782f310917` / `9e742dcca4dae6aab7197551150e7a1ebe467a7a` exactly match locally run Java. Full historical runner was not newly executed; its source now includes both new mains and was shell-syntax checked separately.
+
+**OPEN:** No physical Samsung loudspeaker capture, measured timing, verified German female voice naturalness or Android wiring. Passing EvidenceKind.EXTERNAL_CAPTURE into this JVM gate is a *typed external claim*, NOT cryptographic or acoustic proof. It is standalone and can be bypassed until integrated into the new chunk-dispatch coordinator; therefore it is NOT integration-ready, NOT a real voice/audio/lipsync/S25 PASS, and NOT part of v83. No Room #111, Core #113, Build/Release-owned Android/API29/Gradle/CI/updater/signing/release or shared file changed. Old Android8 Pico crashes remain out of v83 scope.
+
+**exact_next_action (supersedes earlier):** In the existing tools/voice-lab/** DRAFT branch, wire the optional external speaker-tail permit into GermanStreamingRawDrainCoordinator's next-chunk lease path WITHOUT bypass and test multi-epoch queued/raw/captured sequences (including uncertainty, speaker-proof expiry, engine crash) with an independent oracle. Maintain fast raw-only legacy mode for isolated contract regression but never claim that mode proves audible speech; no app, CI, Android build or v83 writes.
