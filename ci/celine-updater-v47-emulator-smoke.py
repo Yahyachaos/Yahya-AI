@@ -176,6 +176,15 @@ def main():
         root=ui.hierarchy()
         if unknown_sources(root): continue
         if "packageinstaller" in focus() and not clicked:
+            # Android 10 can switch window focus to PackageInstaller before
+            # UiAutomator publishes the matching hierarchy. Wait for the
+            # installer-owned Yahya UI instead of validating the stale
+            # Settings snapshot as if it were the confirmation dialog.
+            root=wait_for(lambda r:"packageinstaller" in focus() and
+                          contains(r,"Yahya AI") and
+                          any("packageinstaller" in n.attrib.get("package","").casefold()
+                              for n in allnodes(r)),
+                          "native installer hierarchy",40)
             if size!=SIZE:
                 evidence("FAIL-incomplete-APK-installer",root)
                 raise AssertionError("Installer before entire APK downloaded")
