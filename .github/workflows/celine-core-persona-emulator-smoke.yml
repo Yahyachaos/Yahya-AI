@@ -29,28 +29,32 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Verify exact release runtime equivalence with real production Android #1814
+      - name: Verify API29 v83 runtime equivalence with production Build #1888
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD
-          git diff --quiet 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "5c3d9b7ac67f95d6e0b9cc8da4dd7eaa6f667ab717b6ba302fe0a58a57f979cc"
-          echo 'PRODUCTION_V83_RUNTIME_EQUIVALENCE_PASS: real Android #1814 exact post-CALL focus-fix release package / G1 / Persona'
+          git merge-base --is-ancestor d535737f190392b1b1f2df4903715dce22a15bd8 HEAD
+          git diff --quiet d535737f190392b1b1f2df4903715dce22a15bd8 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "d9b10c4b7fb871ee757ba2809d4e0ecd04b1b35ea44ff354b49d192e33c115f2"
+          echo 'PRODUCTION_V83_ANDROID10_RUNTIME_EQUIVALENCE_PASS: new nondebug Android Build #1888 release package / G1 / Persona'
           echo 'No Android Gradle build or Room visual build is invoked by this workflow.'
 
-      - name: Reuse actual verified non-debuggable production Android #1814 APK (no Gradle)
+      - name: Reuse new nondebuggable Android10 production Build #1888 APK (no Gradle)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40737651707 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/40808505855" --jq '.head_sha + " " + .conclusion')" = "d535737f190392b1b1f2df4903715dce22a15bd8 success"
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
           test -s ci-apk/app-release.apk
-          echo '8fa84a5b0cfbe6c1e749f541aadb82b0ba0aca942f7a54a153eb796da97df15d  ci-apk/app-release.apk' | sha256sum -c -
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-sha256 -D ci-apk
+          test -s ci-apk/production-apk-sha256.txt
+          EXPECTED_APK_SHA="$(awk 'NR==1 {print $1}' ci-apk/production-apk-sha256.txt)"
+          [[ "$EXPECTED_APK_SHA" =~ ^[0-9a-f]{64}$ ]] && echo "$EXPECTED_APK_SHA  ci-apk/app-release.apk" | sha256sum -c -
           sha256sum ci-apk/app-release.apk > core-persona-emulator-proof/production-apk-sha256.txt
-          echo 'PINNED_PRODUCTION_APK_1814_SHA256_PASS'
+          echo 'NEW_API29_PRODUCTION_APK_SHA256_FROM_BUILD_1888_PASS'
           # The public v80 APK is the real installed/retained-data baseline.
           gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' -D ci-apk
           test -s ci-apk/Yahya-AI-v80.apk
@@ -74,6 +78,7 @@ jobs:
           "$APKSIGNER" verify "$OLD" >/dev/null
           BADGING="$("$AAPT" dump badging "$APK")"
           grep -Fq "package: name='de.yahya.ai' versionCode='83'" <<<"$BADGING"
+          grep -Fxq "sdkVersion:'29'" <<<"$BADGING"
           ! grep -q '^application-debuggable' <<<"$BADGING"
           cert() { "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1; }
           C80="$(cert "$OLD")"
@@ -157,12 +162,10 @@ jobs:
 # One targeted CI-only production validation (28 Oct 2026): validate fixed worker-ownership signed #1799 APK; no Gradle build or stable publish.
 
 
-  legacy-api-v80-to-v83:
+  supported-api29-v80-to-v83:
     name: Genuine public v80 to production v83 on Android API${{ matrix.api-level }}
-    # Keep independent legacy OS probes serial and AFTER API35 finishes.
-    # An API35 UI failure stays a hard failing release gate, but must not hide
-    # the separate API26/27 installation/data-retention evidence as SKIPPED.
-    # This is not a bypass: BOTH API35 and API26/27 must independently pass.
+    # Keep API29 validation independent of API35. Either failed install/UI gate is FAIL.
+    # Android8/9 are expressly not part of the owner's v83 supported OS matrix.
     if: ${{ !cancelled() }}
     needs: reuse-built-apk-and-test
     runs-on: ubuntu-latest
@@ -171,7 +174,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        api-level: [26, 27]
+        api-level: [29]
     steps:
       - name: Checkout exact Room integration branch
         uses: actions/checkout@v4
@@ -183,10 +186,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD
-          git diff --quiet 5074554968a0ae3e8c668637a3c3eb03206a377a HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
-          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = '5c3d9b7ac67f95d6e0b9cc8da4dd7eaa6f667ab717b6ba302fe0a58a57f979cc'
-          echo 'LEGACY_PRODUCTION_V83_SOURCE_EQUIVALENCE_PASS'
+          git merge-base --is-ancestor d535737f190392b1b1f2df4903715dce22a15bd8 HEAD
+          git diff --quiet d535737f190392b1b1f2df4903715dce22a15bd8 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = 'd9b10c4b7fb871ee757ba2809d4e0ecd04b1b35ea44ff354b49d192e33c115f2'
+          echo 'SUPPORTED_API29_V83_SOURCE_EQUIVALENCE_PASS'
 
       - name: Download real published v80 and proven non-debuggable v83 only
         shell: bash
@@ -195,9 +198,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-apk core-persona-emulator-proof
-          gh run download 40737651707 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/40808505855" --jq '.head_sha + " " + .conclusion')" = "d535737f190392b1b1f2df4903715dce22a15bd8 success"
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
           test -s ci-apk/app-release.apk
-          echo '8fa84a5b0cfbe6c1e749f541aadb82b0ba0aca942f7a54a153eb796da97df15d  ci-apk/app-release.apk' | sha256sum -c -
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-sha256 -D ci-apk
+          test -s ci-apk/production-apk-sha256.txt
+          EXPECTED_APK_SHA="$(awk 'NR==1 {print $1}' ci-apk/production-apk-sha256.txt)"
+          [[ "$EXPECTED_APK_SHA" =~ ^[0-9a-f]{64}$ ]] && echo "$EXPECTED_APK_SHA  ci-apk/app-release.apk" | sha256sum -c -
           gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern Yahya-AI-v80.apk -D ci-apk
           test -s ci-apk/Yahya-AI-v80.apk
           echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
@@ -219,6 +226,7 @@ jobs:
           "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$NEW"
           "$AAPT" dump badging "$OLD" | grep -F "package: name='de.yahya.ai' versionCode='80'"
           "$AAPT" dump badging "$NEW" | grep -F "package: name='de.yahya.ai' versionCode='83'"
+          "$AAPT" dump badging "$NEW" | grep -Fx "sdkVersion:'29'"
           ! "$AAPT" dump badging "$NEW" | grep -q '^application-debuggable'
           C80="$("$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$OLD" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
           C83="$("$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$NEW" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
@@ -253,9 +261,9 @@ jobs:
             adb shell wm density 185
             adb install -r ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
-            echo 'AUTHENTIC_PUBLIC_V80_INSTALLED_ON_LEGACY_ANDROID_PASS'
+            echo 'AUTHENTIC_PUBLIC_V80_INSTALLED_ON_SUPPORTED_API29_PASS'
             YAHYA_PRODUCTION_SMOKE=1 timeout 1560s python3 ci/celine_core_persona_emulator_smoke.py
-            echo "REAL_V80_V83_LEGACY_API${{ matrix.api-level }}_DATA_RETENTION_AND_FUNCTIONAL_PASS"
+            echo "REAL_V80_V83_SUPPORTED_API${{ matrix.api-level }}_DATA_RETENTION_AND_FUNCTIONAL_PASS"
 
       - name: Always upload original Android evidence and failure diagnostics
         if: always()

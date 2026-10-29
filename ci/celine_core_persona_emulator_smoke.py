@@ -1432,6 +1432,27 @@ def verify_production_home_call_home():
     if not entered:
         screenshot("FAIL-production-call-transition.png")
         raise AssertionError("No real HOME-to-CALL transition and CALL frame log")
+    # An earlier API35 run logged target=CALL but captured HOME-looking UI.
+    # Require distinct on-screen CALL controls before the image is labeled CALL.
+    distinct_call_ui = False
+    for _ in range(12):
+        nodes = [node for node in hierarchy().iter("node")
+                 if node.attrib.get("package") == PACKAGE]
+        end_visible = any("Auflegen" in n.attrib.get("text", "")
+                          and n.attrib.get("clickable") == "true" for n in nodes)
+        mic_visible = any("Mikrofon" in n.attrib.get("text", "")
+                          and n.attrib.get("clickable") == "true" for n in nodes)
+        title_visible = any(n.attrib.get("text", "").strip() == "●  Live mit Celin"
+                            for n in nodes)
+        if end_visible and mic_visible and title_visible:
+            distinct_call_ui = True
+            break
+        time.sleep(1)
+    if not distinct_call_ui:
+        screenshot("FAIL-production-call-ui-not-visible.png")
+        raise AssertionError("CALL log exists but real distinct CALL controls were not"
+                             " visible; HOME screenshot is not CALL proof")
+    print("PRODUCTION_DISTINCT_CALL_CONTROLS_VISIBLE_PASS", flush=True)
     screenshot("11-production-call.png")
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     returned = False
