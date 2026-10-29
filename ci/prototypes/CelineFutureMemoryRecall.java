@@ -290,6 +290,21 @@ public final class CelineFutureMemoryRecall {
         if (matches.isEmpty()) return "";
         Match best = matches.get(0);
         if (best.sharedTerms < 2 || best.sharedTerms * 2 < query.size()) return "";
+        // Provider-safe recall deliberately excludes sensitive, unconsented and
+        // untrusted G1 records. Those records can nevertheless be what the user
+        // intends to correct. Do not mistake a single exportable hit for an
+        // unambiguous memory ID when an inaccessible live record has equally
+        // strong lexical evidence. This never exposes the rival's contents or
+        // selects it automatically; the existing selected-ID UI remains the
+        // fallback. Tombstoned/expired records are not live correction targets.
+        for (Candidate rival : candidates) {
+            if (rival == null || rival.id.equals(best.candidate.id) || !rival.live(now)
+                    || (rival.authorizedForProvider && rival.userExplicit
+                        && rival.privacy == Privacy.LOCAL_PRIVATE)) continue;
+            int rivalSharedTerms = overlap(query, terms(rival.summary));
+            if (rivalSharedTerms >= 2 && rivalSharedTerms >= best.sharedTerms)
+                return "";
+        }
         if (matches.size() > 1) {
             Match next = matches.get(1);
             // Actual distinct lexical evidence, not a tie broken by recency/importance.

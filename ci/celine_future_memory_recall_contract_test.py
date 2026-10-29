@@ -64,6 +64,63 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze",Arrays.asList(
             c("a","Meine Katze frisst gerne"),c("b","Meine Katze heißt Luna")),NOW),
             "","ambiguous correction fail closed");
+        // FUTURE-ONLY: an inaccessible or untrusted memory can still be the
+        // object the user wants to correct. Provider-safe retrieval must not
+        // treat invisibility as proof that another record is unambiguous.
+        CelineFutureMemoryRecall.Candidate visibleCorrection = c("correct-visible", "Meine Katze heisst Luna");
+        CelineFutureMemoryRecall.Candidate hiddenSensitive = new CelineFutureMemoryRecall.Candidate(
+            "correct-sensitive", "Meine Katze heisst Luna", "",
+            CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true, NOW-100, 0, 0.8);
+        CelineFutureMemoryRecall.Candidate hiddenDenied = new CelineFutureMemoryRecall.Candidate(
+            "correct-denied", "Meine Katze heisst Luna", "",
+            CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, false, true, NOW-100, 0, 0.8);
+        CelineFutureMemoryRecall.Candidate hiddenInferred = new CelineFutureMemoryRecall.Candidate(
+            "correct-inferred", "Meine Katze heisst Luna", "",
+            CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, false, NOW-100, 0, 0.8);
+        CelineFutureMemoryRecall.Candidate hiddenShareable = new CelineFutureMemoryRecall.Candidate(
+            "correct-shareable", "Meine Katze heisst Luna", "",
+            CelineFutureMemoryRecall.Privacy.SHAREABLE_ON_REQUEST, true, true, NOW-100, 0, 0.8);
+        String fullCorrection = "Meine Katze heisst Luna";
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,hiddenSensitive),NOW), "",
+            "hidden sensitive equally relevant correction rival must abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,hiddenDenied),NOW), "",
+            "permission-withheld equally relevant correction rival must abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,hiddenInferred),NOW), "",
+            "untrusted equally relevant correction rival must abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection,hiddenShareable),NOW), "",
+            "shareable-on-request equally relevant correction rival must abstain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(hiddenSensitive,visibleCorrection),NOW), "",
+            "inaccessible ambiguity independent of projection order");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
+                "long-hidden", "Meine Katze heisst Luna und mag Milch", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,0,0.8)),NOW), "",
+            "hidden rival with all three query anchors prevents auto-selection");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
+                "partial-hidden", "Meine Katze", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,0,0.8)),NOW),
+            "correct-visible", "weak two-token hidden rival does not defeat three-token evidence");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
+                "unrelated-hidden", "Damu Markt verkauft Getränke", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,0,0.8)),NOW),
+            "correct-visible", "unrelated confidential record does not suppress a correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
+                "expired-hidden", "Meine Katze heisst Luna", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,NOW-1,0.8)),NOW),
+            "correct-visible", "expired inaccessible rival does not defeat live correction");
+        eq(top(fullCorrection,Arrays.asList(visibleCorrection,hiddenSensitive)),
+            "correct-visible", "ordinary provider-safe retrieval stays permission-filtered");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+            Arrays.asList(visibleCorrection),NOW), "correct-visible",
+            "isolated three-token fact still yields an unambiguous correction ID");
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Tee",data,NOW),"","single-token correction fail closed");
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Mein Lieblingsgetränk ist Kaffee",data,NOW),
             "","correction without discriminating target must request ID");
