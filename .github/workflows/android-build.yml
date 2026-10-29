@@ -302,7 +302,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
-            set -euo pipefail
+            set -eu
             test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = '${{ matrix.api-level }}'
             adb install ci-apk/Yahya-AI-v80.apk
             adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'

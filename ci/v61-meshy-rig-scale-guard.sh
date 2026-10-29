@@ -13,19 +13,21 @@ grep -q 'CelineMeshyRigScaleV61.install(activity, decor)' "$APP" || { echo "ERRO
 grep -q 'asset.getFirstEntityByName("Armature")' "$SRC" || { echo "ERROR: Armature detection missing"; exit 1; }
 grep -q 'asset.getFirstEntityByName("Hips")' "$SRC" || { echo "ERROR: Hips detection missing"; exit 1; }
 grep -q 'float correction = 1.0f / rigScale' "$SRC" || { echo "ERROR: inverse rig-scale correction missing"; exit 1; }
-grep -q 'TARGET_HEIGHT = 2.35f' "$SRC" || { echo "ERROR: safe default target height changed"; exit 1; }
+grep -q 'TARGET_HEIGHT = 1.75f' "$SRC" || { echo "ERROR: accepted human-scale target height changed"; exit 1; }
+grep -q 'ROOM_FLOOR_Y = -1.55f' "$SRC" || { echo "ERROR: accepted exact-room floor anchor changed"; exit 1; }
+grep -q 'FLOOR_CLEARANCE_M = 0.002f' "$SRC" || { echo "ERROR: accepted floor clearance changed"; exit 1; }
 grep -q 'MIN_PRODUCTION_BYTES = 1_000_000L' "$SRC" || { echo "ERROR: production-only guard missing"; exit 1; }
 
 python3 - <<'PY'
 raw_extent = 0.017
 rig_scale = 0.01
-target = 2.35
+target = 1.75
 old_scale = 3.15 / raw_extent
 corrected_extent = raw_extent / rig_scale
 new_scale = target / corrected_extent
 assert 1.6 < corrected_extent < 1.8, corrected_extent
-assert 1.2 < new_scale < 1.6, new_scale
-assert old_scale / new_scale > 100.0, (old_scale, new_scale)
+assert 0.95 < new_scale < 1.1, new_scale
+assert old_scale / new_scale > 150.0, (old_scale, new_scale)
 print(f"v61 Meshy math OK: old={old_scale:.2f} correctedExtent={corrected_extent:.2f} new={new_scale:.3f}")
 PY
 

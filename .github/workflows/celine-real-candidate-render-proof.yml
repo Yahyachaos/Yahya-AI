@@ -155,8 +155,12 @@ jobs:
           echo "android_build_run=${{ steps.source.outputs.run_id }}" | tee -a real-candidate-runtime-fingerprint.txt
           echo "android_build_sha=${{ steps.source.outputs.source_sha }}" | tee -a real-candidate-runtime-fingerprint.txt
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Reuse runner-preinstalled Android SDK (setup-android v3 legacy tools fails)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || command -v sdkmanager
+          echo 'Avoiding deprecated sdkmanager tools package requested by setup-android@v3.'
 
       - name: Enable KVM permissions
         shell: bash
