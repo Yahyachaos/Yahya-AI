@@ -75,6 +75,82 @@ public final class VoiceCrossContractPlaybackTest {
         ok(life.interrupt(next, 204), "new utterance interrupted");
         eq(VoiceLifecycleContract.Mouth.CLOSED, life.calibratedMouthAt(next, 200, 205), "interrupted mouth silent");
         eq(VoiceLifecycleContract.Mouth.CLOSED, life.playedMouth(), "no raw mouth after interrupt");
+        calibratedCueBackpressure();
         System.out.println("VOICE_CROSS_CONTRACT_PASS checks=" + checks);
+    }
+
+    /** Long display latency MUST NOT silently erase unheard visemes. */
+    private static void calibratedCueBackpressure() {
+        VoiceLifecycleContract life = new VoiceLifecycleContract();
+        VoicePlaybackHeadTracker head = new VoicePlaybackHeadTracker();
+        VoiceAcousticTimingContract acoustic = new VoiceAcousticTimingContract();
+        long id = life.begin(1000);
+        ok(life.prepared(id, 1001), "backpressure prepare");
+        head.begin(id, 0);
+        acoustic.begin(id, 48000);
+        ok(acoustic.acceptMeasuredDelay(id, 300), "fixture 300 frame latency");
+        ok(life.enableCalibratedPresentation(id, 1001), "calibration mode before raw head");
+        for (int i = 0; i < 256; i++) {
+            VoiceLifecycleContract.Mouth m = (i & 1) == 0
+                    ? VoiceLifecycleContract.Mouth.OPEN : VoiceLifecycleContract.Mouth.TEETH;
+            ok(life.acceptPcm(id, 1, m, 1002 + i), "distinct lagging cue " + i);
+        }
+        eq(256, life.retainedCueCount(), "all 256 still unheard cues retained");
+        long raw = head.observe(id, 255, life.acceptedFrames());
+        eq(255L, raw, "backpressure raw head may advance without display");
+        ok(life.playbackHead(id, raw, 1258), "physical raw head advances");
+        long t = 2_000_000_000L;
+        ok(acoustic.observe(id, raw, life.acceptedFrames(), t, t + 1_000_000L),
+                "backpressure fresh hardware observation");
+        eq(0L, acoustic.estimatedMouthFrame(id, t + 2_000_000L),
+                "300-frame acoustic delay keeps cursor at zero");
+        eq(VoiceLifecycleContract.Mouth.CLOSED, life.calibratedMouthAt(id, 0, 1259),
+                "no confident physical mouth frame yet");
+        eq(256, life.retainedCueCount(), "raw progress must not prune unheard cues");
+        ok(!life.canAcceptPcm(id, 1, VoiceLifecycleContract.Mouth.OPEN, 1260),
+                "advisory preflight blocks 257th distinct cue");
+        ok(!life.acceptPcm(id, 1, VoiceLifecycleContract.Mouth.OPEN, 1260),
+                "postwrite overrun stops safely");
+        eq(VoiceLifecycleContract.Phase.FAILED, life.phase(), "cue overrun fail-stop");
+        eq("cue backlog exceeded", life.failureReason(), "explicit backpressure cause");
+        eq(0, life.retainedCueCount(), "failure clears pending viseme queue");
+        head.stop(id);
+        acoustic.stop(id);
+        long recovered = life.begin(1261);
+        ok(!life.engineDied(id, 1262), "old engine death cannot kill recovery");
+        ok(life.prepared(recovered, 1262), "new generation can prepare");
+        ok(life.engineDied(recovered, 1263), "new engine failure identified");
+        eq("TTS engine terminated", life.failureReason(), "engine death distinguished from backlog");
+
+        // When a genuinely calibrated presentation cursor advances, bounded retention recovers.
+        id = life.begin(2000);
+        ok(life.prepared(id, 2001), "cursor catch-up prepare");
+        head.begin(id, 0);
+        acoustic.begin(id, 48000);
+        ok(acoustic.acceptMeasuredDelay(id, 200), "fixture 200 frame latency");
+        ok(life.enableCalibratedPresentation(id, 2001), "second calibrated path");
+        for (int i = 0; i < 256; i++) {
+            VoiceLifecycleContract.Mouth m = (i & 1) == 0
+                    ? VoiceLifecycleContract.Mouth.OPEN : VoiceLifecycleContract.Mouth.TEETH;
+            ok(life.acceptPcm(id, 1, m, 2002 + i), "catch-up queued cue " + i);
+        }
+        raw = head.observe(id, 255, life.acceptedFrames());
+        ok(life.playbackHead(id, raw, 2258), "catch-up raw progress");
+        t = 3_000_000_000L;
+        ok(acoustic.observe(id, raw, life.acceptedFrames(), t, t + 1_000_000L),
+                "catch-up hardware observation");
+        eq(55L, acoustic.estimatedMouthFrame(id, t + 2_000_000L),
+                "calibrated cursor passed 55 written frames");
+        eq(VoiceLifecycleContract.Mouth.OPEN, life.calibratedMouthAt(id, 55, 2259),
+                "frame 54 cue remains visible at boundary");
+        eq(202, life.retainedCueCount(), "only truly presented cues pruned");
+        ok(life.canAcceptPcm(id, 1, VoiceLifecycleContract.Mouth.OPEN, 2260),
+                "new distinct cue allowed after safe pruning");
+        ok(life.acceptPcm(id, 1, VoiceLifecycleContract.Mouth.OPEN, 2260),
+                "calibrated backpressure recovers when cursor advances");
+        ok(life.synthesisDone(id, 2261), "catch-up synthesis done");
+        ok(life.playbackHead(id, 257, 2262), "raw head finishes speaker tail");
+        eq(VoiceLifecycleContract.Phase.COMPLETED, life.phase(), "final speaker drain complete");
+        eq(0, life.retainedCueCount(), "completed utterance releases cues");
     }
 }
