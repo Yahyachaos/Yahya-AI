@@ -55,6 +55,20 @@ public final class VoiceLifecycleContract {
         return true;
     }
 
+    /**
+     * Advisory budget check BEFORE a write to avoid accepting PCM whose cues cannot
+     * be retained. Caller must serialize the check with subsequent write/acceptPcm;
+     * this is not a cross-thread reservation and does not replace fail-stop handling.
+     */
+    public synchronized boolean canAcceptPcm(long id, int frameCount, Mouth mouth, long nowMs) {
+        if (!current(id, nowMs) || !(phase == Phase.BUFFERING || phase == Phase.PLAYING)
+                || frameCount <= 0 || mouth == null || acceptedFrames > Long.MAX_VALUE - frameCount) return false;
+        pruneConsumed();
+        if (acceptedCues.size() < MAX_RETAINED_CUES) return true;
+        Segment last = acceptedCues.get(acceptedCues.size() - 1);
+        return last.end == acceptedFrames && last.mouth == mouth;
+    }
+
     /** Call only AFTER a successful AudioTrack.write; use its actual returned frame count. */
     public synchronized boolean acceptPcm(long id, int frameCount, Mouth mouth, long nowMs) {
         if (!current(id, nowMs) || !(phase == Phase.BUFFERING || phase == Phase.PLAYING)
