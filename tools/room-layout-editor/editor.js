@@ -628,6 +628,7 @@ $('reference-file').onchange=(e)=>{
 // programmatically selecting or transforming furniture. Not available outside
 // localhost with ?e2e=1. The Android runtime is completely separate.
 if (E2E_PROOF) {
+  const drapeOriginalMaterials = new WeakMap();
   window.__celineRoomEditorE2E = Object.freeze({
     focus(id, direction = [1, 0.35, 1]) {
       const entry = entries.get(id);
@@ -776,6 +777,49 @@ if (E2E_PROOF) {
           };
         })()
       };
+    },
+
+    // V21 REAL WEBGL MATERIAL DIAGNOSTIC ONLY: never modify immutable GLB bytes,
+    // saved placement JSON, original material instances, or Android surfaces.
+    previewDrapeOpacityTrial(options={}) {
+      const mode=options.mode??'original', opacity=options.opacity??1;
+      if(!['original','all','light','dark'].includes(mode) || !Number.isFinite(opacity) || opacity<0.15 || opacity>1)
+        throw new Error('Invalid source-curtain diagnostic trial');
+      const entry=entries.get('room_window_drapes');
+      if(!entry?.loaded) throw new Error('Original curtain GLB not loaded');
+      let meshes=0, affected=0;
+      const originalMaterials=[];
+      entry.group.traverse(mesh=>{
+        if(!mesh.isMesh)return;
+        meshes++;
+        if(!drapeOriginalMaterials.has(mesh))drapeOriginalMaterials.set(mesh,mesh.material);
+        const base=drapeOriginalMaterials.get(mesh);
+        const prior=mesh.material;
+        const source=Array.isArray(base)?base:[base];
+        const replacement=source.map(mat=>{
+          if(!mat)return mat;
+          const rgb=mat.color||new THREE.Color(0xffffff);
+          const lum=.2126*rgb.r+.7152*rgb.g+.0722*rgb.b;
+          const eligible=mode==='all'||(mode==='light'&&lum>=.5)||(mode==='dark'&&lum<.5);
+          if(mode==='original'||!eligible)return mat;
+          const copy=mat.clone();
+          copy.transparent=true;
+          copy.opacity=opacity;
+          copy.depthWrite=false;
+          affected++;
+          return copy;
+        });
+        mesh.material=Array.isArray(base)?replacement:replacement[0];
+        const prev=Array.isArray(prior)?prior:[prior];
+        for(const material of prev)if(material&&!source.includes(material))material.dispose();
+        originalMaterials.push(...source.map(m=>({
+          name:m?.name||'',color:m?.color?.getHexString()||null,
+          opacity:m?.opacity??null,hasMap:!!m?.map
+        })));
+      });
+      renderer.render(scene,camera);
+      return {mode,opacity,meshCount:meshes,affectedMaterialSlots:affected,
+        immutableSourceMaterialSlots:originalMaterials.length,sourceMaterials:originalMaterials};
     },
     architectureSurfaceAudit() {
       const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
