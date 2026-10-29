@@ -152,8 +152,73 @@ async function run(){
     note:'AABB is not a real silhouette or true object collision. Visual PASS not granted.',
     real,paired,technical:'PASS',manualVisual:'FAIL_PENDING_IMAGE_INSPECTION'});
   }
+
+  // V25: one-object source-faithful rug depth/size sweep after genuine V24
+  // photographs proved a source-table/foreground-semantic mismatch. The frozen
+  // room/camera and all 12 non-rug source instances remain unchanged.
+  const v25RugSpecs=[
+   {name:'baseline-108',x:0.18,z:0.52,s:1.08},
+   {name:'rear-035',x:0.18,z:0.35,s:1.08},
+   {name:'rear-020',x:0.18,z:0.20,s:1.08},
+   {name:'compact-100',x:0.18,z:0.35,s:1.00},
+   {name:'compact-092',x:0.18,z:0.25,s:0.92},
+   {name:'left-compact-100',x:0.00,z:0.35,s:1.00}
+  ];
+  const v25RugCandidates=[];
+  for(const spec of v25RugSpecs){
+   const candidate=JSON.parse(JSON.stringify(layout));
+   candidate.status='V25_RUG_ONLY_SCREEN_TEST_VISUAL_FAIL_UNACCEPTED';
+   candidate.candidate_name='v25-rug-'+spec.name;
+   const rug=candidate.objects.find(o=>o.id==='room_rug');
+   assert(rug&&rug.locked,'Original rug must remain provisionally locked');
+   rug.translation_m=[spec.x,0.026595*spec.s/1.08,spec.z];
+   rug.scale_xyz=[spec.s,spec.s,spec.s];
+   rug.uniform_scale=spec.s;
+   const uploadName='v25-rug-'+spec.name+'.json';
+   await page.locator('#file').setInputFiles({name:uploadName,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
+   await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),uploadName,{timeout:60000});
+   const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+   const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+   assert.equal(audit.model_count,13);
+   assert.equal(audit.all_source_fidelity_glbs_loaded,true);
+   assert.deepEqual(audit.room_m,layout.room);
+   assert.deepEqual(projection.canvas_px,[700,560]);
+   assert(Math.abs(projection.aspect-1402/1122)<.002);
+   for(const original of layout.objects){
+    const found=audit.objects.find(o=>o.id===original.id);
+    assert(found,'Missing source instance: '+original.id);
+    assert.equal(found.source_sha256,layout.original_source_hashes[original.id]);
+    assert.equal(found.locked,original.locked,'Rug test must preserve locks');
+    if(original.id!=='room_rug'){
+     for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
+      assert.deepEqual(found.transform[key],original[key],'V25 froze '+original.id+' '+key);
+    }
+   }
+   const subject=audit.objects.find(o=>o.id==='room_rug');
+   assert(Math.abs(subject.floor_bottom_y_m)<.005,'Original rug must remain grounded');
+   assert(subject.overflow_faces_m.front<.005&&subject.overflow_faces_m.rear<.005&&
+          subject.overflow_faces_m.left<.005&&subject.overflow_faces_m.right<.005,
+          'V25 rug must fit unchanged 4.40x4.20 room');
+   const real=png('layout-v25-rug-'+spec.name+'-real-webgl.png',
+     await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+   const paired=png('layout-v25-rug-'+spec.name+'-reference-side-by-side.png',
+     await page.evaluate(async()=>{
+      const ref=document.querySelector('#reference-preview'),im=new Image();
+      im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+      await new Promise((resolve,reject)=>{if(im.complete&&im.naturalWidth)return resolve();im.onload=resolve;im.onerror=reject;});
+      const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=560;
+      const ctx=canvas.getContext('2d');ctx.drawImage(ref,0,0,700,560);ctx.drawImage(im,700,0,700,560);
+      return canvas.toDataURL('image/png');
+     }),[1400,560]);
+   v25RugCandidates.push({spec,sourceAabb:subject.conservative_world_aabb_m,
+     projectedCenter:projection.projected_centers.room_rug,
+     floorY:subject.floor_bottom_y_m,technical:'PASS',
+     trueMeshOrPixelSilhouetteProof:false,manualVisual:'FAIL_PENDING_ACTUAL_IMAGE_REVIEW',
+     real,paired});
+  }
   await page.locator('#file').setInputFiles(local);
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
+
   const v24Restored=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
   for(const original of layout.objects){
    const found=v24Restored.objects.find(o=>o.id===original.id);assert(found);
@@ -202,6 +267,7 @@ async function run(){
    v23SourcePreservingPreview:{baselineShell,trialShell,restoredShell,
     trialGenuineWebgl:v23Trial,originalReferenceSideBySide:v23Comparison},
    v24ForegroundTableDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v24Candidates,manualVisual:'FAIL_PENDING_HUMAN_COMPARISON'},
+   v25RugDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v25RugCandidates,manualVisual:'FAIL_PENDING_GENUINE_WEBGL_REVIEW'},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS');

@@ -1,0 +1,68 @@
+{
+  "schema": "yahya-room-layout-editor/real-visual-review/v1",
+  "date": "2026-10-29",
+  "exact_source_head": "c24c2a253f1645e7545cb58891797b1dc6064a5b",
+  "review_scope": "V24 ORIGINAL source foreground table; do not integrate into Android",
+  "run": {
+    "id": 40939066633,
+    "url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40939066633",
+    "head_sha": "c24c2a253f1645e7545cb58891797b1dc6064a5b",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs_success": 12
+  },
+  "original_artifact": {
+    "id": 12928165422,
+    "name": "celine-room-editor-architecture-v20-evidence",
+    "sha256": "a715f023b6c45e1039eecc704f559956f96a90f098604ef086a057e81322aa70"
+  },
+  "original_reference_px": [
+    1402,
+    1122
+  ],
+  "render_px": [
+    700,
+    560
+  ],
+  "camera": "frozen measured V3",
+  "room_m": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "original_model": "room_foreground_table",
+  "original_hash": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+  "images_genuinely_viewed": [
+    "baseline-135",
+    "front-135",
+    "wide-150",
+    "wide-165",
+    "wide-180",
+    "wide-190",
+    "wide-210",
+    "compact-120"
+  ],
+  "manual_verdicts": {
+    "baseline-135": "VISUAL_FAIL: wooden standing table occludes center; prominent black legs; dark reference front panel only at lower image edge",
+    "front-135": "VISUAL_FAIL: 4cm forward shift immaterial; original source geometry still dissimilar",
+    "wide-150": "VISUAL_FAIL: larger tabletop/legs intrude further into bed and open floor; table top rises",
+    "wide-165": "VISUAL_FAIL: further occlusion; table top exceeds reference horizontal panel",
+    "wide-180": "VISUAL_FAIL: foreground standing worktable incorrectly dominates center",
+    "wide-190": "VISUAL_FAIL: source legs and tabletop intrude into bed/left room",
+    "wide-210": "VISUAL_FAIL: major view obstruction and incompatible proportions",
+    "compact-120": "VISUAL_FAIL: brings tabletop nearer bottom but exposed legs, source semantics and locked plant support fail"
+  },
+  "measured_constraints": {
+    "baseline_table_top_max_y_m": 0.8043098154398511,
+    "locked_small_plant_bottom_y_m": 0.8039684539498033,
+    "compact_table_top_max_y_m": 0.7149420581687564,
+    "compact_locked_plant_vertical_gap_m": 0.0890263957810469,
+    "note": "MaxY AABB versus locked plant MinY only: a vertical separation proxy, not mesh collision proof."
+  },
+  "selected_saved_transform": null,
+  "no_selected_reason": "No genuine candidate matches reference foreground dark screen/panel silhouette and preserves correct small plant support; compact is lower on screen but leaves visible black table legs and creates ~8.9cm plant-table separation.",
+  "technical_validation": "PASS 12/12 jobs and screenshot/save/reload/source-bound assertions",
+  "manual_visual_validation": "FAIL",
+  "scene": "VISUAL_FAIL_G2_3_PAUSED",
+  "next_independent_scope": "V25 only original rug scale/depth WebGL diagnostic; 12 other items, camera and GLB hashes frozen"
+}
