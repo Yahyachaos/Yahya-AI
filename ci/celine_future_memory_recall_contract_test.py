@@ -1000,6 +1000,51 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna",
             Arrays.asList(c("accent-stored", "Meine Katze heisst Lu\u0301na"))),
             "accent-stored", "normal Latin accent in stored record is searchable");
+        // FUTURE ONLY: malformed decoding evidence must never silently
+        // become partial lexical matches after punctuation normalization.
+        String sourceFact = "Meine Katze heisst Luna";
+        String highPlaneNoncharacter = new String(Character.toChars(0x1FFFE));
+        eq(top("Meine Katze heisst Lu\uFFFDna",
+            Arrays.asList(c("bad-replacement-query", sourceFact))),
+            "", "replacement in query must abstain");
+        eq(top(sourceFact + "\uFFFD",
+            Arrays.asList(c("bad-replacement-tail", sourceFact))),
+            "", "trailing replacement query must abstain");
+        eq(top(sourceFact,
+            Arrays.asList(c("bad-replacement-stored", "Meine Katze heisst Lu\uFFFDna"))),
+            "", "replacement in stored summary must abstain");
+        eq(top(sourceFact,
+            Arrays.asList(c("bad-replacement-tail-stored", sourceFact + "\uFFFD"))),
+            "", "trailing replacement stored summary must abstain");
+        eq(top(sourceFact + "\uFDD0",
+            Arrays.asList(c("bad-fdd0-query", sourceFact))),
+            "", "U+FDD0 query noncharacter must abstain");
+        eq(top(sourceFact,
+            Arrays.asList(c("bad-fdd0-stored", sourceFact + "\uFDD0"))),
+            "", "U+FDD0 stored noncharacter must abstain");
+        eq(top(sourceFact + "\uFFFF",
+            Arrays.asList(c("bad-ffff-query", sourceFact))),
+            "", "U+FFFF query noncharacter must abstain");
+        eq(top(sourceFact,
+            Arrays.asList(c("bad-ffff-stored", sourceFact + "\uFFFF"))),
+            "", "U+FFFF stored noncharacter must abstain");
+        eq(top(sourceFact + highPlaneNoncharacter,
+            Arrays.asList(c("bad-plane-query", sourceFact))),
+            "", "supplementary U+1FFFE query noncharacter must abstain");
+        eq(top(sourceFact,
+            Arrays.asList(c("bad-plane-stored", sourceFact + highPlaneNoncharacter))),
+            "", "supplementary U+1FFFE stored noncharacter must abstain");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            c("old-bad-replacement", "Meine Katze heisst Paul"),
+            x("replacement-successor", sourceFact + "\uFFFD",
+                "old-bad-replacement", true, 0))),
+            "", "withheld corrupt successor still retires prior memory");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            sourceFact + "\uFFFD", Arrays.asList(c("bad-correction", sourceFact)), NOW),
+            "", "corrupt correction text must not select memory ID");
+        eq(top(sourceFact + " 🙂",
+            Arrays.asList(c("valid-visible-emoji", sourceFact))),
+            "valid-visible-emoji", "ordinary separate emoji retained");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

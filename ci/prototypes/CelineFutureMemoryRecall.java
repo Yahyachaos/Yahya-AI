@@ -405,6 +405,9 @@ public final class CelineFutureMemoryRecall {
                     // Enclosing keycap marks and combining strike overlays alter
                     // visible evidence but NFD + \\p{M} would erase them.
                     // Preserve normal Latin accent/umlaut decomposition.
+                    || cp == 0xFFFD // Replacement character signals lost decoding evidence
+                    || (cp >= 0xFDD0 && cp <= 0xFDEF) // Permanent Unicode noncharacters
+                    || ((cp & 0xFFFE) == 0xFFFE && cp <= 0x10FFFF)
                     || Character.getType(cp) == Character.ENCLOSING_MARK
                     || (cp >= 0x0334 && cp <= 0x0338)
                     // NFD plus \\p{M} silently drops default-ignorable MARKs.
