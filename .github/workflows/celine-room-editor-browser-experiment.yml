@@ -100,6 +100,10 @@ jobs:
         run: |
           node --check tools/room-layout-editor/pointer-visual-worker.cjs
           node tools/room-layout-editor/pointer-visual-worker.cjs
+      - name: Actual V12 source-fidelity left-wall mirror WebGL trials and JSON persistence
+        run: |
+          node --check tools/room-layout-editor/mirror-v12-proof.cjs
+          node tools/room-layout-editor/mirror-v12-proof.cjs
       - name: Upload separate optional visual evidence, even on failure
         if: always()
         uses: actions/upload-artifact@v4
