@@ -104,7 +104,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
           script: |
-            set -euo pipefail
+            set -eu
             adb shell wm size 720x1280
             adb shell wm density 185
             adb install ci-apk/Yahya-AI-v79.apk
