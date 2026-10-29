@@ -180,30 +180,30 @@ public final class CelineFutureMemoryRecall {
                 conflicted.add(c.conflictWithId);
             }
         }
-        // Compaction/reimport can preserve multiple purported corrections to one
-        // ancestor without a G1 winner decision. Neither fork is authoritative.
-        // Withhold ALL descendants as well: a later child cannot legitimize one
-        // fork just because it carries a newer timestamp or higher importance.
-        Set<String> unresolvedFork = new HashSet<>();
-        List<String> pending = new ArrayList<>();
+        // Compaction/reimport can preserve competing corrections without a G1
+        // winner decision. A conflict endpoint is also not proof that a later
+        // child is trustworthy. Quarantine BOTH unresolved fork descendants and
+        // every descendant of a conflicted ID, even if its parent was pruned,
+        // private or expired. Only the owning G1 resolver can clear that history.
+        Set<String> unresolvedLineage = new HashSet<>(conflicted);
+        List<String> pending = new ArrayList<>(conflicted);
         for (List<String> siblings : successorsByParent.values()) {
             if (siblings.size() < 2) continue;
             for (String child : siblings) {
-                if (unresolvedFork.add(child)) pending.add(child);
+                if (unresolvedLineage.add(child)) pending.add(child);
             }
         }
         for (int i = 0; i < pending.size(); i++) {
             List<String> children = successorsByParent.get(pending.get(i));
             if (children == null) continue;
             for (String child : children) {
-                if (unresolvedFork.add(child)) pending.add(child);
+                if (unresolvedLineage.add(child)) pending.add(child);
             }
         }
         List<Candidate> live = liveCandidates(candidates, now);
         List<Match> matches = new ArrayList<>();
         for (Candidate c : live) {
-            if (replaced.contains(c.id) || conflicted.contains(c.id)
-                    || unresolvedFork.contains(c.id) || !c.authorizedForProvider || !c.userExplicit
+            if (replaced.contains(c.id) || unresolvedLineage.contains(c.id) || !c.authorizedForProvider || !c.userExplicit
                     || c.privacy != Privacy.LOCAL_PRIVATE) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
