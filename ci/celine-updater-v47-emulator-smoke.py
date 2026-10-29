@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Real unchanged updater regression: official v79 -> official v80 via app Update UI.
+"""Real unchanged updater regression via the production app Update UI.
 
 The production CelineUpdaterV47 and CelineUpdaterSettingsV50 source blobs are
 identical on v79, v80 and the v83 candidate. This tests the actual Android
 DownloadManager and native package installer, not a simulated installer.
-It is NOT proof that official v80 -> v83 in-app updating has passed.
+The default pre-release case is v79 -> v80; a post-release job supplies the
+public v83 digest and size to prove the actual v80 -> v83 path.
 """
 import json
+import os
 import pathlib
 import re
 import sys
@@ -18,11 +20,18 @@ import celine_core_persona_emulator_smoke as ui
 OUT = pathlib.Path("updater-v47-proof")
 OUT.mkdir(exist_ok=True)
 ui.OUT = OUT
-FILE = "/sdcard/Android/data/de.yahya.ai/files/Download/Yahya-AI-v80.apk"
-SHA = "b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58"
-SIZE = 207186631
-report = {"scope":"REAL v79 to v80, unchanged updater code in v83",
-          "v83_release_gate":"BLOCKED: no real v80 to v83 in-app proof","events":[]}
+FROM = int(os.environ.get("UPDATER_FROM_VERSION", "79"))
+TO = int(os.environ.get("UPDATER_TO_VERSION", "80"))
+FILE = f"/sdcard/Android/data/de.yahya.ai/files/Download/Yahya-AI-v{TO}.apk"
+SHA = os.environ.get("UPDATER_APK_SHA256",
+                     "b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58")
+SIZE = int(os.environ.get("UPDATER_APK_SIZE", "207186631"))
+ACTUAL_V83 = FROM == 80 and TO == 83
+report = {"scope":f"REAL v{FROM} to v{TO}, unchanged production updater code",
+          "v83_release_gate":("ACTUAL v80 to v83 public updater readback"
+                              if ACTUAL_V83 else
+                              "BLOCKED: no real v80 to v83 in-app proof"),
+          "events":[]}
 
 def adb(*args,**kw):
     return ui.adb(*args,**kw)
@@ -152,25 +161,26 @@ def installer(root):
 
 def main():
     api=int(adb("shell","getprop","ro.build.version.sdk").strip())
-    if api not in (29,35) or version()!=79: raise AssertionError("Wrong emulator/official v79 baseline")
-    record("REAL_PUBLIC_V79_INSTALLED",api=api)
+    if api not in (29,35) or version()!=FROM:
+        raise AssertionError(f"Wrong emulator/official v{FROM} baseline")
+    record("REAL_PUBLIC_BASELINE_INSTALLED",api=api,version=FROM)
     adb("shell","am","start","-W","-n","de.yahya.ai/.MainActivity")
     home=wait_for(lambda r:any(n.attrib.get("content-desc")=="Einstellungen"
                                for n in allnodes(r)),"real home gear",110)
-    evidence("v79-home",home)
+    evidence(f"v{FROM}-home",home)
     ui.click(node(home,"Einstellungen","content-desc"))
-    hub=wait_for(lambda r:contains(r,"Yahya AI · Einstellungen · v79") and
+    hub=wait_for(lambda r:contains(r,f"Yahya AI · Einstellungen · v{FROM}") and
                  any(n.attrib.get("text")=="Update prüfen" for n in allnodes(r)),
-                 "v79 Settings updater",70)
-    evidence("v79-settings-updater",hub)
+                 f"v{FROM} Settings updater",70)
+    evidence(f"v{FROM}-settings-updater",hub)
     ui.click(node(hub,"Update prüfen"))
     dialog=wait_for(lambda r:contains(r,"Yahya AI Update verfügbar") and
-                    contains(r,"Installiert: v79") and contains(r,"Verfügbar: v80") and
+                    contains(r,f"Installiert: v{FROM}") and contains(r,f"Verfügbar: v{TO}") and
                     any(n.attrib.get("text","").strip().casefold()=="update herunterladen" and
                         n.attrib.get("enabled","true")=="true" and n.attrib.get("bounds")
                         for n in allnodes(r)),
-                    "real public v80 available",70)
-    evidence("real-v80-update-available",dialog)
+                    f"real public v{TO} available",70)
+    evidence(f"real-v{TO}-update-available",dialog)
     ui.click(node(dialog,"Update herunterladen"))
     record("APP_V47_DOWNLOADMANAGER_ENQUEUE_BY_REAL_BUTTON")
     end=time.monotonic()+1030
@@ -178,12 +188,14 @@ def main():
     checked=False
     clicked=False
     while time.monotonic()<end:
-        if version()==80:
-            if not clicked: raise AssertionError("v80 installed without verified native confirmation")
+        if version()==TO:
+            if not clicked: raise AssertionError(f"v{TO} installed without verified native confirmation")
             if not checked: verify_file()
-            record("REAL_V47_DOWNLOADMANAGER_TO_OS_INSTALLER_PASS",api=api,version=80)
-            print("REAL_V47_ANDROID_UPDATER_V79_TO_V80_PASS",flush=True)
-            print("V83_ACTUAL_UPDATER_STILL_BLOCKED",flush=True)
+            record("REAL_V47_DOWNLOADMANAGER_TO_OS_INSTALLER_PASS",
+                   api=api,from_version=FROM,version=TO)
+            print(f"REAL_V47_ANDROID_UPDATER_V{FROM}_TO_V{TO}_PASS",flush=True)
+            print("V83_ACTUAL_UPDATER_PASS" if ACTUAL_V83 else
+                  "V83_ACTUAL_UPDATER_STILL_BLOCKED",flush=True)
             return
         size=file_size()
         if size!=last:
@@ -220,7 +232,8 @@ def main():
 if __name__=="__main__":
     try:
         main()
-        report["result"]="PASS_REAL_V79_TO_V80_ONLY"
+        report["result"]=("PASS_REAL_V80_TO_V83" if ACTUAL_V83 else
+                          "PASS_REAL_V79_TO_V80_ONLY")
     except BaseException as e:
         report["result"]="FAIL"
         report["exception"]=repr(e)

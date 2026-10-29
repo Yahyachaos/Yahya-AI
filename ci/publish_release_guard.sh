@@ -64,7 +64,7 @@ fi
 echo "Package, versionCode, and installed-update signing parity: PASS" >> "$GITHUB_STEP_SUMMARY"
 
 NOTES_FILE="$(mktemp)"
-trap 'rm -rf "$SIGN_CHECK_DIR"; rm -f "$NOTES_FILE" release-readback.json' EXIT
+trap 'rm -rf "$SIGN_CHECK_DIR"; rm -f "$NOTES_FILE" release-readback.json release-latest-readback.json' EXIT
 cat > "$NOTES_FILE" <<EOF
 # Yahya AI v${VERSION_CODE}
 
@@ -132,6 +132,7 @@ if [ "$PUBLISHED_TAG_SHA" != "$TARGET_SHA" ]; then
 fi
 
 gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > release-readback.json
+gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > release-latest-readback.json
 python3 - "$TAG" "$TITLE" "$TARGET_SHA" "$APK_NAME" "$VERSION_CODE" "$LOCAL_DIGEST" <<'PY'
 import json
 import sys
@@ -139,6 +140,7 @@ import sys
 path = "release-readback.json"
 tag, title, target_sha, apk_name, version, local_digest = sys.argv[1:]
 data = json.load(open(path, "r", encoding="utf-8"))
+latest = json.load(open("release-latest-readback.json", "r", encoding="utf-8"))
 errors = []
 if data.get("tag_name") != tag:
     errors.append(f"tag_name={data.get('tag_name')!r} expected={tag!r}")
@@ -159,6 +161,13 @@ else:
         errors.append(f"asset digest={remote_digest!r} expected={local_digest!r}")
     if not remote_digest:
         errors.append("GitHub release asset did not expose a digest for read-back verification")
+if latest.get("tag_name") != tag:
+    errors.append(f"releases/latest tag={latest.get('tag_name')!r} expected={tag!r}")
+if latest.get("id") != data.get("id"):
+    errors.append("releases/latest does not resolve to the exact release read back by tag")
+latest_assets = [asset for asset in latest.get("assets", []) if asset.get("name") == apk_name]
+if len(latest_assets) != 1 or latest_assets[0].get("digest") != local_digest:
+    errors.append("releases/latest APK asset digest does not match the tested production APK")
 if errors:
     raise SystemExit("Release read-back validation failed:\n- " + "\n- ".join(errors))
 print(json.dumps({

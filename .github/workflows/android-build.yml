@@ -234,18 +234,110 @@ jobs:
             emulator-*.txt
           if-no-files-found: ignore
 
+  production-upgrade-smoke:
+    name: Exact signed nondebuggable v83 upgrade / Android API ${{ matrix.api-level }}
+    needs: build
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [29, 35]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event_name == 'workflow_dispatch' && inputs.target_sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/download-artifact@v4
+        with: {name: yahya-ai-production-release, path: ci-apk}
+      - uses: actions/download-artifact@v4
+        with: {name: yahya-ai-production-sha256, path: ci-apk}
+      - name: Fetch official installed v80 baseline and bind exact same-run v83 APK digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p production-upgrade-proof
+          test -s ci-apk/app-release.apk
+          test -s ci-apk/production-apk-sha256.txt
+          EXPECTED="$(awk 'NR==1 {print $1}' ci-apk/production-apk-sha256.txt)"
+          [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]]
+          echo "$EXPECTED  ci-apk/app-release.apk" | sha256sum -c -
+          gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern Yahya-AI-v80.apk -D ci-apk
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          printf 'target_sha=%s\nproduction_apk_sha256=%s\n' "$(git rev-parse HEAD)" "$EXPECTED" > production-upgrade-proof/exact-source.txt
+      - name: Verify API-specific package version nondebug and historical signer parity
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          test -x "$SDK_ROOT/build-tools/30.0.3/apksigner" || "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" 'build-tools;30.0.3'
+          AAPT="$SDK_ROOT/build-tools/30.0.3/aapt"
+          APKSIGNER="$SDK_ROOT/build-tools/30.0.3/apksigner"
+          OLD=ci-apk/Yahya-AI-v80.apk
+          NEW=ci-apk/app-release.apk
+          "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$OLD"
+          "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$NEW"
+          "$AAPT" dump badging "$OLD" | grep -F "package: name='de.yahya.ai' versionCode='80'"
+          "$AAPT" dump badging "$NEW" | grep -F "package: name='de.yahya.ai' versionCode='83'"
+          "$AAPT" dump badging "$NEW" | grep -Fx "sdkVersion:'29'"
+          ! "$AAPT" dump badging "$NEW" | grep -q '^application-debuggable'
+          cert() { "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1; }
+          test -n "$(cert "$OLD")"
+          test "$(cert "$OLD")" = "$(cert "$NEW")"
+          echo 'RISK: historical production signer is compromised; parity preserves upgrade compatibility only'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+      - name: Install public v80 then exact same-run v83 and prove HOME starts without OS failure
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: |
+            set -euo pipefail
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = '${{ matrix.api-level }}'
+            adb install ci-apk/Yahya-AI-v80.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
+            adb install -r ci-apk/app-release.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=83'
+            adb logcat -c
+            adb shell am start -W -n de.yahya.ai/.MainActivity
+            sleep 20
+            test -n "$(adb shell pidof de.yahya.ai | tr -d '\r')"
+            adb shell uiautomator dump /sdcard/production-v83.xml
+            adb pull /sdcard/production-v83.xml production-upgrade-proof/home.xml
+            adb exec-out screencap -p > production-upgrade-proof/home.png
+            adb logcat -d > production-upgrade-proof/logcat.txt
+            grep -q 'Mit Celin' production-upgrade-proof/home.xml
+            grep -q 'Einstellungen' production-upgrade-proof/home.xml
+            ! grep -E 'FATAL EXCEPTION|ANR in de\.yahya\.ai' production-upgrade-proof/logcat.txt
+            echo "EXACT_SIGNED_NONDEBUG_V83_API${{ matrix.api-level }}_PASS"
+      - name: Upload exact production upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-production-v83-upgrade-api-${{ matrix.api-level }}
+          path: production-upgrade-proof/
+          if-no-files-found: warn
+
   publish-release:
     name: Publish in-app update
-    # FAIL-CLOSED v83 release barrier: exact-main signed production API29/API35 and
-    # real CelineUpdaterV47 DownloadManager-to-Installer proof are not yet wired.
-    # Do NOT restore this job until verifiable SHA-bound prerequisite jobs are
-    # enforced; a main push or auto-merge dispatch must never self-publish.
-    needs: [change-scope, build, emulator-smoke]
+    # Manual only: a main push can validate but can never self-publish.
+    needs: [change-scope, build, emulator-smoke, production-upgrade-smoke]
     if: >-
-      false && always() && needs.build.result == 'success' && needs.emulator-smoke.result == 'success' &&
+      always() && github.event_name == 'workflow_dispatch' && inputs.publish_release == true &&
+      needs.build.result == 'success' && needs.emulator-smoke.result == 'success' &&
+      needs.production-upgrade-smoke.result == 'success' &&
       needs.change-scope.result == 'success' && needs.change-scope.outputs.app_changed == 'true' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-       (github.event_name == 'workflow_dispatch' && inputs.publish_release == true))
+      inputs.target_sha != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -262,6 +354,20 @@ jobs:
           if [ ! -x "$SDK_ROOT/build-tools/30.0.3/apksigner" ]; then
             "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" 'build-tools;30.0.3'
           fi
+      - name: Require successful exact-main real V47 DownloadManager-to-Installer proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          RUNS="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/celine-v83-updater-install-proof.yml/runs?head_sha=$TARGET_SHA&status=success&per_page=100")"
+          RUN_ID="$(jq -r --arg sha "$TARGET_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and .event == "push" and .conclusion == "success")][0].id // empty' <<<"$RUNS")"
+          test -n "$RUN_ID"
+          JOBS="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100")"
+          test "$(jq '[.jobs[] | select(.name == "Original V47 public v79 to v80 / Android API 29" and .conclusion == "success")] | length' <<<"$JOBS")" = 1
+          test "$(jq '[.jobs[] | select(.name == "Original V47 public v79 to v80 / Android API 35" and .conclusion == "success")] | length' <<<"$JOBS")" = 1
+          echo "EXACT_MAIN_REAL_V47_PREPUBLICATION_PATH_PASS: run=$RUN_ID sha=$TARGET_SHA"
+          echo "This proves unchanged production v79 to v80 only; actual v80 to v83 runs after publication."
       - name: Publish and read-back verify exact-version GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

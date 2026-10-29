@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - auto/celine/v80-human-videochat-presence
+      - main
     paths:
       - '.github/workflows/celine-v83-updater-install-proof.yml'
       - 'ci/celine-updater-v47-emulator-smoke.py'
