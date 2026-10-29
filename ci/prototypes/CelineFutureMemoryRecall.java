@@ -26,7 +26,7 @@ public final class CelineFutureMemoryRecall {
     public enum Privacy { LOCAL_PRIVATE, LOCAL_SENSITIVE, SHAREABLE_ON_REQUEST }
 
     public static final class Candidate {
-        public final String id, summary, supersedesId;
+        public final String id, summary, supersedesId, conflictWithId;
         public final boolean authorizedForProvider, userExplicit;
         public final Privacy privacy;
         public final long updatedAtMs, expiresAtMs;
@@ -35,9 +35,17 @@ public final class CelineFutureMemoryRecall {
         public Candidate(String id, String summary, String supersedesId,
                 Privacy privacy, boolean authorizedForProvider, boolean userExplicit,
                 long updatedAtMs, long expiresAtMs, double importance) {
+            this(id, summary, supersedesId, "", privacy, authorizedForProvider,
+                    userExplicit, updatedAtMs, expiresAtMs, importance);
+        }
+
+        public Candidate(String id, String summary, String supersedesId,
+                String conflictWithId, Privacy privacy, boolean authorizedForProvider,
+                boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
             this.id = safe(id);
             this.summary = safe(summary);
             this.supersedesId = safe(supersedesId);
+            this.conflictWithId = safe(conflictWithId);
             this.privacy = privacy;
             this.authorizedForProvider = authorizedForProvider;
             this.userExplicit = userExplicit;
@@ -71,13 +79,23 @@ public final class CelineFutureMemoryRecall {
                 String supersedesId, String privacyScope, String knowledgeState,
                 String provenance, boolean providerPermission, boolean userExplicit,
                 long updatedAtMs, long expiresAtMs, double importance) {
+            return fromG1Projection(id, summary, supersedesId, "", privacyScope,
+                    knowledgeState, provenance, providerPermission, userExplicit,
+                    updatedAtMs, expiresAtMs, importance);
+        }
+
+        /** A conflict is G1 metadata, not proof that either side is resolved. */
+        public static Candidate fromG1Projection(String id, String summary,
+                String supersedesId, String conflictWithId, String privacyScope,
+                String knowledgeState, String provenance, boolean providerPermission,
+                boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
             Privacy scope = null;
             if ("LOCAL_PRIVATE".equals(privacyScope)) scope = Privacy.LOCAL_PRIVATE;
             else if ("LOCAL_SENSITIVE".equals(privacyScope)) scope = Privacy.LOCAL_SENSITIVE;
             else if ("SHAREABLE_ON_REQUEST".equals(privacyScope)) scope = Privacy.SHAREABLE_ON_REQUEST;
             boolean trustedUserOrigin = "EXPLICIT".equals(knowledgeState) && userExplicit
                     && ("user_explicit".equals(provenance) || "user_correction".equals(provenance));
-            return new Candidate(id, summary, supersedesId, scope,
+            return new Candidate(id, summary, supersedesId, conflictWithId, scope,
                     scope == Privacy.LOCAL_PRIVATE && providerPermission && trustedUserOrigin,
                     userExplicit, updatedAtMs, expiresAtMs, importance);
         }
@@ -143,15 +161,24 @@ public final class CelineFutureMemoryRecall {
             if (id.isEmpty()) return Collections.emptyList();
             replaced.add(id);
         }
+        // G1 conflictWithId records an unresolved contradiction, NOT a vetted
+        // supersession. Without the owning G1 resolver's durable winner proof,
+        // neither endpoint may be silently presented as an authoritative fact.
+        // Include expired/private/withheld records to prevent stale resurrection.
+        Set<String> conflicted = new HashSet<>();
         for (Candidate c : candidates) {
-            if (c != null && !c.id.isEmpty() && !c.supersedesId.isEmpty()) {
-                replaced.add(c.supersedesId);
+            if (c == null || c.id.isEmpty()) continue;
+            if (!c.supersedesId.isEmpty()) replaced.add(c.supersedesId);
+            if (!c.conflictWithId.isEmpty()) {
+                conflicted.add(c.id);
+                conflicted.add(c.conflictWithId);
             }
         }
         List<Candidate> live = liveCandidates(candidates, now);
         List<Match> matches = new ArrayList<>();
         for (Candidate c : live) {
-            if (replaced.contains(c.id) || !c.authorizedForProvider
+            if (replaced.contains(c.id) || conflicted.contains(c.id)
+                    || !c.authorizedForProvider
                     || c.privacy != Privacy.LOCAL_PRIVATE) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
