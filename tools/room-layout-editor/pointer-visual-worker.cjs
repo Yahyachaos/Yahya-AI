@@ -1139,7 +1139,7 @@ async function main() {
       {name:'baseline',state:v8},
       {name:'left-large',state:chairBuild(-1.40,-.85,.85,0)},
       {name:'left-rear-big',state:chairBuild(-1.40,-1.05,.90,0)},
-      {name:'forward-angle',state:chairBuild(-1.30,-.70,.85,15)},
+      {name:'forward-angle',state:chairBuild(-1.15,-.70,.85,15)},
       {name:'left-angle',state:chairBuild(-1.48,-.92,.82,-20)}
     ];
     const chairProof=[];
