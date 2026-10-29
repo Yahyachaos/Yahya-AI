@@ -50,15 +50,35 @@ public final class CelineFutureMemoryRecall {
          * Unknown scopes remain in the lineage graph but are never exportable.
          * The permission bit must be supplied by the owning app, never inferred.
          */
+        /**
+         * Legacy metadata-free adapter: missing provenance/state never grants
+         * provider exposure, even when a permission bit is supplied.
+         */
         public static Candidate fromG1Projection(String id, String summary,
                 String supersedesId, String privacyScope, boolean providerPermission,
                 boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
+            return fromG1Projection(id, summary, supersedesId, privacyScope,
+                    null, null, providerPermission, userExplicit,
+                    updatedAtMs, expiresAtMs, importance);
+        }
+
+        /**
+         * Exact G1 state/provenance projection, with conservative source trust.
+         * A trusted user-origin state still requires separate provider permission.
+         * Unknown or contradictory sources remain in correction lineage only.
+         */
+        public static Candidate fromG1Projection(String id, String summary,
+                String supersedesId, String privacyScope, String knowledgeState,
+                String provenance, boolean providerPermission, boolean userExplicit,
+                long updatedAtMs, long expiresAtMs, double importance) {
             Privacy scope = null;
             if ("LOCAL_PRIVATE".equals(privacyScope)) scope = Privacy.LOCAL_PRIVATE;
             else if ("LOCAL_SENSITIVE".equals(privacyScope)) scope = Privacy.LOCAL_SENSITIVE;
             else if ("SHAREABLE_ON_REQUEST".equals(privacyScope)) scope = Privacy.SHAREABLE_ON_REQUEST;
+            boolean trustedUserOrigin = "EXPLICIT".equals(knowledgeState) && userExplicit
+                    && ("user_explicit".equals(provenance) || "user_correction".equals(provenance));
             return new Candidate(id, summary, supersedesId, scope,
-                    scope == Privacy.LOCAL_PRIVATE && providerPermission,
+                    scope == Privacy.LOCAL_PRIVATE && providerPermission && trustedUserOrigin,
                     userExplicit, updatedAtMs, expiresAtMs, importance);
         }
 

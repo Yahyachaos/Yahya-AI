@@ -19,6 +19,12 @@ public final class FutureMemoryRecallContract {
             String supersedes, boolean allowed, long expiry) {
         return new CelineFutureMemoryRecall.Candidate(id,text,supersedes,CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,allowed,true,NOW-100,expiry,0.5);
     }
+    static CelineFutureMemoryRecall.Candidate g1(
+            String state, String provenance, boolean userExplicit) {
+        return CelineFutureMemoryRecall.Candidate.fromG1Projection(
+            "g1-check", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
+            state, provenance, true, userExplicit, NOW, 0, 1);
+    }
     static void eq(Object a, Object b, String label) {
         if (!Objects.equals(a,b)) throw new AssertionError(label+": expected "+b+", got "+a);
         passed++;
@@ -122,31 +128,75 @@ public final class FutureMemoryRecallContract {
         // fixture stays FUTURE ONLY and never reads protected Android classes.
         CelineFutureMemoryRecall.Candidate mappedPrivate =
             CelineFutureMemoryRecall.Candidate.fromG1Projection(
-                "g1-private", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE", true,
+                "g1-private", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE", "EXPLICIT", "user_explicit", true,
                 true, NOW, 0, 1);
         eq(top("Meine Katze heißt",Arrays.asList(mappedPrivate)),"g1-private",
                 "G1 LOCAL_PRIVATE explicit provider authorization");
         eq(top("Meine Katze heißt",Arrays.asList(
             CelineFutureMemoryRecall.Candidate.fromG1Projection(
-                "g1-unapproved", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE", false,
+                "g1-unapproved", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE", "EXPLICIT", "user_explicit", false,
                 true, NOW, 0, 1))),"","G1 private without permission blocked");
         eq(top("Meine Katze heißt",Arrays.asList(
             CelineFutureMemoryRecall.Candidate.fromG1Projection(
-                "g1-sensitive", "Meine Katze heißt Luna", "", "LOCAL_SENSITIVE", true,
+                "g1-sensitive", "Meine Katze heißt Luna", "", "LOCAL_SENSITIVE", "EXPLICIT", "user_explicit", true,
                 true, NOW, 0, 1))),"","G1 LOCAL_SENSITIVE never exported");
         eq(top("Meine Katze heißt",Arrays.asList(
             CelineFutureMemoryRecall.Candidate.fromG1Projection(
-                "g1-shareable", "Meine Katze heißt Luna", "", "SHAREABLE_ON_REQUEST", true,
+                "g1-shareable", "Meine Katze heißt Luna", "", "SHAREABLE_ON_REQUEST", "EXPLICIT", "user_explicit", true,
                 true, NOW, 0, 1))),"","G1 SHAREABLE requires future explicit adapter");
         eq(top("Meine Katze heißt",Arrays.asList(
             x("g1-old", "Meine Katze heißt Paul", "", true, 0),
             CelineFutureMemoryRecall.Candidate.fromG1Projection(
-                "g1-unknown-new", "Meine Katze heißt Luna", "g1-old", "UNRECOGNIZED", true,
+                "g1-unknown-new", "Meine Katze heißt Luna", "g1-old", "UNRECOGNIZED", "EXPLICIT", "user_explicit", true,
                 true, NOW, 0, 1))),"","unknown G1 privacy still suppresses old fact");
         eq(top("Meine Katze heißt",Arrays.asList(
             CelineFutureMemoryRecall.Candidate.fromG1Projection(
-                "g1-lowercase", "Meine Katze heißt Luna", "", "local_private", true,
+                "g1-lowercase", "Meine Katze heißt Luna", "", "local_private", "EXPLICIT", "user_explicit", true,
                 true, NOW, 0, 1))),"","privacy enum mapping case-exact and fail closed");
+        // Source-grounded G1 states EXPLICIT/OBSERVED/INFERRED/UNKNOWN.
+        // Provenance is an open string; only two first-party direct-user
+        // source tags are trusted for this FUTURE-ONLY experiment.
+        eq(top("Meine Katze heißt",Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-corrected","Meine Katze heißt Luna","","LOCAL_PRIVATE",
+                "EXPLICIT","user_correction",true,true,NOW,0,1))),"g1-corrected",
+                "explicit correction provenance with independent permission");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "g1-legacy","Meine Katze heißt Luna","","LOCAL_PRIVATE",
+                true,true,NOW,0,1))),"","metadata-free adapter never authorizes");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("INFERRED","inferred",true))),"",
+                "G1 inferred never asserted as verified user fact");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("UNKNOWN","user_explicit",true))),"",
+                "unknown knowledge state blocked");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("OBSERVED","user_explicit",true))),"",
+                "observed not equivalent to explicit user origin");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("EXPLICIT","inferred",true))),"",
+                "contradictory explicit inferred provenance");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("EXPLICIT","external_model",true))),"",
+                "untrusted external provenance");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("EXPLICIT","User_Explicit",true))),"",
+                "provenance exact-case trust");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("EXPLICIT","",true))),"",
+                "empty provenance blocked");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("EXPLICIT",null,true))),"",
+                "null provenance blocked");
+        eq(top("Meine Katze heißt",Arrays.asList(g1(null,"user_explicit",true))),"",
+                "null state blocked");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("explicit","user_explicit",true))),"",
+                "lowercase state unrecognized");
+        eq(top("Meine Katze heißt",Arrays.asList(g1("EXPLICIT","user_explicit",false))),"",
+                "explicit origin flag is required");
+        List<CelineFutureMemoryRecall.Candidate> uncertainSuccessor = Arrays.asList(
+            x("old-verified","Meine Katze heißt Paul","",true,0),
+            CelineFutureMemoryRecall.Candidate.fromG1Projection(
+                "uncertain-new","Meine Katze heißt Luna","old-verified",
+                "LOCAL_PRIVATE","INFERRED","inferred",true,false,NOW,0,1));
+        eq(top("Meine Katze heißt",uncertainSuccessor),"",
+                "withheld inferred successor still suppresses old fact");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze heißt Paul",uncertainSuccessor,NOW),"",
+                "withheld successor cannot select old correction target");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
