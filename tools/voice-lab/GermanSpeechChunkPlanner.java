@@ -21,7 +21,7 @@ public final class GermanSpeechChunkPlanner {
         int start = 0;
         for (int pos = 0; pos < normalized.length(); pos++) {
             char ch = normalized.charAt(pos);
-            if (ch != '.' && ch != '!' && ch != '?') continue;
+            if (ch != '.' && ch != '!' && ch != '?' && ch != '\u2026') continue;
             int punctuationEnd = pos + 1;
             // Treat clusters ("?!", "...") as a single spoken boundary candidate.
             while (punctuationEnd < normalized.length()
@@ -48,11 +48,12 @@ public final class GermanSpeechChunkPlanner {
     }
 
     private static boolean isSentencePunctuation(char c) {
-        return c == '.' || c == '!' || c == '?';
+        return c == '.' || c == '!' || c == '?' || c == '\u2026';
     }
 
     private static boolean isClosingDelimiter(char c) {
         return c == '\"' || c == '\u201d' || c == '\u201c' || c == '\u00bb'
+                || c == '\u00ab' || c == '\u2039' || c == '\u203a'
                 || c == '\u2019' || c == '\'' || c == ')' || c == ']';
     }
 

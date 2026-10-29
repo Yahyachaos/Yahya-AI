@@ -35,6 +35,16 @@ public final class GermanSpeechChunkPlannerRegressionTest {
                 "Frau Dr. med. Scholz kommt. Guten Morgen!", "medical doctoral title");
         eq(List.of("Herr Dipl. Kfm. Weber ist da.", "Schön!"),
                 "Herr Dipl. Kfm. Weber ist da. Schön!", "business graduation title");
+        eq(List.of("Sie sagte: »Hallo!«", "Danach ging sie."),
+                "Sie sagte: »Hallo!« Danach ging sie.", "German guillemet closing-left boundary");
+        eq(List.of("Er fragte: ›Kommst du?‹", "Dann wartete er."),
+                "Er fragte: ›Kommst du?‹ Dann wartete er.", "single German guillemet closing-left boundary");
+        eq(List.of("Sie rief: «Ja!»", "Weiter."),
+                "Sie rief: «Ja!» Weiter.", "French guillemet closing-right boundary");
+        eq(List.of("Na gut…", "Danach gehen wir."),
+                "Na gut… Danach gehen wir.", "single Unicode ellipsis is a sentence pause");
+        eq(List.of("Er fragte?!…", "Dann wurde es still."),
+                "Er fragte?!… Dann wurde es still.", "mixed punctuation and Unicode ellipsis boundary");
         System.out.println("VOICE_GERMAN_ADVERSARIAL_PASS checks=" + checks);
     }
 }
