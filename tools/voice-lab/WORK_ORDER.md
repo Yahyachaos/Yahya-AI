@@ -153,3 +153,27 @@ Total **53,223 executed** assertions on the five listed mains, including the pre
 **Known limitation:** Conservative calibrated mouth returns CLOSED after the physical raw tail is considered complete even if the estimated acoustic cursor has not caught up. This prevents stuck late mouth callbacks but does **not** prove perfectly aligned final syllables. The cue buffer remains capped at 256 entries, including when the externally calibrated cursor legitimately lags raw playback.
 
 **exact_next_action (supersedes all earlier entries):** Within `tools/voice-lab/**` only, write and run one deterministic combined fixture for prolonged calibrated latency with the **256-cue cap** and engine restart/death; verify that no unheard cue is silently pruned and fail-stop/recovery are deterministic. Fix only a reproduced defect; then continue toward source-independent German listening-quality/real calibration requirements without asserting device acceptance.
+
+
+### Same continuous Voice-Lab run — second bounded substep: calibrated long-lag cue pressure
+
+Continued the **same** future-only assignment immediately after the first RED/FIX/PASS rather than declaring the full Voice project complete. Expanded the `VoiceCrossContractPlaybackTest` at blob `c07157989cb53571197beef9fcb36b7bcf96d509` (commit `4e2557c506f8fa99eede82ad7e7b0ed6a4a7ac19`) with two deterministic 256-distinct-cue long-lag fixtures:
+
+- **Unsafe overflow:** physical raw playback head advances to 255, but a fixture-supplied 300-frame delay keeps the conservative display cursor at 0. All 256 unheard cues remain intact; preflight rejects cue 257 and a postwrite overflow becomes explicit `FAILED: cue backlog exceeded`, with cleanup and a safely recoverable new generation. Stale engine death is rejected; actual new-generation engine death is distinguished.
+- **Safe catch-up:** fixture-supplied 200-frame lag gives a display cursor at 55; only the first 54 fully presented cue objects are retired (256 → 202), and the next distinct cue is accepted. Synthesis and actual physical raw-drain completion clear all queued cues, with no fake visual PASS.
+
+**Reran source-matched JVM regressions** against the final GitHub test and modified lifecycle blobs, OpenJDK 21, no Android build:
+
+```
+VOICE_LIFECYCLE_CONTRACT_PASS checks=62
+VOICE_ADVERSARIAL_PASS checks=53059
+VOICE_HEAD_TRACKER_PASS checks=35
+VOICE_ACOUSTIC_TIMING_CONTRACT_PASS checks=27
+VOICE_CROSS_CONTRACT_PASS checks=585
+```
+
+**53,768 executed checks total** for these five suites. Newly modified `VoiceCrossContractPlaybackTest.java` local and GitHub blob hashes match `c07157989cb53571197beef9fcb36b7bcf96d509`; lifecycle blob remains `125a3f1986aeac72c78f6eb60db00f9e7867af5d`. German-specific tests were not rerun. All actual writes still exclusively under `tools/voice-lab/**`; future-only, no v83 integration or production changes.
+
+**Open blocker:** no measured S25 Ultra speaker latency, natural German female voice listening result, native synthesis/AudioTrack integration or actual mouth-video comparison. External simulated latency values above are test fixtures, not real device measurements. Physical final syllable timing remains unresolved; no new effect on v83/AP29 or the old Android-8 Pico issue.
+
+**exact_next_action (replaces the preceding one):** Add a seeded, independent acoustic-presentation-vs-raw-head frame oracle to `tools/voice-lab/**` under interrupted generations, stale timestamps and randomized partial writes. Run it with the unchanged five JVM suites; fix only a proven contract regression before making any later Android wiring proposal. Keep v83/Room/Core/build ownership strictly separate.
