@@ -282,7 +282,7 @@ public final class CelineFutureMemoryRecall {
             if (word.length() < 3 || STOP.contains(word)) continue;
             String term = ALIASES.containsKey(word) ? ALIASES.get(word) : word;
             result.add(term);
-            if (result.size() >= MAX_QUERY_TOKENS) break;
+            if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
     }
