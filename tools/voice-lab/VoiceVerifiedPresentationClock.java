@@ -30,6 +30,16 @@ public final class VoiceVerifiedPresentationClock {
     public synchronized boolean observe(long id, EvidenceKind kind, long presentedFrames,
             long rawHeadFrames, long acceptedFrames, long captureNs, long pollNs) {
         if (id != generation || id <= 0 || stopped || poisoned) return false;
+        // A demonstrated same-epoch reset is fatal even if this callback also has
+        // inconsistent range/proof metadata. Do not lose reset evidence by treating
+        // that callback as a merely recoverable invalid sample.
+        if (hasBaseline && (presentedFrames < lastPresented || rawHeadFrames < lastRaw
+                || acceptedFrames < lastAccepted || captureNs < lastCaptureNs
+                || pollNs < lastPollNs)) {
+            hasEvidence = false;
+            poisoned = true;
+            return false;
+        }
         if (kind != EvidenceKind.EXTERNAL_CAPTURE || presentedFrames < 0
                 || rawHeadFrames < presentedFrames || rawHeadFrames > acceptedFrames
                 || captureNs < 0 || pollNs < captureNs || pollNs - captureNs > MAX_AGE_NS) {
@@ -37,13 +47,6 @@ public final class VoiceVerifiedPresentationClock {
             return false;
         }
         if (hasBaseline) {
-            if (presentedFrames < lastPresented || rawHeadFrames < lastRaw
-                    || acceptedFrames < lastAccepted || captureNs < lastCaptureNs
-                    || pollNs < lastPollNs) {
-                hasEvidence = false;
-                poisoned = true; // same-epoch resets require an entirely new stream
-                return false;
-            }
             if (presentedFrames > lastPresented && captureNs == lastCaptureNs) {
                 hasEvidence = false;
                 return false;
