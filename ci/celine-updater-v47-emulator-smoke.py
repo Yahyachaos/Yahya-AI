@@ -86,17 +86,33 @@ def verify_file():
     if digest!=SHA: raise AssertionError("DownloadManager official APK digest mismatch")
     record("ACTUAL_DOWNLOADMANAGER_OFFICIAL_SHA256_PASS",size=SIZE,digest=digest)
 
+def native_source_toggle(root):
+    labels=[n for n in allnodes(root)
+            if n.attrib.get("text","").strip().casefold()=="allow from this source"]
+    switches=[n for n in allnodes(root) if n.attrib.get("class","").endswith("Switch")
+              and n.attrib.get("enabled","true")!="false" and n.attrib.get("bounds")]
+    if len(labels)!=1 or len(switches)!=1:
+        raise AssertionError("Native unknown-source toggle not unique")
+    switch=switches[0]
+    target=switch
+    parents={child:parent for parent in allnodes(root) for child in list(parent)}
+    while target.attrib.get("clickable")!="true" and target in parents:
+        target=parents[target]
+    if target.attrib.get("clickable")!="true" or not target.attrib.get("bounds"):
+        raise AssertionError("Native unknown-source toggle has no clickable target")
+    if target is not switch and labels[0] not in list(target.iter("node")):
+        raise AssertionError("Native unknown-source toggle row does not own its label")
+    return switch,target
+
 def unknown_sources(root):
     if not contains(root,"Einmalige Android-Freigabe"): return False
     evidence("real-unknown-source-prompt",root)
     ui.click(node(root,"Freigabe öffnen"))
     settings=wait_for(lambda r:contains(r,"Allow from this source"),"native Settings",85)
     if "com.android.settings" not in focus(): raise AssertionError("OS unknown-source Settings focus missing")
-    switches=[n for n in allnodes(settings) if n.attrib.get("class","").endswith("Switch")
-              and n.attrib.get("clickable")=="true"]
-    if len(switches)!=1: raise AssertionError("Native unknown-source toggle not unique")
+    switch,target=native_source_toggle(settings)
     evidence("native-settings-before",settings)
-    if switches[0].attrib.get("checked")=="false": ui.click(switches[0])
+    if switch.attrib.get("checked")=="false": ui.click(target)
     enabled=wait_for(lambda r:contains(r,"Allow from this source") and
                      any(n.attrib.get("class","").endswith("Switch") and
                          n.attrib.get("checked")=="true" for n in allnodes(r)),
