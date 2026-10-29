@@ -334,3 +334,28 @@ Confirmed original strict speaker gate is fail-closed after same-epoch external-
 **Real locally run source-exact OpenJDK 21:** VoiceExplicitAbortGate.java Git blob 668e747444b0d467d5740d476104af4b45d013e2 and VoiceExplicitAbortGateTest.java Git blob 8791871663682da33a7b3a4a0529fcd9994485f5 matched git hash-object after fetching, javac compiled, `VOICE_EXPLICIT_ABORT_GATE_PASS checks=2403`. Deliberately removing external-stop condition in TEMPORARY local copy returned AssertionError `stop` (exit 1), then unmodified exact source PASS. **The new GermanStreamingExplicitAbortIntegrationTest and the full existing runner have NOT been executed against the exact complete repo source in this checkpoint: integration PASS is PENDING, not claimed.** Browser, Android, Samsung physical voice/lip-sync, real external speaker capture and natural female German listening are NOT established.
 
 **exact_next_action:** Run GermanStreamingExplicitAbortIntegrationTest with exact GitHub versions of all Java dependencies, correct any reproduced mismatch inside tools/voice-lab/**, then rerun the affected gated session/rollback tests. Only after real PASS examine old-output-stop acknowledgement races; leave v83 excluded and Build & Release ownership unchanged. No stale Android-8 Pico failure becomes API29 gate.
+
+
+## 29 Oct 2026 — isolated external STOP-claim epoch/nonce regression (FUTURE ONLY)
+
+**Status:** one independent Voice-only Java subcomponent completed and locally tested; overall Voice-Lab remains **IN PROGRESS**, NOT v83. This block is NOT integrated into `GermanStreamingSpeakerGatedSession.abortAndBeginNewSession` yet. Existing enum-only `OldOutputStop.EXTERNALLY_CONFIRMED_STOPPED` is still an unscoped typed assertion and remains an integration risk; do not claim repaired session STOP races or real Android stop.
+
+**Files/source identities:** `VoiceOutputStopReceiptGate.java` Git blob `341ba14a0a9f9b6d05f08fed5ab49a9bac02555d`; `VoiceOutputStopReceiptGateTest.java` `f38c2369394ef392f018774692a2bf0a9cfdcfe1`; runner `run_tests.sh` `f277473e16608a94a09fbcde3742b9cc6beda06e`. Only paths under `tools/voice-lab/**` changed. Versioned on the existing DRAFT PR #118, still explicitly excluded by issue #117 from v83.
+
+**Bounded behavior:** one stop request is bound to both plan generation and audio generation, issued with a monotonically increasing nonce, and can be claimed externally stopped only once. A fresh same-request clock-bound claim can be consumed for an explicitly chosen new-text abort at most once. Wrong generations, callbacks from an invalidated request, old STOP reuse, duplicate confirmation, expired claim, clock reversal and no-output-stop fail closed. These values are Android-free *typed claims*, never proofs of physical speaker silence.
+
+**Actually executed on OpenJDK 21 in a clean local temporary directory, with identical source blobs verified by `git hash-object` and GitHub readback:**
+```text
+javac -encoding UTF-8 -d out VoiceOutputStopReceiptGate.java VoiceOutputStopReceiptGateTest.java
+java -cp out VoiceOutputStopReceiptGateTest
+VOICE_OUTPUT_STOP_RECEIPT_GATE_PASS checks=1827
+sh -n run_tests.sh
+SH_SYNTAX_PASS
+```
+**Genuine RED -> FIX -> PASS:** the new regression for an expired STOP callback first failed `AssertionError: expired ACK must advance observed clock`; without retaining the largest observed failed-event timestamp, a new stop request could backdate its clock. Added the corresponding expired-consume regression and updated the gate's monotonic high-water mark before clearing a rejected current request. Final both fixtures PASS. **Mutation negative control:** changing the `nowNs - pending.issuedNs <= maxAgeNs` TTL comparison to `>=` caused a real nonzero test failure (`AssertionError: correct stop claim`); unmutated exact-source reran PASS. The earlier baseline reported 1825 checks before these two regression assertions.
+
+**Not run in this iteration:** original `GermanStreamingExplicitAbortIntegrationTest` and entire historic `run_tests.sh` suite; their prior PENDING status is NOT replaced by the new isolated PASS. No actual native output capture, S25 Ultra hardware test, German-female voice listening proof, APK, CI job, model download, signing or release. A GitHub draft's old Android-8 Pico native failures are NOT v83 API29 gates.
+
+**Release/ownership handoff:** Build & Release automation `6ae29695b7a48191af25b982ab3606f0` alone owns v83 and future serialized Android integration once explicitly transferred. Room #111, Core #113, other workstreams and shared/app/ci sources were not changed. Voice owner lease released after this bounded iteration.
+
+**exact_next_action (supersedes earlier):** First execute the outstanding `GermanStreamingExplicitAbortIntegrationTest` plus affected speaker-gated regressions against the exact PR #118 Java sources (the previous integration PASS was never established). Then within `tools/voice-lab/**` wire the new `VoiceOutputStopReceiptGate` into the explicit-abort API with a bound old-audio epoch/nonce, migrate old enum-only tests, and run a source-exact FAIL->FIX->PASS stop-race regression. Do not claim full STOP safety or hardware success until the actual cross-contract test is green.
