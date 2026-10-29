@@ -199,3 +199,29 @@ VOICE_CALIBRATED_ORACLE_PASS checks=64306
 **Unproven:** true S25 speaker/codec latency, round-trip real presentation timestamps, end-of-stream final-syllable timing and naturally sounding German female TTS. The raw hardware head is used for terminal lifecycle completion; a delayed acoustic cursor can be behind at that moment, and the safe terminal CLOSED result may clip the last synthetic mouth cue in a real UI. This remains an *explicit acceptance gap*, not a completed sync solution. Replacing actual playback completion authority with acoustic cursor would be unsafe without measured real output evidence.
 
 **exact_next_action (supersedes older):** In this **same Voice-Lab future-only PR** inspect and test the unresolved final-syllable display tail with a conservative Android-free latency/terminal policy fixture that never keeps an old generation alive after physical stop, and documents the tradeoff versus early-close mouth pose. Fix only a reproducible contract issue; avoid speculative real-device compensation. A future explicit exclusive Build & Release handoff is needed before **post-v83** Android adapter implementation.
+
+
+## 29 Oct 2026 — final-syllable physical drain versus acoustic cursor (FUTURE ONLY)
+
+### Genuine source-exact JVM RED and bounded FIX
+Original VoiceLifecycleContract.java blob 125a3f1986aeac72c78f6eb60db00f9e7867af5d was reconstructed byte-for-byte in a clean OpenJDK 21 harness, with git hash-object equal to the live GitHub source. After 120 OPEN frames + 80 LABIAL frames, calibrated mouth at frame 100, synthesis done, and genuine raw playback-head advancement to frame 200, the lifecycle truthfully changed to COMPLETED but returned CLOSED for still-lagged presentation cursor 150. The actual pre-fix test failed:
+- AssertionError: FAIL lagged final syllable must not be truncated by raw drain expected=LABIAL actual=CLOSED.
+
+Fixed the FUTURE-ONLY VoiceLifecycleContract.java, exact GitHub/local blob 4be28a3f59174bdce848dc13f1d8c5944d998cf0. Opt-in enableBoundedPresentationTail is allowed only after calibrated mode and before raw-head motion. Physical playback completion remains COMPLETED regardless of UI catch-up. Only already accepted PCM cues may remain for up to 750ms UI-only (experimental safety cap, NOT a measured Samsung latency); a confirmed final cursor, interrupt/track stop, engine death, generation restart, timeout watchdog and failure always close the mouth and drop the retained cues. No synthesis, audio output or Android runtime was changed. Without explicit opt-in, the previously tested terminal behavior remains unchanged.
+
+### Actual source-exact tests and commits
+- VOICE_FINAL_SYLLABLE_TAIL_PASS checks=88; Java fixture blob 18268a3a9d897580e6ab8ffbf05fc01de83fc30e.
+- VOICE_TAIL_ACOUSTIC_CEILING_PASS checks=26; Java fixture blob cade7420447cec17a9c8355f5af74ded2e211bdb.
+- 114 fresh deterministic checks PASS on OpenJDK 21. Both executed fixtures and modified lifecycle source matched live GitHub git-blob SHA-1. Unmodified, compiled acoustic clock source also matched GitHub blob 500adfa86b59181b8010402f7befcbcd9b66dac4.
+- Updated future-only run_tests.sh blob e3600a761426a030d0b0c6e6337ab2342ba4aa15 includes the two new fixtures; local sh -n syntax PASS. The full 10-main runner and historical 118,074-check suite were NOT rerun now, so their earlier counts must not be presented as fresh results.
+- Actual commits: 3c58e252 (lifecycle), 72b88fa8 (final-syllable fixture), 5f5a23da (acoustic-ceiling fixture), 31b006c5 (additional fail-closed coverage), d2120d53 (runner). All changed paths are under tools/voice-lab/** only.
+
+### Important unresolved acoustic ceiling
+A genuine cross-contract test proves that the unchanged conservative VoiceAcousticTimingContract with a fixture delay of 100 frames and actual raw head=480 produces presentation cursor=380 even after 90ms. A 200ms-old timestamp becomes invalid (-1). Therefore a finite UI retention window does NOT supply missing actual speaker-presentation evidence, cannot claim that all final sounds or lips are synchronized, and must never invent final audio samples by raw-clock extrapolation. The simulated latency numbers here are not S25 Ultra measurements. No recorded real acoustic output, natural German female listening acceptance, hardware lip-sync, Android integration or APK exists from this work.
+
+### Owner/version boundary and deferred Build handoff
+Registered sole writer: Sprach-Labor DRAFT PR #118, issue #117, exclusive tools/voice-lab/**. This workstream is explicitly EXCLUDED from v83. Room PR #111, frozen Core PR #113, app/**, ci/**, AGENTS.md, Gradle, shared Queue, Android10/API29 change, signing, updater, release, GLBs, Android builds and other workers remain untouched. Only Build & Release worker ID 6ae29695b7a48191af25b982ab3606f0 may later integrate this into an Android app after a separate explicit serialized ownership transfer, post-v83. Required later evidence: trustworthy S25 Ultra speaker-delay or hardware presentation timestamps, epoch-safe AudioTrack wiring, real PCM/speaker/mouth video A/B, and actual natural German female voice evaluation.
+
+### Handoff
+Status: FUTURE-ONLY VOICE WORKSTREAM STILL IN_PROGRESS. No unresolved GitHub write or running Voice-specific test was intentionally left by this iteration. Physical final-syllable timestamping and natural voice quality remain unproven; Android-8 Pico crashes are separate and not an Android10 v83 gate.
+**exact_next_action:** Inside tools/voice-lab/** only, create and test a strictly externally evidence-gated post-drain presentation clock that refuses to advance beyond observed true speaker/presentation frame evidence; demonstrate stale-generation/clock-reset/reuse rejection and document the irreducible missing-evidence case before any post-v83 adapter handoff.
