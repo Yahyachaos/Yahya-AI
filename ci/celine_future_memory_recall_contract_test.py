@@ -1326,6 +1326,55 @@ public final class FutureMemoryRecallContract {
         eq(top(sourceFact + " 🙂", Arrays.asList(c("cn-visible-emoji-ok", sourceFact))),
             "cn-visible-emoji-ok", "assigned visible emoji remains searchable");
 
+
+        // FUTURE-ONLY: a purported certificate for an absent/pruned parent
+        // contradicts a source projection that still carries the same ID.
+        // Never infer certified resolved ancestry from that contradictory batch.
+        Set<String> collisionRetired = Collections.singleton("collision-parent");
+        CelineFutureMemoryRecall.Candidate collisionParent =
+            c("collision-parent", "Meine Katze heisst Paul");
+        CelineFutureMemoryRecall.Candidate collisionChild =
+            x("collision-child", "Meine Katze heisst Luna", "collision-parent", true, 0);
+        List<CelineFutureMemoryRecall.Candidate> collisionProjection =
+            Arrays.asList(collisionParent,collisionChild);
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna", collisionProjection,
+            collisionRetired,collisionRetired,8,NOW).size(), 0,
+            "source-present parent cannot be simultaneously certified pruned");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(collisionChild,collisionParent),collisionRetired,collisionRetired,8,NOW).size(), 0,
+            "certificate and source record collision must be order independent");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            collisionProjection,collisionRetired,collisionRetired,NOW), "",
+            "conflicting pruned certificate cannot authorize correction target");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(collisionParent,collisionChild,
+                c("unrelated-safe", "Damu Markt verkauft Getraenke")),
+            collisionRetired,collisionRetired,8,NOW).size(), 0,
+            "a contradictory certificate poisons the entire projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(collisionChild),collisionRetired,collisionRetired,8,NOW)
+                .get(0).candidate.id, "collision-child",
+            "actually pruned missing parent retains explicitly attested child");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            collisionProjection,collisionRetired,8,NOW).get(0).candidate.id,
+            "collision-child", "legacy complete lineage without false prune certificate remains available");
+        // Eight-result cap is not permission to ignore a ninth hidden rival.
+        List<CelineFutureMemoryRecall.Candidate> capped = new ArrayList<>();
+        capped.add(c("cap-unique", "Meine Katze heisst Luna"));
+        for (int k = 0; k < 7; k++) capped.add(c("cap-weak-" + k,
+            "Meine Katze heisst Paul"));
+        CelineFutureMemoryRecall.Candidate cappedHidden = new CelineFutureMemoryRecall.Candidate(
+            "cap-hidden", "Meine Katze heisst Luna", "",
+            CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true,NOW-100,0,0.9);
+        capped.add(cappedHidden);
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",capped,8,NOW).size(), 8,
+            "eight-result bound stays deterministic");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            capped,NOW), "", "ninth hidden equal rival must prevent speculative ID selection");
+        Collections.reverse(capped);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            capped,NOW), "", "capped hidden rival must be input-order independent");
+
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

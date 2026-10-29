@@ -191,7 +191,11 @@ public final class CelineFutureMemoryRecall {
         // Only the source owner can certify complete and adjudicated history.
         // A purported certificate outside the authoritative retired set is invalid.
         for (String confirmed : confirmedRetiredParentIds) {
-            if (!validId(rawId(confirmed), false) || !retiredIds.contains(confirmed))
+            // A prune certificate explicitly describes an ABSENT ancestor.
+            // An entry with that same ID in the supplied live projection is
+            // contradictory source evidence, not permission to select a child.
+            if (!validId(rawId(confirmed), false) || !retiredIds.contains(confirmed)
+                    || ids.contains(confirmed))
                 return Collections.emptyList();
         }
         // G1 conflictWithId records an unresolved contradiction, NOT a vetted
