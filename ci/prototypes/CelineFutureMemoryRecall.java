@@ -271,7 +271,7 @@ public final class CelineFutureMemoryRecall {
         Set<String> result = new HashSet<>();
         String value = safe(text);
         if (value.isEmpty()) return result;
-        if (value.length() > MAX_INPUT) value = value.substring(0, MAX_INPUT);
+        if (value.length() > MAX_INPUT) return result;
         value = value.toLowerCase(Locale.GERMANY)
             .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
         value = Normalizer.normalize(value, Normalizer.Form.NFD)
