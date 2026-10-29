@@ -29,6 +29,12 @@ public final class GermanSpeechChunkPlannerRegressionTest {
                 "Am 29.10.2026. Bitte melden.", "full numeric date followed by sentence ending");
         String token = "X".repeat(310);
         eq(List.of(token, "Danach weiter."), token + " Danach weiter.", "unbroken token not silently truncated");
+        eq(List.of("Herr Dipl.-Ing. Müller spricht.", "Vielen Dank!"),
+                "Herr Dipl.-Ing. Müller spricht. Vielen Dank!", "hyphenated engineering title");
+        eq(List.of("Frau Dr. med. Scholz kommt.", "Guten Morgen!"),
+                "Frau Dr. med. Scholz kommt. Guten Morgen!", "medical doctoral title");
+        eq(List.of("Herr Dipl. Kfm. Weber ist da.", "Schön!"),
+                "Herr Dipl. Kfm. Weber ist da. Schön!", "business graduation title");
         System.out.println("VOICE_GERMAN_ADVERSARIAL_PASS checks=" + checks);
     }
 }
