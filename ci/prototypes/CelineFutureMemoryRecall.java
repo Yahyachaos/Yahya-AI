@@ -66,9 +66,22 @@ public final class CelineFutureMemoryRecall {
     private static final int MAX_CANDIDATES = 2048;
     private static final int MAX_RESULTS = 8;
 
-    /** Deterministic list; does not return sensitive/unauthorized records to a provider. */
+    /**
+     * Legacy prototype entry point: only safe if the owner supplies complete
+     * lineage records. Use the retraction-aware overload after G1 compaction.
+     */
     public static List<Match> retrieve(String query, List<Candidate> candidates, int maxResults, long now) {
-        if (maxResults <= 0 || candidates == null || candidates.isEmpty())
+        return retrieve(query, candidates, Collections.<String>emptySet(), maxResults, now);
+    }
+
+    /**
+     * Deterministic provider-safe projection. Retired IDs are supplied by the
+     * owning memory store, not inferred or persisted by this policy.
+     */
+    public static List<Match> retrieve(String query, List<Candidate> candidates,
+            Set<String> retiredIds, int maxResults, long now) {
+        if (maxResults <= 0 || candidates == null || candidates.isEmpty()
+                || retiredIds == null || retiredIds.size() > MAX_CANDIDATES)
             return Collections.emptyList();
         // Never silently truncate the supersession graph: a later sensitive
         // replacement must not let an earlier eligible record leak through.
@@ -88,6 +101,11 @@ public final class CelineFutureMemoryRecall {
         // ancestor eligible again. The owning G1 store must retain lineage data;
         // a removed successor cannot be reconstructed by this stateless policy.
         Set<String> replaced = new HashSet<>();
+        for (String retiredId : retiredIds) {
+            String id = safe(retiredId);
+            if (id.isEmpty()) return Collections.emptyList();
+            replaced.add(id);
+        }
         for (Candidate c : candidates) {
             if (c != null && !c.id.isEmpty() && !c.supersedesId.isEmpty()) {
                 replaced.add(c.supersedesId);
@@ -123,9 +141,15 @@ public final class CelineFutureMemoryRecall {
      */
     public static String unambiguousCorrectionTarget(String correctionText,
             List<Candidate> candidates, long now) {
+        return unambiguousCorrectionTarget(correctionText, candidates,
+                Collections.<String>emptySet(), now);
+    }
+
+    public static String unambiguousCorrectionTarget(String correctionText,
+            List<Candidate> candidates, Set<String> retiredIds, long now) {
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
-        List<Match> matches = retrieve(correctionText, candidates, 8, now);
+        List<Match> matches = retrieve(correctionText, candidates, retiredIds, 8, now);
         if (matches.isEmpty()) return "";
         Match best = matches.get(0);
         if (best.sharedTerms < 2 || best.sharedTerms * 2 < query.size()) return "";
