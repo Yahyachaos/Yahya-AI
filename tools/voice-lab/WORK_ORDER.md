@@ -122,3 +122,34 @@ VOICE_ACOUSTIC_TIMING_CONTRACT_PASS checks=27
 **Open limitations / acceptance:** Whole future Voice-Lab is still `IN_PROGRESS`. A 240-character bound is intentionally relaxed for a single unsplittable token rather than losing text; unnatural phrasing, abbreviation ambiguity, unsupported markup, drift, underrun and true live synthesis quality remain unmeasured. Neither real speaker output nor a naturally flowing German female voice is claimed.
 
 **exact_next_action:** In `tools/voice-lab/**` only, add and run an Android-free cross-contract regression that feeds a calibrated conservative presentation cursor into the existing PCM/mouth lifecycle across stop/restart, stale timestamp and actual drain completion, then refine only a reproduced issue; preserve the future-only boundary and clean handoff.
+
+
+## 29 Oct 2026 — cross-contract calibrated-mouth vs raw-drain correction (FUTURE ONLY)
+
+**Actual reproduced RED on the source-exact original VoiceLifecycleContract blob `770212539268e8e73325fdb8d3890d390887eb51`:** after accepting 300 OPEN frames + 700 TEETH frames, the signed raw AudioTrack head reached 500 while an explicitly fixture-calibrated delay of 300 frames gave conservative mouth cursor 200. The original `playedMouth()` returned `TEETH` but acoustic presentation required `OPEN`. This is a reproducible **pure-JVM cross-contract alignment defect**, **not** an observed Samsung sound/video defect. Original source, tracker and acoustic contract were recreated in a clean local JDK harness with `git hash-object` equal to their GitHub blobs before running the failing test:
+
+```
+FAIL mouth must not lead physical presentation expected=OPEN actual=TEETH
+```
+
+**Fix in Voice-owned paths only:** `VoiceLifecycleContract` now has an optional mode `enableCalibratedPresentation(id, nowMs)` that must be selected **before the first raw playback-head advancement**. In that mode, `calibratedMouthAt(id, trustedFrame, nowMs)` uses a **fresh, externally validated, conservative** frame from `VoiceAcousticTimingContract`; cue retirement follows that frame rather than the faster raw head. The legacy raw `playedMouth()` becomes CLOSED while this mode is enabled, to avoid accidentally drawing early mouth poses. Raw `playbackHead()` remains the independent drain/completion authority; interruption, engine failure and completion retain fail-closed terminal silence. Invalid, old-generation, backwards and ahead-of-raw presentation cursors return CLOSED. The higher-level Android adapter must also show CLOSED if the acoustic timestamp contract returns -1, and must never infer a calibration automatically. This **does not** resolve physically measured final-tail latency or establish Android wiring.
+
+**New deterministic cross-contract regression:** `VoiceCrossContractPlaybackTest.java`, 40 checks for precisely lagging visemes, sample boundaries, retention/pruning, stale hardware timestamp, physical drain, generation rollover, restart, stale callbacks and interrupt. Runner adds the seventh JVM main; no Android build/proof requested.
+
+**Actually rerun locally using OpenJDK 21 (all listed original baseline Java test/source blobs had matching GitHub `git hash-object` IDs; modified prototype blob checked back against live GitHub):**
+
+```
+VOICE_LIFECYCLE_CONTRACT_PASS checks=62
+VOICE_ADVERSARIAL_PASS checks=53059
+VOICE_HEAD_TRACKER_PASS checks=35
+VOICE_ACOUSTIC_TIMING_CONTRACT_PASS checks=27
+VOICE_CROSS_CONTRACT_PASS checks=40
+```
+
+Total **53,223 executed** assertions on the five listed mains, including the previously recorded 53,059 adversarial replay assertions actually rerun this time. The unchanged German planner suites were **not** rerun in this iteration; the updated repository runner includes them, but no exact-full-run PASS is claimed. Precise modified GitHub blobs: `VoiceLifecycleContract.java` `125a3f1986aeac72c78f6eb60db00f9e7867af5d`, `VoiceCrossContractPlaybackTest.java` `72457a4607f57ea4b90331bb42595e6ce44aa0b2`; unchanged `VoicePlaybackHeadTracker.java` `4ab9ee3bc2e4deff3ccfe91df56f453ae8d60004`, `VoiceAcousticTimingContract.java` `500adfa86b59181b8010402f7befcbcd9b66dac4`.
+
+**Ownership/version handoff:** Existing Voice-Lab DRAFT PR #118 is the *only* FUTURE-ONLY writer under `tools/voice-lab/**`. The approved separate Build & Release worker owns all actual v83 Android/Gradle/minSdk/signing/updater/production integration, not Room #111. This Voice-Lab work is explicitly excluded from v83 and has no installation, S25 Ultra, TTS naturalness, real PCM-to-lips, or release PASS. No `app/**`, Core #113, Room #111, CI, queue, minSdk, shared surface, signing, model or APK was modified; full device/calibration/permissions integration stays for a separate later serialized handoff.
+
+**Known limitation:** Conservative calibrated mouth returns CLOSED after the physical raw tail is considered complete even if the estimated acoustic cursor has not caught up. This prevents stuck late mouth callbacks but does **not** prove perfectly aligned final syllables. The cue buffer remains capped at 256 entries, including when the externally calibrated cursor legitimately lags raw playback.
+
+**exact_next_action (supersedes all earlier entries):** Within `tools/voice-lab/**` only, write and run one deterministic combined fixture for prolonged calibrated latency with the **256-cue cap** and engine restart/death; verify that no unheard cue is silently pruned and fail-stop/recovery are deterministic. Fix only a reproduced defect; then continue toward source-independent German listening-quality/real calibration requirements without asserting device acceptance.
