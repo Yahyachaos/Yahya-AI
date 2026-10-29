@@ -402,6 +402,11 @@ public final class CelineFutureMemoryRecall {
             int cp = value.codePointAt(i);
             if ((Character.isISOControl(cp) && cp != '\n' && cp != '\r' && cp != '\t')
                     || Character.getType(cp) == Character.FORMAT
+                    // Enclosing keycap marks and combining strike overlays alter
+                    // visible evidence but NFD + \\p{M} would erase them.
+                    // Preserve normal Latin accent/umlaut decomposition.
+                    || Character.getType(cp) == Character.ENCLOSING_MARK
+                    || (cp >= 0x0334 && cp <= 0x0338)
                     // NFD plus \\p{M} silently drops default-ignorable MARKs.
                     || cp == 0x034F // Combining Grapheme Joiner
                     || (cp >= 0x180B && cp <= 0x180F) // Mongolian selectors
