@@ -1336,6 +1336,162 @@ async function main() {
       allOriginalSources:true,allOther12Frozen:true,
       strictVisual:'FAIL',android:'G2_3_PAUSED'});
 
+
+    // V10: measured 13-original-GLB foreground table composition trials.
+    // Reference desk/tabletop differs in kind from the source coffee-table GLB;
+    // these genuine images are hypotheses, not visual or Android acceptance.
+    const v10Path=path.join(root,
+      'tools/room-layout-editor/layout-candidates/2026-10-29-room-foreground-table-provisional-v10.json');
+    const v10=JSON.parse(fs.readFileSync(v10Path,'utf8'));
+    assert.equal(v10.objects.length,13);
+    assert.deepEqual(v10.room,{width:4.4,depth:4.2,height:2.65});
+    assert.deepEqual(v10.original_source_hashes,v9.original_source_hashes);
+    for(const prev of v9.objects)if(prev.id!=='room_foreground_table')
+      assert.deepEqual(v10.objects.find(o=>o.id===prev.id),prev,
+        'V10 preserve 12 other original GLB transforms and locks '+prev.id);
+    const selectedTable=v10.objects.find(o=>o.id==='room_foreground_table');
+    assert(selectedTable?.locked===true);
+    assert.deepEqual(selectedTable.translation_m,[0,.402,1.72]);
+    assert.deepEqual(selectedTable.scale_xyz,[1.35,1.35,1.35]);
+    const tableTrial=(x,z,s)=>{
+      const state=JSON.parse(JSON.stringify(v9));
+      const table=state.objects.find(o=>o.id==='room_foreground_table');
+      table.translation_m=[x,Number((.402*s/1.35).toFixed(6)),z];
+      table.scale_xyz=[s,s,s];table.uniform_scale=s;table.locked=true;
+      return state;
+    };
+    const tableVariants=[
+      {name:'baseline-v9',state:v9},
+      {name:'medium-forward',state:tableTrial(-.10,1.83,1.05)},
+      {name:'provisional-wide-near',state:v10},
+      {name:'large-slightly-rear',state:tableTrial(0,1.62,1.45)},
+      {name:'wide-right',state:tableTrial(.20,1.72,1.35)}
+    ];
+    const tableEvidence=[];
+    for(const trial of tableVariants){
+      const trialPath=path.join(output,'trial-v10-table-'+trial.name+'.json');
+      fs.writeFileSync(trialPath,JSON.stringify(trial.state,null,2)+'\n');
+      await page.locator('#file').setInputFiles(trialPath);
+      await page.waitForFunction(name=>
+        document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+name),
+        path.basename(trialPath),{timeout:60000});
+      await page.evaluate(camera=>window.__celineRoomEditorE2E.previewMeasuredCamera(camera),
+        framingCamera.camera_proposal);
+      const scene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+      const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+      assert.deepEqual(scene.room_m,{width:4.4,depth:4.2,height:2.65});
+      assert.equal(scene.model_count,13);
+      assert.equal(scene.all_source_fidelity_glbs_loaded,true);
+      assert.deepEqual(projection.canvas_px,[700,560]);
+      assert(Math.abs(projection.aspect-1402/1122)<.002);
+      const seen=Object.fromEntries(scene.objects.map(o=>[o.id,o]));
+      for(const actual of scene.objects){
+        const expected=trial.state.objects.find(o=>o.id===actual.id);
+        assert.equal(actual.source_sha256,v9.original_source_hashes[actual.id],
+          'V10 immutable original GLB source checksum '+actual.id);
+        assert.deepEqual(actual.transform.translation_m,expected.translation_m);
+        assert.deepEqual(actual.transform.rotation_euler_deg,expected.rotation_euler_deg);
+        assert.deepEqual(actual.transform.scale_xyz,expected.scale_xyz);
+        assert.equal(actual.locked,expected.locked);
+        assert.deepEqual(Object.entries(actual.overflow_faces_m).filter(([,v])=>v>.012),[],
+          'V10 physical 4.40x4.20x2.65 room AABB envelope '+actual.id);
+        if(actual.id!=='room_foreground_table')
+          assert.deepEqual(expected,v9.objects.find(o=>o.id===actual.id),
+            'V10 other original object strictly frozen '+actual.id);
+      }
+      const table=seen.room_foreground_table;
+      assert(Math.abs(table.floor_bottom_y_m)<.012,'V10 grounded original GLB table');
+      const separate=(a,b)=>[0,1,2].some(i=>a.max[i]+.025<b.min[i]||
+        b.max[i]+.025<a.min[i]);
+      for(const id of ['room_bed','room_dresser','room_lounge_chair'])
+        assert(separate(table.conservative_world_aabb_m,seen[id].conservative_world_aabb_m),
+          'V10 table needs 25mm conservative original AABB separation '+id);
+      const frame=png('layout-v10-table-'+trial.name+'-real-webgl.png',
+        await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+      assert.deepEqual([frame.width,frame.height],[700,560]);
+      tableEvidence.push({
+        name:trial.name,frame,transform:table.transform,tableLocked:table.locked,
+        worldBounds:table.conservative_world_aabb_m,groundedY_m:table.floor_bottom_y_m,
+        projectedConservativeAabb:projectedWorldAabb(table,projection),
+        sourceOriginal:true,other12Frozen:true,
+        trueMeshCollisionCertified:false,visualApproval:'PENDING_MANUAL'
+      });
+    }
+    // Real saved V10 file, not just an in-memory test transform: import,
+    // independent lock, native browser JSON download and genuine WebGL output.
+    await page.locator('#file').setInputFiles(v10Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-29-room-foreground-table-provisional-v10.json'),
+      null,{timeout:60000});
+    await page.evaluate(camera=>window.__celineRoomEditorE2E.previewMeasuredCamera(camera),
+      framingCamera.camera_proposal);
+    await page.locator('#object').selectOption('room_foreground_table');
+    assert.equal(await page.locator('#x').isDisabled(),true);
+    const dlPromise=page.waitForEvent('download');
+    await page.locator('#save').click();
+    const downloaded=await dlPromise;
+    const dlPath=path.join(output,'layout-v10-browser-downloaded.json');
+    await downloaded.saveAs(dlPath);
+    const fromBrowser=JSON.parse(fs.readFileSync(dlPath,'utf8'));
+    assert.deepEqual(fromBrowser.room,v10.room);
+    assert.equal(fromBrowser.objects.length,13);
+    for(const expected of v10.objects){
+      const saved=fromBrowser.objects.find(o=>o.id===expected.id);
+      assert(saved,'V10 saved native JSON includes '+expected.id);
+      assert.equal(saved.locked,expected.locked);
+      for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+        assert(saved[k].every((n,i)=>Number.isFinite(n)&&Math.abs(n-expected[k][i])<1e-8),
+          'V10 browser saved transform '+expected.id+' '+k);
+    }
+    const v10Frame=png('layout-v10-table-saved-locked-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+    assert.deepEqual([v10Frame.width,v10Frame.height],[700,560]);
+    const v10Side=png('layout-v10-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw Error('Missing original V10 reference');
+        const image=new Image();
+        image.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((resolve,reject)=>{
+          if(image.complete&&image.naturalWidth)return resolve();
+          image.onload=resolve;image.onerror=reject;
+        });
+        const canvas=document.createElement('canvas');
+        canvas.width=1400;canvas.height=560;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(ref,0,0,700,560);
+        ctx.drawImage(image,700,0,700,560);
+        return canvas.toDataURL('image/png');
+      }));
+    assert.deepEqual([v10Side.width,v10Side.height],[1400,560]);
+    const v10Audit={
+      sourceSha:process.env.GITHUB_SHA||null,
+      candidate:path.relative(root,v10Path),
+      originalReference:{width:1402,height:1122,sha256:referenceImage.sha256},
+      originalSourceInstances:13,room_m:v10.room,cameraFrozen:framingCamera.camera_proposal,
+      referenceTabletopObserved:{
+        roughVisibleTopY:.78,acrossWholeLowerReference:true,
+        uncertainty:.08,occlusion:'large dark screen along bottom',
+        modelConflict:'original GLB is narrow four-legged coffee table, not large desk/monitor'
+      },
+      trials:tableEvidence,selectedProvisional:'provisional-wide-near',
+      savedFrame:v10Frame,sideBySide:v10Side,
+      exportedBrowserJson:path.basename(dlPath),
+      other12Unchanged:true,allOriginalGlbs:true,
+      strictTableVisual:'FAIL_PENDING_REAL_PNG_MANUAL_COMPARISON',
+      bed:'FAIL',dresser:'FAIL',chair:'FAIL_SOURCE_MATERIAL_STYLE',
+      wholeRoom:'VISUAL_FAIL',androidG2_3:'PAUSED'
+    };
+    fs.writeFileSync(path.join(output,'layout-v10-table-reference-audit.json'),
+      JSON.stringify(v10Audit,null,2)+'\n');
+    evidence('V10_FIVE_GENUINE_TABLE_WEBGL_TRIALS_AND_LOCKED_JSON_NOT_VISUAL_PASS',{
+      candidate:path.relative(root,v10Path),
+      images:tableEvidence.map(e=>e.frame.file),
+      sideBySide:v10Side.file,exportedBrowserJson:path.basename(dlPath),
+      audit:'layout-v10-table-reference-audit.json',
+      originalGlbs:13,other12Unchanged:true,androidG2_3:'PAUSED',
+      visualAcceptance:'FAIL_PENDING_MANUAL'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
