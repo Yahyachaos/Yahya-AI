@@ -22,6 +22,56 @@ public final class GermanStreamingSpeakerGatedSession {
         return raw.begin(text);
     }
 
+    /** Raw-drain diagnostics only; previous audible words remain UNKNOWN. */
+    public static final class AbandonReceipt {
+        public final long previousPlanGeneration, newPlanGeneration;
+        public final int previousRawDrainedChunks;
+        public final String previousRawDrainedText;
+        public final long unresolvedSpeakerAudioGeneration;
+        public final boolean previousSpeechAudibilityUnknown = true;
+        private AbandonReceipt(long previousId, long newId, int rawCount,
+                String rawText, long unresolvedAudioId) {
+            previousPlanGeneration = previousId;
+            newPlanGeneration = newId;
+            previousRawDrainedChunks = rawCount;
+            previousRawDrainedText = rawText;
+            unresolvedSpeakerAudioGeneration = unresolvedAudioId;
+        }
+    }
+
+    /**
+     * Explicit user-directed abort/new text, NOT replay or skipped-chunk ACK.
+     * A future serialized Android adapter MUST verify user intent AND actually
+     * stop old output before providing these typed claims. Neither is device
+     * evidence here; no Samsung acoustic/voice integration is performed.
+     */
+    public synchronized AbandonReceipt abortAndBeginNewSession(long expectedPlanGeneration,
+            VoiceExplicitAbortGate.UserAction userAction,
+            VoiceExplicitAbortGate.OldOutputStop externalOldOutputStop, String newText) {
+        GermanStreamingDeliveryLedger.Phase phase = raw.phase();
+        VoiceExplicitAbortGate.PriorState priorState = VoiceExplicitAbortGate.PriorState.OTHER;
+        if (pendingTail != null && (phase == GermanStreamingDeliveryLedger.Phase.READY
+                || phase == GermanStreamingDeliveryLedger.Phase.COMPLETE)) {
+            priorState = VoiceExplicitAbortGate.PriorState.RAW_DRAINED_SPEAKER_UNPROVEN;
+        } else if (pendingTail == null
+                && phase == GermanStreamingDeliveryLedger.Phase.UNCERTAIN) {
+            priorState = VoiceExplicitAbortGate.PriorState.INTERRUPTED_UNCERTAIN;
+        }
+        if (!VoiceExplicitAbortGate.mayAbandon(expectedPlanGeneration, raw.generation(),
+                activeDispatch != null, priorState, userAction, externalOldOutputStop))
+            return null;
+        int oldRawCount = raw.confirmedChunks();
+        String oldRawText = raw.confirmedText();
+        long oldSpeakerEpoch = pendingTail == null ? -1L : pendingTail.audioGeneration;
+        long newGeneration = raw.abandonForExplicitNewPlan(expectedPlanGeneration, newText);
+        if (newGeneration <= expectedPlanGeneration) return null;
+        if (pendingTail != null) speaker.stop(pendingTail.audioGeneration);
+        pendingTail = null;
+        activeDispatch = null;
+        return new AbandonReceipt(expectedPlanGeneration, newGeneration,
+                oldRawCount, oldRawText, oldSpeakerEpoch);
+    }
+
     /** Refuses lease if the previous raw-drained chunk still lacks speaker proof. */
     public synchronized GermanStreamingRawDrainCoordinator.Dispatch lease(
             long planGeneration, long nowMs, long nowNs) {
