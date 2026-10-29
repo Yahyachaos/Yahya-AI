@@ -32,10 +32,10 @@ public final class VoiceAcousticTimingContractTest {
         ok(!c.observe(1, 1000, 2000, t + 30_000_000L, t + 52_000_000L), "backwards hardware time rejected");
         ok(!c.observe(1, 1000, 2000, t + 40_000_000L, t + 52_000_000L), "advanced head without new hardware stamp rejected");
         ok(!c.observe(1, 30000, 50000, t + 45_000_000L, t + 53_000_000L), "implausible head jump rejected");
-        eq(480, c.estimatedMouthFrame(1, t + 54_000_000L), "invalid samples preserve accepted cursor");
+        eq(-1, c.estimatedMouthFrame(1, t + 54_000_000L), "invalid same-epoch proofs must quarantine cached cursor");
         eq(-1, c.estimatedMouthFrame(2, t + 54_000_000L), "stale generation never gets mouth cue");
         c.stop(2);
-        eq(480, c.estimatedMouthFrame(1, t + 55_000_000L), "unrelated generation stop ignored");
+        eq(-1, c.estimatedMouthFrame(1, t + 55_000_000L), "unrelated generation stop keeps quarantine");
         c.stop(1);
         eq(-1, c.estimatedMouthFrame(1, t + 55_000_000L), "stopped track no cursor");
         c.begin(2, 48000);
