@@ -55,6 +55,26 @@ async function run(){
   }
   const arch=await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit());
   assert.deepEqual(arch,{room_m:layout.room,background_hex:'947257',ground_hex:'67482c',wall_hex:'c3a98a',wall_opacity:.36,grid_exists:true,grid_visible:false,guide_control_checked:false});
+  // V22 source-identity and REAL WebGL before/after toggle; this is one proof job,
+  // not a competing CI rerun, and the saved furniture/layout remain immutable.
+  const selectedPreview=await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit());
+  assert.equal(selectedPreview.controlChecked,true);
+  assert.equal(selectedPreview.clonedSheerSlots,1);
+  assert.equal(selectedPreview.unchangedNightBackdropSlots,1);
+  assert.equal(selectedPreview.slots.find(s=>s.selectedSheer)?.currentOpacity,.35);
+  const selectedPng=png('layout-v22-selected-source-sheer-35-genuine-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  await page.locator('#sheer-preview').uncheck();
+  const originalState=await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit());
+  assert.equal(originalState.clonedSheerSlots,0);
+  assert(originalState.slots.every(s=>s.originalIdentity));
+  const restoredSourcePng=png('layout-v22-original-source-material-reverted-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  await page.locator('#sheer-preview').check();
+  const selectedAgain=await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit());
+  assert.equal(selectedAgain.clonedSheerSlots,1);
+  const selectedAfterTogglePng=png('layout-v22-source-sheer-selected-after-toggle-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
   const clean=png('layout-v21-room-shell-genuine-webgl.png',await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
   const comparison=png('layout-v21-original-reference-side-by-side.png',await page.evaluate(async()=>{
    const r=document.querySelector('#reference-preview'),im=new Image();
@@ -80,6 +100,12 @@ async function run(){
   }
   const restored=await page.evaluate(()=>window.__celineRoomEditorE2E.previewDrapeOpacityTrial({mode:'original'}));
   assert.equal(restored.affectedMaterialSlots,0,'Source materials must restore');
+  const sourceAfterTrials=await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit());
+  assert(sourceAfterTrials.slots.every(s=>s.originalIdentity));
+  // Restore the selected user-facing trial before native JSON Save and real reload.
+  await page.locator('#sheer-preview').uncheck();
+  await page.locator('#sheer-preview').check();
+  assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit())).clonedSheerSlots,1);
   const after=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
   for(const item of s.objects){
     const same=after.objects.find(x=>x.id===item.id);assert(same);
@@ -103,6 +129,10 @@ async function run(){
   await page.reload({waitUntil:'commit',timeout:120000});
   await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),null,{timeout:240000});
   const again=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  const afterReloadPreview=await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit());
+  assert.equal(afterReloadPreview.controlChecked,true);
+  assert.equal(afterReloadPreview.clonedSheerSlots,1);
+  assert.equal(afterReloadPreview.unchangedNightBackdropSlots,1);
   for(const a of layout.objects){const b=again.objects.find(o=>o.id===a.id);assert(b);assert.equal(b.locked,a.locked);
    for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(b.transform[key],a[key],'Reload '+a.id+' '+key);
   }
@@ -112,8 +142,10 @@ async function run(){
    originalReferencePx:[1402,1122],room:layout.room,unchangedCamera:camera,
    unchangedOriginalFurniture:13,unchangedOriginalHashes:layout.original_source_hashes,
    sourceLayout:'tools/room-layout-editor/layout-candidates/2026-10-29-room-window-drapes-screened-v19.json',
-   architecturalPalette:arch,gridOn,clean,comparison,withGrid,gridClean,trials,restored,
-   nativeSaveReload:true,technical:'PASS',manualVisual:'V21_CANDIDATES_PENDING_MANUAL_COMPARISON_V20_FAIL',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
+   architecturalPalette:arch,gridOn,clean,comparison,withGrid,gridClean,
+   selectedPreview,selectedPng,originalState,restoredSourcePng,selectedAgain,selectedAfterTogglePng,
+   sourceAfterTrials,afterReloadPreview,trials,restored,
+   nativeSaveReload:true,technical:'PASS',manualVisual:'V21_GENUINE_FRAMES_REVIEWED_LIGHT_35_BEST_PARTIAL__V22_DEFAULT_AWAITING_EXACT_HEAD_REAL_WEBGL',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_WINDOW_MATERIAL_V21_GENUINE_WEBGL_TECH_PASS');
  }finally{await browser.close()}

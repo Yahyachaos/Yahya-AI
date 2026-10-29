@@ -100,6 +100,11 @@ scene.add(floor, walls);
 let room = { ...CANONICAL };
 let wallVisible = true;
 let guideGridVisible = false; // Keep a usable editor grid on demand, not in reference views.
+// V22 editor-only source-fidelity preview. Cache original immutable GLB material objects.
+const sourceDrapeMaterials = new WeakMap();
+const SHEER_SOURCE_MATERIAL = 'material.010'; // original map-bearing white drape slot
+const SHEER_PREVIEW_ALPHA = 0.35; // V21 real WebGL: light-35 preserves the dark night panel
+
 
 function buildRoom() {
   for (const group of [floor, walls]) {
@@ -321,6 +326,33 @@ function placeholder(id) {
   return mesh;
 }
 
+function setSourceSheerPreview(enabled) {
+  const entry = entries.get('room_window_drapes');
+  if (!entry?.loaded) return {ready:false, enabled, affectedMaterialSlots:0};
+  let meshCount=0, affectedMaterialSlots=0;
+  entry.group.traverse(mesh => {
+    if (!mesh.isMesh) return;
+    meshCount++;
+    if (!sourceDrapeMaterials.has(mesh)) sourceDrapeMaterials.set(mesh,mesh.material);
+    const base=sourceDrapeMaterials.get(mesh), original=Array.isArray(base)?base:[base];
+    const old=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+    const next=original.map(mat => {
+      if (!mat || !enabled || mat.name!==SHEER_SOURCE_MATERIAL || !mat.map) return mat;
+      const preview=mat.clone(); // Never mutate original GLB material / texture / source bytes.
+      preview.transparent=true;
+      preview.opacity=SHEER_PREVIEW_ALPHA;
+      preview.depthWrite=false;
+      affectedMaterialSlots++;
+      return preview;
+    });
+    mesh.material=Array.isArray(base)?next:next[0];
+    for (const material of old) {
+      if (material && !original.includes(material)) material.dispose();
+    }
+  });
+  return {ready:true,enabled,meshCount,affectedMaterialSlots};
+}
+
 async function loadModel(entry) {
   const url=GLB_ROOT+encodeURIComponent(FILES[entry.id]);
   try {
@@ -335,6 +367,11 @@ async function loadModel(entry) {
     model.position.sub(center);
     entry.group.add(model);
     entry.loaded = true;
+    if (entry.id === 'room_window_drapes' && $('sheer-preview').checked) {
+      const preview=setSourceSheerPreview(true);
+      if (preview.affectedMaterialSlots!==1)
+        console.warn('Unveränderte Originalgardine: Quellmaterial-Auswahl nicht eindeutig.',preview);
+    }
   } catch (err) {
     entry.group.add(placeholder(entry.id));
     entry.loaded = false;
@@ -584,6 +621,11 @@ $('reset-room').onclick=()=>{
   $('edit-room').checked=false;buildRoom();commitEdit();
 };
 $('toggle-walls').onclick=()=>{wallVisible=!wallVisible;walls.visible=wallVisible;};
+$('sheer-preview').onchange=()=>{
+  const preview=setSourceSheerPreview($('sheer-preview').checked);
+  if (preview.ready && preview.enabled && preview.affectedMaterialSlots!==1)
+    status('Gardinen-Vorschau nicht angewendet: Originalmaterial nicht eindeutig.', 'warn');
+};
 $('show-grid').onchange=()=>{
   guideGridVisible=$('show-grid').checked;
   const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
@@ -628,7 +670,7 @@ $('reference-file').onchange=(e)=>{
 // programmatically selecting or transforming furniture. Not available outside
 // localhost with ?e2e=1. The Android runtime is completely separate.
 if (E2E_PROOF) {
-  const drapeOriginalMaterials = new WeakMap();
+  // Material diagnostics share the true originals cached before the V22 preview.
   window.__celineRoomEditorE2E = Object.freeze({
     focus(id, direction = [1, 0.35, 1]) {
       const entry = entries.get(id);
@@ -779,6 +821,35 @@ if (E2E_PROOF) {
       };
     },
 
+    // V22 proof audits real source identity and reversible user-facing curtain treatment.
+    sheerPreviewAudit() {
+      const entry=entries.get('room_window_drapes');
+      if (!entry?.loaded) throw new Error('Original curtain GLB not loaded');
+      const slots=[];
+      entry.group.traverse(mesh => {
+        if (!mesh.isMesh) return;
+        const base=sourceDrapeMaterials.get(mesh);
+        if (!base) return;
+        const original=Array.isArray(base)?base:[base];
+        const shown=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+        for (let i=0;i<original.length;i++) {
+          const source=original[i], current=shown[i];
+          slots.push({
+            name:source?.name||'', sourceHasMap:!!source?.map,
+            sourceOpacity:source?.opacity??null, currentOpacity:current?.opacity??null,
+            originalIdentity:source===current,
+            selectedSheer:source?.name===SHEER_SOURCE_MATERIAL&&!!source?.map
+          });
+        }
+      });
+      return {
+        controlChecked:$('sheer-preview').checked,
+        clonedSheerSlots:slots.filter(s=>s.selectedSheer&&!s.originalIdentity).length,
+        unchangedNightBackdropSlots:slots.filter(s=>
+          s.name==='CELINE_WindowNightDepth_Background'&&s.originalIdentity).length,
+        slots
+      };
+    },
     // V21 REAL WEBGL MATERIAL DIAGNOSTIC ONLY: never modify immutable GLB bytes,
     // saved placement JSON, original material instances, or Android surfaces.
     previewDrapeOpacityTrial(options={}) {
@@ -792,8 +863,8 @@ if (E2E_PROOF) {
       entry.group.traverse(mesh=>{
         if(!mesh.isMesh)return;
         meshes++;
-        if(!drapeOriginalMaterials.has(mesh))drapeOriginalMaterials.set(mesh,mesh.material);
-        const base=drapeOriginalMaterials.get(mesh);
+        if(!sourceDrapeMaterials.has(mesh))sourceDrapeMaterials.set(mesh,mesh.material);
+        const base=sourceDrapeMaterials.get(mesh);
         const prior=mesh.material;
         const source=Array.isArray(base)?base:[base];
         const replacement=source.map(mat=>{
