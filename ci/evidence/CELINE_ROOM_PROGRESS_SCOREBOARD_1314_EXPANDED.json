@@ -1,0 +1,40 @@
+{
+  "schema": "celine-room-progress-scoreboard/v1",
+  "reference_targets": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+  "candidate_source": "ci/evidence/CELINE_ROOM_PROGRESS_MEASUREMENTS_1314_EXPANDED.json",
+  "baseline_total_score_current_targets": 0.004543166956175412,
+  "total_score": 0.003139360755013663,
+  "weight_sum": 11.0,
+  "objects_scored": 10,
+  "score_improvement": 0.0014038062011617488,
+  "minimum_improvement": 0.002,
+  "decision": "FLAT",
+  "acceptance": "REJECT__whole-scene improvement remains below 0.002 and manual plant naturalness/envelope gate fails",
+  "manual_visual_verdict": "VALID_ROOM_PROOF__BACKFACE_FIX_VISIBLE__GENERATED_FOLIAGE_FLAT_AND_CONTAINED_INSIDE_SOURCE_PLANT_BBOX__NO_LEFT_ENVELOPE_GAIN",
+  "largest_deltas": [
+    {"object": "room_rug", "weighted_score": 0.01534721046861761, "raw_score": 0.01278934205718134},
+    {"object": "room_plant_large", "weighted_score": 0.009915160032992646, "raw_score": 0.013220213377323528},
+    {"object": "room_lounge_chair", "weighted_score": 0.0021725878392767797, "raw_score": 0.0013578673995479872},
+    {"object": "room_window_drapes", "weighted_score": 0.001919568145409097, "raw_score": 0.0011997300908806856},
+    {"object": "room_reference_right_wall_art", "weighted_score": 0.0018808791422827047, "raw_score": 0.0018808791422827047}
+  ],
+  "per_object": {
+    "room_dresser": {"center_error": 0.00047964319284927786, "size_error": 0.0009110613940785384, "edge_error": 0.0004555306970392692, "raw_score": 0.0006042461540560543, "weight": 1.6, "weighted_score": 0.0009667938464896869},
+    "room_lounge_chair": {"center_error": 0.0010888333647272983, "size_error": 0.0019037055331183259, "edge_error": 0.0012116952862442007, "raw_score": 0.0013578673995479872, "weight": 1.6, "weighted_score": 0.0021725878392767797},
+    "room_plant_large": {"center_error": 0.016694549232879708, "size_error": 0.010434257295328882, "edge_error": 0.008713307861425053, "raw_score": 0.013220213377323528, "weight": 0.75, "weighted_score": 0.009915160032992646},
+    "room_reference_foreground_candle": {"center_error": 0.0004228958946646551, "size_error": 0.0006145654763634253, "edge_error": 0.00030728273818170053, "raw_score": 0.0004572741378776953, "weight": 0.75, "weighted_score": 0.00034295560340827147},
+    "room_reference_left_wall_art_pair": {"center_error": 0.0020139005251258364, "size_error": 0.0007950576749862041, "edge_error": 0.001211181974024464, "raw_score": 0.0014877039598636722, "weight": 0.75, "weighted_score": 0.0011157779698977542},
+    "room_reference_right_wall_art": {"center_error": 0.0021319706796027217, "size_error": 0.002037234506203363, "edge_error": 0.0010186172531016745, "raw_score": 0.0018808791422827047, "weight": 1.0, "weighted_score": 0.0018808791422827047},
+    "room_round_mirror": {"center_error": 0.00018039497865979357, "size_error": 0.00027825880621010907, "edge_error": 0.0001391294031050476, "raw_score": 0.00020150101181393902, "weight": 1.0, "weighted_score": 0.00020150101181393902},
+    "room_rug": {"center_error": 0.006346173049094525, "size_error": 0.024040638831585193, "edge_error": 0.012020319415792596, "raw_score": 0.01278934205718134, "weight": 1.2000000000000002, "weighted_score": 0.01534721046861761},
+    "room_wall_shelf_books": {"center_error": 0.001381001800184061, "size_error": 0.00019782859245913442, "edge_error": 0.000720980910596497, "raw_score": 0.0008940456599490702, "weight": 0.75, "weighted_score": 0.0006705342449618027},
+    "room_window_drapes": {"center_error": 0.0012322017532715702, "size_error": 0.0013649601456644511, "edge_error": 0.0008707058527278252, "raw_score": 0.0011997300908806856, "weight": 1.6, "weighted_score": 0.001919568145409097}
+  },
+  "strategy_status": {
+    "plant_derived_foliage_augment": "STOP_LOSS__PROOF_1307_INVISIBLE_THEN_1314_VISIBLE_BUT_INSIDE_SOURCE_SILHOUETTE",
+    "plant_x_sx": "STOP_LOSS__PROOF_1274",
+    "plant_x_yaw": "STOP_LOSS__PROOF_1295",
+    "rug_smooth_derived_family": "STOP_LOSS__PROOFS_1279_1282_1302"
+  },
+  "next_rule": "restore exact accepted runtime; do not retry procedural/derived foliage, plant-transform or smooth-rug families; expand reliable geometry scoreboard read-only before any new runtime write"
+}

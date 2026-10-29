@@ -1,0 +1,33 @@
+{
+  "schema": "celine-room-progress-measurements/v1",
+  "proof": 1282,
+  "proof_run": 34084358147,
+  "head": "bae09a45d61912b5ffda8d0b52d02b5d5f3b5134",
+  "runtime_code_head": "de98cf7429a427155e0ea8ad85f673d89a55e7ad",
+  "runtime_fingerprint": "395c7975a40b54539a856e413157dc355b7b1a1643bb57dd0f180270b1177431",
+  "android_build_run": 34084358141,
+  "apk_sha256": "adac3bdc5d8642c12450eb5cdeeeefbc8c9c2660dad181319eeda0179ac595d9",
+  "capture": {
+    "source": "real-candidate-call.png",
+    "status": "VALID_NONBLANK_ACTUAL_CALL",
+    "call_stage_px": {"left": 32, "right": 1048, "top": 466, "bottom": 1279, "width": 1016, "height": 813},
+    "lifecycle": "HOME_CALL_HOME_RETURN_SAME_PROCESS_PASS",
+    "workflow_conclusion": "FAIL_AFTER_VALID_ROOM_PROOF_DUE_ORTHOGONAL_CALL_ZOOM_ASSERTION"
+  },
+  "manual_visual_verdict": "VISUAL_RUG_IMPROVEMENT_CONFIRMED__UPWARD_NORMAL_MAKES_DERIVED_SURFACE_LIGHT_CREAM_AND_REMOVES_SOURCE_RELIEF_BANDING; CANDIDATE_STILL_REJECTED_BY_SCOREBOARD_POLICY_BECAUSE_WHOLE_SCENE_GEOMETRY_SCORE_IS_FLAT",
+  "measurement_method": {
+    "normalization": "x / 1016, y / 813",
+    "uncertain_or_occluded_objects": "excluded rather than guessed",
+    "unchanged_objects": "carried exactly from Proof #1270 because candidate only changes derived rug surface orientation/material lighting; camera and all scored geometry envelopes remain unchanged",
+    "rug": "actual Proof #1282 CALL visually inspected against Refernzbild.png; banding is gone and cream appearance is materially closer, while accepted rug envelope remains unchanged"
+  },
+  "measurements": {
+    "room_dresser": {"left": 0.0, "right": 0.1830708661417323, "top": 0.4194341943419434, "bottom": 0.7183271832718328, "center_x": 0.09153543307086615, "center_y": 0.568880688806888, "width": 0.1830708661417323, "height": 0.29889298892988936},
+    "room_lounge_chair": {"left": 0.22145669291338582, "right": 0.3346456692913386, "top": 0.36654366543665434, "bottom": 0.5092250922509225, "center_x": 0.2780511811023622, "center_y": 0.4378843788437884, "width": 0.11318897637795278, "height": 0.14268142681426815},
+    "room_plant_large": {"left": 0.1594488188976378, "right": 0.25393700787401574, "top": 0.2054120541205412, "bottom": 0.5350553505535055, "center_x": 0.20669291338582677, "center_y": 0.37023370233702335, "width": 0.09448818897637795, "height": 0.3296432964329643},
+    "room_round_mirror": {"left": 0.0, "right": 0.07775590551181102, "top": 0.0971709717097171, "bottom": 0.33456334563345635, "center_x": 0.03887795275590551, "center_y": 0.21586715867158673, "width": 0.07775590551181102, "height": 0.23739237392373924},
+    "room_rug": {"left": 0.2076771653543307, "right": 0.8572834645669292, "top": 0.5399753997539976, "bottom": 0.7822878228782287, "center_x": 0.53248031496063, "center_y": 0.6611316113161132, "width": 0.6496062992125985, "height": 0.24231242312423118},
+    "room_wall_shelf_books": {"left": 0.609251968503937, "right": 0.7125984251968503, "top": 0.17589175891758918, "bottom": 0.24354243542435425, "center_x": 0.6609251968503937, "center_y": 0.2097170971709717, "width": 0.10334645669291331, "height": 0.06765067650676507},
+    "room_window_drapes": {"left": 0.21062992125984253, "right": 0.593503937007874, "top": 0.08610086100861008, "bottom": 0.4797047970479705, "center_x": 0.4020669291338583, "center_y": 0.28290432904329044, "width": 0.3828740157480315, "height": 0.3936039360393604}
+  }
+}

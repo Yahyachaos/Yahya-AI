@@ -4,7 +4,8 @@ set -euo pipefail
 PACKAGE="de.yahya.ai"
 SRC="app/src/main/java/de/yahya/ai/Celine3DView.java"
 HOME_XML="emulator-home-return.xml"
-DIAG="emulator-v79-camera-diagnostics.xml"
+INIT_LOG="emulator-v79-camera-init-logcat.txt"
+SWIPE_LOG="emulator-v79-camera-swipe-logcat.txt"
 
 fail_camera() {
   echo "V79 CAMERA ERROR: $*"
@@ -49,19 +50,26 @@ PY
 
 [[ -n "${X1:-}" && -n "${Y1:-}" && -n "${X2:-}" && -n "${Y2:-}" ]] || fail_camera "could not resolve safe product gesture coordinates"
 
+# The bounded shared-preference history is intentionally small and the preceding HOME/CALL/IME
+# lifecycle can evict the one-time owner-install marker. Preserve and verify the process log before
+# isolating the swipe, so this gate proves the real current installation without depending on ring
+# position in the diagnostic UI.
+adb logcat -d -v threadtime > "$INIT_LOG" || fail_camera "could not read v79 camera initialization log"
+grep -q 'V79-310' "$INIT_LOG" || fail_camera "v79 product interaction owner was not installed"
+grep -q 'pinch=trueCameraDolly' "$INIT_LOG" || fail_camera "v79 true-camera pinch dolly contract missing"
+
 # v79 product semantics intentionally anchor Celine in HOME/CALL. A one-finger swipe here must
 # NOT revive v60 free camera/actor pan; orbit remains available only inside Avatar Lab.
+adb logcat -c || fail_camera "could not isolate v79 product swipe log"
 echo "v79 anchored product swipe proof: $X1,$Y1 -> $X2,$Y2"
 adb shell input swipe "$X1" "$Y1" "$X2" "$Y2" 550
 sleep 1
-adb shell "run-as $PACKAGE cat shared_prefs/celine_3d_diagnostics.xml" > "$DIAG" 2>/dev/null || fail_camera "could not read v79 camera diagnostics after swipe"
-grep -q 'V79-310' "$DIAG" || fail_camera "v79 product interaction owner was not installed"
-if grep -q 'V60-120' "$DIAG"; then
+adb logcat -d -v threadtime > "$SWIPE_LOG" || fail_camera "could not read isolated v79 product swipe log"
+if grep -q 'V60-120' "$SWIPE_LOG"; then
   fail_camera "HOME/CALL one-finger swipe unexpectedly changed product camera pan"
 fi
 
-# Pinch cannot be injected portably by adb. Keep it fail-closed structurally: the production view
-# still owns a ScaleGestureDetector and the v79 diagnostic must declare true-camera dolly semantics.
-grep -q 'pinch=trueCameraDolly' "$DIAG" || fail_camera "v79 true-camera pinch dolly contract missing"
+# Pinch cannot be injected portably by adb. The structural ScaleGestureDetector guard above and
+# the live V79-310 installation marker keep the true-camera dolly contract fail-closed.
 
 echo "v79 product camera controls passed: one-finger anchored, pinch true-camera dolly contract active; Avatar Lab owns orbit proof"

@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "workstream": "ROOM_SCENE",
+  "scope": "room_bed material-only causal witness; no runtime write in this commit",
+  "reference_authority": "/Refernzbild.png",
+  "current_branch_head_before_witness": "db536afe0c09a594a5ce08b5fdcdddca62ca4f85",
+  "accepted_runtime_code_head": "079c3137c5a2b97150a572e57cab1e5a11ee0ea6",
+  "accepted_runtime_fingerprint": "71cb31332b4b3bc66325c6fa7e030b9132bc69e58c376cacd77cf09dc59d56d8",
+  "source_material_audit": {
+    "artifact_source": "Celine Room Bed Material Audit run 33519708173 / artifact 9805121637",
+    "source_glb": "Bett.glb",
+    "source_glb_sha256": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+    "room_node": "room_bed",
+    "primitive_count": 1,
+    "base_color_factor": [1.0, 1.0, 1.0, 1.0],
+    "source_base_color_texture_rgb_median": [150, 128, 110],
+    "source_base_color_texture_rgb_mean": [150.973907, 128.385014, 109.947489],
+    "metallic_roughness_texture_rgb_median": [255, 142, 0],
+    "gltf_channel_semantics": {
+      "green": "roughness",
+      "blue": "metallic"
+    },
+    "effective_source_metallic_median": 0.0,
+    "effective_source_roughness_median": 0.556863,
+    "normal_texture_present": true,
+    "conclusion": "The immutable source base-color texture is already substantially lighter/warmer than the accepted CALL bed ROIs, and the metallic-map blue channel is effectively zero. A new metallicFactor strategy has no causal prediction; it is rejected before build. Preserve base-color, metallic-roughness and normal textures."
+  },
+  "empirical_emissive_response": {
+    "previous_real_candidate": {
+      "proof": 1208,
+      "head": "43ddd625fdbdbef6345284592bc042f1fc4de288",
+      "bed_emissive_rgb": [0.08, 0.07, 0.06],
+      "duvet_roi_median_rgb": [57, 41, 30],
+      "headboard_roi_median_rgb": [63, 47, 36]
+    },
+    "accepted_real_candidate": {
+      "proof": 1209,
+      "head": "c743ce6de7940a8798c64ccb9eeff004136a960d",
+      "bed_emissive_rgb": [0.12, 0.105, 0.09],
+      "duvet_roi_median_rgb": [68, 50, 37],
+      "headboard_roi_median_rgb": [73, 56, 43]
+    },
+    "measured_delta_from_one_bounded_step": {
+      "emissive_rgb": [0.04, 0.035, 0.03],
+      "duvet_roi_median_rgb": [11, 9, 7],
+      "headboard_roi_median_rgb": [10, 9, 7]
+    },
+    "conclusion": "Unlike the rejected above-one baseColorFactor strategy, the existing room-bed-local emissive path has already demonstrated a material, directional response in a real CALL capture."
+  },
+  "current_semantic_gate": {
+    "duvet": {
+      "current_rgb": [68, 50, 37],
+      "reference_rgb": [115, 77, 47],
+      "current_mean_abs_channel_error": 28.0
+    },
+    "headboard": {
+      "current_rgb": [73, 56, 43],
+      "reference_rgb": [139, 96, 54],
+      "current_mean_abs_channel_error": 39.0
+    },
+    "required_improvement_each_roi_percent": 20.0
+  },
+  "next_bounded_candidate_prediction": {
+    "strategy": "ROOM_BED_LOCAL_EMISSIVE_SECOND_EQUAL_STEP",
+    "change_only": "CelineRoomReferenceLightingV80 BED_EMISSIVE_RED/GREEN/BLUE",
+    "candidate_bed_emissive_rgb": [0.16, 0.14, 0.12],
+    "prediction_method": "one-step local linear extrapolation from the measured real-CALL #1208 -> #1209 response; prediction is only a build gate, not acceptance evidence",
+    "predicted_duvet_roi_median_rgb": [79, 59, 44],
+    "predicted_duvet_mean_abs_channel_error": 19.0,
+    "predicted_duvet_improvement_percent_vs_current": 32.142857,
+    "predicted_headboard_roi_median_rgb": [83, 65, 50],
+    "predicted_headboard_mean_abs_channel_error": 30.333333,
+    "predicted_headboard_improvement_percent_vs_current": 22.222222,
+    "prediction_clears_20_percent_gate_for_both_rois": true
+  },
+  "runtime_acceptance_rule": {
+    "must_use_exact_candidate_apk": true,
+    "must_open_actual_call": true,
+    "duvet_actual_error_improvement_percent_min": 20.0,
+    "headboard_actual_error_improvement_percent_min": 20.0,
+    "manual_visual_agreement_required": true,
+    "reject_if": [
+      "either semantic ROI misses the 20% improvement gate",
+      "fabric texture/detail visibly washes out",
+      "bed reads self-lit/unphysical against the reference",
+      "HOME -> CALL -> HOME-return lifecycle regresses",
+      "adjacent room composition or Celine changes"
+    ],
+    "on_reject": "revert exact candidate and STOP_LOSS the second-equal-step emissive strategy; do not stack a larger third step"
+  },
+  "protected_unchanged": [
+    "12 original furniture GLB source bytes",
+    "room_bed TRS",
+    "base-color texture",
+    "metallic-roughness texture",
+    "normal texture",
+    "room shell",
+    "global key/fill/practical lighting",
+    "camera/FOV",
+    "Celine identity/rig/materials",
+    "anchors/navigation",
+    "Core/Persona workstream paths"
+  ],
+  "blocker": "none",
+  "exact_next_action": "Fresh-reconcile PR #111. If this witness remains the live head and no competing room writer owns the same file, apply exactly one runtime-only second equal room-bed emissive step from [0.12,0.105,0.09] to [0.16,0.14,0.12] in CelineRoomReferenceLightingV80; run exactly one necessary Android Build and exactly one smallest real HOME -> CALL -> HOME-return proof, measure the two committed semantic ROIs, manually inspect the actual CALL against /Refernzbild.png, and keep only if both ROI errors improve >=20% with preserved fabric detail and natural appearance."
+}

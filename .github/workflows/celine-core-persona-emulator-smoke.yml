@@ -1,0 +1,274 @@
+name: Celine Core Persona Android Emulator Smoke
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-core-persona-emulator-smoke.yml'
+      - 'ci/celine_core_persona_emulator_smoke.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-core-persona-emulator-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reuse-built-apk-and-test:
+    name: Real non-debuggable v83 production in-place upgrade, memory, Persona and lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - name: Checkout existing Room integration PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Verify API29 v83 runtime equivalence with production Build #1888
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor d535737f190392b1b1f2df4903715dce22a15bd8 HEAD
+          git diff --quiet d535737f190392b1b1f2df4903715dce22a15bd8 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = "d9b10c4b7fb871ee757ba2809d4e0ecd04b1b35ea44ff354b49d192e33c115f2"
+          echo 'PRODUCTION_V83_ANDROID10_RUNTIME_EQUIVALENCE_PASS: new nondebug Android Build #1888 release package / G1 / Persona'
+          echo 'No Android Gradle build or Room visual build is invoked by this workflow.'
+
+      - name: Reuse new nondebuggable Android10 production Build #1888 APK (no Gradle)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk core-persona-emulator-proof
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/40808505855" --jq '.head_sha + " " + .conclusion')" = "d535737f190392b1b1f2df4903715dce22a15bd8 success"
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          test -s ci-apk/app-release.apk
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-sha256 -D ci-apk
+          test -s ci-apk/production-apk-sha256.txt
+          EXPECTED_APK_SHA="$(awk 'NR==1 {print $1}' ci-apk/production-apk-sha256.txt)"
+          [[ "$EXPECTED_APK_SHA" =~ ^[0-9a-f]{64}$ ]] && echo "$EXPECTED_APK_SHA  ci-apk/app-release.apk" | sha256sum -c -
+          sha256sum ci-apk/app-release.apk > core-persona-emulator-proof/production-apk-sha256.txt
+          echo 'NEW_API29_PRODUCTION_APK_SHA256_FROM_BUILD_1888_PASS'
+          # The public v80 APK is the real installed/retained-data baseline.
+          gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern 'Yahya-AI-v80.apk' -D ci-apk
+          test -s ci-apk/Yahya-AI-v80.apk
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          echo 'PINNED_PUBLIC_V80_RELEASE_INTEGRITY_PASS'
+
+      - name: Verify production package, nondebug manifest and v80 signing parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDK_ROOT/build-tools/30.0.3/apksigner" ]; then
+            "$SDKMANAGER" 'build-tools;30.0.3'
+          fi
+          AAPT="$SDK_ROOT/build-tools/30.0.3/aapt"
+          APKSIGNER="$SDK_ROOT/build-tools/30.0.3/apksigner"
+          APK=ci-apk/app-release.apk
+          OLD=ci-apk/Yahya-AI-v80.apk
+          "$APKSIGNER" verify "$APK" >/dev/null
+          "$APKSIGNER" verify "$OLD" >/dev/null
+          BADGING="$("$AAPT" dump badging "$APK")"
+          grep -Fq "package: name='de.yahya.ai' versionCode='83'" <<<"$BADGING"
+          grep -Fxq "sdkVersion:'29'" <<<"$BADGING"
+          ! grep -q '^application-debuggable' <<<"$BADGING"
+          cert() { "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1; }
+          C80="$(cert "$OLD")"
+          C83="$(cert "$APK")"
+          [ -n "$C80" ] && [ "$C80" = "$C83" ]
+          echo 'PRODUCTION_V83_PACKAGE_NONDEBUG_CERTIFICATE_V80_PARITY_PASS'
+          echo 'SECURITY_NOTE: matching public historical certificate is not private-key custody assurance; no stable publication authorized'
+
+      - name: Reuse runner-preinstalled Android SDK (setup-android v3 legacy tools fails)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" || command -v sdkmanager
+          echo 'Avoiding deprecated sdkmanager tools package requested by setup-android@v3.'
+
+      - name: Allow KVM emulator acceleration
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Real release-APK in-place v80-to-v83 UI, memory, persona, HOME/CALL/HOME and ANR checks
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          # #34: direct swiftshader caused a native de.yahya.ai crash on
+          # genuine public v80 startup (Android events am_crash Native crash).
+          # #32's rejected angle_indirect used fallback swangle successfully
+          # through real v80->v83 memory inspection before an OS ANR. Pin that
+          # proven baseline renderer explicitly and give system-server/UI a
+          # bounded 4-core AVD to test CPU starvation without masking ANRs.
+          # Use emulator-runner default 2 vCPUs: #32 seeded exact public v80 successfully; #35/#36 with four cores lost ADB-injected text.
+          # #61 produced a real 5014ms input ANR with swangle: HWUI drawFrame, gfxstream HWC fences
+          # and Filament beginFrame contend on the emulator graphics backend. This is ONE
+          # controlled same-APK backend A/B isolation (Linux Mesa lavapipe) against #61;
+          # no runtime/code change, no ANR/Persona/memory gate weakening and no claimed PASS.
+          # A rejected/unsupported backend or v80 startup failure is a genuine FAIL, not a fix.
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: |
+            set -eu
+            # Fail closed if official v80 cannot be upgraded in place to integrated v83.
+            # Genuine #40/#41 proved every character in the real v80 EditText,
+            # but pixel_2 at 420 dpi exposed only the LAST assistant bubble in
+            # its ~125px chat viewport; UiAutomator pruned the earlier user
+            # bubble even without our visibility filter. Present enough real
+            # chat viewport to inspect BOTH actual on-screen TextViews instead
+            # of weakening exact-chat, persisted-memory or OS-ANR assertions.
+            # Real #42: 1080x1920 swangle guest suffered 3-6s GPU fences,
+            # ~4950ms GPU frames and 12/12 UiAutomator null-root returns
+            # AFTER the exact public-v80 memory was successfully seeded.
+            # Keep the same ~620x1100 dp layout at 720x1280 physical pixels
+            # (185 dpi) while cutting CPU-software-rendered pixels by 69%.
+            # This is an emulator-only isolation, NOT an app performance PASS.
+            # Exact production APK #1814 pinned; fail-closed production UI and OS ANR checks remain.
+            # Confirm this software emulator matches the source renderer's paced hardware predicate.
+            adb shell getprop ro.hardware | tee core-persona-emulator-proof/emulator-hardware.txt
+            grep -Eq '^(ranchu|goldfish)$' core-persona-emulator-proof/emulator-hardware.txt
+            echo 'SOFTWARE_EMULATOR_PACER_TARGET_HARDWARE_PASS'
+            adb shell wm size 720x1280
+            adb shell wm density 185
+            adb shell wm size | grep 'Override size: 720x1280'
+            adb shell wm density | grep 'Override density: 185'
+            { adb shell wm size; adb shell wm density; } > core-persona-emulator-proof/emulator-geometry.txt
+            adb install -r ci-apk/Yahya-AI-v80.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
+            echo 'PUBLIC_V80_BASELINE_INSTALLED_PASS'
+            YAHYA_PRODUCTION_SMOKE=1 timeout 1440s python3 ci/celine_core_persona_emulator_smoke.py
+
+      - name: Upload genuine emulator screenshots and test provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-v83-production-real-emulator-smoke
+          path: core-persona-emulator-proof/
+          if-no-files-found: warn
+# One targeted CI-only production validation (28 Oct 2026): validate fixed worker-ownership signed #1799 APK; no Gradle build or stable publish.
+
+
+  supported-api29-v80-to-v83:
+    name: Genuine public v80 to production v83 on Android API${{ matrix.api-level }}
+    # Keep API29 validation independent of API35. Either failed install/UI gate is FAIL.
+    # Android8/9 are expressly not part of the owner's v83 supported OS matrix.
+    if: ${{ !cancelled() }}
+    needs: reuse-built-apk-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        api-level: [29]
+    steps:
+      - name: Checkout exact Room integration branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Reconcile unchanged compiled production v83 runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor d535737f190392b1b1f2df4903715dce22a15bd8 HEAD
+          git diff --quiet d535737f190392b1b1f2df4903715dce22a15bd8 HEAD -- app/src/main app/build.gradle gradle.properties gradle libs.versions.toml
+          test "$(bash ci/celine-runtime-fingerprint.sh HEAD)" = 'd9b10c4b7fb871ee757ba2809d4e0ecd04b1b35ea44ff354b49d192e33c115f2'
+          echo 'SUPPORTED_API29_V83_SOURCE_EQUIVALENCE_PASS'
+
+      - name: Download real published v80 and proven non-debuggable v83 only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk core-persona-emulator-proof
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/40808505855" --jq '.head_sha + " " + .conclusion')" = "d535737f190392b1b1f2df4903715dce22a15bd8 success"
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-release -D ci-apk
+          test -s ci-apk/app-release.apk
+          gh run download 40808505855 --repo "$GITHUB_REPOSITORY" -n yahya-ai-production-sha256 -D ci-apk
+          test -s ci-apk/production-apk-sha256.txt
+          EXPECTED_APK_SHA="$(awk 'NR==1 {print $1}' ci-apk/production-apk-sha256.txt)"
+          [[ "$EXPECTED_APK_SHA" =~ ^[0-9a-f]{64}$ ]] && echo "$EXPECTED_APK_SHA  ci-apk/app-release.apk" | sha256sum -c -
+          gh release download v80 --repo "$GITHUB_REPOSITORY" --pattern Yahya-AI-v80.apk -D ci-apk
+          test -s ci-apk/Yahya-AI-v80.apk
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          sha256sum ci-apk/app-release.apk ci-apk/Yahya-AI-v80.apk > core-persona-emulator-proof/apk-sources-sha256.txt
+          echo 'AUTHENTIC_OLD_AND_NEW_APK_RAW_SHA256_PASS'
+
+      - name: Fail closed on package/version, debuggability and API-specific signer parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDK_ROOT/build-tools/30.0.3/apksigner" ] || "$SDKMANAGER" 'build-tools;30.0.3'
+          APKSIGNER="$SDK_ROOT/build-tools/30.0.3/apksigner"
+          AAPT="$SDK_ROOT/build-tools/30.0.3/aapt"
+          OLD=ci-apk/Yahya-AI-v80.apk
+          NEW=ci-apk/app-release.apk
+          "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$OLD"
+          "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$NEW"
+          "$AAPT" dump badging "$OLD" | grep -F "package: name='de.yahya.ai' versionCode='80'"
+          "$AAPT" dump badging "$NEW" | grep -F "package: name='de.yahya.ai' versionCode='83'"
+          "$AAPT" dump badging "$NEW" | grep -Fx "sdkVersion:'29'"
+          ! "$AAPT" dump badging "$NEW" | grep -q '^application-debuggable'
+          C80="$("$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$OLD" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          C83="$("$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" --print-certs "$NEW" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          [ -n "$C80" ] && [ "$C80" = "$C83" ]
+          printf 'API=%s\npackage=de.yahya.ai\nold_code=80\nnew_code=83\nsame_historical_certificate_sha256=%s\nnondebug=true\n' "${{ matrix.api-level }}" "$C80" > core-persona-emulator-proof/signing-compatibility.txt
+          echo 'API_SPECIFIC_PUBLIC_V80_V83_SIGNATURE_PACKAGE_NONDEBUG_PASS'
+          echo 'RISK: historical production private signer publicly exposed; parity is not secure publisher custody'
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Real API${{ matrix.api-level }} installed upgrade, memory retention and OS crash gate
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: |
+            # android-emulator-runner invokes each script line in a separate
+            # /bin/sh -c process; shell variables MUST be set/tested/recorded
+            # inside ONE command. Old #67 emitted empty API values and
+            # accidentally compared empty == empty: fail closed instead.
+            bash -euo pipefail -c 'real_api="$(adb shell getprop ro.build.version.sdk | tr -d "\r")"; [[ "$real_api" == "${{ matrix.api-level }}" ]]; printf "ACTUAL_ANDROID_API_LEVEL=%s\n" "$real_api" | tee core-persona-emulator-proof/actual-api-level.txt'
+            adb shell wm size 720x1280
+            adb shell wm density 185
+            adb install -r ci-apk/Yahya-AI-v80.apk
+            adb shell dumpsys package de.yahya.ai | grep 'versionCode=80'
+            echo 'AUTHENTIC_PUBLIC_V80_INSTALLED_ON_SUPPORTED_API29_PASS'
+            YAHYA_PRODUCTION_SMOKE=1 timeout 1560s python3 ci/celine_core_persona_emulator_smoke.py
+            echo "REAL_V80_V83_SUPPORTED_API${{ matrix.api-level }}_DATA_RETENTION_AND_FUNCTIONAL_PASS"
+
+      - name: Always upload original Android evidence and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-v83-real-public-upgrade-api${{ matrix.api-level }}
+          path: core-persona-emulator-proof/
+          if-no-files-found: warn

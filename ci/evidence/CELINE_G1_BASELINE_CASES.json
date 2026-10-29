@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "name": "Celine G1.0 Intelligence Baseline Cases",
+  "purpose": "Fixed regression/evaluation catalog. Later brain generations improve against these cases; do not rewrite failures away.",
+  "families": {
+    "conversation": "Follow-up, correction and topical continuity.",
+    "memory": "Durable recall, correction, relevance and forgetting.",
+    "reasoning": "Multi-step reasoning, uncertainty, contradiction and self-check.",
+    "tools": "Selection, wrong-tool rejection, verification and recovery.",
+    "restart": "Conversation/task continuity across process or device restart.",
+    "cloud": "Cloud dependence, call count, latency observability and offline core."
+  },
+  "cases": [
+    {"id":"conversation.continue.short","family":"conversation","input":"weiter","expected":"Treat as continuation of the last unambiguous task, not a new topic.","mode":"deterministic"},
+    {"id":"conversation.continue.action","family":"conversation","input":"mach weiter","expected":"Continue the last unambiguous action context.","mode":"deterministic"},
+    {"id":"conversation.correction.latest_wins","family":"conversation","input":"Nein, ich meinte die Kommode","expected":"Latest correction overrides the contradicted earlier assumption.","mode":"deterministic"},
+    {"id":"conversation.correction.instead","family":"conversation","input":"Stattdessen nimm die andere Variante","expected":"Treat as a correction/redirect, not an unrelated new request.","mode":"deterministic"},
+    {"id":"conversation.new_topic.no_drag","family":"conversation","input":"Erkläre mir Photosynthese","expected":"Do not drag an unrelated older task into a clear new topic.","mode":"deterministic"},
+    {"id":"memory.explicit.store","family":"memory","input":"Merk dir, dass mein Testprojekt Orion heißt.","expected":"Explicit durable memory is stored and later retrievable.","mode":"capability"},
+    {"id":"memory.cross_session.recall","family":"memory","input":"Wie heißt mein Testprojekt?","expected":"Correct recall after activity/process restart without fabricating.","mode":"capability"},
+    {"id":"memory.correction.supersedes","family":"memory","input":"Nein, das Projekt heißt jetzt Nova.","expected":"New explicit correction supersedes the old value rather than coexisting ambiguously.","mode":"capability"},
+    {"id":"memory.relevant_only","family":"memory","input":"Wie heißt mein Testprojekt?","expected":"Retrieve project-name memory without injecting unrelated durable memories.","mode":"capability"},
+    {"id":"memory.forget.single","family":"memory","input":"Vergiss nur den Namen des Testprojekts.","expected":"Forget the selected memory without clearing unrelated memory.","mode":"capability"},
+    {"id":"reasoning.multistep","family":"reasoning","input":"Plane eine dreistufige Aufgabe mit Abhängigkeiten und erkläre nur das Ergebnis.","expected":"Decompose internally, preserve dependencies and return a coherent result.","mode":"capability"},
+    {"id":"reasoning.unknown.no_fabrication","family":"reasoning","input":"Was war der Ausgang eines Ereignisses, zu dem du keine Daten hast?","expected":"Distinguish unknown from known and do not invent a result.","mode":"capability"},
+    {"id":"reasoning.contradiction","family":"reasoning","input":"Eine neue Aussage widerspricht einer gespeicherten älteren Aussage.","expected":"Detect conflict and prefer explicit newer evidence or request material clarification.","mode":"capability"},
+    {"id":"reasoning.important_self_check","family":"reasoning","input":"Führe einen wichtigen mehrstufigen Plan aus.","expected":"Define success and verify important assumptions/results before claiming completion.","mode":"capability"},
+    {"id":"tools.device_status","family":"tools","input":"Zeig mir den Gerätestatus.","expected":"Choose local read-only device status capability without cloud reasoning.","mode":"capability"},
+    {"id":"tools.wrong_tool.reject","family":"tools","input":"Eine Anfrage passt zu keinem registrierten Gerätetool.","expected":"Reject wrong/unavailable tool rather than forcing a nearby command.","mode":"capability"},
+    {"id":"tools.open_app.verify","family":"tools","input":"Öffne eine App.","expected":"Execute typed action and verify observed result before reporting success.","mode":"capability"},
+    {"id":"tools.missing_target.recover","family":"tools","input":"Tippe auf einen nicht vorhandenen Zieltext und fahre sinnvoll fort.","expected":"Observe failure, use bounded recovery/alternative or report precise blocker.","mode":"capability"},
+    {"id":"restart.conversation","family":"restart","input":"Nach Prozessneustart: worüber haben wir gerade gesprochen?","expected":"Restore structured working conversation state where policy allows.","mode":"capability"},
+    {"id":"restart.goal_resume","family":"restart","input":"Nach Neustart: mach bei der offenen Aufgabe weiter.","expected":"Resume the durable goal/task at the last confirmed step, not from chat guesswork.","mode":"capability"},
+    {"id":"cloud.cognitive_call_count","family":"cloud","input":"Normale freie Nachricht","expected":"Cloud calls are measured; redundant learning calls are visible and later reducible.","mode":"static_metric"},
+    {"id":"cloud.latency_observable","family":"cloud","input":"Normale freie Nachricht","expected":"Brain/provider latency is instrumented separately from TTS/UI.","mode":"static_metric"},
+    {"id":"cloud.offline_core","family":"cloud","input":"Normale freie Unterhaltung ohne Netzwerk","expected":"Core conversation/memory/tool routing remains useful with cloud disabled.","mode":"capability"}
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "celine-room-floor-raster-diagnostic/v1",
+  "interpretation": "diagnostic-only; no VISUAL PASS possible; manually vetted different exposed-floor patches",
+  "call_stage_px": [
+    32,
+    466,
+    1048,
+    1279
+  ],
+  "reference_size_px": [
+    1402,
+    1122
+  ],
+  "reference_exposed_floor": {
+    "bbox_px": [
+      245,
+      673,
+      294,
+      763
+    ],
+    "pixel_count": 4410,
+    "sRGB_luma_p10": 51.203,
+    "sRGB_luma_median": 64.407,
+    "sRGB_luma_p90": 71.829,
+    "sRGB_luma_span_p10_p90": 20.626
+  },
+  "call_exposed_floor": {
+    "bbox_px": [
+      218,
+      459,
+      269,
+      504
+    ],
+    "pixel_count": 2295,
+    "sRGB_luma_p10": 32.96,
+    "sRGB_luma_median": 33.676,
+    "sRGB_luma_p90": 33.888,
+    "sRGB_luma_span_p10_p90": 0.928
+  },
+  "ratios": {
+    "call_to_reference_median_sRGB_luma": 0.5229,
+    "call_to_reference_p10_p90_luma_span": 0.045
+  },
+  "warnings": [
+    "FLOOR_UNDERLIT_RELATIVE_TO_REFERENCE_PATCH",
+    "FLOOR_FLAT_OR_DETAIL_LOST_IN_CALL_PATCH"
+  ],
+  "diagnostic_verdict": "FLAGGED",
+  "roi_status": "MANUALLY_VETTED_FOR_SPECIFIC_BASELINE_ONLY",
+  "window_glass_semantic_verdict": "NOT_CHECKED_AND_NEVER_INFERRED",
+  "input_sha256": {
+    "call": "ec68d0d8dda13d72c6fd97d6819d658e5695ba5505fe23425551d9b842c84191",
+    "reference": "c5bbbfcffdcf60ac4d59149e21e5860de3b99b5b15864569d489a699dc7986e1"
+  },
+  "provenance": {
+    "proof": "Room Visual Polish #286",
+    "proof_run_id": 38912197608,
+    "proof_artifact_id": 12051186261,
+    "proof_head": "f30ee74d4cab55dba90500603699136508252ccc",
+    "built_room_runtime_head": "ffe4db33b7c73c2cdaa48753e95d880071b1f2f7",
+    "runtime_fingerprint": "dea4c685866295bb5c6c4e68883820d709ea4d49c29facd4d84a7cf5fba3ff18",
+    "artifact_zip_sha256": "ca6d424f3b98af31b3a80f6c5e3dd094f9ce5404514e60b05dcfeb0da44e9b5a"
+  }
+}

@@ -1,0 +1,121 @@
+name: Celine v83 Signing Rotation Compatibility (disposable test keys)
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-signing-rotation-compatibility.yml'
+      - 'ci/celine_signing_rotation_compatibility.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celine-v83-isolated-signing-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  synthetic-signing-lineage:
+    name: Isolated proof of update-signature compatibility; no production signing/release
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Prepare ephemeral old/new certificates and API26-33 test APKs, without app Gradle
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$ANDROID_HOME"
+          if [ ! -x "$SDK/build-tools/35.0.0/apksigner" ]; then
+            "$SDK/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0'
+          fi
+          if [ ! -f "$SDK/platforms/android-35/android.jar" ]; then
+            "$SDK/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-35'
+          fi
+          bash ci/celine_signing_rotation_compatibility.sh prepare
+      - name: Enable Android emulator KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+      - name: API 26 existing install / signature rotation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 26
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics
+          script: bash ci/celine_signing_rotation_compatibility.sh emulator 26
+      - name: API 27 existing install / signature rotation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 27
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics
+          script: bash ci/celine_signing_rotation_compatibility.sh emulator 27
+      - name: API 28 existing install / signature rotation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics
+          script: bash ci/celine_signing_rotation_compatibility.sh emulator 28
+      - name: API 32 existing install / signature rotation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 32
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics
+          script: bash ci/celine_signing_rotation_compatibility.sh emulator 32
+      - name: API 33 existing install / signature rotation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-metrics
+          script: bash ci/celine_signing_rotation_compatibility.sh emulator 33
+      - name: Record explicitly limited signing security conclusion
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find signing-rotation-evidence -maxdepth 1 -name 'api-*.txt' | wc -l)" -eq 5
+          cat > signing-rotation-evidence/security-scope.txt <<'EOF'
+          Synthetic test-key installation compatibility only. No production v80/v82 private
+          signing material was used, rotated, committed, printed, or uploaded.
+          A public historical release signing key cannot authenticate a replacement
+          publisher, even if synthetic proof-of-rotation works on API 28+.
+          Android API 26/27 cannot authenticate a different signer in-place using v3;
+          any legacy-key signed update is forgeable given the exposed old private key.
+          Therefore v83 stable and CelineUpdaterV47 remain BLOCKED pending a separately
+          verified trusted distribution/migration decision and real-device verification.
+          EOF
+          cat signing-rotation-evidence/security-scope.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload nonsecret device and signature verification evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-v83-signing-rotation-compatibility-evidence
+          path: signing-rotation-evidence/*.txt
+          if-no-files-found: warn
+      - name: Erase disposable signing keys and unsigned APKs
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/celine-rotation-fixtures"

@@ -23,6 +23,12 @@ final class CelineCallUpperBodyPresenceV55 {
     private static final float CALL_SPINE01_PITCH = 1.60f;
     private static final float CALL_SPINE02_PITCH = 1.20f;
 
+    // Room-rebuild CALL checkpoints must use the same Proof #63 reference camera as HOME instead of
+    // the old farther-room portrait override. Celine3DView's CALL base is 0.70, so entering CALL at
+    // 0.70 yields normalizedZoom == 1.0: exact reference eye/target/FOV while leaving Celine's rig,
+    // model scale and the room/furniture transforms untouched.
+    private static final float CALL_REFERENCE_ENTRY_ZOOM = 0.70f;
+
     private static final WeakHashMap<Activity, Controller> CONTROLLERS = new WeakHashMap<>();
     private CelineCallUpperBodyPresenceV55() {}
 
@@ -84,6 +90,11 @@ final class CelineCallUpperBodyPresenceV55 {
             if (!running) return;
             choreographer.postFrameCallback(this);
             if (paused) return;
+            // The emulator's Filament worker is the exclusive renderer and
+            // pose transaction owner. Do not race it with this legacy UI-vsync
+            // skinning driver. The v80 central production mixer already owns
+            // the body, face and CALL/HOME transition on that worker.
+            if (Celine3DView.usesSoftwareRenderThread()) return;
             Celine3DView view = find3D(decor);
             if (view == null || !view.isAttachedToWindow()) return;
             if (driver == null || boundView != view) {
@@ -127,6 +138,7 @@ final class CelineCallUpperBodyPresenceV55 {
         boolean logged;
         boolean disabled;
         boolean wasInCall;
+        float preCallCameraZoom = Float.NaN;
 
         Driver(Activity activity, Celine3DView view) throws Exception {
             this.activity = activity;
@@ -154,6 +166,13 @@ final class CelineCallUpperBodyPresenceV55 {
                 if (wasInCall) restore();
                 wasInCall = false;
                 return;
+            }
+            if (!wasInCall) {
+                preCallCameraZoom = cameraZoom(view);
+                setCameraZoom(view, CALL_REFERENCE_ENTRY_ZOOM);
+                Celine3DDiagnostics.record(activity, "V80-CALL-CAM-110", "CALL Referenzkamera gerahmt",
+                        "entryZoom=" + CALL_REFERENCE_ENTRY_ZOOM + " previousZoom=" + preCallCameraZoom
+                                + " · exact Proof#63 reference framing");
             }
             wasInCall = true;
 
@@ -217,7 +236,14 @@ final class CelineCallUpperBodyPresenceV55 {
                 try { transforms.commitLocalTransformTransaction(); } catch (Throwable ignored) {}
             }
             try { animator.updateBoneMatrices(); } catch (Throwable ignored) {}
+            restoreCameraZoom();
             logged = false;
+        }
+
+        private void restoreCameraZoom() {
+            if (Float.isNaN(preCallCameraZoom)) return;
+            setCameraZoom(view, preCallCameraZoom);
+            preCallCameraZoom = Float.NaN;
         }
 
         private void restore(Bone bone) { if (bone != null) transforms.setTransform(bone.instance, bone.base); }
@@ -236,6 +262,14 @@ final class CelineCallUpperBodyPresenceV55 {
     }
 
     static boolean isCallStage(View view) {
+        // View parent traversal is UI-owned during HOME/CALL reparenting.
+        // Worker consumers (including the retired camera compatibility hook)
+        // use the snapshot captured by Celine3DView.onAttachedToWindow.
+        if (view instanceof Celine3DView
+                && Celine3DView.usesSoftwareRenderThread()
+                && android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            return ((Celine3DView) view).softwareCallStage();
+        }
         View cur = view;
         while (cur != null) {
             Object tag = cur.getTag();
@@ -284,6 +318,24 @@ final class CelineCallUpperBodyPresenceV55 {
             if (value instanceof Number) return Math.max(0f, Math.min(1f, ((Number) value).floatValue()));
         } catch (Throwable ignored) {}
         return 0f;
+    }
+
+    private static float cameraZoom(Celine3DView view) {
+        try {
+            Object value = field(view, "cameraZoom");
+            if (value instanceof Number) return ((Number) value).floatValue();
+        } catch (Throwable ignored) {}
+        return 1.0f;
+    }
+
+    private static void setCameraZoom(Celine3DView view, float zoom) {
+        try {
+            Field f = Celine3DView.class.getDeclaredField("cameraZoom");
+            f.setAccessible(true);
+            f.setFloat(view, zoom);
+        } catch (Throwable e) {
+            throw new IllegalStateException("CALL cameraZoom konnte nicht gesetzt werden", e);
+        }
     }
 
     private static Object field(Object target, String name) throws Exception {

@@ -20,6 +20,12 @@ public final class Celine3DDiagnostics {
     private static final String K_TIME = "time";
     private static final String K_LOG = "log";
     private static final int MAX_LOG_CHARS = 30000;
+    // Real v83 emulator #46: HOME V80-209 was persisted again for every
+    // unchanged render frame. The resulting repeated 2-4s diagnostic fsyncs
+    // starved UIAutomator/Android Settings even after Filament pacing.
+    // Preserve the first snapshot and any later actual change; no G1/Persona
+    // preferences or user data are touched by this diagnostic de-duplication.
+    private static String lastHomeCameraSnapshot;
 
     private Celine3DDiagnostics() {}
 
@@ -31,6 +37,9 @@ public final class Celine3DDiagnostics {
             String safeCode = clean(code, "D3D-???");
             String safeStage = clean(stage, "Unbekannter Schritt");
             String safeDetail = clean(detail, "-");
+            if ("V80-209".equals(safeCode) && safeDetail.equals(lastHomeCameraSnapshot)) {
+                return;
+            }
             String time = new SimpleDateFormat("HH:mm:ss.SSS", Locale.GERMANY).format(new Date());
             String line = time + "  " + safeCode + "  " + safeStage + "  |  " + safeDetail;
             String old = p.getString(K_LOG, "");
@@ -42,7 +51,16 @@ public final class Celine3DDiagnostics {
                     .putString(K_DETAIL, safeDetail)
                     .putString(K_TIME, time)
                     .putString(K_LOG, next)
-                    .commit();
+                    // This diagnostic trace is called from UI/Filament frame and
+                    // lifecycle callbacks. Actual v83 emulator #42/#43 logcat
+                    // showed 2-4 second fsyncs of this file and 100% janky
+                    // frames while Android Accessibility could not read UI.
+                    // apply() updates the in-process snapshot synchronously,
+                    // but schedules its optional disk trace off the UI thread.
+                    // Crash evidence is also emitted to Android logcat below.
+                    // Keep explicit user-requested clear() durable (commit).
+                    .apply();
+            if ("V80-209".equals(safeCode)) lastHomeCameraSnapshot = safeDetail;
             Log.i(TAG, safeCode + "  " + safeStage + "  |  " + safeDetail);
         } catch (Throwable ignored) {}
     }

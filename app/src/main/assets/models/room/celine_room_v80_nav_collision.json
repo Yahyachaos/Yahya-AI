@@ -1,0 +1,331 @@
+{
+  "schema": 1,
+  "status": "prepared_draft",
+  "avatar_capsule": {
+    "radius_m": 0.35,
+    "standing_height_m": 1.7,
+    "note": "radius used for route clearance, exact avatar dimensions may be refined later without changing topology"
+  },
+  "room_bounds_m": {
+    "min": [
+      -3.2,
+      0,
+      -2.9
+    ],
+    "max": [
+      3.2,
+      2.8,
+      2.9
+    ]
+  },
+  "colliders": [
+    {
+      "id": "col_room_bed",
+      "object_id": "room_bed",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          0.7058,
+          0.0,
+          -1.738
+        ],
+        "max": [
+          3.1942,
+          0.9794,
+          0.238
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": true
+    },
+    {
+      "id": "col_room_dresser",
+      "object_id": "room_dresser",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          -3.2161,
+          0.0,
+          -0.634
+        ],
+        "max": [
+          -2.5839,
+          1.2338,
+          1.334
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": true
+    },
+    {
+      "id": "col_room_plant_large",
+      "object_id": "room_plant_large",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          -3.1859,
+          0.0,
+          -2.3593
+        ],
+        "max": [
+          -2.2141,
+          1.7533,
+          -1.4407
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": false
+    },
+    {
+      "id": "col_room_plant_small",
+      "object_id": "room_plant_small",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          1.2976,
+          0.0,
+          -2.8791
+        ],
+        "max": [
+          2.2024,
+          1.2176,
+          -1.9609
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": false
+    },
+    {
+      "id": "col_room_floor_lamp",
+      "object_id": "room_floor_lamp",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          -2.0113,
+          0.0,
+          1.0886
+        ],
+        "max": [
+          -1.0887,
+          1.6378,
+          2.0114
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": true
+    },
+    {
+      "id": "col_room_nightstand_back",
+      "object_id": "room_nightstand_back",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          2.2064,
+          0.0,
+          -2.277
+        ],
+        "max": [
+          3.1136,
+          1.2177,
+          -1.603
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": false
+    },
+    {
+      "id": "col_room_nightstand_front",
+      "object_id": "room_nightstand_front",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          2.2064,
+          0.0,
+          0.163
+        ],
+        "max": [
+          3.1136,
+          1.2177,
+          0.837
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": false
+    },
+    {
+      "id": "col_room_lounge_chair",
+      "object_id": "room_lounge_chair",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          -2.3455,
+          0.0,
+          -1.5301
+        ],
+        "max": [
+          -1.1545,
+          0.9018,
+          -0.4699
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": true
+    },
+    {
+      "id": "col_room_foreground_table",
+      "object_id": "room_foreground_table",
+      "shape": "aabb",
+      "aabb_m": {
+        "min": [
+          -0.7481,
+          0.0,
+          1.6863
+        ],
+        "max": [
+          0.7481,
+          0.7563,
+          2.5137
+        ]
+      },
+      "navigation_blocker": true,
+      "interaction_exception": true
+    }
+  ],
+  "walkable_surface": {
+    "floor_y_m": 0.0,
+    "rug_walkable": true
+  },
+  "edges": [
+    {
+      "from": "recovery_home_anchor",
+      "to": "camera_talk_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "camera_talk_anchor",
+      "to": "camera_near_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "camera_talk_anchor",
+      "to": "room_walk_anchor_left",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "camera_talk_anchor",
+      "to": "room_walk_anchor_right",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "room_walk_anchor_left",
+      "to": "chair_approach_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "room_walk_anchor_left",
+      "to": "dresser_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "chair_approach_anchor",
+      "to": "back_center_nav_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "back_center_nav_anchor",
+      "to": "shelf_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "shelf_anchor",
+      "to": "window_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "window_anchor",
+      "to": "room_walk_anchor_right",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "room_walk_anchor_right",
+      "to": "bed_approach_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "room_walk_anchor_left",
+      "to": "lamp_anchor",
+      "bidirectional": true,
+      "type": "verified_straight_approach",
+      "requires_turn_before_walk": true
+    },
+    {
+      "from": "camera_near_anchor",
+      "to": "foreground_table_approach_anchor",
+      "bidirectional": true,
+      "type": "verified_short_approach",
+      "requires_turn_before_walk": false
+    },
+    {
+      "from": "dresser_anchor",
+      "to": "mirror_anchor",
+      "bidirectional": true,
+      "type": "interaction_step",
+      "requires_turn_before_walk": true
+    }
+  ],
+  "contact_edges": [
+    {
+      "from": "foreground_table_approach_anchor",
+      "to": "foreground_table_lean_anchor"
+    },
+    {
+      "from": "bed_approach_anchor",
+      "to": "bed_edge_sit_anchor"
+    },
+    {
+      "from": "bed_edge_sit_anchor",
+      "to": "bed_relax_anchor"
+    },
+    {
+      "from": "bed_relax_anchor",
+      "to": "bed_lie_anchor"
+    },
+    {
+      "from": "bed_edge_sit_anchor",
+      "to": "bed_exit_anchor"
+    },
+    {
+      "from": "chair_approach_anchor",
+      "to": "chair_sit_anchor"
+    }
+  ],
+  "route_policy": [
+    "never teleport on route failure",
+    "turn before locomotion",
+    "match root speed to gait",
+    "settle before pose switch",
+    "camera never chases avatar"
+  ]
+}

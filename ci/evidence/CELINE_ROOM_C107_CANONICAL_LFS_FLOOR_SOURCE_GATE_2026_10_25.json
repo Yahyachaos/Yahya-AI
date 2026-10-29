@@ -1,0 +1,192 @@
+{
+  "schema": "celine-room-canonical-floor-source-gate/v1",
+  "date": "2026-10-25",
+  "repository": "Yahyachaos/Yahya-AI",
+  "scope": "C107 independent verified original-source identity + architectural floor-texture provenance; source-read-only, no rendering claims",
+  "prewrite": {
+    "room_pr": 111,
+    "room_head": "3eaff66cc5cd360445a577f3abe0cf0c0716d9d7",
+    "core_pr": 113,
+    "core_head": "4843bf3d3522ab6291cd0bab574343aaaff7864a",
+    "main_head": "5a23ccf75fb82b97d262cf3d8be24a6fe77fb26b"
+  },
+  "source": {
+    "pinned_commit": "df50816187978cbf5faf818ad484c3f682be7588",
+    "bridge_blob_sha": "5489e31585bcfd04ecb073434d70200b0f13f8e2",
+    "checksum_index_blob_sha": "f1deb679b861117c1590b1483fa498479ba02819",
+    "raw_source_count": 12,
+    "raw_source_pointer_oids_and_sizes_result": "PASS_12_OF_12",
+    "original_material_images_extracted": "NO",
+    "pointers": [
+      {
+        "name": "Bett.glb",
+        "source_role": [
+          "room_bed"
+        ],
+        "lfs_git_blob": "c130c111d376310d5f318496bde433f59099d599",
+        "sha256": "9d1f895ed3bba50f5bff1c66c1e029b87199c245319c383e1bae8b324cb7bad2",
+        "size_bytes": 122256544,
+        "verified": true
+      },
+      {
+        "name": "Fenstermitgardinen.glb",
+        "source_role": [
+          "room_window_drapes"
+        ],
+        "lfs_git_blob": "0962ea993d03c6e8eb3f3a3165945ce0884aea0d",
+        "sha256": "24017a81193d1a55355f152ee491ad517de367446ae8639e346763823fcb231c",
+        "size_bytes": 127167492,
+        "verified": true
+      },
+      {
+        "name": "GroßeKomode.glb",
+        "source_role": [
+          "room_dresser"
+        ],
+        "lfs_git_blob": "e327f47a1b946765fba1da502e8142f5a069215f",
+        "sha256": "e7da2e49e740d018effe70ebd2d73dea33a150bd2705229d8337be4743829a45",
+        "size_bytes": 125839900,
+        "verified": true
+      },
+      {
+        "name": "Großepflanzemittopf.glb",
+        "source_role": [
+          "room_plant_large"
+        ],
+        "lfs_git_blob": "d7a58cc8c3008cc4eda4db1ab363ae6d252c9eee",
+        "sha256": "48ea9ca13e15b4ec91eae2a3d53ad524d0037ec848bd4ed1d80d28e4ac50f99a",
+        "size_bytes": 159323700,
+        "verified": true
+      },
+      {
+        "name": "Hängeboardmitbücher.glb",
+        "source_role": [
+          "room_wall_shelf_books"
+        ],
+        "lfs_git_blob": "c615a0c1ef618d736ad973a33ab0de926c983156",
+        "sha256": "9637acab07088be39f09ad7141b5b657fccf4a53220c2c715db8106348bcafa1",
+        "size_bytes": 121299544,
+        "verified": true
+      },
+      {
+        "name": "Kleinepflanzemittopf.glb",
+        "source_role": [
+          "room_plant_small"
+        ],
+        "lfs_git_blob": "2e94d7a4c0fed2f258d7ddf2b8b21c7e52455ddb",
+        "sha256": "ccccb315902611f9a0c5b569e910784de16939486548acee200fae2578c3ab20",
+        "size_bytes": 177155676,
+        "verified": true
+      },
+      {
+        "name": "Lampe.glb",
+        "source_role": [
+          "room_floor_lamp",
+          "floor_lamp_light"
+        ],
+        "lfs_git_blob": "deed1c55150ffc43d5b1123c872c61222ed8b2f1",
+        "sha256": "7362dca98d12607cb9df74ab75bcb3c5b8b738b007417b31307ad490aa455bc3",
+        "size_bytes": 120449828,
+        "verified": true
+      },
+      {
+        "name": "Nachttisch.glb",
+        "source_role": [
+          "room_nightstand_back",
+          "room_nightstand_front"
+        ],
+        "lfs_git_blob": "60d28e3bc16d9ce3cc3508a75c521c7350e9aeb7",
+        "sha256": "169b8a505183a8d4e9a31d5d6f808751a76bef7a3b1fb181a427557dc6bb5a1c",
+        "size_bytes": 120391268,
+        "verified": true
+      },
+      {
+        "name": "Sessel.glb",
+        "source_role": [
+          "room_lounge_chair"
+        ],
+        "lfs_git_blob": "78ec288ec286758a44e9f821e9dd35f43c061015",
+        "sha256": "2f6189e46c4c072f51d43ecb0bddabf07dd1bda9b928cfc9cdd64f56352f32c0",
+        "size_bytes": 122003928,
+        "verified": true
+      },
+      {
+        "name": "Teppisch.glb",
+        "source_role": [
+          "room_rug"
+        ],
+        "lfs_git_blob": "b62df774c6a9c056bf07afdf239910a9dbaf43ba",
+        "sha256": "5eeb78072d2e059bc9b75434464c6b3d6ee0965d17e55fe333006638d17ab24b",
+        "size_bytes": 189246808,
+        "verified": true
+      },
+      {
+        "name": "Tischfürlaptop.glb",
+        "source_role": [
+          "room_foreground_table"
+        ],
+        "lfs_git_blob": "a7a3e958d4f3fd56b4d2dfefbaded19dafebbd90",
+        "sha256": "b38ab5df0f9f66b893b6c78577c61d78f9c28fdd813a7a78a21652bfcdfe35da",
+        "size_bytes": 121105992,
+        "verified": true
+      },
+      {
+        "name": "Wandspiegelrund.glb",
+        "source_role": [
+          "room_round_mirror"
+        ],
+        "lfs_git_blob": "25207e88f08f7177ab4e76cfef712317d1196428",
+        "sha256": "f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0",
+        "size_bytes": 120251436,
+        "verified": true
+      }
+    ]
+  },
+  "derived_floor": {
+    "path": "app/src/main/assets/models/room/source-fidelity/room_shell.glb",
+    "blob_sha": "520b4f143a50e223600b701df7c8a2a08140c73c",
+    "prior_direct_binary_audit": "ci/evidence/CELINE_ROOM_C106_FLOOR_UV_MATERIAL_SOURCE_AUDIT_2026_10_25.md",
+    "top_face_uv_bounds": {
+      "u": [
+        0.625,
+        0.875
+      ],
+      "v": [
+        0.25,
+        0.5
+      ]
+    },
+    "top_face_wood_material": [
+      0.48,
+      0.31,
+      0.17,
+      1
+    ],
+    "texture_count": 0,
+    "image_count": 0
+  },
+  "texture_inventory": {
+    "app_assets_textures_directory": [
+      "room_window_drapes_reference.jpg"
+    ],
+    "explicit_wood_floor_texture": false
+  },
+  "evidence_logic": {
+    "canonical_original_source_ownership": "Furniture/decor source origins only; no separately registered architectural-floor GLB in twelve-file bridge",
+    "identity_verified": true,
+    "suitability_to_apply_any_furniture_atlas_as_architectural_floor": "NOT_DEMONSTRATED",
+    "reuse_or_synthesize_floor_texture_authorized": false,
+    "glTF_top_face_uv_remap_with_unverified_texture": "PROHIBITED",
+    "note": "LFS pointer hash/size identity does NOT authenticate surface semantics or prove table/dresser/rug image suitable as floorboards. Reuse requires extracting the exact pinned image bytes plus demonstrable source-reference match and approval."
+  },
+  "non_results": {
+    "new_android_build": false,
+    "new_APK": false,
+    "new_visual_proof": false,
+    "visual_whole_room": "FAIL_UNCHANGED",
+    "release_latest": "v80_unchanged",
+    "G2_3": "PAUSED",
+    "glass_window_decision": "NOT_AUTHORIZED"
+  },
+  "exact_next_action": "Audit the actual pinned, hash-verified source material images in the table/dresser originals for a plausible floorboard texture and recorded semantic authorization; if none is proven, leave derived floor PBR/UV untouched and investigate a different independent, approved Room architecture/material cause."
+}

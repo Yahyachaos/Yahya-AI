@@ -237,13 +237,19 @@ if missing:
 cb=bounds(content); sb=bounds(stage); capb=bounds(caption); mb=bounds(mic); eb=bounds(end)
 if cb[3] < int(screen_h*.85):
     raise SystemExit(f"CALL content is still IME-compressed: content={cb} screenH={screen_h}")
-if sb[3]-sb[1] < int(screen_h*.45):
-    raise SystemExit(f"CALL avatar stage is too short after HOME keyboard transition: stage={sb} screenH={screen_h}")
+content_w=cb[2]-cb[0]
+stage_w=sb[2]-sb[0]
+stage_h=sb[3]-sb[1]
+aspect=stage_w/stage_h if stage_h else 0.0
+if stage_w < int(content_w*.90) or stage_h < int(screen_h*.40):
+    raise SystemExit(f"CALL avatar stage did not occupy the reference slot after HOME keyboard transition: stage={sb} content={cb} screenH={screen_h}")
+if abs(aspect-1.25) > .02:
+    raise SystemExit(f"CALL avatar stage lost 1280:1024 reference aspect after HOME keyboard transition: {aspect:.4f}")
 if capb[3] > cb[3] or mb[3] > cb[3] or eb[3] > cb[3]:
     raise SystemExit(f"CALL caption/controls extend outside visible content: content={cb} caption={capb} mic={mb} end={eb}")
 if home_edit is not None and home_edit.attrib.get("focused")=="true":
     raise SystemExit("HOME composer still owns focus underneath CALL")
-print(f"CALL keyboard inheritance fixed: content={cb} stage={sb} caption={capb} mic={mb} end={eb}")
+print(f"CALL keyboard inheritance fixed: content={cb} stage={sb} aspect={aspect:.4f} caption={capb} mic={mb} end={eb}")
 PY
 
 python3 ci/check-magenta-avatar.py emulator-call.png CALL_KEYBOARD_TRANSITION || fail "CALL avatar pixels missing after HOME keyboard transition"
@@ -303,5 +309,47 @@ if composer.attrib.get("focused")=="true":
 print(f"CALL return preserved HOME geometry with IME hidden: {after}")
 PY
 python3 ci/check-magenta-avatar.py emulator-home-return.png HOME_RETURN_KEYBOARD_TRANSITION || fail "HOME-return avatar pixels missing after CALL keyboard transition"
+
+# The neutral-return guard must not make HOME's composer inert. Its first explicit ACTION_DOWN
+# must synchronously restore native focusability and reopen the keyboard; no second tap allowed.
+read -r RETURN_EDIT_X RETURN_EDIT_Y <<< "$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root=ET.parse("emulator-home-return.xml").getroot()
+pat=re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+for node in root.iter("node"):
+    if node.attrib.get("class")!="android.widget.EditText" or node.attrib.get("content-desc")!="Celin Nachricht schreiben":
+        continue
+    m=pat.fullmatch(node.attrib.get("bounds",""))
+    if not m:
+        continue
+    x1,y1,x2,y2=map(int,m.groups())
+    print((x1+x2)//2,(y1+y2)//2)
+    raise SystemExit(0)
+raise SystemExit("HOME-return composer bounds missing")
+PY
+)"
+[[ -n "${RETURN_EDIT_X:-}" && -n "${RETURN_EDIT_Y:-}" ]] || fail "HOME-return composer coordinates missing"
+adb shell input tap "$RETURN_EDIT_X" "$RETURN_EDIT_Y"
+RETURN_TAP_FOCUSED=false
+for _ in $(seq 1 8); do
+  sleep 1
+  adb shell dumpsys input_method > emulator-ime.txt
+  dump_ui emulator-home-retap.xml
+  if ime_visible && python3 - <<'PY'
+import xml.etree.ElementTree as ET
+nodes=list(ET.parse("emulator-home-retap.xml").getroot().iter("node"))
+composer=next((n for n in nodes if n.attrib.get("class")=="android.widget.EditText" and n.attrib.get("content-desc")=="Celin Nachricht schreiben"),None)
+raise SystemExit(0 if composer is not None and composer.attrib.get("focused")=="true" else 1)
+PY
+  then
+    RETURN_TAP_FOCUSED=true
+    break
+  fi
+done
+[[ "$RETURN_TAP_FOCUSED" == true ]] || fail "first explicit HOME composer tap did not restore focus and IME after CALL"
+adb shell input keyevent 4
+sleep 1
+echo "HOME composer first explicit tap restored focus and IME after CALL"
 
 echo "Keyboard chat + CALL inherited-focus visibility proof passed with PID=$PID_CALL"

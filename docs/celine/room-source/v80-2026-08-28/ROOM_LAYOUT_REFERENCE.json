@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "status": "reference_only_not_final_runtime_geometry",
+  "target_shell_m": {
+    "width": 5.8,
+    "depth": 5.0,
+    "height": 2.8
+  },
+  "camera_model": "viewer is laptop/webcam; no laptop should be visible in final scene",
+  "design": "warm elegant modern bedroom/lounge, beige/cream/taupe, warm wood, plush rug, upholstered bed, warm lamps, window with beige drapes + sheer curtains, sideboard, lounge chair, plants",
+  "anchors": [
+    "camera_talk_anchor",
+    "bed_edge_sit_anchor",
+    "bed_relax_anchor",
+    "bed_lie_anchor",
+    "room_walk_anchor_left",
+    "room_walk_anchor_right",
+    "chair_anchor"
+  ],
+  "constraints": [
+    "preserve accepted seated pose unless evidence proves separate defect",
+    "room must remain modular and walkable",
+    "bed must support later sit/relax/lie interactions",
+    "do not generate one monolithic Meshy room blob",
+    "canonical Celine remains separate"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "baseline": "Celine Cognitive OS G1.0",
+  "case_catalog": {
+    "count": 23,
+    "families": [
+      "cloud",
+      "conversation",
+      "memory",
+      "reasoning",
+      "restart",
+      "tools"
+    ],
+    "path": "ci/evidence/CELINE_G1_BASELINE_CASES.json",
+    "sha256": "53da128f5a189a925246e5bc9b243aa90ed45121601ae50409645e48f1caa205"
+  },
+  "deterministic_probe": {
+    "detail": "CELINE_G1_CONVERSATION_PROBE_PASS\nnormal_start=20\nfollow_start=12",
+    "returncode": 0,
+    "status": "PASS"
+  },
+  "git_head": "36a0f8ed2312d44ce65a1c139ef7ef49464e334f",
+  "interpretation": "GAP/PARTIAL are expected baseline findings, not runner failures. Future generations must improve against the fixed case catalog without weakening the cases.",
+  "network_used": false,
+  "results": [
+    {"evidence":"Executed actual ConversationIntelligenceV78 with javac/java: CELINE_G1_CONVERSATION_PROBE_PASS\nnormal_start=20\nfollow_start=12","family":"conversation","id":"conversation.deterministic_policy","status":"PASS","target":"Follow-up/correction/new-topic classification and bounded context window stay reproducible."},
+    {"evidence":"rememberExplicit + SharedPreferences flat memory present.","family":"memory","id":"memory.explicit_capture","status":"PARTIAL","target":"Explicit memory remains durable, but becomes a typed/provenanced record."},
+    {"evidence":"Current durable memory is one SharedPreferences text blob; duplicate handling is substring-based and old content is truncated at 7000 chars.","family":"memory","id":"memory.structured_records","status":"GAP","target":"Versioned records with type, provenance, confidence, importance, privacy, expiry and supersession."},
+    {"evidence":"The full flat memory string is injected into the cloud instruction for every free message.","family":"memory","id":"memory.relevance_retrieval","status":"GAP","target":"Retrieve only memories relevant to the current goal within a defined budget."},
+    {"evidence":"No record identity/supersession/conflict-link mechanism exists in the flat appendMemory path.","family":"memory","id":"memory.correction_supersession","status":"GAP","target":"Explicit newer correction supersedes contradicted older memory deterministically."},
+    {"evidence":"Memory UI supports clear-all, but no per-memory forget/correct operation was found.","family":"memory","id":"memory.forget_selected","status":"PARTIAL","target":"Inspect, correct and forget individual records without clearing unrelated state."},
+    {"evidence":"MainActivity messages are held in an in-memory ArrayList and no persisted conversation restore path was detected.","family":"restart","id":"restart.conversation_state","status":"GAP","target":"Persist minimal structured working state needed for safe continuity after restart."},
+    {"evidence":"No durable goal/task graph or working-state owner is present.","family":"restart","id":"restart.goal_resume","status":"GAP","target":"Resume an open goal at its last confirmed step across activity/process/device restart."},
+    {"evidence":"MainActivity owns a fixed MODEL constant and directly builds provider requests.","family":"reasoning","id":"reasoning.provider_independence","status":"GAP","target":"Reasoning provider is replaceable behind app-owned CelineBrain/CelineReasoningProvider."},
+    {"evidence":"No central planner/simulator/verifier owner detected in the current message path.","family":"reasoning","id":"reasoning.planner_verifier","status":"GAP","target":"Important multi-step tasks define success, plan, verify results and recover before reporting."},
+    {"evidence":"Uncertainty/no-fabrication exists as conversation instruction policy, not as app-owned evidence/confidence state.","family":"reasoning","id":"reasoning.uncertainty","status":"PARTIAL","target":"Self model distinguishes observed/known/inferred/unknown and drives verification/escalation."},
+    {"evidence":"Device actions are selected through hard-coded handleLocalCommand regex/if routing; no typed registry detected.","family":"tools","id":"tools.routing","status":"PARTIAL","target":"Typed allowlisted tool registry with schema, preconditions, risk class and typed results."},
+    {"evidence":"Existing local capability surface includes device status/app opening plus accessibility home/back/click/text/screen/tap.","family":"tools","id":"tools.capability_surface","status":"PASS","target":"Preserve these working capabilities while migrating them behind Tool Cortex."},
+    {"evidence":"Individual calls return booleans, but there is no general plan -> act -> observe -> verify -> recover loop.","family":"tools","id":"tools.observe_verify_recover","status":"GAP","target":"Never claim task success without task-specific observed result evidence; bounded recovery on failure."},
+    {"evidence":"Static current path contains 2 Responses API call sites: answer + learnWithAI. Online neural speech adds a separate cloud audio request=true.","family":"cloud","id":"cloud.cognitive_call_count","status":"BASELINE","target":"Instrument actual per-turn calls; later remove redundant cognitive calls where quality permits."},
+    {"evidence":"No dedicated brain/provider latency instrumentation detected.","family":"cloud","id":"cloud.latency_observability","status":"GAP","target":"Measure brain/provider/retrieval/tool latency separately from UI and TTS."},
+    {"evidence":"Current UI explicitly states that free conversation still requires cloud when no API key is configured.","family":"cloud","id":"cloud.offline_core_conversation","status":"GAP","target":"Core conversation/memory/tool routing remains useful with cloud disabled by G3."}
+  ],
+  "schema": 1,
+  "source_inputs": {
+    "app/src/main/java/de/yahya/ai/ConversationIntelligenceV78.java": "e871c8911472e70e1e8337836f842e1ffeb846670480f81da1ed9d7afefa88f9",
+    "app/src/main/java/de/yahya/ai/DeviceBridge.java": "4c8a4954a1420f2ad4cdbb57991d7e98cb16fed5efda6abc7b65442e7c7c2a17",
+    "app/src/main/java/de/yahya/ai/MainActivity.java": "65ff5ca8f2289573fc3119eb952bd737e59c69faf2f530173760470fedd672f6",
+    "app/src/main/java/de/yahya/ai/PrincessAccessibilityService.java": "690f8fab1667440f5e87beb40a6dd78b9cde1cf8621b670a665ef219310266c8"
+  },
+  "summary": {
+    "BASELINE": 1,
+    "GAP": 10,
+    "PARTIAL": 4,
+    "PASS": 2
+  },
+  "workflow_evidence": {
+    "workflow": "Celine G1 Intelligence Baseline",
+    "run_number": 1,
+    "run_id": 33645992642,
+    "artifact_id": 9852785460,
+    "artifact_digest": "sha256:913120e2773882492b84f8c8ba71ab1bfcbc19264d2b2d6bee56886f750c7c73",
+    "conclusion": "success"
+  }
+}

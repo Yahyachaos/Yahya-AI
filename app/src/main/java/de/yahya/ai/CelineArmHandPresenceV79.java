@@ -35,6 +35,9 @@ final class CelineArmHandPresenceV79 {
 
     static void install(Activity activity, View decor) {
         if (!(activity instanceof MainActivity) || decor == null) return;
+        // The v80 central production mixer already owns arms/hands on the
+        // software-render worker, avoiding concurrent UI-native transactions.
+        if (Celine3DView.usesSoftwareRenderThread()) return;
         Controller controller;
         synchronized (CONTROLLERS) {
             controller = CONTROLLERS.get(activity);

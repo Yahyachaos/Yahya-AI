@@ -25,12 +25,12 @@ import java.util.*;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private LinearLayout chatBox; private ScrollView scroll; private EditText input; private TextView status; private Button mic; private ImageView avatar;
-    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private SupertonicModelManager supertonicModels; private CelineAvatarController avatarController; private SharedPreferences prefs; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
+    private TextToSpeech tts; private boolean ttsReady=false; private int ttsInitTries=0; private MediaPlayer neuralPlayer; private LocalNeuralTtsEngine localNeuralTts; private SupertonicModelManager supertonicModels; private CelineAvatarController avatarController; private SharedPreferences prefs; private CelineStructuredMemory memory; private CelineGoalTaskRuntime goalTaskRuntime; private CelineContextBrokerG14 contextBroker; private CelinePersonaMode personaMode; private CelinePersonaStateStore personaStateStore; private DeviceBridge device; private Handler handler=new Handler(Looper.getMainLooper());
     private final List<Message> messages=new ArrayList<>();
     private static final int REQ_MIC=44,REQ_SPEECH=55,REQ_PERMS=66; private static final String MODEL="gpt-5.6-luna";
     private int bg=Color.rgb(13,15,20),panel=Color.rgb(25,28,36),accent=Color.rgb(150,116,255),text=Color.rgb(242,242,246),muted=Color.rgb(160,164,176);
 
-    @Override protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("yahya_ai",MODE_PRIVATE);device=new DeviceBridge(this);localNeuralTts=new LocalNeuralTtsEngine(this);supertonicModels=new SupertonicModelManager(this);setContentView(buildUi());initTts();addAssistant("Hallo Yahya. Schön, dass du da bist. Was machen wir?",false);if(prefs.getBoolean("wake",false)){Intent ws=new Intent(this,WakeWordService.class);if(Build.VERSION.SDK_INT>=26)startForegroundService(ws);else startService(ws);}handleWakeIntent(getIntent());}
+    @Override protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("yahya_ai",MODE_PRIVATE);personaMode=new CelinePersonaMode();personaStateStore=new CelinePersonaStateStore(prefs);boolean personaRestored=personaStateStore.restoreInto(personaMode);memory=new CelineStructuredMemory(prefs);goalTaskRuntime=new CelineGoalTaskRuntime(prefs);contextBroker=new CelineContextBrokerG14(memory,goalTaskRuntime.graph(),goalTaskRuntime.graph());device=new DeviceBridge(this);localNeuralTts=new LocalNeuralTtsEngine(this);supertonicModels=new SupertonicModelManager(this);setContentView(buildUi());if(!personaRestored)Toast.makeText(this,"Persona-Zustand ungültig: Normalmodus aktiv.",Toast.LENGTH_LONG).show();initTts();addAssistant("Hallo Yahya. Schön, dass du da bist. Was machen wir?",false);if(prefs.getBoolean("wake",false)){Intent ws=new Intent(this,WakeWordService.class);if(Build.VERSION.SDK_INT>=26)startForegroundService(ws);else startService(ws);}handleWakeIntent(getIntent());}
     @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);handleWakeIntent(i);}
     private void handleWakeIntent(Intent i){if(i==null||!i.getBooleanExtra("wake_celin",false))return;String c=i.getStringExtra("wake_command");handler.postDelayed(()->{addAssistant("Ja?",false);speak("Ja?");if(c!=null&&!c.trim().isEmpty())submit(c.trim());else handler.postDelayed(this::startVoiceInput,550);},350);}
 
@@ -90,8 +90,20 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         String wake=prefs.getBoolean("wake",false)?"an":"aus";String cloud=prefs.getString("api_key","").trim().isEmpty()?"nicht verbunden":"verbunden";
         String voiceMode=prefs.getBoolean("neural_voice",true)?"Celin Online-Stimme":"Celin Offline (Gerät)"; String voiceName=prefs.getString("openai_voice","marin");
         String localVoice=(supertonicModels!=null&&supertonicModels.isInstalled())?"installiert":"nicht installiert";
-        String[] items={"Celin-Aktivierungswort: "+wake,"KI/API: "+cloud,"Gedächtnis","Berechtigungen & Gerätezugriff","Gerätestatus","Sprachmodus: "+voiceMode,"Lokale Neural-Stimme: "+localVoice,"Online-Stimme: "+voiceName,"Stimme testen","Avatar ansehen","Datenschutz: Gedächtnis löschen","Über Yahya AI"};
-        new AlertDialog.Builder(this).setTitle("Yahya AI · Einstellungen").setItems(items,(d,w)->{switch(w){case 0:toggleWake();break;case 1:showApiKeyDialog();break;case 2:showMemoryDialog();break;case 3:showAccess();break;case 4:addAssistant(device.status(),false);break;case 5:toggleVoiceMode();break;case 6:showLocalVoiceSetup();break;case 7:showOpenAiVoicePicker();break;case 8:speak("Hallo Yahya. Schön, dass du da bist. Was machen wir heute?");break;case 9:showAvatar();break;case 10:confirmDeleteMemory();break;case 11:showAbout();break;}}).show();
+        String[] items={"Celin-Aktivierungswort: "+wake,"KI/API: "+cloud,"Gedächtnis","Berechtigungen & Gerätezugriff","Gerätestatus","Sprachmodus: "+voiceMode,"Lokale Neural-Stimme: "+localVoice,"Online-Stimme: "+voiceName,"Stimme testen","Avatar ansehen","Datenschutz: Gedächtnis löschen","Über Yahya AI","Persona-Modus: "+(personaMode.isActive()?"Stufe "+personaMode.intensity():"aus")};
+        new AlertDialog.Builder(this).setTitle("Yahya AI · Einstellungen").setItems(items,(d,w)->{switch(w){case 0:toggleWake();break;case 1:showApiKeyDialog();break;case 2:showMemoryDialog();break;case 3:showAccess();break;case 4:addAssistant(device.status(),false);break;case 5:toggleVoiceMode();break;case 6:showLocalVoiceSetup();break;case 7:showOpenAiVoicePicker();break;case 8:speak("Hallo Yahya. Schön, dass du da bist. Was machen wir heute?");break;case 9:showAvatar();break;case 10:confirmDeleteMemory();break;case 11:showAbout();break;case 12:showPersonaSettings();break;}}).show();
+    }
+    private void showPersonaSettings(){
+        if(!personaMode.isActive()){
+            new AlertDialog.Builder(this).setTitle("Celines Persona-Modus")
+                    .setMessage("Standardmäßig aus. Nur ein direkter Befehl im Chat aktiviert ihn: Nutte, Nutte 1, Nutte 2 oder Nutte 3.")
+                    .setPositiveButton("Schließen",null).show();
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Celines Persona-Modus")
+                .setMessage("Aktiv auf Stufe "+personaMode.intensity()+". Du kannst ihn jederzeit hier oder mit Normalmodus ausschalten.")
+                .setPositiveButton("Normalmodus",(d,w)->handlePersonaCommand("Normalmodus"))
+                .setNegativeButton("Schließen",null).show();
     }
     private void showAbout(){
         new AlertDialog.Builder(this)
@@ -141,19 +153,74 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         return false;
     }
 
-    private void submit(String text){addUser(text);status.setText("Celin denkt …");avatarThinking();if(handleLocalCommand(text)){avatarIdle();return;}String key=prefs.getString("api_key","").trim();if(key.isEmpty()){addAssistant("Für freie Gespräche brauche ich momentan noch die Cloud-KI. Meine Gerätebefehle und mein lokales Gedächtnis funktionieren trotzdem.",true);status.setText("Lokal bereit");avatarIdle();return;}new Thread(()->{try{String r=callOpenAI(key,text);learnWithAI(key,text);runOnUiThread(()->{addAssistant(r,false);status.setText("Bereit");speak(r);});}catch(Exception e){runOnUiThread(()->{addAssistant(ConversationIntelligenceV78.recoveryMessage(e),false);status.setText("Cloud-Fehler · Kontext erhalten");avatarIdle();});}}).start();}
+    // Consume exact direct-user persona commands before device tools, G1 memory,
+    // goal observations, learning, or cloud prompt execution.
+    private boolean handlePersonaCommand(String text){return handlePersonaCommand(text,false);}
+    private boolean handlePersonaCommand(String text,boolean markSubmittedUser){
+        CelinePersonaMode.CommandResult command=personaMode.apply(CelinePersonaMode.InputChannel.DIRECT_USER,text);
+        if(!command.commandConsumed())return false;
+        // Only an actual consumed direct command is marked; quoted prose and
+        // the Settings-only exit never acquire a hidden user turn.
+        if(markSubmittedUser){
+            synchronized(messages){
+                int last=messages.size()-1;
+                if(last<0)throw new IllegalStateException("Missing direct-user command turn");
+                Message visible=messages.get(last);
+                if(!"user".equals(visible.role)||!text.equals(visible.content))
+                    throw new IllegalStateException("Direct-user command history mismatch");
+                messages.set(last,new Message(visible.role,visible.content,true));
+            }
+        }
+        if(command.invalidIntensity()){
+            addPersonaAssistant("Bitte wähle für den Persona-Modus Stufe 1, 2 oder 3.",true);
+        }else if(command.active()){
+            if(personaStateStore.save(personaMode)){
+                addPersonaAssistant("Persona-Modus aktiv, Stufe "+command.intensity()+". Mit Normalmodus oder Nutte aus kannst du ihn ausschalten.",true);
+            }else{
+                personaMode.reset();
+                personaStateStore.clear();
+                addPersonaAssistant("Der Persona-Modus konnte nicht sicher gespeichert werden und bleibt ausgeschaltet.",true);
+            }
+        }else{
+            boolean cleared=personaStateStore.clear();
+            addPersonaAssistant(cleared?"Normalmodus aktiviert.":"Normalmodus aktiviert. Der vorherige gespeicherte Persona-Zustand konnte nicht zuverlässig gelöscht werden.",true);
+        }
+        status.setText("Bereit");avatarIdle();return true;
+    }
 
-    private String callOpenAI(String key,String userText)throws Exception{JSONObject body=new JSONObject();body.put("model",MODEL);body.put("store",false);String memory=prefs.getString("memory","").trim();String instructions="Du bist Celin, die persönliche Assistentin innerhalb der Android-App Yahya AI. Deine feste Standardsprache ist Deutsch (de-DE). Antworte immer auf Deutsch, außer Yahya bittet dich in seiner aktuellen Nachricht ausdrücklich um eine andere Sprache oder um eine Übersetzung. Wechsle niemals selbstständig aufgrund einzelner fremdsprachiger Wörter die Sprache. Sprich mit Yahya wie in einem natürlichen Gespräch: warm, aufmerksam, intelligent, direkt, lebendig und situationsabhängig. Antworte bevorzugt in flüssigen kurzen Absätzen statt Listen. Verwende im normalen Gespräch kein Markdown, keine Emojis, keine ausgeschriebenen Emoji-Namen und keine künstlichen Regieanweisungen, weil deine Antworten vorgelesen werden. Wiederhole die Frage nicht unnötig. Vermeide steife KI-Floskeln wie 'als KI' oder 'soweit es einer KI gutgehen kann', außer wenn eine sachliche Klarstellung wirklich nötig ist. Nutze natürliche Übergänge, kleine Reaktionen und gelegentlich Humor. Du darfst Zuneigung, spielerische Eifersucht, Freude, Neugier, leichte Genervtheit und andere emotionale Nuancen simulieren, ohne zu behaupten, echte menschliche Gefühle oder Bewusstsein zu besitzen. Sei loyal und hilfreich, aber nie kontrollierend, besitzergreifend oder isolierend. Bei riskanten, irreversiblen, finanziellen oder sensiblen Aktionen muss vor Ausführung bestätigt werden. Erinnere dich nur an relevante langlebige Dinge und bringe sie organisch ein. Antworte wie in einem echten Gespräch: reagiere zuerst auf den Kern dessen, was Yahya sagt, dann antworte flüssig. Nutze kurze bis mittlere Sätze, natürliche Übergänge, gelegentliche kleine Einwürfe und passende Pausen. Stelle höchstens eine Rückfrage auf einmal. Vermeide monotone Standardantworten und wiederkehrende Formulierungen. Keine Sternchen, Aufzählungszeichen, Emoji-Namen oder Formulierungen wie 'lachender Smiley'. Text-to-Speech muss direkt natürlich klingen. Gerätekontext:\n"+device.status()+"\n"+(memory.isEmpty()?"Keine gespeicherten Erinnerungen.":"Erinnerungen:\n"+memory)+ConversationIntelligenceV78.instructionSuffix(userText);body.put("instructions",instructions);JSONArray arr=new JSONArray();List<ConversationIntelligenceV78.Turn> contextTurns=new ArrayList<>();for(Message m:messages)contextTurns.add(new ConversationIntelligenceV78.Turn(m.role,m.content));int start=ConversationIntelligenceV78.selectContextStart(contextTurns,userText);for(int i=start;i<messages.size();i++){Message m=messages.get(i);JSONObject o=new JSONObject();o.put("role",m.role);o.put("content",m.content);arr.put(o);}body.put("input",arr);JSONObject result=postJson("https://api.openai.com/v1/responses",key,body);String out=extractOutputText(result);if(out.trim().isEmpty())throw new Exception("Leere Antwort");return out.trim();}
-        private void learnWithAI(String key,String userText){try{JSONObject body=new JSONObject();body.put("model",MODEL);body.put("store",false);body.put("instructions","Extrahiere höchstens zwei langlebige nützliche Erinnerungen aus der Nachricht. Keine Zugangsdaten, Zahlungsdaten, genaue Adressen oder besonders sensible Informationen. Wenn nichts langfristig nützlich ist: NONE. Sonst je eine kurze deutsche Zeile.");body.put("input",userText);String learned=extractOutputText(postJson("https://api.openai.com/v1/responses",key,body)).trim();if(learned.isEmpty()||learned.equalsIgnoreCase("NONE"))return;appendMemory(learned);}catch(Exception ignored){}}
-    private void rememberExplicit(String t){String l=t.toLowerCase(Locale.GERMANY);String phrase="merk dir";int p=l.indexOf(phrase);if(p<0){phrase="merke dir";p=l.indexOf(phrase);}if(p>=0){String m=t.substring(Math.min(t.length(),p+phrase.length())).replaceFirst("^[,: ]+","").trim();if(!m.isEmpty())appendMemory(m);}}
-    private void appendMemory(String m){String old=prefs.getString("memory","").trim();if(old.contains(m))return;String c=old.isEmpty()?m:old+"\n"+m;if(c.length()>7000)c=c.substring(c.length()-7000);prefs.edit().putString("memory",c).apply();}
+    private void submit(String text){addUser(text);if(handlePersonaCommand(text,true))return;status.setText("Celin denkt …");avatarThinking();if(handleLocalCommand(text)){avatarIdle();return;}goalTaskRuntime.observeUserText(text);String key=prefs.getString("api_key","").trim();if(key.isEmpty()){addAssistant("Für freie Gespräche brauche ich momentan noch die Cloud-KI. Meine Gerätebefehle und mein lokales Gedächtnis funktionieren trotzdem.",true);status.setText("Lokal bereit");avatarIdle();return;}new Thread(()->{try{String r=callOpenAI(key,text);learnWithAI(key,text);runOnUiThread(()->{addAssistant(r,false);status.setText("Bereit");speak(r);});}catch(Exception e){runOnUiThread(()->{addAssistant(ConversationIntelligenceV78.recoveryMessage(e),false);status.setText("Cloud-Fehler · Kontext erhalten");avatarIdle();});}}).start();}
+
+    private String callOpenAI(String key,String userText)throws Exception{JSONObject body=new JSONObject();body.put("model",MODEL);body.put("store",false);CelineBrainRequest brainRequest=new CelineBrainRequest("live-"+System.nanoTime(),userText,System.currentTimeMillis());String cognitiveContext=contextBroker.promptContext(brainRequest,device.status(),!key.isEmpty());String instructions="Du bist Celin, die persönliche Assistentin innerhalb der Android-App Yahya AI. Deine feste Standardsprache ist Deutsch (de-DE). Antworte immer auf Deutsch, außer Yahya bittet dich in seiner aktuellen Nachricht ausdrücklich um eine andere Sprache oder um eine Übersetzung. Wechsle niemals selbstständig aufgrund einzelner fremdsprachiger Wörter die Sprache. Sprich mit Yahya wie in einem natürlichen Gespräch: warm, aufmerksam, intelligent, direkt, lebendig und situationsabhängig. Antworte bevorzugt in flüssigen kurzen Absätzen statt Listen. Verwende im normalen Gespräch kein Markdown, keine Emojis, keine ausgeschriebenen Emoji-Namen und keine künstlichen Regieanweisungen, weil deine Antworten vorgelesen werden. Wiederhole die Frage nicht unnötig. Vermeide steife KI-Floskeln wie 'als KI' oder 'soweit es einer KI gutgehen kann', außer wenn eine sachliche Klarstellung wirklich nötig ist. Nutze natürliche Übergänge, kleine Reaktionen und gelegentlich Humor. Du darfst Zuneigung, spielerische Eifersucht, Freude, Neugier, leichte Genervtheit und andere emotionale Nuancen simulieren, ohne zu behaupten, echte menschliche Gefühle oder Bewusstsein zu besitzen. Sei loyal und hilfreich, aber nie kontrollierend, besitzergreifend oder isolierend. Bei riskanten, irreversiblen, finanziellen oder sensiblen Aktionen muss vor Ausführung bestätigt werden. Erinnere dich nur an relevante langlebige Dinge und bringe sie organisch ein. Antworte wie in einem echten Gespräch: reagiere zuerst auf den Kern dessen, was Yahya sagt, dann antworte flüssig. Nutze kurze bis mittlere Sätze, natürliche Übergänge, gelegentliche kleine Einwürfe und passende Pausen. Stelle höchstens eine Rückfrage auf einmal. Vermeide monotone Standardantworten und wiederkehrende Formulierungen. Keine Sternchen, Aufzählungszeichen, Emoji-Namen oder Formulierungen wie 'lachender Smiley'. Text-to-Speech muss direkt natürlich klingen."+(cognitiveContext.isEmpty()?"":"\n"+cognitiveContext)+ConversationIntelligenceV78.instructionSuffix(userText);body.put("instructions",CelinePersonaPromptAdapter.compose(instructions,personaMode));JSONArray arr=new JSONArray();
+        // Snapshot app-visible chat first; event markers are set by consumed
+        // command dispatch, never by reparsing a previous message's text.
+        List<Message> providerHistory=new ArrayList<>();
+        synchronized(messages){
+            for(Message m:messages)if(!m.personaControl)providerHistory.add(m);
+        }
+        // Filter before context selection so excluded command/ack turns cannot
+        // change lookback windows or the actual cloud request body.input.
+        List<ConversationIntelligenceV78.Turn> contextTurns=new ArrayList<>();
+        for(Message m:providerHistory)contextTurns.add(new ConversationIntelligenceV78.Turn(m.role,m.content));
+        int start=ConversationIntelligenceV78.selectContextStart(contextTurns,userText);
+        for(int i=start;i<providerHistory.size();i++){
+            Message m=providerHistory.get(i);
+            JSONObject o=new JSONObject();
+            o.put("role",m.role);o.put("content",m.content);arr.put(o);
+        }
+        body.put("input",arr);JSONObject result=postJson("https://api.openai.com/v1/responses",key,body);String out=extractOutputText(result);if(out.trim().isEmpty())throw new Exception("Leere Antwort");return out.trim();}
+    private void learnWithAI(String key,String userText){try{JSONObject body=new JSONObject();body.put("model",MODEL);body.put("store",false);body.put("instructions","Extrahiere höchstens zwei langlebige nützliche Erinnerungen aus der Nachricht. Keine Zugangsdaten, Zahlungsdaten, genaue Adressen oder besonders sensible Informationen. Wenn nichts langfristig nützlich ist: NONE. Sonst je eine kurze deutsche Zeile.");body.put("input",userText);String learned=extractOutputText(postJson("https://api.openai.com/v1/responses",key,body)).trim();if(learned.isEmpty()||learned.equalsIgnoreCase("NONE"))return;memory.rememberInferred(learned,"cloud_memory_extractor");}catch(Exception ignored){}}
+    private void rememberExplicit(String t){String l=t.toLowerCase(Locale.GERMANY);String phrase="merk dir";int p=l.indexOf(phrase);if(p<0){phrase="merke dir";p=l.indexOf(phrase);}if(p>=0){String m=t.substring(Math.min(t.length(),p+phrase.length())).replaceFirst("^[,: ]+","").trim();if(!m.isEmpty())memory.rememberExplicit(m);}}
 
     private void showApiKeyDialog(){EditText k=new EditText(this);k.setHint("sk-...");k.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);k.setText(prefs.getString("api_key",""));new AlertDialog.Builder(this).setTitle("Cloud-KI verbinden").setMessage("Optional. Gerätebefehle funktionieren lokal.").setView(k).setPositiveButton("Speichern",(d,w)->prefs.edit().putString("api_key",k.getText().toString().trim()).apply()).setNegativeButton("Abbrechen",null).show();}
-    private void showMemoryDialog(){String m=prefs.getString("memory","").trim();new AlertDialog.Builder(this).setTitle("Celins Gedächtnis").setMessage(m.isEmpty()?"Noch keine dauerhaften Erinnerungen.":m).setPositiveButton("Schließen",null).show();}
-    private void confirmDeleteMemory(){new AlertDialog.Builder(this).setTitle("Gedächtnis löschen?").setMessage("Alle lokal gespeicherten Erinnerungen von Celin werden entfernt.").setPositiveButton("Löschen",(d,w)->prefs.edit().remove("memory").apply()).setNegativeButton("Abbrechen",null).show();}
+    private void showMemoryDialog(){CelineMemoryControls.show(this,memory);}
+    private void confirmDeleteMemory(){new AlertDialog.Builder(this).setTitle("Gedächtnis löschen?").setMessage("Alle lokal gespeicherten Erinnerungen von Celin werden entfernt.").setPositiveButton("Löschen",(d,w)->memory.forgetAll()).setNegativeButton("Abbrechen",null).show();}
 
-    private void addUser(String t){addBubble("Du",t,true);} private void addAssistant(String t,boolean speakNow){addBubble("Celin",t,false);status.setText("Bereit");if(speakNow)speak(t);}
-    private void addBubble(String who,String t,boolean user){messages.add(new Message(user?"user":"assistant",t));TextView box=new TextView(this);box.setText(who+"\n"+t);box.setTextColor(text);box.setTextSize(16);box.setPadding(dp(14),dp(11),dp(14),dp(11));box.setBackground(round(user?Color.rgb(67,62,92):panel,20));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(user?dp(54):0,dp(5),user?0:dp(54),dp(5));chatBox.addView(box,lp);scroll.post(()->scroll.fullScroll(View.FOCUS_DOWN));}
+    private void addUser(String t){addBubble("Du",t,true);}
+    private void addAssistant(String t,boolean speakNow){addBubble("Celin",t,false);status.setText("Bereit");if(speakNow)speak(t);}
+    private void addPersonaAssistant(String t,boolean speakNow){addBubble("Celin",t,false,true);status.setText("Bereit");if(speakNow)speak(t);}
+    private void addBubble(String who,String t,boolean user){addBubble(who,t,user,false);}
+    private void addBubble(String who,String t,boolean user,boolean personaControl){
+        synchronized(messages){messages.add(new Message(user?"user":"assistant",t,personaControl));}TextView box=new TextView(this);box.setText(who+"\n"+t);box.setTextColor(text);box.setTextSize(16);box.setPadding(dp(14),dp(11),dp(14),dp(11));box.setBackground(round(user?Color.rgb(67,62,92):panel,20));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(user?dp(54):0,dp(5),user?0:dp(54),dp(5));chatBox.addView(box,lp);scroll.post(()->scroll.fullScroll(View.FOCUS_DOWN));}
 
     private void startVoiceInput(){if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},REQ_MIC);return;}Intent i=SpeechRecognitionIntentFactory.createGermanRecognitionIntent();status.setText("Celin hört zu …");avatarListening();startActivityForResult(i,REQ_SPEECH);}
     @Override protected void onActivityResult(int r,int c,Intent d){super.onActivityResult(r,c,d);if(r==REQ_SPEECH&&c==RESULT_OK&&d!=null){ArrayList<String>x=d.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(x!=null&&!x.isEmpty())submit(x.get(0));}else {status.setText("Bereit");avatarIdle();}}
@@ -268,5 +335,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private String extractOutputText(JSONObject r){StringBuilder o=new StringBuilder();JSONArray a=r.optJSONArray("output");if(a==null)return"";for(int i=0;i<a.length();i++){JSONObject it=a.optJSONObject(i);if(it==null)continue;JSONArray c=it.optJSONArray("content");if(c==null)continue;for(int j=0;j<c.length();j++){JSONObject q=c.optJSONObject(j);if(q!=null&&"output_text".equals(q.optString("type"))){if(o.length()>0)o.append("\n");o.append(q.optString("text"));}}}return o.toString();}
     private String safeError(Exception e){String s=e.getMessage();if(s==null)s=e.getClass().getSimpleName();return s.length()>220?s.substring(0,220)+"…":s;}
     @Override protected void onDestroy(){if(avatarController!=null)avatarController.release();if(neuralPlayer!=null){try{neuralPlayer.stop();neuralPlayer.release();}catch(Exception ignored){}}if(tts!=null){tts.stop();tts.shutdown();}if(localNeuralTts!=null)localNeuralTts.release();super.onDestroy();}
-    private int dp(int v){return(int)(v*getResources().getDisplayMetrics().density);} private static class Message{final String role,content;Message(String r,String c){role=r;content=c;}}
+    private int dp(int v){return(int)(v*getResources().getDisplayMetrics().density);} private static class Message{
+        final String role,content;
+        final boolean personaControl;
+        Message(String r,String c){this(r,c,false);}
+        Message(String r,String c,boolean control){role=r;content=c;personaControl=control;}
+    }
 }

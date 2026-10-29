@@ -1,0 +1,96 @@
+name: Celine Core Persona and G1 Regression
+
+on:
+  push:
+    branches:
+      - auto/celine/core-adult-persona-contract
+      - auto/celine/v80-human-videochat-presence
+    paths:
+      - '.github/workflows/celine-core-persona-g1-regression.yml'
+      - 'ci/celine_persona_**'
+      - 'app/src/main/java/de/yahya/ai/CelinePersonaMode.java'
+      - 'app/src/main/java/de/yahya/ai/CelinePersonaPromptAdapter.java'
+      - 'app/src/main/java/de/yahya/ai/CelinePersonaStateStore.java'
+      - 'app/src/main/java/de/yahya/ai/CelineBrain.java'
+      - 'app/src/main/java/de/yahya/ai/CelineContextBrokerG14.java'
+      - 'app/src/main/java/de/yahya/ai/CelineGoalTaskGraph.java'
+      - 'app/src/main/java/de/yahya/ai/CelineGoalTaskRuntime.java'
+      - 'app/src/main/java/de/yahya/ai/CelineMemoryEngine.java'
+      - 'app/src/main/java/de/yahya/ai/CelineStructuredMemory.java'
+      - 'app/src/main/java/de/yahya/ai/CelineProtectedMemoryStorage.java'
+      - 'app/src/main/java/de/yahya/ai/CelineMemoryControls.java'
+      - 'app/src/main/java/de/yahya/ai/ConversationIntelligenceV78.java'
+      - 'app/src/main/java/de/yahya/ai/MainActivity.java'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celine-core-persona-g1-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: v83 exact Room+Core Persona JVM and G1 integration contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Run 11 promoted Core persona and encrypted-store JVM contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_persona_promoted_runtime_contract_test.py
+      - name: Run event-marked provider history exclusion prototype vectors (not live UI wiring)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_persona_history_projection_contract_test.py
+      - name: Execute actual MainActivity provider JSON body.input projection acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_persona_mainactivity_provider_payload_contract_test.py
+      - name: Execute actual MainActivity provider instructions Persona seam
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/celine_persona_mainactivity_provider_instructions_contract_test.py
+
+      - name: Run conversation plus pinned Room-authored G1 regressions against Core
+        shell: bash
+        env:
+          ROOM_SOURCE_SHA: 15045bf8f770ffc4b7b2719fd10c4582cfa30421
+        run: |
+          set -euo pipefail
+          # G1.4 central context assembly intentionally superseded the legacy
+          # MainActivity selectContextStart() call. The old V78 static check
+          # rejects that correctly migrated path, so execute the newer actual
+          # Conversation Java probe and preserved G1 contracts instead.
+          # Borrow Room-authored TESTS only into the disposable CI workspace.
+          git fetch --no-tags origin "$ROOM_SOURCE_SHA"
+          git show "$ROOM_SOURCE_SHA:ci/celine_g1_intelligence_baseline.py" > ci/celine_g1_intelligence_baseline.py
+          git show "$ROOM_SOURCE_SHA:ci/evidence/CELINE_G1_BASELINE_CASES.json" > ci/evidence/CELINE_G1_BASELINE_CASES.json
+          python3 ci/celine_g1_intelligence_baseline.py --strict --output celine-g1-baseline.json
+          tests=(
+            celine_g1_brain_contract.py
+            celine_g1_structured_memory_test.py
+            celine_g1_goal_task_state_test.py
+            celine_g1_goal_task_live_test.py
+            celine_g1_context_broker_test.py
+            celine_g1_memory_privacy_consolidation_test.py
+            celine_g1_memory_controls_live_contract.py
+            celine_g1_structured_memory_live_contract.py
+          )
+          for test in "${tests[@]}"; do
+            git show "$ROOM_SOURCE_SHA:ci/$test" > "ci/$test"
+            python3 "ci/$test"
+          done
+          echo "Core G1 conversation baseline + ${#tests[@]} G1 regressions: PASS"

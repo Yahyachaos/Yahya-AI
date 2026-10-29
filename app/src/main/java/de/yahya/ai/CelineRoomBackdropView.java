@@ -10,26 +10,80 @@ import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.View;
+import android.view.ViewGroup;
 
-/** Lightweight drawn room behind the transparent Filament avatar surface. */
+
+
+/**
+ * Lightweight Canvas room fallback behind the transparent Filament avatar surface.
+ *
+ * v80 prefers CelineRoomEnvironmentV80 when it can be built. This class remains intact as the
+ * fail-closed runtime fallback and never draws in parallel with the active Filament room.
+ *
+ * Recovery baseline after the user rejection of Real Candidate #1379: install only the measured
+ * room layout plus the bounded dark night-window panes after the source room has loaded. Do not
+ * install CelineRoomReferenceLightingV80 here, because that owner also activates the experimental
+ * window texture/fill/source-hide stack, ceiling/bed material overrides and practical light. The
+ * two plain night panes restore the reference window opening while preserving source drapes/PBR and
+ * leaving geometry, camera/FOV, furniture transforms, source GLBs and Celine untouched.
+ */
 final class CelineRoomBackdropView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private boolean seatedCallMode;
+    private volatile int roomRequestGeneration;
 
     CelineRoomBackdropView(Context context) {
         super(context);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     }
 
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null) activateRecoveryRoom(threeD);
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        ++roomRequestGeneration; // Discard Room work requested by an old attachment.
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null) CelineRoomEnvironmentV80.release(threeD);
+        super.onDetachedFromWindow();
+    }
+
     void setSeatedCallMode(boolean seatedCallMode) {
         if (this.seatedCallMode == seatedCallMode) return;
         this.seatedCallMode = seatedCallMode;
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null && isAttachedToWindow()) activateRecoveryRoom(threeD);
         invalidate();
+    }
+
+    private void activateRecoveryRoom(Celine3DView threeD) {
+        final int request = ++roomRequestGeneration;
+        final Context context = getContext().getApplicationContext();
+        // The whole gltfio import, material setup, scene writes and layout
+        // contract execute on the adopted Engine owner, never on the UI thread.
+        // Existing hardware devices retain the previous UI-thread owner.
+        threeD.dispatchFilamentWork(() -> {
+            if (request != roomRequestGeneration) return;
+            if (!CelineRoomEnvironmentV80.ensure(context, threeD)) return;
+            CelineRoomReferenceLayoutV80.ensure(threeD);
+            post(() -> {
+                if (request == roomRequestGeneration && isAttachedToWindow()) invalidate();
+            });
+        });
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+
+        Celine3DView threeD = findSibling3D();
+        if (threeD != null && CelineRoomEnvironmentV80.isActive(threeD)) {
+            // Mutual exclusion: the Canvas room is a fallback, never a second visible room.
+            return;
+        }
+
         float w = getWidth();
         float h = getHeight();
         if (w <= 0 || h <= 0) return;
@@ -179,5 +233,15 @@ final class CelineRoomBackdropView extends View {
         paint.setColor(Color.rgb(92, 61, 68));
         canvas.drawRoundRect(new RectF(w * 0.35f, h * 0.61f, w * 0.65f, h * 0.675f),
                 16, 16, paint);
+    }
+
+    private Celine3DView findSibling3D() {
+        if (!(getParent() instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) getParent();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof Celine3DView) return (Celine3DView) child;
+        }
+        return null;
     }
 }

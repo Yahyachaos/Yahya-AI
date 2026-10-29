@@ -231,14 +231,16 @@ Final exact-head:
 
 ### Final app build / release barrier
 
-A finished app APK, release candidate, final exact-main validation or release must **not** be created while any registered implementation workstream still has active or unfinished worker work.
+A finished app APK, release candidate, final exact-main validation or release must **not** be created while any implementation workstream INCLUDED IN THAT APP VERSION or sharing its integration/build/release surfaces still has active or unfinished worker work.
+
+**Strict owner-approved version-scoped FUTURE-ONLY exclusion (2026-10-29):** A separately registered FUTURE-ONLY implementation stream may keep working during v83 closure ONLY when a recorded product decision excludes it from that release; the excluded worker has independent branch, owned files and runtime subsystems; no shared integration, main, CI-release, updater/signing or exact-release-proof lease overlaps; and its unmerged code and unfinished evidence never enter v83. This is not a declaration that the excluded future stream is finished. Reconcile ALL workers in step 1 and record every exclusion in step 3. Included or shared-surface work remains subject to clean handoff in steps 2/4, mandatory integration, Android/security/install/updater verification, exact-head/exact-main gates and final readback. Unknown or overlapping ownership FAILS CLOSED.
 
 Before starting any final app build or release sequence:
 
 1. Fresh-reconcile every registered workstream and worker.
-2. Every worker must have ended its current assignment cleanly using section 12.
+2. Every worker assigned to the included app version or sharing its integration/build/release surfaces must have ended its assignment cleanly using section 12.
 3. Every workstream that is intended for that app version must be either **complete/integration-ready** or explicitly excluded from the version by a recorded product decision.
-4. No workstream may remain in `in_progress`, `waiting_for_write`, `uncommitted`, `proof_pending`, `handoff_ambiguous`, or equivalent unfinished state.
+4. No included or shared-release-overlapping workstream may remain in `in_progress`, `waiting_for_write`, `uncommitted`, `proof_pending`, `handoff_ambiguous`, or equivalent unfinished state.
 5. All integration-ready heads must be reconciled for ownership conflicts and integrated in a controlled serialized order.
 6. Only after the combined integrated state exists may final exact-head/exact-main validation and a finished APK/release begin.
 

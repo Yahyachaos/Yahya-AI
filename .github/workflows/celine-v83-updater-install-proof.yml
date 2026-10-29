@@ -1,0 +1,128 @@
+name: Celine v83 updater V47 native Android install proof
+
+on:
+  push:
+    branches:
+      - auto/celine/v80-human-videochat-presence
+      - main
+    paths:
+      - '.github/workflows/celine-v83-updater-install-proof.yml'
+      - 'ci/celine-updater-v47-emulator-smoke.py'
+      - 'ci/celine_core_persona_emulator_smoke.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-updater-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-updater:
+    name: Original V47 public v79 to v80 / Android API ${{ matrix.api-level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        api-level: [29, 35]
+    steps:
+      - name: Checkout existing v83 integration and complete release history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Assert updater and Settings source blobs truly identical in v79 v80 v83
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in app/src/main/java/de/yahya/ai/CelineUpdaterV47.java app/src/main/java/de/yahya/ai/CelineUpdaterSettingsV50.java; do
+            BLOB="$(git rev-parse "HEAD:$p")"
+            test "$BLOB" = "$(git rev-parse "v79:$p")"
+            test "$BLOB" = "$(git rev-parse "v80:$p")"
+          done
+          grep -Fq 'CelineUpdaterV47.install(activity, decor)' app/src/main/java/de/yahya/ai/YahyaApplication.java
+          grep -Fq 'CelineUpdaterSettingsV50.install(activity, decor)' app/src/main/java/de/yahya/ai/YahyaApplication.java
+          echo 'IDENTICAL_PUBLIC_AND_V83_UPDATER_V47_CODEPATH_PASS'
+          echo 'This is not final exact-main or v80 to v83 Updater acceptance.'
+
+      - name: Fetch unmodified real latest public v79 and v80 release APKs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk updater-v47-proof
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = v80
+          for v in 79 80; do
+            gh release download "v$v" --repo "$GITHUB_REPOSITORY" --pattern "Yahya-AI-v$v.apk" -D ci-apk
+            DIGEST="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$v" --jq ".assets[] | select(.name == \"Yahya-AI-v$v.apk\") | .digest")"
+            test "$DIGEST" = "sha256:$(sha256sum "ci-apk/Yahya-AI-v$v.apk" | awk '{print $1}')"
+          done
+          echo '8e39683e514bb2c83bd3a7194a4f61e39456fd53d2cda4f859d7c341fe03852c  ci-apk/Yahya-AI-v79.apk' | sha256sum -c -
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          sha256sum ci-apk/*.apk > updater-v47-proof/original-public-apk-hashes.txt
+
+      - name: Verify version codes same historical signing certificate and nondebug flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$ANDROID_HOME"
+          if [ ! -x "$SDK/build-tools/30.0.3/apksigner" ]; then "$SDK/cmdline-tools/latest/bin/sdkmanager" 'build-tools;30.0.3'; fi
+          AAPT="$SDK/build-tools/30.0.3/aapt"
+          APKSIGNER="$SDK/build-tools/30.0.3/apksigner"
+          for v in 79 80; do
+            APK="ci-apk/Yahya-AI-v$v.apk"
+            "$APKSIGNER" verify "$APK" >/dev/null
+            BADGING="$("$AAPT" dump badging "$APK")"
+            grep -Fq "package: name='de.yahya.ai' versionCode='$v'" <<<"$BADGING"
+            ! grep -q '^application-debuggable' <<<"$BADGING"
+          done
+          cert() { "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1; }
+          C79="$(cert ci-apk/Yahya-AI-v79.apk)"
+          C80="$(cert ci-apk/Yahya-AI-v80.apk)"
+          test -n "$C79" && test "$C79" = "$C80"
+          echo 'REAL_PUBLIC_V79_V80_SIGNATURE_VERSION_NONDEBUG_PASS'
+          echo 'Historical public key compromise remains an explicit signing risk.'
+
+      - name: Verify shared Android UI helper imports without launching its own smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; sys.path.insert(0, "ci"); import celine_core_persona_emulator_smoke as ui; assert callable(ui.hierarchy) and callable(ui.adb); print("UPDATER_UI_IMPORT_NO_MAIN_PASS")'
+
+      - name: Allow Android emulator KVM acceleration
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Genuine app Update button DownloadManager OS permission and native installer
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: |
+            set -eu
+            adb shell wm size 720x1280
+            adb shell wm density 185
+            adb install ci-apk/Yahya-AI-v79.apk
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = '${{ matrix.api-level }}'
+            timeout 1700s python3 ci/celine-updater-v47-emulator-smoke.py
+
+      - name: Upload real emulator UI XML screenshots log and downloaded APK digest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-v47-public-updater-api-${{ matrix.api-level }}
+          path: updater-v47-proof/
+          if-no-files-found: warn

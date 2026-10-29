@@ -1,0 +1,117 @@
+name: Celine v83 actual public updater readback
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celine-v83-actual-public-updater
+  cancel-in-progress: false
+
+jobs:
+  actual-public-v80-to-v83:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.tag_name == 'v83'
+    name: Actual public v80 to v83 Update button / Android API ${{ matrix.api-level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        api-level: [29, 35]
+    steps:
+      - name: Checkout exact published v83 tag
+        uses: actions/checkout@v4
+        with:
+          ref: v83
+          fetch-depth: 0
+          lfs: false
+
+      - name: Bind release latest tag checkout and main to one exact commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = v83
+          TAG_SHA="$(git rev-list -n 1 v83)"
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          test "$(git rev-parse HEAD)" = "$TAG_SHA"
+          test "$TAG_SHA" = "$MAIN_SHA"
+          echo "ACTUAL_PUBLIC_UPDATER_EXACT_MAIN_TAG_PASS=$TAG_SHA"
+
+      - name: Fetch and verify the actual public v80 and v83 APK assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk updater-v47-proof
+          for v in 80 83; do
+            gh release download "v$v" --repo "$GITHUB_REPOSITORY" --pattern "Yahya-AI-v$v.apk" -D ci-apk
+            DIGEST="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$v" --jq ".assets[] | select(.name == \"Yahya-AI-v$v.apk\") | .digest")"
+            test "$DIGEST" = "sha256:$(sha256sum "ci-apk/Yahya-AI-v$v.apk" | awk '{print $1}')"
+          done
+          echo 'b19c123960c22170785db7fd6479482e62b1891e6c495dedfb331b982bba8a58  ci-apk/Yahya-AI-v80.apk' | sha256sum -c -
+          echo "UPDATER_FROM_VERSION=80" >> "$GITHUB_ENV"
+          echo "UPDATER_TO_VERSION=83" >> "$GITHUB_ENV"
+          echo "UPDATER_APK_SHA256=$(sha256sum ci-apk/Yahya-AI-v83.apk | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "UPDATER_APK_SIZE=$(stat -c '%s' ci-apk/Yahya-AI-v83.apk)" >> "$GITHUB_ENV"
+          sha256sum ci-apk/*.apk > updater-v47-proof/actual-public-apk-hashes.txt
+
+      - name: Verify unchanged production updater package signer and nondebug release
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in app/src/main/java/de/yahya/ai/CelineUpdaterV47.java app/src/main/java/de/yahya/ai/CelineUpdaterSettingsV50.java; do
+            test "$(git rev-parse "HEAD:$p")" = "$(git rev-parse "v80:$p")"
+          done
+          SDK="$ANDROID_HOME"
+          test -x "$SDK/build-tools/30.0.3/apksigner" || "$SDK/cmdline-tools/latest/bin/sdkmanager" 'build-tools;30.0.3'
+          AAPT="$SDK/build-tools/30.0.3/aapt"
+          APKSIGNER="$SDK/build-tools/30.0.3/apksigner"
+          for v in 80 83; do
+            APK="ci-apk/Yahya-AI-v$v.apk"
+            "$APKSIGNER" verify --min-sdk-version "${{ matrix.api-level }}" "$APK"
+            "$AAPT" dump badging "$APK" | grep -F "package: name='de.yahya.ai' versionCode='$v'"
+            ! "$AAPT" dump badging "$APK" | grep -q '^application-debuggable'
+          done
+          cert() { "$APKSIGNER" verify --print-certs "$1" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1; }
+          test -n "$(cert ci-apk/Yahya-AI-v80.apk)"
+          test "$(cert ci-apk/Yahya-AI-v80.apk)" = "$(cert ci-apk/Yahya-AI-v83.apk)"
+
+      - name: Allow Android emulator KVM acceleration
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Real public Update button DownloadManager permission and native installer
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu lavapipe -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: |
+            set -eu
+            adb shell wm size 720x1280
+            adb shell wm density 185
+            adb install ci-apk/Yahya-AI-v80.apk
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = '${{ matrix.api-level }}'
+            timeout 1700s python3 ci/celine-updater-v47-emulator-smoke.py
+
+      - name: Upload actual public v80 to v83 updater evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-public-v80-v83-updater-api-${{ matrix.api-level }}
+          path: updater-v47-proof/
+          if-no-files-found: warn

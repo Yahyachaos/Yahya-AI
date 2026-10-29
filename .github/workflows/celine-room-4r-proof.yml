@@ -1,0 +1,101 @@
+name: Celine Room 4R Proof
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ edited ]
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact PR branch head whose 4R runtime is being proved
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: celine-room-4r-proof-${{ github.event.pull_request.number || inputs.target_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  room-4r-proof:
+    name: Exact final modular room HOME CALL HOME proof
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.body, '[run-room-4r-proof]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Verify exact head and static 4R contract
+        shell: bash
+        env:
+          TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          python3 ci/celine_room_4r_runtime_contract.py
+
+      - name: Locate exact runtime-fingerprint Android Build artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+        shell: bash
+        run: bash ci/celine-find-runtime-apk.sh
+
+      - name: Download the runtime-equivalent APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+          RUNTIME_FP: ${{ steps.source.outputs.runtime_fingerprint }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-apk room-4r-proof
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n yahya-ai-debug -D ci-apk
+          test -f ci-apk/app-debug.apk
+          sha256sum ci-apk/app-debug.apk | tee room-4r-proof/apk.sha256
+          printf 'proof_head=%s\nruntime_source_sha=%s\nruntime_fingerprint=%s\nandroid_build_run=%s\n' \
+            "$TARGET_SHA" "$SOURCE_SHA" "$RUNTIME_FP" "$RUN_ID" \
+            | tee room-4r-proof/runtime-source.txt
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Enable KVM permissions
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+
+      - name: Prove final modular room through HOME CALL HOME
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu angle_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-metrics
+          script: timeout 360s bash ci/celine-room-4r-emulator-proof.sh ci-apk/app-debug.apk room-4r-proof
+
+      - name: Upload exact 4R room evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-4r-evidence-${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || github.event.pull_request.head.sha }}
+          path: room-4r-proof/
+          if-no-files-found: warn
+          retention-days: 30
