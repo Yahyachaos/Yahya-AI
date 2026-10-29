@@ -147,15 +147,14 @@ final class CelineCallImeGuardV70 {
             boolean focused = composer.isFocused();
             hideIme(composer);
             if (focused) composer.clearFocus();
-            // Android's first touch cannot reliably reach an EditText that remains
-            // non-focusable after CALL: #66 showed a visible/clickable composer but
-            // real ACTION_DOWN left focused=false. Neutralize accidental CALL focus
-            // on the decor first, then restore native touch focusability. A later
-            // layout-driven ghost focus is still cleared while suppressReturnFocus
-            // remains true, until the next explicit composer ACTION_DOWN.
+            // Keep the editor out of Android's focus chain until the next real touch; otherwise
+            // the framework can restore its old HOME focus several seconds after CALL teardown
+            // without another layout callback. The installed ACTION_DOWN listener restores
+            // focusability and requests focus synchronously, so the first explicit tap still
+            // behaves natively while no background/layout event can reopen the IME.
+            composer.setFocusableInTouchMode(false);
             decor.setFocusableInTouchMode(true);
             decor.requestFocus();
-            composer.setFocusableInTouchMode(true);
             return focused;
         }
 
