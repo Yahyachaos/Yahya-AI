@@ -271,6 +271,22 @@ public final class FutureMemoryRecallContract {
                     "ui-new", "Meine Katze heißt Luna", "ui-old", "LOCAL_PRIVATE",
                     "EXPLICIT", "user_memory_control", true, true, NOW, 0, 1))),
                 "ui-new", "selected-ID correction supersedes stale fact");
+        // A malformed projection record may conceal a confidential successor
+        // or unresolved conflict. Do not silently ignore it and expose the old fact.
+        eq(top("Meine Katze heißt", Arrays.asList(
+                c("good-old", "Meine Katze heißt Paul"),
+                new CelineFutureMemoryRecall.Candidate("", "Meine Katze heißt Luna", "good-old",
+                    CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true, NOW, 0, 1))),
+                "", "missing successor ID fails entire projection closed");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                c("good-old", "Meine Katze heißt Paul"),
+                new CelineFutureMemoryRecall.Candidate("", "Meine Katze heißt Luna", "",
+                    "good-old", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                    false, false, NOW, 0, 1))),
+                "", "missing conflict-holder ID cannot expose old record");
+        eq(top("Meine Katze heißt", Arrays.asList(
+                c("good-old", "Meine Katze heißt Paul"), null)),
+                "", "null G1 projection cannot be silently ignored");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
