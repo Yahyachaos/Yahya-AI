@@ -817,6 +817,43 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna" + new String(Character.toChars(0x1F600)),
             Arrays.asList(c("valid-emoji", "Meine Katze heisst Luna"))),
             "valid-emoji", "well-formed ordinary emoji remains supported");
+        // FUTURE ONLY: VS16 has a narrow standalone emoji exception; never
+        // allow invisible selectors to launder letters inside a lexical word.
+        String heartEmoji = "\u2764\uFE0F";
+        String sunEmoji = "\u2600\uFE0F";
+        String flightEmoji = "\u2708\uFE0F";
+        eq(top("Meine Katze heisst Luna " + heartEmoji,
+            Arrays.asList(c("heart-query", "Meine Katze heisst Luna"))),
+            "heart-query", "standalone heart emoji query remains readable");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("heart-summary", "Meine Katze heisst Luna " + heartEmoji))),
+            "heart-summary", "standalone heart emoji memory remains readable");
+        eq(top("Meine Katze heisst Luna " + sunEmoji,
+            Arrays.asList(c("sun-query", "Meine Katze heisst Luna"))),
+            "sun-query", "standalone sun emoji query remains readable");
+        eq(top("Meine Katze heisst Luna " + flightEmoji,
+            Arrays.asList(c("plane-query", "Meine Katze heisst Luna"))),
+            "plane-query", "standalone airplane emoji query remains readable");
+        eq(top("Meine Katze heisst Lu" + heartEmoji + "na",
+            Arrays.asList(c("heart-inword", "Meine Katze heisst Luna"))),
+            "", "heart selector inside a Latin word must abstain");
+        eq(top("Meine Katze heisst Luna" + heartEmoji,
+            Arrays.asList(c("heart-attached", "Meine Katze heisst Luna"))),
+            "", "heart selector directly attached to word must abstain");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "X",
+            Arrays.asList(c("heart-beforeword", "Meine Katze heisst Luna"))),
+            "", "emoji selector immediately before Latin word must abstain");
+        eq(top("Meine Katze heisst Luna " + heartEmoji + "\uFE0F",
+            Arrays.asList(c("heart-double", "Meine Katze heisst Luna"))),
+            "", "duplicated variation selector must abstain");
+        eq(top("Meine Katze heisst Luna " + "\u25C6\uFE0F",
+            Arrays.asList(c("heart-unsupported", "Meine Katze heisst Luna"))),
+            "", "unrecognized symbol-selector pair remains fail closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            c("old-heart-ancestor", "Meine Katze heisst Paul"),
+            x("heart-corrupt-successor", "Meine Katze heisst Luna" + heartEmoji,
+                "old-heart-ancestor", true, 0))), "",
+            "corrupt emoji successor still suppresses obsolete ancestor");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

@@ -383,12 +383,29 @@ public final class CelineFutureMemoryRecall {
                     // NFD plus \\p{M} silently drops default-ignorable MARKs.
                     || cp == 0x034F // Combining Grapheme Joiner
                     || (cp >= 0x180B && cp <= 0x180F) // Mongolian selectors
-                    || (cp >= 0xFE00 && cp <= 0xFE0F) // Variation Selectors
+                    || ((cp >= 0xFE00 && cp <= 0xFE0F)
+                        && !(cp == 0xFE0F && isStandaloneEmojiVs16(value, i)))
+                        // All other variation selectors remain denied.
                     || (cp >= 0xE0100 && cp <= 0xE01EF)) // Supplementary selectors
                 return true;
             i += Character.charCount(cp);
         }
         return false;
+    }
+
+    // Unicode VS16 is a presentation marker for some visibly separate emoji.
+    // A deliberately tiny, auditable allowlist avoids silently changing lexical
+    // evidence: a selector inside/next to a word or punctuation fails closed.
+    // Never use Character.isEmoji (Android API compatibility is not established).
+    private static boolean isStandaloneEmojiVs16(String text, int selectorIndex) {
+        if (selectorIndex == 0) return false;
+        int base = text.codePointBefore(selectorIndex);
+        if (base != 0x2764 && base != 0x2600 && base != 0x2708) return false;
+        int baseStart = selectorIndex - Character.charCount(base);
+        int nextIndex = selectorIndex + 1; // VS16 occupies one UTF-16 code unit.
+        return (baseStart == 0 || Character.isWhitespace(text.codePointBefore(baseStart)))
+                && (nextIndex == text.length()
+                    || Character.isWhitespace(text.codePointAt(nextIndex)));
     }
 
     // Never trim identity/lineage keys: normalization can launder a corrupt G1 ID.
