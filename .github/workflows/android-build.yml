@@ -25,7 +25,7 @@ on:
       publish_release:
         description: Publish the tested APK after all gates pass
         required: true
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -236,9 +236,13 @@ jobs:
 
   publish-release:
     name: Publish in-app update
+    # FAIL-CLOSED v83 release barrier: exact-main signed production API29/API35 and
+    # real CelineUpdaterV47 DownloadManager-to-Installer proof are not yet wired.
+    # Do NOT restore this job until verifiable SHA-bound prerequisite jobs are
+    # enforced; a main push or auto-merge dispatch must never self-publish.
     needs: [change-scope, build, emulator-smoke]
     if: >-
-      always() && needs.build.result == 'success' && needs.emulator-smoke.result == 'success' &&
+      false && always() && needs.build.result == 'success' && needs.emulator-smoke.result == 'success' &&
       needs.change-scope.result == 'success' && needs.change-scope.outputs.app_changed == 'true' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
        (github.event_name == 'workflow_dispatch' && inputs.publish_release == true))
