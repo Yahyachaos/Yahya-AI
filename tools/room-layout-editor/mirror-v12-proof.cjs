@@ -17,12 +17,12 @@ const candidate=JSON.parse(fs.readFileSync(candidateFile,'utf8'));
 const baseline=JSON.parse(fs.readFileSync(oldFile,'utf8'));
 const camera=JSON.parse(fs.readFileSync(cameraFile,'utf8')).camera_proposal;
 const expectedHash='f6df87e86ba4017ebbf5a4e337ee5b7d9c0f765d0517112786715c4c66fdfbd0';
-function png(name,data){
+function png(name,data,expectedDimensions=[700,560]){
   assert.match(data,/^data:image\/png;base64,/);
   const raw=Buffer.from(data.slice('data:image/png;base64,'.length),'base64');
   assert(raw.length>2500);assert.equal(raw.toString('hex',0,8),'89504e470d0a1a0a');
   const width=raw.readUInt32BE(16),height=raw.readUInt32BE(20);
-  assert.deepEqual([width,height],[700,560]);
+  assert.deepEqual([width,height],expectedDimensions,'Real PNG dimensions '+name);
   fs.writeFileSync(path.join(out,name),raw);
   return {name,bytes:raw.length,width,height,sha256:crypto.createHash('sha256').update(raw).digest('hex')};
 }
@@ -77,6 +77,17 @@ async function run(){
       null,{timeout:240000});
     assert.equal(await page.locator('#reference-preview').evaluate(n=>n.naturalWidth),1402);
     assert.equal(await page.locator('#reference-preview').evaluate(n=>n.naturalHeight),1122);
+    // Match the actual 700x560 source-aspect WebGL backing raster used by
+    // pointer-visual-worker, rather than the default 510x534 editor stage.
+    await page.setViewportSize({width:1240,height:760});
+    await page.evaluate(()=>{
+      const stage=document.querySelector('#viewport');
+      stage.style.width='700px';stage.style.height='560px';
+    });
+    await page.waitForFunction(()=>{
+      const canvas=document.querySelector('#viewport canvas');
+      return canvas?.width===700 && canvas?.height===560;
+    },null,{timeout:15000});
     const trials=[];
     for(const trial of choices){
       const tmp=path.join(out,'mirror-v12-'+trial.name+'.json');
@@ -146,7 +157,7 @@ async function run(){
         const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=560;
         const ctx=canvas.getContext('2d');ctx.drawImage(ref,0,0,700,560);ctx.drawImage(im,700,0,700,560);
         return canvas.toDataURL('image/png');
-      }));
+      }),[1400,560]);
     await page.reload({waitUntil:'commit',timeout:120000});
     await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),
       null,{timeout:240000});
