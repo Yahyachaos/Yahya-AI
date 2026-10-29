@@ -107,11 +107,46 @@ public final class VoiceOutputStopReceiptGateTest {
         check(successor != null, "later new plan and audio epoch accepted");
     }
 
+    /** Seeded plan/audio epochs, no physical output claims: regress independent IDs. */
+    private static void seededCrossPlanReplay() {
+        long seed = 0x5A17E2L;
+        for (int round = 0; round < 240; round++) {
+            seed = (seed * 1103515245L + 12345L) & 0x7fffffffL;
+            long plan = 10 + round * 3L;
+            long audio = 500 + round * 7L;
+            long t = 1000 + (seed % 99);
+            var gate = new VoiceOutputStopReceiptGate(1000);
+            var old = gate.request(plan, audio, t);
+            check(old != null, "seeded original STOP");
+            check(gate.acknowledgeStopped(old, plan, audio, t + 1), "seeded ACK");
+            check(gate.consumeForExplicitAbort(old, plan, audio, t + 2), "seeded user abort");
+            reject(gate.request(plan + 1, audio, t + 3) != null,
+                    "seeded cross-plan audio identity must advance");
+            reject(gate.request(plan + 1, audio - 1, t + 4) != null,
+                    "seeded new plan cannot have stale epoch");
+            var current = gate.request(plan + 1, audio + 1, t + 5);
+            check(current != null, "seeded new plan new output");
+            reject(gate.acknowledgeStopped(old, plan, audio, t + 6),
+                    "seeded old callback rejected");
+            check(gate.invalidate(current), "seeded cancellation");
+            var retry = gate.request(plan + 1, audio + 1, t + 7);
+            check(retry != null && retry.nonce > current.nonce,
+                    "seeded same plan same output may retry with new nonce");
+            check(gate.acknowledgeStopped(retry, plan + 1, audio + 1, t + 8),
+                    "seeded valid retry ACK");
+            reject(gate.consumeForExplicitAbort(current, plan + 1, audio + 1, t + 9),
+                    "seeded old nonce cannot consume new stop");
+            check(gate.consumeForExplicitAbort(retry, plan + 1, audio + 1, t + 10),
+                    "seeded fresh nonce consumed once");
+        }
+    }
+
     public static void main(String[] args) {
         basics();
         clockAndExpiry();
         deterministicRaces();
         crossPlanOutputEpoch();
+        seededCrossPlanReplay();
         System.out.println("VOICE_OUTPUT_STOP_RECEIPT_GATE_PASS checks=" + checks);
     }
 }
