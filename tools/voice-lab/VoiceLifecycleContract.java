@@ -18,6 +18,9 @@ public final class VoiceLifecycleContract {
     private static final long PROGRESS_TIMEOUT_MS = 3500L;
     // A single utterance may not indefinitely accumulate as-yet-unplayed cue boundaries.
     private static final int MAX_RETAINED_CUES = 256;
+    // Experimental UI-only cap: device-calibrated 0..500ms acoustic offset plus
+    // timestamp/render slack. NOT a measured Samsung latency or audio drain timeout.
+    private static final long MAX_PRESENTATION_TAIL_MS = 750L;
 
     private static final class Segment {
         final long start;
@@ -35,6 +38,10 @@ public final class VoiceLifecycleContract {
     // Optional calibrated UI path. Raw playedFrames STILL owns terminal drain.
     private long presentationFrames;
     private boolean calibratedPresentation;
+    private boolean boundedPresentationTail;
+    // Physical stream is already COMPLETED; this stores bounded, UI-only catch-up.
+    // Never use it to extend audio playback, engine ownership or synthesis lifespan.
+    private long presentationTailStartedMs = -1L;
     private long lastProgressMs;
     private Phase phase = Phase.IDLE;
     private String failure = "";
@@ -46,6 +53,8 @@ public final class VoiceLifecycleContract {
         acceptedCues.clear();
         acceptedFrames = playedFrames = presentationFrames = 0L;
         calibratedPresentation = false;
+        boundedPresentationTail = false;
+        presentationTailStartedMs = -1L;
         lastProgressMs = nowMs;
         failure = "";
         phase = Phase.PREPARING;
@@ -110,7 +119,7 @@ public final class VoiceLifecycleContract {
         if (framePosition > playedFrames) lastProgressMs = nowMs;
         playedFrames = framePosition;
         pruneConsumed();
-        if (phase == Phase.DRAINING && playedFrames == acceptedFrames) complete();
+        if (phase == Phase.DRAINING && playedFrames == acceptedFrames) complete(nowMs);
         return true;
     }
 
@@ -129,6 +138,19 @@ public final class VoiceLifecycleContract {
     }
 
     /**
+     * Future adapter MUST explicitly opt in to post-drain mouth retention while the
+     * raw track is still at frame zero, after real calibration; no default enablement.
+     * This is UI-only and never extends physical playback or a dead TTS engine.
+     */
+    public synchronized boolean enableBoundedPresentationTail(long id, long nowMs) {
+        if (!current(id, nowMs) || !calibratedPresentation || boundedPresentationTail
+                || playedFrames != 0
+                || !(phase == Phase.BUFFERING || phase == Phase.PLAYING)) return false;
+        boundedPresentationTail = true;
+        return true;
+    }
+
+    /**
      * Only pass a fresh valid non-leading cursor from VoiceAcousticTimingContract.
      * If the acoustic clock returns -1, the adapter MUST show CLOSED instead and
      * must NOT call this method. Stale/invalid epochs likewise return CLOSED.
@@ -136,12 +158,27 @@ public final class VoiceLifecycleContract {
      * even when the raw AudioTrack head is ahead.
      */
     public synchronized Mouth calibratedMouthAt(long id, long framePosition, long nowMs) {
-        if (!current(id, nowMs) || !calibratedPresentation
-                || !(phase == Phase.PLAYING || phase == Phase.DRAINING)
-                || framePosition < presentationFrames || framePosition > playedFrames) {
+        if (!current(id, nowMs) || !calibratedPresentation) return Mouth.CLOSED;
+        if (phase == Phase.COMPLETED) {
+            // A raw-head drain can precede acoustic presentation of the final syllable.
+            // Keep only a bounded tail; callbacks must still carry valid, fresh external
+            // calibration. This method never synthesizes/plays additional PCM.
+            if (!hasPresentationTail()) return Mouth.CLOSED;
+            if (nowMs - presentationTailStartedMs > MAX_PRESENTATION_TAIL_MS) {
+                clearPresentationTail();
+                return Mouth.CLOSED;
+            }
+        } else if (!(phase == Phase.PLAYING || phase == Phase.DRAINING)) {
             return Mouth.CLOSED;
         }
+        if (framePosition < presentationFrames || framePosition > playedFrames)
+            return Mouth.CLOSED;
         presentationFrames = framePosition;
+        if (phase == Phase.COMPLETED && framePosition == acceptedFrames) {
+            // A confirmed final presentation cursor closes the mouth, not the raw head.
+            clearPresentationTail();
+            return Mouth.CLOSED;
+        }
         pruneConsumed();
         return mouthForFrame(framePosition);
     }
@@ -154,18 +191,29 @@ public final class VoiceLifecycleContract {
             return true;
         }
         phase = Phase.DRAINING;
-        if (playedFrames == acceptedFrames) complete();
+        if (playedFrames == acceptedFrames) complete(nowMs);
         return true;
     }
 
     public synchronized boolean engineDied(long id, long nowMs) {
-        if (!current(id, nowMs) || !active()) return false;
+        if (!current(id, nowMs)) return false;
+        if (hasPresentationTail()) {
+            clearPresentationTail(); // terminal state remains truthful: physical drain finished
+            return true;
+        }
+        if (!active()) return false;
         fail("TTS engine terminated");
         return true;
     }
 
     public synchronized boolean interrupt(long id, long nowMs) {
-        if (!current(id, nowMs) || !active()) return false;
+        if (!current(id, nowMs)) return false;
+        if (hasPresentationTail()) {
+            // Actual stop/release must silence the delayed UI immediately.
+            clearPresentationTail();
+            return true;
+        }
+        if (!active()) return false;
         acceptedCues.clear();
         phase = Phase.CANCELLED;
         return true;
@@ -174,6 +222,10 @@ public final class VoiceLifecycleContract {
     /** The caller must use a monotonic elapsedRealtime-like clock. */
     public synchronized boolean tick(long nowMs) {
         if (nowMs < 0 || nowMs < lastProgressMs) return false;
+        if (hasPresentationTail() && nowMs - presentationTailStartedMs > MAX_PRESENTATION_TAIL_MS) {
+            clearPresentationTail();
+            return true;
+        }
         if (!active()) return false;
         long timeout = phase == Phase.PREPARING ? PREPARE_TIMEOUT_MS : PROGRESS_TIMEOUT_MS;
         if (nowMs - lastProgressMs <= timeout) return false;
@@ -232,14 +284,30 @@ public final class VoiceLifecycleContract {
         return true;
     }
 
-    private void complete() {
-        phase = Phase.COMPLETED;
+    private boolean hasPresentationTail() {
+        return phase == Phase.COMPLETED && calibratedPresentation
+                && presentationTailStartedMs >= 0 && !acceptedCues.isEmpty();
+    }
+
+    private void clearPresentationTail() {
         acceptedCues.clear();
+        presentationTailStartedMs = -1L;
+    }
+
+    private void complete(long nowMs) {
+        phase = Phase.COMPLETED;
+        lastProgressMs = nowMs;
+        // Physical audio-drain completion remains the state authority. Only keep an
+        // already calibrated, not-yet-presented mouth cue for a short UI grace period.
+        if (calibratedPresentation && boundedPresentationTail
+                && presentationFrames < acceptedFrames && !acceptedCues.isEmpty())
+            presentationTailStartedMs = nowMs;
+        else clearPresentationTail();
     }
 
     private void fail(String reason) {
         phase = Phase.FAILED;
         failure = reason;
-        acceptedCues.clear();
+        clearPresentationTail();
     }
 }
