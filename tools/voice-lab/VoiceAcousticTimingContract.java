@@ -100,7 +100,8 @@ public final class VoiceAcousticTimingContract {
     /** -1 means no safe calibrated estimate; otherwise a non-leading frame cursor. */
     public synchronized long estimatedMouthFrame(long id, long nowNs) {
         if (!calibrated || !hasObservation || id != generation || nowNs < pollTimestampNs
-                || nowNs - pollTimestampNs > FRESH_NS) return -1;
+                || nowNs - pollTimestampNs > FRESH_NS
+                || nowNs < sourceTimestampNs || nowNs - sourceTimestampNs > FRESH_NS) return -1;
         return Math.max(0L, headFrames - measuredDelayFrames);
     }
 
