@@ -685,6 +685,27 @@ public final class FutureMemoryRecallContract {
             c("valid-old", "Meine Katze heisst Paul"),
             x("nul-successor", "Meine Katze heisst Luna" + nul, "valid-old", true, 0))), "",
             "invalid control successor still supersedes and suppresses old fact");
+        // FUTURE ONLY: after pruning a historical G1 record, the correction
+        // edge must not be interpreted as authoritative without parent state
+        // or an owner-provided retired-ID marker. Keep unrelated memories.
+        CelineFutureMemoryRecall.Candidate orphan =
+            x("orphan-new", "Meine Katze heisst Luna", "unknown-parent", true, 0);
+        CelineFutureMemoryRecall.Candidate orphanDescendant =
+            x("orphan-grandchild", "Meine Katze heisst Max", "orphan-new", true, 0);
+        eq(top("Meine Katze heisst Luna", Arrays.asList(orphan)), "",
+            "orphan correction without parent or tombstone withheld");
+        eq(top("Meine Katze heisst Max", Arrays.asList(orphan, orphanDescendant)), "",
+            "descendant of orphan correction withheld even with complete direct edge");
+        eq(top("Damu Markt Getränke", Arrays.asList(orphan,
+            c("orphan-unrelated-work", "Damu Markt verkauft Getränke"))),
+            "orphan-unrelated-work", "independent trusted memory survives orphan quarantine");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(orphan), Collections.singleton("unknown-parent"), 8, NOW)
+            .get(0).candidate.id, "orphan-new",
+            "owner-supplied retired-parent record supports normal correction chain");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(orphan), NOW), "",
+            "orphan is never suggested as natural-language correction target");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

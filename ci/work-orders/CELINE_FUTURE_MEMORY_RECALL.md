@@ -169,3 +169,18 @@ Minimal FUTURE-only prototype/source update: allow ASCII letters, digits, hyphen
 **External post-v83 integration risk:** Real G1 `CelineMemoryItem` trims identity keys, clamps negative expiry to 0, while G1 `fromJson` uses default LOCAL_PRIVATE for missing/unknown privacy. The future prototype cannot restore raw provenance already laundered before projection, so production promotion requires a separate serial G1 owner handoff and runtime tests, not v83 edits.
 
 **exact_next_action:** Inspect and validate an incomplete post-compaction supersession chain (child has parent ID missing from snapshot and not covered by an authoritative retired-ID tombstone). Create deterministic original-code RED first; withhold unsafe orphan corrections until source-owner lineage proof exists, while retaining the explicitly retracted supported reimport scenario. Re-run exact full pure-Java contract and document the chosen fail-closed boundary. No v83/shared writes.
+
+
+## 29 Oct 2026 — incomplete post-compaction correction chain, 161/161
+
+FUTURE ONLY: issue #115, DRAFT PR #116, existing exclusive cognitive writer. No v83 inclusion, no production Android, shared CI, Core #113, Room #111, Voice #118, Gradle, MainActivity or release changes. All modifications remain in the three registered future-owned files. The v83 frozen Persona/G1 Core #113 stays untouched. Build & Release worker remains sole v83 integrator.
+
+**Baseline exact-source evidence:** prior 156/156 Java contract PASS on Git source blob `85afbfb196cad53de306c8f59487e371a47042f9` and test blob `465d8681a82328aed879d42d4a555ca4a8d235fd`, compiled from exact local source bytes in OpenJDK 21.
+
+**Actual RED:** compiled standalone Java against that prior exact source: missing-parent correction was returned as `orphan-new` where no original parent projection or owner-retired-ID existed (expected abstention). **Fix:** quarantine the orphan correction and all descendants; explicit owner-retired-ID allows the ordinary supersession edge, but does not prove that a conflict was resolved. Independent user-confirmed memories remain available.
+
+**New validated exact blobs:** `ci/prototypes/CelineFutureMemoryRecall.java` **`e137d386abafcb473970bd65f9e715442fafed8f`** and `ci/celine_future_memory_recall_contract_test.py` **`3c200c9605fc447c3a4bf19c4787834780f242dd`**. `git hash-object` matched the local files compiled and executed by `python3 ci/celine_future_memory_recall_contract_test.py`: **`FUTURE_MEMORY_RECALL_CONTRACT_PASS cases=161`**, 161/161. Separate exact-source `ORPHAN_CORRECTION_PROBE_PASS cases=4`. No Android, actual persistent tombstone, G1 ingestion or provider permission proof. Current source/test blobs were uploaded individually and confirmed equal to the tested Git hashes before Git commit.
+
+**Caveat:** A retraction marker does not certify a past G1 conflict winner. Raw metadata may already be normalized in the legacy G1 store. Future post-v83 integration needs source-owned durable lineage/provenance and an explicit separate domain handoff. No new worker, automatic merge or release.
+
+**Clean handoff:** Commit only these three owned files, release their write lease. **exact_next_action:** Design the minimal future-only source-owner conflict/winner evidence boundary for pruned retired-parent histories; first build deterministic RED witness for a surviving child of a missing conflicted parent, then determine whether to abstain or require new trusted G1 projection metadata. Do not mutate frozen v83 or shared Build/Room files.

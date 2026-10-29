@@ -190,13 +190,26 @@ public final class CelineFutureMemoryRecall {
                 conflicted.add(c.conflictWithId);
             }
         }
+        // If a correction points to a pruned parent, do not silently assume
+        // the missing ancestor has no unresolved conflict. The owner must
+        // either retain the parent projection or explicitly supply its retired
+        // identity. Any orphan and all descendants stay out of recall.
+        // A retired-ID marker is NOT itself a G1 conflict-winner proof; live
+        // conflict metadata still quarantines its endpoints below.
+        Set<String> orphaned = new HashSet<>();
+        for (Candidate c : candidates) {
+            if (!c.supersedesId.isEmpty() && !ids.contains(c.supersedesId)
+                    && !retiredIds.contains(c.supersedesId))
+                orphaned.add(c.id);
+        }
         // Compaction/reimport can preserve competing corrections without a G1
         // winner decision. A conflict endpoint is also not proof that a later
         // child is trustworthy. Quarantine BOTH unresolved fork descendants and
         // every descendant of a conflicted ID, even if its parent was pruned,
         // private or expired. Only the owning G1 resolver can clear that history.
         Set<String> unresolvedLineage = new HashSet<>(conflicted);
-        List<String> pending = new ArrayList<>(conflicted);
+        unresolvedLineage.addAll(orphaned);
+        List<String> pending = new ArrayList<>(unresolvedLineage);
         for (List<String> siblings : successorsByParent.values()) {
             if (siblings.size() < 2) continue;
             for (String child : siblings) {
