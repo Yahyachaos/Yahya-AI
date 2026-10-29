@@ -572,6 +572,46 @@ public final class FutureMemoryRecallContract {
             x("safe-id", "Meine Katze heisst Paul", "", true, 0),
             x("broken-link", "Anderes Thema", "safe-id\nnoise", true, 0))), "",
             "control character in correction pointer rejects projection");
+        // FUTURE ONLY: G1 prefix+UUID identity keys are not free text.
+        // Trimming source IDs or retired keys would erase corrupt edge bytes.
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("trailing-id\n", "Meine Katze heisst Luna", "", true, 0))), "",
+            "trailing newline in source ID must not normalize to a valid ID");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("\tleading-id", "Meine Katze heisst Luna", "", true, 0))), "",
+            "leading tab in source ID must fail closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("trailing-space ", "Meine Katze heisst Luna", "", true, 0))), "",
+            "trailing ASCII space in source ID must fail closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("format\u200Bid", "Meine Katze heisst Luna", "", true, 0))), "",
+            "Unicode zero-width format in source ID must fail closed");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("valid-cat", "Meine Katze heisst Paul", "", true, 0),
+            x("bad-supersedes", "Anderes Thema", "unknown\n", false, 0))), "",
+            "trailing control in source supersedes key rejects entire projection");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("valid-cat", "Meine Katze heisst Paul", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("bad-conflict", "Anderes Thema",
+                "", "unknown\u200B", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
+                false, true, NOW-100, 0, 0.5))), "",
+            "Unicode format in conflict key rejects entire projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+            Arrays.asList(x("valid-cat", "Meine Katze heisst Paul", "", true, 0)),
+            Collections.singleton("unknown\n"), 8, NOW).size(), 0,
+            "source retired-ID with trailing newline rejects full projection");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+            Arrays.asList(x("valid-cat", "Meine Katze heisst Paul", "", true, 0)),
+            Collections.singleton("unknown\u200B"), 8, NOW).size(), 0,
+            "source retired-ID with zero-width format rejects full projection");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("control-correction-12345678-1234-1234-1234-123456789abc",
+                "Meine Katze heisst Luna", "", true, 0))),
+            "control-correction-12345678-1234-1234-1234-123456789abc",
+            "valid owner-created prefix UUID retains retrieval");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            x("valid-id", "  Meine Katze heisst Luna  ", "", true, 0))),
+            "valid-id", "summary-only whitespace cleanup remains supported");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

@@ -42,10 +42,10 @@ public final class CelineFutureMemoryRecall {
         public Candidate(String id, String summary, String supersedesId,
                 String conflictWithId, Privacy privacy, boolean authorizedForProvider,
                 boolean userExplicit, long updatedAtMs, long expiresAtMs, double importance) {
-            this.id = safe(id);
+            this.id = rawId(id);
             this.summary = safe(summary);
-            this.supersedesId = safe(supersedesId);
-            this.conflictWithId = safe(conflictWithId);
+            this.supersedesId = rawId(supersedesId);
+            this.conflictWithId = rawId(conflictWithId);
             this.privacy = privacy;
             this.authorizedForProvider = authorizedForProvider;
             this.userExplicit = userExplicit;
@@ -170,7 +170,7 @@ public final class CelineFutureMemoryRecall {
         // a removed successor cannot be reconstructed by this stateless policy.
         Set<String> replaced = new HashSet<>();
         for (String retiredId : retiredIds) {
-            String id = safe(retiredId);
+            String id = rawId(retiredId);
             if (!validId(id, false)) return Collections.emptyList();
             replaced.add(id);
         }
@@ -305,11 +305,15 @@ public final class CelineFutureMemoryRecall {
         for (int i = 0; i < id.length(); i++) {
             char c = id.charAt(i);
             if (Character.isISOControl(c) || Character.isWhitespace(c)
-                    || Character.isSpaceChar(c)) return false;
+                    || Character.isSpaceChar(c)
+                    || Character.getType(c) == Character.FORMAT
+                    || Character.isSurrogate(c)) return false;
         }
         return true;
     }
 
+    // Never trim identity/lineage keys: normalization can launder a corrupt G1 ID.
+    private static String rawId(String v) { return v == null ? "" : v; }
     private static String safe(String v) { return v == null ? "" : v.trim(); }
 
     private static final Set<String> STOP = new HashSet<>(Arrays.asList(
