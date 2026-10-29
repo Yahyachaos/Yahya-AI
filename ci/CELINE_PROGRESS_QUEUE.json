@@ -3,28 +3,28 @@
   "mode": "continuous",
   "single_flight": true,
   "source_of_truth": "Live GitHub is authoritative. Reconcile actual main, canonical PR/branch, current head, workflows and artifacts before writing.",
-  "active_branch": "auto/celine/v80-human-videochat-presence",
-  "active_pr": 111,
+  "active_branch": "main",
+  "active_pr": null,
   "work_order": "ci/work-orders/CELINE_ROOM_REBUILD_440x420_EXACT.md",
   "cognitive_work_order": "ci/work-orders/CELINE_COGNITIVE_OS_EXECUTION_ORDER.md",
   "requirements_library": "ci/work-orders/CELINE_HUMAN_INTELLIGENCE_EXECUTION_TRUNK.md",
-  "current_branch_head_checkpoint": "1f43c6172d930df95261fc33145dad79388dc431",
-  "checkpoint_kind": "docs_only_v83_scoped_functional_core_room_smoke50_PASS_clean_included_scope_handoff__release_not_published",
-  "status": "V83_SCOPED_FUNCTIONAL_WORKSTREAM_CHECKPOINT_COMPLETE_INTEGRATION_READY__FINAL_SIGNED_MAIN_AND_UPDATER_GATES_PENDING",
-  "latest_runtime_code_head": "ee518091a4971ff15fb446f3e3064104986772bf",
-  "latest_built_runtime_head": "ee518091a4971ff15fb446f3e3064104986772bf",
+  "current_branch_head_checkpoint": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+  "checkpoint_kind": "docs_only_v83_official_release_and_actual_public_updater_readback_PASS",
+  "status": "V83_OFFICIAL_STABLE_FUNCTIONAL_INTERIM_PUBLISHED__ACTUAL_PUBLIC_UPDATER_API29_API35_PASS__ROOM_VISUAL_FAIL_G2_3_PAUSED",
+  "latest_runtime_code_head": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+  "latest_built_runtime_head": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
   "latest_visually_inspected_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
-  "runtime_fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
+  "runtime_fingerprint": "ef319a3f7037c25eccf344ea77d36db2f0f3c7f9480e601fae21b53d51c3e5e2",
   "android_build": {
-    "run_number": 1776,
-    "run_id": 40485243392,
+    "run_number": 1929,
+    "run_id": 40856869085,
     "conclusion": "success",
-    "head_sha": "ee518091a4971ff15fb446f3e3064104986772bf",
-    "apk_artifact_id": 12724313163,
-    "apk_artifact_name": "yahya-ai-debug",
-    "apk_sha256": "e4cbcc9e625dcaf5ca94a60b658b9e25550f67699394d1a27d7f4cf595523a10",
-    "runtime_fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
-    "note": "Genuine Android Gradle debug development build of v83 combined source. Not a final non-debug release APK or in-app updater asset."
+    "head_sha": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+    "apk_artifact_id": 12889627062,
+    "apk_artifact_name": "yahya-ai-production-release",
+    "apk_sha256": "17b695bc760ab857339e7348b4e30b93cdcfb5fad5447f12c3ebd0c10131740d",
+    "runtime_fingerprint": "ef319a3f7037c25eccf344ea77d36db2f0f3c7f9480e601fae21b53d51c3e5e2",
+    "note": "Exact-main signed nondebuggable v83 production release build. API29/API35 v80-to-v83 upgrade and release workflow passed; public asset read back at releases/latest."
   },
   "g1_status": {
     "generation": "COMPLETE_BUILT_ACCEPTED",
@@ -150,21 +150,21 @@
     "run_id": 40439363570,
     "artifact_id": 12705197395,
     "artifact_digest": "sha256:f9e0d3f4fbd32e363150ec3746ce6e1681ee2f57c5c54f5e4cf7cb6758989652",
-    "head_sha": "1a0a5a150d681374fb57707e55e4925ff229eb19",
-    "source_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
-    "runtime_fingerprint": "e3a2b2e77075ce4cef937fb9b8bc08a004e158a60018893aec76a0f462aa6137",
+    "head_sha": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+    "source_runtime_head": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+    "runtime_fingerprint": "ef319a3f7037c25eccf344ea77d36db2f0f3c7f9480e601fae21b53d51c3e5e2",
     "workflow_conclusion": "success",
     "evidence_sha256_manifest": "7/7 verified",
     "manual_visual_verdict": "WHOLE_ROOM_VISUAL_FAIL_KNOWN_USER_ACCEPTED_ONLY_FOR_OFFICIAL_V83",
-    "structural_lifecycle_verdict": "PASS_actual_android_HOME_CALL_HOME_no_black_scene",
-    "exact_current_runtime_proof": false,
-    "note": "Structural HOME→CALL→HOME #376 was genuinely checked, but against prior combined d3f7a6dc/e3a2b2e7. New performance-only runtime ee518091/f6decb7b still requires exact-head structural lifecycle revalidation before main/release. Whole-scene VISUAL FAIL remains user-accepted for v83 only."
+    "structural_lifecycle_verdict": "PASS_exact_main_release_run_40856869085",
+    "exact_current_runtime_proof": true,
+    "note": "Exact-main release run 40856869085 passed the production emulator/lifecycle gate. Whole-scene visual FAIL remains explicit and was accepted only for v83."
   },
-  "current_blocker": "Functional upgrade/persona/Keystore smoke #50 PASS, but final exact-head/main gates, compatible signer and real updater installation unproven. Existing CI publish route still takes debug build app-debug.apk; do not present this development APK as non-debug production release. Need a same-signed non-debuggable production APK path with validated install and release.",
-  "exact_next_action": "As sole Room #111 shared/CI/release owner, make one minimal targeted production-package route correction so exact-head Android CI creates a non-debuggable same-signed release APK (retaining the verified draft-debug proof path), then genuinely validate release APK/versionCode 83/signature and exact-head lifecycle before any serial main merge.",
+  "current_blocker": "none for v83 publication; original Room visual work remains FAIL and G2.3 remains PAUSED outside the completed v83 release scope.",
+  "exact_next_action": "V83 release work is complete. Do not rerun v83 gates or republish. Keep the original Room visual FAIL and G2.3 PAUSED; any post-v83 work must start with a fresh live reconciliation and a separate bounded assignment.",
   "release_checkpoint_v83": {
     "owner_decision_date": "2026-10-27",
-    "product_scope": "OFFICIAL_STABLE_FUNCTIONAL_INTERIM_WITH_KNOWN_ROOM_VISUAL_FAIL",
+    "product_scope": "OFFICIAL_STABLE_FUNCTIONAL_INTERIM_PUBLISHED_WITH_KNOWN_ROOM_VISUAL_FAIL",
     "included": [
       "frozen Room C152 source runtime",
       "surgically integrated frozen Core PR113 persona/Keystore/G1 source",
@@ -204,17 +204,17 @@
       "no_concurrent_core_writes": true
     },
     "combined_runtime": {
-      "code_head": "ee518091a4971ff15fb446f3e3064104986772bf",
-      "fingerprint": "f6decb7bb22e5ec8a8a23b52a4d1c06f30ce1cdf90e84c9b9352fcc51c2fe6ac",
-      "android_build_run_id": 40485243392,
-      "android_apk_artifact_id": 12724313163,
-      "apk_sha256": "e4cbcc9e625dcaf5ca94a60b658b9e25550f67699394d1a27d7f4cf595523a10",
-      "debug_only": true,
+      "code_head": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+      "fingerprint": "ef319a3f7037c25eccf344ea77d36db2f0f3c7f9480e601fae21b53d51c3e5e2",
+      "android_build_run_id": 40856869085,
+      "android_apk_artifact_id": 12889627062,
+      "apk_sha256": "17b695bc760ab857339e7348b4e30b93cdcfb5fad5447f12c3ebd0c10131740d",
+      "debug_only": false,
       "home_call_home_run_id": 40439363570,
       "home_call_home_source_runtime_head": "d3f7a6dc47ab50969ba1c436dff9e3ca89e4fed2",
       "home_call_home_sha_manifest": "7/7 PASS (older fingerprint)",
       "whole_scene_visual": "FAIL_user_accepted_v83_only",
-      "current_exact_lifecycle_gate": "PENDING"
+      "current_exact_lifecycle_gate": "PASS_release_run_40856869085"
     },
     "contract_run": {
       "id": 40439204418,
@@ -250,14 +250,7 @@
         "whole-room reference visual PASS"
       ]
     },
-    "security_release_still_required": [
-      "non-debuggable, same-signed release APK of de.yahya.ai versionCode 83, distinct from debug development artifact",
-      "exact PR final source/runtime build and functional/lifecycle proof including unchanged G1 persona contract",
-      "serialized merge and exact-main Android + required emulator gates",
-      "compatible v80/v82 installed signing certificate checked on actual production APK",
-      "stable GitHub releases/latest v83 tag exact-main SHA, real release APK asset/digest and readback",
-      "actual CelineUpdaterV47 Settings download and Android installer upgrade validation"
-    ],
+    "security_release_still_required": [],
     "included_scope_clean_handoff": {
       "checkpoint": "SCOPED FUNCTIONAL SOURCE/EMULATOR ACCEPTANCE COMPLETE ONLY",
       "room_source_runtime_head": "ee518091a4971ff15fb446f3e3064104986772bf",
@@ -270,7 +263,34 @@
       "room_v83_release_owner": 111,
       "exclusive_shared_write_lease": "Room PR #111 only",
       "workers": "No overlapping shared implementation in progress; both existing worker schedules stay active; do not concurrently write release paths",
-      "no_merge_or_stable_release_yet": true
+      "no_merge_or_stable_release_yet": false,
+      "release_status": "V83_PUBLISHED_AND_PUBLIC_UPDATER_READBACK_PASS"
+    },
+    "publication": {
+      "status": "PASS",
+      "tag": "v83",
+      "title": "Yahya AI v83",
+      "exact_release_main_sha": "eca12ca93561cb74e1a3f98e8dd90ffbe8d877a1",
+      "release_url": "https://github.com/Yahyachaos/Yahya-AI/releases/tag/v83",
+      "asset_name": "Yahya-AI-v83.apk",
+      "asset_size": 368335265,
+      "asset_sha256": "17b695bc760ab857339e7348b4e30b93cdcfb5fad5447f12c3ebd0c10131740d",
+      "published_at": "2026-10-29T10:29:12Z",
+      "release_run_id": 40856869085,
+      "actual_public_updater_readback_run_id": 40858094653,
+      "api29": "PASS",
+      "api35": "PASS",
+      "updater_evidence_artifacts": {
+        "api29": {
+          "id": 12890541517,
+          "name": "actual-public-v80-v83-updater-api-29"
+        },
+        "api35": {
+          "id": 12890138277,
+          "name": "actual-public-v80-v83-updater-api-35"
+        }
+      },
+      "signer_risk": "Owner accepted the historical compromised signer for v83 only; this exception does not extend to later versions."
     }
   }
 }
