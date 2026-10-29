@@ -893,6 +893,45 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna " + "\u25C6\uFE0F!",
             Arrays.asList(c("unsupported-selector-punct", "Meine Katze heisst Luna"))),
             "", "unsupported variation selector still denied with punctuation");
+        // FUTURE ONLY: non-Latin / unrepresentable letters and digits must
+        // never be silently discarded while other query terms still match.
+        eq(top("Meine Katze heisst Luna مرحبا",
+            Arrays.asList(c("arabic-ignored", "Meine Katze heisst Luna"))),
+            "", "mixed Arabic query must not match a truncated Latin prefix");
+        eq(top("Meine Katze heisst Luna Привет",
+            Arrays.asList(c("cyrillic-ignored", "Meine Katze heisst Luna"))),
+            "", "mixed Cyrillic query must abstain");
+        eq(top("Meine Katze heisst Luna 你好",
+            Arrays.asList(c("han-ignored", "Meine Katze heisst Luna"))),
+            "", "mixed Han query must abstain");
+        eq(top("Meine Katze heisst Luna \u0661",
+            Arrays.asList(c("arabic-digit", "Meine Katze heisst Luna"))),
+            "", "Arabic-Indic digit must not silently disappear");
+        eq(top("Meine Katze heisst Luna \u0131",
+            Arrays.asList(c("unmapped-dotless-i", "Meine Katze heisst Luna"))),
+            "", "unmapped dotless Latin i must not silently disappear");
+        eq(top("Meine Katze heisst Luna \uFF11",
+            Arrays.asList(c("fullwidth-digit", "Meine Katze heisst Luna"))),
+            "", "fullwidth digit must not silently disappear");
+        eq(top("Meine Katze heisst Luna",
+            Arrays.asList(c("arabic-stored", "Meine Katze heisst Luna مرحبا"))),
+            "", "stored mixed-script memory is not partially matched");
+        eq(top("Meine Katze heisst", Arrays.asList(
+            c("old-arabic-lineage", "Meine Katze heisst Paul"),
+            x("unrepresentable-successor", "Meine Katze heisst Luna مرحبا",
+                "old-arabic-lineage", true, 0))), "",
+            "unrepresentable successor still suppresses predecessor");
+        eq(top("Kedi küçük köpek", Arrays.asList(
+            c("valid-turkish-latin", "Kedi küçük köpek"))),
+            "valid-turkish-latin", "Turkish Latin accent decomposition retained");
+        eq(top("München Café", Arrays.asList(c("valid-cafe", "München Café"))),
+            "valid-cafe", "Latin accented German/French remains searchable");
+        eq(top("\u0130stanbul Köln", Arrays.asList(
+            c("valid-capital-dotted-i", "\u0130stanbul Köln"))),
+            "valid-capital-dotted-i", "normalizable Turkish dotted I retained");
+        eq(top("Kedi Luna " + sunEmoji + "?",
+            Arrays.asList(c("sun-script-positive", "Kedi Luna"))),
+            "sun-script-positive", "punctuation emoji remains supported after script gate");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
