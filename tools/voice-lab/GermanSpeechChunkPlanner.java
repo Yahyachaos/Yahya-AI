@@ -15,7 +15,7 @@ public final class GermanSpeechChunkPlanner {
 
     public static List<String> split(String text) {
         if (text == null || text.trim().isEmpty()) return Collections.emptyList();
-        String normalized = text.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
+        String normalized = text.replaceAll("(?U)\\s+", " ").trim();
         if (normalized.isEmpty()) return Collections.emptyList();
         List<String> result = new ArrayList<>();
         int start = 0;
