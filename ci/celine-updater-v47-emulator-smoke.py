@@ -134,7 +134,9 @@ def main():
     ui.click(node(hub,"Update prüfen"))
     dialog=wait_for(lambda r:contains(r,"Yahya AI Update verfügbar") and
                     contains(r,"Installiert: v79") and contains(r,"Verfügbar: v80") and
-                    any(n.attrib.get("text")=="Update herunterladen" for n in allnodes(r)),
+                    any(n.attrib.get("text","").strip().casefold()=="update herunterladen" and
+                        n.attrib.get("enabled","true")=="true" and n.attrib.get("bounds")
+                        for n in allnodes(r)),
                     "real public v80 available",70)
     evidence("real-v80-update-available",dialog)
     ui.click(node(dialog,"Update herunterladen"))
