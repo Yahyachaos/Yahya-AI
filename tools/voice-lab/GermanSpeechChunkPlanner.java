@@ -76,7 +76,8 @@ public final class GermanSpeechChunkPlanner {
                 while (n >= start && Character.isDigit(text.charAt(n))) n--;
                 int digits = end - n - 1;
                 if (digits == 0) return false;
-                if (digits <= 2 && nextWordIsMonth(text, boundaryEnd)) return true;
+                if (digits <= 2 && (nextWordIsMonth(text, boundaryEnd)
+                        || nextWordIsOrdinalUnit(text, boundaryEnd))) return true;
                 // "29.10." is a date fragment, but "29.10.2026." completes a
                 // four-digit year and may end a sentence. Keep this conservative.
                 return digits <= 2 && n >= start + 1 && text.charAt(n) == '.'
@@ -94,6 +95,21 @@ public final class GermanSpeechChunkPlanner {
             case "januar": case "februar": case "märz": case "april": case "mai":
             case "juni": case "juli": case "august": case "september":
             case "oktober": case "november": case "dezember":
+                return true;
+            default: return false;
+        }
+    }
+
+    /** Known ordinal+noun compounds: do not create a spoken pause inside them. */
+    private static boolean nextWordIsOrdinalUnit(String text, int boundaryEnd) {
+        if (boundaryEnd >= text.length() || text.charAt(boundaryEnd) != ' ') return false;
+        int wordStart = boundaryEnd + 1;
+        int wordEnd = wordStart;
+        while (wordEnd < text.length() && Character.isLetter(text.charAt(wordEnd))) wordEnd++;
+        String word = text.substring(wordStart, wordEnd).toLowerCase(Locale.ROOT);
+        switch (word) {
+            case "klasse": case "stock": case "etage": case "liga":
+            case "runde": case "platz":
                 return true;
             default: return false;
         }
