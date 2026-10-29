@@ -74,6 +74,35 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze", capacity),"", "overflow privacy must fail closed");
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Luna", capacity, NOW),
                 "", "overflow correction suggestion must fail closed");
+        // Future-only monotonic correction policy: a supplied expired successor still
+        // suppresses its predecessor; expiration must never resurrect obsolete facts.
+        List<CelineFutureMemoryRecall.Candidate> expiredSuccessor = Arrays.asList(
+            x("old-cat", "Meine Katze heißt Paul", "", true, 0),
+            x("expired-new-cat", "Meine Katze heißt Luna", "old-cat", true, NOW-1));
+        eq(top("Meine Katze heißt", expiredSuccessor), "", "expired successor cannot resurrect old");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Paul",expiredSuccessor,NOW),
+            "", "correction target cannot select stale ancestor");
+        List<CelineFutureMemoryRecall.Candidate> expiredSensitive = Arrays.asList(
+            x("old-secret", "Mein Passwort lautet frei", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("private-new", "Mein Passwort lautet geheim",
+                "old-secret", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true, NOW, NOW-1, 1));
+        eq(top("Passwort lautet",expiredSensitive),"","expired private successor still suppresses old");
+        // Only the information actually supplied by the owner may be used for suppression.
+        eq(top("Meine Katze heißt",Arrays.asList(x("old-cat","Meine Katze heißt Paul","",true,0))),
+            "old-cat","no inferred tombstone if projection lacks successor");
+        // Duplicate IDs from a contradictory projection must not select whichever
+        // entry happened to appear first, especially when privacy differs.
+        List<CelineFutureMemoryRecall.Candidate> duplicateId = Arrays.asList(
+            x("same-id", "Meine Katze heißt Paul", "", true, 0),
+            new CelineFutureMemoryRecall.Candidate("same-id", "Meine Katze heißt Luna", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true, NOW, 0, 1));
+        eq(top("Meine Katze heißt",duplicateId),"","duplicate ID cannot expose earlier public projection");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Paul",duplicateId,NOW),
+                "","duplicate ID correction must abstain");
+        eq(top("Meine Katze heißt",Arrays.asList(
+            x("same-id", "Meine Katze heißt Paul", "", true, 0),
+            x("same-id", "Meine Katze heißt Luna", "", true, NOW-1))),
+            "", "expired duplicate ID also fails closed");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
