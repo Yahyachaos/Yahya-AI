@@ -1233,6 +1233,109 @@ async function main() {
       audit:'layout-v8-chair-audit.json',sourceInstances:13,bedLocked:true,
       dresserLocked:true,androidVisual:'FAIL_G2_3_PAUSED'});
 
+
+    // V9 is the exact already-WebGL-rendered V8 left-rear-big chair, now independently locked.
+    // This is an import/save/GLB-provenance check, NOT automatic optical acceptance.
+    const v9Path=path.join(root,'tools/room-layout-editor/layout-candidates/2026-10-29-room-chair-screened-locked-v9.json');
+    const v9=JSON.parse(fs.readFileSync(v9Path,'utf8'));
+    const expectedV9=JSON.parse(JSON.stringify(chairTrials.find(t=>t.name==='left-rear-big').state.objects));
+    expectedV9.find(o=>o.id==='room_lounge_chair').locked=true;
+    assert.deepEqual(v9.objects,expectedV9,'V9 freezes precisely the genuine-screened V8 chair and other 12 objects');
+    await page.locator('#file').setInputFiles(v9Path);
+    await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes(
+      'Gespeichertes Layout geladen: 2026-10-29-room-chair-screened-locked-v9.json'),
+      null,{timeout:60000});
+    await page.evaluate(config=>window.__celineRoomEditorE2E.previewMeasuredCamera(config),
+      framingCamera.camera_proposal);
+    const v9Audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    const v9Proj=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+    assert.deepEqual(v9Audit.room_m,{width:4.4,depth:4.2,height:2.65});
+    assert.equal(v9Audit.model_count,13);
+    assert.equal(v9Audit.all_source_fidelity_glbs_loaded,true);
+    assert.deepEqual(v9Proj.canvas_px,[700,560]);
+    assert(Math.abs(v9Proj.aspect-1402/1122)<.002);
+    const v9Objects=Object.fromEntries(v9Audit.objects.map(o=>[o.id,o]));
+    for(const obj of v9Audit.objects){
+      const expected=v9.objects.find(o=>o.id===obj.id);
+      assert.equal(obj.source_sha256,v9.original_source_hashes[obj.id],
+        'V9 immutable original source GLB: '+obj.id);
+      assert.deepEqual(obj.transform.translation_m,expected.translation_m);
+      assert.deepEqual(obj.transform.rotation_euler_deg,expected.rotation_euler_deg);
+      assert.deepEqual(obj.transform.scale_xyz,expected.scale_xyz);
+      assert.equal(obj.locked,expected.locked);
+      assert.deepEqual(Object.entries(obj.overflow_faces_m).filter(([,m])=>m>.012),[],
+        'V9 all 13 original GLB bounds inside physical 4.4x4.2x2.65m room');
+    }
+    assert.equal(v9Objects.room_bed.locked,true);
+    assert.equal(v9Objects.room_dresser.locked,true);
+    assert.equal(v9Objects.room_lounge_chair.locked,true);
+    assert(Math.abs(v9Objects.room_lounge_chair.floor_bottom_y_m)<.012,
+      'V9 locked chair original GLB grounded');
+    const v9Separated=(a,b)=>[0,1,2].some(i=>a.max[i]+.025<b.min[i]||
+      b.max[i]+.025<a.min[i]);
+    assert(v9Separated(v9Objects.room_lounge_chair.conservative_world_aabb_m,
+      v9Objects.room_dresser.conservative_world_aabb_m),'V9 dresser-chair 25mm source AABB separation');
+    assert(v9Separated(v9Objects.room_lounge_chair.conservative_world_aabb_m,
+      v9Objects.room_bed.conservative_world_aabb_m),'V9 bed-chair 25mm source AABB separation');
+    await page.locator('#object').selectOption('room_lounge_chair');
+    assert.equal(await page.locator('#x').isDisabled(),true,'V9 chair lock disables X edit');
+    const v9DlEvent=page.waitForEvent('download');
+    await page.locator('#save').click();
+    const v9Dl=await v9DlEvent;
+    const v9DownloadedPath=path.join(output,'layout-v9-browser-downloaded.json');
+    await v9Dl.saveAs(v9DownloadedPath);
+    const v9Downloaded=JSON.parse(fs.readFileSync(v9DownloadedPath,'utf8'));
+    assert.equal(v9Downloaded.objects.length,13);
+    assert.deepEqual(v9Downloaded.room,v9.room);
+    for(const expected of v9.objects){
+      const saved=v9Downloaded.objects.find(o=>o.id===expected.id);
+      assert(saved,'V9 downloaded JSON includes '+expected.id);
+      assert.equal(saved.locked,expected.locked);
+      for(const k of ['translation_m','rotation_euler_deg','scale_xyz']){
+        assert(saved[k].every((n,i)=>Number.isFinite(n)&&Math.abs(n-expected[k][i])<1e-8),
+          'V9 browser JSON roundtrip '+expected.id+' '+k);
+      }
+    }
+    const v9Image=png('layout-v9-chair-locked-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})));
+    assert.deepEqual([v9Image.width,v9Image.height],[700,560]);
+    const v9Side=png('layout-v9-original-reference-side-by-side.png',
+      await page.evaluate(async()=>{
+        const ref=document.querySelector('#reference-preview');
+        if(!ref?.naturalWidth)throw new Error('V9 original reference missing');
+        const im=new Image();im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+        await new Promise((res,rej)=>{if(im.complete&&im.naturalWidth)return res();
+          im.onload=res;im.onerror=rej;});
+        const c=document.createElement('canvas');c.width=1400;c.height=560;
+        const ctx=c.getContext('2d');ctx.drawImage(ref,0,0,700,560);
+        ctx.drawImage(im,700,0,700,560);return c.toDataURL('image/png');
+      }));
+    assert.deepEqual([v9Side.width,v9Side.height],[1400,560]);
+    fs.writeFileSync(path.join(output,'layout-v9-chair-locked-audit.json'),JSON.stringify({
+      sourceSha:process.env.GITHUB_SHA||null,
+      savedCandidate:path.relative(root,v9Path),
+      verifiedSourceProvenanceRun:40795230437,
+      verifiedSourceHead:'c2ad31afdc7e96ba57634ee80464ad868ec3b10b',
+      variant:'left-rear-big',chairLocked:true,
+      bedLocked:true,dresserLocked:true,other12Frozen:true,
+      room_m:v9Audit.room_m,sourceOriginalGlbInstances:13,
+      chairOriginalSourceBounds:v9Objects.room_lounge_chair.conservative_world_aabb_m,
+      chairProjectedConservativeAabb:projectedWorldAabb(v9Objects.room_lounge_chair,v9Proj),
+      browserJsonDownload:path.basename(v9DownloadedPath),
+      screenshot:v9Image,sideBySide:v9Side,
+      visuallyAccepted:false,
+      manualChairVisual:'FAIL_SOURCE_STYLE_AND_MATERIAL_VS_BEIGE_PADDED_REFERENCE',
+      manualBedVisual:'FAIL',manualDresserVisual:'FAIL',
+      wholeSceneVisual:'FAIL',androidG2_3:'PAUSED'
+    },null,2)+'\n');
+    evidence('V9_LOCKED_SCREENED_CHAIR_GENUINE_WEBGL_JSON_SAVE_NOT_VISUAL_PASS',{
+      savedCandidate:path.relative(root,v9Path),
+      screenshot:v9Image.file,sideBySide:v9Side.file,
+      audit:'layout-v9-chair-locked-audit.json',
+      browserExport:'layout-v9-browser-downloaded.json',
+      allOriginalSources:true,allOther12Frozen:true,
+      strictVisual:'FAIL',android:'G2_3_PAUSED'});
+
     assert.deepEqual(browserErrors,[],'No browser JavaScript/console errors');
     fs.writeFileSync(path.join(output,'pointer-visual-result.json'),JSON.stringify({
       verdict:'PASS',sourceSha:process.env.GITHUB_SHA||null,
