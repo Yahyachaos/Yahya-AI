@@ -77,10 +77,33 @@ public final class VoiceAcousticInvalidProofQuarantineTest {
             check(c.estimatedMouthFrame(1,t+13_000_000L)==-1,"stop keeps closed " + i);
         }
     }
+    /** A later invalid-but-timestamp-plausible report must not be backdated to restore lips. */
+    private static void rejectedCaptureClockCannotReplay() {
+        for (int i = 0; i < 100; i++) {
+            VoiceAcousticTimingContract c = new VoiceAcousticTimingContract();
+            long t = 1_000_000_000L + 1_000_000_000L * i;
+            c.begin(1, 48000);
+            check(c.acceptMeasuredDelay(1, 240), "replay calibration " + i);
+            check(c.observe(1, 1000, 1100, t, t + 1_000_000L), "trusted capture " + i);
+            check(c.estimatedMouthFrame(1, t + 2_000_000L) == 760, "mouth before reject " + i);
+            reject(c.observe(1, 1050, 1049, t + 30_000_000L, t + 31_000_000L),
+                    "malformed newer frame claim " + i);
+            check(c.estimatedMouthFrame(1, t + 32_000_000L) == -1, "malformed closes mouth " + i);
+            reject(c.observe(1, 1050, 1100, t + 20_000_000L, t + 21_000_000L),
+                    "older timestamp cannot replay mouth " + i);
+            check(c.estimatedMouthFrame(1, t + 33_000_000L) == -1, "replay remains silent " + i);
+            c.begin(2, 48000);
+            check(c.acceptMeasuredDelay(2, 240), "fresh calibration " + i);
+            check(c.observe(2, 1000, 1100, t + 50_000_000L, t + 51_000_000L),
+                    "fresh generation capture " + i);
+            check(c.estimatedMouthFrame(2, t + 52_000_000L) == 760, "fresh mouth " + i);
+        }
+    }
     public static void main(String[] args) {
         rollbackPoisonsUntilFreshAudioGeneration();
         malformedSampleRequiresFreshMonotoneProof();
         deterministicRejectStorm();
+        rejectedCaptureClockCannotReplay();
         System.out.println("VOICE_ACOUSTIC_INVALID_PROOF_QUARANTINE_PASS checks="+checks);
     }
 }

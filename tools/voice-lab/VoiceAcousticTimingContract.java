@@ -19,6 +19,12 @@ public final class VoiceAcousticTimingContract {
     // Preserve the last accepted baseline even after a malformed sample closes UI.
     // A real same-epoch head/clock reset invalidates this audio generation entirely.
     private boolean hasBaseline;
+    // Plausible clock samples advance a provenance high-water mark even if
+    // their frame fields are rejected. A delayed older sample cannot revive
+    // a mouth cursor after that newer (malformed) hardware observation.
+    private boolean hasPlausibleClock;
+    private long highestSourceNs;
+    private long highestPollNs;
     private boolean poisoned;
 
     public synchronized void begin(long generation, int sampleRate) {
@@ -34,6 +40,9 @@ public final class VoiceAcousticTimingContract {
         this.calibrated = false;
         this.hasObservation = false;
         this.hasBaseline = false;
+        this.hasPlausibleClock = false;
+        this.highestSourceNs = 0;
+        this.highestPollNs = 0;
         this.poisoned = false;
     }
 
@@ -48,6 +57,8 @@ public final class VoiceAcousticTimingContract {
         calibrated = true;
         hasObservation = false; // a new calibration invalidates the old sample
         hasBaseline = false;
+        hasPlausibleClock = false;
+        highestSourceNs = highestPollNs = 0;
         return true;
     }
 
@@ -65,6 +76,20 @@ public final class VoiceAcousticTimingContract {
             hasObservation = false;
             poisoned = true;
             return false;
+        }
+        // A timestamp-shaped observation is chronologically significant even
+        // when its head/accepted-frame fields are invalid. Do not treat it as
+        // valid audio, but do not later accept evidence from before its clock.
+        // Baseline rollbacks above remain terminal; speculative invalid samples
+        // only close presentation until a fresh monotonic observation arrives.
+        if (sourceNs >= 0 && pollNs >= sourceNs && pollNs - sourceNs <= FRESH_NS) {
+            if (hasPlausibleClock && (sourceNs < highestSourceNs || pollNs < highestPollNs)) {
+                hasObservation = false;
+                return false;
+            }
+            hasPlausibleClock = true;
+            highestSourceNs = sourceNs;
+            highestPollNs = pollNs;
         }
         if (head < 0 || accepted < head || sourceNs < 0 || pollNs < sourceNs
                 || pollNs - sourceNs > FRESH_NS) {
