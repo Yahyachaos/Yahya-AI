@@ -32,6 +32,9 @@ public final class VoiceLifecycleContract {
     private long generation;
     private long acceptedFrames;
     private long playedFrames;
+    // Optional calibrated UI path. Raw playedFrames STILL owns terminal drain.
+    private long presentationFrames;
+    private boolean calibratedPresentation;
     private long lastProgressMs;
     private Phase phase = Phase.IDLE;
     private String failure = "";
@@ -41,7 +44,8 @@ public final class VoiceLifecycleContract {
         if (generation == Long.MAX_VALUE) throw new IllegalStateException("generation exhausted");
         generation++;
         acceptedCues.clear();
-        acceptedFrames = playedFrames = 0L;
+        acceptedFrames = playedFrames = presentationFrames = 0L;
+        calibratedPresentation = false;
         lastProgressMs = nowMs;
         failure = "";
         phase = Phase.PREPARING;
@@ -110,6 +114,38 @@ public final class VoiceLifecycleContract {
         return true;
     }
 
+    /**
+     * Opt into conservative externally calibrated mouth rendering BEFORE the first raw
+     * playback-head advancement. Physical raw head remains the ONLY drain authority.
+     * The caller must have a real device-calibrated VoiceAcousticTimingContract, and
+     * MUST NOT render playedMouth() once this mode is selected.
+     */
+    public synchronized boolean enableCalibratedPresentation(long id, long nowMs) {
+        if (!current(id, nowMs) || calibratedPresentation || playedFrames != 0
+                || !(phase == Phase.BUFFERING || phase == Phase.PLAYING)) return false;
+        calibratedPresentation = true;
+        presentationFrames = 0L;
+        return true;
+    }
+
+    /**
+     * Only pass a fresh valid non-leading cursor from VoiceAcousticTimingContract.
+     * If the acoustic clock returns -1, the adapter MUST show CLOSED instead and
+     * must NOT call this method. Stale/invalid epochs likewise return CLOSED.
+     * The committed PCM cue is retained until this presentation cursor consumes it,
+     * even when the raw AudioTrack head is ahead.
+     */
+    public synchronized Mouth calibratedMouthAt(long id, long framePosition, long nowMs) {
+        if (!current(id, nowMs) || !calibratedPresentation
+                || !(phase == Phase.PLAYING || phase == Phase.DRAINING)
+                || framePosition < presentationFrames || framePosition > playedFrames) {
+            return Mouth.CLOSED;
+        }
+        presentationFrames = framePosition;
+        pruneConsumed();
+        return mouthForFrame(framePosition);
+    }
+
     /** Synthesis ending is NOT the same as speaker playback ending. */
     public synchronized boolean synthesisDone(long id, long nowMs) {
         if (!current(id, nowMs) || !(phase == Phase.PLAYING || phase == Phase.BUFFERING)) return false;
@@ -145,10 +181,16 @@ public final class VoiceLifecycleContract {
         return true;
     }
 
-    /** No mouth movement from merely queued PCM. Position comes from actual speaker head. */
+    /** Legacy, raw-head-only cue: disabled in calibrated mode to prevent early lips. */
     public synchronized Mouth playedMouth() {
-        if (!(phase == Phase.PLAYING || phase == Phase.DRAINING) || playedFrames == 0) return Mouth.CLOSED;
-        long currentSample = playedFrames - 1L;
+        if (calibratedPresentation || !(phase == Phase.PLAYING || phase == Phase.DRAINING))
+            return Mouth.CLOSED;
+        return mouthForFrame(playedFrames);
+    }
+
+    private Mouth mouthForFrame(long framePosition) {
+        if (framePosition == 0) return Mouth.CLOSED;
+        long currentSample = framePosition - 1L;
         for (int i = acceptedCues.size() - 1; i >= 0; i--) {
             Segment s = acceptedCues.get(i);
             if (currentSample >= s.start && currentSample < s.end) return s.mouth;
@@ -168,7 +210,8 @@ public final class VoiceLifecycleContract {
         // Strict < retains the segment containing last emitted sample
         // at an exact frame boundary. Only samples earlier than that are gone.
         int count = 0;
-        while (count < acceptedCues.size() && acceptedCues.get(count).end < playedFrames) count++;
+        long consumedHead = calibratedPresentation ? presentationFrames : playedFrames;
+        while (count < acceptedCues.size() && acceptedCues.get(count).end < consumedHead) count++;
         if (count > 0) acceptedCues.subList(0, count).clear();
     }
 
