@@ -331,7 +331,15 @@ public final class CelineFutureMemoryRecall {
             // over-budget lexical inputs. Its empty result is not evidence
             // that this still-current source record is unrelated to the edit.
             Set<String> rivalTerms = terms(rival.summary);
-            if (rivalTerms.isEmpty()) return "";
+            if (rivalTerms.isEmpty()) {
+                // A successfully parsed, plain German stopword/short-word or
+                // punctuation-only source has no correction anchors. Its empty
+                // term set is not the same as an unsupported script, an emoji,
+                // damaged source text, or an over-budget token set.
+                if (!corruptTime && Double.isFinite(rival.importance)
+                        && hasOnlyKnownDiscardedLexemes(rival.summary)) continue;
+                return "";
+            }
             int rivalSharedTerms = overlap(query, rivalTerms);
             if (rivalSharedTerms >= 2 && rivalSharedTerms >= best.sharedTerms)
                 return "";
@@ -381,6 +389,31 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
+    }
+
+    // This is ONLY a correction-target abstention exception, never a recall
+    // authorization rule. Use an intentionally small, inspectable alphabet;
+    // Unicode-only content (including emoji) cannot silently be called irrelevant.
+    // An empty/redacted summary and invalid/over-budget text remain UNKNOWN.
+    private static boolean hasOnlyKnownDiscardedLexemes(String summary) {
+        if (summary == null || summary.isEmpty() || summary.length() > MAX_INPUT
+                || !wellFormedUtf16(summary) || hasNonTextControl(summary)
+                || hasUnrepresentableLexicalChars(summary)) return false;
+        for (int i = 0; i < summary.length(); i++) {
+            char ch = summary.charAt(i);
+            if (ch > 127 && ch != 'ä' && ch != 'ö' && ch != 'ü'
+                    && ch != 'Ä' && ch != 'Ö' && ch != 'Ü' && ch != 'ß') return false;
+        }
+        String value = safe(summary).toLowerCase(Locale.GERMANY)
+            .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
+        value = Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}+", "")
+            .replaceAll("[^a-z0-9]+", " ").trim();
+        if (value.isEmpty()) return true; // visible plain punctuation only
+        for (String word : value.split("\\s+")) {
+            if (word.length() >= 3 && !STOP.contains(word)) return false;
+        }
+        return true;
     }
 
     // A query or memory containing a lexical script that this Latin/German

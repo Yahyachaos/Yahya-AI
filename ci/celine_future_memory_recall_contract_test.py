@@ -1408,6 +1408,61 @@ public final class FutureMemoryRecallContract {
             Arrays.asList(aVisible,c("script-unrelated", "Damu Markt verkauft Getraenke")),NOW),
             "script-visible", "valid unrelated indexed rival does not block correction");
 
+        // FUTURE-ONLY correction selection: zero tokenizer terms can either
+        // mean a benign known stopword/punctuation-only rival, or UNKNOWN.
+        // Never treat incomplete Unicode/over-budget/redacted evidence as benign.
+        CelineFutureMemoryRecall.Candidate safeEmptyStopwords =
+            c("plain-stopwords", "und oder aber die der ist ja wir nicht");
+        CelineFutureMemoryRecall.Candidate safeEmptyPunctuation =
+            c("plain-punctuation", "?! --- ... ;: ()");
+        CelineFutureMemoryRecall.Candidate safeEmptyShortWords =
+            c("plain-shortwords", "ab xy zu und der");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,safeEmptyStopwords),NOW), "script-visible",
+            "safe stopwords-only rival does not block unique correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(safeEmptyPunctuation,aVisible),NOW), "script-visible",
+            "ASCII punctuation-only rival does not block unique correction independent of order");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",
+            "known short-word-only rival does not block correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("opaque-emoji", "❤️")),NOW), "",
+            "emoji-only rival stays opaque rather than assumed unrelated");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("opaque-cjk", "猫")),NOW), "",
+            "unrepresentable script-only rival still blocks speculative correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("opaque-invisible", "und oder\u200B")),NOW), "",
+            "hidden control mark invalidates an otherwise stopword-only rival");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("opaque-interleaved", "und Katze oder Luna")),NOW), "script-visible",
+            "weak rival with two anchors cannot override three-anchor correction");
+        eq(top("Meine Katze heisst Luna",Arrays.asList(aVisible,safeEmptyStopwords)),
+            "script-visible", "provider retrieval remains unchanged with stopword-only rival");
+        // A lexical-empty summary is not permission to disregard corrupt G1
+        // metadata; malformed clocks and non-finite importance remain unknown.
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
+                "bad-clock-stops", "und der oder", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,
+                -5,0,0.5)),NOW), "",
+            "negative G1 update timestamp must not be bypassed by stopword exception");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
+                "bad-weight-stops", "und der oder", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,
+                NOW-100,0,Double.NaN)),NOW), "",
+            "nonfinite G1 importance must not be bypassed by stopword exception");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("safe-stop-with-umlaut", "für und zum bitte")),NOW),
+            "script-visible", "German umlaut-normalized stopword remains known empty evidence");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("opaque-non-german-accent", "und oder dïe")),NOW),
+            "", "non-allowlisted Unicode cannot be dismissed as stopwords");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("opaque-redacted", "\u200B")),NOW),
+            "", "redacted or invalid mark-only rival never becomes benign punctuation");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
