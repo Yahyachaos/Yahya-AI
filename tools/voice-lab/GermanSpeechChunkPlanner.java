@@ -21,19 +21,42 @@ public final class GermanSpeechChunkPlanner {
         int start = 0;
         for (int pos = 0; pos < normalized.length(); pos++) {
             char ch = normalized.charAt(pos);
-            boolean ending = ch == '.' || ch == '!' || ch == '?';
-            boolean boundary = pos + 1 == normalized.length() || normalized.charAt(pos + 1) == ' ';
-            if (ending && boundary && !isAbbreviation(normalized, start, pos, ch)) {
-                appendLengthBounded(result, normalized.substring(start, pos + 1));
-                start = pos + 1;
+            if (ch != '.' && ch != '!' && ch != '?') continue;
+            int punctuationEnd = pos + 1;
+            // Treat clusters ("?!", "...") as a single spoken boundary candidate.
+            while (punctuationEnd < normalized.length()
+                    && isSentencePunctuation(normalized.charAt(punctuationEnd))) punctuationEnd++;
+            int boundaryEnd = punctuationEnd;
+            // German quoted sentences often close after the punctuation:
+            // „Hallo!“ Danach ... / (wirklich?) Danach ...
+            while (boundaryEnd < normalized.length()
+                    && isClosingDelimiter(normalized.charAt(boundaryEnd))) boundaryEnd++;
+            boolean boundary = boundaryEnd == normalized.length()
+                    || normalized.charAt(boundaryEnd) == ' ';
+            boolean abbreviation = punctuationEnd == pos + 1 && ch == '.'
+                    && isAbbreviation(normalized, start, pos, boundaryEnd);
+            if (boundary && !abbreviation) {
+                appendLengthBounded(result, normalized.substring(start, boundaryEnd));
+                start = boundaryEnd;
+                pos = boundaryEnd - 1;
+            } else {
+                pos = punctuationEnd - 1;
             }
         }
         if (start < normalized.length()) appendLengthBounded(result, normalized.substring(start));
         return Collections.unmodifiableList(result);
     }
 
-    private static boolean isAbbreviation(String text, int start, int end, char ch) {
-        if (ch != '.') return false;
+    private static boolean isSentencePunctuation(char c) {
+        return c == '.' || c == '!' || c == '?';
+    }
+
+    private static boolean isClosingDelimiter(char c) {
+        return c == '\"' || c == '\u201d' || c == '\u201c' || c == '\u00bb'
+                || c == '\u2019' || c == '\'' || c == ')' || c == ']';
+    }
+
+    private static boolean isAbbreviation(String text, int start, int end, int boundaryEnd) {
         int p = end - 1;
         while (p >= start && Character.isLetter(text.charAt(p))) p--;
         String token = text.substring(p + 1, end).toLowerCase(Locale.ROOT);
@@ -43,15 +66,32 @@ public final class GermanSpeechChunkPlanner {
             case "a": case "d": case "h": case "evtl": case "ggf":
                 return true;
             default:
-                // German ordinal/date fragments: never start an unrelated sentence
-                // solely because a numeric prefix (e.g., 29.10.) ends in a dot.
                 if (!token.isEmpty()) return false;
-                // Date fragment 29.10. has a preceding digit-dot-digit sequence;
-                // sentence-ending "Nr. 4." does not, and may form a boundary.
+                // Do not split spoken numeric ordinals in dates like "am 5. November".
                 int n = end - 1;
                 while (n >= start && Character.isDigit(text.charAt(n))) n--;
-                return n >= start + 1 && text.charAt(n) == '.'
+                int digits = end - n - 1;
+                if (digits == 0) return false;
+                if (digits <= 2 && nextWordIsMonth(text, boundaryEnd)) return true;
+                // "29.10." is a date fragment, but "29.10.2026." completes a
+                // four-digit year and may end a sentence. Keep this conservative.
+                return digits <= 2 && n >= start + 1 && text.charAt(n) == '.'
                         && Character.isDigit(text.charAt(n - 1));
+        }
+    }
+
+    private static boolean nextWordIsMonth(String text, int boundaryEnd) {
+        if (boundaryEnd >= text.length() || text.charAt(boundaryEnd) != ' ') return false;
+        int start = boundaryEnd + 1;
+        int end = start;
+        while (end < text.length() && Character.isLetter(text.charAt(end))) end++;
+        String month = text.substring(start, end).toLowerCase(Locale.ROOT);
+        switch (month) {
+            case "januar": case "februar": case "märz": case "april": case "mai":
+            case "juni": case "juli": case "august": case "september":
+            case "oktober": case "november": case "dezember":
+                return true;
+            default: return false;
         }
     }
 
