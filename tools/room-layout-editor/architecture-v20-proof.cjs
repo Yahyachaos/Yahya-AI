@@ -217,8 +217,16 @@ async function run(){
     }
    }
    assert(Math.abs(subject.floor_bottom_y_m)<.005,'Original rug must remain grounded');
-   assert(subject.overflow_faces_m.front<.005&&subject.overflow_faces_m.rear<.005&&
-          subject.overflow_faces_m.left<.005&&subject.overflow_faces_m.right<.005,
+   const overflow=subject.overflow_faces_m;
+   assert(overflow&&typeof overflow==='object','V25 original rug overflow faces missing');
+   for(const face of ['left','right','floor','ceiling','back','front']){
+    assert(Object.prototype.hasOwnProperty.call(overflow,face),
+     'V25 missing source rug overflow face '+face);
+    assert(typeof overflow[face]==='number'&&Number.isFinite(overflow[face]),
+     'V25 nonfinite source rug overflow face '+face);
+   }
+   assert(overflow.front<.005&&overflow.back<.005&&
+          overflow.left<.005&&overflow.right<.005,
           'V25 rug must fit unchanged 4.40x4.20 room');
    const real=png('layout-v25-rug-'+spec.name+'-real-webgl.png',
      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
