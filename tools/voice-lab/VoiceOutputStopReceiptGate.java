@@ -34,7 +34,9 @@ public final class VoiceOutputStopReceiptGate {
     /** At most one pending request, bound to the old plan AND old audio epoch. */
     public synchronized StopRequest request(long plan, long audio, long nowNs) {
         if (pending != null || plan <= 0 || audio <= 0 || nowNs < 0
-                || plan < lastPlan || audio < lastAudio || nowNs < lastEventNs
+                || plan < lastPlan || audio < lastAudio
+                || (plan > lastPlan && audio <= lastAudio)
+                || nowNs < lastEventNs
                 || nextNonce == Long.MAX_VALUE) return null;
         pending = new StopRequest(++nextNonce, plan, audio, nowNs);
         lastPlan = plan;

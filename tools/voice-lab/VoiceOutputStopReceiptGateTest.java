@@ -86,10 +86,32 @@ public final class VoiceOutputStopReceiptGateTest {
         }
     }
 
+    private static void crossPlanOutputEpoch() {
+        var gate = new VoiceOutputStopReceiptGate(500);
+        var old = gate.request(7, 40, 1000);
+        check(old != null, "old plan output STOP requested");
+        check(gate.acknowledgeStopped(old, 7, 40, 1020), "old plan STOP claim");
+        check(gate.consumeForExplicitAbort(old, 7, 40, 1030), "old STOP consumed");
+        reject(gate.request(8, 40, 1040) != null,
+                "new plan must not borrow the previous plan's audio epoch");
+        reject(gate.request(8, 39, 1040) != null,
+                "new plan cannot rewind audio epoch");
+        var next = gate.request(8, 41, 1050);
+        check(next != null, "new plan with strictly newer audio allowed");
+        check(gate.invalidate(next), "cancel next STOP");
+        var retry = gate.request(8, 41, 1060);
+        check(retry != null && retry.nonce > next.nonce,
+                "same-plan same-output STOP retry keeps a new nonce");
+        check(gate.invalidate(retry), "retry cleanup");
+        var successor = gate.request(9, 42, 1070);
+        check(successor != null, "later new plan and audio epoch accepted");
+    }
+
     public static void main(String[] args) {
         basics();
         clockAndExpiry();
         deterministicRaces();
+        crossPlanOutputEpoch();
         System.out.println("VOICE_OUTPUT_STOP_RECEIPT_GATE_PASS checks=" + checks);
     }
 }
