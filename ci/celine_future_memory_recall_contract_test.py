@@ -444,6 +444,172 @@ public final class FutureMemoryRecallContract {
         }
     }
 
+    /** FUTURE-ONLY JVM TEST DOUBLE; NOT durable, Android or rollback-resistant. */
+    static final class StrictAtomicFixture
+            implements CelineFutureMemoryRecall.OwnerAtomicDispatchAuthority {
+        final Object transactionLock = new Object();
+        volatile String revision = Fixture.TEST_ONLY_GENERATION;
+        final Map<String,String> receipts = new HashMap<>();
+        final Map<String,String> digests = new HashMap<>();
+        int completedSealCount, revokeCount, reserveCount;
+        volatile boolean failAfterPublication;
+        @Override public String currentGeneration() { return revision; }
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+            return new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                @Override public String generation() { return revision; }
+                @Override public void close() {} // intentionally weak in-memory fixture
+            };
+        }
+        void revoke() {
+            synchronized(transactionLock) {
+                revision = "g1-revision-revoked";
+                revokeCount++;
+            }
+        }
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome
+                dispatchUnderOwnerLock(String generation, String id, byte[] digest,
+                        Runnable publisher) {
+            synchronized(transactionLock) {
+                if (!revision.equals(generation))
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+                String payload = java.util.HexFormat.of().formatHex(digest);
+                String receipt = receipts.get(id);
+                if (receipt != null) {
+                    if (!payload.equals(digests.get(id)))
+                        return CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+                    return "COMPLETED".equals(receipt)
+                            ? CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED
+                            : CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+                }
+                // Reservation is model-atomic against revocation and claimants.
+                receipts.put(id,"STARTED");
+                digests.put(id,payload);
+                reserveCount++;
+                try {
+                    publisher.run(); // synchronous: never escape trusted critical section
+                    if (failAfterPublication)
+                        throw new IllegalStateException("simulated receipt seal fault");
+                    // Mandatory conditional check AND receipt seal under one lock.
+                    if (!revision.equals(generation))
+                        return CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+                    receipts.put(id,"COMPLETED");
+                    completedSealCount++;
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+                } catch (RuntimeException e) {
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+                }
+            }
+        }
+        String receipt(String id) { synchronized(transactionLock) {return receipts.get(id);} }
+    }
+
+    private static void strictAtomicOwnerTests() throws Exception {
+        var done = CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+        var uncertain = CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        var reject = CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        List<CelineFutureMemoryRecall.Candidate> projection =
+                Arrays.asList(c("atomic-cat", "Meine Katze Luna"));
+        var certificate = Fixture.sourceFixture(projection,
+                Collections.emptySet(),Collections.emptySet());
+        String query="Meine Katze Luna";
+        java.util.concurrent.atomic.AtomicInteger sent=new java.util.concurrent.atomic.AtomicInteger();
+        StrictAtomicFixture owner=new StrictAtomicFixture();
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,owner,(gen,text)->sent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("strict-id",query,
+                projection,certificate,verifier,8,NOW),done,
+                "strict atomic authority seals correct generation and receipt");
+        eq(owner.receipt("strict-id"),"COMPLETED","strict receipt sealed in owner transaction");
+        eq(owner.completedSealCount,1,"owner sealed checkpoint only once");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("strict-id",query,
+                projection,certificate,verifier,8,NOW),done,
+                "completed retry reads receipt without redispatch");
+        eq(sent.get(),1,"exactly one synchronous downstream publication");
+        owner.revoke();
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("strict-id",query,
+                projection,certificate,verifier,8,NOW),reject,
+                "revoked generation cannot reuse old completed receipt");
+        eq(sent.get(),1,"revoked receipt cannot repeat delivery");
+        // The old disconnected owner-reader/journal constructor cannot enter
+        // the mandatory strict API, even if the certificate MAC is otherwise valid.
+        var legacy = new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,owner::currentGeneration,owner,
+                (gen,text)->sent.incrementAndGet(),null);
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("legacy-id",query,
+                projection,certificate,legacy,8,NOW),reject,
+                "disconnected journal/reader composition cannot masquerade as atomic authority");
+        // Re-entrant source revocation during callback: a check performed ONLY
+        // before publication would falsely mark COMPLETED. Conditional seal
+        // after synchronous callback is mandatory, still under the same lock.
+        StrictAtomicFixture reentrant=new StrictAtomicFixture();
+        var reentrantVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,reentrant,(gen,text)->reentrant.revoke());
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("inside-revoke",query,
+                projection,certificate,reentrantVerifier,8,NOW),uncertain,
+                "revocation during callback blocks false completed receipt");
+        eq(reentrant.receipt("inside-revoke"),"STARTED",
+                "re-entrant revoke leaves non-retryable STARTED");
+        eq(reentrant.completedSealCount,0,"no stale seal after source revocation");
+        // Two REAL Java threads: the publisher holds the owner transaction,
+        // while a concurrent revoker tries to acquire the SAME owner lock.
+        StrictAtomicFixture racing=new StrictAtomicFixture();
+        var entered=new java.util.concurrent.CountDownLatch(1);
+        var allowPublisher=new java.util.concurrent.CountDownLatch(1);
+        var revokeAttempt=new java.util.concurrent.CountDownLatch(1);
+        var raceSent=new java.util.concurrent.atomic.AtomicInteger();
+        var raceResult=new java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>();
+        var raceVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,racing,(gen,text)->{
+                    entered.countDown();
+                    try { if(!allowPublisher.await(5,java.util.concurrent.TimeUnit.SECONDS))
+                        throw new IllegalStateException("publisher timed out"); }
+                    catch(InterruptedException e) {Thread.currentThread().interrupt();throw new IllegalStateException(e);}
+                    raceSent.incrementAndGet();
+                });
+        Thread publisher=new Thread(()->raceResult.set(
+                CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("race-complete",query,
+                        projection,certificate,raceVerifier,8,NOW)),"future-atomic-publisher");
+        Thread revoker=new Thread(()->{revokeAttempt.countDown();racing.revoke();},
+                "future-atomic-revoker");
+        publisher.start();
+        eq(entered.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                "publisher entered owner serialization region");
+        revoker.start();
+        eq(revokeAttempt.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                "second Java thread attempted source revocation");
+        eq(racing.revokeCount,0,"concurrent revoker blocked until receipt commit");
+        allowPublisher.countDown();
+        publisher.join(5000);revoker.join(5000);
+        eq(!publisher.isAlive() && !revoker.isAlive(),true,
+                "two real Java threads complete without deadlock");
+        eq(racing.receipt("race-complete"),"COMPLETED",
+                "receipt linearizes before a competing revocation");
+        eq(racing.completedSealCount,1,"only one current-generation completion seal");
+        eq(racing.revokeCount,1,"revocation serialized after the completion seal");
+        eq(raceSent.get(),1,"race publishes exactly once, never duplicated");
+        eq(raceResult.get()==done || raceResult.get()==uncertain,true,
+                "post-commit revoke may conservatively report uncertain, never forged success");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("race-complete",query,
+                projection,certificate,raceVerifier,8,NOW),reject,
+                "after race revoked source cannot authorize completed replay");
+        // Publication has started and thrown: future calls with same request ID
+        // may NOT retry because plaintext might already be in a remote sink.
+        StrictAtomicFixture failing=new StrictAtomicFixture();
+        failing.failAfterPublication=true;
+        var failsSent=new java.util.concurrent.atomic.AtomicInteger();
+        var failsVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,failing,(gen,text)->failsSent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("fail-seal",query,
+                projection,certificate,failsVerifier,8,NOW),uncertain,
+                "injected post-publication seal failure is nonretryable");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("fail-seal",query,
+                projection,certificate,failsVerifier,8,NOW),uncertain,
+                "STARTED after incomplete seal remains indeterminate");
+        eq(failsSent.get(),1,"exception recovery never republishes old text");
+        System.out.println("FUTURE_G1_ATOMIC_OWNER_JVM_FIXTURE=MODEL_ONLY");
+        System.out.println("FUTURE_G1_NONROLLBACKABLE_AUTHORITY=UNIMPLEMENTED");
+    }
+
     public static void main(String[] args) throws Exception {
         List<CelineFutureMemoryRecall.Candidate> data = Arrays.asList(
             c("beverage","Mein Lieblingsgetränk ist Tee"),
@@ -3600,6 +3766,7 @@ public final class FutureMemoryRecallContract {
                 "missing frame cannot reset journal into new publication");
             System.out.println("FUTURE_G1_FILE_OWNER_RESTART_RACE=JVM_ONLY_SINGLE_FRAME_SIMULATION");
         }
+        strictAtomicOwnerTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
