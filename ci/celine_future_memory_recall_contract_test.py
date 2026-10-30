@@ -173,6 +173,93 @@ public final class FutureMemoryRecallContract {
         }
     }
 
+    /** FUTURE-ONLY test fixture. The AtomicLong stands in for an independently
+     * protected monotonic owner anchor; it is NOT an AndroidKeyStore or G1 proof.
+     * The separate witness file cannot prevent rollback if the anchor itself
+     * is restored. Serialization is scoped to one simulated owner anchor. */
+    static final class WitnessedDiskJournal implements CelineFutureMemoryRecall.OwnerPublicationJournal {
+        final DiskJournal disk;
+        final java.nio.file.Path witness;
+        final java.util.concurrent.atomic.AtomicLong anchor;
+        final java.util.concurrent.atomic.AtomicReference<String> protectedCommitment;
+        WitnessedDiskJournal(java.nio.file.Path journalDir, java.nio.file.Path witnessDir,
+                java.util.concurrent.atomic.AtomicLong protectedAnchor,
+                java.util.concurrent.atomic.AtomicReference<String> protectedStateHash) throws Exception {
+            disk = new DiskJournal(journalDir);
+            java.nio.file.Files.createDirectories(witnessDir);
+            witness = witnessDir.resolve("owner.witness");
+            anchor = protectedAnchor;
+            protectedCommitment = protectedStateHash;
+        }
+        static String hash(String text) throws Exception {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
+        String[] read() throws Exception {
+            if (!java.nio.file.Files.exists(witness)) return null;
+            String raw = java.nio.file.Files.readString(witness);
+            if (!java.util.Objects.equals(hash(raw),protectedCommitment.get()))
+                throw new IllegalStateException("witness disagrees with independent owner commitment");
+            String[] fields = raw.split(" ",-1);
+            if (fields.length != 4 || !(fields[1].equals("STARTED") || fields[1].equals("COMPLETED"))
+                    || !fields[2].matches("[0-9a-f]{64}") || !fields[3].matches("[0-9a-f]{64}"))
+                throw new IllegalStateException("invalid independent witness");
+            return fields;
+        }
+        void write(long epoch, String state, String requestId, byte[] digest) throws Exception {
+            String raw = epoch+" "+state+" "+hash(requestId)+" "+
+                java.util.HexFormat.of().formatHex(digest);
+            DiskJournal.persist(witness,raw);
+            // This is a TEST-ONLY stand-in for independent authenticated state.
+            // A plain counter alone cannot detect same-epoch completion forgery.
+            protectedCommitment.set(hash(raw));
+        }
+        @Override public Reservation reserve(String id, byte[] digest) {
+            synchronized (anchor) {
+                try {
+                    String[] fields = read();
+                    long anchored = anchor.get();
+                    if (fields == null) {
+                        if (anchored != 0 || java.nio.file.Files.exists(disk.entry(id)))
+                            return Reservation.INTENT_CONFLICT;
+                        // Witness FIRST; the journal may fail afterwards. In that
+                        // case a retry is indeterminate, never a new publication.
+                        write(1,"STARTED",id,digest);
+                        anchor.set(1);
+                        return disk.reserve(id,digest);
+                    }
+                    if (Long.parseLong(fields[0]) != anchored || anchored <= 0
+                        || !fields[2].equals(hash(id))
+                        || !fields[3].equals(java.util.HexFormat.of().formatHex(digest)))
+                        return Reservation.INTENT_CONFLICT;
+                    // A deleted journal does not authorize a fresh reservation.
+                    if (!java.nio.file.Files.exists(disk.entry(id))) return Reservation.ALREADY_STARTED;
+                    Reservation stored = disk.reserve(id,digest);
+                    if (stored == Reservation.INTENT_CONFLICT || stored == Reservation.NEW_STARTED)
+                        return Reservation.INTENT_CONFLICT;
+                    return fields[1].equals("COMPLETED") && stored == Reservation.ALREADY_COMPLETED
+                        ? Reservation.ALREADY_COMPLETED : Reservation.ALREADY_STARTED;
+                } catch (Exception ex) { return Reservation.INTENT_CONFLICT; }
+            }
+        }
+        @Override public boolean acknowledgeCompleted(String id, byte[] digest) {
+            synchronized (anchor) {
+                try {
+                    String[] fields = read();
+                    if (fields == null || !fields[1].equals("STARTED")
+                        || Long.parseLong(fields[0]) != anchor.get()
+                        || !fields[2].equals(hash(id))
+                        || !fields[3].equals(java.util.HexFormat.of().formatHex(digest))) return false;
+                    if (!disk.acknowledgeCompleted(id,digest)) return false;
+                    long next = Math.addExact(anchor.get(),1);
+                    write(next,"COMPLETED",id,digest);
+                    anchor.set(next);
+                    return true;
+                } catch (Exception ex) { throw new IllegalStateException("witness ack indeterminate",ex); }
+            }
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         List<CelineFutureMemoryRecall.Candidate> data = Arrays.asList(
             c("beverage","Mein Lieblingsgetränk ist Tee"),
@@ -2599,6 +2686,103 @@ public final class FutureMemoryRecallContract {
             eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.NEW_STARTED,
                 "DEMONSTRATED UNFIXED deletion rollback permits new reservation without independent watermark");
             System.out.println("FUTURE_G1_JOURNAL_DELETION_ROLLBACK_RISK=REPRODUCED_UNFIXED");
+        }
+        // Independent high-watermark witness prototype: two separate directories
+        // and an external in-memory monotonic anchor. Neither is an actual
+        // authenticated G1 store; exercise rollback and lost-file semantics.
+        {
+            final java.nio.file.Path journalDir = java.nio.file.Files.createTempDirectory("future-g1-journal-");
+            final java.nio.file.Path witnessDir = java.nio.file.Files.createTempDirectory("future-g1-witness-");
+            final java.util.concurrent.atomic.AtomicLong anchor = new java.util.concurrent.atomic.AtomicLong();
+            final java.util.concurrent.atomic.AtomicReference<String> commitment =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            final byte[] intent = new byte[32];
+            java.util.Arrays.fill(intent,(byte)0x41);
+            final String request = "protected-request-1";
+            final WitnessedDiskJournal initial = new WitnessedDiskJournal(journalDir,witnessDir,anchor,commitment);
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation NEW =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.NEW_STARTED;
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation STARTED =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.ALREADY_STARTED;
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation COMPLETED =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.ALREADY_COMPLETED;
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation CONFLICT =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT;
+            eq(initial.reserve(request,intent),NEW,"witnessed owner may start genuinely new request");
+            eq(anchor.get(),1L,"independent anchor advances for first reservation");
+            String beforeAck = java.nio.file.Files.readString(initial.witness);
+            // Attacker with access to both ordinary files can forge a same-epoch
+            // COMPLETED receipt unless independent owner anchor binds state.
+            java.nio.file.Files.writeString(initial.witness,beforeAck.replace(" STARTED "," COMPLETED "));
+            java.nio.file.Files.writeString(initial.disk.entry(request),"COMPLETED " +
+                java.util.HexFormat.of().formatHex(intent));
+            eq(initial.reserve(request,intent),CONFLICT,
+                "same-epoch witness status forgery must not fake a completion");
+            java.nio.file.Files.writeString(initial.witness,beforeAck);
+            java.nio.file.Files.writeString(initial.disk.entry(request),"STARTED " +
+                java.util.HexFormat.of().formatHex(intent));
+            eq(initial.reserve(request,intent),STARTED,"witnessed duplicate STARTED cannot republish");
+            eq(initial.acknowledgeCompleted(request,intent),true,"witnessed owner acknowledges once");
+            eq(anchor.get(),2L,"independent anchor advances on completed acknowledgement");
+            String completedWitness = java.nio.file.Files.readString(initial.witness);
+            WitnessedDiskJournal restarted = new WitnessedDiskJournal(journalDir,witnessDir,anchor,commitment);
+            eq(restarted.reserve(request,intent),COMPLETED,"new fixture instance reads matching completed receipt");
+            java.nio.file.Files.delete(initial.disk.entry(request));
+            eq(restarted.reserve(request,intent),STARTED,"missing journal with protected witness never starts again");
+            eq(restarted.acknowledgeCompleted(request,intent),false,"deleted journal cannot be acknowledged again");
+            java.nio.file.Files.writeString(initial.disk.entry(request),"STARTED " +
+                java.util.HexFormat.of().formatHex(intent));
+            eq(restarted.reserve(request,intent),STARTED,"rolled-back STARTED receipt does not count completed");
+            java.nio.file.Files.writeString(initial.witness,beforeAck);
+            eq(restarted.reserve(request,intent),CONFLICT,"witness rollback detected by independent monotonic anchor");
+            java.nio.file.Files.writeString(initial.witness,completedWitness);
+            java.nio.file.Files.writeString(initial.disk.entry(request),"COMPLETED " +
+                java.util.HexFormat.of().formatHex(intent));
+            eq(restarted.reserve(request,intent),COMPLETED,"valid restored journal and current witness accepted");
+            byte[] other = java.util.Arrays.copyOf(intent,intent.length); other[0] ^= 0x55;
+            eq(restarted.reserve(request,other),CONFLICT,"different intent never inherits protected completed receipt");
+            eq(restarted.reserve("different-request",intent),CONFLICT,"single-slot witness rejects different request ID");
+            java.nio.file.Files.writeString(initial.witness,"corrupt");
+            eq(restarted.reserve(request,intent),CONFLICT,"malformed witness fails closed");
+            java.nio.file.Files.delete(initial.witness);
+            eq(restarted.reserve(request,intent),CONFLICT,"deleted witness with live independent anchor fails closed");
+            // Resetting the supposed independent authority as well defeats the
+            // entire fixture. This is deliberately NOT a production security PASS.
+            java.nio.file.Files.delete(initial.disk.entry(request));
+            WitnessedDiskJournal unprotected = new WitnessedDiskJournal(journalDir,witnessDir,
+                new java.util.concurrent.atomic.AtomicLong(0),
+                new java.util.concurrent.atomic.AtomicReference<>());
+            eq(unprotected.reserve(request,intent),NEW,
+                "UNFIXED joint rollback of journal, witness and untrusted anchor permits replay");
+            // Two independent wrappers sharing the same protected owner anchor
+            // must serialize a simultaneous request. JVM threads only.
+            final java.nio.file.Path raceJournal = java.nio.file.Files.createTempDirectory("future-g1-witness-race-j-");
+            final java.nio.file.Path raceWitness = java.nio.file.Files.createTempDirectory("future-g1-witness-race-w-");
+            final java.util.concurrent.atomic.AtomicLong raceAnchor = new java.util.concurrent.atomic.AtomicLong();
+            final java.util.concurrent.atomic.AtomicReference<String> raceCommitment =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            final WitnessedDiskJournal a = new WitnessedDiskJournal(raceJournal,raceWitness,
+                raceAnchor,raceCommitment);
+            final WitnessedDiskJournal b = new WitnessedDiskJournal(raceJournal,raceWitness,
+                raceAnchor,raceCommitment);
+            final java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+            final java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation>
+                first = new java.util.concurrent.atomic.AtomicReference<>(),
+                second = new java.util.concurrent.atomic.AtomicReference<>();
+            Thread t1 = new Thread(() -> {ready.countDown(); try {go.await(); first.set(a.reserve(request,intent));}
+                catch (InterruptedException ex) {Thread.currentThread().interrupt();}});
+            Thread t2 = new Thread(() -> {ready.countDown(); try {go.await(); second.set(b.reserve(request,intent));}
+                catch (InterruptedException ex) {Thread.currentThread().interrupt();}});
+            t1.start(); t2.start();
+            eq(ready.await(5,java.util.concurrent.TimeUnit.SECONDS),true,"both witnessed claimants reached start");
+            go.countDown(); t1.join(5000); t2.join(5000);
+            eq(t1.isAlive() || t2.isAlive(),false,"both witnessed concurrent claims terminate");
+            eq((first.get()==NEW && second.get()==STARTED) || (second.get()==NEW && first.get()==STARTED),
+                true,"independent witnessed instances issue exactly one new claim");
+            eq(raceAnchor.get(),1L,"concurrent duplicate advances protected high-water mark only once");
+            System.out.println("FUTURE_G1_WITNESS_PROTECTED_ROLLBACK=JVM_SIMULATION_ONLY");
+            System.out.println("FUTURE_G1_WITNESS_ANCHOR_ROLLBACK_RISK=REPRODUCED_UNFIXED");
         }
         // Two independent fixture instances on one journal directory must not
         // BOTH reserve an absent same-ID record. Force both to observe absence
