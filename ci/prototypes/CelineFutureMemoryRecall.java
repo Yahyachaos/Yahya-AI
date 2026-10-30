@@ -249,6 +249,38 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY strict G1 owner transaction capability. A production owner
+     * MUST implement all three operations against the SAME trusted storage and
+     * serialization domain; they may not be unrelated injected callbacks.
+     *
+     * dispatchUnderOwnerLock MUST, without a release/reacquire gap:
+     *  1. compare certifiedGeneration with the live source revision and its
+     *     independently protected nonrollbackable epoch/content checkpoint;
+     *  2. durably reserve (request ID, digest, STARTED) before calling publisher;
+     *  3. call publisher synchronously at most once for a NEW reservation;
+     *  4. revalidate the still-live revision/tombstones AND atomically seal the
+     *     matching COMPLETED receipt with the protected checkpoint;
+     *  5. serialize all of that against corrections, revoke, compaction and
+     *     parallel requests, even across processes and after recovery.
+     *
+     * An earlier STARTED or uncertain commit may NEVER be automatically retried.
+     * A matching COMPLETED receipt may be read without re-publishing, but only
+     * while its source generation is current. A callback exception/uncertain
+     * persistence is STARTED_INDETERMINATE, not retryable. The publication
+     * callback MUST NOT escape this transaction or run asynchronously.
+     *
+     * Java interface conformance cannot prove a caller-supplied adapter really
+     * implements nonrollbackable persistence, protects plaintext downstream,
+     * or survives power loss. No production G1/Android implementation exists.
+     */
+    public interface OwnerAtomicDispatchAuthority
+            extends OwnerGenerationReader, OwnerSnapshotLeaseAuthority {
+        OwnerPublicationOutcome dispatchUnderOwnerLock(String certifiedGeneration,
+                String ownerIssuedRequestId, byte[] intentSha256,
+                Runnable synchronousPublisher);
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
@@ -256,6 +288,7 @@ public final class CelineFutureMemoryRecall {
         private final OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority;
         private final OwnerContextPublisher ownerContextPublisher;
         private final OwnerPublicationJournal ownerPublicationJournal;
+        private final OwnerAtomicDispatchAuthority ownerAtomicDispatchAuthority;
 
         /**
          * Historical fixture-only pinned generation. A long-lived verifier
@@ -272,6 +305,7 @@ public final class CelineFutureMemoryRecall {
             ownerSnapshotLeaseAuthority = null;
             ownerContextPublisher = null;
             ownerPublicationJournal = null;
+            ownerAtomicDispatchAuthority = null;
         }
 
         /**
@@ -321,6 +355,23 @@ public final class CelineFutureMemoryRecall {
             this.ownerSnapshotLeaseAuthority = ownerSnapshotLeaseAuthority;
             this.ownerContextPublisher = ownerContextPublisher;
             this.ownerPublicationJournal = ownerPublicationJournal;
+            this.ownerAtomicDispatchAuthority = null; // legacy draft journal API only
+        }
+
+        /** One owner object is mandatory for the STRICT future-only dispatch path. */
+        public OwnerLineageVerifier(byte[] trustedG1Key,
+                OwnerAtomicDispatchAuthority trustedG1Owner,
+                OwnerContextPublisher ownerContextPublisher) {
+            if (trustedG1Key == null || trustedG1Key.length < 32
+                    || trustedG1Owner == null || ownerContextPublisher == null)
+                throw new IllegalArgumentException("Missing atomic G1 owner authority");
+            this.ownerKey = trustedG1Key.clone();
+            this.expectedGeneration = null;
+            this.ownerGenerationReader = trustedG1Owner;
+            this.ownerSnapshotLeaseAuthority = trustedG1Owner;
+            this.ownerContextPublisher = ownerContextPublisher;
+            this.ownerPublicationJournal = null;
+            this.ownerAtomicDispatchAuthority = trustedG1Owner;
         }
 
         private OwnerSnapshotReadLease openOwnerReadLease() {
@@ -544,6 +595,65 @@ public final class CelineFutureMemoryRecall {
                     : OwnerPublicationOutcome.STARTED_INDETERMINATE;
         } catch (RuntimeException ex) {
             return journalAttempted ? OwnerPublicationOutcome.STARTED_INDETERMINATE
+                    : OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        }
+    }
+
+    /**
+     * STRICT future-only dispatch API: only one G1-owner atomic authority can
+     * authorize source revision, journal reservation, callback and sealed receipt.
+     * Unlike the historical OwnerPublicationJournal variant, no disconnected
+     * generation-reader/journal combination can pass this capability gate.
+     * The trusted owner still MUST implement the contract; no Android/G1
+     * backing store or nonrollbackable hardware is provided here.
+     */
+    public static OwnerPublicationOutcome publishCertifiedOwnerContextAtomic(
+            String ownerIssuedRequestId, String query, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier trustedG1Verifier,
+            int maxResults, long now) {
+        if (!validId(ownerIssuedRequestId, false) || query == null
+                || query.length() > MAX_INPUT || hasNonTextControl(query)
+                || certificate == null || trustedG1Verifier == null
+                || trustedG1Verifier.ownerAtomicDispatchAuthority == null
+                || trustedG1Verifier.ownerContextPublisher == null)
+            return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        OwnerSnapshotReadLease lease = trustedG1Verifier.openOwnerReadLease();
+        if (lease == null) return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        boolean transactionAttempted = false;
+        try (OwnerSnapshotReadLease held = lease) {
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.verifies(certificate, candidates))
+                return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            List<Match> matches = retrieveAssumingOwnerVerified(query, candidates,
+                    certificate.retiredIds, certificate.confirmedRetiredParentIds,
+                    maxResults, now);
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            ArrayList<String> summaries = new ArrayList<>(matches.size());
+            for (Match match : matches) summaries.add(match.candidate.summary);
+            byte[] intent = ownerDispatchIntent(ownerIssuedRequestId, query,
+                    certificate, candidates, maxResults, now, summaries);
+            if (intent.length != 32) return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            List<String> approved = Collections.unmodifiableList(summaries);
+            transactionAttempted = true;
+            OwnerPublicationOutcome result = trustedG1Verifier.ownerAtomicDispatchAuthority
+                    .dispatchUnderOwnerLock(certificate.generation,
+                            ownerIssuedRequestId, intent.clone(),
+                            () -> trustedG1Verifier.ownerContextPublisher.publish(
+                                    certificate.generation, approved));
+            // Even a wrongly implemented authority cannot claim successful
+            // completion if its source changed between callback and return.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            // Once transaction entry was attempted, an unsupported/null result
+            // cannot honestly be described as a safe-to-retry rejection.
+            if (result == null || result == OwnerPublicationOutcome.REJECTED_BEFORE_START)
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            return result;
+        } catch (RuntimeException ex) {
+            return transactionAttempted ? OwnerPublicationOutcome.STARTED_INDETERMINATE
                     : OwnerPublicationOutcome.REJECTED_BEFORE_START;
         }
     }
