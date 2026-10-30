@@ -3959,7 +3959,8 @@ public final class FutureStrictOwnerProcessChild {
         return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
             .digest(value.getBytes(StandardCharsets.UTF_8)));
     }
-    static void atomic(Path file,String value,boolean crashMidStagingWrite) throws Exception {
+    static void atomic(Path file,String value,boolean crashMidStagingWrite,
+                       boolean crashAfterRenameBeforeDirectoryForce) throws Exception {
         Path pending=Files.createTempFile(file.getParent(),"strict-owner-",".pending");
         try(FileChannel ch=FileChannel.open(pending,StandardOpenOption.WRITE)) {
             java.nio.ByteBuffer buf=StandardCharsets.UTF_8.encode(value);
@@ -3980,9 +3981,27 @@ public final class FutureStrictOwnerProcessChild {
         }
         Files.move(pending,file,StandardCopyOption.ATOMIC_MOVE,
             StandardCopyOption.REPLACE_EXISTING);
+        if(crashAfterRenameBeforeDirectoryForce) {
+            // A real JVM abort between atomic move and directory force. The
+            // test does NOT claim this reproduces a true power-cut loss of the
+            // directory entry: a separate explicit rollback model tests it.
+            System.out.println("STRICT_FAULT_RENAMED_BEFORE_DIR_FORCE:"+file.getFileName());
+            System.out.flush();
+            Runtime.getRuntime().halt(96);
+        }
+        // Force the parent directory entry on POSIX-capable test hosts. This
+        // is a Java fixture only; Android filesystem support and hardware
+        // anti-rollback still require independent real-device evidence.
+        try(FileChannel directory=FileChannel.open(file.getParent(),
+                StandardOpenOption.READ)) {
+            directory.force(true);
+        }
+    }
+    static void atomic(Path file,String value,boolean crashMidStagingWrite) throws Exception {
+        atomic(file,value,crashMidStagingWrite,false);
     }
     static void atomic(Path file,String value) throws Exception {
-        atomic(file,value,false);
+        atomic(file,value,false,false);
     }
     static final class State {
         final long epoch;
@@ -4049,7 +4068,14 @@ public final class FutureStrictOwnerProcessChild {
                     && next.receipt.equals("COMPLETED"))
                 || (crashAction.equals("fault-partial-frame-revoke")
                     && next.generation.equals("revoked-generation"));
-            atomic(frame,value,crashMidFrameWrite);
+            boolean crashAfterFrameRename =
+                (crashAction.equals("fault-dir-frame-reserve")
+                    && next.receipt.equals("STARTED"))
+                || (crashAction.equals("fault-dir-frame-ack")
+                    && next.receipt.equals("COMPLETED"))
+                || (crashAction.equals("fault-dir-frame-revoke")
+                    && next.generation.equals("revoked-generation"));
+            atomic(frame,value,crashMidFrameWrite,crashAfterFrameRename);
             boolean crash = (crashAction.equals("fault-reserve")
                     && next.receipt.equals("STARTED"))
                 || (crashAction.equals("fault-ack")
@@ -4069,7 +4095,15 @@ public final class FutureStrictOwnerProcessChild {
                     && next.receipt.equals("COMPLETED"))
                 || (crashAction.equals("fault-partial-anchor-revoke")
                     && next.generation.equals("revoked-generation"));
-            atomic(anchor,next.epoch+"|"+sha(value),crashMidAnchorWrite);
+            boolean crashAfterAnchorRename =
+                (crashAction.equals("fault-dir-anchor-reserve")
+                    && next.receipt.equals("STARTED"))
+                || (crashAction.equals("fault-dir-anchor-ack")
+                    && next.receipt.equals("COMPLETED"))
+                || (crashAction.equals("fault-dir-anchor-revoke")
+                    && next.generation.equals("revoked-generation"));
+            atomic(anchor,next.epoch+"|"+sha(value),crashMidAnchorWrite,
+                crashAfterAnchorRename);
         }
         @Override public String currentGeneration() {
             try{return withLock(()->verified().generation);}
@@ -4130,7 +4164,9 @@ public final class FutureStrictOwnerProcessChild {
         }
         if(action.equals("revoke")||action.equals("fault-revoke")
            ||action.equals("fault-partial-anchor-revoke")
-           ||action.equals("fault-partial-frame-revoke")) {
+           ||action.equals("fault-partial-frame-revoke")
+           ||action.equals("fault-dir-frame-revoke")
+           ||action.equals("fault-dir-anchor-revoke")) {
             owner.revoke();System.out.println("RESULT=revoke;"+owner.status()); return;
         }
         var candidate=new CelineFutureMemoryRecall.Candidate("strict-cat","Meine Katze Luna","",
@@ -4745,6 +4781,109 @@ def process_strict_owner_proof(temp):
             run(root,'revoke')
             case('CURRENT_COMPLETED=0' in run(root,'check'),
                  'later explicit retry of revocation commits under owner lock')
+
+    # Non-hardware directory durability model. The Java fixture now forces
+    # parent directory metadata AFTER every atomic rename. A real child JVM
+    # aborts immediately BEFORE that force, at each frame and anchor boundary.
+    # Normal process death usually leaves the rename visible, but does NOT
+    # establish the semantics of power failure on an Android filesystem.
+    for surface in ('frame','anchor'):
+        for stage in ('reserve','ack','revoke'):
+            action='fault-dir-'+surface+'-'+stage
+            root=scenario('directory-force-'+surface+'-'+stage)
+            run(root,'init')
+            if stage=='revoke':
+                case('RESULT=COMPLETED' in run(root,'publish'),
+                     'setup persisted receipt before directory revoke crash')
+            old_frame=(root/'strict-owner.frame').read_bytes()
+            old_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+            crashed=subprocess.run(cmd(root,action),capture_output=True,text=True,timeout=20)
+            case(crashed.returncode==96 and
+                 'STRICT_FAULT_RENAMED_BEFORE_DIR_FORCE:strict-owner.'+(
+                     'frame' if surface=='frame' else 'versioned-anchor') in crashed.stdout,
+                 'actual JVM died after rename before parent directory force '+action)
+            frame=(root/'strict-owner.frame').read_bytes()
+            anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+            if surface=='frame':
+                case(frame!=old_frame and (stage=='ack' or anchor==old_anchor),
+                     'frame rename was visible at process-abort checkpoint '+action)
+                # A completed ACK's prior STARTED anchor was sealed inside
+                # the same aborted process, so pre-action anchor comparison
+                # is intentionally not meaningful on that path.
+                readback=subprocess.run(cmd(root,'check'),capture_output=True,
+                                        text=True,timeout=20)
+                case(readback.returncode!=0 and
+                     'rollback or torn owner seal' in readback.stderr,
+                     'frame-only rename mismatch fails closed on restart '+action)
+                challengers=[subprocess.Popen(cmd(root,op),stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,text=True)
+                             for op in ('publish','revoke')]
+                for contender in challengers:
+                    out,err=contender.communicate(timeout=20)
+                    case(contender.returncode!=0 and 'rollback or torn owner seal' in err,
+                         'competing JVM may not repair frame-only rename '+action)
+            else:
+                case(frame!=old_frame and anchor!=old_anchor,
+                     'anchor rename is visible after ordinary JVM death '+action)
+                outcome=run(root,'check')
+                expected={'reserve':'STATE=STARTED',
+                          'ack':'STATE=COMPLETED',
+                          'revoke':'GEN=revoked-generation'}[stage]
+                case(expected in outcome,
+                     'full pair remains consistent after ordinary JVM abort '+action)
+                fresh=run(root,'publish')
+                expected_result={'reserve':'RESULT=STARTED_INDETERMINATE',
+                                 'ack':'RESULT=COMPLETED',
+                                 'revoke':'RESULT=REJECTED_BEFORE_START'}[stage]
+                case(expected_result in fresh,
+                     'independent JVM honors sealed receipt after crash '+action)
+                # Explicitly model a power loss discarding the most recent
+                # renamed anchor directory entry, NOT a claimed real cut.
+                anchor_path=root/'strict-owner.versioned-anchor'
+                previous_frame=frame.decode().split('|')
+                previous_frame[0]=str(int(previous_frame[0])-1)
+                if stage=='ack':
+                    previous_frame[2]='STARTED'
+                if stage=='revoke':
+                    previous_frame[1]='fixture-source-snapshot-1'
+                prior='|'.join(previous_frame)
+                previous_anchor=previous_frame[0]+'|'+hashlib.sha256(
+                    prior.encode('utf-8')).hexdigest()
+                anchor_path.write_text(previous_anchor)
+                readback=subprocess.run(cmd(root,'check'),capture_output=True,
+                                        text=True,timeout=20)
+                case(readback.returncode!=0 and
+                     'rollback or torn owner seal' in readback.stderr,
+                     'simulated lost anchor rename is rejected '+action)
+                blocked=subprocess.run(cmd(root,'publish'),capture_output=True,
+                                       text=True,timeout=20)
+                case(blocked.returncode!=0 and 'rollback or torn owner seal' in blocked.stderr,
+                     'simulated lost anchor is not repaired/re-dispatched '+action)
+            events=root/'test-only-strict-sink-event'
+            case((events.read_text().count('once\\n') if events.exists() else 0)
+                 ==(0 if stage=='reserve' else 1),
+                 'crash/rollback model does not double-deliver '+action)
+    # Failure boundary, NOT a security PASS: if a simulated power cut loses
+    # BOTH revocation directory entries together, ordinary file-only owners
+    # cannot distinguish the old valid completed state from new authority.
+    root=scenario('lost-entire-revoke-rename-pair-model')
+    run(root,'init')
+    run(root,'publish')
+    completed_frame=(root/'strict-owner.frame').read_bytes()
+    completed_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+    run(root,'revoke')
+    case('CURRENT_COMPLETED=0' in run(root,'check'),
+         'source revocation was observed before simulated power loss')
+    (root/'strict-owner.frame').write_bytes(completed_frame)
+    (root/'strict-owner.versioned-anchor').write_bytes(completed_anchor)
+    case('CURRENT_COMPLETED=1' in run(root,'check'),
+         'KNOWN SECURITY FAIL: joint lost revocation renames resurrect old receipt')
+    case('RESULT=COMPLETED' in run(root,'publish'),
+         'restored old receipt cannot prove revocation happened')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'joint restored receipt is reused without a second callback on this ID')
+    print('FUTURE_G1_DIRECTORY_FORCE_JVM_ONLY=NOT_ANDROID_POWER_CUT_PROOF')
+    print('FUTURE_G1_JOINT_LOST_REVOCATION=KNOWN_SECURITY_FAIL')
 
     print('FUTURE_G1_STRICT_OWNER_CROSS_PROCESS_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_STRICT_OWNER_JOINT_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
