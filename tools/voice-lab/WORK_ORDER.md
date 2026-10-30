@@ -502,3 +502,26 @@ Changed source Git blob `c2fb78de4da23d938fa97e325c16568e22429e61`; new fixture 
 - **Scope:** Only this gate, new standalone fixture, registration in own runner and this work order. Runner now registers **48 Java files / 37 mains**; **full runner not executed** because the isolated JDK runtime cannot resolve GitHub for complete source checkout. In particular both combined STOP-receipt and explicit-abort streaming integration mains remain UNVERIFIED as a combined run. No natural German voice, synthesis, speaker/mic sound, S25 Ultra, actual lip-sync, Android APK, v83 merge, CI/release or Pico OS repair PASS.
 - **Blocker:** Need a byte-identical complete 48-file Voice-only source checkout for full test runner. External physical speaker latency and lipsync remain unmeasured.
 - **One exact_next_action:** Stage and SHA-verify all 48 current GitHub Voice-only Java blobs, run `sh tools/voice-lab/run_tests.sh` with all 37 mains (prioritizing both STOP/abort cross-contract suites); fix only an actual owned-scope regression. Continue isolated future-only voice work afterward; Build & Release retains sole authority for any later serialized post-v83 Android integration.
+
+
+## 30 Oct 2026, 14:22 CET — numerical German quantity abbreviations (FUTURE-ONLY)
+
+**Live ownership:** Reconciled main AGENTS.md sections 2/4/5/10/12, full Queue, Validation Policy, issue #117, merged Room #111, frozen Core #113, Voice DRAFT #118, latest Actions. No in-flight exact-head Voice JVM job. All writes confined to tools/voice-lab/**; no app, CI, Gradle, Room/Core, minSdk, model, signing, updater or release modifications. Build & Release remains sole serialized Android/integration owner.
+
+**Original RED:** Exact prior planner Git blob d7593e5ee0af48fe3a78a5c2f07bc5781be3069d matched local git hash-object. New deterministic Java fixture failed with exit 1: input "Es kostet 2 Mio. Euro. Danach sparen wir."; expected ["Es kostet 2 Mio. Euro.", "Danach sparen wir."], actual ["Es kostet 2 Mio.", "Euro.", "Danach sparen wir."]. RED stderr SHA256 4b3e35f7cee76eae201bc50453839d9b1043019654d98b7b6c0fcffa99d28ba2. This was a text planning false pause, not a proven Samsung audible defect.
+
+**Fix:** In a numbered quantity, protect Mio., Mrd., Tsd. only before a lowercase continuation or conservative known quantity-unit noun (Euro, EUR, Dollar, Stück, Menschen, Einwohner, Personen, Kunden, Nutzer). The true ending "2 Mio. Danach" still splits. The original characters are preserved, and the rule is deliberately not full German semantic analysis.
+
+**Actually executed post-fix source-exact OpenJDK 21 focused mains:**
+- VOICE_GERMAN_TEXT_PLANNER_PASS checks=20
+- VOICE_GERMAN_NUMERIC_DATE_END_PASS checks=612
+- VOICE_GERMAN_QUANTITY_SCALE_PASS checks=624
+- TOTAL 1256 direct assertions PASS; output SHA256 2a5ee44523b88f50db20fb7ba959b2429178e563da7c2c76475a3398e46d6b24.
+
+Git blob readback matched local test sources: new planner 1f02caa72ed01fa9f7e2fbe8e549161ff9d6af24; new test ed0dd9e00ced6a2374b23dc4cb72fada94f98a95; unchanged planner test 95412cc240be68479b8ef8ddff996f9b200e34f5; unchanged date test af58239ab26e6174556f365be06501d05617f2a9.
+
+**Commits:** new test de0a365a326b0e75842d94acf20f2124e982336e, planner fix f5278bc868b5500b7f433d48990dee877b37181c, runner 19abfcd6caf7f5d5edc40bd9a0be86369ecb82c5. Runner blob b4c6fb20e0995a2a579c531bef288fd7d9d18d86 now registers 49 Java files and 38 JVM mains, without duplicate main registrations.
+
+**NOT PASS:** The complete 49-file/38-main runner and combined STOP/explicit-abort suites have NOT been executed in one checkout. No natural female German TTS, real speaker/PCM hardware measurement, physical S25 Ultra lipsync, model license approval, APK, Android integration or release is claimed. Old Android-8 Pico failures stay separate.
+
+**Exactly one exact_next_action:** Fetch/hash-check all 49 current GitHub Voice Java blobs into a coherent local checkout and run all 38 registered JVM mains, especially both STOP/explicit-abort integration tests; repair only a reproduced Voice-only failure. Remain DRAFT/FUTURE-ONLY post-v83. All intended writes committed/pushed/read back; no hidden local or unpushed branch changes.
