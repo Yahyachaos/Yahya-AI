@@ -284,6 +284,165 @@ public final class FutureMemoryRecallContract {
         }
     }
 
+    /** FUTURE ONLY: disk-backed *model* of one G1 owner transaction. Revision,
+     * tombstone, request intent and receipt live in ONE atomically replaced frame.
+     * JVM AtomicLong/hash stand in for separately protected authority. They are
+     * NOT persistent across process/device restore or a real G1 implementation.
+     * The permanent .lock inode plus JVM path mutex serialize test claimants. */
+    static final class FileOwnerLedger implements CelineFutureMemoryRecall.OwnerPublicationJournal {
+        static final java.util.concurrent.ConcurrentHashMap<String,Object> MUTEX =
+            new java.util.concurrent.ConcurrentHashMap<>();
+        final java.nio.file.Path directory, frame, lockFile;
+        final java.util.concurrent.atomic.AtomicLong protectedEpoch;
+        final java.util.concurrent.atomic.AtomicReference<String> protectedDigest;
+        enum Fault { NONE, AFTER_FRAME_BEFORE_AUTHORITY, AFTER_AUTHORITY_BEFORE_RETURN }
+        Fault reserveFault=Fault.NONE, completionFault=Fault.NONE, revokeFault=Fault.NONE;
+        interface Operation<T> { T run() throws Exception; }
+        static final class State {
+            final long epoch;
+            final String revision, request, intent, receipt;
+            final boolean retracted;
+            State(long epoch, String revision, boolean retracted, String request,
+                    String intent, String receipt) {
+                this.epoch=epoch; this.revision=revision; this.retracted=retracted;
+                this.request=request; this.intent=intent; this.receipt=receipt;
+            }
+            String encode() { return epoch+"|"+revision+"|"+(retracted?"1":"0")+"|"+
+                request+"|"+intent+"|"+receipt; }
+            static State decode(String raw) {
+                String[] v=raw.split("\\|",-1);
+                if(v.length!=6 || !v[0].matches("[1-9][0-9]*")
+                        || !v[1].matches("[a-zA-Z0-9_-]{1,100}")
+                        || !(v[2].equals("0") || v[2].equals("1"))
+                        || !v[3].matches("-|[0-9a-f]{64}")
+                        || !v[4].matches("-|[0-9a-f]{64}")
+                        || !(v[5].equals("NONE") || v[5].equals("STARTED")
+                            || v[5].equals("COMPLETED"))
+                        || (v[3].equals("-") != v[4].equals("-"))
+                        || (v[5].equals("NONE") != v[3].equals("-")))
+                    throw new IllegalStateException("invalid owner frame");
+                return new State(Long.parseLong(v[0]),v[1],v[2].equals("1"),v[3],v[4],v[5]);
+            }
+        }
+        FileOwnerLedger(java.nio.file.Path root,
+                java.util.concurrent.atomic.AtomicLong trustedEpoch,
+                java.util.concurrent.atomic.AtomicReference<String> trustedDigest,
+                String initialRevision) throws Exception {
+            directory=root.toAbsolutePath().normalize();
+            java.nio.file.Files.createDirectories(directory);
+            frame=directory.resolve("owner.frame");
+            lockFile=directory.resolve("owner.lock");
+            protectedEpoch=trustedEpoch; protectedDigest=trustedDigest;
+            withOwnerLock(() -> {
+                if (!java.nio.file.Files.exists(frame)
+                        && protectedEpoch.get()==0 && protectedDigest.get()==null) {
+                    State init=new State(1,initialRevision,false,"-","-","NONE");
+                    replaceFrame(init); seal(init);
+                }
+                return null;
+            });
+        }
+        private <T> T withOwnerLock(Operation<T> operation) throws Exception {
+            Object monitor=MUTEX.computeIfAbsent(lockFile.toString(),unused -> new Object());
+            synchronized(monitor) {
+                try (java.nio.channels.FileChannel ch=java.nio.channels.FileChannel.open(lockFile,
+                        java.nio.file.StandardOpenOption.CREATE,java.nio.file.StandardOpenOption.WRITE);
+                     java.nio.channels.FileLock lock=ch.lock()) {
+                    return operation.run();
+                }
+            }
+        }
+        private static String digest(String text) throws Exception {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
+        private static String hex(byte[] bytes) { return java.util.HexFormat.of().formatHex(bytes); }
+        private State verified() throws Exception {
+            if (!java.nio.file.Files.isRegularFile(frame)) throw new IllegalStateException("lost owner frame");
+            String raw=java.nio.file.Files.readString(frame);
+            State state=State.decode(raw);
+            if (state.epoch!=protectedEpoch.get()
+                || !java.util.Objects.equals(digest(raw),protectedDigest.get()))
+                throw new IllegalStateException("untrusted owner frame/authority mismatch");
+            return state;
+        }
+        private void replaceFrame(State next) throws Exception {
+            java.nio.file.Path pending=directory.resolve("owner.pending-"+java.util.UUID.randomUUID());
+            try (java.nio.channels.FileChannel ch=java.nio.channels.FileChannel.open(pending,
+                    java.nio.file.StandardOpenOption.CREATE_NEW,java.nio.file.StandardOpenOption.WRITE)) {
+                java.nio.ByteBuffer b=java.nio.charset.StandardCharsets.UTF_8.encode(next.encode());
+                while(b.hasRemaining()) ch.write(b);
+                ch.force(true);
+            }
+            java.nio.file.Files.move(pending,frame,java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            // Best-effort directory metadata durability on this JVM/filesystem;
+            // this is not a power-cut proof or Android storage contract.
+            try (java.nio.channels.FileChannel dir=java.nio.channels.FileChannel.open(directory,
+                    java.nio.file.StandardOpenOption.READ)) { dir.force(true); }
+        }
+        private void seal(State next) throws Exception {
+            protectedEpoch.set(next.epoch);
+            protectedDigest.set(digest(next.encode()));
+        }
+        private void commit(State next,Fault fault) throws Exception {
+            replaceFrame(next);
+            if(fault==Fault.AFTER_FRAME_BEFORE_AUTHORITY)
+                throw new IllegalStateException("simulated crash before owner authority commit");
+            seal(next);
+            if(fault==Fault.AFTER_AUTHORITY_BEFORE_RETURN)
+                throw new IllegalStateException("simulated crash after owner authority commit");
+        }
+        String revision() {
+            try { return withOwnerLock(() -> {
+                State s=verified(); return s.retracted ? "" : s.revision;
+            }); } catch (Exception failure) { return ""; } // fail-closed untrusted revision
+        }
+        void revoke(String laterGeneration) throws Exception {
+            withOwnerLock(() -> {
+                State s=verified();
+                if(s.retracted) throw new IllegalStateException("already retracted");
+                commit(new State(Math.addExact(s.epoch,1),laterGeneration,true,
+                    s.request,s.intent,s.receipt),revokeFault);
+                return null;
+            });
+        }
+        @Override public Reservation reserve(String id,byte[] intent) {
+            try { return withOwnerLock(() -> {
+                State s=verified();
+                if(s.retracted) return Reservation.INTENT_CONFLICT;
+                String key=digest(id), payload=hex(intent);
+                if(!s.receipt.equals("NONE")) {
+                    if(!s.request.equals(key) || !s.intent.equals(payload))
+                        return Reservation.INTENT_CONFLICT;
+                    return s.receipt.equals("COMPLETED")
+                        ? Reservation.ALREADY_COMPLETED : Reservation.ALREADY_STARTED;
+                }
+                commit(new State(Math.addExact(s.epoch,1),s.revision,false,key,payload,
+                    "STARTED"),reserveFault);
+                return Reservation.NEW_STARTED;
+            }); } catch (Exception failure) { return Reservation.INTENT_CONFLICT; }
+        }
+        @Override public boolean acknowledgeCompleted(String id,byte[] intent) {
+            throw new IllegalStateException("legacy ack lacks atomic revision fencing");
+        }
+        @Override public boolean acknowledgeCompletedIfCurrent(String id,byte[] intent,String generation) {
+            try { return withOwnerLock(() -> {
+                State s=verified();
+                if(s.retracted || !s.revision.equals(generation)
+                    || !s.receipt.equals("STARTED") || !s.request.equals(digest(id))
+                    || !s.intent.equals(hex(intent))) return false;
+                commit(new State(Math.addExact(s.epoch,1),s.revision,false,
+                    s.request,s.intent,"COMPLETED"),completionFault);
+                return true;
+            }); } catch (Exception failure) { throw new IllegalStateException("atomic owner ack uncertain",failure); }
+        }
+        String receipt() {
+            try { return withOwnerLock(() -> verified().receipt); }
+            catch (Exception failure) { return "UNTRUSTED"; }
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         List<CelineFutureMemoryRecall.Candidate> data = Arrays.asList(
             c("beverage","Mein Lieblingsgetränk ist Tee"),
