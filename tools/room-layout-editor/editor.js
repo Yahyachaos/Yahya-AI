@@ -871,7 +871,10 @@ if (E2E_PROOF) {
     // V21 REAL WEBGL MATERIAL DIAGNOSTIC ONLY: never modify immutable GLB bytes,
     // saved placement JSON, original material instances, or Android surfaces.
     previewDrapeOpacityTrial(options={}) {
-      const mode=options.mode??'original', opacity=options.opacity??1;
+      const mode=options.mode??'original', opacity=options.opacity??1, tintHex=options.tintHex??null;
+      // V32 diagnostic: tint only copied source material, never alter actual GLB.
+      if(tintHex!==null && (mode!=='light' || typeof tintHex!=='string' || !/^[a-fA-F0-9]{6}$/.test(tintHex)))
+        throw new Error('Invalid source-curtain warm tint trial');
       if(!['original','all','light','dark'].includes(mode) || !Number.isFinite(opacity) || opacity<0.15 || opacity>1)
         throw new Error('Invalid source-curtain diagnostic trial');
       const entry=entries.get('room_window_drapes');
@@ -892,6 +895,7 @@ if (E2E_PROOF) {
           const eligible=mode==='all'||(mode==='light'&&lum>=.5)||(mode==='dark'&&lum<.5);
           if(mode==='original'||!eligible)return mat;
           const copy=mat.clone();
+          if(tintHex!==null)copy.color.set('#'+tintHex);
           copy.transparent=true;
           copy.opacity=opacity;
           copy.depthWrite=false;
@@ -907,7 +911,7 @@ if (E2E_PROOF) {
         })));
       });
       renderer.render(scene,camera);
-      return {mode,opacity,meshCount:meshes,affectedMaterialSlots:affected,
+      return {mode,opacity,tintHex,meshCount:meshes,affectedMaterialSlots:affected,
         immutableSourceMaterialSlots:originalMaterials.length,sourceMaterials:originalMaterials};
     },
     architectureSurfaceAudit() {
