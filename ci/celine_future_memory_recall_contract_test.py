@@ -3938,6 +3938,185 @@ public final class FutureProcessOwnerChild {
 }
 '''
 
+strict_child_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.*;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+/** FUTURE-ONLY Java process simulation of STRICT owner API. NOT Android/antirollback. */
+public final class FutureStrictOwnerProcessChild {
+    static final String GEN="fixture-source-snapshot-1";
+    static final byte[] KEY=new byte[32];
+    static { Arrays.fill(KEY,(byte)0x29); }
+    interface Tx<T> { T run() throws Exception; }
+    static String sha(String value) throws Exception {
+        return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            .digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+    static void atomic(Path file,String value) throws Exception {
+        Path pending=Files.createTempFile(file.getParent(),"strict-owner-",".pending");
+        try(FileChannel ch=FileChannel.open(pending,StandardOpenOption.WRITE)) {
+            java.nio.ByteBuffer buf=StandardCharsets.UTF_8.encode(value);
+            while(buf.hasRemaining()) ch.write(buf);
+            ch.force(true);
+        }
+        Files.move(pending,file,StandardCopyOption.ATOMIC_MOVE,
+            StandardCopyOption.REPLACE_EXISTING);
+    }
+    static final class State {
+        final long epoch;
+        final String generation, receipt, id, intent;
+        State(long epoch,String generation,String receipt,String id,String intent) {
+            this.epoch=epoch; this.generation=generation;
+            this.receipt=receipt; this.id=id; this.intent=intent;
+        }
+        String encode(){return epoch+"|"+generation+"|"+receipt+"|"+id+"|"+intent;}
+        static State decode(String text) {
+            String[] fields=text.split("\\|",-1);
+            if(fields.length!=5 || !fields[0].matches("[1-9][0-9]*")
+                || !fields[1].matches("[a-zA-Z0-9_-]{1,100}")
+                || !(fields[2].equals("NONE") || fields[2].equals("STARTED")
+                    || fields[2].equals("COMPLETED"))
+                || !fields[3].matches("-|[a-zA-Z0-9_-]{1,100}")
+                || !fields[4].matches("-|[0-9a-f]{64}")
+                || (fields[2].equals("NONE") != fields[3].equals("-")))
+                throw new IllegalStateException("strict fixture invalid state");
+            return new State(Long.parseLong(fields[0]),fields[1],fields[2],fields[3],fields[4]);
+        }
+    }
+    static final class DiskOwner implements CelineFutureMemoryRecall.OwnerAtomicDispatchAuthority {
+        final Path root, frame, anchor, lock;
+        final ThreadLocal<Boolean> ownsTransaction=ThreadLocal.withInitial(()->false);
+        DiskOwner(Path directory) throws Exception {
+            root=directory.toAbsolutePath(); Files.createDirectories(root);
+            frame=root.resolve("strict-owner.frame");
+            anchor=root.resolve("strict-owner.versioned-anchor");
+            lock=root.resolve("strict-owner.lock");
+            withLock(()->{
+                if(!Files.exists(frame) && !Files.exists(anchor))
+                    seal(new State(1,GEN,"NONE","-","-"));
+                verified(); return null;
+            });
+        }
+        <T> T withLock(Tx<T> operation) throws Exception {
+            try(FileChannel ch=FileChannel.open(lock,StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE);FileLock exclusive=ch.lock()) {
+                ownsTransaction.set(true);
+                try {return operation.run();}
+                finally {ownsTransaction.remove();}
+            }
+        }
+        State verified() throws Exception {
+            if(!Files.isRegularFile(frame) || !Files.isRegularFile(anchor))
+                throw new IllegalStateException("missing owner state or anchor");
+            String frameText=Files.readString(frame);
+            State s=State.decode(frameText);
+            if(!(s.epoch+"|"+sha(frameText)).equals(Files.readString(anchor)))
+                throw new IllegalStateException("rollback or torn owner seal");
+            return s;
+        }
+        void seal(State next) throws Exception {
+            // A single process lock serializes callers; TWO files are NOT
+            // power-cut atomic or rollback-proof even with forced writes.
+            String value=next.encode(); atomic(frame,value);
+            atomic(anchor,next.epoch+"|"+sha(value));
+        }
+        @Override public String currentGeneration() {
+            try{return withLock(()->verified().generation);}
+            catch(Exception unsafe){return "";}
+        }
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+            String generation=currentGeneration();
+            if(generation.isEmpty()) return null;
+            return new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                @Override public String generation(){return generation;}
+                @Override public void close(){} // not a retained OS lock
+            };
+        }
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome
+                dispatchUnderOwnerLock(String generation,String id,byte[] digest,Runnable publisher) {
+            var uncertain=CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            try{return withLock(()->{
+                State before=verified();
+                if(!before.generation.equals(generation))
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+                String intent=java.util.HexFormat.of().formatHex(digest);
+                if(!before.receipt.equals("NONE")) {
+                    if(!before.id.equals(id)||!before.intent.equals(intent))return uncertain;
+                    return before.receipt.equals("COMPLETED")
+                        ? CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED : uncertain;
+                }
+                seal(new State(before.epoch+1,generation,"STARTED",id,intent));
+                try{publisher.run();}catch(RuntimeException interrupted){return uncertain;}
+                State after=verified(); // reentrant owner source change must be seen
+                if(!after.generation.equals(generation)||!after.receipt.equals("STARTED")
+                    ||!after.id.equals(id)||!after.intent.equals(intent))return uncertain;
+                seal(new State(after.epoch+1,generation,"COMPLETED",id,intent));
+                return CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+            });}catch(Exception unsafe){return uncertain;}
+        }
+        void revoke() throws Exception {
+            withLock(()->{reentrantRevoke();return null;});
+        }
+        void reentrantRevoke() throws Exception {
+            if(!ownsTransaction.get())throw new IllegalStateException("must own owner transaction");
+            State s=verified(); seal(new State(s.epoch+1,"revoked-generation",s.receipt,s.id,s.intent));
+        }
+        String status() {
+            try{return withLock(()->{
+                State s=verified();
+                return "STATE="+s.receipt+";EPOCH="+s.epoch+";GEN="+s.generation+
+                  ";CURRENT_COMPLETED="+((s.generation.equals(GEN)&&s.receipt.equals("COMPLETED"))?1:0);
+            });} catch(Exception ex){return "STATE=UNTRUSTED;CURRENT_COMPLETED=0";}
+        }
+    }
+    public static void main(String[] args) throws Exception {
+        if(args.length!=2)throw new IllegalArgumentException("root action");
+        Path root=Path.of(args[0]); String action=args[1];
+        DiskOwner owner=new DiskOwner(root);
+        if(action.equals("init")||action.equals("check")) {
+            System.out.println("RESULT="+action+";"+owner.status()); return;
+        }
+        if(action.equals("revoke")) {
+            owner.revoke();System.out.println("RESULT=revoke;"+owner.status()); return;
+        }
+        var candidate=new CelineFutureMemoryRecall.Candidate("strict-cat","Meine Katze Luna","",
+            CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,1_900_000_000_000L-100,0,0.5);
+        var entries=List.of(candidate);
+        byte[] payload=CelineFutureMemoryRecall.certificatePayload(GEN,entries,Set.of(),Set.of());
+        Mac mac=Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(KEY,"HmacSHA256"));
+        var cert=new CelineFutureMemoryRecall.OwnerLineageCertificate(GEN,Set.of(),Set.of(),mac.doFinal(payload));
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(KEY,owner,(gen,summaries)->{
+            try {
+                // A provider may be non-idempotent. An append-only local marker
+                // must reveal repeated deliveries, not hide them via CREATE_NEW.
+                Files.writeString(root.resolve("test-only-strict-sink-event"),"once\\n",
+                                  StandardOpenOption.CREATE,StandardOpenOption.APPEND);
+                if(action.equals("pause")) {
+                    System.out.println("CALLBACK_REACHED");
+                    System.out.flush();
+                    long until=System.nanoTime()+30_000_000_000L;
+                    while(!Files.exists(root.resolve("allow-finish")) && System.nanoTime()<until)
+                        Thread.sleep(20);
+                    if(!Files.exists(root.resolve("allow-finish")))
+                        throw new IllegalStateException("fixture callback timed out");
+                }
+                if(action.equals("reentrant"))owner.reentrantRevoke();
+            } catch (Exception failure) {throw new IllegalStateException(failure);}
+        });
+        var result=CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic("strict-request",
+             "Meine Katze Luna",entries,cert,verifier,8,1_900_000_000_000L);
+        System.out.println("RESULT="+result+";"+owner.status());
+        System.out.flush();
+    }
+}
+'''
+
 def process_owner_proof(temp):
     """Isolated JVM boundary checks, not an Android/anti-rollback guarantee."""
     checks = 0
@@ -4214,11 +4393,122 @@ def process_owner_proof(temp):
     print('FUTURE_G1_JVM_PROCESS_RESTART_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_JOINT_DISK_AUTHORITY_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
+def process_strict_owner_proof(temp):
+    """Source-API strict owner across JVMs, still rollbackable test files."""
+    checks=0
+    cls='de.yahya.ai.FutureStrictOwnerProcessChild'
+    def case(ok,name):
+        nonlocal checks
+        if not ok: raise AssertionError('STRICT_PROCESS_OWNER_FAIL: '+name)
+        checks+=1
+    def cmd(root,action):
+        return ['java','-cp',temp,cls,str(root),action]
+    def run(root,action):
+        result=subprocess.run(cmd(root,action),capture_output=True,text=True,timeout=20)
+        case(result.returncode==0,action+' failed: '+result.stderr[-300:])
+        return result.stdout
+    def scenario(name):
+        root=Path(temp)/('strict-'+name)
+        root.mkdir()
+        return root
+    # ACTUAL source publishCertifiedOwnerContextAtomic using a JVM disk owner.
+    root=scenario('healthy')
+    case('STATE=NONE' in run(root,'init'),'initial state none')
+    first=run(root,'publish')
+    case('RESULT=COMPLETED' in first and 'CURRENT_COMPLETED=1' in first,
+         'strict API owner sealed first genuine JVM dispatch')
+    second=run(root,'publish')
+    case('RESULT=COMPLETED' in second,'fresh JVM reused sealed receipt')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'duplicate strict invocation never re-published provider test marker')
+    run(root,'revoke')
+    case('CURRENT_COMPLETED=0' in run(root,'check'),
+         'revoked completed receipt cannot masquerade as current')
+    case('RESULT=REJECTED_BEFORE_START' in run(root,'publish'),
+         'revoked strict owner rejects fresh publication')
+    # Actual hard-kill during callback *while strict owner holds a file lock*.
+    root=scenario('cancel')
+    run(root,'init')
+    def paused(root):
+        p=subprocess.Popen(cmd(root,'pause'),stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,text=True,bufsize=1)
+        line=p.stdout.readline().strip()
+        case('CALLBACK_REACHED' in line,
+             'strict callback began inside owner lock: '+line)
+        case('|STARTED|' in (root/'strict-owner.frame').read_text(),
+             'strict STARTED frame persisted before callback side effect')
+        return p
+    waiter=paused(root)
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'callback effect visible before abrupt process death')
+    waiter.kill()
+    waiter.communicate(timeout=5)
+    case(waiter.returncode!=0,'actual OS process canceled before ack')
+    case('STATE=STARTED' in run(root,'check'),'fresh JVM recovered STARTED')
+    case('RESULT=STARTED_INDETERMINATE' in run(root,'publish'),
+         'new process cannot replay canceled strict callback')
+    case('CURRENT_COMPLETED=0' in run(root,'check'),
+         'interrupted strict receipt is never falsely current COMPLETED')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'killed strict callback is delivered only once in test model')
+    # New independent JVM revoker must wait until publisher's transaction ends.
+    root=scenario('two-process-lock-serialization')
+    run(root,'init')
+    waiter=paused(root)
+    revoker=subprocess.Popen(cmd(root,'revoke'),stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,text=True)
+    import time
+    time.sleep(0.2)
+    case(revoker.poll() is None,'concurrent independent JVM revoke blocked by strict owner lock')
+    (root/'allow-finish').touch()
+    out,err=waiter.communicate(timeout=20)
+    revout,reverr=revoker.communicate(timeout=20)
+    case(waiter.returncode==0 and revoker.returncode==0,
+         'both strict owner JVM contenders finished: '+err[-100:]+' '+reverr[-100:])
+    case('RESULT=COMPLETED' in out or 'RESULT=STARTED_INDETERMINATE' in out,
+         'race cannot forge retryable rejection after attempted provider callback')
+    case('STATE=STARTED' not in revout and 'GEN=revoked-generation' in revout,
+         'revocation serialized after pending owner receipt')
+    case('CURRENT_COMPLETED=0' in run(root,'check'),
+         'post-revoke strict receipt not current')
+    case('RESULT=REJECTED_BEFORE_START' in run(root,'publish'),
+         'new JVM does not redispatch revoked generation')
+    # Reentrant callback changes source generation before seal.
+    root=scenario('reentrant')
+    run(root,'init')
+    result=run(root,'reentrant')
+    case('RESULT=STARTED_INDETERMINATE' in result,
+         'strict owner reports uncertain after synchronous reentrant revocation')
+    case('CURRENT_COMPLETED=0' in run(root,'check'),
+         'reentrant source change prevents current completion')
+    case('RESULT=REJECTED_BEFORE_START' in run(root,'publish'),
+         'fresh JVM cannot resurrect reentrant-revoked state')
+    # Confirm expected unsolved threat: both ordinary rollbackable files are
+    # attacker-restorable; preserving source state after a restore is impossible.
+    root=scenario('joint-rollback-known-fail')
+    run(root,'init')
+    old_frame=(root/'strict-owner.frame').read_bytes()
+    old_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+    case('RESULT=COMPLETED' in run(root,'publish'),'prior strict publication completed')
+    (root/'strict-owner.frame').write_bytes(old_frame)
+    (root/'strict-owner.versioned-anchor').write_bytes(old_anchor)
+    case('STATE=NONE' in run(root,'check'),
+         'KNOWN SECURITY FAIL: joint restore of both files impersonates fresh state')
+    replay=run(root,'publish')
+    case('RESULT=COMPLETED' in replay and
+         (root/'test-only-strict-sink-event').read_text()=='once\\n'*2,
+         'KNOWN SECURITY FAIL: joint rollback repeats non-idempotent provider delivery')
+    print('FUTURE_G1_STRICT_OWNER_CROSS_PROCESS_PROOF_PASS cases='+str(checks))
+    print('FUTURE_G1_STRICT_OWNER_JOINT_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
     child = Path(temp) / 'FutureProcessOwnerChild.java'
     child.write_text(child_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child)], check=True)
+    strict_child = Path(temp) / 'FutureStrictOwnerProcessChild.java'
+    strict_child.write_text(strict_child_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child)], check=True)
     subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
     process_owner_proof(temp)
+    process_strict_owner_proof(temp)
