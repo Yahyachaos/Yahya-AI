@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "reviewedHead": "d1bc0ed9db25b13a90b87a9f6cfb92859ce3f127",
+  "run": 41098855941,
+  "runConclusion": "success",
+  "jobs": {
+    "passed": 15,
+    "total": 15
+  },
+  "artifact": 12998678849,
+  "architectureJob": 124213136927,
+  "visual": "FAIL",
+  "candidates": [
+    {
+      "name": "yaw-090",
+      "sha256": "1121d626a24e05f93a5f310a78ca66065b30726b1464e58f424a055e48f1d16a",
+      "referencePairSha256": "c2dc488c61e454f258abde34bba958ac48958e41c0ba78115244e51a31782ea7",
+      "nativeSaveReloadExact": true,
+      "verdict": "FAIL",
+      "reason": "Source ribbed front is more plausible, but small/right and foreground occluded"
+    },
+    {
+      "name": "yaw-270",
+      "sha256": "4d6b25f6e5c7aab0bdff845b545b797fbd34ab155d30004b4b49ba78b17652eb",
+      "referencePairSha256": "197ce8732202d2f7d9a0a26254dea1814c047dd783729935835ee274dc2070f9",
+      "nativeSaveReloadExact": true,
+      "verdict": "FAIL",
+      "reason": "Blank back face differs from source reference"
+    }
+  ],
+  "diffRgbThreshold8": {
+    "countPixels": 5475,
+    "boundsPx": [
+      109,
+      261,
+      266,
+      361
+    ]
+  },
+  "cameraFrozen": true,
+  "other12Unchanged": true,
+  "allSourceGlbsUnchanged": true,
+  "roomM": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "permanentCandidatePromoted": false,
+  "wholeRoom": "VISUAL_FAIL_G2_3_PAUSED"
+}

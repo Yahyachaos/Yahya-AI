@@ -429,68 +429,89 @@ async function run(){
   if(v38BedSpecs.length)assert(v38BedEvidence.some(x=>x.status==='TECHNICAL_SCREENED_NO_VISUAL_ACCEPTANCE'),
     'V38 must obtain at least one source-valid genuine WebGL candidate');
 
-  // V39: genuine, bounded dresser-only reference trials. V28 bed had five
+  // V40: genuine, bounded dresser-only reference trials. V28 bed had five
   // source-fidelity WebGL images but all remain manual VISUAL FAIL; do not
   // silently promote an unreviewed bed transform.
-  // V39 screens original GLB orientation; old V39 photos all VISUAL FAIL.
-  const v39DresserSpecs=[
-   {name:'source-yaw-090',x:-1.05,z:.40,s:.72,yaw:90},
-   {name:'source-yaw-270',x:-1.05,z:.40,s:.72,yaw:270}
-  ];  const v39DresserFrames=[];
-  for(const spec of v39DresserSpecs){
+  // V40 screens original GLB orientation; V39 yaw 90/270 source photos both visually FAIL.
+  const v40DresserSpecs=[
+   {name:'left-wall-depth-075',x:-1.52,z:.75,s:.72,yaw:90},
+   {name:'left-wall-depth-115',x:-1.52,z:1.15,s:.72,yaw:90}
+  ];  const v40DresserFrames=[];
+  for(const spec of v40DresserSpecs){
    const candidate=JSON.parse(JSON.stringify(v27Layout));
-   candidate.status='V39_DRESSER_SCREEN_UNREVIEWED_VISUAL_FAIL';
-   candidate.candidate_name='v39-dresser-'+spec.name;
+   candidate.status='V40_DRESSER_SCREEN_UNREVIEWED_VISUAL_FAIL';
+   candidate.candidate_name='v40-dresser-'+spec.name;
    const dresser=candidate.objects.find(o=>o.id==='room_dresser');
-   assert(dresser&&dresser.locked,'V39 must preserve existing provisional dresser lock');
+   assert(dresser&&dresser.locked,'V40 must preserve existing provisional dresser lock');
    dresser.translation_m=[spec.x,.446813*spec.s/.80,spec.z];
    dresser.scale_xyz=[spec.s,spec.s,spec.s];dresser.uniform_scale=spec.s;
    dresser.rotation_y_deg=spec.yaw;dresser.rotation_euler_deg=[0,spec.yaw,0];
    // Rotate only original dresser; freeze the 12 other source-fidelity transforms.
-   const upload='v39-dresser-'+spec.name+'.json';
+   const upload='v40-dresser-'+spec.name+'.json';
    await page.locator('#file').setInputFiles({name:upload,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
    await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),upload,{timeout:60000});
    const state=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
    const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
    assert.equal(state.model_count,13);assert(state.all_source_fidelity_glbs_loaded);
    assert.deepEqual(state.room_m,layout.room);assert.deepEqual(projection.canvas_px,[700,560]);
-   assert(Math.abs(projection.aspect-1402/1122)<.002,'V39 reference framing must remain frozen');
+   assert(Math.abs(projection.aspect-1402/1122)<.002,'V40 reference framing must remain frozen');
    for(const original of v27Layout.objects){
-    const got=state.objects.find(o=>o.id===original.id);assert(got,'V39 source missing '+original.id);
+    const got=state.objects.find(o=>o.id===original.id);assert(got,'V40 source missing '+original.id);
     assert(got.locked===original.locked&&got.source_sha256===layout.original_source_hashes[original.id],
-     'V39 original hash/lock '+original.id);
+     'V40 original hash/lock '+original.id);
     if(original.id!=='room_dresser')for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
-     assert.deepEqual(got.transform[key],original[key],'V39 other 12 frozen '+original.id+' '+key);
+     assert.deepEqual(got.transform[key],original[key],'V40 other 12 frozen '+original.id+' '+key);
     if(original.id==='room_dresser')assert.deepEqual(got.transform.rotation_euler_deg,[0,spec.yaw,0],
-     'V39 preserve dresser source rotation');
+     'V40 preserve dresser source rotation');
    }
    const measured=state.objects.find(o=>o.id==='room_dresser');
    const faces=['left','right','floor','ceiling','back','front'];
-   for(const face of faces)assert(Number.isFinite(measured.overflow_faces_m?.[face]),'V39 finite AABB '+face);
+   for(const face of faces)assert(Number.isFinite(measured.overflow_faces_m?.[face]),'V40 finite AABB '+face);
    const overflow=Object.fromEntries(faces.map(face=>[face,measured.overflow_faces_m[face]]));
    if(!Number.isFinite(measured.floor_bottom_y_m)||Math.abs(measured.floor_bottom_y_m)>=.005||
       faces.some(face=>overflow[face]>=.005)){
-     v39DresserFrames.push({spec,status:'REJECTED_AABB_OR_FLOOR',overflow,
+     v40DresserFrames.push({spec,status:'REJECTED_AABB_OR_FLOOR',overflow,
        floorBottomM:measured.floor_bottom_y_m,visual:'FAIL_NO_RENDER'});
      continue;
    }
-   const real=png('layout-v39-dresser-'+spec.name+'-real-webgl.png',
+   const real=png('layout-v40-dresser-'+spec.name+'-real-webgl.png',
     await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
-   const paired=png('layout-v39-dresser-'+spec.name+'-reference-side-by-side.png',
+   const paired=png('layout-v40-dresser-'+spec.name+'-reference-side-by-side.png',
     await v27PairImage(),[1400,560]);
+   const hiddenShot=await page.evaluate(()=>window.__celineRoomEditorE2E.diagnosticOriginalTableHiddenFrame());
+   assert.equal(hiddenShot.restored_visible,true);
+   assert.equal(hiddenShot.source_id,'room_foreground_table');
+   const tableHidden=png('layout-v40-dresser-'+spec.name+'-table-hidden-real-webgl.png',
+     hiddenShot.png,[700,560]);
+   const restored=png('layout-v40-dresser-'+spec.name+'-table-restored-real-webgl.png',
+     await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+   assert.equal(restored.sha256,real.sha256,'V40 table must restore pixel-exact');
+   const tableHiddenPair=png('layout-v40-dresser-'+spec.name+'-table-hidden-reference-pair.png',
+     await page.evaluate(async data=>{
+       const img=new Image();img.src=data;
+       await new Promise((ok,bad)=>{
+         if(img.complete&&img.naturalWidth)return ok();
+         img.onload=ok;img.onerror=bad;
+       });
+       const c=document.createElement('canvas');c.width=1400;c.height=560;
+       const ctx=c.getContext('2d');
+       ctx.drawImage(document.querySelector('#reference-preview'),0,0,700,560);
+       ctx.drawImage(img,700,0,700,560);
+       return c.toDataURL('image/png');
+     },hiddenShot.png),[1400,560]);
    const saveEvent=page.waitForEvent('download');await page.locator('#save').click();
-   const savePath=path.join(out,'layout-v39-dresser-'+spec.name+'-saved.json');
+   const savePath=path.join(out,'layout-v40-dresser-'+spec.name+'-saved.json');
    await (await saveEvent).saveAs(savePath);
    const saved=JSON.parse(fs.readFileSync(savePath,'utf8'));
    assert.equal(saved.objects.length,13);
    for(const original of candidate.objects){
      const got=saved.objects.find(o=>o.id===original.id);
-     assert(got&&got.locked===original.locked,'V39 native lock '+original.id);
+     assert(got&&got.locked===original.locked,'V40 native lock '+original.id);
      for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
        for(let i=0;i<3;i++)assert(Number.isFinite(got[key][i])&&
-         Math.abs(got[key][i]-original[key][i])<=1e-9,'V39 save '+original.id+' '+key);
+         Math.abs(got[key][i]-original[key][i])<=1e-9,'V40 save '+original.id+' '+key);
    }
-   const reloadName='v39-dresser-'+spec.name+'-reload.json';
+   const reloadName='v40-dresser-'+spec.name+'-reload.json';
    await page.locator('#file').setInputFiles({name:reloadName,mimeType:'application/json',buffer:fs.readFileSync(savePath)});
    await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),reloadName,{timeout:60000});
    await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),camera);
@@ -500,23 +521,23 @@ async function run(){
      assert(got&&got.locked===original.locked&&got.source_sha256===layout.original_source_hashes[original.id]);
      for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
        for(let i=0;i<3;i++)assert(Number.isFinite(got.transform[key][i])&&
-         Math.abs(got.transform[key][i]-original[key][i])<=1e-9,'V39 reload '+original.id+' '+key);
+         Math.abs(got.transform[key][i]-original[key][i])<=1e-9,'V40 reload '+original.id+' '+key);
    }
-   const reloaded=png('layout-v39-dresser-'+spec.name+'-reloaded-real-webgl.png',
+   const reloaded=png('layout-v40-dresser-'+spec.name+'-reloaded-real-webgl.png',
      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
-   assert.equal(real.sha256,reloaded.sha256,'V39 raster after Save/Reload');
-   v39DresserFrames.push({spec,status:'TECHNICALLY_SCREENED_VISUAL_PENDING',real,paired,reloaded,
+   assert.equal(real.sha256,reloaded.sha256,'V40 raster after Save/Reload');
+   v40DresserFrames.push({spec,status:'TECHNICALLY_SCREENED_VISUAL_PENDING',real,paired,tableHidden,tableHiddenPair,restored,reloaded,
      sourceWorldAabb:measured.conservative_world_aabb_m,projectedCenter:projection.projected_centers.room_dresser,
      overflow,nativeSaveReload:true,other12Frozen:true,manualVisual:'FAIL_PENDING_AUTHENTIC_PNG_REVIEW'});
   }
-  fs.writeFileSync(path.join(out,'v39-dresser-yaw-audit.json'),JSON.stringify({
+  fs.writeFileSync(path.join(out,'v40-dresser-yaw-audit.json'),JSON.stringify({
     exactHead:process.env.GITHUB_SHA||null,originalReferencePx:[1402,1122],
     room:v27Layout.room,frozenCamera:camera,sourceHashes:layout.original_source_hashes,
     allOther12Frozen:true,originalSourcesUnchanged:true,noLayoutPromoted:true,
-    candidates:v39DresserFrames,visual:'FAIL_PENDING_GENUINE_IMAGE_REVIEW',
+    candidates:v40DresserFrames,visual:'FAIL_PENDING_GENUINE_IMAGE_REVIEW',
     wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
-  console.log('V39 original dresser yaw candidate evidence written; visual acceptance remains FAIL');
+  console.log('V40 left-wall dresser depth candidate evidence written; visual acceptance remains FAIL');
   await page.locator('#file').setInputFiles(local);
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
 
