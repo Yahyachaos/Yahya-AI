@@ -329,6 +329,107 @@ async function run(){
    v28Frames.push({spec,real,paired,actualAabb:trialBed.conservative_world_aabb_m,
     projectedCenter:projection.projected_centers.room_bed,manualVisual:'FAIL_PENDING_IMAGE_INSPECTION'});
   }
+  // V38: genuine bed rotation/scale candidates; all previous V28 X-only
+  // movements remain VISUAL FAIL and are not used as acceptance evidence.
+  const v38BedSpecs=[
+    {name:'compact-right-084',x:1.16,z:.22,s:.84,yaw:180},
+    {name:'yaw-165-080',x:.99,z:.22,s:.80,yaw:165},
+    {name:'yaw-195-080',x:.99,z:.22,s:.80,yaw:195},
+    {name:'yaw-210-074',x:.95,z:.22,s:.74,yaw:210}
+  ];
+  const v38BedEvidence=[];
+  for(const spec of v38BedSpecs){
+    const candidate=JSON.parse(JSON.stringify(v27Layout));
+    candidate.status='V38_BED_ROTATION_SCALE_DIAGNOSTIC_UNREVIEWED_VISUAL_FAIL';
+    candidate.candidate_name='v38-bed-'+spec.name;
+    const bed=candidate.objects.find(o=>o.id==='room_bed');
+    assert(bed&&bed.locked,'V38 bed must preserve its provisional lock');
+    bed.translation_m=[spec.x,.588966*spec.s/.96,spec.z];
+    bed.rotation_y_deg=spec.yaw;bed.rotation_euler_deg=[0,spec.yaw,0];
+    bed.scale_xyz=[spec.s,spec.s,spec.s];bed.uniform_scale=spec.s;
+    const upload='v38-bed-'+spec.name+'.json';
+    await page.locator('#file').setInputFiles({name:upload,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
+    await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),upload,{timeout:60000});
+    await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),camera);
+    const state=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+    assert.equal(state.model_count,13);assert.equal(state.all_source_fidelity_glbs_loaded,true);
+    assert.deepEqual(state.room_m,v27Layout.room);assert.deepEqual(projection.canvas_px,[700,560]);
+    assert(Math.abs(projection.aspect-1402/1122)<.002,'V38 camera aspect fixed');
+    for(const original of v27Layout.objects){
+      const got=state.objects.find(o=>o.id===original.id);
+      assert(got&&got.locked===original.locked,'V38 lock '+original.id);
+      assert.equal(got.source_sha256,v27Layout.original_source_hashes[original.id],'V38 source '+original.id);
+      if(original.id!=='room_bed')for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
+        assert.deepEqual(got.transform[key],original[key],'V38 frozen other '+original.id+' '+key);
+    }
+    const subject=state.objects.find(o=>o.id==='room_bed');
+    const faces=['left','right','floor','ceiling','back','front'];
+    assert(subject&&subject.overflow_faces_m,'V38 original bed missing AABB');
+    for(const face of faces)
+      assert(typeof subject.overflow_faces_m[face]==='number'&&Number.isFinite(subject.overflow_faces_m[face]),'V38 invalid bed face '+face);
+    const overflow=Object.fromEntries(faces.map(face=>[face,subject.overflow_faces_m[face]]));
+    if(faces.some(face=>overflow[face]>=.005)||Math.abs(subject.floor_bottom_y_m)>=.005){
+      v38BedEvidence.push({spec,status:'REJECTED_SOURCE_AABB_OR_GROUND',sourceOverflowM:overflow,
+        floorBottomM:subject.floor_bottom_y_m,manualVisual:'FAIL_NO_RENDER'});
+      continue;
+    }
+    const real=png('layout-v38-bed-'+spec.name+'-table-visible-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+    const hiddenShot=await page.evaluate(()=>window.__celineRoomEditorE2E.diagnosticOriginalTableHiddenFrame());
+    assert(hiddenShot.restored_visible===true&&hiddenShot.source_id==='room_foreground_table');
+    const hidden=png('layout-v38-bed-'+spec.name+'-table-hidden-real-webgl.png',hiddenShot.png,[700,560]);
+    const restored=png('layout-v38-bed-'+spec.name+'-restored-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+    assert.equal(real.sha256,restored.sha256,'V38 hiding table must not change layout');
+    const paired=png('layout-v38-bed-'+spec.name+'-table-hidden-reference-pair.png',
+      await page.evaluate(async data=>{
+        const img=new Image();img.src=data;
+        await new Promise((resolve,reject)=>{if(img.complete&&img.naturalWidth)return resolve();img.onload=resolve;img.onerror=reject;});
+        const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=560;
+        const ctx=canvas.getContext('2d');ctx.drawImage(document.querySelector('#reference-preview'),0,0,700,560);
+        ctx.drawImage(img,700,0,700,560);return canvas.toDataURL('image/png');
+      },hiddenShot.png),[1400,560]);
+    const download=page.waitForEvent('download');await page.locator('#save').click();
+    const file=path.join(out,'layout-v38-bed-'+spec.name+'-native-saved.json');
+    await (await download).saveAs(file);
+    const saved=JSON.parse(fs.readFileSync(file,'utf8'));
+    assert.equal(saved.objects.length,13);
+    for(const original of candidate.objects){
+      const got=saved.objects.find(o=>o.id===original.id);
+      assert(got&&got.locked===original.locked,'V38 browser save lock '+original.id);
+      for(const key of ['translation_m','rotation_euler_deg','scale_xyz']){
+        assert(got[key].length===3);
+        for(let i=0;i<3;i++)assert(Number.isFinite(got[key][i])&&
+          Math.abs(got[key][i]-original[key][i])<=1e-9,'V38 save transform '+original.id+' '+key);
+      }
+    }
+    const reloaded='v38-bed-'+spec.name+'-reloaded.json';
+    await page.locator('#file').setInputFiles({name:reloaded,mimeType:'application/json',buffer:fs.readFileSync(file)});
+    await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),reloaded,{timeout:60000});
+    await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),camera);
+    const reloadScene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    for(const original of candidate.objects){
+      const got=reloadScene.objects.find(o=>o.id===original.id);
+      assert(got&&got.locked===original.locked&&got.source_sha256===v27Layout.original_source_hashes[original.id]);
+      for(const key of ['translation_m','rotation_euler_deg','scale_xyz']){
+        for(let i=0;i<3;i++)assert(Number.isFinite(got.transform[key][i])&&
+          Math.abs(got.transform[key][i]-original[key][i])<=1e-9,'V38 reload '+original.id+' '+key);
+      }
+    }
+    const reloadFrame=png('layout-v38-bed-'+spec.name+'-reloaded-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+    assert.equal(real.sha256,reloadFrame.sha256,'V38 exact original raster after native reload');
+    v38BedEvidence.push({spec,status:'TECHNICAL_SCREENED_NO_VISUAL_ACCEPTANCE',
+      projectedAabbCenter:projection.projected_centers.room_bed,
+      referenceTargetCenterX:0.749,grounded:true,sourceOverflowM:overflow,
+      sourceAabb:subject.conservative_world_aabb_m,nativeSaveReload:true,
+      actualImages:{real,tableHidden:hidden,tableRestored:restored,paired,reloaded:reloadFrame},
+      manualVisual:'FAIL_PENDING_REAL_IMAGE_INSPECTION'});
+  }
+  assert(v38BedEvidence.some(x=>x.status==='TECHNICAL_SCREENED_NO_VISUAL_ACCEPTANCE'),
+    'V38 must obtain at least one source-valid genuine WebGL candidate');
+
   // V29: genuine, bounded dresser-only reference trials. V28 bed had five
   // source-fidelity WebGL images but all remain manual VISUAL FAIL; do not
   // silently promote an unreviewed bed transform.
@@ -590,6 +691,7 @@ async function run(){
    v25RugDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v25RugCandidates,manualVisual:'FAIL_PENDING_GENUINE_WEBGL_REVIEW'},
    v27RugPartial:{real:v27Screenshot,paired:v27Comparison,nativeSaveReload:true,visual:'FAIL_PARTIAL_BETTER'},
    v28BedTests:{other12Frozen:true,realSourceFrames:v28Frames,visual:'FAIL_MANUALLY_REVIEWED_ALL_FIVE_NO_TRANSFORM_SELECTED'},
+   v38BedRotationScaleDiagnostic:{other12Frozen:true,realSourceFrames:v38BedEvidence,visual:'FAIL_PENDING_ACTUAL_WEBGL_REVIEW',noLayoutPromoted:true},
    v29DresserTests:{other12Frozen:true,realSourceFrames:v29DresserFrames,visual:'FAIL_PENDING_AUTHENTIC_PNG_REVIEW'},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
