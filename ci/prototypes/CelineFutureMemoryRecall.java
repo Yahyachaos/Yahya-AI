@@ -495,14 +495,15 @@ public final class CelineFutureMemoryRecall {
             journalAttempted = true;
             OwnerPublicationJournal.Reservation reservation =
                     trustedG1Verifier.ownerPublicationJournal.reserve(ownerIssuedRequestId, intent.clone());
+            // A legacy COMPLETED receipt is still bound to the CURRENT source
+            // generation. A broken lease or revocation during the journal read
+            // cannot authorize stale completion, let alone new publication.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
             if (reservation == OwnerPublicationJournal.Reservation.ALREADY_COMPLETED)
                 return OwnerPublicationOutcome.COMPLETED;
             if (reservation != OwnerPublicationJournal.Reservation.NEW_STARTED)
-                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
-            // A faulty owner lease must not authorize dispatch. Keep the
-            // durable STARTED record to avoid retrying an uncertain attempt.
-            if (!certificate.generation.equals(held.generation())
-                    || !trustedG1Verifier.isStillCurrent(certificate))
                 return OwnerPublicationOutcome.STARTED_INDETERMINATE;
             trustedG1Verifier.ownerContextPublisher.publish(certificate.generation,
                     Collections.unmodifiableList(summaries));

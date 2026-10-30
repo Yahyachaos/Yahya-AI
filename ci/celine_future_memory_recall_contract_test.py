@@ -2517,6 +2517,34 @@ public final class FutureMemoryRecallContract {
                 "after concurrent first completes subsequent calls read completed receipt");
             eq(concurrentCalls.get(),1,"later duplicate never republishes concurrently completed ID");
             eq(leaseCloses.get() > 0,true,"all journaled paths exercised owner lease closing");
+            // A defective owner lease can revoke its generation DURING a journal
+            // read. Even a previous COMPLETED receipt must not be asserted as
+            // valid for the newly revoked context without post-journal recheck.
+            final java.util.concurrent.atomic.AtomicReference<String> raceRevision =
+                new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+            final java.util.concurrent.atomic.AtomicInteger racePublisherCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+            CelineFutureMemoryRecall.OwnerPublicationJournal revokingReceipt =
+                new CelineFutureMemoryRecall.OwnerPublicationJournal() {
+                    public Reservation reserve(String requestId, byte[] intent) {
+                        raceRevision.set(revisionOld);
+                        return Reservation.ALREADY_COMPLETED;
+                    }
+                    public boolean acknowledgeCompleted(String requestId, byte[] intent) {
+                        throw new AssertionError("unexpected acknowledgement on historical receipt");
+                    }
+                };
+            CelineFutureMemoryRecall.OwnerLineageVerifier revokingOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,raceRevision::get,() -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                        public String generation() { return raceRevision.get(); }
+                        public void close() {}
+                    },(publishedGeneration,summaries) -> racePublisherCalls.incrementAndGet(),
+                    revokingReceipt);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "receipt-revoked",query,newProjection,newRevisionProof,revokingOwner,8,NOW),uncertain,
+                "revoked generation during already-completed receipt must remain indeterminate");
+            eq(racePublisherCalls.get(),0,"journal receipt path does not re-publish revoked data");
             System.out.println("FUTURE_G1_DISPATCH_JOURNAL_RESTART_AND_RACE=TEST_FIXTURE_ONLY");
         }
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
