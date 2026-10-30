@@ -171,6 +171,14 @@ public final class FutureMemoryRecallContract {
                 return true;
             } catch (Exception ex) { throw new IllegalStateException(ex); }
         }
+        @Override public synchronized boolean acknowledgeCompletedIfCurrent(
+                String id, byte[] sha256, String certifiedGeneration) {
+            // JVM FIXTURE ONLY: the tests' ordinary valid-revision scenarios
+            // assume a true owner-held read lease. This disk fixture itself
+            // cannot enforce an atomic G1 revision + journal transaction.
+            return certifiedGeneration != null && !certifiedGeneration.isEmpty()
+                    && acknowledgeCompleted(id,sha256);
+        }
     }
 
     /** FUTURE-ONLY test fixture. The AtomicLong stands in for an independently
@@ -2704,6 +2712,8 @@ public final class FutureMemoryRecallContract {
                 new java.util.concurrent.atomic.AtomicInteger();
             final java.util.concurrent.atomic.AtomicInteger duringAckWrites =
                 new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicBoolean durablyCompletedByLegacy =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
             final java.util.concurrent.atomic.AtomicBoolean duringAckReserved =
                 new java.util.concurrent.atomic.AtomicBoolean();
             CelineFutureMemoryRecall.OwnerPublicationJournal revokingAck =
@@ -2714,6 +2724,7 @@ public final class FutureMemoryRecallContract {
                     }
                     public boolean acknowledgeCompleted(String id, byte[] digest) {
                         duringAckWrites.incrementAndGet();
+                        durablyCompletedByLegacy.set(true);
                         duringAckRevision.set(revisionOld);
                         return true; // deliberately buggy simulated G1 journal
                     }
@@ -2729,14 +2740,121 @@ public final class FutureMemoryRecallContract {
                 "receipt-revoked-in-ack",query,newProjection,newRevisionProof,
                 ownerRevokedInAck,8,NOW),uncertain,
                 "revision revoked during positive acknowledgement cannot report COMPLETED");
-            eq(duringAckWrites.get(),1,"only one attempted acknowledgement under revocation");
-            eq(duringAckPublications.get(),1,"source was already published before revocation");
+            eq(duringAckWrites.get(),0,"legacy unsafe acknowledgement must never be called");
+            eq(durablyCompletedByLegacy.get(),false,
+                "revoke-on-legacy-ack cannot durably persist a false completed receipt");
+            eq(duringAckRevision.get(),revisionNew,"legacy unsafe ack cannot change owner generation");
+            eq(duringAckPublications.get(),1,"source was already published before the gated acknowledgement");
             duringAckRevision.set(revisionNew);
             eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
                 "receipt-revoked-in-ack",query,newProjection,newRevisionProof,
                 ownerRevokedInAck,8,NOW),uncertain,
                 "restoring current source does not replay a prior STARTED reservation");
             eq(duringAckPublications.get(),1,"ack-race duplicate cannot publish twice");
+            // A *persisted* false COMPLETED receipt cannot be repaired by a
+            // caller's post-ack recheck. The new capability instead delegates
+            // the generation check + receipt commit to ONE G1-owner boundary.
+            // This monitor is a JVM transaction model, NOT durable Android I/O.
+            final Object transactionalOwner = new Object();
+            final java.util.concurrent.atomic.AtomicReference<String> txGeneration =
+                new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+            final java.util.Map<String,Boolean> txReceipts = new java.util.HashMap<>();
+            final java.util.Map<String,String> txIntents = new java.util.HashMap<>();
+            final java.util.concurrent.atomic.AtomicInteger txPublishes =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicInteger txLegacyCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicInteger txConditionalCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicBoolean revokeInsideConditional =
+                new java.util.concurrent.atomic.AtomicBoolean(true);
+            CelineFutureMemoryRecall.OwnerPublicationJournal txJournal =
+                new CelineFutureMemoryRecall.OwnerPublicationJournal() {
+                    public Reservation reserve(String id, byte[] digest) {
+                        synchronized (transactionalOwner) {
+                            String intended = java.util.HexFormat.of().formatHex(digest);
+                            if (txReceipts.containsKey(id)) return
+                                !intended.equals(txIntents.get(id)) ? Reservation.INTENT_CONFLICT :
+                                (txReceipts.get(id) ? Reservation.ALREADY_COMPLETED : Reservation.ALREADY_STARTED);
+                            txIntents.put(id,intended);
+                            txReceipts.put(id,false);
+                            return Reservation.NEW_STARTED;
+                        }
+                    }
+                    public boolean acknowledgeCompleted(String id, byte[] digest) {
+                        txLegacyCalls.incrementAndGet();
+                        throw new AssertionError("unsafe legacy acknowledgement called");
+                    }
+                    public boolean acknowledgeCompletedIfCurrent(
+                            String id, byte[] digest, String certifiedGeneration) {
+                        synchronized (transactionalOwner) {
+                            txConditionalCalls.incrementAndGet();
+                            // Deterministically model a revocation that wins
+                            // the transaction BEFORE journal completion.
+                            if (revokeInsideConditional.getAndSet(false))
+                                txGeneration.set(revisionOld);
+                            if (!java.util.Objects.equals(txGeneration.get(),certifiedGeneration)
+                                    || !Boolean.FALSE.equals(txReceipts.get(id))
+                                    || !java.util.Objects.equals(txIntents.get(id),
+                                        java.util.HexFormat.of().formatHex(digest))) return false;
+                            txReceipts.put(id,true);
+                            return true;
+                        }
+                    }
+                };
+            CelineFutureMemoryRecall.OwnerLineageVerifier transactionalVerifier =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,txGeneration::get,() -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                        // Deliberately broken lease: only transactional G1 ack
+                        // enforces the revision/COMPLETED linearization point.
+                        public String generation() { return txGeneration.get(); }
+                        public void close() {}
+                    },(gen,summaries) -> txPublishes.incrementAndGet(),txJournal);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "tx-owner-revoked",query,newProjection,newRevisionProof,
+                transactionalVerifier,8,NOW),uncertain,
+                "owner revocation before conditional journal commit must stay indeterminate");
+            eq(txReceipts.get("tx-owner-revoked"),false,
+                "transactional owner leaves a durable-model STARTED not false COMPLETED");
+            eq(txConditionalCalls.get(),1,"exactly one conditional owner ack attempted");
+            eq(txLegacyCalls.get(),0,"direct legacy ack never used");
+            eq(txPublishes.get(),1,"publisher was invoked before revocation, no safe retry");
+            synchronized(transactionalOwner) { txGeneration.set(revisionNew); }
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "tx-owner-revoked",query,newProjection,newRevisionProof,
+                transactionalVerifier,8,NOW),uncertain,
+                "recovered owner generation never replays STARTED transaction");
+            eq(txPublishes.get(),1,"uncertain started transaction not republished");
+            eq(txReceipts.get("tx-owner-revoked"),false,
+                "journal STARTED remains after restart-like retry");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "tx-owner-success",query,newProjection,newRevisionProof,
+                transactionalVerifier,8,NOW),finished,
+                "second valid owner transaction may complete under same revision gate");
+            eq(txReceipts.get("tx-owner-success"),true,
+                "owner transaction commits only matching current source revision");
+            eq(txJournal.reserve("tx-owner-success",new byte[32]),
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT,
+                "atomic owner rejects completed same-ID receipt with forged intent");
+            eq(txJournal.acknowledgeCompletedIfCurrent("tx-owner-revoked",new byte[32],revisionNew),
+                false,"atomic owner cannot acknowledge mismatched request intent digest");
+            eq(txReceipts.get("tx-owner-revoked"),false,
+                "wrong digest cannot upgrade prior uncertain STARTED receipt");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "tx-owner-success",query,newProjection,newRevisionProof,
+                transactionalVerifier,8,NOW),finished,
+                "verified completed duplicate returns receipt without republish");
+            eq(txPublishes.get(),2,"completed same-ID duplicate never publishes twice");
+            eq(txConditionalCalls.get(),3,
+                "two dispatch acknowledgements and one directly rejected wrong-digest attempt");
+            synchronized(transactionalOwner) { txGeneration.set(revisionOld); }
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "tx-owner-success",query,newProjection,newRevisionProof,
+                transactionalVerifier,8,NOW),denied,
+                "revoked historical completion must not be accepted as current");
+            eq(txPublishes.get(),2,"revoked source cannot redispatch saved completion");
+            System.out.println("FUTURE_G1_ATOMIC_SOURCE_BOUND_ACK=JVM_OWNER_MODEL_ONLY");
+            System.out.println("FUTURE_G1_ATOMIC_ACK_DURABLE_ANDROID_PROOF=MISSING");
             System.out.println("FUTURE_G1_ACK_REVOCATION_GATE=JVM_SIMULATION_ONLY");
             System.out.println("FUTURE_G1_DISPATCH_JOURNAL_RESTART_AND_RACE=TEST_FIXTURE_ONLY");
         }
