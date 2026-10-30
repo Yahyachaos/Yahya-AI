@@ -752,7 +752,7 @@ async function run(){
    v28BedTests:{other12Frozen:true,realSourceFrames:v28Frames,visual:'FAIL_MANUALLY_REVIEWED_ALL_FIVE_NO_TRANSFORM_SELECTED'},
    v38BedRotationScaleDiagnostic:{archivedRun:41088144374,archivedArtifact:12996041739,other12Frozen:true,realSourceFrames:v38BedEvidence,replayed:v38BedSpecs.length>0,visual:'FOUR_MANUALLY_REVIEWED_FAIL',noLayoutPromoted:true},
    v29DresserTests:{historical:'FIVE_VISUAL_FAIL_AUTHENTIC_EVIDENCE_REUSED'},
-   v39DresserYawTests:{other12Frozen:true,realSourceFrames:v39DresserFrames,visual:'FAIL_PENDING_AUTHENTIC_IMAGE_REVIEW',noLayoutPromoted:true},
+   v40DresserYawTests:{other12Frozen:true,realSourceFrames:v40DresserFrames,visual:'FAIL_PENDING_AUTHENTIC_IMAGE_REVIEW',noLayoutPromoted:true},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS');
