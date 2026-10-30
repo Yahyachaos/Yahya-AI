@@ -11,6 +11,15 @@ public final class GermanPlaceAbbreviationTest {
             throw new AssertionError(label + ": original text changed");
         checks += 2;
     }
+
+    private static void eqNormalized(List<String> expected, String input, String label) {
+        List<String> actual = GermanSpeechChunkPlanner.split(input);
+        if (!expected.equals(actual))
+            throw new AssertionError(label + ": expected " + expected + ", got " + actual);
+        if (!input.replaceAll("(?U)\\s+", " ").trim().equals(String.join(" ", actual)))
+            throw new AssertionError(label + ": normalized text changed");
+        checks += 2;
+    }
     public static void main(String[] args) {
         eq(List.of("Wir fahren nach St. Pauli.", "Danach essen wir."),
                 "Wir fahren nach St. Pauli. Danach essen wir.", "Sankt Pauli location");
@@ -37,6 +46,28 @@ public final class GermanPlaceAbbreviationTest {
         eq(List.of("Wir treffen uns am 29.10.2026.", "Danach fahren wir."),
                 "Wir treffen uns am 29.10.2026. Danach fahren wir.",
                 "numeric date regression");
+        // Regression: >=100 ordinal unit compounds still form ONE spoken phrase.
+        // Do not broaden date interpretation or silence true sentence endings.
+        eq(List.of("Er erreicht den 100. Platz.", "Sehr gut!"),
+                "Er erreicht den 100. Platz. Sehr gut!", "three-digit rank");
+        eq(List.of("Im 125. Stock wartet sie.", "Gehen wir?"),
+                "Im 125. Stock wartet sie. Gehen wir?", "three-digit floor");
+        eq(List.of("Die 1000. Runde beginnt.", "Jetzt!"),
+                "Die 1000. Runde beginnt. Jetzt!", "four-digit round");
+        eq(List.of("Es sind 100.", "Danach folgt Text."),
+                "Es sind 100. Danach folgt Text.", "true numeric sentence end");
+        String ordinal = "Er ist auf dem 100. Platz. Sehr gut!";
+        char[] unicodeSpace = { ' ', '\u00a0', '\u202f', '\u2007', '\u2009' };
+        for (int run = 0; run < 256; run++) {
+            StringBuilder variant = new StringBuilder();
+            int slot = 0;
+            for (int i = 0; i < ordinal.length(); i++) {
+                char ch = ordinal.charAt(i);
+                variant.append(ch == ' ' ? unicodeSpace[(run + slot++ * 3) % unicodeSpace.length] : ch);
+            }
+            eqNormalized(List.of("Er ist auf dem 100. Platz.", "Sehr gut!"),
+                    variant.toString(), "large-ordinal Unicode whitespace " + run);
+        }
         System.out.println("VOICE_GERMAN_PLACE_ABBREVIATION_PASS checks=" + checks);
     }
 }

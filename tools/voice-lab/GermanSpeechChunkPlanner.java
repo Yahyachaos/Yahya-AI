@@ -76,8 +76,11 @@ public final class GermanSpeechChunkPlanner {
                 while (n >= start && Character.isDigit(text.charAt(n))) n--;
                 int digits = end - n - 1;
                 if (digits == 0) return false;
-                if (digits <= 2 && (nextWordIsMonth(text, boundaryEnd)
-                        || nextWordIsOrdinalUnit(text, boundaryEnd))) return true;
+                // A known ordinal+noun compound remains continuous even above 99:
+                // "100. Platz" and "1000. Runde" are not sentence endings.
+                // Keep the <=2-digit restriction ONLY for day-before-month dates.
+                if (nextWordIsOrdinalUnit(text, boundaryEnd)
+                        || (digits <= 2 && nextWordIsMonth(text, boundaryEnd))) return true;
                 // "29.10." is a date fragment, but "29.10.2026." completes a
                 // four-digit year and may end a sentence. Keep this conservative.
                 return digits <= 2 && n >= start + 1 && text.charAt(n) == '.'
