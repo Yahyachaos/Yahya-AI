@@ -197,6 +197,19 @@ async function run(){
     }),[1400,560]);
     v36Frames.push({label,tintHex:hex,material,real,paired,manual:'FAIL_PENDING_REAL_IMAGE_REVIEW'});
   }
+  // V37: real end-user checkbox must match the reviewed taupe WebGL sample,
+  // and switching it off must restore exactly the original pixels.
+  await page.locator('#chair-tint-preview').check();
+  const optInAudit=await page.evaluate(()=>window.__celineRoomEditorE2E.previewChairColorTrial('a88c72'));
+  assert(optInAudit.changed>0&&!optInAudit.originalIdentity);
+  const optInFrame=png('v37-chair-taupe-opt-in-editor-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  assert.equal(optInFrame.sha256,v36Frames.find(x=>x.label==='taupe').real.sha256,
+    'Checkbox applies exactly previously reviewed taupe material preview');
+  await page.locator('#chair-tint-preview').uncheck();
+  const optOutFrame=png('v37-chair-opt-out-source-restored-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  assert.equal(optOutFrame.sha256,baselinePng.sha256,'User checkbox restores exact original GLB chair');
   const originalChair=await page.evaluate(()=>window.__celineRoomEditorE2E.previewChairColorTrial(null));
   assert(originalChair.originalIdentity&&originalChair.changed===0);
   const restoredPng=png('v36-chair-exact-source-restored-real-webgl.png',

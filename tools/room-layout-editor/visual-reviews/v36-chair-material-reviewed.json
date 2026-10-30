@@ -1,0 +1,123 @@
+{
+  "schema": "yahya-room-layout-editor/real-visual-review/v1",
+  "date": "2026-10-30",
+  "scope": "V36 original-source chair cloned-material 6-color real WebGL review, with V37 opt-in-only selection",
+  "exact_proof_head": "2301ed5918e4aaed3beb42d6630b0a6bf882364a",
+  "run": {
+    "id": 41055298814,
+    "url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/41055298814",
+    "conclusion": "success",
+    "technical_jobs_pass": 15,
+    "technical_jobs_total": 15
+  },
+  "artifact": {
+    "id": 12977131255,
+    "name": "celine-room-editor-chair-v30-evidence",
+    "zip_sha256": "13d3269ae2d111df82ed45d157f5f680e0d470be42f7dc432bcec3fc7d3d0073"
+  },
+  "original_reference_px": [
+    1402,
+    1122
+  ],
+  "webgl_px": [
+    700,
+    560
+  ],
+  "comparison_px": [
+    1400,
+    560
+  ],
+  "images_manually_viewed": [
+    "ivory",
+    "dune",
+    "sandstone",
+    "taupe",
+    "camel",
+    "dark-taupe"
+  ],
+  "each_preview_source": "true source-fidelity GLB, ephemeral cloned light material only",
+  "source_material": "material.007",
+  "base_png_sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c",
+  "restore_png_sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c",
+  "after_save_reload_png_sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c",
+  "chair_material_change_pixels": 4628,
+  "chair_change_pixel_bbox_xyxy": [
+    163,
+    207,
+    239,
+    296
+  ],
+  "chair_color_roi_diagnostic": {
+    "description": "Mean absolute RGB error against true reference at only the actual changed WebGL chair pixels. Chair silhouette and lighting not matched; diagnostic not a visual PASS.",
+    "original_source_white": 91.182,
+    "candidates": [
+      {
+        "label": "ivory",
+        "hex": "e0cdb5",
+        "mae": 61.932
+      },
+      {
+        "label": "dune",
+        "hex": "d2b69a",
+        "mae": 48.241
+      },
+      {
+        "label": "sandstone",
+        "hex": "bfa285",
+        "mae": 38.104
+      },
+      {
+        "label": "taupe",
+        "hex": "a88c72",
+        "mae": 32.629
+      },
+      {
+        "label": "camel",
+        "hex": "c49c78",
+        "mae": 34.791
+      },
+      {
+        "label": "dark-taupe",
+        "hex": "93775f",
+        "mae": 33.676
+      }
+    ]
+  },
+  "visual_evaluation": "ALL 6 VISUAL FAIL: source chair remains a narrow white-shell-derived bucket seat with thin legs, unlike the wider beige upholstered reference armchair. Taupe lowers local changed-pixel color error but cannot fix original source silhouette or room foreground, night window, camera.",
+  "selected_preview": {
+    "hex": "a88c72",
+    "status": "PROVISIONAL_OPT_IN_EDITOR_ONLY_NOT_SAVED",
+    "underlying_original_glb_immutable": true,
+    "after_uncheck_original_identity": true,
+    "no_android_or_release": true
+  },
+  "older_v29_dresser_comparison": {
+    "source": "same exact-head architecture artifact 12977143122, all five genuine 1400x560 PNG pairs opened",
+    "variants": [
+      "baseline",
+      "inward",
+      "rear",
+      "forward",
+      "compact"
+    ],
+    "visual": "ALL FAIL; left dresser in GLB is taller/narrower in silhouette than left-wall reference, and moving it inward further separates it from left edge; no V29 transform promoted"
+  },
+  "original13_source_hashes_unchanged": true,
+  "original12_other_transforms_and_locks_unchanged": true,
+  "room_m": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "frozen_camera": true,
+  "per_object": {
+    "bed": "VISUAL FAIL",
+    "dresser": "VISUAL FAIL",
+    "chair": "VISUAL FAIL",
+    "foreground_table": "VISUAL FAIL",
+    "window_drapes": "VISUAL FAIL"
+  },
+  "whole_scene": "VISUAL FAIL / G2.3 PAUSED",
+  "accepted_scene_changes": [],
+  "next_action": "Read terminal exact-head V37 editor Chromium after this single branch commit; check selected/opt-out source pixel identity from chair artifact, then solve next independent reference object with frozen camera and GLB bounds. Avoid repeated chair material or V19/V26/V31 runs."
+}

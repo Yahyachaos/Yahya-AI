@@ -686,11 +686,50 @@ $('reference-file').onchange=(e)=>{
   $('reference-toggle').classList.add('active');
 };
 
+// V37: user-visible, opt-in source-preserving chair material preview.
+// The six authentic V36 WebGL trials identified #a88c72 as the lowest local
+// pixel difference for this color-only experiment; silhouette still VISUAL FAIL.
+const sourceChairMaterials=new WeakMap();
+function applyChairTint(tintHex=null) {
+      if(tintHex!==null && (typeof tintHex!=='string'||!/^[a-f0-9]{6}$/i.test(tintHex)))
+        throw new Error('Invalid original-chair tint');
+      const entry=entries.get('room_lounge_chair');
+      if(!entry?.loaded)throw new Error('Original chair not loaded');
+      let meshes=0,changed=0,originalIdentity=true;
+      const sourceSlots=[];
+      entry.group.traverse(mesh=>{
+        if(!mesh.isMesh)return;
+        meshes++;
+        if(!sourceChairMaterials.has(mesh))sourceChairMaterials.set(mesh,mesh.material);
+        const base=sourceChairMaterials.get(mesh);
+        const sources=Array.isArray(base)?base:[base];
+        const old=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+        const next=sources.map(mat=>{
+          if(!mat)return mat;
+          const c=mat.color,light=!!c&&!mat.transparent&&
+            (.2126*c.r+.7152*c.g+.0722*c.b)>=.45;
+          sourceSlots.push({name:mat.name||'',color:c?.getHexString()||null,light});
+          if(!tintHex||!light)return mat;
+          const copy=mat.clone();copy.color.set('#'+tintHex);changed++;return copy;
+        });
+        mesh.material=Array.isArray(base)?next:next[0];
+        if(next.some((m,i)=>m!==sources[i]))originalIdentity=false;
+        for(const m of old)if(m&&!sources.includes(m))m.dispose();
+      });
+      if(tintHex && changed===0)throw new Error('Original chair has no eligible light material');
+      renderer.render(scene,camera);
+      return {meshes,changed,originalIdentity,sourceSlots};
+}
+
+$('chair-tint-preview').onchange=()=>{
+  try { applyChairTint($('chair-tint-preview').checked?'a88c72':null); }
+  catch(err) { $('chair-tint-preview').checked=false; status('Sessel-Farbvorschau nicht angewendet: '+err.message,'warn'); }
+};
+
 // E2E-only camera/probe access makes real mouse interaction measurable without
 // programmatically selecting or transforming furniture. Not available outside
 // localhost with ?e2e=1. The Android runtime is completely separate.
 if (E2E_PROOF) {
-  const sourceChairMaterials=new WeakMap();
   // Material diagnostics share the true originals cached before the V22 preview.
   window.__celineRoomEditorE2E = Object.freeze({
     focus(id, direction = [1, 0.35, 1]) {
@@ -921,36 +960,7 @@ if (E2E_PROOF) {
     },
 
     // V36 browser-only color trial: clone eligible original-chair materials, restore identity.
-    previewChairColorTrial(tintHex=null) {
-      if(tintHex!==null && (typeof tintHex!=='string'||!/^[a-f0-9]{6}$/i.test(tintHex)))
-        throw new Error('Invalid original-chair tint');
-      const entry=entries.get('room_lounge_chair');
-      if(!entry?.loaded)throw new Error('Original chair not loaded');
-      let meshes=0,changed=0,originalIdentity=true;
-      const sourceSlots=[];
-      entry.group.traverse(mesh=>{
-        if(!mesh.isMesh)return;
-        meshes++;
-        if(!sourceChairMaterials.has(mesh))sourceChairMaterials.set(mesh,mesh.material);
-        const base=sourceChairMaterials.get(mesh);
-        const sources=Array.isArray(base)?base:[base];
-        const old=Array.isArray(mesh.material)?mesh.material:[mesh.material];
-        const next=sources.map(mat=>{
-          if(!mat)return mat;
-          const c=mat.color,light=!!c&&!mat.transparent&&
-            (.2126*c.r+.7152*c.g+.0722*c.b)>=.45;
-          sourceSlots.push({name:mat.name||'',color:c?.getHexString()||null,light});
-          if(!tintHex||!light)return mat;
-          const copy=mat.clone();copy.color.set('#'+tintHex);changed++;return copy;
-        });
-        mesh.material=Array.isArray(base)?next:next[0];
-        if(next.some((m,i)=>m!==sources[i]))originalIdentity=false;
-        for(const m of old)if(m&&!sources.includes(m))m.dispose();
-      });
-      if(tintHex && changed===0)throw new Error('Original chair has no eligible light material');
-      renderer.render(scene,camera);
-      return {meshes,changed,originalIdentity,sourceSlots};
-    },
+    previewChairColorTrial(tintHex=null) { return applyChairTint(tintHex); },
     architectureSurfaceAudit() {
       const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
       const ground=floor.children.find(child=>child.isMesh);
