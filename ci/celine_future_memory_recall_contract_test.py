@@ -2695,6 +2695,49 @@ public final class FutureMemoryRecallContract {
                 "receipt-revoked",query,newProjection,newRevisionProof,revokingOwner,8,NOW),uncertain,
                 "revoked generation during already-completed receipt must remain indeterminate");
             eq(racePublisherCalls.get(),0,"journal receipt path does not re-publish revoked data");
+            // A broken G1 owner lease may revoke while the durable journal
+            // writes its completed acknowledgement, AFTER our earlier check.
+            // A positive ack must not be reported as current if this happens.
+            final java.util.concurrent.atomic.AtomicReference<String> duringAckRevision =
+                new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+            final java.util.concurrent.atomic.AtomicInteger duringAckPublications =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicInteger duringAckWrites =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicBoolean duringAckReserved =
+                new java.util.concurrent.atomic.AtomicBoolean();
+            CelineFutureMemoryRecall.OwnerPublicationJournal revokingAck =
+                new CelineFutureMemoryRecall.OwnerPublicationJournal() {
+                    public Reservation reserve(String id, byte[] digest) {
+                        return duringAckReserved.compareAndSet(false,true)
+                            ? Reservation.NEW_STARTED : Reservation.ALREADY_STARTED;
+                    }
+                    public boolean acknowledgeCompleted(String id, byte[] digest) {
+                        duringAckWrites.incrementAndGet();
+                        duringAckRevision.set(revisionOld);
+                        return true; // deliberately buggy simulated G1 journal
+                    }
+                };
+            CelineFutureMemoryRecall.OwnerLineageVerifier ownerRevokedInAck =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,duringAckRevision::get,() -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                        public String generation() { return duringAckRevision.get(); }
+                        public void close() {}
+                    }, (ackGeneration,summaries) -> duringAckPublications.incrementAndGet(),
+                    revokingAck);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "receipt-revoked-in-ack",query,newProjection,newRevisionProof,
+                ownerRevokedInAck,8,NOW),uncertain,
+                "revision revoked during positive acknowledgement cannot report COMPLETED");
+            eq(duringAckWrites.get(),1,"only one attempted acknowledgement under revocation");
+            eq(duringAckPublications.get(),1,"source was already published before revocation");
+            duringAckRevision.set(revisionNew);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "receipt-revoked-in-ack",query,newProjection,newRevisionProof,
+                ownerRevokedInAck,8,NOW),uncertain,
+                "restoring current source does not replay a prior STARTED reservation");
+            eq(duringAckPublications.get(),1,"ack-race duplicate cannot publish twice");
+            System.out.println("FUTURE_G1_ACK_REVOCATION_GATE=JVM_SIMULATION_ONLY");
             System.out.println("FUTURE_G1_DISPATCH_JOURNAL_RESTART_AND_RACE=TEST_FIXTURE_ONLY");
         }
         // Malformed/truncated receipts must never be treated as COMPLETED or
