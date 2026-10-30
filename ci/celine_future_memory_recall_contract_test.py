@@ -2853,6 +2853,144 @@ public final class FutureMemoryRecallContract {
                 transactionalVerifier,8,NOW),denied,
                 "revoked historical completion must not be accepted as current");
             eq(txPublishes.get(),2,"revoked source cannot redispatch saved completion");
+            // Future-only deterministic G1 owner transaction model. The JVM
+            // monitor simulates (does not implement) atomic durable G1 state.
+            {
+                final Object ownerFence = new Object();
+                final java.util.concurrent.atomic.AtomicReference<String> ownerEpoch =
+                    new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+                final java.util.Map<String,String> intentsById = new java.util.HashMap<>();
+                final java.util.Map<String,Boolean> receiptsById = new java.util.HashMap<>();
+                final java.util.concurrent.atomic.AtomicInteger raceDeliveries =
+                    new java.util.concurrent.atomic.AtomicInteger();
+                final java.util.concurrent.atomic.AtomicInteger legacyAcks =
+                    new java.util.concurrent.atomic.AtomicInteger();
+                final java.util.concurrent.CountDownLatch beforeFence = new java.util.concurrent.CountDownLatch(1);
+                final java.util.concurrent.CountDownLatch proceedFence = new java.util.concurrent.CountDownLatch(1);
+                final java.util.concurrent.CountDownLatch heldFence = new java.util.concurrent.CountDownLatch(1);
+                final java.util.concurrent.CountDownLatch releaseFence = new java.util.concurrent.CountDownLatch(1);
+                class OwnerModelJournal implements CelineFutureMemoryRecall.OwnerPublicationJournal {
+                    public Reservation reserve(String id, byte[] intent) {
+                        synchronized(ownerFence) {
+                            String digest = java.util.HexFormat.of().formatHex(intent);
+                            if (receiptsById.containsKey(id)) return
+                                !digest.equals(intentsById.get(id)) ? Reservation.INTENT_CONFLICT :
+                                (receiptsById.get(id) ? Reservation.ALREADY_COMPLETED : Reservation.ALREADY_STARTED);
+                            intentsById.put(id,digest);
+                            receiptsById.put(id,false);
+                            return Reservation.NEW_STARTED;
+                        }
+                    }
+                    public boolean acknowledgeCompleted(String id, byte[] intent) {
+                        legacyAcks.incrementAndGet();
+                        throw new AssertionError("unsafe legacy completion");
+                    }
+                    public boolean acknowledgeCompletedIfCurrent(String id, byte[] intent, String epoch) {
+                        try {
+                            if ("revoke-before-ack".equals(id)) {
+                                beforeFence.countDown();
+                                if (!proceedFence.await(5,java.util.concurrent.TimeUnit.SECONDS))
+                                    throw new IllegalStateException("pre-ack timeout");
+                            }
+                            synchronized(ownerFence) {
+                                if ("ack-before-revoke".equals(id)) {
+                                    heldFence.countDown();
+                                    if (!releaseFence.await(5,java.util.concurrent.TimeUnit.SECONDS))
+                                        throw new IllegalStateException("held-ack timeout");
+                                }
+                                if (!java.util.Objects.equals(ownerEpoch.get(),epoch)
+                                        || !Boolean.FALSE.equals(receiptsById.get(id))
+                                        || !java.util.Objects.equals(intentsById.get(id),
+                                            java.util.HexFormat.of().formatHex(intent))) return false;
+                                receiptsById.put(id,true); // owner-serialized completion
+                                if ("crash-post-commit".equals(id))
+                                    throw new IllegalStateException("simulated post-commit interruption");
+                                return true;
+                            }
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException("owner wait interrupted",ex);
+                        }
+                    }
+                }
+                final OwnerModelJournal ownerJournal = new OwnerModelJournal();
+                final CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority leakyLease = () ->
+                    new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                        public String generation() { return ownerEpoch.get(); }
+                        public void close() {}
+                    };
+                final java.util.function.Supplier<CelineFutureMemoryRecall.OwnerLineageVerifier> restart = () ->
+                    new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,ownerEpoch::get,
+                        leakyLease,(epoch,approved) -> raceDeliveries.incrementAndGet(),ownerJournal);
+                final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                    revokedResult = new java.util.concurrent.atomic.AtomicReference<>();
+                Thread revokedSender = new Thread(() -> revokedResult.set(
+                    CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "revoke-before-ack",query,newProjection,newRevisionProof,restart.get(),8,NOW)));
+                revokedSender.start();
+                try {
+                    eq(beforeFence.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                        "publisher reaches ack boundary before revoke-first owner transaction");
+                    Thread revoker = new Thread(() -> { synchronized(ownerFence) {ownerEpoch.set(revisionOld);} });
+                    revoker.start(); revoker.join(5000);
+                    eq(revoker.isAlive(),false,"revoke-first owner transaction finishes before ack");
+                } finally { proceedFence.countDown(); }
+                revokedSender.join(5000);
+                eq(revokedSender.isAlive(),false,"revoked dispatch terminates");
+                eq(revokedResult.get(),uncertain,"revocation before ack cannot report completed");
+                eq(receiptsById.get("revoke-before-ack"),false,
+                    "atomic owner cannot record stale completion after prior revocation");
+                eq(raceDeliveries.get(),1,"revoked publication was attempted once");
+                synchronized(ownerFence) { ownerEpoch.set(revisionNew); }
+                eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "revoke-before-ack",query,newProjection,newRevisionProof,restart.get(),8,NOW),uncertain,
+                    "restart preserves STARTED after revoke-first transaction");
+                eq(raceDeliveries.get(),1,"restart never redispatches uncertain STARTED");
+
+                final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                    ackResult = new java.util.concurrent.atomic.AtomicReference<>();
+                Thread ackSender = new Thread(() -> ackResult.set(
+                    CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "ack-before-revoke",query,newProjection,newRevisionProof,restart.get(),8,NOW)));
+                Thread lateRevoker = new Thread(() -> { synchronized(ownerFence) {ownerEpoch.set(revisionOld);} });
+                ackSender.start();
+                try {
+                    eq(heldFence.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                        "ack-first writer holds same owner transaction fence as revocation");
+                    lateRevoker.start();
+                    eq(ownerEpoch.get(),revisionNew,"ack-first source stays current until fence release");
+                } finally { releaseFence.countDown(); }
+                ackSender.join(5000); lateRevoker.join(5000);
+                eq(ackSender.isAlive() || lateRevoker.isAlive(),false,"ack and revoker threads terminate");
+                eq(receiptsById.get("ack-before-revoke"),true,
+                    "valid ack commits before serialized revocation");
+                eq(ownerEpoch.get(),revisionOld,"late revocation eventually takes effect");
+                eq(ackResult.get()==finished || ackResult.get()==uncertain,true,
+                    "ack-first result reflects real linearization or later revoked source");
+                eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "ack-before-revoke",query,newProjection,newRevisionProof,restart.get(),8,NOW),denied,
+                    "restart refuses historical completed receipt on revoked source");
+                eq(raceDeliveries.get(),2,"late revocation does not replay already published context");
+
+                synchronized(ownerFence) { ownerEpoch.set(revisionNew); }
+                eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "crash-post-commit",query,newProjection,newRevisionProof,restart.get(),8,NOW),uncertain,
+                    "post-commit exception returns indeterminate, not unsupported proof of completion");
+                eq(receiptsById.get("crash-post-commit"),true,
+                    "model receipt was written before simulated interruption");
+                eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "crash-post-commit",query,newProjection,newRevisionProof,restart.get(),8,NOW),finished,
+                    "restarted verifier reads committed receipt rather than republishing");
+                eq(raceDeliveries.get(),3,"post-commit restart does not duplicate publication");
+                eq(legacyAcks.get(),0,"owner dispatch never invokes legacy acknowledgement");
+                synchronized(ownerFence) { ownerEpoch.set(revisionOld); }
+                eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "crash-post-commit",query,newProjection,newRevisionProof,restart.get(),8,NOW),denied,
+                    "revoked post-crash historical completion cannot be consumed");
+                eq(raceDeliveries.get(),3,"revoked historical crash receipt does not republish");
+                System.out.println("FUTURE_G1_TWO_THREAD_ACK_REVOCATION=JVM_OWNER_MODEL_ONLY");
+                System.out.println("FUTURE_G1_POST_COMMIT_INTERRUPTION_RESTART=IN_MEMORY_MODEL_ONLY");
+            }
             System.out.println("FUTURE_G1_ATOMIC_SOURCE_BOUND_ACK=JVM_OWNER_MODEL_ONLY");
             System.out.println("FUTURE_G1_ATOMIC_ACK_DURABLE_ANDROID_PROOF=MISSING");
             System.out.println("FUTURE_G1_ACK_REVOCATION_GATE=JVM_SIMULATION_ONLY");
