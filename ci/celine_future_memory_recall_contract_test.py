@@ -182,6 +182,15 @@ public final class FutureMemoryRecallContract {
         final java.nio.file.Path witness;
         final java.util.concurrent.atomic.AtomicLong anchor;
         final java.util.concurrent.atomic.AtomicReference<String> protectedCommitment;
+        // Deterministic JVM failpoints only: model an abrupt interruption at each
+        // on-disk/anchor boundary; these do NOT establish real power-loss durability.
+        enum FaultPoint { NONE, RESERVE_WITNESS_FILE, RESERVE_COMMITMENT,
+            RESERVE_ANCHOR, ACK_JOURNAL, ACK_WITNESS_FILE,
+            ACK_COMMITMENT, ACK_ANCHOR }
+        FaultPoint faultPoint = FaultPoint.NONE;
+        void trip(FaultPoint at) {
+            if (faultPoint == at) throw new IllegalStateException("simulated crash at "+at);
+        }
         WitnessedDiskJournal(java.nio.file.Path journalDir, java.nio.file.Path witnessDir,
                 java.util.concurrent.atomic.AtomicLong protectedAnchor,
                 java.util.concurrent.atomic.AtomicReference<String> protectedStateHash) throws Exception {
@@ -210,9 +219,13 @@ public final class FutureMemoryRecallContract {
             String raw = epoch+" "+state+" "+hash(requestId)+" "+
                 java.util.HexFormat.of().formatHex(digest);
             DiskJournal.persist(witness,raw);
+            trip(state.equals("STARTED") ? FaultPoint.RESERVE_WITNESS_FILE
+                : FaultPoint.ACK_WITNESS_FILE);
             // This is a TEST-ONLY stand-in for independent authenticated state.
             // A plain counter alone cannot detect same-epoch completion forgery.
             protectedCommitment.set(hash(raw));
+            trip(state.equals("STARTED") ? FaultPoint.RESERVE_COMMITMENT
+                : FaultPoint.ACK_COMMITMENT);
         }
         @Override public Reservation reserve(String id, byte[] digest) {
             synchronized (anchor) {
@@ -226,6 +239,7 @@ public final class FutureMemoryRecallContract {
                         // case a retry is indeterminate, never a new publication.
                         write(1,"STARTED",id,digest);
                         anchor.set(1);
+                        trip(FaultPoint.RESERVE_ANCHOR);
                         return disk.reserve(id,digest);
                     }
                     if (Long.parseLong(fields[0]) != anchored || anchored <= 0
@@ -251,9 +265,11 @@ public final class FutureMemoryRecallContract {
                         || !fields[2].equals(hash(id))
                         || !fields[3].equals(java.util.HexFormat.of().formatHex(digest))) return false;
                     if (!disk.acknowledgeCompleted(id,digest)) return false;
+                    trip(FaultPoint.ACK_JOURNAL);
                     long next = Math.addExact(anchor.get(),1);
                     write(next,"COMPLETED",id,digest);
                     anchor.set(next);
+                    trip(FaultPoint.ACK_ANCHOR);
                     return true;
                 } catch (Exception ex) { throw new IllegalStateException("witness ack indeterminate",ex); }
             }
@@ -2624,6 +2640,33 @@ public final class FutureMemoryRecallContract {
                 "after concurrent first completes subsequent calls read completed receipt");
             eq(concurrentCalls.get(),1,"later duplicate never republishes concurrently completed ID");
             eq(leaseCloses.get() > 0,true,"all journaled paths exercised owner lease closing");
+            // Defensive post-publisher generation recheck: a misconfigured or
+            // broken G1-style read lease must never mark a stale context as
+            // COMPLETED if owner revision changed inside the sink callback.
+            final java.util.concurrent.atomic.AtomicInteger revokedPublisherCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+            DiskJournal revokedMidPublisherJournal = new DiskJournal(store);
+            CelineFutureMemoryRecall.OwnerLineageVerifier revokedMidPublisher =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,(publishedGeneration,summaries) -> {
+                        revokedPublisherCalls.incrementAndGet();
+                        revision.set(revisionOld);
+                    },revokedMidPublisherJournal);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-revoked-mid-publisher",query,newProjection,newRevisionProof,
+                revokedMidPublisher,8,NOW),uncertain,
+                "revoked revision inside publisher must never acknowledge completed context");
+            eq(revokedPublisherCalls.get(),1,
+                "revoked callback was invoked once, so its result is indeterminate");
+            eq(revokedMidPublisherJournal.actualAcknowledgements,0,
+                "revoked publication must not persist a false COMPLETED receipt");
+            revision.set(revisionNew);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-revoked-mid-publisher",query,newProjection,newRevisionProof,
+                revokedMidPublisher,8,NOW),uncertain,
+                "restoring generation must not replay a previously started publication");
+            eq(revokedPublisherCalls.get(),1,
+                "no duplicate sink invocation after a revoked started reservation");
             // A defective owner lease can revoke its generation DURING a journal
             // read. Even a previous COMPLETED receipt must not be asserted as
             // valid for the newly revoked context without post-journal recheck.
@@ -2686,6 +2729,83 @@ public final class FutureMemoryRecallContract {
             eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.NEW_STARTED,
                 "DEMONSTRATED UNFIXED deletion rollback permits new reservation without independent watermark");
             System.out.println("FUTURE_G1_JOURNAL_DELETION_ROLLBACK_RISK=REPRODUCED_UNFIXED");
+        }
+        // Interrupted persistence matrix: validate that no partial journal/witness
+        // or anchor state can independently authorize a fresh duplicate context
+        // publication. The only externally trusted state here is the SAME in-memory
+        // JVM anchor/commitment object shared by all restarted fixture instances.
+        {
+            final byte[] bytes = new byte[32];
+            java.util.Arrays.fill(bytes,(byte)0x35);
+            final String request = "fault-matrix-request";
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation NEW =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.NEW_STARTED;
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation CONFLICT =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT;
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation STARTED =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.ALREADY_STARTED;
+            final CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation COMPLETED =
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.ALREADY_COMPLETED;
+            for (WitnessedDiskJournal.FaultPoint point : WitnessedDiskJournal.FaultPoint.values()) {
+                if (point == WitnessedDiskJournal.FaultPoint.NONE) continue;
+                java.nio.file.Path j = java.nio.file.Files.createTempDirectory("g1-interrupt-j-");
+                java.nio.file.Path w = java.nio.file.Files.createTempDirectory("g1-interrupt-w-");
+                java.util.concurrent.atomic.AtomicLong anchor = new java.util.concurrent.atomic.AtomicLong();
+                java.util.concurrent.atomic.AtomicReference<String> commitment =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                WitnessedDiskJournal original = new WitnessedDiskJournal(j,w,anchor,commitment);
+                boolean reservationCrash = point.toString().startsWith("RESERVE_");
+                if (!reservationCrash) {
+                    eq(original.reserve(request,bytes),NEW,"precondition: original reservation "+point);
+                }
+                original.faultPoint = point;
+                if (reservationCrash) {
+                    eq(original.reserve(request,bytes),CONFLICT,
+                        "interrupted reservation never reports NEW_STARTED "+point);
+                } else {
+                    boolean threw = false;
+                    try { original.acknowledgeCompleted(request,bytes); }
+                    catch (IllegalStateException ex) { threw = true; }
+                    eq(threw,true,"interrupted acknowledgement must not return normal success "+point);
+                }
+                WitnessedDiskJournal restarted = new WitnessedDiskJournal(j,w,anchor,commitment);
+                CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation receipt =
+                    restarted.reserve(request,bytes);
+                eq(receipt == NEW,false,"restart must not authorize duplicate publication "+point);
+                eq(receipt == CONFLICT || receipt == STARTED || receipt == COMPLETED,true,
+                    "restart outcome restricted to fail-closed states "+point);
+                if (point == WitnessedDiskJournal.FaultPoint.ACK_ANCHOR) {
+                    eq(receipt,COMPLETED,"post-anchor acknowledgement is fully committed "+point);
+                } else if (reservationCrash && point == WitnessedDiskJournal.FaultPoint.RESERVE_ANCHOR) {
+                    eq(receipt,STARTED,"reserved authority with absent journal stays uncertain "+point);
+                } else if (point == WitnessedDiskJournal.FaultPoint.ACK_JOURNAL) {
+                    eq(receipt,STARTED,"completed journal alone cannot grant completed witness "+point);
+                } else {
+                    eq(receipt,CONFLICT,"torn state fails closed without re-authorization "+point);
+                }
+                // Two separately created readers of the post-fault state race.
+                // They must not be able to create a fresh reservation together.
+                WitnessedDiskJournal a = new WitnessedDiskJournal(j,w,anchor,commitment);
+                WitnessedDiskJournal b = new WitnessedDiskJournal(j,w,anchor,commitment);
+                java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation>
+                    ar = new java.util.concurrent.atomic.AtomicReference<>(),
+                    br = new java.util.concurrent.atomic.AtomicReference<>();
+                Thread ta = new Thread(() -> { ready.countDown(); try { release.await(); ar.set(a.reserve(request,bytes)); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+                Thread tb = new Thread(() -> { ready.countDown(); try { release.await(); br.set(b.reserve(request,bytes)); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); } });
+                ta.start(); tb.start();
+                eq(ready.await(5,java.util.concurrent.TimeUnit.SECONDS),true,"interrupted race both ready "+point);
+                release.countDown();
+                ta.join(5000); tb.join(5000);
+                eq(ta.isAlive() || tb.isAlive(),false,"interrupted race terminates "+point);
+                eq(ar.get() == NEW || br.get() == NEW,false,"interrupted race cannot republish "+point);
+                eq(ar.get() == receipt && br.get() == receipt,true,
+                    "interrupted race agrees with serialized protected authority "+point);
+            }
+            System.out.println("FUTURE_G1_INTERRUPTED_JOURNAL_WITNESS_MATRIX=JVM_SIMULATION_ONLY");
         }
         // Independent high-watermark witness prototype: two separate directories
         // and an external in-memory monotonic anchor. Neither is an actual
