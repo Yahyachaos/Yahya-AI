@@ -5283,7 +5283,6 @@ def process_strict_owner_proof(temp):
     print('FUTURE_G1_STRICT_OWNER_CROSS_PROCESS_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_STRICT_OWNER_JOINT_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
-
 def process_high_water_proof(temp):
     """Two REAL JVM claimants vs independent JVM epoch writer; test-double ONLY."""
     import time
