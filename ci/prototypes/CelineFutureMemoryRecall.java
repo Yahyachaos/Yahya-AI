@@ -507,6 +507,12 @@ public final class CelineFutureMemoryRecall {
                 return OwnerPublicationOutcome.STARTED_INDETERMINATE;
             trustedG1Verifier.ownerContextPublisher.publish(certificate.generation,
                     Collections.unmodifiableList(summaries));
+            // A misbehaving owner lease cannot turn data already sent under a
+            // revoked source generation into an authenticated COMPLETED receipt.
+            // Publisher-side effects cannot be undone, so remain indeterminate.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
             return trustedG1Verifier.ownerPublicationJournal.acknowledgeCompleted(
                     ownerIssuedRequestId, intent.clone())
                     ? OwnerPublicationOutcome.COMPLETED
