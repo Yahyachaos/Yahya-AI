@@ -56,6 +56,37 @@ public final class GermanPlaceAbbreviationTest {
                 "Die 1000. Runde beginnt. Jetzt!", "four-digit round");
         eq(List.of("Es sind 100.", "Danach folgt Text."),
                 "Es sind 100. Danach folgt Text.", "true numeric sentence end");
+        // Date abbreviations must not split an unfinished German date phrase.
+        eq(List.of("Wir treffen uns am 5. Okt. um acht.", "Danach fahren wir."),
+                "Wir treffen uns am 5. Okt. um acht. Danach fahren wir.",
+                "abbreviated October mid-sentence");
+        eq(List.of("Am 12. Sept. 2026 ist ein Termin.", "Notiert!"),
+                "Am 12. Sept. 2026 ist ein Termin. Notiert!",
+                "abbreviated September with year");
+        eq(List.of("Das Treffen am 1. Dez. beginnt früh.", "Gute Reise."),
+                "Das Treffen am 1. Dez. beginnt früh. Gute Reise.",
+                "abbreviated December before lowercase verb");
+        eq(List.of("Am 5. Okt.", "Danach geht es weiter."),
+                "Am 5. Okt. Danach geht es weiter.",
+                "date abbreviation is also a genuine sentence end");
+        eq(List.of("Es ist Okt.", "Danach kommt Text."),
+                "Es ist Okt. Danach kommt Text.",
+                "unanchored month abbreviation must not swallow sentence end");
+        eq(List.of("Am 32.", "Okt.", "beginnt nichts."),
+                "Am 32. Okt. beginnt nichts.",
+                "invalid day must not be mistaken for a valid date");
+        String date = "Wir kommen am 5. Okt. um acht. Danach geht es weiter.";
+        char[] dateSpace = { ' ', '\u00a0', '\u202f', '\u2007', '\u2009' };
+        for (int run = 0; run < 100; run++) {
+            StringBuilder variant = new StringBuilder();
+            int slot = 0;
+            for (int i = 0; i < date.length(); i++) {
+                char ch = date.charAt(i);
+                variant.append(ch == ' ' ? dateSpace[(run + slot++ * 3) % dateSpace.length] : ch);
+            }
+            eqNormalized(List.of("Wir kommen am 5. Okt. um acht.", "Danach geht es weiter."),
+                    variant.toString(), "month-abbreviation Unicode whitespace " + run);
+        }
         String ordinal = "Er ist auf dem 100. Platz. Sehr gut!";
         char[] unicodeSpace = { ' ', '\u00a0', '\u202f', '\u2007', '\u2009' };
         for (int run = 0; run < 256; run++) {

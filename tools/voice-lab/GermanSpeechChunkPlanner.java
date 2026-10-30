@@ -61,6 +61,8 @@ public final class GermanSpeechChunkPlanner {
         int p = end - 1;
         while (p >= start && Character.isLetter(text.charAt(p))) p--;
         String token = text.substring(p + 1, end).toLowerCase(Locale.ROOT);
+        if (isShortMonth(token) && isDateMonthContinuation(text, start, p + 1, boundaryEnd))
+            return true;
         switch (token) {
             case "dr": case "prof": case "fr": case "hr": case "nr": case "ca":
             case "bzw": case "usw": case "vgl": case "z": case "b": case "u":
@@ -79,13 +81,57 @@ public final class GermanSpeechChunkPlanner {
                 // A known ordinal+noun compound remains continuous even above 99:
                 // "100. Platz" and "1000. Runde" are not sentence endings.
                 // Keep the <=2-digit restriction ONLY for day-before-month dates.
-                if (nextWordIsOrdinalUnit(text, boundaryEnd)
-                        || (digits <= 2 && nextWordIsMonth(text, boundaryEnd))) return true;
+                if (nextWordIsOrdinalUnit(text, boundaryEnd)) return true;
+                // Protect a numeric date only for a real calendar day, not "32. Okt.".
+                // The month abbreviation itself is separately checked for continuity.
+                if (digits <= 2 && nextWordIsMonth(text, boundaryEnd)) {
+                    int day = Integer.parseInt(text.substring(n + 1, end));
+                    if (day >= 1 && day <= 31) return true;
+                }
                 // "29.10." is a date fragment, but "29.10.2026." completes a
                 // four-digit year and may end a sentence. Keep this conservative.
                 return digits <= 2 && n >= start + 1 && text.charAt(n) == '.'
                         && Character.isDigit(text.charAt(n - 1));
         }
+    }
+
+    /** A short month is an abbreviation only in a 1..31 day/date context. */
+    private static boolean isShortMonth(String token) {
+        switch (token) {
+            case "jan": case "feb": case "mär": case "mrz": case "apr":
+            case "jun": case "jul": case "aug": case "sep": case "sept":
+            case "okt": case "nov": case "dez": return true;
+            default: return false;
+        }
+    }
+
+    /** Do not swallow an actual sentence ending immediately after "5. Okt.". */
+    private static boolean isDateMonthContinuation(String text, int start,
+            int monthStart, int boundaryEnd) {
+        if (boundaryEnd >= text.length() || text.charAt(boundaryEnd) != ' '
+                || boundaryEnd + 1 >= text.length()) return false;
+        int next = boundaryEnd + 1;
+        if (!Character.isLowerCase(text.charAt(next))) {
+            // A four-digit year may follow "5. Okt. 2026"; an upper-case
+            // "Danach" instead means the abbreviated date ended a sentence.
+            int yearEnd = next;
+            while (yearEnd < text.length() && Character.isDigit(text.charAt(yearEnd)))
+                yearEnd++;
+            if (yearEnd - next != 4
+                    || (yearEnd < text.length() && Character.isLetterOrDigit(text.charAt(yearEnd))))
+                return false;
+        }
+        int dot = monthStart - 1;
+        while (dot >= start && text.charAt(dot) == ' ') dot--;
+        if (dot < start || text.charAt(dot) != '.') return false;
+        int dayEnd = dot;
+        int dayStart = dayEnd;
+        while (dayStart > start && Character.isDigit(text.charAt(dayStart - 1))) dayStart--;
+        if (dayEnd - dayStart < 1 || dayEnd - dayStart > 2
+                || (dayStart > start && Character.isLetterOrDigit(text.charAt(dayStart - 1))))
+            return false;
+        int day = Integer.parseInt(text.substring(dayStart, dayEnd));
+        return day >= 1 && day <= 31;
     }
 
     private static boolean nextWordIsMonth(String text, int boundaryEnd) {
@@ -99,7 +145,8 @@ public final class GermanSpeechChunkPlanner {
             case "juni": case "juli": case "august": case "september":
             case "oktober": case "november": case "dezember":
                 return true;
-            default: return false;
+            default: return isShortMonth(month) && end < text.length()
+                    && text.charAt(end) == '.';
         }
     }
 
