@@ -2012,14 +2012,148 @@ public final class FutureMemoryRecallContract {
             "Meine Katze heisst Momo",newProjection,newRevisionProof,brokenLease,8,NOW,sink),
             false,"unavailable owner lease fails closed");
         eq(deliveries.get(),1,"lease authority failures do not invoke provider sink");
+        // A callback may have already emitted data before it throws. Returning
+        // false would falsely tell a retrying caller that NO callback ran.
+        final java.util.concurrent.atomic.AtomicInteger brokenConsumerCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
+        boolean consumerFailureSurfaced = false;
+        try {
+            CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,leaseVerifier,8,NOW,
+                approved -> {
+                    brokenConsumerCalls.incrementAndGet();
+                    throw new IllegalStateException("downstream context compiler crash");
+                });
+        } catch (IllegalStateException expected) { consumerFailureSurfaced = true; }
+        eq(consumerFailureSurfaced,true,"started callback failures must not return retryable false");
+        eq(brokenConsumerCalls.get(),1,"started failing callback invoked exactly once");
+        eq(closes.get(),opens.get(),"downstream failure closes read lease");
+
+        // The same ambiguity exists if the callback completed but lease close
+        // failed. Report an indeterminate, nonretryable exception, not false.
+        final java.util.concurrent.atomic.AtomicInteger failingCloseCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger closeSinkCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OwnerLineageVerifier failingCloseVerifier =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                () -> revisionNew, () -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                    public String generation() { return revisionNew; }
+                    public void close() {
+                        failingCloseCalls.incrementAndGet();
+                        throw new IllegalStateException("owner release failed");
+                    }
+                });
+        boolean closeFailureSurfaced = false;
+        try {
+            CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,failingCloseVerifier,8,NOW,
+                approved -> closeSinkCalls.incrementAndGet());
+        } catch (IllegalStateException expected) { closeFailureSurfaced = true; }
+        eq(closeFailureSurfaced,true,"post-callback lease-close failure must not return retryable false");
+        eq(closeSinkCalls.get(),1,"close failure may follow an already delivered context");
+        eq(failingCloseCalls.get(),1,"failing close attempted exactly once");
+
+        // KNOWN UNSAFE: an untrusted callback can retain Match objects after
+        // the read lease. Only a trusted provider-context sink can rule this out.
+        final java.util.concurrent.atomic.AtomicReference<List<CelineFutureMemoryRecall.Match>> escaped =
+            new java.util.concurrent.atomic.AtomicReference<>();
         eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
             "Meine Katze heisst Momo",newProjection,newRevisionProof,leaseVerifier,8,NOW,
-            new CelineFutureMemoryRecall.ProviderRecallConsumer() {
-                public void consume(List<CelineFutureMemoryRecall.Match> approved) {
-                    throw new IllegalStateException("downstream context compiler crash");
-                }
-            }), false,"throwing sink is reported failed");
-        eq(closes.get(),opens.get(),"downstream failure closes read lease");
+            approved -> escaped.set(approved)),true,"fixture can retain callback list");
+        ownerLock.writeLock().lock();
+        try { leasedGeneration.set("g1-revision-0000000010"); }
+        finally { ownerLock.writeLock().unlock(); }
+        eq(escaped.get().get(0).candidate.id,"replay-momo",
+            "KNOWN UNSAFE: previously delivered Match remains readable after lease closes");
+        System.out.println("FUTURE_G1_POST_LEASE_RETENTION_RISK=REPRODUCED_NOT_SOLVED");
+        // Actual two-thread owner-lock regression: the write lock cannot
+        // retire a certified snapshot while its synchronous sink is active.
+        {
+            final java.util.concurrent.atomic.AtomicReference<String> leaseRevision =
+                new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+            final java.util.concurrent.locks.ReentrantReadWriteLock lock =
+                new java.util.concurrent.locks.ReentrantReadWriteLock(true);
+            final java.util.concurrent.atomic.AtomicInteger closeCount =
+                new java.util.concurrent.atomic.AtomicInteger();
+            CelineFutureMemoryRecall.OwnerLineageVerifier concurrentVerifier =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,leaseRevision::get,() -> {
+                    lock.readLock().lock();
+                    return new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                        public String generation() { return leaseRevision.get(); }
+                        public void close() { closeCount.incrementAndGet(); lock.readLock().unlock(); }
+                    };
+                });
+            final java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.CountDownLatch finish = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.CountDownLatch writerStarted = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.CountDownLatch writerDone = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicReference<Boolean> consumed =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            final java.util.concurrent.atomic.AtomicReference<Throwable> error =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            Thread reader = new Thread(() -> {
+                try {
+                    consumed.set(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                        "Meine Katze heisst Momo",newProjection,newRevisionProof,concurrentVerifier,8,NOW,
+                        matches -> {
+                            if (matches.size() != 1 || !"replay-momo".equals(matches.get(0).candidate.id))
+                                throw new AssertionError("unexpected certified memory");
+                            entered.countDown();
+                            try {
+                                if (!finish.await(4,java.util.concurrent.TimeUnit.SECONDS))
+                                    throw new IllegalStateException("reader timeout");
+                            } catch (InterruptedException ex) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(ex);
+                            }
+                        }));
+                } catch (Throwable ex) { error.set(ex); }
+            }, "future-g1-reader");
+            Thread writer = new Thread(() -> {
+                writerStarted.countDown();
+                lock.writeLock().lock();
+                try { leaseRevision.set("lease-revision-after-revoke"); }
+                finally { lock.writeLock().unlock(); writerDone.countDown(); }
+            }, "future-g1-revoker");
+            reader.start();
+            try {
+                eq(entered.await(4,java.util.concurrent.TimeUnit.SECONDS),true,"concurrent certified sink entered");
+                writer.start();
+                eq(writerStarted.await(4,java.util.concurrent.TimeUnit.SECONDS),true,"competing G1 revoker started");
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(4);
+                while (!lock.hasQueuedThread(writer) && System.nanoTime() < deadline) Thread.onSpinWait();
+                eq(lock.hasQueuedThread(writer),true,"revoker queued on reader-held G1 snapshot");
+                eq(writerDone.getCount() == 1 && revisionNew.equals(leaseRevision.get()),true,
+                    "owner revision unchanged before consumer returns");
+            } finally { finish.countDown(); reader.join(4000); writer.join(4000); }
+            eq(!reader.isAlive() && !writer.isAlive(),true,"both G1 threads completed within bound");
+            eq(Boolean.TRUE.equals(consumed.get()) && error.get() == null,true,
+                "consumer succeeded inside its own generation lease");
+            eq(closeCount.get() == 1 && "lease-revision-after-revoke".equals(leaseRevision.get()),true,
+                "lease closed before writer committed new revision");
+            final java.util.concurrent.atomic.AtomicInteger staleSink =
+                new java.util.concurrent.atomic.AtomicInteger();
+            eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,concurrentVerifier,8,NOW,
+                matches -> staleSink.incrementAndGet()),false,"stale signed proof denied after concurrent revocation");
+            eq(staleSink.get(),0,"revoked snapshot never emitted to sink");
+            javax.crypto.Mac currentMac = javax.crypto.Mac.getInstance("HmacSHA256");
+            currentMac.init(new javax.crypto.spec.SecretKeySpec(replayKey,"HmacSHA256"));
+            CelineFutureMemoryRecall.OwnerLineageCertificate currentProof =
+                new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                    "lease-revision-after-revoke",replayRetired,replayRetired,
+                    currentMac.doFinal(CelineFutureMemoryRecall.certificatePayload(
+                        "lease-revision-after-revoke",newProjection,
+                        replayRetired,replayRetired)));
+            final java.util.concurrent.atomic.AtomicInteger currentSink =
+                new java.util.concurrent.atomic.AtomicInteger();
+            eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                "Meine Katze heisst Momo",newProjection,currentProof,concurrentVerifier,8,NOW,
+                matches -> { if (matches.size() == 1) currentSink.incrementAndGet(); }),true,
+                "new signed generation accepted after revocation");
+            eq(currentSink.get(),1,"new generation context delivered exactly once");
+        }
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);

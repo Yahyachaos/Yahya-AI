@@ -366,9 +366,13 @@ public final class CelineFutureMemoryRecall {
      * those properties. NEVER cache/defer approvedMatches or dispatch remote
      * provider I/O after the lease closes; this contract does NOT grant that.
      *
-     * Returns true if the synchronous consumer ran, even for zero matches.
-     * False means the consumer was never invoked. Consumer side effects are
-     * not reversible by a later exception; it must be strictly synchronous.
+     * Returns true if synchronous consumption completed, even for zero matches.
+     * False means the consumer was never invoked. If the consumer started and
+     * then threw (or lease.close failed), throw IllegalStateException instead:
+     * the provider may already have seen data and an automatic retry would
+     * duplicate potentially irreversible effects. Treat that exception as an
+     * INDETERMINATE/DO-NOT-RETRY outcome, never as a clean rejection.
+     * This cannot prevent a malicious or mistaken sink retaining Match objects.
      */
     public static boolean consumeCertifiedProviderContext(String query,
             List<Candidate> candidates, OwnerLineageCertificate certificate,
@@ -378,6 +382,7 @@ public final class CelineFutureMemoryRecall {
             return false;
         OwnerSnapshotReadLease lease = trustedG1Verifier.openOwnerReadLease();
         if (lease == null) return false;
+        boolean callbackStarted = false;
         try (OwnerSnapshotReadLease held = lease) {
             if (!certificate.generation.equals(held.generation())
                     || !trustedG1Verifier.verifies(certificate, candidates))
@@ -390,11 +395,16 @@ public final class CelineFutureMemoryRecall {
             if (!certificate.generation.equals(held.generation())
                     || !trustedG1Verifier.isStillCurrent(certificate))
                 return false;
+            callbackStarted = true;
             consumer.consume(Collections.unmodifiableList(new ArrayList<>(matches)));
             return true;
         } catch (RuntimeException ex) {
-            // This also covers a revoked/broken lease or failed consumer.
-            // Production adapters must not perform irreversible I/O in callback.
+            // A callback may already have published data (even if its own body
+            // then threw), and close() may fail after a successful callback.
+            // Never report either case as a safe, retryable pre-delivery reject.
+            if (callbackStarted)
+                throw new IllegalStateException(
+                    "G1 context callback started: outcome indeterminate; do not retry", ex);
             return false;
         }
     }
