@@ -1,5 +1,7 @@
 'use strict';
 // Independent genuine 13-GLB Android-like Chromium mobile-touch proof.
+// Use real touchscreen taps rather than Playwright mouse clicks for phone UI.
+// V42: capture exact redo hit-test/touch-dispatch evidence without force or relaxed gates.
 // Isolated room editor only; no Android APK/emulator/app integration.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -46,25 +48,48 @@ async function main(){
     record.push({name:'REAL_MOBILE_VIEWPORT_13_ORIGINAL_GLB_PASS',viewport:[412,915],canvas:initial.canvas_px});
     await page.locator('#mobile-object').selectOption('room_bed');
     assert.equal(await page.locator('#object').inputValue(),'room_bed');
-    await page.locator('[data-mobile-action="rotate"]').click();
+    await page.locator('[data-mobile-action="rotate"]').tap();
     assert.equal(await page.locator('#rotate').getAttribute('class'),'active');
-    await page.locator('[data-mobile-action="scale-mode"]').click();
+    await page.locator('[data-mobile-action="scale-mode"]').tap();
     assert.equal(await page.locator('#scale-mode').getAttribute('class'),'active');
-    await page.locator('[data-mobile-action="move"]').click();
+    await page.locator('[data-mobile-action="move"]').tap();
     record.push({name:'MOBILE_TOUCH_MODES_AND_SELECTION_PASS'});
+    await page.screenshot({path:path.join(out,'mobile-loaded-before-history-412x915.png')});
     const baseX=Number(await page.locator('#x').inputValue());
-    await page.locator('[data-nudge="x:1"]').click();
+    await page.locator('[data-nudge="x:1"]').tap();
     const movedX=Number(await page.locator('#x').inputValue());
     assert(movedX>baseX);
-    await page.locator('#mobile-undo').click();
+    await page.locator('#mobile-undo').tap();
     assert(Math.abs(Number(await page.locator('#x').inputValue())-baseX)<0.003);
-    await page.locator('#mobile-redo').click();
+    // The prior failed proof used a synthesized MOUSE click at mobile-redo;
+    // Playwright stalled during that dispatch, not during visibility/stability.
+    // Prove the actual touchscreen target before dispatch and require touch events.
+    const redoHit=await page.locator('#mobile-redo').evaluate(el=>{
+      const box=el.getBoundingClientRect(), px=box.left+box.width/2, py=box.top+box.height/2;
+      const hit=document.elementFromPoint(px,py);
+      window.__celineRedoTouchEvidence={touchstart:0,pointerdown:0,click:0};
+      for(const type of ['touchstart','pointerdown','click'])
+        el.addEventListener(type,()=>{window.__celineRedoTouchEvidence[type]++;},{capture:true});
+      return {button_id:el.id,hit_id:hit?.id||null,
+        hit_inside_redo:hit===el||el.contains(hit),visible:box.width>0&&box.height>0,
+        disabled:el.disabled,box:[box.x,box.y,box.width,box.height]};
+    });
+    record.push({name:'REDO_TRUE_TOUCH_HIT_TEST',redoHit});
+    fs.writeFileSync(path.join(out,'mobile-redo-preflight.json'),JSON.stringify({source_sha:process.env.GITHUB_SHA||null,redoHit,record},null,2));
+    assert(redoHit.hit_inside_redo,'mobile-redo center obscured by overlay');
+    assert.equal(redoHit.disabled,false,'redo must be enabled after undo');
+    const redoStarted=Date.now();
+    await page.locator('#mobile-redo').tap();
+    const redoTouch=await page.evaluate(()=>window.__celineRedoTouchEvidence);
+    assert(redoTouch.touchstart>=1&&redoTouch.pointerdown>=1&&redoTouch.click>=1,
+      'mobile redo must receive genuine touch/pointer/click events');
+    record.push({name:'GENUINE_MOBILE_REDO_TOUCH_PASS',elapsed_ms:Date.now()-redoStarted,redoTouch});
     assert(Math.abs(Number(await page.locator('#x').inputValue())-movedX)<0.003);
-    await page.locator('#mobile-lock').click();
+    await page.locator('#mobile-lock').tap();
     assert.equal(await page.locator('#x').isDisabled(),true);
-    await page.locator('#mobile-lock').click();
+    await page.locator('#mobile-lock').tap();
     assert.equal(await page.locator('#x').isEnabled(),true);
-    await page.locator('#mobile-lock').click();
+    await page.locator('#mobile-lock').tap();
     record.push({name:'MOBILE_EDIT_UNDO_REDO_LOCK_PASS'});
     // Real touch pointer dispatch checks that 1-finger orbit is not mistaken
     // for a furniture transform. Run in a visible unobstructed upper canvas.
@@ -79,13 +104,13 @@ async function main(){
     const after=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection().camera_position_m);
     assert(before.some((v,i)=>Math.abs(v-after[i])>0.002),'one-finger mobile orbit did not move camera');
     record.push({name:'GENUINE_CHROMIUM_SINGLE_FINGER_ORBIT_PASS',before,after});
-    await page.locator('[data-mobile-zoom="0.82"]').click();
-    await page.locator('[data-mobile-zoom="1.22"]').click();
+    await page.locator('[data-mobile-zoom="0.82"]').tap();
+    await page.locator('[data-mobile-zoom="1.22"]').tap();
     record.push({name:'MOBILE_ZOOM_BUTTONS_PASS'});
     await page.screenshot({path:path.join(out,'mobile-s25-viewport-412x915.png')});
     await page.locator('canvas').screenshot({path:path.join(out,'mobile-s25-real-13glb-webgl.png')});
     const downloadPromise=page.waitForEvent('download');
-    await page.locator('[data-mobile-action="save"]').click();
+    await page.locator('[data-mobile-action="save"]').tap();
     const dl=await downloadPromise, saved=path.join(out,'mobile-export-all-13.json');
     await dl.saveAs(saved);
     const json=JSON.parse(fs.readFileSync(saved,'utf8'));
