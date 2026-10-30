@@ -74,7 +74,12 @@ public final class VoiceVerifiedPresentationClock {
             return false;
         }
         if (hasBaseline) {
-            if (presentedFrames > lastPresented && captureNs == lastCaptureNs) {
+            // An external acoustic capture has immutable frame metadata.
+            // A newer poll may reuse it but cannot alter its position, raw head,
+            // or accepted-frame count without a NEW independent capture clock.
+            if (captureNs == lastCaptureNs
+                    && (presentedFrames != lastPresented || rawHeadFrames != lastRaw
+                            || acceptedFrames != lastAccepted)) {
                 hasEvidence = false;
                 if (plausibleExternalClock) invalidExternalCaptureAtHighWater = true;
                 return false;
