@@ -1568,6 +1568,48 @@ public final class FutureMemoryRecallContract {
             Arrays.asList(certifiedWinner,x("unrelated-self-loop", "Damu Markt verkauft Getraenke",
                 "unrelated-self-loop",true,0)),certifiedRetired,certifiedRetired,NOW),
             "owner-certified-winner", "unrelated corrupt retraction does not suppress well-grounded match");
+        // A successor that looks freshly authoritative is NOT a clean winner
+        // when its lineage descends from a cycle. Quarantine is transitive.
+        CelineFutureMemoryRecall.Candidate cycleChild =
+            x("unknown-cycle-child", "Katze heisst Max", "unknown-cycle-a", true, 0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,cycleA,cycleB,cycleChild),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "on-topic cycle descendant cannot be guessed past unresolved parent cycle");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(cycleChild,cycleB,certifiedWinner,cycleA),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "on-topic cycle descendant quarantine independent of source ordering");
+        eq(CelineFutureMemoryRecall.retrieve("Katze heisst Max",
+            Arrays.asList(cycleA,cycleB,cycleChild),
+            Collections.<String>emptySet(), Collections.<String>emptySet(),8,NOW).size(),0,
+            "provider retrieval never exposes descendant from unresolved cyclic ancestry");
+        CelineFutureMemoryRecall.Candidate unrelatedCycleChild =
+            x("unrelated-cycle-child", "Damu Markt verkauft Getraenke", "unknown-cycle-a", true, 0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,cycleA,cycleB,unrelatedCycleChild),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "cycle ancestor remains an on-topic unknown rival even when descendant is unrelated");
+        CelineFutureMemoryRecall.Candidate cycleGrandchild =
+            x("unknown-cycle-grandchild", "Katze heisst Felix", "unknown-cycle-child", true, 0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,cycleA,cycleB,cycleChild,cycleGrandchild),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "two-generation cycle descendant remains a withheld ambiguous correction target");
+        CelineFutureMemoryRecall.Candidate unrelatedCycleA =
+            x("unrelated-cycle-a", "Damu Markt verkauft Getraenke", "unrelated-cycle-b", true, 0);
+        CelineFutureMemoryRecall.Candidate unrelatedCycleB =
+            x("unrelated-cycle-b", "Damu Markt hat Snacks", "unrelated-cycle-a", true, 0);
+        CelineFutureMemoryRecall.Candidate unrelatedCycleTail =
+            x("unrelated-cycle-tail", "Damu Markt hat Brot", "unrelated-cycle-a", true, 0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,unrelatedCycleA,unrelatedCycleB,unrelatedCycleTail),
+            certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
+            "unrelated cyclic lineage does not spuriously suppress unique cat correction");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,unrelatedCycleA,unrelatedCycleB,unrelatedCycleTail),
+            certifiedRetired,certifiedRetired,8,NOW).get(0).candidate.id,
+            "owner-certified-winner", "unrelated cyclic lineage leaves provider-safe winner visible");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
