@@ -9,7 +9,14 @@
     *{box-sizing:border-box} body{margin:0} header{padding:14px 20px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
     h1{font-size:1.15rem;margin:0} .small{font-size:.78rem;color:#cbd5e1} .pill{background:#334155;border-radius:15px;padding:4px 10px}
     main{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:calc(100dvh - 76px);min-height:520px}
-    #viewport{position:relative;overflow:hidden;background:#0b1220} #viewport canvas{display:block}
+    #viewport{position:relative;overflow:hidden;background:#0b1220} #viewport canvas{display:block;touch-action:none}
+    #mobile-controls{display:none}
+    .mobile-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .mobile-toolbar button,.mobile-toolbar .file-label{min-height:44px;min-width:44px;padding:8px}
+    .mobile-toolbar button.active{border-color:#38bdf8;background:#164e63}
+    #mobile-object{min-height:44px;flex:1 1 185px;width:auto;min-width:0;font-size:16px}
+    .mobile-extra summary{font-size:.8rem;cursor:pointer;padding:6px 8px;background:#334155;border-radius:7px}
+    .mobile-extra .mobile-toolbar{margin-top:5px}
     .hint{position:absolute;bottom:12px;left:12px;background:#111827dd;padding:8px 12px;border-radius:8px;max-width:calc(100% - 24px);font-size:.8rem;pointer-events:none}
     aside{overflow-y:auto;padding:16px;border-left:1px solid #334155;background:#172033}
     section{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid #334155} h2{font-size:.95rem;margin:0 0 10px}
@@ -23,7 +30,23 @@
     .status{min-height:45px;white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;border:1px solid #334155;border-radius:7px;padding:9px;font-size:.8rem}
     .warn{color:#fbbf24} .ok{color:#86efac}
     #file{display:none} #reference-overlay{position:absolute;z-index:3;top:12px;left:12px;max-width:38%;max-height:45%;object-fit:contain;border:1px solid #f8fafc;border-radius:6px;pointer-events:none;background:#0f172a} #reference-overlay[hidden]{display:none}
-    @media(max-width:780px){main{grid-template-columns:1fr;height:auto}#viewport{height:52dvh;min-height:350px}aside{border-left:0;border-top:1px solid #334155}}
+    @media(max-width:780px){
+      header{padding:9px 12px}
+      main{grid-template-columns:1fr;height:auto;min-height:0}
+      #viewport{height:56dvh;min-height:390px;max-height:630px;position:sticky;top:0;z-index:5}
+      aside{border-left:0;border-top:1px solid #334155;padding:12px}
+      .hint{display:none}
+      #reference-overlay{max-width:35%;max-height:29%;top:7px;left:7px}
+      #mobile-controls{display:flex;position:absolute;z-index:4;left:6px;right:6px;bottom:6px;
+        flex-direction:column;gap:5px;pointer-events:none}
+      #mobile-controls>*,#mobile-controls .mobile-toolbar>*{pointer-events:auto}
+      #mobile-controls .mobile-toolbar{background:#0f172ae9;padding:5px;border-radius:9px;
+        border:1px solid #475569;backdrop-filter:blur(6px)}
+      #mobile-controls button,#mobile-controls .file-label{font-size:.79rem;flex:1 1 auto}
+      #mobile-controls button:disabled{opacity:.45}
+      .fields input{min-height:42px;font-size:16px}
+      aside button,aside select,aside .file-label{min-height:44px}
+    }
   </style>
   <script type="importmap">
     {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
@@ -35,7 +58,39 @@
   <span class="pill" id="loaded">Starte…</span>
 </header>
 <main>
-  <div id="viewport"><img id="reference-overlay" alt="Originalreferenz" hidden><div class="hint">Möbel anklicken · Verschieben / Drehen / Skalieren · X/Y/Z einzeln ändern · Verankern · Nächstes Möbel · Maus rechts: Kamera · Rad: Zoom</div></div>
+  <div id="viewport">
+    <img id="reference-overlay" alt="Originalreferenz" hidden>
+    <div class="hint">Möbel anklicken · Gizmo ziehen · Verschieben / Drehen / Skalieren · Maus rechts: Kamera · Rad: Zoom</div>
+    <div id="mobile-controls" aria-label="Raumeditor Touch-Steuerung">
+      <div class="mobile-toolbar">
+        <select id="mobile-object" aria-label="Möbel auf dem Handy wählen"></select>
+        <button type="button" id="mobile-lock" data-mobile-action="lock-object">🔒 Verankern</button>
+      </div>
+      <div class="mobile-toolbar">
+        <button type="button" data-mobile-action="move" class="active">↔ Bewegen</button>
+        <button type="button" data-mobile-action="rotate">⟳ Drehen</button>
+        <button type="button" data-mobile-action="scale-mode">⤢ Skalieren</button>
+      </div>
+      <div class="mobile-toolbar">
+        <button type="button" id="mobile-undo" data-mobile-action="undo">↶</button>
+        <button type="button" id="mobile-redo" data-mobile-action="redo">↷</button>
+        <button type="button" data-mobile-zoom="0.82" aria-label="Heranzoomen">＋</button>
+        <button type="button" data-mobile-zoom="1.22" aria-label="Herauszoomen">－</button>
+        <button type="button" data-mobile-action="save">JSON ↓</button>
+        <label class="file-label" for="file" aria-label="Gespeichertes JSON-Layout laden">JSON ↑</label>
+      </div>
+      <details class="mobile-extra">
+        <summary>Ansicht, Referenz und nächstes Möbel</summary>
+        <div class="mobile-toolbar">
+          <button type="button" data-mobile-action="camera-persp">3D</button>
+          <button type="button" data-mobile-action="camera-top">Oben</button>
+          <button type="button" data-mobile-action="camera-reference">Referenzsicht</button>
+          <button type="button" data-mobile-action="reference-toggle">Bild</button>
+          <button type="button" data-mobile-action="next-unlocked">Nächstes</button>
+        </div>
+      </details>
+    </div>
+  </div>
   <aside>
     <section>
       <h2>Raumgröße – Referenzmaß</h2>
@@ -97,7 +152,7 @@
     <section>
       <h2>Bearbeitungsverlauf</h2>
       <div class="button-row"><button id="undo">↶ Rückgängig</button><button id="redo">↷ Wiederholen</button></div>
-      <p class="small">Änderungen werden zusätzlich lokal im Browser zwischengespeichert. Die heruntergeladene JSON ist die portable Sicherung.</p>
+      <p class="small">Änderungen werden zusätzlich lokal im Browser zwischengespeichert. Auf dem Handy die JSON über „JSON ↓“ sichern und später über „JSON ↑“ laden. Ein Finger: Kamera drehen oder Möbel-Gizmo ziehen; zwei Finger: zoomen/verschieben. Bei gesperrten Möbeln ist das Gizmo deaktiviert.</p>
     </section>
     <section>
       <h2>Kamera / Ansicht</h2>

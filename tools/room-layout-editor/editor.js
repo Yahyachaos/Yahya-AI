@@ -48,7 +48,10 @@ const NAMES = {
 const stage = $('viewport');
 const E2E_PROOF = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') && new URLSearchParams(location.search).get('e2e') === '1';
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: E2E_PROOF });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// Mobile GPU memory/battery safeguard: full original GLBs, no substitute meshes.
+const TOUCH_DEVICE = window.matchMedia('(pointer: coarse)').matches;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TOUCH_DEVICE ? 1.5 : 2));
+renderer.domElement.style.touchAction = 'none';
 renderer.setSize(stage.clientWidth, stage.clientHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -63,6 +66,8 @@ camera.position.set(5.3, 3.7, 6.5);
 const orbit = new OrbitControls(camera, renderer.domElement);
 orbit.target.set(0, 1.15, 0);
 orbit.enableDamping = true;
+orbit.touches.ONE = THREE.TOUCH.ROTATE;
+orbit.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 orbit.minDistance = 0.8;
 orbit.maxDistance = 30;
 orbit.update();
@@ -76,6 +81,7 @@ const transform = new TransformControls(camera, renderer.domElement);
 scene.add(transform);
 transform.setMode('translate');
 transform.setSpace('world');
+if (TOUCH_DEVICE) transform.setSize(1.4); // larger touch targets for real original GLB gizmos
 transform.addEventListener('dragging-changed', (e) => { orbit.enabled = !e.value; });
 let moving = false;
 transform.addEventListener('mouseDown', () => { moving = true; });
@@ -220,6 +226,22 @@ function commitEdit() {
 function updateHistoryButtons() {
   $('undo').disabled = history.length === 0;
   $('redo').disabled = future.length === 0;
+  refreshMobileControls();
+}
+function refreshMobileControls() {
+  const quick=$('mobile-object');
+  if (!quick) return;
+  quick.value=selected?.id||'';
+  $('mobile-lock').disabled=!selected;
+  $('mobile-lock').textContent=selected?.locked?'🔓 Entsperren':'🔒 Verankern';
+  $('mobile-undo').disabled=history.length===0;
+  $('mobile-redo').disabled=future.length===0;
+  const mode=transform.mode;
+  for (const button of document.querySelectorAll('[data-mobile-action]')) {
+    const action=button.dataset.mobileAction;
+    const activeMode={move:'translate',rotate:'rotate','scale-mode':'scale'}[action];
+    if (activeMode)button.classList.toggle('active',mode===activeMode);
+  }
 }
 function applyState(state) {
   if (!state || !state.room || !Array.isArray(state.objects)) throw new Error('Ungültiges Layout');
@@ -284,12 +306,15 @@ function redo() {
   autosave(); updateHistoryButtons();
 }
 function updateObjectOption(entry) {
-  const option=[...$('object').options].find(o=>o.value===entry.id);
-  if(option)option.textContent=(entry.locked?'🔒 ':'')+(NAMES[entry.id]||entry.id);
+  for (const id of ['object','mobile-object']) {
+    const option=[...$(id).options].find(o=>o.value===entry.id);
+    if(option)option.textContent=(entry.locked?'🔒 ':'')+(NAMES[entry.id]||entry.id);
+  }
 }
 function setSelected(id) {
   selected=entries.get(id)||null;
   $('object').value=selected?.id||'';
+  $('mobile-object').value=selected?.id||'';
   if(selected&&!selected.locked)transform.attach(selected.group);
   else transform.detach();
   refreshFields();refreshWarnings();
@@ -303,6 +328,7 @@ function refreshFields() {
   $('lock-state').textContent=!selected?'Kein Möbel gewählt':selected.locked?
     '🔒 '+NAMES[selected.id]+' verankert – vor Änderungen entsperren.':
     '✏️ '+NAMES[selected.id]+' frei bearbeitbar.';
+  refreshMobileControls();
   if(!selected)return;
   const g=selected.group;
   for(const a of ['x','y','z'])$(a).value=g.position[a].toFixed(3);
@@ -499,8 +525,23 @@ function selectFromPointer(e) {
     }
   }
 }
+// Mouse selection remains immediate. Touch selection happens only on a short
+// released tap: moving a finger must not accidentally reselect furniture while
+// OrbitControls rotates the view or TransformControls manipulates its axis.
+let touchTap = null;
 renderer.domElement.addEventListener('pointerdown',(e)=>{
-  if(e.button===0 && !transform.dragging) selectFromPointer(e);
+  if(e.pointerType==='touch') {
+    if(!e.isPrimary) { touchTap=null; return; }
+    touchTap={id:e.pointerId,x:e.clientX,y:e.clientY,at:performance.now()};
+  } else if(e.button===0 && !transform.dragging) selectFromPointer(e);
+});
+renderer.domElement.addEventListener('pointercancel',()=>{ touchTap=null; });
+renderer.domElement.addEventListener('pointerup',(e)=>{
+  if(e.pointerType!=='touch'||!touchTap||touchTap.id!==e.pointerId)return;
+  const tap=touchTap;touchTap=null;
+  if(Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<12 &&
+     performance.now()-tap.at<450 && !transform.dragging && transform.axis===null)
+    selectFromPointer(e);
 });
 window.addEventListener('resize',()=>{
   const w=stage.clientWidth,h=stage.clientHeight;
@@ -547,6 +588,25 @@ $('snap').onchange=()=>{
 };
 $('snap').dispatchEvent(new Event('change'));
 $('object').onchange=()=>setSelected($('object').value);
+$('mobile-object').onchange=()=>setSelected($('mobile-object').value);
+// All touch actions delegate to the existing tested button handlers, preserving
+// lock/undo/autosave semantics and avoiding two competing edit implementations.
+for (const button of document.querySelectorAll('[data-mobile-action]')) {
+  button.addEventListener('click',()=>{
+    $(button.dataset.mobileAction).click();
+    refreshMobileControls();
+  });
+}
+for (const button of document.querySelectorAll('[data-mobile-zoom]')) {
+  button.addEventListener('click',()=>{
+    const factor=Number(button.dataset.mobileZoom);
+    const offset=camera.position.clone().sub(orbit.target);
+    const distance=offset.length()*factor;
+    if(!Number.isFinite(distance)||distance<orbit.minDistance||distance>orbit.maxDistance)return;
+    camera.position.copy(orbit.target).add(offset.multiplyScalar(factor));
+    orbit.update();
+  });
+}
 for(const id of ['x','y','z','pitch','yaw','roll','scale']) {
   $(id).addEventListener('change',()=>{
     if(!selected || selected.locked)return;
@@ -1044,6 +1104,7 @@ async function start() {
       option.value=object.id;
       option.textContent=NAMES[object.id]||object.id;
       $('object').append(option);
+      $('mobile-object').append(option.cloneNode(true));
     }
     lastSnapshot=snapshot();
     try {
@@ -1054,7 +1115,14 @@ async function start() {
     setSelected('room_bed');
     updateHistoryButtons();
     status('13 Objekte vorbereitet. GLBs werden geladen …');
-    await Promise.all([...entries.values()].map(loadModel));
+    const models=[...entries.values()];
+    if (TOUCH_DEVICE) {
+      // Avoid 13 simultaneous GLB decodes and transient peak RAM on Samsung.
+      for (let i=0;i<models.length;i+=2)
+        await Promise.all(models.slice(i,i+2).map(loadModel));
+    } else {
+      await Promise.all(models.map(loadModel));
+    }
   }catch(err){
     status('Editor konnte nicht vollständig starten: '+err.message+
       '. Bitte über einen HTTP-Server vom Repository-Stamm öffnen (siehe README).','warn');

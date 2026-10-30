@@ -760,3 +760,53 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  mobile_touch:
+    name: S25 Ultra-like Chrome mobile touch and genuine 13-GLB JSON proof
+    needs: functional_browser
+    if: ${{ needs.functional_browser.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ROOM_EDITOR_EVIDENCE_DIR: /tmp/celine-room-editor-mobile-touch
+    steps:
+      - name: Checkout isolated editor and original assets
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/workflows/celine-room-editor-browser-experiment.yml
+            tools/room-layout-editor/**
+            app/src/main/assets/models/room/source-fidelity/**
+            app/src/main/assets/models/room/celine_room_v80_assembly.json
+            Refernzbild.png
+      - name: Fetch all original LFS GLBs
+        run: git lfs pull
+      - name: Node.js 22 and pinned Chromium
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install local Three.js / Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
+          npx playwright install --with-deps chromium
+      - name: Serve unchanged original models and isolated editor
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-mobile-http.log 2>&1 &
+          sleep 2
+          curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
+      - name: Real mobile touch WebGL / 13 GLBs / lock / undo / JSON export-import
+        run: |
+          node --check tools/room-layout-editor/mobile-touch-proof.cjs
+          node tools/room-layout-editor/mobile-touch-proof.cjs
+      - name: Upload real mobile proof including failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-editor-mobile-touch-evidence
+          path: |
+            /tmp/celine-room-editor-mobile-touch/
+            /tmp/celine-editor-mobile-http.log
+          if-no-files-found: warn
+          retention-days: 14
+
