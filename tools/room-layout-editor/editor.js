@@ -944,6 +944,16 @@ if (E2E_PROOF) {
         ceiling_opacity:m[3]?.material?.opacity??null
       };
     },
+    // V35 localhost-only reversible causal visibility diagnostic; no layout mutation.
+    diagnosticOriginalTableHiddenFrame() {
+      const item=entries.get('room_foreground_table');
+      if(!item?.loaded || !item.group.visible) throw new Error('Original table must be loaded and visible');
+      const prior=item.group.visible;
+      let frame;
+      try { item.group.visible=false; frame=this.framePng({clean:true}); }
+      finally { item.group.visible=prior; renderer.render(scene,camera); }
+      return {png:frame,restored_visible:item.group.visible,source_id:item.id};
+    },
     framePng(options={}) {
       // An optional CLEAN screenshot hides only editing aids temporarily;
       // all 13 source meshes, scene lighting, walls and geometry remain real.

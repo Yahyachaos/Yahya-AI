@@ -419,6 +419,144 @@ async function run(){
   for(const a of layout.objects){const b=again.objects.find(o=>o.id===a.id);assert(b);assert.equal(b.locked,a.locked);
    for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(b.transform[key],a[key],'Reload '+a.id+' '+key);
   }
+
+  // V35: causally isolate how much the real original table hides, without
+  // altering any original source GLB, saved transform, camera or locked object.
+  const v35=JSON.parse(fs.readFileSync(path.join(__dirname,
+    'layout-candidates/2026-10-30-room-rug-partial-screened-v27.json'),'utf8'));
+  assert.deepEqual(v35.room,{width:4.4,depth:4.2,height:2.65});
+  assert.equal(v35.objects.length,13);
+  await page.evaluate(()=>{const el=document.querySelector('#viewport');el.style.width='700px';el.style.height='560px'});
+  await page.waitForFunction(()=>{const c=document.querySelector('#viewport canvas');return c?.width===700&&c?.height===560});
+  const v35File='v35-original-source-scene.json';
+  await page.locator('#file').setInputFiles({name:v35File,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(v35))});
+  await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),v35File);
+  await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),camera);
+  await page.locator('#reference-shell-preview').check();
+  const v35Verify=async()=>{
+    const audit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    const p=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+    assert.equal(audit.model_count,13);assert(audit.all_source_fidelity_glbs_loaded);
+    assert.deepEqual(audit.room_m,v35.room);assert.deepEqual(p.canvas_px,[700,560]);
+    assert(Math.abs(p.aspect-1402/1122)<.002);
+    for(let i=0;i<3;i++){
+      assert(Math.abs(p.camera_position_m[i]-camera.position_m[i])<1e-10,'V35 fixed position');
+      assert(Math.abs(p.camera_target_m[i]-camera.target_m[i])<1e-10,'V35 fixed target');
+    }
+    assert(Math.abs(p.vertical_fov_deg-camera.vertical_fov_deg)<1e-10);
+    for(const old of v35.objects){
+      const current=audit.objects.find(x=>x.id===old.id);
+      assert(current&&current.loaded&&current.locked===old.locked,'V35 instance/lock '+old.id);
+      assert.equal(current.source_sha256,v35.original_source_hashes[old.id]);
+      for(const field of ['translation_m','rotation_euler_deg','scale_xyz'])
+        assert(current.transform[field].every((n,j)=>Number.isFinite(n)&&Math.abs(n-old[field][j])<=1e-8),
+          'V35 frozen transform '+old.id+' '+field);
+      for(const face of ['left','right','floor','ceiling','back','front'])
+        assert(Number.isFinite(current.overflow_faces_m?.[face])&&current.overflow_faces_m[face]<=.012,
+          'V35 original-room AABB '+old.id+' '+face);
+    }
+    return audit;
+  };
+  const v35Initial=await v35Verify();
+  const realGlbHashes={};
+  for(const a of v35Initial.objects){
+    const binary=fs.readFileSync(path.join(root,'app/src/main/assets/models/room/source-fidelity',a.source_glb));
+    assert.equal(binary.toString('ascii',0,4),'glTF','Require original full GLB not LFS pointer '+a.id);
+    const hash=crypto.createHash('sha256').update(binary).digest('hex');
+    assert.equal(hash,v35.original_source_hashes[a.id],'Real immutable GLB source SHA '+a.id);
+    realGlbHashes[a.id]=hash;
+  }
+  const v35OnUrl=await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true}));
+  const v35On=png('v35-table-on-real-webgl.png',v35OnUrl,[700,560]);
+  const hidden=await page.evaluate(()=>window.__celineRoomEditorE2E.diagnosticOriginalTableHiddenFrame());
+  assert.equal(hidden.restored_visible,true);assert.equal(hidden.source_id,'room_foreground_table');
+  const v35Off=png('v35-table-temporarily-hidden-real-webgl.png',hidden.png,[700,560]);
+  const v35RestoredUrl=await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true}));
+  const v35Restored=png('v35-table-restored-real-webgl.png',v35RestoredUrl,[700,560]);
+  assert.equal(v35On.sha256,v35Restored.sha256,'Table restoration must reproduce identical full PNG');
+  const diff=await page.evaluate(async input=>{
+    async function read(url) {
+      const img=new Image();img.src=url;
+      await new Promise((ok,bad)=>{if(img.complete&&img.naturalWidth)return ok();img.onload=ok;img.onerror=bad});
+      const c=document.createElement('canvas');c.width=700;c.height=560;
+      const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);
+      return ctx.getImageData(0,0,700,560).data;
+    }
+    const a=await read(input.on),b=await read(input.off);
+    const canvas=document.createElement('canvas');canvas.width=700;canvas.height=560;
+    const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(700,560);
+    let count=0,minX=700,minY=560,maxX=-1,maxY=-1,top=0,bottom=0,bed=0,rug=0;
+    for(let i=0;i<392000;i++){
+      const j=i*4,x=i%700,y=Math.floor(i/700);
+      const d=Math.max(Math.abs(a[j]-b[j]),Math.abs(a[j+1]-b[j+1]),Math.abs(a[j+2]-b[j+2]));
+      const changed=d>=8;
+      if(changed){
+        count++;minX=Math.min(minX,x);maxX=Math.max(maxX,x);
+        minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        if(y<280)top++;else bottom++;
+        if(x>=360&&y>=140&&y<=440)bed++;
+        if(x>=120&&x<=600&&y>=270&&y<=500)rug++;
+      }
+      pixels.data[j]=changed?238:Math.floor(a[j]*.35);
+      pixels.data[j+1]=changed?25:Math.floor(a[j+1]*.35);
+      pixels.data[j+2]=changed?158:Math.floor(a[j+2]*.35);
+      pixels.data[j+3]=255;
+    }
+    ctx.putImageData(pixels,0,0);
+    return {changedPixels:count,changedFraction:count/392000,
+      changedBoundingBoxPx:count?[minX,minY,maxX,maxY]:null,
+      changedUpperHalfPx:top,changedLowerHalfPx:bottom,
+      bedRegionProxyChangedPx:bed,rugRegionProxyChangedPx:rug,
+      differenceMask:canvas.toDataURL('image/png')};
+  },{on:v35OnUrl,off:hidden.png});
+  assert(diff.changedPixels>100,'Original table must visibly affect true WebGL');
+  const v35Mask=png('v35-actual-source-table-occlusion-mask.png',diff.differenceMask,[700,560]);
+  delete diff.differenceMask;
+  const v35Pair=async (name,url)=>png(name,await page.evaluate(async frame=>{
+    const r=document.querySelector('#reference-preview'),img=new Image();img.src=frame;
+    await new Promise((ok,bad)=>{if(img.complete&&img.naturalWidth)return ok();img.onload=ok;img.onerror=bad});
+    const c=document.createElement('canvas');c.width=1400;c.height=560;
+    const cx=c.getContext('2d');cx.drawImage(r,0,0,700,560);cx.drawImage(img,700,0,700,560);
+    return c.toDataURL('image/png');
+  },url),[1400,560]);
+  const v35ReferenceOn=await v35Pair('v35-reference-original-table-on.png',v35OnUrl);
+  const v35ReferenceOff=await v35Pair('v35-reference-original-table-hidden.png',hidden.png);
+  const dl35=page.waitForEvent('download');await page.locator('#save').click();
+  const saved35=path.join(out,'v35-native-save-original-table.json');
+  await (await dl35).saveAs(saved35);
+  const native35=JSON.parse(fs.readFileSync(saved35,'utf8'));
+  assert.equal(native35.objects.length,13);assert.deepEqual(native35.room,v35.room);
+  for(const o of v35.objects){
+    const b=native35.objects.find(x=>x.id===o.id);
+    assert(b&&b.locked===o.locked);
+    for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+      assert(b[k].every((n,i)=>Math.abs(n-o[k][i])<1e-8),'V35 native save '+o.id+' '+k);
+  }
+  await page.reload({waitUntil:'domcontentloaded',timeout:120000});
+  await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),null,{timeout:240000});
+  await page.evaluate(()=>{const e=document.querySelector('#viewport');e.style.width='700px';e.style.height='560px'});
+  await page.waitForFunction(()=>{const c=document.querySelector('#viewport canvas');return c?.width===700&&c?.height===560});
+  await page.locator('#file').setInputFiles(saved35);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: v35-native-save-original-table.json'));
+  await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),camera);
+  if(!(await page.locator('#reference-shell-preview').isChecked()))await page.locator('#reference-shell-preview').check();
+  await v35Verify();
+  const v35Reloaded=png('v35-original-table-native-reload-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  assert.equal(v35Reloaded.sha256,v35On.sha256,'V35 reload must preserve exact original scene raster');
+  fs.writeFileSync(path.join(out,'v35-table-occlusion-audit.json'),JSON.stringify({
+    exact_head:process.env.GITHUB_SHA||null,room_m:v35.room,reference_px:[1402,1122],
+    frozen_camera:camera,source_glb_sha256_verified_from_original_binaries:realGlbHashes,
+    original_instances:13,all_original_locks_transforms_and_camera_preserved:true,
+    original_table_hidden_only_for_one_diagnostic_webgl_frame:true,
+    per_pixel_occlusion:diff,original_table_restored:true,
+    actual_images:{normal:v35On,hidden:v35Off,restored:v35Restored,
+      occlusionMask:v35Mask,referenceNormal:v35ReferenceOn,
+      referenceWithoutTable:v35ReferenceOff,afterNativeReload:v35Reloaded},
+    native_save_reload:true,technical:'PASS',
+    visual:'FAIL_PENDING_AUTHENTIC_IMAGE_REVIEW',whole_scene:'VISUAL_FAIL_G2_3_PAUSED'
+  },null,2)+'\n');
+
   assert.deepEqual(errors,[],'No browser errors');
   fs.writeFileSync(path.join(out,'architecture-v20-audit.json'),JSON.stringify({
    exactProofHead:process.env.GITHUB_SHA||null, basedOnV19:layout.evidence_proof?.source_head,
