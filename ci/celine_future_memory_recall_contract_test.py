@@ -1463,6 +1463,111 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-redacted", "\u200B")),NOW),
             "", "redacted or invalid mark-only rival never becomes benign punctuation");
+        // A G1-owner-confirmed pruned parent permits the precise winner to be
+        // recalled. It does NOT certify unrelated orphan lineage as resolved.
+        // Correction by natural language needs stronger protection than recall:
+        // a weaker but still on-topic quarantined rival may be the intended ID.
+        Set<String> certifiedRetired = Collections.singleton("owner-pruned-old");
+        CelineFutureMemoryRecall.Candidate certifiedWinner =
+            x("owner-certified-winner", "Meine Katze heisst Luna",
+                "owner-pruned-old", true, 0);
+        CelineFutureMemoryRecall.Candidate unverifiedOrphan =
+            x("other-live-orphan", "Katze heisst Max",
+                "other-missing-ancestor", true, 0);
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,unverifiedOrphan),
+            certifiedRetired,certifiedRetired,8,NOW).get(0).candidate.id,
+            "owner-certified-winner", "owner certified parent allows only safe winner retrieval");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,unverifiedOrphan),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "withheld weaker orphan on same subject makes correction ID ambiguous");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(unverifiedOrphan,certifiedWinner),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "withheld weaker orphan ambiguity is order independent");
+        CelineFutureMemoryRecall.Candidate malformedClockWeakRival =
+            new CelineFutureMemoryRecall.Candidate("weak-corrupt-clock", "Katze heisst Max", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,-1,0,0.5);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,malformedClockWeakRival),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "on-topic malformed timestamp may still be correction target");
+        CelineFutureMemoryRecall.Candidate malformedWeightWeakRival =
+            new CelineFutureMemoryRecall.Candidate("weak-corrupt-weight", "Katze heisst Max", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,0,Double.NaN);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,malformedWeightWeakRival),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "on-topic malformed relevance may still be correction target");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,x("unrelated-orphan", "Damu Markt verkauft Getraenke",
+                "other-missing-ancestor",true,0)), certifiedRetired,certifiedRetired,NOW),
+            "owner-certified-winner", "clearly unrelated orphan does not block unique correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner, new CelineFutureMemoryRecall.Candidate(
+                "expired-orphan", "Katze heisst Max", "other-missing-ancestor",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,NOW-1,0.5)),
+            certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
+            "truly expired weaker orphan cannot be a current correction target");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,unverifiedOrphan),
+            new HashSet<>(Arrays.asList("owner-pruned-old","other-live-orphan")),
+            certifiedRetired,NOW), "owner-certified-winner",
+            "source-retired orphan is not a candidate correction target");
+        // A quarantined ancestor, unresolved conflict endpoint, or fork can
+        // hide a correction rival even when its own parent ID looks present.
+        CelineFutureMemoryRecall.Candidate orphanGrandparent =
+            x("other-orphan-mid", "Anderes Thema", "unseen-unverified-root", true, 0);
+        CelineFutureMemoryRecall.Candidate orphanGrandchild =
+            x("other-orphan-descendant", "Katze heisst Max", "other-orphan-mid", true, 0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,orphanGrandparent,orphanGrandchild),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "transitive orphan descendant with two anchors blocks guessed correction");
+        CelineFutureMemoryRecall.Candidate conflictWeakRival =
+            new CelineFutureMemoryRecall.Candidate("other-conflict", "Katze heisst Max", "",
+                "absent-opponent", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true,true,NOW-100,0,0.5);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,conflictWeakRival),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "unresolved on-topic conflict is not dismissed by higher lexical score");
+        CelineFutureMemoryRecall.Candidate forkParent =
+            c("other-fork-parent", "Anderes Thema");
+        CelineFutureMemoryRecall.Candidate forkWeakRival =
+            x("other-fork-rival", "Katze heisst Max", "other-fork-parent",true,0);
+        CelineFutureMemoryRecall.Candidate forkSibling =
+            x("other-fork-sibling", "Damu Markt verkauft Getraenke", "other-fork-parent",true,0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,forkParent,forkWeakRival,forkSibling),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "quarantined fork branch with two anchors blocks speculative ID");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,c("safe-cat-extra", "Meine Katze")),
+            certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
+            "ordinary weaker independent relevant record keeps existing ranking rule");
+        // Corrupt cyclic G1 supersession is not authoritative retirement:
+        // retrieval hides both cycle nodes, but natural-language correction
+        // must not use their invisibility to guess a different memory ID.
+        CelineFutureMemoryRecall.Candidate cycleA =
+            x("unknown-cycle-a", "Katze heisst Max", "unknown-cycle-b",true,0);
+        CelineFutureMemoryRecall.Candidate cycleB =
+            x("unknown-cycle-b", "Anderes Thema", "unknown-cycle-a",true,0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,cycleA,cycleB),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "source metadata cycle with on-topic suppressed rival blocks automatic correction");
+        CelineFutureMemoryRecall.Candidate selfLoop =
+            x("unknown-self-loop", "Katze heisst Max", "unknown-self-loop",true,0);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,selfLoop),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "self-referential retraction cannot authorize correction of other fact");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,x("unrelated-self-loop", "Damu Markt verkauft Getraenke",
+                "unrelated-self-loop",true,0)),certifiedRetired,certifiedRetired,NOW),
+            "owner-certified-winner", "unrelated corrupt retraction does not suppress well-grounded match");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

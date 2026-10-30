@@ -198,52 +198,13 @@ public final class CelineFutureMemoryRecall {
                     || ids.contains(confirmed))
                 return Collections.emptyList();
         }
-        // G1 conflictWithId records an unresolved contradiction, NOT a vetted
-        // supersession. Without the owning G1 resolver's durable winner proof,
-        // neither endpoint may be silently presented as an authoritative fact.
-        // Include expired/private/withheld records to prevent stale resurrection.
-        Set<String> conflicted = new HashSet<>();
-        Map<String, List<String>> successorsByParent = new HashMap<>();
+        // Build the same lineage-quarantine graph used by correction targeting:
+        // a pruned, disputed, orphaned or forked branch must not leak stale facts.
         for (Candidate c : candidates) {
-            if (!c.supersedesId.isEmpty()) {
-                replaced.add(c.supersedesId);
-                successorsByParent.computeIfAbsent(c.supersedesId, k -> new ArrayList<>()).add(c.id);
-            }
-            if (!c.conflictWithId.isEmpty()) {
-                conflicted.add(c.id);
-                conflicted.add(c.conflictWithId);
-            }
+            if (!c.supersedesId.isEmpty()) replaced.add(c.supersedesId);
         }
-        // A missing parent requires a distinct G1 owner attestation of full
-        // historical conflict/fork resolution, not just a retired-ID tombstone.
-        // Orphans and their descendants are quarantined without such evidence.
-        Set<String> orphaned = new HashSet<>();
-        for (Candidate c : candidates) {
-            if (!c.supersedesId.isEmpty() && !ids.contains(c.supersedesId)
-                    && !confirmedRetiredParentIds.contains(c.supersedesId))
-                orphaned.add(c.id);
-        }
-        // Compaction/reimport can preserve competing corrections without a G1
-        // winner decision. A conflict endpoint is also not proof that a later
-        // child is trustworthy. Quarantine BOTH unresolved fork descendants and
-        // every descendant of a conflicted ID, even if its parent was pruned,
-        // private or expired. Only the owning G1 resolver can clear that history.
-        Set<String> unresolvedLineage = new HashSet<>(conflicted);
-        unresolvedLineage.addAll(orphaned);
-        List<String> pending = new ArrayList<>(unresolvedLineage);
-        for (List<String> siblings : successorsByParent.values()) {
-            if (siblings.size() < 2) continue;
-            for (String child : siblings) {
-                if (unresolvedLineage.add(child)) pending.add(child);
-            }
-        }
-        for (int i = 0; i < pending.size(); i++) {
-            List<String> children = successorsByParent.get(pending.get(i));
-            if (children == null) continue;
-            for (String child : children) {
-                if (unresolvedLineage.add(child)) pending.add(child);
-            }
-        }
+        Set<String> unresolvedLineage = unresolvedLineageIds(
+                candidates, ids, confirmedRetiredParentIds);
         List<Candidate> live = liveCandidates(candidates, now);
         List<Match> matches = new ArrayList<>();
         for (Candidate c : live) {
@@ -299,6 +260,14 @@ public final class CelineFutureMemoryRecall {
         // not prove a G1 conflict or pruned ancestor has been resolved.
         Set<String> eligibleMatchIds = new HashSet<>();
         for (Match match : matches) eligibleMatchIds.add(match.candidate.id);
+        // Correction suggestions must distinguish an actual source-present G1
+        // parent from a certified-pruned one. An independently missing parent
+        // is still an unresolved lineage dependency, even if a different
+        // candidate has stronger lexical evidence.
+        Set<String> projectedSourceIds = new HashSet<>();
+        for (Candidate c : candidates) projectedSourceIds.add(c.id);
+        Set<String> quarantinedLineage = unresolvedLineageIds(
+                candidates, projectedSourceIds, confirmedRetiredParentIds);
         // Provider-safe recall deliberately excludes sensitive, unconsented and
         // untrusted G1 records. Those records can nevertheless be what the user
         // intends to correct. Do not mistake a single exportable hit for an
@@ -341,8 +310,14 @@ public final class CelineFutureMemoryRecall {
                 return "";
             }
             int rivalSharedTerms = overlap(query, rivalTerms);
-            if (rivalSharedTerms >= 2 && rivalSharedTerms >= best.sharedTerms)
-                return "";
+            // Unlike an ordinary weaker (but trustworthy) memory, a
+            // potentially-live orphan or corrupt metadata record cannot be
+            // safely dismissed by ranking against a well-formed winner. Two
+            // subject anchors already make the unknown record plausible.
+            boolean unreliableEvidence = quarantinedLineage.contains(rival.id)
+                    || corruptTime || !Double.isFinite(rival.importance);
+            if (rivalSharedTerms >= 2 && (rivalSharedTerms >= best.sharedTerms
+                    || unreliableEvidence)) return "";
         }
         if (matches.size() > 1) {
             Match next = matches.get(1);
@@ -350,6 +325,72 @@ public final class CelineFutureMemoryRecall {
             if (best.sharedTerms <= next.sharedTerms) return "";
         }
         return best.candidate.id;
+    }
+
+    /**
+     * Shared source-lineage quarantine for both provider-safe retrieval and
+     * the non-mutating correction-ID suggestion. A higher lexical score can
+     * never authenticate a competing unresolved G1 branch.
+     */
+    private static Set<String> unresolvedLineageIds(List<Candidate> candidates,
+            Set<String> sourceIds, Set<String> confirmedRetiredParentIds) {
+        // G1 conflictWithId records an unresolved contradiction, NOT a vetted
+        // supersession. An orphan or sibling fork is likewise never evidence
+        // of an authoritative winner; quarantine descendants transitively.
+        Set<String> conflicted = new HashSet<>();
+        Map<String, List<String>> successorsByParent = new HashMap<>();
+        for (Candidate c : candidates) {
+            if (!c.supersedesId.isEmpty()) {
+                successorsByParent.computeIfAbsent(c.supersedesId, k -> new ArrayList<>()).add(c.id);
+            }
+            if (!c.conflictWithId.isEmpty()) {
+                conflicted.add(c.id);
+                conflicted.add(c.conflictWithId);
+            }
+        }
+        Set<String> orphaned = new HashSet<>();
+        for (Candidate c : candidates) {
+            if (!c.supersedesId.isEmpty() && !sourceIds.contains(c.supersedesId)
+                    && !confirmedRetiredParentIds.contains(c.supersedesId))
+                orphaned.add(c.id);
+        }
+        Set<String> unresolvedLineage = new HashSet<>(conflicted);
+        unresolvedLineage.addAll(orphaned);
+        List<String> pending = new ArrayList<>(unresolvedLineage);
+        for (List<String> siblings : successorsByParent.values()) {
+            if (siblings.size() < 2) continue;
+            for (String child : siblings) {
+                if (unresolvedLineage.add(child)) pending.add(child);
+            }
+        }
+        // Malformed cyclic retractions (A->B->A, A->A) do not attest
+        // historical precedence. Seed one node per detected cycle; the same
+        // bounded descendant walk below quarantines the entire cycle and all
+        // its descendants. Previously these rivals were retrieval-invisible
+        // but could be overlooked by the automatic correction target guard.
+        Map<String, String> parentById = new HashMap<>();
+        for (Candidate c : candidates) parentById.put(c.id, c.supersedesId);
+        Set<String> cycleWalkDone = new HashSet<>();
+        for (Candidate c : candidates) {
+            if (cycleWalkDone.contains(c.id)) continue;
+            Set<String> walked = new HashSet<>();
+            String cursor = c.id;
+            while (cursor != null && !cursor.isEmpty()
+                    && !cycleWalkDone.contains(cursor) && walked.add(cursor)) {
+                cursor = parentById.get(cursor);
+            }
+            if (cursor != null && walked.contains(cursor)
+                    && unresolvedLineage.add(cursor)) pending.add(cursor);
+            cycleWalkDone.addAll(walked);
+        }
+        for (int i = 0; i < pending.size(); i++) {
+            List<String> children = successorsByParent.get(pending.get(i));
+            if (children == null) continue;
+            for (String child : children) {
+                if (unresolvedLineage.add(child)) pending.add(child);
+            }
+        }
+        return unresolvedLineage;
     }
 
     private static List<Candidate> liveCandidates(List<Candidate> candidates, long now) {
