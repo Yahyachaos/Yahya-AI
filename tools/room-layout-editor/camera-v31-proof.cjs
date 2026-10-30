@@ -22,6 +22,13 @@ function score(p){
  const drapes=arr.slice(4).reduce((sum,v,i)=>sum+sq(v,ref.drapes[i]),0);
  return {weighted:4*seam+.25*drapes,seam,drapes,projected:arr};
 }
+function assertCameraVectorRoundTrip(actual,expected,label){
+ assert(Array.isArray(actual)&&Array.isArray(expected)&&actual.length===3&&expected.length===3,label+' requires exactly 3 components');
+ for(let i=0;i<3;i++){
+  assert(Number.isFinite(actual[i])&&Number.isFinite(expected[i]),label+'['+i+'] must be finite');
+  assert(Math.abs(actual[i]-expected[i])<=1e-10,label+'['+i+'] changed by more than 1e-10 m');
+ }
+}
 async function run(){
  assert.deepEqual(layout.room,{width:4.4,depth:4.2,height:2.65});assert.equal(layout.objects.length,13);
  const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-dev-shm-usage']});
@@ -93,8 +100,10 @@ async function run(){
   await verify();
   await page.evaluate(c=>window.__celineRoomEditorE2E.previewMeasuredCamera(c),fixed);
   const restored=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
-  assert.deepEqual(restored.camera_position_m,fixed.position_m);
-  assert.deepEqual(restored.camera_target_m,fixed.target_m);
+  // Save/Reload may change the last IEEE-754 bits after matrix recomposition.
+  // Reject non-finite, wrong-length, or genuinely changed positions (>1e-10 m).
+  assertCameraVectorRoundTrip(restored.camera_position_m,fixed.position_m,'position_m');
+  assertCameraVectorRoundTrip(restored.camera_target_m,fixed.target_m,'target_m');
   assert.equal(restored.vertical_fov_deg,fixed.vertical_fov_deg);
   await page.locator('#reference-shell-preview').uncheck();
   assert.deepEqual(errors,[]);
