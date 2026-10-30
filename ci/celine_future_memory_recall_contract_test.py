@@ -442,6 +442,16 @@ public final class FutureMemoryRecallContract {
             try { return withOwnerLock(() -> verified().receipt); }
             catch (Exception failure) { return "UNTRUSTED"; }
         }
+        // TEST MODEL ONLY: revision + receipt must be inspected in ONE owner
+        // critical section. A previously completed but now retracted record is
+        // never a *current* successful publication.
+        boolean currentCompleted(String expectedGeneration) {
+            try { return withOwnerLock(() -> {
+                State s=verified();
+                return !s.retracted && s.revision.equals(expectedGeneration)
+                    && s.receipt.equals("COMPLETED");
+            }); } catch (Exception failure) { return false; }
+        }
     }
 
     /** FUTURE-ONLY JVM TEST DOUBLE; NOT durable, Android or rollback-resistant. */
@@ -3812,7 +3822,9 @@ public final class FutureProcessOwnerChild {
     static void report(String status,boolean reserved,
             FutureMemoryRecallContract.FileOwnerLedger ledger) {
         System.out.println("RESULT="+status+";CLAIM_NEW="+(reserved?1:0)+
-            ";RECEIPT="+ledger.receipt()+";REVISION="+ledger.revision());
+            ";RECEIPT="+ledger.receipt()+
+            ";CURRENT_COMPLETED="+(ledger.currentCompleted(REV)?1:0)+
+            ";REVISION="+ledger.revision());
         System.out.flush();
     }
     public static void main(String[] args) throws Exception {
@@ -3874,15 +3886,43 @@ public final class FutureProcessOwnerChild {
         // Each successful claim seals the separately held *test* witness;
         // two files cannot be made atomic across a real power loss.
         witnessWrite(witness,epoch,commitment);
+        // FUTURE-ONLY *actual OS-process* cancellation/claim-vs-revocation
+        // harness. These deliberate side effects are local TEST markers, never
+        // Android provider dispatch. STARTED is durable before the marker.
+        if(action.equals("pause-after-dispatch") || action.equals("reentrant-revoke")) {
+            Files.writeString(root.resolve("test-only-sink-event"),
+                    "published-once\n",StandardOpenOption.CREATE_NEW);
+            if(action.equals("pause-after-dispatch")) {
+                report("WAITING_AFTER_CALLBACK",true,ledger);
+                Path allow=root.resolve("allow-finish");
+                long deadline=System.nanoTime()+30_000_000_000L;
+                while(!Files.exists(allow) && System.nanoTime()<deadline)
+                    Thread.sleep(20);
+                if(!Files.exists(allow))
+                    throw new IllegalStateException("test-only callback gate timed out");
+            } else {
+                // A source mutation re-entering from a synchronous callback
+                // invalidates completion; do not claim CURRENT_COMPLETED.
+                ledger.revoke("g1-revision-0000000009");
+                witnessWrite(witness,epoch,commitment);
+            }
+        }
         if(action.equals("ack-torn"))
             ledger.completionFault=FutureMemoryRecallContract.FileOwnerLedger.Fault.AFTER_FRAME_BEFORE_AUTHORITY;
         if(action.equals("ack-sealed-halt"))
             ledger.completionFault=FutureMemoryRecallContract.FileOwnerLedger.Fault.AFTER_AUTHORITY_BEFORE_RETURN;
         try {
             boolean ack=ledger.acknowledgeCompletedIfCurrent(REQUEST,INTENT,REV);
-            witnessWrite(witness,epoch,commitment);
+            if(ack) witnessWrite(witness,epoch,commitment);
             report("conditional-ack="+ack,true,ledger);
         } catch(IllegalStateException e) {
+            // A separate process may revoke and advance the trusted witness
+            // while this publisher is paused. Its stale in-memory witness must
+            // NEVER be written back over the newer authority on cancellation.
+            if(action.equals("pause-after-dispatch")) {
+                report("ACK_UNCERTAIN",true,ledger);
+                return;
+            }
             if(action.equals("ack-torn")) {
                 report("HALT_AFTER_TORN_ACK",true,ledger);
                 Runtime.getRuntime().halt(42); // verified later by independent JVM
@@ -4086,6 +4126,91 @@ def process_owner_proof(temp):
     replay=anchored('publish')
     case(replay.returncode!=0 and 'external owner authority mismatch' in replay.stderr,
          'old pre-tombstone app snapshot fails against surviving owner checkpoint')
+    # Genuine JVM cancellation after simulated downstream side effect but
+    # before receipt sealing. A STARTED receipt MUST survive a process kill.
+    journal,witness=new_scenario('process-cancel-after-callback')
+    call(journal,witness,'init')
+    owner_anchor=journal.parent/'owner-checkpoint-versioned.txt'
+    owner_anchor.write_bytes(witness.read_bytes())
+    def spawn_waiter():
+        p=subprocess.Popen(command(journal,witness,'pause-after-dispatch')+[str(owner_anchor)],
+                           stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+        line=p.stdout.readline().strip()
+        case('RESULT=WAITING_AFTER_CALLBACK' in line and 'RECEIPT=STARTED' in line,
+             'independent Java process reached durable STARTED after callback: '+line)
+        return p
+    waiter=spawn_waiter()
+    case((journal/'test-only-sink-event').read_text()=='published-once\n',
+         'callback side effect exists before process cancellation')
+    blocked=subprocess.run(command(journal,witness,'publish'),
+                           capture_output=True,text=True,timeout=20)
+    case(blocked.returncode==0 and not claimed(blocked.stdout)
+         and 'CURRENT_COMPLETED=0' in blocked.stdout,
+         'second independent JVM sees STARTED and cannot republish during callback')
+    waiter.kill()  # actual abrupt OS-process kill, no cooperative Java cleanup
+    try: waiter.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        waiter.kill();waiter.communicate(timeout=5)
+    case(waiter.returncode!=0,'terminated JVM cannot seal a fake receipt')
+    owner_anchor.write_bytes(witness.read_bytes())  # test-host G1 version update
+    cancelled=subprocess.run(command(journal,witness,'check')+[str(owner_anchor)],
+                             capture_output=True,text=True,timeout=20)
+    case(cancelled.returncode==0 and 'RECEIPT=STARTED' in cancelled.stdout
+         and 'CURRENT_COMPLETED=0' in cancelled.stdout,
+         'fresh JVM reports interrupted publication as non-current STARTED')
+    retry=subprocess.run(command(journal,witness,'publish')+[str(owner_anchor)],
+                         capture_output=True,text=True,timeout=20)
+    case(retry.returncode==0 and not claimed(retry.stdout)
+         and 'CURRENT_COMPLETED=0' in retry.stdout,
+         'new JVM may not republish a cancelled callback')
+    case((journal/'test-only-sink-event').read_text()=='published-once\n',
+         'cancelled request did not dispatch a second side effect')
+
+    # A second genuine JVM revokes while the first JVM is paused after a
+    # callback. The old process may never re-seal an obsolete G1 generation.
+    journal,witness=new_scenario('two-process-revoke-vs-ack')
+    call(journal,witness,'init')
+    owner_anchor=journal.parent/'owner-checkpoint-versioned.txt'
+    owner_anchor.write_bytes(witness.read_bytes())
+    waiter=spawn_waiter()
+    owner_anchor.write_bytes(witness.read_bytes())
+    revoked=subprocess.run(command(journal,witness,'revoke')+[str(owner_anchor)],
+                           capture_output=True,text=True,timeout=20)
+    case(revoked.returncode==0 and 'REVISION=' in revoked.stdout,
+         'second independent JVM committed a revoke while publisher paused')
+    newer_authority=witness.read_bytes()
+    case(int(newer_authority.decode().split('|',1)[0]) >
+         int(owner_anchor.read_text().split('|',1)[0]),
+         'revoke advances the separately versioned simulated owner checkpoint')
+    owner_anchor.write_bytes(newer_authority)
+    (journal/'allow-finish').touch()
+    resumed_out,resumed_err=waiter.communicate(timeout=20)
+    case(waiter.returncode==0 and 'ACK_UNCERTAIN' in resumed_out,
+         'old publisher cannot seal after another process revoked: '+resumed_err[-250:])
+    checked=subprocess.run(command(journal,witness,'check')+[str(owner_anchor)],
+                           capture_output=True,text=True,timeout=20)
+    case(checked.returncode==0 and 'REVISION=\n' in checked.stdout
+         and 'CURRENT_COMPLETED=0' in checked.stdout,
+         'post-revoke state cannot masquerade as current completion')
+    retry=subprocess.run(command(journal,witness,'publish')+[str(owner_anchor)],
+                         capture_output=True,text=True,timeout=20)
+    case(retry.returncode==0 and not claimed(retry.stdout)
+         and 'CURRENT_COMPLETED=0' in retry.stdout,
+         'third JVM cannot resurrect withdrawn generation')
+    case((journal/'test-only-sink-event').read_text()=='published-once\n',
+         'revoke race never repeats simulated provider side effect')
+
+    # Reentrant source revocation is a separate JVM callback scenario, not a
+    # proof that actual Android/G1 provider callbacks are transaction-safe.
+    journal,witness=new_scenario('reentrant-revocation-process')
+    call(journal,witness,'init')
+    result=call(journal,witness,'reentrant-revoke')
+    case('conditional-ack=false' in result and 'CURRENT_COMPLETED=0' in result,
+         'same process synchronous callback revokes before conditional receipt seal')
+    case('CURRENT_COMPLETED=0' in call(journal,witness,'check'),
+         'fresh JVM refuses completion after reentrant revocation')
+    case(not claimed(call(journal,witness,'publish')),
+         'fresh JVM cannot publish a reentrantly revoked generation')
     print('FUTURE_G1_JVM_PROCESS_RESTART_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_JOINT_DISK_AUTHORITY_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
