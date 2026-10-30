@@ -1,0 +1,122 @@
+{
+  "schema": "CELINE_ROOM_EDITOR_V35_TABLE_REAL_WEBGL_REVIEW",
+  "date": "2026-10-30",
+  "branch": "experiment/visual-room-editor-v83",
+  "exact_head": "192f883b1b5d9fc6e7048726662e804cada959ca",
+  "source_run": {
+    "id": 41039700546,
+    "conclusion": "cancelled",
+    "reason": "architecture job 35-minute timeout after proof reported technical PASS",
+    "architecture_job_id": 124010427368,
+    "architecture_script_marker": "CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS",
+    "script_marker_utc": "2026-10-30T10:56:07Z",
+    "artifact_uploaded_utc": "2026-10-30T10:56:15Z"
+  },
+  "genuine_artifact": {
+    "id": 12970799374,
+    "zip_sha256": "bc59600b1cd0c7dec16d4cc9f3460cbf97c834579e6ed919a7005596f0520c1b",
+    "url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/41039700546/artifacts/12970799374"
+  },
+  "reference_original_px": [
+    1402,
+    1122
+  ],
+  "scene_camera": "V3 frozen",
+  "room_m": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "original_instances": 13,
+  "locks_transforms_restored": true,
+  "native_save_reload": "PASS",
+  "source_glb_original_assembly": "13 original source SHA256 verified; physical source-fidelity room GLBs separately pinned to source Git blob identities",
+  "images": [
+    {
+      "name": "v35-table-on-real-webgl.png",
+      "px": [
+        700,
+        560
+      ],
+      "sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c"
+    },
+    {
+      "name": "v35-table-temporarily-hidden-real-webgl.png",
+      "px": [
+        700,
+        560
+      ],
+      "sha256": "06892e63685537da00ea1e065058597b67a0f7bbb3f9209735f035cb4c44e200"
+    },
+    {
+      "name": "v35-table-restored-real-webgl.png",
+      "px": [
+        700,
+        560
+      ],
+      "sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c"
+    },
+    {
+      "name": "v35-original-table-native-reload-webgl.png",
+      "px": [
+        700,
+        560
+      ],
+      "sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c"
+    },
+    {
+      "name": "v35-actual-source-table-occlusion-mask.png",
+      "px": [
+        700,
+        560
+      ],
+      "sha256": "4ac2d6314eb79d8b1a1a1a9ff7526855cba19d19742b5fb7688505af05b2d132"
+    },
+    {
+      "name": "v35-reference-original-table-on.png",
+      "px": [
+        1400,
+        560
+      ],
+      "sha256": "1bc62447eb967deea5bca8e0422dc01864e0e4f01fc8e4f9c3137770083273cf"
+    },
+    {
+      "name": "v35-reference-original-table-hidden.png",
+      "px": [
+        1400,
+        560
+      ],
+      "sha256": "c096fd02fe26e6b2f529ea1e79508ccb1d537b5efa0034f95095a4bf9128d164"
+    }
+  ],
+  "image_inspection": "Actual real WebGL/reference PNGs manually opened: table's large wood top and black legs occupy lower-middle room over rug and foot of bed, whereas photo foreground shows only cropped near-edge table/laptop; hiding it shows more rug/bed but removes original table altogether, not an acceptable saved transform.",
+  "measured_occlusion": {
+    "audit_changed_pixels": 27631,
+    "audit_fraction": 0.07048724489795918,
+    "independently_recomputed_any_rgb_changed_pixels": 27660,
+    "independently_recomputed_any_rgb_fraction": 0.07056122448979592,
+    "changed_bbox_xyxy_px": [
+      131,
+      315,
+      471,
+      536
+    ],
+    "upper_half_changed_pixels": 0,
+    "threshold_note": "Audit and independent any-RGB-difference pixel counts apply different color-delta predicates; same bounding box",
+    "on_restored_same_png_sha256": true,
+    "on_reloaded_same_png_sha256": true
+  },
+  "technical": "V35 SCRIPT TECH PASS; overall workflow CANCELLED at 35m limit, not an end-to-end workflow PASS",
+  "per_object": {
+    "bed": "VISUAL FAIL",
+    "dresser": "VISUAL FAIL",
+    "chair": "VISUAL FAIL",
+    "foreground_table": "VISUAL FAIL; immutable source-table/laptop-photo semantic shape mismatch",
+    "rug": "VISUAL FAIL",
+    "window_drapes": "VISUAL FAIL"
+  },
+  "whole_scene": "VISUAL FAIL / G2.3 PAUSED",
+  "accepted_scene_changes": [],
+  "no_android_or_release_actions": true,
+  "next_action": "After exact-head single workflow with architecture-only 45m timeout reaches terminal result, inspect architecture job conclusion and reuse V35 photo/artifact; proceed to independently bounded unaccepted room furniture/window adjustment only on authentic image evidence."
+}

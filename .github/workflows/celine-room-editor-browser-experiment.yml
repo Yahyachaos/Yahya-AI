@@ -516,7 +516,7 @@ jobs:
     needs: functional_browser
     if: ${{ needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       ROOM_EDITOR_EVIDENCE_DIR: /tmp/celine-room-editor-architecture-v20
     steps:
