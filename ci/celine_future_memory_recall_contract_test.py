@@ -3991,6 +3991,8 @@ public final class FutureStrictOwnerProcessChild {
     }
     static final class DiskOwner implements CelineFutureMemoryRecall.OwnerAtomicDispatchAuthority {
         final Path root, frame, anchor, lock;
+        // Test-only crash injection, never implemented in the production owner.
+        String crashAction="";
         final ThreadLocal<Boolean> ownsTransaction=ThreadLocal.withInitial(()->false);
         DiskOwner(Path directory) throws Exception {
             root=directory.toAbsolutePath(); Files.createDirectories(root);
@@ -4024,6 +4026,18 @@ public final class FutureStrictOwnerProcessChild {
             // A single process lock serializes callers; TWO files are NOT
             // power-cut atomic or rollback-proof even with forced writes.
             String value=next.encode(); atomic(frame,value);
+            boolean crash = (crashAction.equals("fault-reserve")
+                    && next.receipt.equals("STARTED"))
+                || (crashAction.equals("fault-ack")
+                    && next.receipt.equals("COMPLETED"))
+                || (crashAction.equals("fault-revoke")
+                    && next.generation.equals("revoked-generation"));
+            if(crash) {
+                // HALT is an actual abrupt child JVM death, not an exception
+                // that the caller could catch and mistakenly report as success.
+                System.out.println("STRICT_FAULT_FRAME_REPLACED");System.out.flush();
+                Runtime.getRuntime().halt(93);
+            }
             atomic(anchor,next.epoch+"|"+sha(value));
         }
         @Override public String currentGeneration() {
@@ -4079,10 +4093,11 @@ public final class FutureStrictOwnerProcessChild {
         if(args.length!=2)throw new IllegalArgumentException("root action");
         Path root=Path.of(args[0]); String action=args[1];
         DiskOwner owner=new DiskOwner(root);
+        owner.crashAction=action;
         if(action.equals("init")||action.equals("check")) {
             System.out.println("RESULT="+action+";"+owner.status()); return;
         }
-        if(action.equals("revoke")) {
+        if(action.equals("revoke")||action.equals("fault-revoke")) {
             owner.revoke();System.out.println("RESULT=revoke;"+owner.status()); return;
         }
         var candidate=new CelineFutureMemoryRecall.Candidate("strict-cat","Meine Katze Luna","",
@@ -4498,6 +4513,95 @@ def process_strict_owner_proof(temp):
     case('RESULT=COMPLETED' in replay and
          (root/'test-only-strict-sink-event').read_text()=='once\\n'*2,
          'KNOWN SECURITY FAIL: joint rollback repeats non-idempotent provider delivery')
+    # A REAL independently launched JVM must die after moving a new frame,
+    # before sealing the separate versioned authority checkpoint. Recovery
+    # must fail closed; cannot decide which side of torn commit to trust.
+    root=scenario('torn-reservation-killed-jvm')
+    run(root,'init')
+    old_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+    crashed=subprocess.run(cmd(root,'fault-reserve'),capture_output=True,text=True,timeout=20)
+    case(crashed.returncode==93 and 'STRICT_FAULT_FRAME_REPLACED' in crashed.stdout,
+         'actual JVM stopped between reservation frame replacement and authority seal')
+    case('|STARTED|' in (root/'strict-owner.frame').read_text()
+         and (root/'strict-owner.versioned-anchor').read_bytes()==old_anchor,
+         'partial STARTED frame cannot match old separately versioned checkpoint')
+    case(not (root/'test-only-strict-sink-event').exists(),
+         'reservation fault occurs before invoking any simulated provider')
+    claim=subprocess.run(cmd(root,'publish'),capture_output=True,text=True,timeout=20)
+    case(claim.returncode!=0 and 'rollback or torn owner seal' in claim.stderr,
+         'fresh JVM must not auto-reinitialize or republish after torn reservation')
+    case(not (root/'test-only-strict-sink-event').exists(),
+         'failed recovery cannot call provider')
+
+    root=scenario('torn-completion-killed-jvm')
+    run(root,'init')
+    crashed=subprocess.run(cmd(root,'fault-ack'),capture_output=True,text=True,timeout=20)
+    case(crashed.returncode==93 and 'STRICT_FAULT_FRAME_REPLACED' in crashed.stdout,
+         'actual JVM stopped between COMPLETED frame replacement and authority seal')
+    case('|COMPLETED|' in (root/'strict-owner.frame').read_text(),
+         'new COMPlETED frame was moved to disk before abrupt process halt')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'callback made exactly one non-idempotent test side effect before torn ACK')
+    retries=[subprocess.Popen(cmd(root,'publish'),stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,text=True) for _ in range(2)]
+    for proc in retries:
+        out,err=proc.communicate(timeout=20)
+        case(proc.returncode!=0 and 'rollback or torn owner seal' in err,
+             'concurrent fresh-JVM claimant cannot auto-recover torn ACK or republish')
+    revoker=subprocess.run(cmd(root,'revoke'),capture_output=True,text=True,timeout=20)
+    case(revoker.returncode!=0 and 'rollback or torn owner seal' in revoker.stderr,
+         'concurrent independent revoker also fails closed on torn commit')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'neither claimant nor revoker duplicates post-callback side effect')
+
+    root=scenario('torn-revocation-killed-jvm')
+    run(root,'init')
+    run(root,'publish')
+    old_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+    crash_revoke=subprocess.run(cmd(root,'fault-revoke'),capture_output=True,
+                                text=True,timeout=20)
+    case(crash_revoke.returncode==93,
+         'real separate JVM died between revocation frame replacement and anchor seal')
+    case('revoked-generation' in (root/'strict-owner.frame').read_text()
+         and (root/'strict-owner.versioned-anchor').read_bytes()==old_anchor,
+         'revoked frame mismatch never silently accepted as older generation')
+    fresh=subprocess.run(cmd(root,'publish'),capture_output=True,text=True,timeout=20)
+    case(fresh.returncode!=0 and 'rollback or torn owner seal' in fresh.stderr,
+         'restart fails closed on torn revocation rather than resurrecting generation')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'old completed publication is never repeated after torn revocation')
+    # Rename-only staging: a JVM killed BEFORE the atomic frame move leaves
+    # an orphan temporary file. The protected pair must remain authoritative.
+    root=scenario('orphan-before-rename')
+    run(root,'init')
+    before_frame=(root/'strict-owner.frame').read_bytes()
+    before_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+    orphan=root/'strict-owner-aborted-write.pending'
+    orphan.write_text('untrusted-stray-data')
+    case(orphan.is_file() and orphan.read_text()=='untrusted-stray-data',
+         'uncommitted temporary file exists on restart')
+    case('STATE=NONE' in run(root,'check'),
+         'orphaned pending frame is ignored; committed owner state remains authoritative')
+    case((root/'strict-owner.frame').read_bytes()==before_frame
+         and (root/'strict-owner.versioned-anchor').read_bytes()==before_anchor,
+         'restart does not adopt or overwrite the committed pair from orphan staging')
+    case('RESULT=COMPLETED' in run(root,'publish'),
+         'valid complete checkpoint allows one normal dispatch despite orphan staging')
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'orphan staging never duplicates simulated provider delivery')
+
+    # A corrupted versioned anchor must NOT be guessed from its frame. This
+    # fixture supports no automatic counter reset or data-loss repair path.
+    root=scenario('corrupt-anchor-after-completion')
+    run(root,'init')
+    run(root,'publish')
+    (root/'strict-owner.versioned-anchor').write_text('truncated|untrusted')
+    for action in ('check','publish','revoke'):
+        refusal=subprocess.run(cmd(root,action),capture_output=True,text=True,timeout=20)
+        case(refusal.returncode!=0 and 'rollback or torn owner seal' in refusal.stderr,
+             'corrupt authority refuses fresh independent JVM action '+action)
+    case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+         'corrupt-anchor recovery never repeats external test side effect')
     print('FUTURE_G1_STRICT_OWNER_CROSS_PROCESS_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_STRICT_OWNER_JOINT_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
