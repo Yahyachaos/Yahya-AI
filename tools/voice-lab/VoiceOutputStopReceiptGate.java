@@ -25,6 +25,9 @@ public final class VoiceOutputStopReceiptGate {
     private long lastEventNs;
     private StopRequest pending;
     private boolean externallyStopped;
+    // A consumed abort terminalizes this exact plan/audio identity.
+    // Unconsumed/invalidated requests may still retry with a fresh nonce.
+    private boolean consumedLastEpoch;
 
     public VoiceOutputStopReceiptGate(long maxAgeNs) {
         if (maxAgeNs <= 0) throw new IllegalArgumentException("positive stop-claim TTL required");
@@ -36,6 +39,7 @@ public final class VoiceOutputStopReceiptGate {
         if (pending != null || plan <= 0 || audio <= 0 || nowNs < 0
                 || plan < lastPlan || audio < lastAudio
                 || (plan > lastPlan && audio <= lastAudio)
+                || (consumedLastEpoch && plan == lastPlan && audio == lastAudio)
                 || nowNs < lastEventNs
                 || nextNonce == Long.MAX_VALUE) return null;
         pending = new StopRequest(++nextNonce, plan, audio, nowNs);
@@ -43,6 +47,7 @@ public final class VoiceOutputStopReceiptGate {
         lastAudio = audio;
         lastEventNs = nowNs;
         externallyStopped = false;
+        consumedLastEpoch = false;
         return pending;
     }
 
@@ -80,6 +85,7 @@ public final class VoiceOutputStopReceiptGate {
         if (nowNs > lastEventNs) lastEventNs = nowNs;
         pending = null;
         externallyStopped = false;
+        if (valid) consumedLastEpoch = true;
         return valid;
     }
 
