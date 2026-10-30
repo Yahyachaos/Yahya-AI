@@ -3,6 +3,7 @@
 from pathlib import Path
 import subprocess
 import tempfile
+import hashlib
 
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
@@ -3958,15 +3959,30 @@ public final class FutureStrictOwnerProcessChild {
         return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
             .digest(value.getBytes(StandardCharsets.UTF_8)));
     }
-    static void atomic(Path file,String value) throws Exception {
+    static void atomic(Path file,String value,boolean crashMidStagingWrite) throws Exception {
         Path pending=Files.createTempFile(file.getParent(),"strict-owner-",".pending");
         try(FileChannel ch=FileChannel.open(pending,StandardOpenOption.WRITE)) {
             java.nio.ByteBuffer buf=StandardCharsets.UTF_8.encode(value);
+            if(crashMidStagingWrite) {
+                // Test-only: force a partial write in an actual JVM before
+                // rename; never pass this option in normal owner operations.
+                boolean isAnchor=file.getFileName().toString().endsWith("versioned-anchor");
+                buf.limit(Math.min(isAnchor?7:6,buf.limit()));
+                while(buf.hasRemaining()) ch.write(buf);
+                ch.force(true);
+                System.out.println(isAnchor?"STRICT_FAULT_PARTIAL_ANCHOR_STAGE"
+                                           :"STRICT_FAULT_PARTIAL_FRAME_STAGE");
+                System.out.flush();
+                Runtime.getRuntime().halt(isAnchor?94:95);
+            }
             while(buf.hasRemaining()) ch.write(buf);
             ch.force(true);
         }
         Files.move(pending,file,StandardCopyOption.ATOMIC_MOVE,
             StandardCopyOption.REPLACE_EXISTING);
+    }
+    static void atomic(Path file,String value) throws Exception {
+        atomic(file,value,false);
     }
     static final class State {
         final long epoch;
@@ -4025,7 +4041,15 @@ public final class FutureStrictOwnerProcessChild {
         void seal(State next) throws Exception {
             // A single process lock serializes callers; TWO files are NOT
             // power-cut atomic or rollback-proof even with forced writes.
-            String value=next.encode(); atomic(frame,value);
+            String value=next.encode();
+            boolean crashMidFrameWrite =
+                (crashAction.equals("fault-partial-frame-reserve")
+                    && next.receipt.equals("STARTED"))
+                || (crashAction.equals("fault-partial-frame-ack")
+                    && next.receipt.equals("COMPLETED"))
+                || (crashAction.equals("fault-partial-frame-revoke")
+                    && next.generation.equals("revoked-generation"));
+            atomic(frame,value,crashMidFrameWrite);
             boolean crash = (crashAction.equals("fault-reserve")
                     && next.receipt.equals("STARTED"))
                 || (crashAction.equals("fault-ack")
@@ -4038,7 +4062,14 @@ public final class FutureStrictOwnerProcessChild {
                 System.out.println("STRICT_FAULT_FRAME_REPLACED");System.out.flush();
                 Runtime.getRuntime().halt(93);
             }
-            atomic(anchor,next.epoch+"|"+sha(value));
+            boolean crashMidAnchorWrite =
+                (crashAction.equals("fault-partial-anchor-reserve")
+                    && next.receipt.equals("STARTED"))
+                || (crashAction.equals("fault-partial-anchor-ack")
+                    && next.receipt.equals("COMPLETED"))
+                || (crashAction.equals("fault-partial-anchor-revoke")
+                    && next.generation.equals("revoked-generation"));
+            atomic(anchor,next.epoch+"|"+sha(value),crashMidAnchorWrite);
         }
         @Override public String currentGeneration() {
             try{return withLock(()->verified().generation);}
@@ -4097,7 +4128,9 @@ public final class FutureStrictOwnerProcessChild {
         if(action.equals("init")||action.equals("check")) {
             System.out.println("RESULT="+action+";"+owner.status()); return;
         }
-        if(action.equals("revoke")||action.equals("fault-revoke")) {
+        if(action.equals("revoke")||action.equals("fault-revoke")
+           ||action.equals("fault-partial-anchor-revoke")
+           ||action.equals("fault-partial-frame-revoke")) {
             owner.revoke();System.out.println("RESULT=revoke;"+owner.status()); return;
         }
         var candidate=new CelineFutureMemoryRecall.Candidate("strict-cat","Meine Katze Luna","",
@@ -4602,6 +4635,117 @@ def process_strict_owner_proof(temp):
              'corrupt authority refuses fresh independent JVM action '+action)
     case((root/'test-only-strict-sink-event').read_text()=='once\\n',
          'corrupt-anchor recovery never repeats external test side effect')
+    # Test a real abrupt JVM death AFTER it has persisted a truncated
+    # temporary authority checkpoint but BEFORE an atomic rename. Unlike
+    # direct corruption, this injects the fault inside the anchor write path.
+    # An old intact anchor does not make the newer committed FRAME trusted.
+    for action,expected_receipt,prior_delivery in (
+        ('fault-partial-anchor-reserve','STARTED',0),
+        ('fault-partial-anchor-ack','COMPLETED',1),
+        ('fault-partial-anchor-revoke','COMPLETED',1),
+    ):
+        root=scenario('partial-anchor-stage-'+action)
+        run(root,'init')
+        if action.endswith('revoke'):
+            case('RESULT=COMPLETED' in run(root,'publish'),
+                 'pre-revocation provider delivery completed')
+        original_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+        crashed=subprocess.run(cmd(root,action),capture_output=True,text=True,timeout=20)
+        case(crashed.returncode==94 and 'STRICT_FAULT_PARTIAL_ANCHOR_STAGE' in crashed.stdout,
+             'real JVM halted during partially written authority checkpoint '+action)
+        pending=list(root.glob('strict-owner-*.pending'))
+        case(len(pending)==1 and 0<len(pending[0].read_bytes())<65,
+             'hard-killed JVM leaves a truncated, fsynced anchor staging file '+action)
+        frame_text=(root/'strict-owner.frame').read_text()
+        expected_anchor=original_anchor.decode()
+        if action.endswith('ack'):
+            # Its STARTED reservation was sealed earlier in the same JVM;
+            # only the later COMPLETED anchor write was interrupted.
+            previous=frame_text.split('|')
+            previous[0]=str(int(previous[0])-1)
+            previous[2]='STARTED'
+            previous_text='|'.join(previous)
+            expected_anchor=previous[0]+'|'+hashlib.sha256(
+                previous_text.encode('utf-8')).hexdigest()
+        case((root/'strict-owner.versioned-anchor').read_text()==expected_anchor,
+             'atomic rename preserves last fully sealed owner revision '+action)
+        case('|'+expected_receipt+'|' in (root/'strict-owner.frame').read_text(),
+             'source state frame moved before partial authority checkpoint '+action)
+        contenders=[subprocess.Popen(cmd(root,op),stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE,text=True)
+                    for op in ('publish','publish','revoke')]
+        for contender in contenders:
+            output,error=contender.communicate(timeout=20)
+            case(contender.returncode!=0 and 'rollback or torn owner seal' in error,
+                 'parallel fresh-JVM action refuses partial checkpoint '+action)
+        deliveries=(root/'test-only-strict-sink-event')
+        case((deliveries.read_text().count('once\\n') if deliveries.exists() else 0)
+             ==prior_delivery,
+             'partial checkpoint cannot cause a second provider delivery '+action)
+        case(len(list(root.glob('strict-owner-*.pending')))==1,
+             'no new contender attempts to repair, consume or overwrite orphan seal '+action)
+
+    # The opposite crash point matters too: if a JVM dies while staging
+    # the state FRAME (before atomic rename), the original frame + anchor
+    # must still agree. Resume is allowed for a never-started reservation,
+    # but forbidden to repeat a callback after durable STARTED.
+    for action,stage in (
+        ('fault-partial-frame-reserve','reserve'),
+        ('fault-partial-frame-ack','ack'),
+        ('fault-partial-frame-revoke','revoke'),
+    ):
+        root=scenario('partial-frame-stage-'+stage)
+        run(root,'init')
+        if stage=='revoke':
+            run(root,'publish')
+        old_frame=(root/'strict-owner.frame').read_bytes()
+        old_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+        crashed=subprocess.run(cmd(root,action),capture_output=True,text=True,timeout=20)
+        case(crashed.returncode==95 and 'STRICT_FAULT_PARTIAL_FRAME_STAGE' in crashed.stdout,
+             'actual JVM killed while staging incomplete owner frame '+stage)
+        pending=list(root.glob('strict-owner-*.pending'))
+        case(len(pending)==1 and 0<len(pending[0].read_bytes())<20,
+             'partial owner frame was force-written but not renamed '+stage)
+        after_frame=(root/'strict-owner.frame').read_bytes()
+        after_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+        if stage=='reserve':
+            case(after_frame==old_frame and after_anchor==old_anchor,
+                 'pre-reservation crash leaves consistent NONE state')
+            contenders=[subprocess.Popen(cmd(root,'publish'),stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,text=True) for _ in range(2)]
+            completed=0
+            for contender in contenders:
+                stdout,stderr=contender.communicate(timeout=20)
+                case(contender.returncode==0 and 'RESULT=COMPLETED' in stdout,
+                     'post-preclaim-crash contender safely observes completion')
+                completed+=('RESULT=COMPLETED' in stdout)
+            case(completed==2 and
+                 (root/'test-only-strict-sink-event').read_text()=='once\\n',
+                 'two fresh JVMs share one first real delivery after safe pre-STARTED crash')
+        elif stage=='ack':
+            case(after_anchor!=old_anchor and after_frame!=old_frame and
+                 '|STARTED|' in after_frame.decode(),
+                 'ack-stage crash preserves already sealed STARTED reservation')
+            results=[subprocess.run(cmd(root,'publish'),capture_output=True,text=True,timeout=20)
+                     for _ in range(2)]
+            for result in results:
+                case(result.returncode==0 and 'RESULT=STARTED_INDETERMINATE' in result.stdout,
+                     'fresh JVM never retries callback after interrupted ACK staging')
+            case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+                 'interrupted ACK frame staging cannot duplicate provider delivery')
+        else:
+            case(after_frame==old_frame and after_anchor==old_anchor,
+                 'pre-rename revocation crash retains prior sealed state (not false revoke)')
+            case('CURRENT_COMPLETED=1' in run(root,'check'),
+                 'interrupted revoke is not falsely reported as committed')
+            case('RESULT=COMPLETED' in run(root,'publish'),
+                 'pre-commit revoke crash reuses existing receipt without callback')
+            case((root/'test-only-strict-sink-event').read_text()=='once\\n',
+                 'previously completed delivery remains exactly once')
+            run(root,'revoke')
+            case('CURRENT_COMPLETED=0' in run(root,'check'),
+                 'later explicit retry of revocation commits under owner lock')
+
     print('FUTURE_G1_STRICT_OWNER_CROSS_PROCESS_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_STRICT_OWNER_JOINT_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
