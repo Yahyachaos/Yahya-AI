@@ -66,12 +66,19 @@ async function run(){
   assert.equal(selectedPreview.clonedSheerSlots,1);
   assert.equal(selectedPreview.unchangedNightBackdropSlots,1);
   assert.equal(selectedPreview.slots.find(s=>s.selectedSheer)?.currentOpacity,.35);
+  assert.equal(selectedPreview.slots.find(s=>s.selectedSheer)?.currentColor,'a68c6f',
+    'Only cloned mapped source sheer gets selected V33 warm preview tint');
+  assert.equal(selectedPreview.slots.find(s=>s.name==='CELINE_WindowNightDepth_Background')?.currentColor,
+    selectedPreview.slots.find(s=>s.name==='CELINE_WindowNightDepth_Background')?.sourceColor,
+    'Night backdrop source color remains immutable');
   const selectedPng=png('layout-v32-selected-source-sheer-35-genuine-webgl.png',
     await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
   await page.locator('#sheer-preview').uncheck();
   const originalState=await page.evaluate(()=>window.__celineRoomEditorE2E.sheerPreviewAudit());
   assert.equal(originalState.clonedSheerSlots,0);
   assert(originalState.slots.every(s=>s.originalIdentity));
+  assert(originalState.slots.every(s=>s.sourceColor===s.currentColor),
+    'V33 opt-out restores exact original source material colors');
   const restoredSourcePng=png('layout-v32-original-source-material-reverted-webgl.png',
     await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
   await page.locator('#sheer-preview').check();
@@ -166,6 +173,8 @@ async function run(){
   assert.equal(afterReloadPreview.controlChecked,true);
   assert.equal(afterReloadPreview.clonedSheerSlots,1);
   assert.equal(afterReloadPreview.unchangedNightBackdropSlots,1);
+  assert.equal(afterReloadPreview.slots.find(s=>s.selectedSheer)?.currentColor,'a68c6f',
+    'V33 warm experimental preview must survive native Save/Reload');
   for(const a of layout.objects){const b=again.objects.find(o=>o.id===a.id);assert(b);assert.equal(b.locked,a.locked);
    for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])assert.deepEqual(b.transform[key],a[key],'Reload '+a.id+' '+key);
   }

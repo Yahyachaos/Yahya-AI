@@ -1,0 +1,103 @@
+{
+  "schema": "yahya-room-layout-editor/real-visual-review/v1",
+  "date": "2026-10-30",
+  "scope": "V32 source-GLB curtain color trial genuine WebGL, no Android integration",
+  "source_head": "8d1fb2766d58b12553f2cbd95891fd4c3d7c22d7",
+  "run": {
+    "id": 41012954209,
+    "url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/41012954209",
+    "conclusion": "success",
+    "technical_jobs_pass": 15,
+    "technical_jobs_total": 15
+  },
+  "original_zip": {
+    "id": 12959340030,
+    "sha256": "6ef2b03fcafe63a8d112a1227c49d42b0c485c65fd3509b0614f7ff9f74e5fe8"
+  },
+  "image_review": {
+    "reference_px": [
+      1402,
+      1122
+    ],
+    "renders_px": [
+      700,
+      560
+    ],
+    "pairs_px": [
+      1400,
+      560
+    ],
+    "verified_image_hashes": 14,
+    "actually_inspected_trials": [
+      "ivory35",
+      "cream35",
+      "cream50",
+      "beige35",
+      "beige50",
+      "taupe35",
+      "umber35"
+    ],
+    "all_visual_verdicts": "FAIL",
+    "remaining_visible_failures": [
+      "Missing warm heavy side curtains and fold silhouettes in source GLB",
+      "Black rectangular backdrop covers actual reference window panes",
+      "Furnishing/bed/table/chair/source shapes and camera still differ dramatically"
+    ]
+  },
+  "approximate_rgb_3channel_mae": {
+    "method": "Downscaled genuine original reference half of each pair vs genuine WebGL half. Arbitrary broad window ROI x=[170,510),y=[45,300) includes mismatched objects/person; diagnostic ONLY, not visual acceptance.",
+    "scores": [
+      {
+        "label": "source_sheer35",
+        "global": 50.74,
+        "window_roi": 55.531
+      },
+      {
+        "label": "ivory35",
+        "global": 50.505,
+        "window_roi": 54.54
+      },
+      {
+        "label": "cream35",
+        "global": 50.045,
+        "window_roi": 52.599
+      },
+      {
+        "label": "cream50",
+        "global": 50.41,
+        "window_roi": 54.19
+      },
+      {
+        "label": "beige35",
+        "global": 49.199,
+        "window_roi": 49.011
+      },
+      {
+        "label": "beige50",
+        "global": 49.414,
+        "window_roi": 49.963
+      },
+      {
+        "label": "taupe35",
+        "global": 48.701,
+        "window_roi": 46.891
+      },
+      {
+        "label": "umber35",
+        "global": 48.212,
+        "window_roi": 44.8
+      }
+    ]
+  },
+  "provisional_editor_only_preview": {
+    "source_sheer_material": "material.010",
+    "tint_hex": "a68c6f",
+    "opacity": 0.35,
+    "selection": "lower broad ROI / global RGB error and visually warmer sides than pale source-preview, still source shape wrong",
+    "source_materials_immutable": true,
+    "night_backdrop_unchanged": true,
+    "stored_furniture_transforms_unchanged": true,
+    "not_separate_visual_pass": true
+  },
+  "manual": "ALL SEVEN V32 VARIANTS VISUAL FAIL / G2.3 PAUSED. V33 warm opt-in editor-only preview chosen provisionally; do not export into Android or claim geometric/source fidelity."
+}

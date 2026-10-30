@@ -105,6 +105,7 @@ let referenceShellPreview = false; // V23 opt-in architecture color test; not a 
 const sourceDrapeMaterials = new WeakMap();
 const SHEER_SOURCE_MATERIAL = 'material.010'; // original map-bearing white drape slot
 const SHEER_PREVIEW_ALPHA = 0.35; // V21 real WebGL: light-35 preserves the dark night panel
+const SHEER_PREVIEW_TINT = 'a68c6f'; // V32 7 real WebGL pairs: provisional warm umber preview only; whole room VISUAL FAIL
 
 
 function buildRoom() {
@@ -353,6 +354,7 @@ function setSourceSheerPreview(enabled) {
     const next=original.map(mat => {
       if (!mat || !enabled || mat.name!==SHEER_SOURCE_MATERIAL || !mat.map) return mat;
       const preview=mat.clone(); // Never mutate original GLB material / texture / source bytes.
+      preview.color.set('#'+SHEER_PREVIEW_TINT); // V33 opt-in editor preview only; original material stays intact.
       preview.transparent=true;
       preview.opacity=SHEER_PREVIEW_ALPHA;
       preview.depthWrite=false;
@@ -855,6 +857,8 @@ if (E2E_PROOF) {
           slots.push({
             name:source?.name||'', sourceHasMap:!!source?.map,
             sourceOpacity:source?.opacity??null, currentOpacity:current?.opacity??null,
+            sourceColor:source?.color?.getHexString()??null,
+            currentColor:current?.color?.getHexString()??null,
             originalIdentity:source===current,
             selectedSheer:source?.name===SHEER_SOURCE_MATERIAL&&!!source?.map
           });
