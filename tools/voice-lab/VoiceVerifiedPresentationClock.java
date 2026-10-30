@@ -11,6 +11,7 @@ public final class VoiceVerifiedPresentationClock {
     private int sampleRate;
     private long lastPresented, lastRaw, lastAccepted, lastCaptureNs, lastPollNs;
     private long maxObservedExternalCaptureNs;
+    private boolean invalidExternalCaptureAtHighWater;
     private boolean hasEvidence, hasBaseline, stopped, poisoned;
 
     public synchronized void begin(long id, int rate) {
@@ -20,6 +21,7 @@ public final class VoiceVerifiedPresentationClock {
         sampleRate = rate;
         lastPresented = lastRaw = lastAccepted = lastCaptureNs = lastPollNs = 0;
         maxObservedExternalCaptureNs = 0;
+        invalidExternalCaptureAtHighWater = false;
         hasEvidence = hasBaseline = stopped = poisoned = false;
     }
 
@@ -37,14 +39,20 @@ public final class VoiceVerifiedPresentationClock {
         // malformed one: that would launder an out-of-order frame into fresh proof.
         // RAW_HEAD_ONLY and nonsensical/stale timestamps carry no trusted capture
         // provenance; existing tests still allow a later valid independent claim.
-        if (kind == EvidenceKind.EXTERNAL_CAPTURE && captureNs >= 0
-                && pollNs >= captureNs && pollNs - captureNs <= MAX_AGE_NS) {
-            if (captureNs < maxObservedExternalCaptureNs) {
+        boolean plausibleExternalClock = kind == EvidenceKind.EXTERNAL_CAPTURE && captureNs >= 0
+                && pollNs >= captureNs && pollNs - captureNs <= MAX_AGE_NS;
+        if (plausibleExternalClock) {
+            if (captureNs < maxObservedExternalCaptureNs
+                    || (captureNs == maxObservedExternalCaptureNs
+                            && invalidExternalCaptureAtHighWater)) {
                 hasEvidence = false;
                 poisoned = true;
                 return false;
             }
-            maxObservedExternalCaptureNs = captureNs;
+            if (captureNs > maxObservedExternalCaptureNs) {
+                maxObservedExternalCaptureNs = captureNs;
+                invalidExternalCaptureAtHighWater = false;
+            }
         }
         // A demonstrated same-epoch reset is fatal even if this callback also has
         // inconsistent range/proof metadata. Do not lose reset evidence by treating
@@ -54,17 +62,20 @@ public final class VoiceVerifiedPresentationClock {
                 || pollNs < lastPollNs)) {
             hasEvidence = false;
             poisoned = true;
+            if (plausibleExternalClock) invalidExternalCaptureAtHighWater = true;
             return false;
         }
         if (kind != EvidenceKind.EXTERNAL_CAPTURE || presentedFrames < 0
                 || rawHeadFrames < presentedFrames || rawHeadFrames > acceptedFrames
                 || captureNs < 0 || pollNs < captureNs || pollNs - captureNs > MAX_AGE_NS) {
             hasEvidence = false;
+            if (plausibleExternalClock) invalidExternalCaptureAtHighWater = true;
             return false;
         }
         if (hasBaseline) {
             if (presentedFrames > lastPresented && captureNs == lastCaptureNs) {
                 hasEvidence = false;
+                if (plausibleExternalClock) invalidExternalCaptureAtHighWater = true;
                 return false;
             }
             long deltaFrames = presentedFrames - lastPresented;
@@ -79,6 +90,7 @@ public final class VoiceVerifiedPresentationClock {
             allowed = Long.MAX_VALUE - allowed < extra ? Long.MAX_VALUE : allowed + extra;
             if (deltaFrames > allowed) {
                 hasEvidence = false;
+                if (plausibleExternalClock) invalidExternalCaptureAtHighWater = true;
                 return false;
             }
         }
@@ -88,6 +100,7 @@ public final class VoiceVerifiedPresentationClock {
         lastCaptureNs = captureNs;
         lastPollNs = pollNs;
         hasEvidence = hasBaseline = true;
+        invalidExternalCaptureAtHighWater = false;
         return true;
     }
 
