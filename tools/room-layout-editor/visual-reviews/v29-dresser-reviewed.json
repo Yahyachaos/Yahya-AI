@@ -1,0 +1,100 @@
+{
+  "review_date": "2026-10-30",
+  "reviewer_scope": "Exclusive room-editor Chromium only",
+  "source_run_id": 40984567379,
+  "exact_head": "7971707b64a030e2a061e966c265237147974e16",
+  "source_url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40984567379",
+  "artifact_id": 12948036251,
+  "artifact_sha256": "1089ed0c455c3e27bf5f2afcd299ca4afe4f8cb19534889b7d24195c2f10e92b",
+  "genuine_webgl_700x560_images_visually_inspected": 5,
+  "reference_pairs_1400x560_visually_inspected": 5,
+  "ten_png_sha256_and_dimensions_verified": true,
+  "original_reference_px": [
+    1402,
+    1122
+  ],
+  "original13_glb_hashes_unchanged": true,
+  "other12_frozen": true,
+  "camera_frozen": true,
+  "room_m": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "native_v27_save_reload": "PASS",
+  "technical_jobs": "12/12 PASS",
+  "visual_explanation": "All five exact-source screenshots actually opened and compared: photo shows a long, low brown wood dresser along left wall, clipped by left frame. WebGL shows a slim raised-looking wood console that is too narrow/short and visually lacks the reference proportions and materials. Small rear/inward/forward/compact shifts do not meaningfully repair the silhouette; foreground table, window, bed and camera remain broadly wrong. Conservative AABB centers are geometry-only proxies, not visible pixel/silhouette acceptance.",
+  "baseline_retained": true,
+  "permanent_v29_transform_selected": false,
+  "candidates": [
+    {
+      "name": "baseline",
+      "x": -1.95,
+      "z": 0.4,
+      "scale": 0.8,
+      "projected_center_norm": [
+        0.1125756091577585,
+        0.5452891585397085
+      ],
+      "genuine_webgl_sha256": "b75b4b9e68f1e72a8ed5461ace9116d6c152a0d038869c451d1c8861c49bbf92",
+      "reference_pair_sha256": "6721c2d4fd0aa29ca8957d6735f560d7fa5e59dac090238c8cdbe239e9cfe3a0",
+      "visual": "FAIL"
+    },
+    {
+      "name": "inward",
+      "x": -1.78,
+      "z": 0.4,
+      "scale": 0.8,
+      "projected_center_norm": [
+        0.1433023814641889,
+        0.5448465550953412
+      ],
+      "genuine_webgl_sha256": "273f235a0bc5c3eeb6149d78d5f552d9cc03b8e0b7baf58235199958ee2894f9",
+      "reference_pair_sha256": "e8652b61a9c5538d752ccb0430ae40af441e65c3b6f4222af7695b11c914351a",
+      "visual": "FAIL"
+    },
+    {
+      "name": "rear",
+      "x": -1.78,
+      "z": 0.18,
+      "scale": 0.8,
+      "projected_center_norm": [
+        0.16418321390307544,
+        0.5258387333758731
+      ],
+      "genuine_webgl_sha256": "d18df0f81df481bdb3a639be21c9cad68d05a8446b651040a56c70fb5e16a642",
+      "reference_pair_sha256": "f940966d92bfa725f6d5ea815de79c53ec8f6223fae991ec79b587fd267af1ab",
+      "visual": "FAIL"
+    },
+    {
+      "name": "forward",
+      "x": -1.78,
+      "z": 0.62,
+      "scale": 0.8,
+      "projected_center_norm": [
+        0.1194961962342036,
+        0.5665173254535905
+      ],
+      "genuine_webgl_sha256": "4d959061b4068c532767db84645e603cb4dd2762daf094b8a0b7bec90b02e497",
+      "reference_pair_sha256": "240b5ba819f742a6f2552084c6b17db40e6c924330a14d36e18ff7aa66ae52d3",
+      "visual": "FAIL"
+    },
+    {
+      "name": "compact",
+      "x": -1.84,
+      "z": 0.4,
+      "scale": 0.72,
+      "projected_center_norm": [
+        0.13431421472609661,
+        0.5540065684841778
+      ],
+      "genuine_webgl_sha256": "3974eeb6e12c28556a0688702a6b387c5db9f5d244d1c6c54fbd0f4ef0462040",
+      "reference_pair_sha256": "4822208c13ee2d5fda858c37fa05f7821eff5168ce52ae13ffab8c793bf9f7a8",
+      "visual": "FAIL"
+    }
+  ],
+  "whole_room": "VISUAL_FAIL",
+  "g2_3": "PAUSED",
+  "android_integration": false,
+  "next_object": "room_lounge_chair"
+}

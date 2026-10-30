@@ -610,3 +610,53 @@ jobs:
             /tmp/celine-editor-http.log
           if-no-files-found: warn
           retention-days: 14
+
+  chair_v30:
+    name: Targeted V30 original lounge-chair WebGL depth and yaw with native Save Reload
+    needs: functional_browser
+    if: ${{ needs.functional_browser.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ROOM_EDITOR_EVIDENCE_DIR: /tmp/celine-room-editor-chair-v30
+    steps:
+      - name: Checkout isolated editor and original assets
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/workflows/celine-room-editor-browser-experiment.yml
+            tools/room-layout-editor/**
+            app/src/main/assets/models/room/source-fidelity/**
+            app/src/main/assets/models/room/celine_room_v80_assembly.json
+            Refernzbild.png
+      - name: Fetch unchanged source GLBs
+        run: git lfs pull
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Chromium and Three.js
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
+          npx playwright install --with-deps chromium
+      - name: Serve original editor and immutable GLBs
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-http.log 2>&1 &
+          sleep 2
+          curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
+      - name: Six real chair source-WebGL trials, 13 hashes, six-face bounds, lock save reload
+        run: |
+          node --check tools/room-layout-editor/chair-v30-proof.cjs
+          node tools/room-layout-editor/chair-v30-proof.cjs
+      - name: Upload original chair WebGL PNG pairs and audits even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celine-room-editor-chair-v30-evidence
+          path: |
+            /tmp/celine-room-editor-chair-v30/
+            /tmp/celine-editor-http.log
+          if-no-files-found: warn
+          retention-days: 14
