@@ -91,6 +91,9 @@ public final class FutureMemoryRecallContract {
     static final class DiskJournal implements CelineFutureMemoryRecall.OwnerPublicationJournal {
         final java.nio.file.Path directory;
         boolean crashAfterReserve, crashBeforeReserve, crashBeforeAck;
+        // Deterministic TEST-ONLY race barrier after two independent instances
+        // observed no existing reservation. Never part of a product owner.
+        static volatile java.util.concurrent.CountDownLatch bothMissing, releaseMissing;
         int actualReserves, actualAcknowledgements;
         DiskJournal(java.nio.file.Path directory) throws Exception {
             this.directory = directory;
@@ -127,12 +130,29 @@ public final class FutureMemoryRecallContract {
                 String intended = digest(sha256);
                 if (java.nio.file.Files.exists(entry)) {
                     String[] fields = java.nio.file.Files.readString(entry).split(" ",2);
-                    if (fields.length != 2 || !fields[1].equals(intended))
+                    if (fields.length != 2 || !fields[1].equals(intended)
+                            || !(fields[0].equals("STARTED") || fields[0].equals("COMPLETED")))
                         return Reservation.INTENT_CONFLICT;
                     return fields[0].equals("COMPLETED")
                         ? Reservation.ALREADY_COMPLETED : Reservation.ALREADY_STARTED;
                 }
-                persist(entry,"STARTED " + intended);
+                if (bothMissing != null) {
+                    bothMissing.countDown();
+                    if (!releaseMissing.await(5,java.util.concurrent.TimeUnit.SECONDS))
+                        throw new IllegalStateException("test-only claim barrier timed out");
+                }
+                // Atomic exclusive creation is the journal's reservation
+                // linearization point. REPLACE_EXISTING could otherwise let two
+                // separate DiskJournal instances both claim NEW_STARTED.
+                // A crash leaving a partial created file fails closed on read.
+                try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(entry,
+                        java.nio.file.StandardOpenOption.CREATE_NEW,
+                        java.nio.file.StandardOpenOption.WRITE)) {
+                    java.nio.ByteBuffer buf = java.nio.charset.StandardCharsets.UTF_8.encode(
+                            "STARTED " + intended);
+                    while (buf.hasRemaining()) ch.write(buf);
+                    ch.force(true);
+                }
                 actualReserves++;
                 if (crashAfterReserve) throw new IllegalStateException("crash after durable STARTED");
                 return Reservation.NEW_STARTED;
@@ -2546,6 +2566,92 @@ public final class FutureMemoryRecallContract {
                 "revoked generation during already-completed receipt must remain indeterminate");
             eq(racePublisherCalls.get(),0,"journal receipt path does not re-publish revoked data");
             System.out.println("FUTURE_G1_DISPATCH_JOURNAL_RESTART_AND_RACE=TEST_FIXTURE_ONLY");
+        }
+        // Malformed/truncated receipts must never be treated as COMPLETED or
+        // permit another publication. A same-digest unknown state is corrupt.
+        {
+            final java.nio.file.Path corruptRoot = java.nio.file.Files.createTempDirectory("future-g1-corrupt-");
+            final DiskJournal corrupt = new DiskJournal(corruptRoot);
+            final String id = "corrupt-fixture";
+            final byte[] intent = new byte[32];
+            java.util.Arrays.fill(intent,(byte)7);
+            final String hex = java.util.HexFormat.of().formatHex(intent);
+            final java.nio.file.Path record = corrupt.entry(id);
+            java.nio.file.Files.writeString(record,"STARTED ");
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT,
+                "truncated digest does not reserve again");
+            java.nio.file.Files.writeString(record,"");
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT,
+                "zero-byte reservation fails closed");
+            java.nio.file.Files.writeString(record,"GARBAGE " + hex);
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT,
+                "unknown state with valid digest is corrupt");
+            java.nio.file.Files.writeString(record,"COMPLETED " + hex + "\n");
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.INTENT_CONFLICT,
+                "extra trailing data cannot certify completed receipt");
+            java.nio.file.Files.writeString(record,"COMPLETED " + hex);
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.ALREADY_COMPLETED,
+                "valid matching completed receipt remains accepted");
+            java.nio.file.Files.writeString(record,"STARTED " + hex);
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.ALREADY_STARTED,
+                "completed-to-started rollback stays uncertain without republishing");
+            java.nio.file.Files.delete(record);
+            eq(corrupt.reserve(id,intent),CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.NEW_STARTED,
+                "DEMONSTRATED UNFIXED deletion rollback permits new reservation without independent watermark");
+            System.out.println("FUTURE_G1_JOURNAL_DELETION_ROLLBACK_RISK=REPRODUCED_UNFIXED");
+        }
+        // Two independent fixture instances on one journal directory must not
+        // BOTH reserve an absent same-ID record. Force both to observe absence
+        // before allowing their atomic claim. Instance-level synchronized is
+        // insufficient; this is a real two-thread duplicate-publication test.
+        {
+            final java.nio.file.Path raceRoot = java.nio.file.Files.createTempDirectory("future-g1-cross-instance-");
+            final java.util.concurrent.CountDownLatch bothMissing = new java.util.concurrent.CountDownLatch(2);
+            final java.util.concurrent.CountDownLatch releaseClaims = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicInteger publisherCalls = new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                first = new java.util.concurrent.atomic.AtomicReference<>();
+            final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                second = new java.util.concurrent.atomic.AtomicReference<>();
+            final CelineFutureMemoryRecall.OwnerContextPublisher publisher = (publishedGen,texts) ->
+                publisherCalls.incrementAndGet();
+            final CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority lease = () ->
+                new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                    public String generation() { return revisionNew; }
+                    public void close() {}
+                };
+            final CelineFutureMemoryRecall.OwnerLineageVerifier a =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,() -> revisionNew,
+                    lease,publisher,new DiskJournal(raceRoot));
+            final CelineFutureMemoryRecall.OwnerLineageVerifier b =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,() -> revisionNew,
+                    lease,publisher,new DiskJournal(raceRoot));
+            DiskJournal.bothMissing = bothMissing;
+            DiskJournal.releaseMissing = releaseClaims;
+            Thread t1 = new Thread(() -> first.set(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "cross-instance-1","Meine Katze heisst Momo",newProjection,newRevisionProof,a,8,NOW)));
+            Thread t2 = new Thread(() -> second.set(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "cross-instance-1","Meine Katze heisst Momo",newProjection,newRevisionProof,b,8,NOW)));
+            try {
+                t1.start(); t2.start();
+                eq(bothMissing.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                    "two separate journals observed same absent request ID");
+                releaseClaims.countDown();
+                t1.join(5000); t2.join(5000);
+                eq(t1.isAlive() || t2.isAlive(),false,"both concurrent dispatches terminate");
+                eq(publisherCalls.get(),1,"cross-instance duplicate cannot invoke publisher twice");
+                eq((first.get() == CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED
+                    && second.get() == CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE)
+                    || (second.get() == CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED
+                    && first.get() == CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE),
+                    true,"exactly one owner completed and the competing request is indeterminate");
+            } finally {
+                releaseClaims.countDown();
+                t1.join(5000); t2.join(5000);
+                DiskJournal.bothMissing = null;
+                DiskJournal.releaseMissing = null;
+            }
+            System.out.println("FUTURE_G1_CROSS_INSTANCE_ATOMIC_CLAIM=JVM_FIXTURE_ONLY");
         }
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
