@@ -156,6 +156,86 @@ async function run(){
    for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
     close3(b.transform[k],a[k],'Restore original V27 '+a.id+' '+k);
   }
+
+  // V36: original white-shell chair -> warm source-material clone trial; NO geometry change.
+  // Entire V27 scene, all source GLBs and frozen camera already restored above.
+  const baselineScene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  const baselineCamera=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+  const baselinePng=png('v36-chair-original-baseline-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  const colors=[
+    ['ivory','e0cdb5'],['dune','d2b69a'],['sandstone','bfa285'],
+    ['taupe','a88c72'],['camel','c49c78'],['dark-taupe','93775f']
+  ];
+  const v36Frames=[];
+  let sourceMaterialAudit=null;
+  for(const [label,hex] of colors){
+    const material=await page.evaluate(h=>window.__celineRoomEditorE2E.previewChairColorTrial(h),hex);
+    assert(material.meshes>0&&material.changed>0&&!material.originalIdentity,
+      'Only cloned original-chair material slots can receive color');
+    if(sourceMaterialAudit===null)sourceMaterialAudit=material.sourceSlots;
+    else assert.deepEqual(material.sourceSlots,sourceMaterialAudit,'Original source materials remain immutable');
+    const scene=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection()),
+      baselineCamera,'Fixed camera and projection');
+    for(const original of baselineScene.objects){
+      const current=scene.objects.find(o=>o.id===original.id);
+      assert(current&&current.loaded&&current.locked===original.locked&&
+        current.source_sha256===layout.original_source_hashes[original.id]);
+      for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+        close3(current.transform[k],original.transform[k],'V36 frozen original '+original.id+' '+k);
+    }
+    const real=png('v36-chair-'+label+'-real-webgl.png',
+      await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+    const paired=png('v36-chair-'+label+'-original-reference-pair.png',await page.evaluate(async()=>{
+      const r=document.querySelector('#reference-preview'),im=new Image();
+      im.src=window.__celineRoomEditorE2E.framePng({clean:true});
+      await new Promise((ok,bad)=>{if(im.complete&&im.naturalWidth)return ok();im.onload=ok;im.onerror=bad});
+      const c=document.createElement('canvas');c.width=1400;c.height=560;
+      c.getContext('2d').drawImage(r,0,0,700,560);
+      c.getContext('2d').drawImage(im,700,0,700,560);return c.toDataURL('image/png');
+    }),[1400,560]);
+    v36Frames.push({label,tintHex:hex,material,real,paired,manual:'FAIL_PENDING_REAL_IMAGE_REVIEW'});
+  }
+  const originalChair=await page.evaluate(()=>window.__celineRoomEditorE2E.previewChairColorTrial(null));
+  assert(originalChair.originalIdentity&&originalChair.changed===0);
+  const restoredPng=png('v36-chair-exact-source-restored-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  assert.equal(restoredPng.sha256,baselinePng.sha256,'Restore original chair pixels exactly');
+  const v36Download=page.waitForEvent('download');await page.locator('#save').click();
+  const v36Path=path.join(out,'v36-chair-native-browser-saved.json');
+  await (await v36Download).saveAs(v36Path);
+  const native=JSON.parse(fs.readFileSync(v36Path,'utf8'));
+  assert.deepEqual(native.room,v27.room);assert.equal(native.objects.length,13);
+  for(const original of v27.objects){
+    const item=native.objects.find(o=>o.id===original.id);
+    assert(item&&item.locked===original.locked);
+    for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+      close3(item[k],original[k],'V36 native Save '+original.id+' '+k);
+  }
+  const reloadName='v36-source-native-reload.json';
+  await page.locator('#file').setInputFiles({name:reloadName,mimeType:'application/json',buffer:fs.readFileSync(v36Path)});
+  await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),
+    reloadName,{timeout:60000});
+  const reloaded=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+  for(const original of baselineScene.objects){
+    const item=reloaded.objects.find(o=>o.id===original.id);
+    assert(item&&item.locked===original.locked&&item.source_sha256===original.source_sha256);
+    for(const k of ['translation_m','rotation_euler_deg','scale_xyz'])
+      close3(item.transform[k],original.transform[k],'V36 native Reload '+original.id+' '+k);
+  }
+  const reloadedPng=png('v36-chair-native-reloaded-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+  assert.equal(reloadedPng.sha256,baselinePng.sha256,'Original pixels after Save Reload');
+  fs.writeFileSync(path.join(out,'v36-chair-material-audit.json'),JSON.stringify({
+    exactHead:process.env.GITHUB_SHA||null,referencePx:[1402,1122],webglPx:[700,560],
+    cameraFrozen:baselineCamera,room:v27.room,original13SourceHashes:layout.original_source_hashes,
+    originalSlots:sourceMaterialAudit,baselinePng,restoredPng,reloadedPng,v36Frames,
+    sourceGLBsChanged:false,other12TransformsChanged:false,nativeSaveReload:true,
+    manualVisual:'FAIL_PENDING_AUTHENTIC_IMAGE_REVIEW',
+    knownBlocker:'Original chair source silhouette differs from beige upholstered photo even if tone improves',
+    wholeScene:'VISUAL_FAIL_G2_3_PAUSED',androidRelease:false
+  },null,2)+'\n');
   await page.locator('#reference-shell-preview').uncheck();
   assert.deepEqual(errors,[],'No Chromium browser errors');
   fs.writeFileSync(path.join(out,'v30-chair-audit.json'),JSON.stringify({
@@ -167,7 +247,7 @@ async function run(){
    nativeSaveReloadEachTrial:true,restoredV27:true,frames,technical:'PASS',
    manualVisual:'FAIL_PENDING_AUTHENTIC_PNG_REVIEW',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
-  console.log('CELINE_ROOM_V30_CHAIR_GENUINE_WEBGL_TECH_PASS');
+  console.log('CELINE_ROOM_V30_V36_CHAIR_GENUINE_WEBGL_TECH_PASS');
  }finally{await browser.close()}
 }
 run().catch(e=>{console.error(e.stack||e);process.exitCode=1});
