@@ -64,6 +64,10 @@ public final class GermanSpeechChunkPlanner {
         if (isShortMonth(token) && isDateMonthContinuation(text, start, p + 1, boundaryEnd))
             return true;
         switch (token) {
+            case "mio": case "mrd": case "tsd":
+                // Do not split a quantified phrase: "2 Mio. Euro" must reach TTS
+                // as one chunk. An unqualified "2 Mio. Danach" still ends here.
+                return isQuantityScaleContinuation(text, start, p + 1, boundaryEnd);
             case "usw":
                 // "usw." can close a complete list AND the sentence. Preserve the
                 // abbreviation within running lowercase text, but do not swallow
@@ -98,6 +102,32 @@ public final class GermanSpeechChunkPlanner {
                 return digits <= 2 && n >= start + 1 && text.charAt(n) == '.'
                         && Character.isDigit(text.charAt(n - 1))
                         && isNumericDateContinuation(text, boundaryEnd);
+        }
+    }
+
+    /** Numeric quantity abbreviation + an unambiguous continuing unit/phrase. */
+    private static boolean isQuantityScaleContinuation(String text, int start,
+            int abbreviationStart, int boundaryEnd) {
+        int left = abbreviationStart - 1;
+        while (left >= start && text.charAt(left) == ' ') left--;
+        if (left < start || !Character.isDigit(text.charAt(left))) return false;
+        int lastDigit = left;
+        while (left >= start && (Character.isDigit(text.charAt(left))
+                || text.charAt(left) == ',' || text.charAt(left) == '.')) left--;
+        if (left >= start && Character.isLetterOrDigit(text.charAt(left))) return false;
+        if (lastDigit == left) return false;
+        if (boundaryEnd >= text.length() || text.charAt(boundaryEnd) != ' '
+                || boundaryEnd + 1 >= text.length()) return false;
+        int wordStart = boundaryEnd + 1;
+        if (Character.isLowerCase(text.charAt(wordStart))) return true;
+        int wordEnd = wordStart;
+        while (wordEnd < text.length() && Character.isLetter(text.charAt(wordEnd))) wordEnd++;
+        switch (text.substring(wordStart, wordEnd).toLowerCase(Locale.ROOT)) {
+            case "euro": case "eur": case "dollar": case "stück":
+            case "menschen": case "einwohner": case "personen":
+            case "kunden": case "nutzer": case "nutzern":
+                return true;
+            default: return false;
         }
     }
 
