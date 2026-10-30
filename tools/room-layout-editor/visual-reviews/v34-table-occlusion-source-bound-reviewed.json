@@ -1,0 +1,90 @@
+{
+  "schema": "yahya-room-layout-editor/actual-source-visual-review/v1",
+  "date": "2026-10-30",
+  "branch": "experiment/visual-room-editor-v83",
+  "exact_head_reviewed": "7d339318159a94e4fac5bc510a3c6170bac16ff0",
+  "latest_run": {
+    "id": 41019182013,
+    "url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/41019182013",
+    "conclusion": "success",
+    "technical_jobs_passed": 15,
+    "technical_jobs_total": 15
+  },
+  "authentic_material_evidence": {
+    "zip_artifact_id": 12961605849,
+    "zip_sha256": "793d2c1bcd0a1581639256af89b5d760d8dde1c4f75a42ac9874293940634451",
+    "selected_700x560": {
+      "file": "layout-v32-selected-source-sheer-35-genuine-webgl.png",
+      "sha256": "1d8fae23a289fc190a6b266fb94c166df42042bd249f0e5fa71ae19484abd52c"
+    },
+    "original_reverted_700x560": {
+      "file": "layout-v32-original-source-material-reverted-webgl.png",
+      "sha256": "42a0a2c77733aae1d6fee3d35f88cc63d11246213b5ee2047ae770960a5ef045"
+    },
+    "reference_pair_1400x560_sha256": "1bc62447eb967deea5bca8e0422dc01864e0e4f01fc8e4f9c3137770083273cf",
+    "actually_inspected": true,
+    "material_preview_toggle_reversible": true,
+    "source_sheer_tint": "a68c6f",
+    "source_sheer_opacity": 0.35,
+    "night_backdrop_identity_preserved": true,
+    "visual_verdict": "FAIL",
+    "visible_problem": "Translucent mapped fabric remains thin and dark rectangular backplane dominates the window; warm pleated side curtains absent, furniture/architecture still wrong."
+  },
+  "authentic_table_review": {
+    "reused_existing_run_id": 41019182013,
+    "artifact_id": 12962026721,
+    "zip_sha256": "688a5c9d570bcedc0ebe867e5988a38e3f8c6a72ddfb96f9397378999d67a6b6",
+    "actually_viewed_v24_source_reference_pairs": [
+      "baseline-135",
+      "front-135",
+      "compact-120",
+      "wide-150",
+      "wide-180",
+      "wide-210"
+    ],
+    "canonical_dimensions_m": {
+      "width": 4.4,
+      "depth": 4.2,
+      "height": 2.65
+    },
+    "source_table": {
+      "id": "room_foreground_table",
+      "uniform_scale": 1.35,
+      "translation_z_m": 1.72,
+      "locked": true
+    },
+    "source_mesh_forward_AABB": {
+      "baseline_z_max_m": 2.0554391312620335,
+      "baseline_room_front_margin_m": 0.0445608687379665,
+      "front_trial_z_center_m": 1.76,
+      "front_trial_z_max_m": 2.0954391312620335,
+      "front_trial_margin_m": 0.0045608687379665,
+      "front_limit_z_m": 2.1
+    },
+    "existing_camera_projection_centers": {
+      "baseline_v": 0.7456137777128017,
+      "front_trial_v": 0.7554814873004136,
+      "delta_v": 0.0098677095880119,
+      "delta_y_at_560px": 5.5259173692866
+    },
+    "compact_trial": {
+      "uniform_scale": 1.2,
+      "z_max_m": 2.09817,
+      "projected_center_y_560px": 436.1
+    },
+    "source_semantic_conflict": "Reference: mostly bottom-cropped horizontal front desk edge with laptop. Actual source: freestanding, mid-frame tabletop and visible tall black legs. Within strict room AABB a 0.04m forward movement barely changes projected center; higher/wider variants worsen upper-room overlap. Scaling moves/widens same wrong source shape; cannot repair its semantics or the reference-camera mismatch.",
+    "measured_uncertainty": "Center values are world-AABB projections, NOT true visible table contour; visible bound statements are manual qualitative from authenticated PNG pairs. No invented matched silhouette.",
+    "manual_visual_verdict": "FAIL",
+    "selected_new_transform": false,
+    "next_causal_proof": "One-frame original table render ON/OFF comparison in isolated localhost WebGL E2E, with per-pixel occlusion mask, native Save/Reload and unchanged 13 GLB source SHA/locks. Do not repeat V24 scale-only variants."
+  },
+  "protected": {
+    "original_GLBS": 13,
+    "original_distinct_GLBS": 12,
+    "room_unchanged": true,
+    "camera_unchanged": true,
+    "locks_unchanged": true,
+    "no_android_or_release": true
+  },
+  "whole_scene": "VISUAL_FAIL_G2_3_PAUSED"
+}
