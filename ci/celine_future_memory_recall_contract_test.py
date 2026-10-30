@@ -548,6 +548,115 @@ public final class FutureMemoryRecallContract {
             protectedGeneration = local.revision;
         }
     }
+    /**
+     * FUTURE ONLY: deterministic competing JVM-thread fixture.  The lease
+     * acquisition pauses AFTER the public high-water preflight returned CURRENT
+     * but BEFORE the owner transaction can reserve or reuse a completed receipt.
+     * This is deliberately an in-memory model, not Android antirollback proof.
+     */
+    static final class PausedHighWaterOwner
+            implements CelineFutureMemoryRecall.OwnerHighWaterDispatchAuthority {
+        final HighWaterFixture delegate = new HighWaterFixture();
+        final java.util.concurrent.CountDownLatch leaseEntered;
+        final java.util.concurrent.CountDownLatch releaseLease =
+                new java.util.concurrent.CountDownLatch(1);
+        volatile boolean gateLease;
+        PausedHighWaterOwner(int simultaneousCallers) {
+            leaseEntered = new java.util.concurrent.CountDownLatch(simultaneousCallers);
+        }
+        @Override public CelineFutureMemoryRecall.OwnerHighWaterStatus
+                protectedGenerationStatus(String generation) {
+            return delegate.protectedGenerationStatus(generation);
+        }
+        @Override public String currentGeneration() { return delegate.currentGeneration(); }
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+            if (gateLease) {
+                leaseEntered.countDown();
+                try {
+                    if (!releaseLease.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                        throw new IllegalStateException("race fixture timed out at lease barrier");
+                } catch (InterruptedException interruption) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("race fixture interrupted",interruption);
+                }
+            }
+            return delegate.acquireReadLease();
+        }
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome
+                dispatchUnderOwnerLock(String generation,String requestId,byte[] digest,
+                        Runnable publisher) {
+            return delegate.dispatchUnderOwnerLock(generation,requestId,digest,publisher);
+        }
+    }
+    private static void highWaterMidflightRaceTests() throws Exception {
+        var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        var done=CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+        var projection=Arrays.asList(c("race-highwater-cat","Meine Katze Luna"));
+        var certificate=Fixture.sourceFixture(projection,Collections.emptySet(),Collections.emptySet());
+        // Two independent callers each perform a real preflight before an
+        // external high-water authority flips.  Include ALREADY_COMPLETED,
+        // whose prior receipt must never turn stale authority into success.
+        for (int seeded=0;seeded<2;seeded++) {
+            for (int change=0;change<4;change++) {
+                PausedHighWaterOwner owner=new PausedHighWaterOwner(2);
+                java.util.concurrent.atomic.AtomicInteger sent=new java.util.concurrent.atomic.AtomicInteger();
+                var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                        Fixture.TEST_ONLY_SECRET,owner,(gen,summaries)->sent.incrementAndGet());
+                String id="race-highwater-"+seeded+"-"+change;
+                if (seeded==1) {
+                    eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                            id,"Meine Katze Luna",projection,certificate,verifier,8,NOW),done,
+                            "seed a completed receipt before protected high-water race");
+                }
+                owner.gateLease=true;
+                java.util.concurrent.atomic.AtomicReference<
+                        CelineFutureMemoryRecall.OwnerPublicationOutcome> first=
+                        new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.atomic.AtomicReference<
+                        CelineFutureMemoryRecall.OwnerPublicationOutcome> second=
+                        new java.util.concurrent.atomic.AtomicReference<>();
+                Thread a=new Thread(()->first.set(
+                        CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                                id,"Meine Katze Luna",projection,certificate,verifier,8,NOW)),
+                        "future-highwater-race-a");
+                Thread b=new Thread(()->second.set(
+                        CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                                id,"Meine Katze Luna",projection,certificate,verifier,8,NOW)),
+                        "future-highwater-race-b");
+                a.start();b.start();
+                boolean bothReached=owner.leaseEntered.await(10,java.util.concurrent.TimeUnit.SECONDS);
+                try {
+                    eq(bothReached,true,"both claimants reached post-preflight barrier");
+                    // Independent witness changes while the ordinary G1 local
+                    // revision and previously completed receipt stay unchanged.
+                    switch(change) {
+                        case 0 -> owner.delegate.protectedGeneration="new-protected-generation";
+                        case 1 -> owner.delegate.missing=true;
+                        case 2 -> owner.delegate.compromised=true;
+                        case 3 -> owner.delegate.throwOnRead=true;
+                        default -> throw new AssertionError("bad race mode");
+                    }
+                } finally { owner.releaseLease.countDown(); }
+                a.join(10000);b.join(10000);
+                eq(a.isAlive()||b.isAlive(),false,"two racing claimants finish in bounded time");
+                // A transaction may conservatively return INDETERMINATE when
+                // the owner denied dispatch before reserve; never COMPLETED.
+                eq(first.get()!=null&&first.get()!=done,true,
+                        "first stale protected witness cannot complete");
+                eq(second.get()!=null&&second.get()!=done,true,
+                        "second stale protected witness cannot complete");
+                eq(sent.get(),seeded,"no stale external callback after high-water advance");
+                eq(owner.delegate.local.receipt(id),seeded==1?"COMPLETED":null,
+                        "stale request does not create a fresh reservation");
+                eq(owner.delegate.local.completedSealCount,seeded,
+                        "old completed receipt is not re-sealed on stale authority");
+                eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                        id,"Meine Katze Luna",projection,certificate,verifier,8,NOW),reject,
+                        "later old-generation retry rejected by protected authority");
+            }
+        }
+        System.out.println("FUTURE_G1_HIGH_WATER_TOCTOU_RACE_PASS=JVM_FIXTURE_ONLY");
+    }
     private static void highWaterOwnerTests() throws Exception {
         var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
         var uncertain=CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
@@ -3917,8 +4026,14 @@ public final class FutureMemoryRecallContract {
                 "missing frame cannot reset journal into new publication");
             System.out.println("FUTURE_G1_FILE_OWNER_RESTART_RACE=JVM_ONLY_SINGLE_FRAME_SIMULATION");
         }
+        if (Boolean.getBoolean("celine.highwater.race.only")) {
+            highWaterMidflightRaceTests();
+            System.out.println("FUTURE_MEMORY_HIGH_WATER_RACE_FOCUSED_PASS cases="+passed);
+            return;
+        }
         strictAtomicOwnerTests();
         highWaterOwnerTests();
+        highWaterMidflightRaceTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
