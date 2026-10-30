@@ -11,6 +11,25 @@ const repo=path.resolve(__dirname,'../..');
 const out=process.env.ROOM_EDITOR_EVIDENCE_DIR || '/tmp/celine-room-editor-mobile-touch';
 fs.mkdirSync(out,{recursive:true});
 const record=[], errors=[];
+const crypto=require('node:crypto');
+// V43: independent native original-GLB WebGL capture, so failure of the
+// Chromium compositor screenshot no longer destroys all visual diagnostics.
+async function captureRealWebGL(page,filename){
+  const data=await page.evaluate(()=>({
+    data_url:window.__celineRoomEditorE2E.framePng({clean:true}),
+    canvas_css:((r)=>[r.width,r.height])(document.querySelector('#viewport canvas').getBoundingClientRect()),
+    screen_css:[innerWidth,innerHeight],
+    device_pixel_ratio:devicePixelRatio
+  }));
+  assert.match(data.data_url,/^data:image\/png;base64,/);
+  const bytes=Buffer.from(data.data_url.slice('data:image/png;base64,'.length),'base64');
+  assert(bytes.length>2000,'Real WebGL canvas PNG is unexpectedly small');
+  assert.equal(bytes.subarray(1,4).toString('ascii'),'PNG');
+  fs.writeFileSync(path.join(out,filename),bytes);
+  return {filename,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
+    bytes:bytes.length,pixels:[bytes.readUInt32BE(16),bytes.readUInt32BE(20)],
+    screen_css:data.screen_css,canvas_css:data.canvas_css,dpr:data.device_pixel_ratio};
+}
 async function main(){
   const browser=await chromium.launch({headless:true,args:[
     '--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
@@ -54,7 +73,16 @@ async function main(){
     assert.equal(await page.locator('#scale-mode').getAttribute('class'),'active');
     await page.locator('[data-mobile-action="move"]').tap();
     record.push({name:'MOBILE_TOUCH_MODES_AND_SELECTION_PASS'});
-    await page.screenshot({path:path.join(out,'mobile-loaded-before-history-412x915.png')});
+    // Previous V42 failure was at compositor screenshot after 13/13 GLBs.
+    // Capture the actual framebuffer FIRST, then perform the genuine touch/JSON
+    // workflow before attempting the compositor capture. No fake furniture.
+    const preflight={source_sha:process.env.GITHUB_SHA||null,
+      viewport:[await page.evaluate(()=>innerWidth),await page.evaluate(()=>innerHeight)],
+      canvas:initial.canvas_px,status,stage_css:await page.locator('#viewport').boundingBox()};
+    fs.writeFileSync(path.join(out,'mobile-capture-preflight.json'),JSON.stringify(preflight,null,2));
+    const nativeFirst=await captureRealWebGL(page,'mobile-13-original-glb-before-history-real-webgl.png');
+    record.push({name:'MOBILE_NATIVE_REAL_WEBGL_BEFORE_HISTORY',nativeFirst});
+    fs.writeFileSync(path.join(out,'mobile-capture-preflight.json'),JSON.stringify({...preflight,nativeFirst},null,2));
     const baseX=Number(await page.locator('#x').inputValue());
     await page.locator('[data-nudge="x:1"]').tap();
     const movedX=Number(await page.locator('#x').inputValue());
@@ -107,8 +135,8 @@ async function main(){
     await page.locator('[data-mobile-zoom="0.82"]').tap();
     await page.locator('[data-mobile-zoom="1.22"]').tap();
     record.push({name:'MOBILE_ZOOM_BUTTONS_PASS'});
-    await page.screenshot({path:path.join(out,'mobile-s25-viewport-412x915.png')});
-    await page.locator('canvas').screenshot({path:path.join(out,'mobile-s25-real-13glb-webgl.png')});
+    const nativeAfter=await captureRealWebGL(page,'mobile-s25-real-13glb-webgl.png');
+    record.push({name:'MOBILE_NATIVE_REAL_WEBGL_AFTER_GESTURES',nativeAfter});
     const downloadPromise=page.waitForEvent('download');
     await page.locator('[data-mobile-action="save"]').tap();
     const dl=await downloadPromise, saved=path.join(out,'mobile-export-all-13.json');
@@ -124,7 +152,27 @@ async function main(){
     assert.equal(await page.locator('#x').isDisabled(),true);
     record.push({name:'MOBILE_JSON_EXPORT_IMPORT_13_LOCKS_PASS'});
     assert.deepEqual(errors,[],'No browser/HTTP errors allowed');
-    const result={verdict:'PASS',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
+    // Compositor capture is last; if it stalls, preserve native PNG and JSON.
+    // A missing true full-viewport shot is a FAIL, never a mobile visual PASS.
+    let compositorError=null;
+    try {
+      await page.screenshot({path:path.join(out,'mobile-s25-viewport-412x915.png'),
+        timeout:10000,animations:'disabled'});
+      const full=fs.readFileSync(path.join(out,'mobile-s25-viewport-412x915.png'));
+      const dimensions=[full.readUInt32BE(16),full.readUInt32BE(20)];
+      assert.deepEqual(dimensions,[1236,2745],'412x915 CSS mobile screenshot at DPR 3');
+      record.push({name:'MOBILE_FULL_VIEWPORT_COMPOSITOR_CAPTURE_PASS',
+        filename:'mobile-s25-viewport-412x915.png',
+        sha256:crypto.createHash('sha256').update(full).digest('hex'),pixels:dimensions});
+    } catch(err) {
+      compositorError=String(err.stack||err);
+      record.push({name:'MOBILE_FULL_VIEWPORT_COMPOSITOR_CAPTURE_FAIL',
+        error:compositorError,native_before:nativeFirst.sha256,native_after:nativeAfter.sha256});
+      fs.writeFileSync(path.join(out,'mobile-compositor-diagnostic.json'),
+        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,record,errors},null,2));
+    }
+    if(compositorError)throw new Error('Full 412x915 screenshot blocked despite native GLB/JSON evidence: '+compositorError);
+    const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');
   } finally {await browser.close();}
