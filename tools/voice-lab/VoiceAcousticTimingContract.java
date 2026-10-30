@@ -12,6 +12,8 @@ public final class VoiceAcousticTimingContract {
     private int sampleRate;
     private long measuredDelayFrames;
     private long headFrames;
+    // AudioTrack accepted-PCM count is cumulative within one output generation.
+    private long acceptedFrames;
     private long sourceTimestampNs;
     private long pollTimestampNs;
     private boolean calibrated;
@@ -38,6 +40,7 @@ public final class VoiceAcousticTimingContract {
         this.sampleRate = sampleRate;
         this.measuredDelayFrames = 0;
         this.headFrames = 0;
+        this.acceptedFrames = 0;
         this.sourceTimestampNs = 0;
         this.pollTimestampNs = 0;
         this.calibrated = false;
@@ -61,6 +64,7 @@ public final class VoiceAcousticTimingContract {
         calibrated = true;
         hasObservation = false; // a new calibration invalidates the old sample
         hasBaseline = false;
+        acceptedFrames = 0;
         hasPlausibleClock = false;
         highestSourceNs = highestPollNs = 0;
         rejectedPlausibleClock = false;
@@ -106,6 +110,14 @@ public final class VoiceAcousticTimingContract {
             if (plausibleClock && hasBaseline) rejectedPlausibleClock = true;
             return false;
         }
+        // A well-formed cumulative PCM count cannot rewind within the same
+        // AudioTrack generation. A malformed head-ahead-of-accepted sample was
+        // already quarantined above and remains recoverable against the baseline.
+        if (hasBaseline && accepted < acceptedFrames) {
+            hasObservation = false;
+            poisoned = true;
+            return false;
+        }
         if (hasBaseline) {
             // A fixed timestamp cannot justify an advanced sample position.
             if (head > headFrames && sourceNs == sourceTimestampNs) {
@@ -129,6 +141,7 @@ public final class VoiceAcousticTimingContract {
         }
         rejectedPlausibleClock = false;
         headFrames = head;
+        acceptedFrames = accepted;
         sourceTimestampNs = sourceNs;
         pollTimestampNs = pollNs;
         hasObservation = hasBaseline = true;
