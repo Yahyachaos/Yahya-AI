@@ -281,6 +281,26 @@ public final class CelineFutureMemoryRecall {
                 Runnable synchronousPublisher);
     }
 
+    /**
+     * FUTURE-ONLY required capability for a separate, protected G1 high-water
+     * source. The protected epoch MUST remain advanced after a complete restore
+     * of ordinary G1 snapshots, journals, anchor files and backups. A normal
+     * file, AndroidKeyStore AES-GCM key or caller-supplied string does NOT prove
+     * this requirement. Only a trusted source owner can install this adapter.
+     *
+     * An owner MUST recheck the protected epoch inside the same serialized
+     * dispatchUnderOwnerLock transaction, including an ALREADY_COMPLETED read.
+     * The outer checks below are fail-closed guards, not a replacement for an
+     * atomic, nonrollbackable Android G1 implementation.
+     */
+    public enum OwnerHighWaterStatus {
+        CURRENT, ROLLED_BACK, MISSING, COMPROMISED
+    }
+
+    public interface OwnerHighWaterDispatchAuthority extends OwnerAtomicDispatchAuthority {
+        OwnerHighWaterStatus protectedGenerationStatus(String certifiedGeneration);
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
@@ -656,6 +676,50 @@ public final class CelineFutureMemoryRecall {
             return transactionAttempted ? OwnerPublicationOutcome.STARTED_INDETERMINATE
                     : OwnerPublicationOutcome.REJECTED_BEFORE_START;
         }
+    }
+
+    /**
+     * Post-v83 high-water-gated strict dispatch. Legacy strict owners without
+     * independent antirollback capability are rejected BEFORE publication.
+     * Missing, stale, corrupt, null or throwing attestations fail closed; no
+     * attempt is made to reconstruct or reset authority from local files.
+     * After a transaction was entered, loss of the witness is INDETERMINATE,
+     * never a signal to retry a possibly delivered external side effect.
+     *
+     * This is an INTERFACE AND JVM POLICY ONLY. The injected owner can lie;
+     * there is no real protected counter, Android G1 store, or provider sink.
+     */
+    public static OwnerPublicationOutcome publishCertifiedOwnerContextHighWater(
+            String ownerIssuedRequestId, String query, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier trustedG1Verifier,
+            int maxResults, long now) {
+        if (certificate == null || certificate.generation == null
+                || trustedG1Verifier == null
+                || !(trustedG1Verifier.ownerAtomicDispatchAuthority
+                     instanceof OwnerHighWaterDispatchAuthority))
+            return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        OwnerHighWaterDispatchAuthority owner = (OwnerHighWaterDispatchAuthority)
+                trustedG1Verifier.ownerAtomicDispatchAuthority;
+        try {
+            if (owner.protectedGenerationStatus(certificate.generation)
+                    != OwnerHighWaterStatus.CURRENT)
+                return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        } catch (RuntimeException ex) {
+            return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        }
+        OwnerPublicationOutcome result = publishCertifiedOwnerContextAtomic(
+                ownerIssuedRequestId, query, candidates, certificate,
+                trustedG1Verifier, maxResults, now);
+        try {
+            if (owner.protectedGenerationStatus(certificate.generation)
+                    != OwnerHighWaterStatus.CURRENT)
+                return result == OwnerPublicationOutcome.REJECTED_BEFORE_START
+                        ? result : OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        } catch (RuntimeException ex) {
+            return result == OwnerPublicationOutcome.REJECTED_BEFORE_START
+                    ? result : OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        }
+        return result;
     }
 
     private static byte[] ownerDispatchIntent(String requestId, String query,

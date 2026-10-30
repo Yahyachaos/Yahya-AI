@@ -514,6 +514,146 @@ public final class FutureMemoryRecallContract {
         String receipt(String id) { synchronized(transactionLock) {return receipts.get(id);} }
     }
 
+    /** Simulated independent checkpoint; NOT actually durable/antirollback. */
+    static final class HighWaterFixture
+            implements CelineFutureMemoryRecall.OwnerHighWaterDispatchAuthority {
+        final StrictAtomicFixture local = new StrictAtomicFixture();
+        volatile String protectedGeneration = Fixture.TEST_ONLY_GENERATION;
+        volatile boolean missing, compromised, throwOnRead;
+        @Override public CelineFutureMemoryRecall.OwnerHighWaterStatus
+                protectedGenerationStatus(String expected) {
+            if (throwOnRead) throw new IllegalStateException("test-only witness I/O fault");
+            if (missing) return CelineFutureMemoryRecall.OwnerHighWaterStatus.MISSING;
+            if (compromised) return CelineFutureMemoryRecall.OwnerHighWaterStatus.COMPROMISED;
+            return expected != null && expected.equals(protectedGeneration)
+                    && expected.equals(local.revision)
+                    ? CelineFutureMemoryRecall.OwnerHighWaterStatus.CURRENT
+                    : CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK;
+        }
+        @Override public String currentGeneration() { return local.currentGeneration(); }
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+            return local.acquireReadLease();
+        }
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome dispatchUnderOwnerLock(
+                String gen, String id, byte[] digest, Runnable publisher) {
+            synchronized (local.transactionLock) {
+                if (protectedGenerationStatus(gen)
+                        != CelineFutureMemoryRecall.OwnerHighWaterStatus.CURRENT)
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+                return local.dispatchUnderOwnerLock(gen,id,digest,publisher);
+            }
+        }
+        void revokeAndKeepHighWater() {
+            local.revoke();
+            protectedGeneration = local.revision;
+        }
+    }
+    private static void highWaterOwnerTests() throws Exception {
+        var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        var uncertain=CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        var done=CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+        var projection=Arrays.asList(c("highwater-cat","Meine Katze Luna"));
+        var certificate=Fixture.sourceFixture(projection,Collections.emptySet(),Collections.emptySet());
+        var sent=new java.util.concurrent.atomic.AtomicInteger();
+        HighWaterFixture owner=new HighWaterFixture();
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,owner,(gen,text)->sent.incrementAndGet());
+        String query="Meine Katze Luna";
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw1",query,projection,certificate,verifier,8,NOW),done,
+                "protected current epoch permits one strict receipt");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw1",query,projection,certificate,verifier,8,NOW),done,
+                "current repeated receipt does not republish");
+        eq(sent.get(),1,"current protected receipt sends once");
+        // A full rollback of BOTH local frame+versioned anchor is modeled by
+        // restoring local revision/receipts; only the independent witness stays new.
+        owner.revokeAndKeepHighWater();
+        owner.local.revision=Fixture.TEST_ONLY_GENERATION;
+        eq(owner.protectedGenerationStatus(certificate.generation),
+                CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK,
+                "external high-water detects full rollback of local source");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw1",query,projection,certificate,verifier,8,NOW),reject,
+                "old-generation completed receipt rejected after full local restore");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw2",query,projection,certificate,verifier,8,NOW),reject,
+                "restored local files cannot start new stale request");
+        eq(sent.get(),1,"rollback never redispatches published plaintext");
+        owner.missing=true;
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw3",query,projection,certificate,verifier,8,NOW),reject,
+                "missing high-water authority fails closed");
+        owner.missing=false;owner.compromised=true;
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw4",query,projection,certificate,verifier,8,NOW),reject,
+                "compromised high-water authority fails closed");
+        owner.compromised=false;owner.throwOnRead=true;
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "hw5",query,projection,certificate,verifier,8,NOW),reject,
+                "throwing high-water authority fails closed without reset");
+        owner.throwOnRead=false;
+        eq(owner.protectedGenerationStatus(certificate.generation),
+                CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK,
+                "failed witness reads cannot silently repair historical rollback");
+        StrictAtomicFixture oldOwner=new StrictAtomicFixture();
+        var oldVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,oldOwner,(gen,text)->sent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "legacy",query,projection,certificate,oldVerifier,8,NOW),reject,
+                "legacy strict owner cannot bypass mandatory protected witness");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "null",query,projection,null,verifier,8,NOW),reject,
+                "missing certificate cannot reach high-water dispatch");
+        eq(sent.get(),1,"all failed attestations prevent further publications");
+        // Missing/compromised source is independently denied even when the
+        // local snapshot and ordinary strict journal are otherwise CURRENT.
+        HighWaterFixture unavailable=new HighWaterFixture();
+        var unavailableSent=new java.util.concurrent.atomic.AtomicInteger();
+        var unavailableVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,unavailable,(gen,text)->unavailableSent.incrementAndGet());
+        unavailable.missing=true;
+        eq(unavailable.protectedGenerationStatus(certificate.generation),
+                CelineFutureMemoryRecall.OwnerHighWaterStatus.MISSING,
+                "missing protected witness distinct from ordinary snapshot rollback");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "unavailable",query,projection,certificate,unavailableVerifier,8,NOW),reject,
+                "current local snapshot cannot bypass missing witness");
+        unavailable.missing=false;unavailable.compromised=true;
+        eq(unavailable.protectedGenerationStatus(certificate.generation),
+                CelineFutureMemoryRecall.OwnerHighWaterStatus.COMPROMISED,
+                "compromised witness distinct from missing witness");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "unavailable",query,projection,certificate,unavailableVerifier,8,NOW),reject,
+                "current local snapshot cannot bypass corrupt witness");
+        eq(unavailableSent.get(),0,"missing or compromised witness causes zero callbacks");
+        eq(unavailable.local.receipt("unavailable"),null,
+                "failure before strict transaction does not create false STARTED receipt");
+        unavailable.compromised=false;
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "unavailable",query,projection,certificate,unavailableVerifier,8,NOW),done,
+                "explicit restoration of trusted witness permits fresh normal transaction");
+        eq(unavailableSent.get(),1,"restored trusted model only publishes once");
+        // A post-publish authority loss is uncertain, never retryable success.
+        HighWaterFixture changed=new HighWaterFixture();
+        var changedSent=new java.util.concurrent.atomic.AtomicInteger();
+        var changedVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,changed,(gen,text)->{
+                    changedSent.incrementAndGet();
+                    changed.protectedGeneration="generation-2";
+                });
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "race",query,projection,certificate,changedVerifier,8,NOW),uncertain,
+                "witness changed during delivery must not report COMPLETED");
+        eq(changedSent.get(),1,"post-start witness change cannot undo delivery");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+                "race",query,projection,certificate,changedVerifier,8,NOW),reject,
+                "uncertain old request cannot be auto-retried");
+        eq(changedSent.get(),1,"failed reopen cannot publish twice");
+        System.out.println("FUTURE_G1_HIGH_WATER_MODEL_PASS=UNTRUSTED_JVM_WITNESS_ONLY");
+        System.out.println("FUTURE_G1_REAL_NONROLLBACKABLE_AUTHORITY=UNIMPLEMENTED");
+    }
+
     private static void strictAtomicOwnerTests() throws Exception {
         var done = CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
         var uncertain = CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
@@ -3778,6 +3918,7 @@ public final class FutureMemoryRecallContract {
             System.out.println("FUTURE_G1_FILE_OWNER_RESTART_RACE=JVM_ONLY_SINGLE_FRAME_SIMULATION");
         }
         strictAtomicOwnerTests();
+        highWaterOwnerTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
