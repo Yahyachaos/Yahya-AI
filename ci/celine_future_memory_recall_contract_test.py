@@ -4457,6 +4457,145 @@ public final class FutureStrictOwnerProcessChild {
 }
 '''
 
+# Two independent JVMs race a third JVM changing a separately maintained
+# high-water witness AFTER public preflight, BEFORE the owner file-lock txn.
+# This is a rollbackable test fixture, NEVER an Android antirollback claim.
+high_water_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+/** Isolated post-v83 strict-owner high-water TOCTOU contract, JVM-only. */
+public final class FutureHighWaterProcessChild {
+    static final String GEN=FutureStrictOwnerProcessChild.GEN;
+    static final byte[] KEY=FutureStrictOwnerProcessChild.KEY;
+    static final String REQUEST="high-water-process-request";
+    static final String WITNESS_CURRENT=GEN+"|1";
+    static final String WITNESS_ADVANCED="future-owner-generation-2|2";
+    static final class WitnessOwner
+            implements CelineFutureMemoryRecall.OwnerHighWaterDispatchAuthority {
+        final Path root, witness;
+        final FutureStrictOwnerProcessChild.DiskOwner local;
+        final boolean gate;
+        WitnessOwner(Path root,Path witness,boolean gate) throws Exception {
+            this.root=root;
+            this.witness=witness;
+            this.local=new FutureStrictOwnerProcessChild.DiskOwner(root);
+            this.gate=gate;
+        }
+        @Override public CelineFutureMemoryRecall.OwnerHighWaterStatus
+                protectedGenerationStatus(String expected) {
+            if(!Files.isRegularFile(witness))
+                return CelineFutureMemoryRecall.OwnerHighWaterStatus.MISSING;
+            try {
+                String value=Files.readString(witness);
+                String[] fields=value.split("\\|",-1);
+                if(fields.length!=2 || !fields[0].matches("[a-zA-Z0-9_-]{1,100}")
+                        || !fields[1].matches("[1-9][0-9]*"))
+                    return CelineFutureMemoryRecall.OwnerHighWaterStatus.COMPROMISED;
+                return expected.equals(fields[0])
+                    ? CelineFutureMemoryRecall.OwnerHighWaterStatus.CURRENT
+                    : CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK;
+            } catch (Exception failure) {
+                return CelineFutureMemoryRecall.OwnerHighWaterStatus.COMPROMISED;
+            }
+        }
+        @Override public String currentGeneration() {return local.currentGeneration();}
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+            if(gate) {
+                try {
+                    Files.createFile(root.resolve("ready-"+ProcessHandle.current().pid()));
+                    long until=System.nanoTime()+15_000_000_000L;
+                    while(!Files.exists(root.resolve("release-high-water-race"))
+                            && System.nanoTime()<until)Thread.sleep(15);
+                    if(!Files.exists(root.resolve("release-high-water-race")))
+                        throw new IllegalStateException("test-only preflight barrier timeout");
+                } catch (Exception failure) {throw new IllegalStateException(failure);}
+            }
+            return local.acquireReadLease();
+        }
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome dispatchUnderOwnerLock(
+                String generation,String requestId,byte[] digest,Runnable publisher) {
+            var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            var uncertain=CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            try {
+                return local.withLock(()->{
+                    var before=local.verified();
+                    if(!before.generation.equals(generation))return reject;
+                    // INTERNAL_AUTHORIZATION_GUARD: source-lock and witness-check
+                    // MUST be serialized, including for an old COMPLETED receipt.
+                    // A missing/mismatched witness must not reach the callback.
+                    if (!Boolean.getBoolean("celine.fixture.skipInnerHighWater")
+                            && protectedGenerationStatus(generation)
+                               != CelineFutureMemoryRecall.OwnerHighWaterStatus.CURRENT)
+                        return reject;
+                    String intent=java.util.HexFormat.of().formatHex(digest);
+                    if(!before.receipt.equals("NONE")) {
+                        if(!before.id.equals(requestId)||!before.intent.equals(intent))return uncertain;
+                        return before.receipt.equals("COMPLETED")
+                            ? CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED : uncertain;
+                    }
+                    local.seal(new FutureStrictOwnerProcessChild.State(before.epoch+1,
+                        generation,"STARTED",requestId,intent));
+                    try {publisher.run();}catch(RuntimeException e){return uncertain;}
+                    var after=local.verified();
+                    if(protectedGenerationStatus(generation)
+                            != CelineFutureMemoryRecall.OwnerHighWaterStatus.CURRENT
+                        || !after.generation.equals(generation)
+                        || !after.receipt.equals("STARTED")
+                        || !after.id.equals(requestId)||!after.intent.equals(intent))return uncertain;
+                    local.seal(new FutureStrictOwnerProcessChild.State(after.epoch+1,
+                        generation,"COMPLETED",requestId,intent));
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+                });
+            } catch (Exception failure) {return uncertain;}
+        }
+    }
+    public static void main(String[] args) throws Exception {
+        if(args.length!=3)throw new IllegalArgumentException("root witness action");
+        Path root=Path.of(args[0]), witness=Path.of(args[1]);
+        String action=args[2];
+        Files.createDirectories(root);
+        Files.createDirectories(witness.getParent());
+        WitnessOwner owner=new WitnessOwner(root,witness,action.equals("pause-claim"));
+        if(action.equals("init")) {
+            if(Files.exists(witness))throw new IllegalStateException("witness already exists");
+            FutureStrictOwnerProcessChild.atomic(witness,WITNESS_CURRENT);
+            System.out.println("INIT_OWNER_AND_WITNESS");return;
+        }
+        if(action.equals("advance")||action.equals("erase")||action.equals("corrupt")) {
+            owner.local.withLock(()->{
+                if(action.equals("advance"))
+                    FutureStrictOwnerProcessChild.atomic(witness,WITNESS_ADVANCED);
+                else if(action.equals("erase"))Files.delete(witness);
+                else FutureStrictOwnerProcessChild.atomic(witness,"malformed-epoch");
+                return null;
+            });
+            System.out.println("WITNESS_MUTATED="+action);return;
+        }
+        var candidate=new CelineFutureMemoryRecall.Candidate("strict-cat","Meine Katze Luna","",
+            CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,1_900_000_000_000L-100,0,0.5);
+        var entries=List.of(candidate);
+        byte[] data=CelineFutureMemoryRecall.certificatePayload(GEN,entries,Set.of(),Set.of());
+        Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(KEY,"HmacSHA256"));
+        var cert=new CelineFutureMemoryRecall.OwnerLineageCertificate(GEN,Set.of(),Set.of(),mac.doFinal(data));
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(KEY,owner,(gen,contexts)->{
+            try {Files.writeString(root.resolve("test-only-high-water-sink"),"sent\\n",
+                StandardOpenOption.CREATE,StandardOpenOption.APPEND);}
+            catch(Exception failure){throw new IllegalStateException(failure);}
+        });
+        var result=CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+            REQUEST,"Meine Katze Luna",entries,cert,verifier,8,1_900_000_000_000L);
+        System.out.println("RESULT="+result+";HIGH_WATER="+owner.protectedGenerationStatus(GEN)
+            +";"+owner.local.status());
+        System.out.flush();
+    }
+}
+'''
+
 def process_owner_proof(temp):
     """Isolated JVM boundary checks, not an Android/anti-rollback guarantee."""
     checks = 0
@@ -5144,6 +5283,112 @@ def process_strict_owner_proof(temp):
     print('FUTURE_G1_STRICT_OWNER_CROSS_PROCESS_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_STRICT_OWNER_JOINT_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
+
+def process_high_water_proof(temp):
+    """Two REAL JVM claimants vs independent JVM epoch writer; test-double ONLY."""
+    import time
+    checks=0
+    cls='de.yahya.ai.FutureHighWaterProcessChild'
+    def case(condition,why):
+        nonlocal checks
+        if not condition: raise AssertionError('HIGH_WATER_PROCESS_FAIL: '+why)
+        checks+=1
+    def cmd(root,witness,action,broken=False):
+        return ['java']+(['-Dceline.fixture.skipInnerHighWater=true'] if broken else [])+[
+            '-cp',temp,cls,str(root),str(witness),action]
+    def call(root,witness,action,broken=False):
+        p=subprocess.run(cmd(root,witness,action,broken),capture_output=True,
+                         text=True,timeout=25)
+        case(p.returncode==0,'JVM '+action+' failed '+p.stderr[-350:])
+        return p.stdout
+    def scenario(label):
+        root=Path(temp)/('epoch-race-'+label)
+        witness=Path(temp)/('separate-high-water-'+label)/'epoch.txt'
+        root.mkdir()
+        case('INIT_OWNER_AND_WITNESS' in call(root,witness,'init'),'independent fixture provisioned')
+        return root,witness
+    for seeded in (False,True):
+        for mode in ('advance','erase','corrupt'):
+            root,witness=scenario(('completed' if seeded else 'new')+'-'+mode)
+            if seeded:
+                case('RESULT=COMPLETED' in call(root,witness,'claim'),
+                     'initial completed receipt sealed before independent epoch race')
+            before_frame=(root/'strict-owner.frame').read_bytes()
+            before_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+            previous_events=(root/'test-only-high-water-sink').read_text().count('sent\\n') \
+                if (root/'test-only-high-water-sink').exists() else 0
+            contenders=[subprocess.Popen(cmd(root,witness,'pause-claim'),
+                        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                        for _ in range(2)]
+            try:
+                deadline=time.monotonic()+12
+                while len(list(root.glob('ready-*')))<2 and time.monotonic()<deadline:
+                    if any(p.poll() is not None for p in contenders):break
+                    time.sleep(.02)
+                case(len(list(root.glob('ready-*')))==2,
+                     'both independent JVMs reached AFTER preflight BEFORE owner lock')
+                case('WITNESS_MUTATED='+mode in call(root,witness,mode),
+                     'third JVM independently mutated simulated epoch authority')
+            finally:
+                (root/'release-high-water-race').touch()
+            outcomes=[p.communicate(timeout=25) for p in contenders]
+            case(all(p.returncode==0 for p in contenders),
+                 'two independent JVM claimants returned after epoch mutation')
+            case(all('RESULT=COMPLETED' not in output[0] for output in outcomes),
+                 'old COMPLETED receipt cannot be claimed current after epoch change')
+            case(all(('RESULT=STARTED_INDETERMINATE' in output[0]
+                      or 'RESULT=REJECTED_BEFORE_START' in output[0])
+                     for output in outcomes),
+                 'race returns fail-closed non-success outcomes')
+            case((root/'strict-owner.frame').read_bytes()==before_frame and
+                 (root/'strict-owner.versioned-anchor').read_bytes()==before_anchor,
+                 'external witness race cannot reserve or overwrite local receipts')
+            after_events=(root/'test-only-high-water-sink').read_text().count('sent\\n') \
+                if (root/'test-only-high-water-sink').exists() else 0
+            case(after_events==previous_events,
+                 'no plaintext context dispatched after independent witness change')
+            case('RESULT=COMPLETED' not in call(root,witness,'claim'),
+                 'fourth fresh JVM cannot revive stale certified intent')
+    # A truly defective owner that skips its inside-lock check can publish
+    # AFTER public preflight. The outer check reports uncertainty too late:
+    # side effects already happened. This is a targeted negative control.
+    root,witness=scenario('deliberately-broken-inner-check')
+    paused=subprocess.Popen(cmd(root,witness,'pause-claim',True),stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,text=True)
+    try:
+        deadline=time.monotonic()+10
+        while not list(root.glob('ready-*')) and time.monotonic()<deadline:
+            time.sleep(.02)
+        case(bool(list(root.glob('ready-*'))),'broken owner reached post-preflight barrier')
+        call(root,witness,'advance')
+    finally:(root/'release-high-water-race').touch()
+    brokenout,brokenerr=paused.communicate(timeout=20)
+    case(paused.returncode==0,'negative control JVM did not terminate normally '+brokenerr[-150:])
+    case('RESULT=COMPLETED' not in brokenout and
+         (root/'test-only-high-water-sink').read_text().count('sent\\n')==1,
+         'negative-control: public postflight alone cannot undo leaked callback')
+    print('FUTURE_G1_HIGH_WATER_PROCESS_BROKEN_INNER_GUARD=STALE_CALLBACK_REPRODUCED')
+    # Explicit joint rollback FAIL remains when the supposedly independent
+    # authority is also ordinary restorable filesystem data.
+    root,witness=scenario('all-files-rollback-known-failure')
+    old_frame=(root/'strict-owner.frame').read_bytes()
+    old_anchor=(root/'strict-owner.versioned-anchor').read_bytes()
+    old_witness=witness.read_bytes()
+    case('RESULT=COMPLETED' in call(root,witness,'claim'),
+         'original authorized publication completed')
+    call(root,witness,'advance')
+    case('RESULT=COMPLETED' not in call(root,witness,'claim'),
+         'advanced witness rejects old memory snapshot')
+    (root/'strict-owner.frame').write_bytes(old_frame)
+    (root/'strict-owner.versioned-anchor').write_bytes(old_anchor)
+    witness.write_bytes(old_witness)
+    case('RESULT=COMPLETED' in call(root,witness,'claim'),
+         'KNOWN SECURITY FAIL: restoring ordinary witness + owner files enables stale delivery')
+    case((root/'test-only-high-water-sink').read_text().count('sent\\n')==2,
+         'KNOWN SECURITY FAIL: joint rollback actually duplicated provider marker')
+    print('FUTURE_G1_JOINT_WITNESS_AND_SNAPSHOT_ROLLBACK=KNOWN_SECURITY_FAIL')
+    print('FUTURE_G1_HIGH_WATER_JVM_PROCESS_PROOF_PASS cases='+str(checks))
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -5151,7 +5396,10 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     child.write_text(child_harness, encoding='utf-8')
     strict_child = Path(temp) / 'FutureStrictOwnerProcessChild.java'
     strict_child.write_text(strict_child_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child)], check=True)
+    highwater_child = Path(temp) / 'FutureHighWaterProcessChild.java'
+    highwater_child.write_text(high_water_process_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child)], check=True)
     subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
     process_owner_proof(temp)
     process_strict_owner_proof(temp)
+    process_high_water_proof(temp)
