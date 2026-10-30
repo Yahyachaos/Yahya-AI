@@ -9,6 +9,34 @@ public final class VoiceAcousticTimingContractTest {
         if (!condition) throw new AssertionError("FAIL " + description);
         checks++;
     }
+    /** A rejected plausible capture may recover only with a fresh independent clock. */
+    private static void rejectedSameCaptureCannotReopenMouth() {
+        for (int i = 0; i < 100; i++) {
+            VoiceAcousticTimingContract c = new VoiceAcousticTimingContract();
+            long t = 2_000_000_000L + i * 1_000_000_000L;
+            c.begin(1, 48000);
+            ok(c.acceptMeasuredDelay(1, 240), "external delay fixture " + i);
+            ok(c.observe(1, 1000, 1200, t, t + 1_000_000L), "trusted baseline " + i);
+            long later = t + 20_000_000L;
+            ok(!c.observe(1, 1050, 1049, later, later + 1_000_000L),
+                    "malformed capture refused " + i);
+            eq(-1, c.estimatedMouthFrame(1, later + 2_000_000L), "invalid closes lips " + i);
+            ok(!c.observe(1, 1050, 1200, later, later + 1_000_000L),
+                    "same exact clock cannot launder altered capture " + i);
+            ok(!c.observe(1, 1050, 1200, later, later + 2_000_000L),
+                    "same source with later poll is not independent " + i);
+            ok(!c.observe(1, 1050, 1200, later + 500_000L, later + 1_000_000L),
+                    "same poll with later source is not independent " + i);
+            eq(-1, c.estimatedMouthFrame(1, later + 3_000_000L), "replayed proof stays silent " + i);
+            ok(c.observe(1, 1050, 1200, later + 20_000_000L, later + 21_000_000L),
+                    "independently newer source and poll recovers " + i);
+            eq(810, c.estimatedMouthFrame(1, later + 22_000_000L),
+                    "new independent clock has conservative mouth " + i);
+            c.stop(1);
+            eq(-1, c.estimatedMouthFrame(1, later + 23_000_000L), "STOP closes lips " + i);
+        }
+    }
+
     public static void main(String[] args) {
         VoiceAcousticTimingContract c = new VoiceAcousticTimingContract();
         c.begin(1, 48000);
@@ -43,6 +71,7 @@ public final class VoiceAcousticTimingContractTest {
         ok(c.acceptMeasuredDelay(2, 0), "explicit measured zero delay accepted");
         ok(c.observe(2, 200, 200, t + 70_000_000L, t + 71_000_000L), "fresh second generation");
         eq(200, c.estimatedMouthFrame(2, t + 72_000_000L), "zero-calibrated second generation frame");
+        rejectedSameCaptureCannotReopenMouth();
         System.out.println("VOICE_ACOUSTIC_TIMING_CONTRACT_PASS checks=" + checks);
     }
 }

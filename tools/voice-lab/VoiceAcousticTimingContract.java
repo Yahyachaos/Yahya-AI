@@ -25,6 +25,9 @@ public final class VoiceAcousticTimingContract {
     private boolean hasPlausibleClock;
     private long highestSourceNs;
     private long highestPollNs;
+    // After invalid-but-plausibly-timestamped evidence, an altered report at the
+    // same clock is not an independent capture and cannot reopen the mouth.
+    private boolean rejectedPlausibleClock;
     private boolean poisoned;
 
     public synchronized void begin(long generation, int sampleRate) {
@@ -43,6 +46,7 @@ public final class VoiceAcousticTimingContract {
         this.hasPlausibleClock = false;
         this.highestSourceNs = 0;
         this.highestPollNs = 0;
+        this.rejectedPlausibleClock = false;
         this.poisoned = false;
     }
 
@@ -59,6 +63,7 @@ public final class VoiceAcousticTimingContract {
         hasBaseline = false;
         hasPlausibleClock = false;
         highestSourceNs = highestPollNs = 0;
+        rejectedPlausibleClock = false;
         return true;
     }
 
@@ -82,8 +87,12 @@ public final class VoiceAcousticTimingContract {
         // valid audio, but do not later accept evidence from before its clock.
         // Baseline rollbacks above remain terminal; speculative invalid samples
         // only close presentation until a fresh monotonic observation arrives.
-        if (sourceNs >= 0 && pollNs >= sourceNs && pollNs - sourceNs <= FRESH_NS) {
-            if (hasPlausibleClock && (sourceNs < highestSourceNs || pollNs < highestPollNs)) {
+        boolean plausibleClock = sourceNs >= 0 && pollNs >= sourceNs
+                && pollNs - sourceNs <= FRESH_NS;
+        if (plausibleClock) {
+            if (hasPlausibleClock && (sourceNs < highestSourceNs || pollNs < highestPollNs
+                    || (rejectedPlausibleClock
+                        && (sourceNs <= highestSourceNs || pollNs <= highestPollNs)))) {
                 hasObservation = false;
                 return false;
             }
@@ -94,12 +103,14 @@ public final class VoiceAcousticTimingContract {
         if (head < 0 || accepted < head || sourceNs < 0 || pollNs < sourceNs
                 || pollNs - sourceNs > FRESH_NS) {
             hasObservation = false;
+            if (plausibleClock && hasBaseline) rejectedPlausibleClock = true;
             return false;
         }
         if (hasBaseline) {
             // A fixed timestamp cannot justify an advanced sample position.
             if (head > headFrames && sourceNs == sourceTimestampNs) {
                 hasObservation = false;
+                if (plausibleClock && hasBaseline) rejectedPlausibleClock = true;
                 return false;
             }
             long elapsedNs = sourceNs - sourceTimestampNs;
@@ -112,9 +123,11 @@ public final class VoiceAcousticTimingContract {
             long permitted = Long.MAX_VALUE - base < extra ? Long.MAX_VALUE : base + extra;
             if (head - headFrames > permitted) {
                 hasObservation = false;
+                if (plausibleClock && hasBaseline) rejectedPlausibleClock = true;
                 return false;
             }
         }
+        rejectedPlausibleClock = false;
         headFrames = head;
         sourceTimestampNs = sourceNs;
         pollTimestampNs = pollNs;
