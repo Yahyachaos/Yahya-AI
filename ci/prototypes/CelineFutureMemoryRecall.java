@@ -218,6 +218,8 @@ public final class CelineFutureMemoryRecall {
      * write STARTED before returning NEW_STARTED. A prior STARTED entry must
      * NEVER be reset to NEW_STARTED on crash/restart. acknowledgeCompleted()
      * MUST durably write COMPLETED only for the exact matching identity.
+     * For provider-context dispatch, only acknowledgeCompletedIfCurrent()
+     * may commit a completed receipt; the ordinary legacy ack is forbidden.
      * Journal/key/revision/lease/publisher must all be installed by the trusted
      * G1 owner, not by a provider, chat message, plugin, or lookup caller.
      * No real journal is shipped with this standalone experiment.
@@ -227,7 +229,24 @@ public final class CelineFutureMemoryRecall {
             NEW_STARTED, ALREADY_STARTED, ALREADY_COMPLETED, INTENT_CONFLICT
         }
         Reservation reserve(String ownerIssuedRequestId, byte[] intentSha256);
+        // Historical direct acknowledgement is retained ONLY for stand-alone
+        // journal fixture diagnostics; the dispatch method never calls it.
         boolean acknowledgeCompleted(String ownerIssuedRequestId, byte[] intentSha256);
+
+        /**
+         * FUTURE-ONLY strict completion capability. G1 must verify the exact
+         * authenticated source generation AND durably commit COMPLETED under
+         * the SAME owner-controlled transaction/serialization boundary as
+         * revision changes, retractions and rollback protection. Checking
+         * currentGeneration() separately is NOT atomic. A journal lacking
+         * this explicitly implemented capability must fail closed, leaving
+         * an already-started request indeterminate and never auto-retryable.
+         * This interface is a contract, NOT a shipped G1/Android authority.
+         */
+        default boolean acknowledgeCompletedIfCurrent(String ownerIssuedRequestId,
+                byte[] intentSha256, String certifiedGeneration) {
+            return false;
+        }
     }
 
     public static final class OwnerLineageVerifier {
@@ -513,8 +532,8 @@ public final class CelineFutureMemoryRecall {
             if (!certificate.generation.equals(held.generation())
                     || !trustedG1Verifier.isStillCurrent(certificate))
                 return OwnerPublicationOutcome.STARTED_INDETERMINATE;
-            boolean acknowledged = trustedG1Verifier.ownerPublicationJournal.acknowledgeCompleted(
-                    ownerIssuedRequestId, intent.clone());
+            boolean acknowledged = trustedG1Verifier.ownerPublicationJournal.acknowledgeCompletedIfCurrent(
+                    ownerIssuedRequestId, intent.clone(), certificate.generation);
             // Journal I/O itself can outlive a broken owner read-lease. Never
             // claim CURRENT completion if revocation happened during that I/O.
             // A positive remote acknowledgement cannot undo prior sink effects.
