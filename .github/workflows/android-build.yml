@@ -16,6 +16,10 @@ on:
       - 'AGENTS.md'
       - 'START_HERE.txt'
       - 'ci/work-orders/**'
+      # Isolated FUTURE-ONLY, non-runtime prototype files. Mixed app/Gradle/release PRs still trigger Android.
+      - 'ci/prototypes/**'
+      - 'ci/celine_future_memory_recall_contract_test.py'
+      - 'tools/voice-lab/**'
   workflow_dispatch:
     inputs:
       target_sha:

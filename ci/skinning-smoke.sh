@@ -72,6 +72,22 @@ dump_ui /sdcard/v59-call.xml CALL || fail_skin "Could not dump CALL UI after bou
 adb pull /sdcard/v59-call.xml v59-call.xml >/dev/null || fail_skin "Could not pull CALL UI"
 grep -q 'Live mit Celin' v59-call.xml || fail_skin "CALL did not open for v61 proof"
 
+# The CALL UI hierarchy can be ready before Android's SurfaceView compositor visibly
+# switches from HOME. This is a bounded real-pixel readiness barrier, not a skipped
+# visibility/skin gate: persistently absent magenta pixels still FAIL the test.
+# Keep the readiness screenshot as artifact evidence of the most recent attempt.
+SKIN_CALL_READY=0
+for attempt in 1 2 3 4 5 6 7 8; do
+  adb exec-out screencap -p > emulator-skin-readiness.png || fail_skin "CALL readiness screenshot failed"
+  if python3 ci/check-magenta-avatar.py emulator-skin-readiness.png SKIN_CALL_READY; then
+    SKIN_CALL_READY=1
+    echo "Skinned CALL compositor visibly ready on bounded attempt $attempt"
+    break
+  fi
+  if [[ "$attempt" != 8 ]]; then sleep 1; fi
+done
+[[ "$SKIN_CALL_READY" == 1 ]] || fail_skin "Skinned CALL fixture remained invisible after eight bounded screenshot attempts"
+
 adb exec-out screencap -p > emulator-skin-a.png
 sleep 0.65
 adb exec-out screencap -p > emulator-skin-b.png
