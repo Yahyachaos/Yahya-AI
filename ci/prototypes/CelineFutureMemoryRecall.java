@@ -513,9 +513,15 @@ public final class CelineFutureMemoryRecall {
             if (!certificate.generation.equals(held.generation())
                     || !trustedG1Verifier.isStillCurrent(certificate))
                 return OwnerPublicationOutcome.STARTED_INDETERMINATE;
-            return trustedG1Verifier.ownerPublicationJournal.acknowledgeCompleted(
-                    ownerIssuedRequestId, intent.clone())
-                    ? OwnerPublicationOutcome.COMPLETED
+            boolean acknowledged = trustedG1Verifier.ownerPublicationJournal.acknowledgeCompleted(
+                    ownerIssuedRequestId, intent.clone());
+            // Journal I/O itself can outlive a broken owner read-lease. Never
+            // claim CURRENT completion if revocation happened during that I/O.
+            // A positive remote acknowledgement cannot undo prior sink effects.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            return acknowledged ? OwnerPublicationOutcome.COMPLETED
                     : OwnerPublicationOutcome.STARTED_INDETERMINATE;
         } catch (RuntimeException ex) {
             return journalAttempted ? OwnerPublicationOutcome.STARTED_INDETERMINATE
