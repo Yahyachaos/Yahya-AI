@@ -161,29 +161,86 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * Read-only revision hook for a FUTURE G1 integration. An arbitrary caller
+     * implementation is NOT a trusted monotonic source. The actual G1 owner
+     * must provide an atomic, rollback-resistant revision plus snapshot lease.
+     */
+    public interface OwnerGenerationReader {
+        String currentGeneration();
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
+        private final OwnerGenerationReader ownerGenerationReader;
 
-        /** Credentials and generation must be anchored OUTSIDE untrusted input. */
+        /**
+         * Historical fixture-only pinned generation. A long-lived verifier
+         * using this constructor CAN replay a valid old HMAC after G1 changes.
+         * Never use as proof of current production G1 state.
+         */
         public OwnerLineageVerifier(byte[] trustedG1Key, String trustedG1Generation) {
             if (trustedG1Key == null || trustedG1Key.length < 32
                     || trustedG1Generation == null || trustedG1Generation.isEmpty())
                 throw new IllegalArgumentException("Missing pinned G1 owner authority");
             ownerKey = trustedG1Key.clone();
             expectedGeneration = trustedG1Generation;
+            ownerGenerationReader = null;
+        }
+
+        /**
+         * FUTURE ONLY: read the owner's CURRENT revision for each operation.
+         * The reader and secret are injected, NOT authenticated by this class.
+         * Caller must own an externally protected source that cannot rollback;
+         * this method alone does not solve durable anti-rollback or races with
+         * a concurrent post-verification owner snapshot update.
+         */
+        public OwnerLineageVerifier(byte[] trustedG1Key,
+                OwnerGenerationReader ownerGenerationReader) {
+            if (trustedG1Key == null || trustedG1Key.length < 32
+                    || ownerGenerationReader == null)
+                throw new IllegalArgumentException("Missing G1 revision authority");
+            ownerKey = trustedG1Key.clone();
+            expectedGeneration = null;
+            this.ownerGenerationReader = ownerGenerationReader;
+        }
+
+        private String pinnedGenerationNow() {
+            try {
+                String current = ownerGenerationReader == null
+                        ? expectedGeneration : ownerGenerationReader.currentGeneration();
+                return current != null && !current.isEmpty()
+                        && current.length() <= MAX_ID_CHARS ? current : null;
+            } catch (RuntimeException ex) {
+                // A crashed/restarting G1 store must not silently authorize
+                // any stale memory or correction suggestion.
+                return null;
+            }
+        }
+
+        private boolean isStillCurrent(OwnerLineageCertificate proof) {
+            return proof != null && proof.generation != null
+                    && proof.generation.equals(pinnedGenerationNow());
         }
 
         private boolean verifies(OwnerLineageCertificate proof, List<Candidate> records) {
-            if (proof == null || proof.mac == null || proof.mac.length != 32
-                    || !expectedGeneration.equals(proof.generation)) return false;
+            if (proof == null || proof.mac == null || proof.mac.length != 32)
+                return false;
+            String generationBefore = pinnedGenerationNow();
+            if (generationBefore == null || !generationBefore.equals(proof.generation))
+                return false;
             byte[] payload = certificatePayload(proof.generation, records,
                     proof.retiredIds, proof.confirmedRetiredParentIds);
             if (payload.length == 0) return false;
             try {
                 Mac hmac = Mac.getInstance("HmacSHA256");
                 hmac.init(new SecretKeySpec(ownerKey, "HmacSHA256"));
-                return MessageDigest.isEqual(hmac.doFinal(payload), proof.mac);
+                // Recheck after cryptography to reject a revision that advanced
+                // DURING verification. G1 still needs a true snapshot lease for
+                // a race-free production read after this function returns.
+                return MessageDigest.isEqual(hmac.doFinal(payload), proof.mac)
+                        && generationBefore.equals(pinnedGenerationNow());
             } catch (GeneralSecurityException e) {
                 return false; // Missing cryptographic provider must never allow recall.
             }
@@ -262,8 +319,13 @@ public final class CelineFutureMemoryRecall {
             int maxResults, long now) {
         if (trustedG1Verifier == null || !trustedG1Verifier.verifies(certificate, candidates))
             return Collections.emptyList();
-        return retrieveAssumingOwnerVerified(query, candidates, certificate.retiredIds,
-                certificate.confirmedRetiredParentIds, maxResults, now);
+        List<Match> result = retrieveAssumingOwnerVerified(query, candidates,
+                certificate.retiredIds, certificate.confirmedRetiredParentIds, maxResults, now);
+        // An owner revision may be replaced during policy evaluation, after
+        // HMAC verification. Recheck before exposing any result. Future G1
+        // integration still needs an atomic owner snapshot lease at return.
+        return trustedG1Verifier.isStillCurrent(certificate)
+                ? result : Collections.<Match>emptyList();
     }
 
     public static String unambiguousCorrectionTargetCertified(String correctionText,
@@ -271,8 +333,9 @@ public final class CelineFutureMemoryRecall {
             OwnerLineageVerifier trustedG1Verifier, long now) {
         if (trustedG1Verifier == null || !trustedG1Verifier.verifies(certificate, candidates))
             return "";
-        return correctionAssumingOwnerVerified(correctionText, candidates,
+        String target = correctionAssumingOwnerVerified(correctionText, candidates,
                 certificate.retiredIds, certificate.confirmedRetiredParentIds, now);
+        return trustedG1Verifier.isStillCurrent(certificate) ? target : "";
     }
 
     /**

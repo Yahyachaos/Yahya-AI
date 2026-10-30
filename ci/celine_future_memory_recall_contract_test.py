@@ -1747,6 +1747,159 @@ public final class FutureMemoryRecallContract {
             x("a", "Katze Max", "signed-retired",true,0)),
             signedRetired,signedRetired).length,0,
             "certificate encoding rejects duplicate source IDs");
+        // Replay challenge (POST-v83, NO G1 production anti-rollback integration):
+        // A deleted/rewritten fact's originally valid HMAC is NOT revoked just
+        // because a newer owner snapshot exists elsewhere. An obsolete pinned
+        // verifier can replay that old fact. The REAL G1 adapter must atomically
+        // protect its current generation across crash/restart/device restore,
+        // then pin every verifier to that protected value, NOT to caller input.
+        byte[] replayKey = new byte[32];
+        Arrays.fill(replayKey,(byte)0x4a); // synthetic TEST-ONLY signing material
+        Set<String> replayRetired = Collections.singleton("replay-root");
+        String revisionOld = "g1-revision-0000000007";
+        String revisionNew = "g1-revision-0000000008";
+        List<CelineFutureMemoryRecall.Candidate> oldProjection = Arrays.asList(
+            x("replay-luna", "Meine Katze heisst Luna", "replay-root",true,0));
+        List<CelineFutureMemoryRecall.Candidate> newProjection = Arrays.asList(
+            x("replay-momo", "Meine Katze heisst Momo", "replay-root",true,0));
+        javax.crypto.Mac replaySigner = javax.crypto.Mac.getInstance("HmacSHA256");
+        replaySigner.init(new javax.crypto.spec.SecretKeySpec(replayKey,"HmacSHA256"));
+        CelineFutureMemoryRecall.OwnerLineageCertificate oldRevisionProof =
+            new CelineFutureMemoryRecall.OwnerLineageCertificate(revisionOld,
+                replayRetired,replayRetired,replaySigner.doFinal(
+                    CelineFutureMemoryRecall.certificatePayload(revisionOld,
+                        oldProjection,replayRetired,replayRetired)));
+        CelineFutureMemoryRecall.OwnerLineageCertificate newRevisionProof =
+            new CelineFutureMemoryRecall.OwnerLineageCertificate(revisionNew,
+                replayRetired,replayRetired,replaySigner.doFinal(
+                    CelineFutureMemoryRecall.certificatePayload(revisionNew,
+                        newProjection,replayRetired,replayRetired)));
+        CelineFutureMemoryRecall.OwnerLineageVerifier stalePinnedOwner =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,revisionOld);
+        CelineFutureMemoryRecall.OwnerLineageVerifier refreshedPinnedOwner =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,revisionNew);
+        // EXPECTED KNOWN RISK, not a security PASS: obsolete trust state is
+        // itself stale; this deliberately demonstrates the replay vulnerability.
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,stalePinnedOwner,8,NOW).size(),1,
+            "KNOWN RISK: old authentically signed memory can replay under stale owner pin");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Luna",oldProjection,oldRevisionProof,stalePinnedOwner,NOW),
+            "replay-luna","KNOWN RISK: old pinned owner can suggest deleted ID");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,refreshedPinnedOwner,8,NOW).size(),0,
+            "owner-refreshed revision rejects authenticated old retrieval");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Luna",oldProjection,oldRevisionProof,refreshedPinnedOwner,NOW),
+            "","owner-refreshed revision rejects stale correction target");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,refreshedPinnedOwner,8,NOW).get(0).candidate.id,
+            "replay-momo","current owner snapshot still retrieves valid correction");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,refreshedPinnedOwner,NOW),
+            "replay-momo","current owner snapshot still selects verified ID");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,stalePinnedOwner,8,NOW).size(),0,
+            "old generation verifier cannot authenticate current generation");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,newRevisionProof,refreshedPinnedOwner,8,NOW).size(),0,
+            "new revision signature cannot certify old projection contents");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,oldRevisionProof,refreshedPinnedOwner,8,NOW).size(),0,
+            "old revision signature cannot certify current projection contents");
+        byte[] forgedReplayKey = replayKey.clone();
+        forgedReplayKey[0] ^= 1;
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                forgedReplayKey,revisionOld),8,NOW).size(),0,
+            "changed owner key rejects previously valid snapshot MAC");
+        // A long-lived verifier must consult the OWNER'S CURRENT revision on
+        // each lookup, not a revision cached when the Activity was created.
+        // This remains a PROTOTYPE hook: the future G1 adapter must supply a
+        // truly protected monotonic counter + consistent snapshot lease.
+        final java.util.concurrent.atomic.AtomicReference<String> g1Revision =
+            new java.util.concurrent.atomic.AtomicReference<>(revisionOld);
+        CelineFutureMemoryRecall.OwnerLineageVerifier livePinnedOwner =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() { return g1Revision.get(); }
+                });
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,livePinnedOwner,8,NOW).size(),1,
+            "live owner-reader permits original snapshot before legitimate correction");
+        g1Revision.set(revisionNew);
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,livePinnedOwner,8,NOW).size(),0,
+            "same long-lived verifier now rejects old proof after owner advances");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Luna",oldProjection,oldRevisionProof,livePinnedOwner,NOW),
+            "","same long-lived verifier rejects outdated correction suggestion");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,livePinnedOwner,8,NOW).get(0).candidate.id,
+            "replay-momo","live reader now accepts corrected G1 revision");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,livePinnedOwner,NOW),
+            "replay-momo","live reader permits corrected memory ID only");
+        g1Revision.set(null);
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,livePinnedOwner,8,NOW).size(),0,
+            "unavailable G1 generation source fails closed");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() { throw new IllegalStateException("storage offline"); }
+                }),8,NOW).size(),0,
+            "owner generation storage failure fails closed");
+        final java.util.concurrent.atomic.AtomicInteger reads =
+            new java.util.concurrent.atomic.AtomicInteger();
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() {
+                        return reads.incrementAndGet() == 1 ? revisionNew : revisionOld;
+                    }
+                }),8,NOW).size(),0,
+            "generation changed during MAC verification must fail closed");
+        g1Revision.set(revisionNew);
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,livePinnedOwner,8,NOW).size(),0,
+            "recovered owner generation rejects replay after transient reader outage");
+        g1Revision.set(revisionOld); // Simulated restore of an OLD G1 counter.
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            oldProjection,oldRevisionProof,livePinnedOwner,8,NOW).size(),1,
+            "KNOWN RISK: unprotected owner counter rollback still permits old signed proof");
+        // RED/GREEN: owner revision may advance AFTER the MAC has been
+        // verified but BEFORE the expensive policy has finished using records.
+        // A final revision read after policy avoids knowingly returning a
+        // snapshot already withdrawn at that point (not an atomic G1 lease).
+        final java.util.concurrent.atomic.AtomicInteger readPasses =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OwnerLineageVerifier changesAfterVerify =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() {
+                        return readPasses.incrementAndGet() <= 2 ? revisionNew : revisionOld;
+                    }
+                });
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Momo",
+            newProjection,newRevisionProof,changesAfterVerify,8,NOW).size(),0,
+            "owner revision advance after MAC must discard stale recall result");
+        final java.util.concurrent.atomic.AtomicInteger correctionPasses =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OwnerLineageVerifier changesBeforeCorrectionReturn =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() {
+                        return correctionPasses.incrementAndGet() <= 2 ? revisionNew : revisionOld;
+                    }
+                });
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,
+            changesBeforeCorrectionReturn,NOW),"",
+            "owner revision advance after MAC must discard stale correction ID");
+        System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
