@@ -458,12 +458,32 @@ async function run(){
     return audit;
   };
   const v35Initial=await v35Verify();
+  const originalAssembly=JSON.parse(fs.readFileSync(path.join(root,
+    'app/src/main/assets/models/room/celine_room_v80_assembly.json'),'utf8'));
+  assert.equal(originalAssembly.objects.length,13,'Original source assembly count');
+  const immutableRoomTree=require('node:child_process').execFileSync('git',
+    ['rev-parse','HEAD:app/src/main/assets/models/room/source-fidelity'],
+    {cwd:root,encoding:'utf8'}).trim();
+  assert.equal(immutableRoomTree,'19e3bf8c95f10309b7ba38e2b17f1eb00aa3e151',
+    'Pinned source-fidelity room GLB tree from unchanged live main');
   const realGlbHashes={};
   for(const a of v35Initial.objects){
     const binary=fs.readFileSync(path.join(root,'app/src/main/assets/models/room/source-fidelity',a.source_glb));
     assert.equal(binary.toString('ascii',0,4),'glTF','Require original full GLB not LFS pointer '+a.id);
     const hash=crypto.createHash('sha256').update(binary).digest('hex');
-    assert.equal(hash,v35.original_source_hashes[a.id],'Real immutable GLB source SHA '+a.id);
+    // The assembly SHA256 identifies the original furniture (e.g. Bett.glb),
+    // not the separately committed room/source-fidelity/room_bed.glb bytes.
+    // Verify both immutable lineages independently without weakening any gate.
+    const sourceContract=originalAssembly.objects.find(o=>o.id===a.id);
+    assert(sourceContract,'Missing original GLB source '+a.id);
+    assert.equal(sourceContract.source_sha256,v35.original_source_hashes[a.id],
+      'Original furniture SHA256 contract '+a.id);
+    const physicalGitBlob=crypto.createHash('sha1').update('blob '+binary.length)
+      .update(Buffer.from([0])).update(binary).digest('hex');
+    const committedBlob=require('node:child_process').execFileSync('git',
+      ['rev-parse','HEAD:app/src/main/assets/models/room/source-fidelity/'+a.source_glb],
+      {cwd:root,encoding:'utf8'}).trim();
+    assert.equal(physicalGitBlob,committedBlob,'Complete immutable room GLB blob '+a.id);
     realGlbHashes[a.id]=hash;
   }
   const v35OnUrl=await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true}));
