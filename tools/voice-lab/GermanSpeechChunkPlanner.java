@@ -88,11 +88,24 @@ public final class GermanSpeechChunkPlanner {
                     int day = Integer.parseInt(text.substring(n + 1, end));
                     if (day >= 1 && day <= 31) return true;
                 }
-                // "29.10." is a date fragment, but "29.10.2026." completes a
-                // four-digit year and may end a sentence. Keep this conservative.
+                // "29.10." is mid-phrase before "um" or a year, but can also
+                // end a sentence before "Danach". Do not swallow that pause.
                 return digits <= 2 && n >= start + 1 && text.charAt(n) == '.'
-                        && Character.isDigit(text.charAt(n - 1));
+                        && Character.isDigit(text.charAt(n - 1))
+                        && isNumericDateContinuation(text, boundaryEnd);
         }
+    }
+
+    /** Preserve dotted date fragments only when the next phrase truly continues. */
+    private static boolean isNumericDateContinuation(String text, int boundaryEnd) {
+        if (boundaryEnd >= text.length() || text.charAt(boundaryEnd) != ' '
+                || boundaryEnd + 1 >= text.length()) return false;
+        int next = boundaryEnd + 1;
+        if (Character.isLowerCase(text.charAt(next))) return true;
+        int yearEnd = next;
+        while (yearEnd < text.length() && Character.isDigit(text.charAt(yearEnd))) yearEnd++;
+        return yearEnd - next == 4
+                && (yearEnd == text.length() || !Character.isLetterOrDigit(text.charAt(yearEnd)));
     }
 
     /** A short month is an abbreviation only in a 1..31 day/date context. */

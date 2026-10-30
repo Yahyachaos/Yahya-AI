@@ -462,3 +462,14 @@ Changed source Git blob `c2fb78de4da23d938fa97e325c16568e22429e61`; new fixture 
 **STRICT NOT PASS:** The entire `sh tools/voice-lab/run_tests.sh` suite remains UNEXECUTED as one source-exact invocation (now 43 Java files / 32 mains). In particular, both STOP-receipt and explicit-abort cross-contract mains remain PENDING. Previous Android CI failed at unrelated build; there was no Voice-Java CI proof. No real speech waveform, S25 device/acoustic capture, natural female German voice or actual lip sync measured.
 
 **exact_next_action:** Materialize the complete fresh GitHub Voice-only checkout and execute the entire 43-file / 32-main `sh tools/voice-lab/run_tests.sh`, verify every Git blob and correct only reproduced future-only failures, prioritizing combined STOP receipt and explicit-abort regression tests. Remain single writer / future only; no Android, app, v83, Room, Core, CI or Build/Release cross-lease.
+
+
+## 30 Oct 2026, 09:19 CET — dotted German numeric date vs sentence ending (FUTURE ONLY)
+
+- Scope: only `tools/voice-lab/**`, existing single-writer DRAFT PR #118, not part of published v83. Build & Release alone owns future Android integration.
+- Source-exact previous Git blob `36c3b071e38f5ee8d4aa81a8a9a1018d3f89c481`: text `Der Termin ist am 29.10. Danach fahre ich los.` incorrectly remained one speech chunk (actual pre-fix Java assertion FAILED). No synthesized-audio/physical-device claim.
+- Minimal fix: recognize a dotted numeric date as mid-phrase only before a lowercase continuation or four-digit year, while retaining the natural split before uppercase next sentence; preserve prior year/date/ordinal cases.
+- Deterministic new `GermanNumericDateEndTest`: six focused cases and 300 Unicode whitespace variants, 612 assertions PASS. Existing source-exact `GermanSpeechChunkPlannerTest`: 20 assertions PASS. **632 focused OpenJDK 21 checks actually run**, not an entire-suite PASS. Local log SHA-256 `1328c717c02de543826d7c06f723e8004ea031d642895f5c0ace8e80b427939c`.
+- Runner now registers 44 Java sources / 33 JVM mains. FULL runner remains **UNEXECUTED**, especially both combined STOP/receipt and explicit-abort integrations. The external runtime cannot directly clone GitHub to stage all exact source blobs; this is an evidence limitation, not a Java regression PASS.
+- No Android app, CI, MainActivity, Room, Core, Gradle, model, signing, updater, release or v83 source changed. No verified natural female German voice, real S25 Ultra PCM latency or physical lip-sync.
+- **exact_next_action:** Reconstruct and Git-blob-hash all 44 actual HEAD Voice-only Java sources in one checkout, run `sh tools/voice-lab/run_tests.sh` across all 33 mains, including STOP-receipt and explicit-abort, fix only a reproduced Voice-owned failure, then advance the continuing future-only Voice work. Remain DRAFT/unmerged.
