@@ -3607,8 +3607,228 @@ public final class FutureMemoryRecallContract {
     }
 }
 '''
+# Separate JVM process fixture: test-only disk authority, not Android G1 secure storage.
+child_harness = r'''
+package de.yahya.ai;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.nio.channels.FileChannel;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.util.concurrent.atomic.*;
+
+/** FUTURE-ONLY real process boundary; witness file is deliberately rollbackable. */
+public final class FutureProcessOwnerChild {
+    static final String REV="g1-revision-0000000001";
+    static final String REQUEST="same-memory-intent";
+    static final byte[] INTENT;
+    static {
+        try { INTENT=MessageDigest.getInstance("SHA-256")
+            .digest("verified-memory-text".getBytes(StandardCharsets.UTF_8)); }
+        catch(Exception e) {throw new ExceptionInInitializerError(e);}
+    }
+    static void witnessWrite(Path witness,AtomicLong epoch,AtomicReference<String> digest)
+            throws Exception {
+        Files.createDirectories(witness.getParent());
+        Path temp=Files.createTempFile(witness.getParent(),"owner-witness-",".pending");
+        try(FileChannel ch=FileChannel.open(temp,StandardOpenOption.WRITE)) {
+            ByteBuffer b=StandardCharsets.UTF_8.encode(epoch.get()+"|"+digest.get());
+            while(b.hasRemaining()) ch.write(b);
+            ch.force(true);
+        }
+        Files.move(temp,witness,StandardCopyOption.ATOMIC_MOVE,
+            StandardCopyOption.REPLACE_EXISTING);
+        try(FileChannel ch=FileChannel.open(witness.getParent(),StandardOpenOption.READ)) {
+            ch.force(true);
+        }
+    }
+    static void report(String status,boolean reserved,
+            FutureMemoryRecallContract.FileOwnerLedger ledger) {
+        System.out.println("RESULT="+status+";CLAIM_NEW="+(reserved?1:0)+
+            ";RECEIPT="+ledger.receipt()+";REVISION="+ledger.revision());
+        System.out.flush();
+    }
+    public static void main(String[] args) throws Exception {
+        if(args.length!=3) throw new IllegalArgumentException("root witness action");
+        Path root=Path.of(args[0]).toAbsolutePath();
+        Path witness=Path.of(args[1]).toAbsolutePath();
+        String action=args[2];
+        AtomicLong epoch=new AtomicLong();
+        AtomicReference<String> commitment=new AtomicReference<>();
+        if(Files.exists(witness)) {
+            String[] parts=Files.readString(witness).split("\\|",-1);
+            if(parts.length!=2 || !parts[0].matches("[1-9][0-9]*")
+                    || !parts[1].matches("[0-9a-f]{64}"))
+                throw new IllegalStateException("witness corrupt");
+            epoch.set(Long.parseLong(parts[0]));
+            commitment.set(parts[1]);
+        } else if(Files.exists(root.resolve("owner.frame"))) {
+            throw new IllegalStateException("lost independent witness: FAIL CLOSED");
+        }
+        FutureMemoryRecallContract.FileOwnerLedger ledger=new
+            FutureMemoryRecallContract.FileOwnerLedger(root,epoch,commitment,REV);
+        if(!Files.exists(witness)) witnessWrite(witness,epoch,commitment);
+        if(action.equals("init") || action.equals("check")) {
+            report(action,false,ledger);
+            return;
+        }
+        if(action.equals("revoke")) {
+            ledger.revoke("g1-revision-0000000009");
+            witnessWrite(witness,epoch,commitment);
+            report("revoke",false,ledger);
+            return;
+        }
+        if(action.equals("reserve-torn"))
+            ledger.reserveFault=FutureMemoryRecallContract.FileOwnerLedger.Fault.AFTER_FRAME_BEFORE_AUTHORITY;
+        var claim=ledger.reserve(REQUEST,INTENT);
+        if(action.equals("reserve-torn")) {
+            report("HALT_AFTER_TORN_RESERVE",false,ledger);
+            Runtime.getRuntime().halt(41); // genuine JVM termination: frame updated, witness not
+        }
+        if(claim!=CelineFutureMemoryRecall.OwnerPublicationJournal.Reservation.NEW_STARTED) {
+            report("no-new-claim-"+claim,false,ledger);
+            return;
+        }
+        // Each successful claim seals the separately held *test* witness;
+        // two files cannot be made atomic across a real power loss.
+        witnessWrite(witness,epoch,commitment);
+        if(action.equals("ack-torn"))
+            ledger.completionFault=FutureMemoryRecallContract.FileOwnerLedger.Fault.AFTER_FRAME_BEFORE_AUTHORITY;
+        if(action.equals("ack-sealed-halt"))
+            ledger.completionFault=FutureMemoryRecallContract.FileOwnerLedger.Fault.AFTER_AUTHORITY_BEFORE_RETURN;
+        try {
+            boolean ack=ledger.acknowledgeCompletedIfCurrent(REQUEST,INTENT,REV);
+            witnessWrite(witness,epoch,commitment);
+            report("conditional-ack="+ack,true,ledger);
+        } catch(IllegalStateException e) {
+            if(action.equals("ack-torn")) {
+                report("HALT_AFTER_TORN_ACK",true,ledger);
+                Runtime.getRuntime().halt(42); // verified later by independent JVM
+            }
+            if(action.equals("ack-sealed-halt")) {
+                witnessWrite(witness,epoch,commitment);
+                report("HALT_AFTER_SEALED_ACK",true,ledger);
+                Runtime.getRuntime().halt(43);
+            }
+            throw e;
+        }
+    }
+}
+'''
+
+def process_owner_proof(temp):
+    """Isolated JVM boundary checks, not an Android/anti-rollback guarantee."""
+    checks = 0
+    cls = 'de.yahya.ai.FutureProcessOwnerChild'
+    def case(condition, name):
+        nonlocal checks
+        if not condition:
+            raise AssertionError('PROCESS_OWNER_FAIL: ' + name)
+        checks += 1
+    def new_scenario(label):
+        root=Path(temp)/('process-'+label)
+        (root/'journal').mkdir(parents=True)
+        (root/'witness').mkdir()
+        return (root/'journal',root/'witness'/'authority.txt')
+    def command(journal,witness,action):
+        return ['java','-cp',temp,cls,str(journal),str(witness),action]
+    def call(journal,witness,action,code=0):
+        result=subprocess.run(command(journal,witness,action),text=True,
+                              stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=20)
+        case(result.returncode==code, action+' exit '+str(result.returncode)+
+             ' expected '+str(code)+': '+result.stderr[-500:])
+        return result.stdout
+    def claimed(output): return 'CLAIM_NEW=1' in output
+    # Real JVM #1 creates owner frame + *separate* rollbackable test witness.
+    journal,witness=new_scenario('healthy')
+    case('RECEIPT=NONE' in call(journal,witness,'init'),'JVM init starts NONE')
+    case(claimed(call(journal,witness,'publish')),'JVM claim/publish once')
+    case('RECEIPT=COMPLETED' in call(journal,witness,'check'),'new JVM reads sealed completion')
+    case(not claimed(call(journal,witness,'publish')),'new JVM suppresses duplicate publish')
+    # Interrupted reserve: child hard-terminates after atomic frame write.
+    journal,witness=new_scenario('reserve-torn')
+    call(journal,witness,'init')
+    case('HALT_AFTER_TORN_RESERVE' in call(journal,witness,'reserve-torn',41),
+         'actual JVM halt at reserve fault point')
+    case('RECEIPT=UNTRUSTED' in call(journal,witness,'check'),
+         'next JVM refuses torn reservation frame')
+    case(not claimed(call(journal,witness,'publish')),
+         'next JVM does not publish torn reservation')
+    # Interrupted ACK: earlier STARTED authority survives, false durable COMPLETED rejected.
+    journal,witness=new_scenario('ack-torn')
+    call(journal,witness,'init')
+    case('HALT_AFTER_TORN_ACK' in call(journal,witness,'ack-torn',42),
+         'actual JVM halt after completion frame before witness')
+    case('RECEIPT=UNTRUSTED' in call(journal,witness,'check'),
+         'next JVM does not trust unsealed completed receipt')
+    case(not claimed(call(journal,witness,'publish')),
+         'uncertain ACK never retries publication')
+    # Commit ACK authority, then genuinely halt before returning to caller.
+    journal,witness=new_scenario('ack-sealed')
+    call(journal,witness,'init')
+    case('HALT_AFTER_SEALED_ACK' in call(journal,witness,'ack-sealed-halt',43),
+         'actual JVM halt after durable fixture authority')
+    case('RECEIPT=COMPLETED' in call(journal,witness,'check'),
+         'new JVM recovers sealed receipt')
+    case(not claimed(call(journal,witness,'publish')),
+         'sealed ACK not re-published after JVM death')
+    # Real distinct JVM contenders, not just in-process Java threads.
+    journal,witness=new_scenario('cross-process')
+    call(journal,witness,'init')
+    p1=subprocess.Popen(command(journal,witness,'publish'),stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,text=True)
+    p2=subprocess.Popen(command(journal,witness,'publish'),stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,text=True)
+    out1,err1=p1.communicate(timeout=20)
+    out2,err2=p2.communicate(timeout=20)
+    case(p1.returncode==0 and p2.returncode==0,
+         'independent JVM contenders terminate '+err1[-300:]+' '+err2[-300:])
+    case(int(claimed(out1))+int(claimed(out2))==1,
+         'two JVMs cannot both acquire first claim: '+out1+' / '+out2)
+    case('RECEIPT=COMPLETED' in call(journal,witness,'check'),
+         'cross-process completed receipt readback')
+    # Orphan atomic-rename temp file must not itself count as a committed state.
+    (journal/'owner.pending-uncommitted').write_text('garbled-transaction',encoding='utf-8')
+    case('RECEIPT=COMPLETED' in call(journal,witness,'check'),
+         'orphan pending file is ignored, committed frame retained')
+    # Missing separately held witness must fail closed if journal exists.
+    journal,witness=new_scenario('missing-witness')
+    call(journal,witness,'init')
+    witness.unlink()
+    missing=subprocess.run(command(journal,witness,'publish'),text=True,capture_output=True,timeout=20)
+    case(missing.returncode!=0 and 'lost independent witness' in missing.stderr,
+         'witness loss with frame present fails closed')
+    # Tombstone survives a REAL process exit, blocks new claim and old revision.
+    journal,witness=new_scenario('revoke')
+    call(journal,witness,'init')
+    call(journal,witness,'publish')
+    case('REVISION=' in call(journal,witness,'revoke'),'revoke writes tombstone')
+    case('REVISION=\n' in call(journal,witness,'check'),
+         'fresh JVM sees revoked revision as empty')
+    case(not claimed(call(journal,witness,'publish')),
+         'retraction blocks a fresh JVM publication')
+    # KNOWN VULNERABILITY: both authority and journal rolled back, no independent
+    # non-rollbackable trust source can distinguish the forged old state.
+    journal,witness=new_scenario('joint-rollback')
+    call(journal,witness,'init')
+    old_frame=(journal/'owner.frame').read_bytes()
+    old_witness=witness.read_bytes()
+    case(claimed(call(journal,witness,'publish')),
+         'original publication before rollback')
+    (journal/'owner.frame').write_bytes(old_frame)
+    witness.write_bytes(old_witness)
+    case('RECEIPT=NONE' in call(journal,witness,'check'),
+         'joint rollback impersonates a fresh trusted state')
+    case(claimed(call(journal,witness,'publish')),
+         'KNOWN FAIL: joint disk + witness rollback allows duplicate publication')
+    print('FUTURE_G1_JVM_PROCESS_RESTART_PROOF_PASS cases='+str(checks))
+    print('FUTURE_G1_JOINT_DISK_AUTHORITY_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p)], check=True)
+    child = Path(temp) / 'FutureProcessOwnerChild.java'
+    child.write_text(child_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child)], check=True)
     subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
+    process_owner_proof(temp)
