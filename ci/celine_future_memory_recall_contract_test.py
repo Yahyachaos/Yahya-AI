@@ -3649,10 +3649,25 @@ public final class FutureProcessOwnerChild {
         System.out.flush();
     }
     public static void main(String[] args) throws Exception {
-        if(args.length!=3) throw new IllegalArgumentException("root witness action");
+        if(args.length!=3 && args.length!=4)
+            throw new IllegalArgumentException("root witness action [external owner]");
         Path root=Path.of(args[0]).toAbsolutePath();
         Path witness=Path.of(args[1]).toAbsolutePath();
         String action=args[2];
+        // Explicitly provisioned independent owner checkpoint, test double only.
+        // This checks the authority boundary BEFORE any journal mutation; the
+        // caller must never silently reinitialize a missing owner authority.
+        // The ordinary test file is neither tamper-proof nor an Android/KeyStore
+        // monotonic counter. Only a real G1 transaction may close the TOCTOU gap.
+        if(args.length==4) {
+            Path externalOwner=Path.of(args[3]).toAbsolutePath();
+            if(!Files.isRegularFile(externalOwner))
+                throw new IllegalStateException("external owner authority missing");
+            if(!Files.isRegularFile(witness) ||
+                    !MessageDigest.isEqual(Files.readAllBytes(externalOwner),
+                                           Files.readAllBytes(witness)))
+                throw new IllegalStateException("external owner authority mismatch");
+        }
         AtomicLong epoch=new AtomicLong();
         AtomicReference<String> commitment=new AtomicReference<>();
         if(Files.exists(witness)) {
@@ -3821,6 +3836,89 @@ def process_owner_proof(temp):
          'joint rollback impersonates a fresh trusted state')
     case(claimed(call(journal,witness,'publish')),
          'KNOWN FAIL: joint disk + witness rollback allows duplicate publication')
+    # FUTURE-ONLY owner authority contract: this OUT-OF-BAND anchor is a test
+    # double, deliberately stored as a plain rollbackable file by the host.
+    # A legitimate G1 owner would have to provide a genuinely independent,
+    # authenticated, nonrollbackable authority plus crash-atomic sealing.
+    journal,witness=new_scenario('external-authority-contract')
+    call(journal,witness,'init')
+    owner_anchor=journal.parent/'independent-test-only-owner-anchor.txt'
+    owner_anchor.write_bytes(witness.read_bytes())
+    frame_before=(journal/'owner.frame').read_bytes()
+    witness_before=witness.read_bytes()
+    def anchored(action):
+        return subprocess.run(command(journal,witness,action)+[str(owner_anchor)],
+                              capture_output=True,text=True,timeout=20)
+    ok=anchored('check')
+    case(ok.returncode==0 and 'RECEIPT=NONE' in ok.stdout,
+         'separately provisioned matching authority permits initial read')
+    ok=anchored('publish')
+    case(ok.returncode==0 and claimed(ok.stdout),
+         'separately authorized initial request can claim once')
+    stale=anchored('check')
+    case(stale.returncode!=0 and 'external owner authority mismatch' in stale.stderr,
+         'owner checkpoint still old must fail closed until committed externally')
+    # The Python host explicitly represents the separate owner, not Android.
+    owner_anchor.write_bytes(witness.read_bytes())
+    ok=anchored('check')
+    case(ok.returncode==0 and 'RECEIPT=COMPLETED' in ok.stdout,
+         'matching separately held owner checkpoint reads durable completion')
+    ok=anchored('publish')
+    case(ok.returncode==0 and not claimed(ok.stdout),
+         'completed owner checkpoint suppresses second publication')
+    # A snapshot attacker restores BOTH old application files but cannot alter
+    # the separately held owner checkpoint in this restricted threat model.
+    (journal/'owner.frame').write_bytes(frame_before)
+    witness.write_bytes(witness_before)
+    mismatch=anchored('check')
+    case(mismatch.returncode!=0 and 'external owner authority mismatch' in mismatch.stderr,
+         'joint app-file rollback detected with surviving external authority')
+    contenders=[subprocess.Popen(command(journal,witness,'publish')+[str(owner_anchor)],
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                for _ in range(2)]
+    outcomes=[p.communicate(timeout=20) for p in contenders]
+    case(all(p.returncode!=0 for p in contenders) and
+         all('external owner authority mismatch' in stderr for _,stderr in outcomes) and
+         all(not claimed(stdout) for stdout,_ in outcomes),
+         'two fresh JVMs cannot claim after app rollback with surviving owner')
+    # Fail closed on unprovisioned/malformed independent authority.
+    owner_anchor.unlink()
+    missing=anchored('publish')
+    case(missing.returncode!=0 and 'external owner authority missing' in missing.stderr,
+         'missing independent authority rejects publication')
+    owner_anchor.write_text('invalid-owner-record',encoding='utf-8')
+    corrupt=anchored('publish')
+    case(corrupt.returncode!=0 and 'external owner authority mismatch' in corrupt.stderr,
+         'corrupt independently held authority rejects publication')
+    # This file is NOT an anti-rollback primitive: a malicious joint rollback
+    # of all THREE plain test files still defeats the proof by construction.
+    owner_anchor.write_bytes(witness_before)
+    forged=anchored('check')
+    case(forged.returncode==0 and 'RECEIPT=NONE' in forged.stdout,
+         'KNOWN VULNERABILITY: rollback of test anchor as well impersonates old owner')
+    forged=anchored('publish')
+    case(forged.returncode==0 and claimed(forged.stdout),
+         'KNOWN VULNERABILITY: all-file rollback replays already published memory')
+    # A separate owner has to fence retractions as well as completions:
+    # a restore of pre-tombstone app state may not resurrect old generation.
+    owner_anchor.write_bytes(witness.read_bytes())
+    before_revoke_frame=(journal/'owner.frame').read_bytes()
+    before_revoke_witness=witness.read_bytes()
+    revoked=anchored('revoke')
+    case(revoked.returncode==0 and 'REVISION=' in revoked.stdout,
+         'separately authorized owner revocation records a tombstone')
+    owner_anchor.write_bytes(witness.read_bytes())
+    revoked=anchored('check')
+    case(revoked.returncode==0 and 'REVISION=\n' in revoked.stdout,
+         'new JVM sees current tombstone after owner checkpoint')
+    revoked=anchored('publish')
+    case(revoked.returncode==0 and not claimed(revoked.stdout),
+         'fresh JVM cannot republish a revoked generation')
+    (journal/'owner.frame').write_bytes(before_revoke_frame)
+    witness.write_bytes(before_revoke_witness)
+    replay=anchored('publish')
+    case(replay.returncode!=0 and 'external owner authority mismatch' in replay.stderr,
+         'old pre-tombstone app snapshot fails against surviving owner checkpoint')
     print('FUTURE_G1_JVM_PROCESS_RESTART_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_JOINT_DISK_AUTHORITY_ROLLBACK=VULNERABILITY_REPRODUCED_NOT_FIXED')
 
