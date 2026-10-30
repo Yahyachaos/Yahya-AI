@@ -8,7 +8,44 @@ public final class VoiceVerifiedPresentationClockTest {
     private static void eq(long expected, long actual, String why) {
         ok(expected == actual, why + " expected=" + expected + " actual=" + actual);
     }
+    /** RAW_HEAD_ONLY has no capture provenance; it may close the visible cursor,
+     * but a backwards/invalid raw-only callback must not permanently poison
+     * a previously trusted acoustic clock epoch. True external rollback remains fatal.
+     */
+    private static void rawOnlyRollbackDoesNotPoison() {
+        for (int round = 0; round < 200; round++) {
+            VoiceVerifiedPresentationClock c = new VoiceVerifiedPresentationClock();
+            c.begin(1, 48000);
+            long t = 1_000_000_000L + round * 1_000_000_000L;
+            ok(c.observe(1, VoiceVerifiedPresentationClock.EvidenceKind.EXTERNAL_CAPTURE,
+                    300, 400, 400, t, t + 1_000_000L), "trusted baseline");
+            eq(300, c.presentedFrame(1, t + 2_000_000L), "trusted cursor");
+            ok(!c.observe(1, VoiceVerifiedPresentationClock.EvidenceKind.RAW_HEAD_ONLY,
+                    -1, -1, -1, t - 1, t - 1), "untrusted RAW_HEAD_ONLY rejected");
+            eq(-1, c.presentedFrame(1, t + 3_000_000L), "raw-only closes display");
+            ok(c.observe(1, VoiceVerifiedPresentationClock.EvidenceKind.EXTERNAL_CAPTURE,
+                    350, 450, 450, t + 10_000_000L, t + 11_000_000L),
+                    "fresh independent capture recovers without generation restart");
+            eq(350, c.presentedFrame(1, t + 12_000_000L), "recovered position");
+            ok(!c.observe(1, VoiceVerifiedPresentationClock.EvidenceKind.EXTERNAL_CAPTURE,
+                    340, 450, 450, t + 13_000_000L, t + 14_000_000L),
+                    "genuine external rollback still poisons");
+            eq(-1, c.presentedFrame(1, t + 15_000_000L), "fatal reset remains closed");
+            ok(!c.observe(1, VoiceVerifiedPresentationClock.EvidenceKind.EXTERNAL_CAPTURE,
+                    360, 460, 460, t + 16_000_000L, t + 17_000_000L),
+                    "fatal external reset never silently reopens");
+            c.begin(2, 48000);
+            ok(c.observe(2, VoiceVerifiedPresentationClock.EvidenceKind.EXTERNAL_CAPTURE,
+                    1, 2, 2, t + 20_000_000L, t + 21_000_000L),
+                    "new generation recovers after truly poisoned external capture");
+            ok(!c.observe(1, VoiceVerifiedPresentationClock.EvidenceKind.EXTERNAL_CAPTURE,
+                    2, 3, 3, t + 22_000_000L, t + 23_000_000L),
+                    "stale prior generation cannot disturb new capture");
+        }
+    }
+
     public static void main(String[] args) {
+        rawOnlyRollbackDoesNotPoison();
         VoiceVerifiedPresentationClock c = new VoiceVerifiedPresentationClock();
         long id=1L;
         c.begin(id, 48000);

@@ -57,7 +57,8 @@ public final class VoiceVerifiedPresentationClock {
         // A demonstrated same-epoch reset is fatal even if this callback also has
         // inconsistent range/proof metadata. Do not lose reset evidence by treating
         // that callback as a merely recoverable invalid sample.
-        if (hasBaseline && (presentedFrames < lastPresented || rawHeadFrames < lastRaw
+        if (kind == EvidenceKind.EXTERNAL_CAPTURE && hasBaseline
+                && (presentedFrames < lastPresented || rawHeadFrames < lastRaw
                 || acceptedFrames < lastAccepted || captureNs < lastCaptureNs
                 || pollNs < lastPollNs)) {
             hasEvidence = false;
