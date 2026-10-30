@@ -30,10 +30,64 @@ public final class FutureMemoryRecallContract {
         passed++;
     }
     static String top(String query, List<CelineFutureMemoryRecall.Candidate> entries) {
-        List<CelineFutureMemoryRecall.Match> result = CelineFutureMemoryRecall.retrieve(query,entries,8,NOW);
+        List<CelineFutureMemoryRecall.Match> result = Fixture.retrieve(query,entries,8,NOW);
         return result.isEmpty()?"":result.get(0).candidate.id;
     }
-    public static void main(String[] args) {
+    // The historical 372 contract cases test LINEAGE POLICY under a hypothetical
+    // trusted owner. This is deliberately NOT an authentication guarantee.
+    static final class Fixture {
+        private static final byte[] TEST_ONLY_SECRET = new byte[32];
+        private static final String TEST_ONLY_GENERATION = "fixture-source-snapshot-1";
+        private static final CelineFutureMemoryRecall.OwnerLineageVerifier VERIFIED;
+        static {
+            Arrays.fill(TEST_ONLY_SECRET, (byte)0x29);
+            VERIFIED = new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                TEST_ONLY_SECRET, TEST_ONLY_GENERATION);
+        }
+        private static CelineFutureMemoryRecall.OwnerLineageCertificate sourceFixture(
+                List<CelineFutureMemoryRecall.Candidate> c,
+                Set<String> retired, Set<String> confirmed) {
+            byte[] payload = CelineFutureMemoryRecall.certificatePayload(
+                TEST_ONLY_GENERATION,c,retired,confirmed);
+            if (payload.length == 0) return null;
+            try {
+                javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+                mac.init(new javax.crypto.spec.SecretKeySpec(TEST_ONLY_SECRET,"HmacSHA256"));
+                return new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                    TEST_ONLY_GENERATION,retired,confirmed,mac.doFinal(payload));
+            } catch (java.security.GeneralSecurityException ex) {
+                return null;
+            }
+        }
+        static List<CelineFutureMemoryRecall.Match> retrieve(String q,
+                List<CelineFutureMemoryRecall.Candidate> c, int max, long now) {
+            return CelineFutureMemoryRecall.retrieve(q,c,max,now);
+        }
+        static List<CelineFutureMemoryRecall.Match> retrieve(String q,
+                List<CelineFutureMemoryRecall.Candidate> c, Set<String> retired,
+                int max, long now) {
+            return CelineFutureMemoryRecall.retrieve(q,c,retired,max,now);
+        }
+        static List<CelineFutureMemoryRecall.Match> retrieve(String q,
+                List<CelineFutureMemoryRecall.Candidate> c, Set<String> retired,
+                Set<String> certified, int max, long now) {
+            return CelineFutureMemoryRecall.retrieveCertified(q,c,
+                sourceFixture(c,retired,certified),VERIFIED,max,now);
+        }
+        static String correct(String q, List<CelineFutureMemoryRecall.Candidate> c, long now) {
+            return CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,c,now);
+        }
+        static String correct(String q, List<CelineFutureMemoryRecall.Candidate> c,
+                Set<String> retired, long now) {
+            return CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,c,retired,now);
+        }
+        static String correct(String q, List<CelineFutureMemoryRecall.Candidate> c,
+                Set<String> retired, Set<String> certified, long now) {
+            return CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(q,c,
+                sourceFixture(c,retired,certified),VERIFIED,now);
+        }
+    }
+    public static void main(String[] args) throws Exception {
         List<CelineFutureMemoryRecall.Candidate> data = Arrays.asList(
             c("beverage","Mein Lieblingsgetränk ist Tee"),
             c("cat","Meine Katze heißt Luna"),
@@ -59,9 +113,9 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze",Arrays.asList(x("expired","Meine Katze ist alt","",true,NOW-1))),"","expiry");
         eq(top("Meine Katze",Arrays.asList(x("old","Meine Katze heißt Paul","",true,0),
                                             x("new","Meine Katze heißt Luna","old",true,0))),"new","supersession");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt nicht Luna",data,NOW),
+        eq(Fixture.correct("Meine Katze heißt nicht Luna",data,NOW),
             "cat","unique correction suggestion");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze",Arrays.asList(
+        eq(Fixture.correct("Meine Katze",Arrays.asList(
             c("a","Meine Katze frisst gerne"),c("b","Meine Katze heißt Luna")),NOW),
             "","ambiguous correction fail closed");
         // FUTURE-ONLY: an inaccessible or untrusted memory can still be the
@@ -81,44 +135,44 @@ public final class FutureMemoryRecallContract {
             "correct-shareable", "Meine Katze heisst Luna", "",
             CelineFutureMemoryRecall.Privacy.SHAREABLE_ON_REQUEST, true, true, NOW-100, 0, 0.8);
         String fullCorrection = "Meine Katze heisst Luna";
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,hiddenSensitive),NOW), "",
             "hidden sensitive equally relevant correction rival must abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,hiddenDenied),NOW), "",
             "permission-withheld equally relevant correction rival must abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,hiddenInferred),NOW), "",
             "untrusted equally relevant correction rival must abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,hiddenShareable),NOW), "",
             "shareable-on-request equally relevant correction rival must abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(hiddenSensitive,visibleCorrection),NOW), "",
             "inaccessible ambiguity independent of projection order");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
                 "long-hidden", "Meine Katze heisst Luna und mag Milch", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,0,0.8)),NOW), "",
             "hidden rival with all three query anchors prevents auto-selection");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
                 "partial-hidden", "Meine Katze", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,0,0.8)),NOW),
             "correct-visible", "weak two-token hidden rival does not defeat three-token evidence");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
                 "unrelated-hidden", "Damu Markt verkauft Getränke", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,0,0.8)),NOW),
             "correct-visible", "unrelated confidential record does not suppress a correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection, new CelineFutureMemoryRecall.Candidate(
                 "expired-hidden", "Meine Katze heisst Luna", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,NOW-100,NOW-1,0.8)),NOW),
             "correct-visible", "expired inaccessible rival does not defeat live correction");
         eq(top(fullCorrection,Arrays.asList(visibleCorrection,hiddenSensitive)),
             "correct-visible", "ordinary provider-safe retrieval stays permission-filtered");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection),NOW), "correct-visible",
             "isolated three-token fact still yields an unambiguous correction ID");
         // A G1 record may be privacy-redacted or malformed before projection.
@@ -144,29 +198,29 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("invalid-importance", fullCorrection, "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, false, true,
                 NOW-100, 0, Double.NaN);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,absentSensitiveSummary),NOW), "",
             "redacted live memory with missing summary prevents speculative correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,corruptSensitiveSummary),NOW), "",
             "corrupted live hidden memory prevents speculative correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,invalidImportance),NOW), "",
             "malformed importance must not make a competing correction target disappear");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,expiredAbsentSummary),NOW), "correct-visible",
             "expired redacted memory does not suppress active correction evidence");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fullCorrection,
+        eq(Fixture.correct(fullCorrection,
             Arrays.asList(visibleCorrection,futureAbsentSummary),NOW), "correct-visible",
             "not-yet-created redacted memory does not suppress correction evidence");
         eq(top(fullCorrection,Arrays.asList(visibleCorrection,absentSensitiveSummary)),
             "correct-visible", "privacy-filtered retrieval unchanged by absent-summary correction guard");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Tee",data,NOW),"","single-token correction fail closed");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Mein Lieblingsgetränk ist Kaffee",data,NOW),
+        eq(Fixture.correct("Tee",data,NOW),"","single-token correction fail closed");
+        eq(Fixture.correct("Mein Lieblingsgetränk ist Kaffee",data,NOW),
             "","correction without discriminating target must request ID");
-        eq(CelineFutureMemoryRecall.retrieve("Katze",data,0,NOW).size(),0,"zero result bound");
+        eq(Fixture.retrieve("Katze",data,0,NOW).size(),0,"zero result bound");
         eq(top("Katze",Arrays.asList(c("b","Katze B"),c("a","Katze A"))),"a","deterministic tie");
-        eq(CelineFutureMemoryRecall.retrieve("Katze",data,100,NOW).size(),1,"bounded result");
+        eq(Fixture.retrieve("Katze",data,100,NOW).size(),1,"bounded result");
         List<CelineFutureMemoryRecall.Candidate> capacity = new ArrayList<>();
         capacity.add(x("old-capacity", "Meine Katze heißt Paul", "", true, 0));
         for (int i=1; i<2048; i++) capacity.add(c("noise-"+i, "Anderes Thema Nummer "+i));
@@ -175,7 +229,7 @@ public final class FutureMemoryRecallContract {
                 "Meine Katze heißt Luna", "old-capacity",
                 CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, true, true, NOW, 0, 1));
         eq(top("Meine Katze", capacity),"", "overflow privacy must fail closed");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Luna", capacity, NOW),
+        eq(Fixture.correct("Meine Katze heißt Luna", capacity, NOW),
                 "", "overflow correction suggestion must fail closed");
         // Future-only monotonic correction policy: a supplied expired successor still
         // suppresses its predecessor; expiration must never resurrect obsolete facts.
@@ -183,7 +237,7 @@ public final class FutureMemoryRecallContract {
             x("old-cat", "Meine Katze heißt Paul", "", true, 0),
             x("expired-new-cat", "Meine Katze heißt Luna", "old-cat", true, NOW-1));
         eq(top("Meine Katze heißt", expiredSuccessor), "", "expired successor cannot resurrect old");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Paul",expiredSuccessor,NOW),
+        eq(Fixture.correct("Meine Katze heißt Paul",expiredSuccessor,NOW),
             "", "correction target cannot select stale ancestor");
         List<CelineFutureMemoryRecall.Candidate> expiredSensitive = Arrays.asList(
             x("old-secret", "Mein Passwort lautet frei", "", true, 0),
@@ -200,7 +254,7 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("same-id", "Meine Katze heißt Luna", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true, NOW, 0, 1));
         eq(top("Meine Katze heißt",duplicateId),"","duplicate ID cannot expose earlier public projection");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Paul",duplicateId,NOW),
+        eq(Fixture.correct("Meine Katze heißt Paul",duplicateId,NOW),
                 "","duplicate ID correction must abstain");
         eq(top("Meine Katze heißt",Arrays.asList(
             x("same-id", "Meine Katze heißt Paul", "", true, 0),
@@ -212,14 +266,14 @@ public final class FutureMemoryRecallContract {
             x("retired-cat", "Meine Katze heißt Paul", "", true, 0),
             c("valid-work", "Damu Markt verkauft Getränke"));
         Set<String> retired = Collections.singleton("retired-cat");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",prunedProjection,retired,8,NOW).size(),
+        eq(Fixture.retrieve("Meine Katze heißt",prunedProjection,retired,8,NOW).size(),
             0,"explicit retraction suppresses old record without successor projection");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heißt Paul",prunedProjection,retired,NOW),
             "","explicit retraction prevents stale correction suggestion");
-        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",prunedProjection,retired,8,NOW)
+        eq(Fixture.retrieve("Damu Markt Getränke",prunedProjection,retired,8,NOW)
             .get(0).candidate.id,"valid-work","unrelated candidate remains available");
-        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",prunedProjection,null,8,NOW).size(),
+        eq(Fixture.retrieve("Damu Markt Getränke",prunedProjection,null,8,NOW).size(),
             0,"missing authoritative retraction set fails closed");
         // Exact scope strings verified against v83 Room CelineBrain.java; this
         // fixture stays FUTURE ONLY and never reads protected Android classes.
@@ -291,7 +345,7 @@ public final class FutureMemoryRecallContract {
                 "LOCAL_PRIVATE","INFERRED","inferred",true,false,NOW,0,1));
         eq(top("Meine Katze heißt",uncertainSuccessor),"",
                 "withheld inferred successor still suppresses old fact");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heißt Paul",uncertainSuccessor,NOW),"",
                 "withheld successor cannot select old correction target");
         // The actual G1 item has conflictWithId in addition to supersedesId.
@@ -307,7 +361,7 @@ public final class FutureMemoryRecallContract {
                 "unresolved conflict withholds both candidate values");
         eq(top("Meine Katze heißt", Arrays.asList(trustedConflict, trustedOld)),"",
                 "conflict resolution independent of projection order");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Paul",
+        eq(Fixture.correct("Meine Katze heißt Paul",
                 Arrays.asList(trustedOld, trustedConflict), NOW),"",
                 "no unreviewed conflict auto-correction");
         eq(top("Meine Katze heißt", Arrays.asList(trustedConflict)),"",
@@ -407,7 +461,7 @@ public final class FutureMemoryRecallContract {
             x("fork-max", "Meine Katze heißt Max", "fork-old", true, 0),
             c("fork-unrelated", "Damu Markt verkauft Getränke"));
         eq(top("Meine Katze heißt", fork), "", "two correction children abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heißt Luna", fork, NOW), "", "fork cannot auto-select correction");
         eq(top("Damu Markt Getränke", fork), "fork-unrelated",
             "unrelated fact available despite correction fork");
@@ -434,7 +488,7 @@ public final class FutureMemoryRecallContract {
         List<CelineFutureMemoryRecall.Candidate> reimport = Arrays.asList(
             x("reimport-old", "Meine Katze heißt Paul", "", true, 0),
             c("reimport-winner", "Meine Katze heißt Luna"));
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt", reimport,
+        eq(Fixture.retrieve("Meine Katze heißt", reimport,
                 Collections.singleton("reimport-old"), 8, NOW).get(0).candidate.id,
             "reimport-winner", "authoritative tombstone blocks stale reimport");
         // A retired opponent ID alone does not prove an unresolved G1 conflict
@@ -444,7 +498,7 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("unresolved-reimport",
                 "Meine Katze heißt Luna", "", "reimport-old",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW, 0, 1);
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",
+        eq(Fixture.retrieve("Meine Katze heißt",
                 Arrays.asList(unresolvedReimport), Collections.singleton("reimport-old"),
                 8, NOW).size(), 0, "retired opponent does not clear unresolved conflict");
         // A conflict at an ancestor cannot be laundered into a trusted fact
@@ -463,7 +517,7 @@ public final class FutureMemoryRecallContract {
             "unresolved conflict quarantines direct successor");
         eq(top("Meine Katze heißt", descendantConflict), "",
             "unresolved conflict quarantines transitive successor");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heißt Max", descendantConflict, NOW), "",
             "unresolved conflict descendants never auto-select correction target");
         eq(top("Meine Katze heißt", Arrays.asList(disputedGrandchild,
@@ -569,7 +623,7 @@ public final class FutureMemoryRecallContract {
                 "Meine Katze heißt Luna", "", "negative-conflicted",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true,
                 NOW-100, -1, 1))), "", "invalid conflict holder still quarantines opponent");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heißt Luna",
+        eq(Fixture.correct("Meine Katze heißt Luna",
             Arrays.asList(new CelineFutureMemoryRecall.Candidate("negative-correction",
                 "Meine Katze heißt Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                 true, true, NOW-100, -1, 1)), NOW), "",
@@ -579,7 +633,7 @@ public final class FutureMemoryRecallContract {
                 "g1-negative-expiry", "Meine Katze heißt Luna", "", "LOCAL_PRIVATE",
                 "EXPLICIT", "user_explicit", true, true, NOW-100, -1, 1))), "",
                 "source-grounded G1 negative expiry remains invalid");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heißt",
+        eq(Fixture.retrieve("Meine Katze heißt",
             Arrays.asList(c("negative-query-now", "Meine Katze heißt Luna")), 8, -1).size(),
             0, "negative evaluation clock must not expose any candidate");
         // FUTURE ONLY: corrupt non-finite importance is not an authorized
@@ -658,7 +712,7 @@ public final class FutureMemoryRecallContract {
                 "", tooLongId, CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                 true, true, NOW-100, 0, 0.5))), "",
             "oversized conflict key rejects complete projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+        eq(Fixture.retrieve("Meine Katze heisst",
             Arrays.asList(x("safe-id", "Meine Katze heisst Paul", "", true, 0)),
             Collections.singleton(tooLongId), 8, NOW).size(), 0,
             "oversized retired ID rejects complete projection");
@@ -693,11 +747,11 @@ public final class FutureMemoryRecallContract {
                 "", "unknown\u200B", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
                 false, true, NOW-100, 0, 0.5))), "",
             "Unicode format in conflict key rejects entire projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+        eq(Fixture.retrieve("Meine Katze heisst",
             Arrays.asList(x("valid-cat", "Meine Katze heisst Paul", "", true, 0)),
             Collections.singleton("unknown\n"), 8, NOW).size(), 0,
             "source retired-ID with trailing newline rejects full projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+        eq(Fixture.retrieve("Meine Katze heisst",
             Arrays.asList(x("valid-cat", "Meine Katze heisst Paul", "", true, 0)),
             Collections.singleton("unknown\u200B"), 8, NOW).size(), 0,
             "source retired-ID with zero-width format rejects full projection");
@@ -725,7 +779,7 @@ public final class FutureMemoryRecallContract {
                 "", "missing\uE000", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                 true, true, NOW-100, 0, 0.5))), "",
             "private-use conflict key fails complete projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst",
+        eq(Fixture.retrieve("Meine Katze heisst",
             Arrays.asList(x("valid-cat", "Meine Katze heisst Paul", "", true, 0)),
             Collections.singleton("retired\uFDD0"), 8, NOW).size(), 0,
             "noncharacter retired-ID fails complete projection");
@@ -796,43 +850,43 @@ public final class FutureMemoryRecallContract {
         eq(top("Damu Markt Getränke", Arrays.asList(orphan,
             c("orphan-unrelated-work", "Damu Markt verkauft Getränke"))),
             "orphan-unrelated-work", "independent trusted memory survives orphan quarantine");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(orphan), Collections.singleton("unknown-parent"),
             Collections.singleton("unknown-parent"), 8, NOW)
             .get(0).candidate.id, "orphan-new",
             "separately confirmed retired-parent history permits correction chain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(orphan), NOW), "",
             "orphan is never suggested as natural-language correction target");
 
         // Bare tombstone is not reliable proof of a pruned conflict winner.
         Set<String> retiredParent = Collections.singleton("unknown-parent");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(orphan), retiredParent, 8, NOW).size(), 0,
             "tombstone-only pruned parent must abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(orphan), retiredParent, NOW), "",
             "tombstone-only correction target must abstain");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(orphan),
             retiredParent, retiredParent, NOW), "orphan-new",
             "source-confirmed lineage permits precise correction target");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Max",
+        eq(Fixture.retrieve("Meine Katze heisst Max",
             Arrays.asList(orphan, orphanDescendant), retiredParent, retiredParent, 8, NOW)
             .get(0).candidate.id, "orphan-grandchild",
             "source-confirmed ancestor permits safe descendant");
-        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",
+        eq(Fixture.retrieve("Damu Markt Getränke",
             Arrays.asList(orphan, c("safe-independent", "Damu Markt verkauft Getränke")),
             retiredParent, 8, NOW).get(0).candidate.id, "safe-independent",
             "independent memory survives unconfirmed compacted ancestor");
-        eq(CelineFutureMemoryRecall.retrieve("Damu Markt Getränke",
+        eq(Fixture.retrieve("Damu Markt Getränke",
             Arrays.asList(c("independent-only", "Damu Markt verkauft Getränke")),
             Collections.<String>emptySet(), retiredParent, 8, NOW).size(), 0,
             "unmatched confirmation fails complete projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(orphan), retiredParent, null, 8, NOW).size(), 0,
             "missing confirmation set fails complete projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(orphan), retiredParent,
             Collections.singleton("invalid!proof"), 8, NOW).size(), 0,
             "invalid confirmation key fails complete projection");
@@ -840,11 +894,11 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("conflicted-compacted",
                 "Meine Katze heisst Luna", "unknown-parent", "missing-opponent",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, NOW-100, 0, 0.5);
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(unresolvedCompactedConflict), retiredParent, retiredParent,
             8, NOW).size(), 0,
             "visible unresolved conflict still wins over owner attestation");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(
                 x("retired-fork-luna", "Meine Katze heisst Luna", "unknown-parent", true, 0),
                 x("retired-fork-max", "Meine Katze heisst Max", "unknown-parent", true, 0)),
@@ -861,68 +915,68 @@ public final class FutureMemoryRecallContract {
                 "Meine Katze heisst Luna", "", "missing-conflict-end",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true,
                 NOW-100, 0, 0.5);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection, disputedLive), NOW), "",
             "live conflicted authorized rival must block speculative correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(disputedLive, cleanCorrection), NOW), "",
             "conflict rival correction independent of order");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection, orphan), retiredParent, NOW), "",
             "bare retired-parent tombstone does not justify correction while orphan rival remains");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(orphan, cleanCorrection), retiredParent, NOW), "",
             "bare retired lineage ambiguity independent of input order");
         CelineFutureMemoryRecall.Candidate quarantineChild =
             x("quarantined-child", "Meine Katze heisst Luna", "disputed-live", true, 0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 disputedLive, quarantineChild), NOW), "",
             "descendant of conflicted rival must not disappear from correction ambiguity");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 c("normal-independent", "Damu Markt verkauft Getränke")), NOW),
             "clean-correction", "independent unrelated memory still permits correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 x("expired-orphan", "Meine Katze heisst Luna", "unknown-parent", true, NOW-1)),
                 retiredParent, NOW), "clean-correction",
             "genuinely expired orphan is not a live correction rival");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 x("retired-candidate", "Meine Katze heisst Luna", "", true, 0)),
                 Collections.singleton("retired-candidate"), NOW), "clean-correction",
             "source-retired record is not a live correction rival");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection), NOW),
             "clean-correction", "unique eligible correction remains usable");
         // If G1 timestamp metadata is corrupt, it cannot prove that a competing
         // correction candidate no longer exists. Provider retrieval can reject
         // it, but correction-by-guess must fall back to explicit selected ID.
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 x("negative-expiry-rival", "Meine Katze heisst Luna", "unknown-parent", true, -1)),
                 retiredParent, NOW), "",
             "negative expiry on pruned rival must block guessed correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 new CelineFutureMemoryRecall.Candidate("negative-updated-rival",
                     "Meine Katze heisst Luna", "", "missing-conflict-end",
                     CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, -1, 0, 0.5)), NOW), "",
             "negative updatedAt on conflicted rival cannot prove absence");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 new CelineFutureMemoryRecall.Candidate("reversed-expiry-rival",
                     "Meine Katze heisst Luna", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                     true, true, NOW-100, NOW-200, 0.5)), NOW), "",
             "expiry before last update is corrupt lineage, not proof of retirement");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 new CelineFutureMemoryRecall.Candidate("corrupt-time-redacted",
                     "", "", CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,
                     false, true, NOW-100, -1, 0.5)), NOW), "",
             "corrupt timestamp and redacted summary must block speculative correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Luna", Arrays.asList(cleanCorrection,
                 x("truly-expired-rival", "Meine Katze heisst Luna", "", true, NOW-1)), NOW),
             "clean-correction", "valid expired rival does not block correction");
@@ -948,7 +1002,7 @@ public final class FutureMemoryRecallContract {
             x("hidden-format-successor","Meine Katze heisst Lu\u200Bna",
                 "old-format-ancestor",true,0))),"",
             "invalid format successor still retires ancestor");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             "Meine Katze heisst Lu\u200Bna",Arrays.asList(
                 c("format-correction","Meine Katze heisst Luna")),NOW),"",
             "format-corrupted correction must not select memory ID");
@@ -1133,7 +1187,7 @@ public final class FutureMemoryRecallContract {
             c("old-raw-bound", "Meine Katze heisst Paul"),
             x("oversized-successor", oversizedLeading, "old-raw-bound", true, 0))),
             "", "invalid oversized successor still retires ancestor");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(oversizedLeading,
+        eq(Fixture.correct(oversizedLeading,
             Arrays.asList(c("over-correction", "Meine Katze heisst Luna")), NOW),
             "", "oversized padded text cannot auto-select a correction ID");
         // FUTURE ONLY: keycap/enclosing marks and strike overlays must not
@@ -1212,7 +1266,7 @@ public final class FutureMemoryRecallContract {
             x("replacement-successor", sourceFact + "\uFFFD",
                 "old-bad-replacement", true, 0))),
             "", "withheld corrupt successor still retires prior memory");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             sourceFact + "\uFFFD", Arrays.asList(c("bad-correction", sourceFact)), NOW),
             "", "corrupt correction text must not select memory ID");
         eq(top(sourceFact + " 🙂",
@@ -1254,7 +1308,7 @@ public final class FutureMemoryRecallContract {
             x("overlay-old", "Meine Katze heisst Paul", "", true, 0),
             x("overlay-next", sourceFact + "\u20D2", "overlay-old", true, 0))),
             "", "overlay successor still retires old fact");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             sourceFact + "\u20D3",
             Arrays.asList(c("overlay-correction", sourceFact)), NOW),
             "", "overlay-corruped correction cannot select ID");
@@ -1284,7 +1338,7 @@ public final class FutureMemoryRecallContract {
             x("pua-old", "Meine Katze heisst Paul", "", true, 0),
             x("pua-new", sourceFact + puaBmp, "pua-old", true, 0))),
             "", "withheld PUA successor still retires old fact");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             sourceFact + puaPlane15, Arrays.asList(c("pua-correction", sourceFact)), NOW),
             "", "PUA-carrying correction cannot auto-select a memory ID");
         eq(top("Meine Katze heisst Lu" + puaBmp + "na",
@@ -1317,7 +1371,7 @@ public final class FutureMemoryRecallContract {
             x("cn-old", "Meine Katze heisst Paul", "", true, 0),
             x("cn-new", sourceFact + unassignedGreek, "cn-old", true, 0))),
             "", "unassigned successor cannot resurrect obsolete ancestor");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+        eq(Fixture.correct(
             sourceFact + unassignedSupplementary, Arrays.asList(c("cn-correction", sourceFact)), NOW),
             "", "unassigned correction content cannot select ID");
         eq(top("Meine Katze heisst Lu" + unassignedGreek + "na",
@@ -1337,25 +1391,25 @@ public final class FutureMemoryRecallContract {
             x("collision-child", "Meine Katze heisst Luna", "collision-parent", true, 0);
         List<CelineFutureMemoryRecall.Candidate> collisionProjection =
             Arrays.asList(collisionParent,collisionChild);
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna", collisionProjection,
+        eq(Fixture.retrieve("Meine Katze heisst Luna", collisionProjection,
             collisionRetired,collisionRetired,8,NOW).size(), 0,
             "source-present parent cannot be simultaneously certified pruned");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(collisionChild,collisionParent),collisionRetired,collisionRetired,8,NOW).size(), 0,
             "certificate and source record collision must be order independent");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             collisionProjection,collisionRetired,collisionRetired,NOW), "",
             "conflicting pruned certificate cannot authorize correction target");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(collisionParent,collisionChild,
                 c("unrelated-safe", "Damu Markt verkauft Getraenke")),
             collisionRetired,collisionRetired,8,NOW).size(), 0,
             "a contradictory certificate poisons the entire projection");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(collisionChild),collisionRetired,collisionRetired,8,NOW)
                 .get(0).candidate.id, "collision-child",
             "actually pruned missing parent retains explicitly attested child");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             collisionProjection,collisionRetired,8,NOW).get(0).candidate.id,
             "collision-child", "legacy complete lineage without false prune certificate remains available");
         // Eight-result cap is not permission to ignore a ninth hidden rival.
@@ -1367,12 +1421,12 @@ public final class FutureMemoryRecallContract {
             "cap-hidden", "Meine Katze heisst Luna", "",
             CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE, false, true,NOW-100,0,0.9);
         capped.add(cappedHidden);
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",capped,8,NOW).size(), 8,
+        eq(Fixture.retrieve("Meine Katze heisst Luna",capped,8,NOW).size(), 8,
             "eight-result bound stays deterministic");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             capped,NOW), "", "ninth hidden equal rival must prevent speculative ID selection");
         Collections.reverse(capped);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             capped,NOW), "", "capped hidden rival must be input-order independent");
 
         // FUTURE-ONLY: a redacted/unindexable live rival can have the same
@@ -1385,26 +1439,26 @@ public final class FutureMemoryRecallContract {
             c("script-cjk", "Meine Katze heisst Luna 猫");
         CelineFutureMemoryRecall.Candidate brokenLong =
             c("script-many", "Meine Katze heisst Luna eins zwei drei vier fuenf sechs sieben acht neun zehn elf zwoelf dreizehn vierzehn fuenfzehn sechzehn siebzehn achtzehn neunzehn zwanzig einundzwanzig zweiundzwanzig dreiundzwanzig vierundzwanzig fuenfundzwanzig sechsundzwanzig siebenundzwanzig achtundzwanzig neunundzwanzig dreissig einunddreissig zweiunddreissig dreiunddreissig");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,mixedArabic),NOW), "",
             "mixed Arabic and German rival cannot be dismissed as unrelated");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(mixedCjk,aVisible),NOW), "",
             "mixed CJK and German rival correction must abstain independent of order");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,brokenLong),NOW), "",
             "oversized tokenizer vocabulary on source rival is unknown, not irrelevant");
         eq(top("Meine Katze heisst Luna",Arrays.asList(aVisible,mixedArabic)),
             "script-visible", "provider retrieval remains strict while correction abstains");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
                 "script-expired", "Meine Katze heisst Luna عربي", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,NOW-1,0.5)),NOW),
             "script-visible", "expired unindexable rival does not block correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,mixedCjk),Collections.singleton("script-cjk"),NOW),
             "script-visible", "owner-retired rival cannot be auto-selected");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("script-unrelated", "Damu Markt verkauft Getraenke")),NOW),
             "script-visible", "valid unrelated indexed rival does not block correction");
 
@@ -1417,50 +1471,50 @@ public final class FutureMemoryRecallContract {
             c("plain-punctuation", "?! --- ... ;: ()");
         CelineFutureMemoryRecall.Candidate safeEmptyShortWords =
             c("plain-shortwords", "ab xy zu und der");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyStopwords),NOW), "script-visible",
             "safe stopwords-only rival does not block unique correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(safeEmptyPunctuation,aVisible),NOW), "script-visible",
             "ASCII punctuation-only rival does not block unique correction independent of order");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",
             "known short-word-only rival does not block correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-emoji", "❤️")),NOW), "",
             "emoji-only rival stays opaque rather than assumed unrelated");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-cjk", "猫")),NOW), "",
             "unrepresentable script-only rival still blocks speculative correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-invisible", "und oder\u200B")),NOW), "",
             "hidden control mark invalidates an otherwise stopword-only rival");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-interleaved", "und Katze oder Luna")),NOW), "script-visible",
             "weak rival with two anchors cannot override three-anchor correction");
         eq(top("Meine Katze heisst Luna",Arrays.asList(aVisible,safeEmptyStopwords)),
             "script-visible", "provider retrieval remains unchanged with stopword-only rival");
         // A lexical-empty summary is not permission to disregard corrupt G1
         // metadata; malformed clocks and non-finite importance remain unknown.
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
                 "bad-clock-stops", "und der oder", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,
                 -5,0,0.5)),NOW), "",
             "negative G1 update timestamp must not be bypassed by stopword exception");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
                 "bad-weight-stops", "und der oder", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,
                 NOW-100,0,Double.NaN)),NOW), "",
             "nonfinite G1 importance must not be bypassed by stopword exception");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("safe-stop-with-umlaut", "für und zum bitte")),NOW),
             "script-visible", "German umlaut-normalized stopword remains known empty evidence");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-non-german-accent", "und oder dïe")),NOW),
             "", "non-allowlisted Unicode cannot be dismissed as stopwords");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("opaque-redacted", "\u200B")),NOW),
             "", "redacted or invalid mark-only rival never becomes benign punctuation");
         // A G1-owner-confirmed pruned parent permits the precise winner to be
@@ -1474,43 +1528,43 @@ public final class FutureMemoryRecallContract {
         CelineFutureMemoryRecall.Candidate unverifiedOrphan =
             x("other-live-orphan", "Katze heisst Max",
                 "other-missing-ancestor", true, 0);
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,unverifiedOrphan),
             certifiedRetired,certifiedRetired,8,NOW).get(0).candidate.id,
             "owner-certified-winner", "owner certified parent allows only safe winner retrieval");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,unverifiedOrphan),
             certifiedRetired,certifiedRetired,NOW), "",
             "withheld weaker orphan on same subject makes correction ID ambiguous");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(unverifiedOrphan,certifiedWinner),
             certifiedRetired,certifiedRetired,NOW), "",
             "withheld weaker orphan ambiguity is order independent");
         CelineFutureMemoryRecall.Candidate malformedClockWeakRival =
             new CelineFutureMemoryRecall.Candidate("weak-corrupt-clock", "Katze heisst Max", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,-1,0,0.5);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,malformedClockWeakRival),
             certifiedRetired,certifiedRetired,NOW), "",
             "on-topic malformed timestamp may still be correction target");
         CelineFutureMemoryRecall.Candidate malformedWeightWeakRival =
             new CelineFutureMemoryRecall.Candidate("weak-corrupt-weight", "Katze heisst Max", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,0,Double.NaN);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,malformedWeightWeakRival),
             certifiedRetired,certifiedRetired,NOW), "",
             "on-topic malformed relevance may still be correction target");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,x("unrelated-orphan", "Damu Markt verkauft Getraenke",
                 "other-missing-ancestor",true,0)), certifiedRetired,certifiedRetired,NOW),
             "owner-certified-winner", "clearly unrelated orphan does not block unique correction");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner, new CelineFutureMemoryRecall.Candidate(
                 "expired-orphan", "Katze heisst Max", "other-missing-ancestor",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,NOW-1,0.5)),
             certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
             "truly expired weaker orphan cannot be a current correction target");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,unverifiedOrphan),
             new HashSet<>(Arrays.asList("owner-pruned-old","other-live-orphan")),
             certifiedRetired,NOW), "owner-certified-winner",
@@ -1521,7 +1575,7 @@ public final class FutureMemoryRecallContract {
             x("other-orphan-mid", "Anderes Thema", "unseen-unverified-root", true, 0);
         CelineFutureMemoryRecall.Candidate orphanGrandchild =
             x("other-orphan-descendant", "Katze heisst Max", "other-orphan-mid", true, 0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,orphanGrandparent,orphanGrandchild),
             certifiedRetired,certifiedRetired,NOW), "",
             "transitive orphan descendant with two anchors blocks guessed correction");
@@ -1529,7 +1583,7 @@ public final class FutureMemoryRecallContract {
             new CelineFutureMemoryRecall.Candidate("other-conflict", "Katze heisst Max", "",
                 "absent-opponent", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
                 true,true,NOW-100,0,0.5);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,conflictWeakRival),
             certifiedRetired,certifiedRetired,NOW), "",
             "unresolved on-topic conflict is not dismissed by higher lexical score");
@@ -1539,11 +1593,11 @@ public final class FutureMemoryRecallContract {
             x("other-fork-rival", "Katze heisst Max", "other-fork-parent",true,0);
         CelineFutureMemoryRecall.Candidate forkSibling =
             x("other-fork-sibling", "Damu Markt verkauft Getraenke", "other-fork-parent",true,0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,forkParent,forkWeakRival,forkSibling),
             certifiedRetired,certifiedRetired,NOW), "",
             "quarantined fork branch with two anchors blocks speculative ID");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,c("safe-cat-extra", "Meine Katze")),
             certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
             "ordinary weaker independent relevant record keeps existing ranking rule");
@@ -1554,17 +1608,17 @@ public final class FutureMemoryRecallContract {
             x("unknown-cycle-a", "Katze heisst Max", "unknown-cycle-b",true,0);
         CelineFutureMemoryRecall.Candidate cycleB =
             x("unknown-cycle-b", "Anderes Thema", "unknown-cycle-a",true,0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,cycleA,cycleB),
             certifiedRetired,certifiedRetired,NOW), "",
             "source metadata cycle with on-topic suppressed rival blocks automatic correction");
         CelineFutureMemoryRecall.Candidate selfLoop =
             x("unknown-self-loop", "Katze heisst Max", "unknown-self-loop",true,0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,selfLoop),
             certifiedRetired,certifiedRetired,NOW), "",
             "self-referential retraction cannot authorize correction of other fact");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,x("unrelated-self-loop", "Damu Markt verkauft Getraenke",
                 "unrelated-self-loop",true,0)),certifiedRetired,certifiedRetired,NOW),
             "owner-certified-winner", "unrelated corrupt retraction does not suppress well-grounded match");
@@ -1572,27 +1626,27 @@ public final class FutureMemoryRecallContract {
         // when its lineage descends from a cycle. Quarantine is transitive.
         CelineFutureMemoryRecall.Candidate cycleChild =
             x("unknown-cycle-child", "Katze heisst Max", "unknown-cycle-a", true, 0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,cycleA,cycleB,cycleChild),
             certifiedRetired,certifiedRetired,NOW), "",
             "on-topic cycle descendant cannot be guessed past unresolved parent cycle");
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(cycleChild,cycleB,certifiedWinner,cycleA),
             certifiedRetired,certifiedRetired,NOW), "",
             "on-topic cycle descendant quarantine independent of source ordering");
-        eq(CelineFutureMemoryRecall.retrieve("Katze heisst Max",
+        eq(Fixture.retrieve("Katze heisst Max",
             Arrays.asList(cycleA,cycleB,cycleChild),
             Collections.<String>emptySet(), Collections.<String>emptySet(),8,NOW).size(),0,
             "provider retrieval never exposes descendant from unresolved cyclic ancestry");
         CelineFutureMemoryRecall.Candidate unrelatedCycleChild =
             x("unrelated-cycle-child", "Damu Markt verkauft Getraenke", "unknown-cycle-a", true, 0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,cycleA,cycleB,unrelatedCycleChild),
             certifiedRetired,certifiedRetired,NOW), "",
             "cycle ancestor remains an on-topic unknown rival even when descendant is unrelated");
         CelineFutureMemoryRecall.Candidate cycleGrandchild =
             x("unknown-cycle-grandchild", "Katze heisst Felix", "unknown-cycle-child", true, 0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,cycleA,cycleB,cycleChild,cycleGrandchild),
             certifiedRetired,certifiedRetired,NOW), "",
             "two-generation cycle descendant remains a withheld ambiguous correction target");
@@ -1602,14 +1656,97 @@ public final class FutureMemoryRecallContract {
             x("unrelated-cycle-b", "Damu Markt hat Snacks", "unrelated-cycle-a", true, 0);
         CelineFutureMemoryRecall.Candidate unrelatedCycleTail =
             x("unrelated-cycle-tail", "Damu Markt hat Brot", "unrelated-cycle-a", true, 0);
-        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,unrelatedCycleA,unrelatedCycleB,unrelatedCycleTail),
             certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
             "unrelated cyclic lineage does not spuriously suppress unique cat correction");
-        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna",
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
             Arrays.asList(certifiedWinner,unrelatedCycleA,unrelatedCycleB,unrelatedCycleTail),
             certifiedRetired,certifiedRetired,8,NOW).get(0).candidate.id,
             "owner-certified-winner", "unrelated cyclic lineage leaves provider-safe winner visible");
+        // Security boundary: caller-claimed confirmedRetiredParentIds can no
+        // longer unlock a pruned ancestor via the PUBLIC scalar-set overloads.
+        List<CelineFutureMemoryRecall.Candidate> signedProjection = Arrays.asList(
+            x("signed-kitten", "Meine Katze heisst Luna", "signed-retired", true, 0));
+        Set<String> signedRetired = Collections.singleton("signed-retired");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna", signedProjection,
+            signedRetired,signedRetired,8,NOW).size(),0,
+            "unauthenticated confirmed ID is not a provider access certificate");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze heisst Luna",
+            signedProjection,signedRetired,signedRetired,NOW),"",
+            "unauthenticated confirmed ID cannot authorize auto-correction");
+        eq(CelineFutureMemoryRecall.retrieve("Meine Katze heisst Luna", signedProjection,
+            signedRetired,Collections.<String>emptySet(),8,NOW).size(),0,
+            "bare tombstone still not a resolved-parent proof");
+        byte[] ownerSecret = new byte[32];
+        Arrays.fill(ownerSecret,(byte)0x37); // deterministic TEST-ONLY fixture secret
+        String generation = "owner-snapshot-7";
+        byte[] signedBytes = CelineFutureMemoryRecall.certificatePayload(
+            generation,signedProjection,signedRetired,signedRetired);
+        javax.crypto.Mac signer = javax.crypto.Mac.getInstance("HmacSHA256");
+        signer.init(new javax.crypto.spec.SecretKeySpec(ownerSecret,"HmacSHA256"));
+        byte[] tag = signer.doFinal(signedBytes);
+        CelineFutureMemoryRecall.OwnerLineageCertificate proof =
+            new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                generation,signedRetired,signedRetired,tag);
+        CelineFutureMemoryRecall.OwnerLineageVerifier trustedVerifier =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(ownerSecret,generation);
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,proof,trustedVerifier,8,NOW).get(0).candidate.id,
+            "signed-kitten","verified source-pinned snapshot can recall resolved child");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Luna",signedProjection,proof,trustedVerifier,NOW),
+            "signed-kitten","verified snapshot permits precise ID suggestion");
+        byte[] wrongKey = new byte[32];
+        Arrays.fill(wrongKey,(byte)0x36);
+        CelineFutureMemoryRecall.OwnerLineageVerifier wrongVerifier =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(wrongKey,generation);
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,proof,wrongVerifier,8,NOW).size(),0,
+            "different owner key rejects forged/foreign certificate");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,proof,new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                ownerSecret,"owner-snapshot-8"),8,NOW).size(),0,
+            "trusted generation mismatch rejects stale replay");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            Arrays.asList(x("signed-kitten", "Meine Katze heisst Max", "signed-retired",true,0)),
+            proof,trustedVerifier,8,NOW).size(),0,
+            "changed memory body is not authenticated by stale certificate");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            Arrays.asList(x("signed-kitten", "Meine Katze heisst Luna", "other-parent",true,0)),
+            proof,trustedVerifier,8,NOW).size(),0,
+            "tampered predecessor edge rejected");
+        byte[] tamperedTag=tag.clone(); tamperedTag[0]^=1;
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                generation,signedRetired,signedRetired,tamperedTag),trustedVerifier,8,NOW).size(),0,
+            "tampered MAC rejected without exceptions");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Meine Katze heisst Luna",signedProjection,proof,null,NOW),"",
+            "missing independent verifier always abstains");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,proof,null,8,NOW).size(),0,
+            "provider does not accept proof without source verifier");
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                generation,signedRetired,Collections.<String>emptySet(),tag),
+            trustedVerifier,8,NOW).size(),0,
+            "certificate cannot substitute modified retired-parent claims");
+        // Certificate object and owner secret are defensively copied.
+        byte[] mutationTag=tag.clone();
+        CelineFutureMemoryRecall.OwnerLineageCertificate immutableProof =
+            new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                generation,signedRetired,signedRetired,mutationTag);
+        mutationTag[0]^=1;
+        ownerSecret[0]^=1;
+        eq(CelineFutureMemoryRecall.retrieveCertified("Meine Katze heisst Luna",
+            signedProjection,immutableProof,trustedVerifier,8,NOW).get(0).candidate.id,
+            "signed-kitten","caller byte-array mutation does not change pinned proof/key");
+        eq(CelineFutureMemoryRecall.certificatePayload(generation, Arrays.asList(
+            x("a", "Katze Luna", "signed-retired",true,0),
+            x("a", "Katze Max", "signed-retired",true,0)),
+            signedRetired,signedRetired).length,0,
+            "certificate encoding rejects duplicate source IDs");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }

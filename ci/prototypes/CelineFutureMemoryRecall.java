@@ -1,6 +1,14 @@
 package de.yahya.ai;
 
 import java.text.Normalizer;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.GeneralSecurityException;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,6 +139,143 @@ public final class CelineFutureMemoryRecall {
     private static final int MAX_RESULTS = 8;
 
     /**
+     * FUTURE-ONLY read-only owner attestation. A caller-asserted retired-ID set
+     * is NOT evidence of source history. In a future G1 adapter both the HMAC
+     * key and the expected, monotonic snapshot generation MUST be supplied
+     * exclusively by the trusted G1 owner, never by chat, a provider or a tool.
+     * This prototype has NO real production owner key or Android integration.
+     */
+    public static final class OwnerLineageCertificate {
+        public final String generation;
+        public final Set<String> retiredIds, confirmedRetiredParentIds;
+        private final byte[] mac;
+
+        public OwnerLineageCertificate(String generation, Set<String> retiredIds,
+                Set<String> confirmedRetiredParentIds, byte[] mac) {
+            this.generation = generation;
+            this.retiredIds = retiredIds == null ? null
+                    : Collections.unmodifiableSet(new HashSet<>(retiredIds));
+            this.confirmedRetiredParentIds = confirmedRetiredParentIds == null ? null
+                    : Collections.unmodifiableSet(new HashSet<>(confirmedRetiredParentIds));
+            this.mac = mac == null ? null : mac.clone();
+        }
+    }
+
+    public static final class OwnerLineageVerifier {
+        private final byte[] ownerKey;
+        private final String expectedGeneration;
+
+        /** Credentials and generation must be anchored OUTSIDE untrusted input. */
+        public OwnerLineageVerifier(byte[] trustedG1Key, String trustedG1Generation) {
+            if (trustedG1Key == null || trustedG1Key.length < 32
+                    || trustedG1Generation == null || trustedG1Generation.isEmpty())
+                throw new IllegalArgumentException("Missing pinned G1 owner authority");
+            ownerKey = trustedG1Key.clone();
+            expectedGeneration = trustedG1Generation;
+        }
+
+        private boolean verifies(OwnerLineageCertificate proof, List<Candidate> records) {
+            if (proof == null || proof.mac == null || proof.mac.length != 32
+                    || !expectedGeneration.equals(proof.generation)) return false;
+            byte[] payload = certificatePayload(proof.generation, records,
+                    proof.retiredIds, proof.confirmedRetiredParentIds);
+            if (payload.length == 0) return false;
+            try {
+                Mac hmac = Mac.getInstance("HmacSHA256");
+                hmac.init(new SecretKeySpec(ownerKey, "HmacSHA256"));
+                return MessageDigest.isEqual(hmac.doFinal(payload), proof.mac);
+            } catch (GeneralSecurityException e) {
+                return false; // Missing cryptographic provider must never allow recall.
+            }
+        }
+    }
+
+    /**
+     * Deterministic, length-delimited projection snapshot for G1-owner signing.
+     * Canonical ordering means reordering a complete owner snapshot changes
+     * neither authority nor recall. This method DOES NOT sign anything.
+     */
+    public static byte[] certificatePayload(String generation, List<Candidate> records,
+            Set<String> retiredIds, Set<String> confirmedRetiredParentIds) {
+        if (generation == null || generation.isEmpty() || generation.length() > MAX_ID_CHARS
+                || records == null || records.isEmpty() || records.size() > MAX_CANDIDATES
+                || retiredIds == null || confirmedRetiredParentIds == null
+                || retiredIds.size() > MAX_CANDIDATES
+                || confirmedRetiredParentIds.size() > MAX_CANDIDATES)
+            return new byte[0];
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(bytes);
+            writeProofString(out, "CELINE_G1_OWNER_LINEAGE_READ_ONLY_V1");
+            writeProofString(out, generation);
+            ArrayList<String> retired = new ArrayList<>(retiredIds);
+            ArrayList<String> confirmed = new ArrayList<>(confirmedRetiredParentIds);
+            Collections.sort(retired);
+            Collections.sort(confirmed);
+            out.writeInt(retired.size());
+            for (String id : retired) {
+                if (!validId(id, false)) return new byte[0];
+                writeProofString(out, id);
+            }
+            out.writeInt(confirmed.size());
+            for (String id : confirmed) {
+                if (!validId(id, false) || !retiredIds.contains(id)) return new byte[0];
+                writeProofString(out, id);
+            }
+            ArrayList<Candidate> sorted = new ArrayList<>(records);
+            if (sorted.contains(null)) return new byte[0];
+            sorted.sort(Comparator.comparing(c -> c.id));
+            out.writeInt(sorted.size());
+            String previous = null;
+            for (Candidate c : sorted) {
+                if (!validId(c.id, false) || !validId(c.supersedesId, true)
+                        || !validId(c.conflictWithId, true) || c.id.equals(previous))
+                    return new byte[0];
+                previous = c.id;
+                writeProofString(out, c.id);
+                writeProofString(out, c.summary);
+                writeProofString(out, c.supersedesId);
+                writeProofString(out, c.conflictWithId);
+                writeProofString(out, c.privacy == null ? "UNKNOWN" : c.privacy.name());
+                out.writeBoolean(c.authorizedForProvider);
+                out.writeBoolean(c.userExplicit);
+                out.writeLong(c.updatedAtMs);
+                out.writeLong(c.expiresAtMs);
+                out.writeLong(Double.doubleToLongBits(c.importance));
+            }
+            out.flush();
+            return bytes.toByteArray();
+        } catch (IOException | RuntimeException e) {
+            return new byte[0];
+        }
+    }
+
+    private static void writeProofString(DataOutputStream out, String value) throws IOException {
+        byte[] utf8 = (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
+        out.writeInt(utf8.length);
+        out.write(utf8);
+    }
+
+    /** Certified path: without a trusted owner-pinned verifier, no unlock. */
+    public static List<Match> retrieveCertified(String query, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier trustedG1Verifier,
+            int maxResults, long now) {
+        if (trustedG1Verifier == null || !trustedG1Verifier.verifies(certificate, candidates))
+            return Collections.emptyList();
+        return retrieveAssumingOwnerVerified(query, candidates, certificate.retiredIds,
+                certificate.confirmedRetiredParentIds, maxResults, now);
+    }
+
+    public static String unambiguousCorrectionTargetCertified(String correctionText,
+            List<Candidate> candidates, OwnerLineageCertificate certificate,
+            OwnerLineageVerifier trustedG1Verifier, long now) {
+        if (trustedG1Verifier == null || !trustedG1Verifier.verifies(certificate, candidates))
+            return "";
+        return correctionAssumingOwnerVerified(correctionText, candidates,
+                certificate.retiredIds, certificate.confirmedRetiredParentIds, now);
+    }
+
+    /**
      * Legacy prototype entry point: only safe if the owner supplies complete
      * lineage records. Use the retraction-aware overload after G1 compaction.
      */
@@ -154,6 +299,18 @@ public final class CelineFutureMemoryRecall {
      * for pruned parent IDs. This prototype does not mint that evidence.
      */
     public static List<Match> retrieve(String query, List<Candidate> candidates,
+            Set<String> retiredIds, Set<String> confirmedRetiredParentIds,
+            int maxResults, long now) {
+        // Caller-asserted confirmations are NEVER proof. The only permissive
+        // path requires a separately pinned G1 HMAC verifier above.
+        if (confirmedRetiredParentIds == null || !confirmedRetiredParentIds.isEmpty())
+            return Collections.emptyList();
+        return retrieveAssumingOwnerVerified(query, candidates, retiredIds,
+                confirmedRetiredParentIds, maxResults, now);
+    }
+
+    // Internal only: no caller-visible path bypasses the source proof verification.
+    private static List<Match> retrieveAssumingOwnerVerified(String query, List<Candidate> candidates,
             Set<String> retiredIds, Set<String> confirmedRetiredParentIds,
             int maxResults, long now) {
         if (maxResults <= 0 || candidates == null || candidates.isEmpty()
@@ -248,9 +405,19 @@ public final class CelineFutureMemoryRecall {
     public static String unambiguousCorrectionTarget(String correctionText,
             List<Candidate> candidates, Set<String> retiredIds,
             Set<String> confirmedRetiredParentIds, long now) {
+        if (confirmedRetiredParentIds == null || !confirmedRetiredParentIds.isEmpty())
+            return "";
+        return correctionAssumingOwnerVerified(correctionText, candidates,
+                retiredIds, confirmedRetiredParentIds, now);
+    }
+
+    // Internal only: the certified entry point validates owner proof before use.
+    private static String correctionAssumingOwnerVerified(String correctionText,
+            List<Candidate> candidates, Set<String> retiredIds,
+            Set<String> confirmedRetiredParentIds, long now) {
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
-        List<Match> matches = retrieve(correctionText, candidates,
+        List<Match> matches = retrieveAssumingOwnerVerified(correctionText, candidates,
                 retiredIds, confirmedRetiredParentIds, 8, now);
         if (matches.isEmpty()) return "";
         Match best = matches.get(0);
