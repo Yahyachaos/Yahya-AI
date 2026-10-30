@@ -1899,6 +1899,128 @@ public final class FutureMemoryRecallContract {
             "Meine Katze heisst Momo",newProjection,newRevisionProof,
             changesBeforeCorrectionReturn,NOW),"",
             "owner revision advance after MAC must discard stale correction ID");
+        // Lease consumer contract: unlike a returned List<Match>, G1 must keep
+        // its authoritative read lock until provider-context consumption ends.
+        final java.util.concurrent.locks.ReentrantReadWriteLock ownerLock =
+            new java.util.concurrent.locks.ReentrantReadWriteLock(true);
+        final java.util.concurrent.atomic.AtomicReference<String> leasedGeneration =
+            new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+        final java.util.concurrent.atomic.AtomicInteger opens =
+            new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger closes =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OwnerLineageVerifier leaseVerifier =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() { return leasedGeneration.get(); }
+                }, new CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority() {
+                    public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+                        ownerLock.readLock().lock();
+                        opens.incrementAndGet();
+                        return new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                            public String generation() { return leasedGeneration.get(); }
+                            public void close() {
+                                closes.incrementAndGet();
+                                ownerLock.readLock().unlock();
+                            }
+                        };
+                    }
+                });
+        final java.util.concurrent.atomic.AtomicInteger deliveries =
+            new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicReference<String> deliveredId =
+            new java.util.concurrent.atomic.AtomicReference<>("");
+        CelineFutureMemoryRecall.ProviderRecallConsumer sink =
+            new CelineFutureMemoryRecall.ProviderRecallConsumer() {
+                public void consume(List<CelineFutureMemoryRecall.Match> approved) {
+                    deliveries.incrementAndGet();
+                    deliveredId.set(approved.isEmpty() ? "" : approved.get(0).candidate.id);
+                    // Even THIS thread cannot upgrade the G1 read lock into a
+                    // writer while context is being synchronously assembled.
+                    eq(ownerLock.writeLock().tryLock(),false,
+                        "revocation cannot enter while certified provider consumer holds read lease");
+                    try {
+                        approved.clear();
+                        throw new AssertionError("approved matches were mutable");
+                    } catch (UnsupportedOperationException expected) {
+                        passed++;
+                    }
+                }
+            };
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,leaseVerifier,8,NOW,sink),
+            true,"owner lease allows current certified provider context consumption");
+        eq(deliveredId.get(),"replay-momo","owner lease delivers only current exact memory");
+        eq(closes.get(),opens.get(),"successful consumer releases owner lease");
+        eq(ownerLock.writeLock().tryLock(),true,"owner can revoke after consumption returns");
+        leasedGeneration.set("g1-revision-0000000009");
+        ownerLock.writeLock().unlock();
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,leaseVerifier,8,NOW,sink),
+            false,"revocation before provider consumption denies stale certificate");
+        eq(deliveries.get(),1,"revoked certificate never reaches provider consumer");
+        eq(closes.get(),opens.get(),"failed certificate releases owner lease");
+        leasedGeneration.set(revisionNew);
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,livePinnedOwner,8,NOW,sink),
+            false,"reader-only verifier cannot authorize provider-context lease");
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,stalePinnedOwner,8,NOW,sink),
+            false,"fixed-generation verifier cannot authorize provider-context lease");
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,null,leaseVerifier,8,NOW,sink),
+            false,"missing certificate denies provider-context consumption");
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,leaseVerifier,8,NOW,null),
+            false,"missing sink denies provider-context consumption");
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Luna",oldProjection,oldRevisionProof,leaseVerifier,8,NOW,sink),
+            false,"replayed signed old revision cannot be consumed on current G1 lease");
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",oldProjection,newRevisionProof,leaseVerifier,8,NOW,sink),
+            false,"tampered signed projection cannot reach provider context");
+        eq(deliveries.get(),1,"all negative cases kept callback uninvoked");
+        eq(closes.get(),opens.get(),"all negative cases release G1 read lease");
+        final java.util.concurrent.atomic.AtomicInteger mismatchCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OwnerLineageVerifier mismatchedLease =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() { return revisionNew; }
+                }, new CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority() {
+                    public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+                        return new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                            public String generation() { return revisionOld; }
+                            public void close() { mismatchCalls.incrementAndGet(); }
+                        };
+                    }
+                });
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,mismatchedLease,8,NOW,sink),
+            false,"lease generation mismatch denies even valid HMAC");
+        eq(mismatchCalls.get(),1,"rejected mismatched lease is closed");
+        CelineFutureMemoryRecall.OwnerLineageVerifier brokenLease =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                new CelineFutureMemoryRecall.OwnerGenerationReader() {
+                    public String currentGeneration() { return revisionNew; }
+                }, new CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority() {
+                    public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease() {
+                        throw new IllegalStateException("G1 snapshot busy");
+                    }
+                });
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,brokenLease,8,NOW,sink),
+            false,"unavailable owner lease fails closed");
+        eq(deliveries.get(),1,"lease authority failures do not invoke provider sink");
+        eq(CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+            "Meine Katze heisst Momo",newProjection,newRevisionProof,leaseVerifier,8,NOW,
+            new CelineFutureMemoryRecall.ProviderRecallConsumer() {
+                public void consume(List<CelineFutureMemoryRecall.Match> approved) {
+                    throw new IllegalStateException("downstream context compiler crash");
+                }
+            }), false,"throwing sink is reported failed");
+        eq(closes.get(),opens.get(),"downstream failure closes read lease");
+        System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }

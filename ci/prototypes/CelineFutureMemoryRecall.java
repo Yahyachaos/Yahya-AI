@@ -170,10 +170,31 @@ public final class CelineFutureMemoryRecall {
         String currentGeneration();
     }
 
+    /**
+     * FUTURE ONLY. The actual G1 adapter must own a read lock or equivalent
+     * consistent-snapshot lease. Once acquired, it must block revision/revoke,
+     * compaction, deletion and tombstone changes until close(). A caller-created
+     * lease is NOT proof of any of these guarantees.
+     */
+    public interface OwnerSnapshotReadLease extends AutoCloseable {
+        String generation();
+        @Override void close();
+    }
+
+    public interface OwnerSnapshotLeaseAuthority {
+        OwnerSnapshotReadLease acquireReadLease();
+    }
+
+    /** Synchronous memory-to-provider-context consumption, never deferred. */
+    public interface ProviderRecallConsumer {
+        void consume(List<Match> approvedMatches);
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
         private final OwnerGenerationReader ownerGenerationReader;
+        private final OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority;
 
         /**
          * Historical fixture-only pinned generation. A long-lived verifier
@@ -187,6 +208,7 @@ public final class CelineFutureMemoryRecall {
             ownerKey = trustedG1Key.clone();
             expectedGeneration = trustedG1Generation;
             ownerGenerationReader = null;
+            ownerSnapshotLeaseAuthority = null;
         }
 
         /**
@@ -198,12 +220,33 @@ public final class CelineFutureMemoryRecall {
          */
         public OwnerLineageVerifier(byte[] trustedG1Key,
                 OwnerGenerationReader ownerGenerationReader) {
+            this(trustedG1Key, ownerGenerationReader, null);
+        }
+
+        /**
+         * Prototype callback is deliberately owner-bound at verifier creation,
+         * not supplied by the individual lookup caller. A real G1 adapter must
+         * establish the key, revision reader and lease as ONE trusted authority.
+         */
+        public OwnerLineageVerifier(byte[] trustedG1Key,
+                OwnerGenerationReader ownerGenerationReader,
+                OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority) {
             if (trustedG1Key == null || trustedG1Key.length < 32
                     || ownerGenerationReader == null)
                 throw new IllegalArgumentException("Missing G1 revision authority");
             ownerKey = trustedG1Key.clone();
             expectedGeneration = null;
             this.ownerGenerationReader = ownerGenerationReader;
+            this.ownerSnapshotLeaseAuthority = ownerSnapshotLeaseAuthority;
+        }
+
+        private OwnerSnapshotReadLease openOwnerReadLease() {
+            // Old fixed-generation and reader-only constructors must NEVER
+            // authorize the provider-consumption API, even with a valid MAC.
+            if (ownerGenerationReader == null || ownerSnapshotLeaseAuthority == null)
+                return null;
+            try { return ownerSnapshotLeaseAuthority.acquireReadLease(); }
+            catch (RuntimeException ex) { return null; }
         }
 
         private String pinnedGenerationNow() {
@@ -311,6 +354,49 @@ public final class CelineFutureMemoryRecall {
         byte[] utf8 = (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
         out.writeInt(utf8.length);
         out.write(utf8);
+    }
+
+    /**
+     * FUTURE ONLY, synchronous consumption under an owner-supplied read lease.
+     * The old retrieveCertified() returns a list which may become stale BEFORE
+     * a provider uses it. This bounded prototype therefore supplies memory
+     * records only inside a callback while the OWNER lease is held. The future
+     * G1 adapter must implement an atomic snapshot lock, a non-rollback owner
+     * generation and trusted key custody; this pure Java class cannot verify
+     * those properties. NEVER cache/defer approvedMatches or dispatch remote
+     * provider I/O after the lease closes; this contract does NOT grant that.
+     *
+     * Returns true if the synchronous consumer ran, even for zero matches.
+     * False means the consumer was never invoked. Consumer side effects are
+     * not reversible by a later exception; it must be strictly synchronous.
+     */
+    public static boolean consumeCertifiedProviderContext(String query,
+            List<Candidate> candidates, OwnerLineageCertificate certificate,
+            OwnerLineageVerifier trustedG1Verifier, int maxResults, long now,
+            ProviderRecallConsumer consumer) {
+        if (consumer == null || trustedG1Verifier == null || certificate == null)
+            return false;
+        OwnerSnapshotReadLease lease = trustedG1Verifier.openOwnerReadLease();
+        if (lease == null) return false;
+        try (OwnerSnapshotReadLease held = lease) {
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.verifies(certificate, candidates))
+                return false;
+            List<Match> matches = retrieveAssumingOwnerVerified(query, candidates,
+                    certificate.retiredIds, certificate.confirmedRetiredParentIds,
+                    maxResults, now);
+            // The atomic owner lease must prevent all intervening revision
+            // changes; these checks also reject a broken/stale lease witness.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return false;
+            consumer.consume(Collections.unmodifiableList(new ArrayList<>(matches)));
+            return true;
+        } catch (RuntimeException ex) {
+            // This also covers a revoked/broken lease or failed consumer.
+            // Production adapters must not perform irreversible I/O in callback.
+            return false;
+        }
     }
 
     /** Certified path: without a trusted owner-pinned verifier, no unlock. */
