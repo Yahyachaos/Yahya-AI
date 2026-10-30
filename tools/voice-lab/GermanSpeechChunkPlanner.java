@@ -160,6 +160,12 @@ public final class GermanSpeechChunkPlanner {
         switch (word) {
             case "klasse": case "stock": case "etage": case "liga":
             case "runde": case "platz":
+            // A bounded list of frequent numeric-ordinal phrases. Without
+            // these, "5. Geburtstag" and "3. Kapitel" become separate TTS
+            // chunks and introduce a false mid-phrase pause. Keep this list
+            // conservative so standalone numeric sentence endings still split.
+            case "geburtstag": case "versuch": case "kapitel":
+            case "minute": case "jahrhundert":
                 return true;
             default: return false;
         }
