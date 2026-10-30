@@ -1,0 +1,93 @@
+{
+  "review_date": "2026-10-30",
+  "source_run_id": 40992055077,
+  "exact_head": "ec3457c22e78a1fa18522ac4ad3e8b33e4a2efa0",
+  "original_zip_artifact_id": 12950256672,
+  "original_zip_sha256": "0ed9af8b1c49808147b572e297d94772673e15e2ba9b5720b5f5fb77ee6a9e68",
+  "jobs": "13/13 PASS",
+  "original_reference_px": [
+    1402,
+    1122
+  ],
+  "true_webgl_700x560_opened": 6,
+  "true_reference_pairs_1400x560_opened": 6,
+  "all_12_individual_png_hashes_match_audit": true,
+  "source13_glbs_unchanged": true,
+  "other12_frozen": true,
+  "native_save_reload_each": "PASS",
+  "reference_chair_target_bbox_norm": [
+    0.217,
+    0.333,
+    0.368,
+    0.508
+  ],
+  "reference_target_source": "ci/evidence/CELINE_ROOM_REFERENCE_LAYOUT_TARGETS.json",
+  "visual_summary": "All six authentic trial pairs compared. Original upholstered low beige reference chair has bulky back and upholstered arms; source GLB is a compact pure-white rounded tub chair with very different back/surface shape. Tested Z/yaw/scale alternatives do not resolve geometry/material mismatch. Projected center coordinates are not segmentation. No visual PASS.",
+  "per_candidate": [
+    {
+      "name": "baseline-v9",
+      "image_sha256": "b75b4b9e68f1e72a8ed5461ace9116d6c152a0d038869c451d1c8861c49bbf92",
+      "reference_pair_sha256": "6721c2d4fd0aa29ca8957d6735f560d7fa5e59dac090238c8cdbe239e9cfe3a0",
+      "projected_center_norm": [
+        0.2923223387,
+        0.4420483655
+      ],
+      "visual": "FAIL"
+    },
+    {
+      "name": "rear-compact",
+      "image_sha256": "6a50d91aa750e3fb15fe8cf8e703905c60f0608a78f34a5c54719751c196b67d",
+      "reference_pair_sha256": "55d8711cb7a4706be244f81167d7bc80464936a5997006e086df46321abbceb8",
+      "projected_center_norm": [
+        0.3038586782,
+        0.4366724748
+      ],
+      "visual": "FAIL"
+    },
+    {
+      "name": "rear-yaw-plus30",
+      "image_sha256": "ffe13454d970f897500cdcae4649baddde028a04bc8b9278d3c482988d1bed42",
+      "reference_pair_sha256": "1128c855aca5ba60066c8d26f555c8ab31a795b22eb218912507278959c24fd9",
+      "projected_center_norm": [
+        0.3038586782,
+        0.4366724748
+      ],
+      "visual": "FAIL"
+    },
+    {
+      "name": "rear-yaw-plus55",
+      "image_sha256": "26b52d77536473a19db80cae996c154c5afd986d2180a53a44e75a3865cd0e70",
+      "reference_pair_sha256": "8c1d293144b06e089f81805616434e57d42807532cdf00c23d755ccdc72bf66d",
+      "projected_center_norm": [
+        0.3066248057,
+        0.4335685174
+      ],
+      "visual": "FAIL"
+    },
+    {
+      "name": "left-rear-yaw-minus20",
+      "image_sha256": "83a91e98c6686085eb08be45dddc1ea76839f5cb0547c45b05ede31e768987cf",
+      "reference_pair_sha256": "58fcdc6b2935ba6faa08b9d3107138ce97b2455047589544d8557a9cc9154618",
+      "projected_center_norm": [
+        0.2922347123,
+        0.4383771985
+      ],
+      "visual": "FAIL"
+    },
+    {
+      "name": "right-rear-yaw-minus15",
+      "image_sha256": "199e11995b06fc228db06ecb02dd7cc8a0d13d0ac73f38ec5c06b3d9c37135b5",
+      "reference_pair_sha256": "425e5f6545e3854104404675033a79592ae2bdd9797f734d67ef555abe929833",
+      "projected_center_norm": [
+        0.3240231342,
+        0.4334068186
+      ],
+      "visual": "FAIL"
+    }
+  ],
+  "retained_previous_chair_lock": true,
+  "new_chair_transform_persisted": false,
+  "whole_room": "VISUAL_FAIL",
+  "g2_3": "PAUSED",
+  "android_integration": false
+}
