@@ -1,0 +1,68 @@
+{
+  "schema": "room-editor-v31-manual-image-review/v1",
+  "reviewed_at_utc": "2026-10-30",
+  "branch_head": "25f6902112a161fa6d22cc3f526d68884def7370",
+  "workflow_run_id": 41001524432,
+  "job_id": 123887454424,
+  "technical": "PASS",
+  "evidence_zip": {
+    "artifact_id": 12954540397,
+    "sha256": "fe7848218477dfe10ed48df210da1e317cd8634f15fe4d1bd71d92facc08b4ad"
+  },
+  "png_sha256": {
+    "baseline_webgl": "b75b4b9e68f1e72a8ed5461ace9116d6c152a0d038869c451d1c8861c49bbf92",
+    "candidate_webgl": "38a8172c9e6a46ca5d8141271ae60805f5e364390dbecdbad97ea5dffde1b10f",
+    "baseline_1400x560_pair": "6721c2d4fd0aa29ca8957d6735f560d7fa5e59dac090238c8cdbe239e9cfe3a0",
+    "candidate_1400x560_pair": "dba76f70d13c0d6e30dd226da0f706ff0bebffcc2e7ae45f7e66a2e0c6b297ff"
+  },
+  "metrics": {
+    "ceiling_seam_AABB_proxy": {
+      "baseline": 0.00501781968,
+      "candidate": 0.00282705061
+    },
+    "pixel_MAE_RGB": {
+      "method": "Mean absolute RGB error on actual left-reference/right-source-WebGL pairs (not optical acceptance)",
+      "whole_image": [
+        50.74,
+        51.18
+      ],
+      "curtain_window": [
+        58.06,
+        58.99
+      ],
+      "foreground_table": [
+        73.15,
+        77.89
+      ],
+      "bed": [
+        67.49,
+        70.74
+      ],
+      "left_wall": [
+        45.45,
+        42.71
+      ]
+    }
+  },
+  "original_dimensions_px": [
+    1402,
+    1122
+  ],
+  "webgl_dimensions_px": [
+    700,
+    560
+  ],
+  "room_dimensions_m": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "source_GLB_instances": 13,
+  "original_hashes_transforms_locks_unchanged": true,
+  "native_save_reload": "PASS",
+  "camera_persisted": false,
+  "visual_verdict": "FAIL",
+  "reason": "Examined both original 700x560 WebGL images and both 1400x560 comparison PNGs. Candidate improves projected seam proxy but not visible composition; the large light table still obscures middle of the room whereas original near-camera desk/black display occupies lower edge. Curtain/window, source chair, bed and lighting remain unlike reference. Candidate's full-raster/bed/table errors increase. Keep frozen V3 camera.",
+  "whole_scene": "VISUAL_FAIL_G2_3_PAUSED",
+  "exact_next_action": "Reconcile current editor HEAD and CI ownership. In the existing editor-owned workflow, compare warm-shell and original-curtain material opacity without changing 13 GLB bytes, saved furniture transforms, locks or frozen camera. Generate real Chromium images, visually inspect, retain FAIL absent real proof. No Android/Release."
+}
