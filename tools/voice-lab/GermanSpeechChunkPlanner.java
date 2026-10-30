@@ -64,8 +64,13 @@ public final class GermanSpeechChunkPlanner {
         if (isShortMonth(token) && isDateMonthContinuation(text, start, p + 1, boundaryEnd))
             return true;
         switch (token) {
+            case "usw":
+                // "usw." can close a complete list AND the sentence. Preserve the
+                // abbreviation within running lowercase text, but do not swallow
+                // an explicitly capitalized following sentence.
+                return !startsNewSentence(text, boundaryEnd);
             case "dr": case "prof": case "fr": case "hr": case "nr": case "ca":
-            case "bzw": case "usw": case "vgl": case "z": case "b": case "u":
+            case "bzw": case "vgl": case "z": case "b": case "u":
             case "a": case "d": case "h": case "evtl": case "ggf":
             // Standard professional/academic German title fragments: avoid a spoken
             // sentence pause between abbreviated qualifications and surnames.
@@ -94,6 +99,11 @@ public final class GermanSpeechChunkPlanner {
                         && Character.isDigit(text.charAt(n - 1))
                         && isNumericDateContinuation(text, boundaryEnd);
         }
+    }
+
+    private static boolean startsNewSentence(String text, int boundaryEnd) {
+        return boundaryEnd + 1 < text.length() && text.charAt(boundaryEnd) == ' '
+                && Character.isUpperCase(text.codePointAt(boundaryEnd + 1));
     }
 
     /** Preserve dotted date fragments only when the next phrase truly continues. */
