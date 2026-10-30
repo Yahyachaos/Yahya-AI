@@ -284,6 +284,7 @@ public final class FutureMemoryRecallContract {
         }
     }
 
+
     /** FUTURE ONLY: disk-backed *model* of one G1 owner transaction. Revision,
      * tombstone, request intent and receipt live in ONE atomically replaced frame.
      * JVM AtomicLong/hash stand in for separately protected authority. They are
@@ -3414,6 +3415,190 @@ public final class FutureMemoryRecallContract {
                 DiskJournal.releaseMissing = null;
             }
             System.out.println("FUTURE_G1_CROSS_INSTANCE_ATOMIC_CLAIM=JVM_FIXTURE_ONLY");
+        }
+
+        // File-backed G1-owner TRANSACTION MODEL: unlike the older separate
+        // journal+witness fixtures, the revision, deletion tombstone, request
+        // and completion receipt are updated together as one disk frame.
+        // JVM-only trusted anchor survives wrapper re-instantiation but NOT a
+        // real process death; no Android, power-cut or anti-rollback proof.
+        {
+            final java.lang.String requestQuery="Meine Katze heisst Momo";
+            final java.util.concurrent.atomic.AtomicInteger fileDeliveries=new java.util.concurrent.atomic.AtomicInteger();
+            final CelineFutureMemoryRecall.OwnerContextPublisher fileSink=(g,values) ->
+                fileDeliveries.incrementAndGet();
+            final CelineFutureMemoryRecall.OwnerPublicationOutcome complete =
+                CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+            final CelineFutureMemoryRecall.OwnerPublicationOutcome started =
+                CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            final CelineFutureMemoryRecall.OwnerPublicationOutcome rejected =
+                CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            class Scenario {
+                final java.nio.file.Path root;
+                final java.util.concurrent.atomic.AtomicLong anchor=new java.util.concurrent.atomic.AtomicLong();
+                final java.util.concurrent.atomic.AtomicReference<String> commitment =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+                Scenario(String label) throws Exception {
+                    root=java.nio.file.Files.createTempDirectory("future-g1-file-owner-"+label);
+                }
+                FileOwnerLedger open() throws Exception {
+                    return new FileOwnerLedger(root,anchor,commitment,revisionNew);
+                }
+                CelineFutureMemoryRecall.OwnerLineageVerifier verifier(FileOwnerLedger ledger) {
+                    CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority source=() ->
+                        new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                            public String generation() { return ledger.revision(); }
+                            public void close() { }
+                        };
+                    return new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                        ledger::revision,source,fileSink,ledger);
+                }
+                CelineFutureMemoryRecall.OwnerPublicationOutcome send(String id,
+                        FileOwnerLedger ledger) {
+                    return CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                        id,requestQuery,newProjection,newRevisionProof,verifier(ledger),8,NOW);
+                }
+            }
+            Scenario healthy=new Scenario("healthy");
+            FileOwnerLedger h=healthy.open();
+            int before=fileDeliveries.get();
+            eq(healthy.send("file-success",h),complete,"file-owned transaction first completion");
+            eq(h.receipt(),"COMPLETED","file-backed single-frame completion persisted");
+            eq(healthy.send("file-success",healthy.open()),complete,"new wrapper reads sealed completion");
+            eq(fileDeliveries.get(),before+1,"file owner never replays completed callback");
+            eq(healthy.anchor.get(),3L,"file owner initial + STARTED + COMPLETED share one anchor");
+            // Two independently reconstructed wrappers compete for a VALID
+            // fresh file-owner claim. A JVM-path monitor and permanent lock
+            // inode protect the exact on-disk transaction, not two private
+            // instance-level synchronized methods.
+            Scenario cleanRace=new Scenario("valid-race");
+            final java.util.concurrent.CountDownLatch freshReady=new java.util.concurrent.CountDownLatch(2);
+            final java.util.concurrent.CountDownLatch freshGo=new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                goodA=new java.util.concurrent.atomic.AtomicReference<>(),
+                goodB=new java.util.concurrent.atomic.AtomicReference<>();
+            final java.util.concurrent.atomic.AtomicReference<Throwable> raceError=
+                new java.util.concurrent.atomic.AtomicReference<>();
+            before=fileDeliveries.get();
+            Thread fresh1=new Thread(() -> {try {FileOwnerLedger each=cleanRace.open();
+                freshReady.countDown();freshGo.await();goodA.set(cleanRace.send("file-concurrent",each));}
+                catch(Throwable ex){raceError.compareAndSet(null,ex);} });
+            Thread fresh2=new Thread(() -> {try {FileOwnerLedger each=cleanRace.open();
+                freshReady.countDown();freshGo.await();goodB.set(cleanRace.send("file-concurrent",each));}
+                catch(Throwable ex){raceError.compareAndSet(null,ex);} });
+            fresh1.start();fresh2.start();
+            eq(freshReady.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                "fresh file-owner contenders constructed independent wrappers");
+            freshGo.countDown();fresh1.join(5000);fresh2.join(5000);
+            eq(fresh1.isAlive() || fresh2.isAlive(),false,"fresh file-owner race terminates");
+            eq(raceError.get(),null,"file lock and JVM monitor serialize clean concurrent claim");
+            eq(goodA.get()==complete || goodA.get()==started,true,
+                "first valid claimant sees completed or already-started receipt");
+            eq(goodB.get()==complete || goodB.get()==started,true,
+                "second valid claimant sees completed or already-started receipt");
+            eq(cleanRace.open().receipt(),"COMPLETED",
+                "fresh two-thread race leaves one sealed completed receipt");
+            eq(fileDeliveries.get(),before+1,"two file-backed contenders call downstream once");
+            // A reservation may reach the protected anchor and then throw.
+            // No replay is permitted even though the first callback was never
+            // attempted and the sealed disk state remains only STARTED.
+            Scenario reserveCommitted=new Scenario("start-then-crash");
+            FileOwnerLedger start=reserveCommitted.open();
+            start.reserveFault=FileOwnerLedger.Fault.AFTER_AUTHORITY_BEFORE_RETURN;
+            before=fileDeliveries.get();
+            eq(reserveCommitted.send("file-start-commit-crash",start),started,
+                "reservation crash after atomic authority commit is indeterminate");
+            eq(reserveCommitted.open().receipt(),"STARTED",
+                "new wrapper sees protected STARTED despite exception before callback");
+            eq(reserveCommitted.send("file-start-commit-crash",reserveCommitted.open()),started,
+                "sealed STARTED never authorizes a restart retry");
+            eq(fileDeliveries.get(),before,"post-reserve crash never invokes callback");
+            Scenario tornReserve=new Scenario("torn-reserve");
+            FileOwnerLedger reserve=tornReserve.open();
+            reserve.reserveFault=FileOwnerLedger.Fault.AFTER_FRAME_BEFORE_AUTHORITY;
+            before=fileDeliveries.get();
+            eq(tornReserve.send("file-torn-reserve",reserve),started,
+                "crash before owner authority prevents unsafe first publication");
+            eq(tornReserve.open().receipt(),"UNTRUSTED",
+                "torn reservation disk frame is never accepted as valid authority");
+            eq(fileDeliveries.get(),before,"torn reservation invoked no callback");
+            Scenario tornAck=new Scenario("torn-ack");
+            FileOwnerLedger ack=tornAck.open();
+            ack.completionFault=FileOwnerLedger.Fault.AFTER_FRAME_BEFORE_AUTHORITY;
+            before=fileDeliveries.get();
+            eq(tornAck.send("file-torn-ack",ack),started,
+                "crash between receipt file and authority refuses false completed");
+            eq(tornAck.open().receipt(),"UNTRUSTED",
+                "post-crash completed frame without authority is never trusted");
+            eq(fileDeliveries.get(),before+1,"pre-crash fileSink may have received one publication");
+            final java.util.concurrent.CountDownLatch ready=new java.util.concurrent.CountDownLatch(2);
+            final java.util.concurrent.CountDownLatch go=new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                first=new java.util.concurrent.atomic.AtomicReference<>(),
+                second=new java.util.concurrent.atomic.AtomicReference<>();
+            Thread a=new Thread(() -> {try { ready.countDown();go.await();first.set(tornAck.send(
+                "file-torn-ack",tornAck.open()));} catch(Exception ex){throw new AssertionError(ex);} });
+            Thread b=new Thread(() -> {try { ready.countDown();go.await();second.set(tornAck.send(
+                "file-torn-ack",tornAck.open()));} catch(Exception ex){throw new AssertionError(ex);} });
+            a.start();b.start();
+            eq(ready.await(5,java.util.concurrent.TimeUnit.SECONDS),true,"both post-crash contenders ready");
+            go.countDown(); a.join(5000); b.join(5000);
+            eq(a.isAlive() || b.isAlive(),false,"post-crash race terminates");
+            eq(first.get()==complete || second.get()==complete,false,
+                "no contender falsely reports COMPLETED from torn disk receipt");
+            eq(first.get(),rejected,"first restarted owner fails closed on corrupt authority");
+            eq(second.get(),rejected,"second restarted owner fails closed on corrupt authority");
+            eq(fileDeliveries.get(),before+1,"two restarted contenders never duplicate publication");
+            Scenario committedAck=new Scenario("ack-then-crash");
+            FileOwnerLedger committed=committedAck.open();
+            committed.completionFault=FileOwnerLedger.Fault.AFTER_AUTHORITY_BEFORE_RETURN;
+            before=fileDeliveries.get();
+            eq(committedAck.send("file-ack-crash",committed),started,
+                "exception after atomic acknowledgement remains indeterminate to first caller");
+            eq(committedAck.open().receipt(),"COMPLETED",
+                "sealed completion survives model wrapper reconstruction");
+            eq(committedAck.send("file-ack-crash",committedAck.open()),complete,
+                "restarted owner may read valid committed receipt without another callback");
+            eq(fileDeliveries.get(),before+1,"atomic committed receipt is never republished");
+            Scenario revoked=new Scenario("retracted");
+            FileOwnerLedger r=revoked.open();
+            before=fileDeliveries.get();
+            eq(revoked.send("file-before-revoke",r),complete,"pre-revocation owner can publish");
+            r.revoke("g1-revision-0000000009");
+            eq(revoked.open().receipt(),"COMPLETED","revocation keeps historical receipt for audit");
+            eq(revoked.send("file-before-revoke",revoked.open()),rejected,
+                "revoked generation never exposes formerly completed context");
+            eq(revoked.send("file-after-revoke",revoked.open()),rejected,
+                "persisted owner tombstone blocks all new publications");
+            eq(fileDeliveries.get(),before+1,"revocation does not replay callback");
+            Scenario tornRevoke=new Scenario("torn-revoke");
+            FileOwnerLedger tr=tornRevoke.open();
+            tr.revokeFault=FileOwnerLedger.Fault.AFTER_FRAME_BEFORE_AUTHORITY;
+            try {tr.revoke("g1-revision-0000000009");throw new AssertionError("expected crash");}
+            catch (IllegalStateException expected) {eq(expected.getMessage().contains("simulated crash"),true,
+                "torn revocation fault injected after single frame replacement");}
+            eq(tornRevoke.open().receipt(),"UNTRUSTED","torn tombstone frame refuses old revision");
+            eq(tornRevoke.send("file-revoked-crash",tornRevoke.open()),rejected,
+                "uncertain source revocation blocks publication after restart");
+            // Corruption and restore of the SINGLE atomic frame cannot forge
+            // a current tombstone/COMPLETED state while the simulated protected
+            // owner commitment survives the wrapper restart.
+            Scenario tampered=new Scenario("frame-rollback");
+            FileOwnerLedger t=tampered.open();
+            eq(tampered.send("file-tamper",t),complete,"setup protected receipt before disk attack");
+            java.nio.file.Path persistent=t.frame;
+            String realFrame=java.nio.file.Files.readString(persistent);
+            java.nio.file.Files.writeString(persistent,realFrame.replace("|COMPLETED","|STARTED"));
+            eq(tampered.open().receipt(),"UNTRUSTED","disk-only receipt rollback is detected");
+            eq(tampered.send("file-tamper",tampered.open()),rejected,
+                "mismatched frame never republishes or reports completed");
+            java.nio.file.Files.writeString(persistent,realFrame);
+            eq(tampered.open().receipt(),"COMPLETED","valid frame restore reopens without dispatch");
+            java.nio.file.Files.delete(persistent);
+            eq(tampered.open().receipt(),"UNTRUSTED","deleted frame with live owner anchor fails closed");
+            eq(tampered.send("file-tamper",tampered.open()),rejected,
+                "missing frame cannot reset journal into new publication");
+            System.out.println("FUTURE_G1_FILE_OWNER_RESTART_RACE=JVM_ONLY_SINGLE_FRAME_SIMULATION");
         }
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
