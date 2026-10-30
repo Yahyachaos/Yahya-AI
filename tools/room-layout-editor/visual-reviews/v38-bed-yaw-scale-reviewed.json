@@ -1,0 +1,64 @@
+{
+  "schema": "room-editor/v38-reviewed",
+  "date": "2026-10-30",
+  "head": "704035fb16d5dcf71a4be66956bb64eb562f7da6",
+  "run_id": 41088144374,
+  "run_conclusion": "cancelled",
+  "technical_jobs_success": 14,
+  "architecture_job": "cancelled_at_45_minute_limit_after_all_V38_images",
+  "artifact_id": 12996041739,
+  "artifact_sha256": "f7ec69405c51ea90bc4c6d340115f86cea06ce71369c6f34cd94f6fe04dada5c",
+  "reference_px": [
+    1402,
+    1122
+  ],
+  "real_webgl_px": [
+    700,
+    560
+  ],
+  "pair_px": [
+    1400,
+    560
+  ],
+  "source_instances": 13,
+  "other12_locks_and_transforms_unchanged": true,
+  "all_native_save_reload_png_pairs_identical": true,
+  "candidate_results": [
+    {
+      "name": "compact-right-084",
+      "yaw": 180,
+      "scale": 0.84,
+      "x": 1.16,
+      "visual": "FAIL",
+      "hidden_sha256": "f92f264742ce435f6e831ce2e2d9cf3b03212f7cd686ef4c79c43ce5ba3bd1a9"
+    },
+    {
+      "name": "yaw-165-080",
+      "yaw": 165,
+      "scale": 0.8,
+      "x": 0.99,
+      "visual": "FAIL",
+      "hidden_sha256": "fedbe2d4acad3f08e719d7e0a481b29f4535ee7306d0b58edec1ea64c343cdcb"
+    },
+    {
+      "name": "yaw-195-080",
+      "yaw": 195,
+      "scale": 0.8,
+      "x": 0.99,
+      "visual": "FAIL",
+      "hidden_sha256": "91989c90c6de912d792b0beeb03ccb013ef20df60212ed5ac3c4df9c7cd79096"
+    },
+    {
+      "name": "yaw-210-074",
+      "yaw": 210,
+      "scale": 0.74,
+      "x": 0.95,
+      "visual": "FAIL",
+      "hidden_sha256": "67f87b427ac99b42ae50ca28124713139d956389dd14ab2791f5be6ea9351fe5"
+    }
+  ],
+  "manual_review": "Opened all 4 genuine 1400x560 photo comparisons and 700x560 WebGL images; visible bed is too small and lacks original right-side silhouette. None accepted. Technical CI CANCELLED, not PASS.",
+  "whole_scene": "VISUAL_FAIL_G2_3_PAUSED",
+  "no_scene_promotion": true,
+  "next": "V39 isolated source dresser yaw; inspect actual screenshots; continue to next furniture after bounded failed trial"
+}
