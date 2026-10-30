@@ -2154,6 +2154,138 @@ public final class FutureMemoryRecallContract {
                 "new signed generation accepted after revocation");
             eq(currentSink.get(),1,"new generation context delivered exactly once");
         }
+        // FUTURE-ONLY owner-bound publication boundary: the lookup caller must
+        // not inject an arbitrary Match-retaining callback per request. Only a
+        // publisher installed with the (hypothetical) G1 source authority may
+        // receive a minimal list of values, while the same owner read lease is
+        // still held. These checks DO NOT authenticate a caller-built verifier.
+        {
+            final java.util.concurrent.atomic.AtomicReference<String> pubRevision =
+                new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+            final java.util.concurrent.locks.ReentrantReadWriteLock pubLock =
+                new java.util.concurrent.locks.ReentrantReadWriteLock(true);
+            final java.util.concurrent.atomic.AtomicInteger pubInvocations =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicInteger pubCloses =
+                new java.util.concurrent.atomic.AtomicInteger();
+            CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority pubLease = () -> {
+                pubLock.readLock().lock();
+                return new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                    public String generation() { return pubRevision.get(); }
+                    public void close() { pubCloses.incrementAndGet(); pubLock.readLock().unlock(); }
+                };
+            };
+            CelineFutureMemoryRecall.OwnerContextPublisher trustedPublisher = (pubGeneration, summaries) -> {
+                pubInvocations.incrementAndGet();
+                eq(pubGeneration,revisionNew,"owner-bound publisher sees certified revision");
+                eq(summaries.size(),1,"publisher gets only one approved summary");
+                eq(summaries.get(0),"Meine Katze heisst Momo","publisher gets summary not Candidate/Match metadata");
+                eq(pubLock.writeLock().tryLock(),false,"publisher runs inside G1 read lease");
+                try {
+                    summaries.clear();
+                    throw new AssertionError("publication list mutable");
+                } catch (UnsupportedOperationException expected) { passed++; }
+            };
+            CelineFutureMemoryRecall.OwnerLineageVerifier pubVerifier =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,pubRevision::get,pubLease,trustedPublisher);
+            CelineFutureMemoryRecall.OwnerLineageVerifier noPublisher =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,pubRevision::get,pubLease);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,noPublisher,8,NOW),false,
+                "no registered owner publisher denies lookup, never arbitrary caller callback");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,pubVerifier,8,NOW),true,
+                "valid source-owner publisher receives current context under lease");
+            eq(pubInvocations.get(),1,"owner publisher runs exactly once per accepted invocation");
+            eq(pubCloses.get(),1,"owner publication releases read lease");
+            pubRevision.set(revisionOld);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,pubVerifier,8,NOW),false,
+                "revoked revision cannot reach owner-bound publication");
+            eq(pubInvocations.get(),1,"stale revision cannot invoke publisher");
+            eq(pubCloses.get(),2,"failed owner publication still releases lease");
+            pubRevision.set(revisionNew);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",oldProjection,newRevisionProof,pubVerifier,8,NOW),false,
+                "tampered projection cannot reach owner-bound publisher");
+            eq(pubInvocations.get(),1,"tampered candidate data never published");
+            eq(pubCloses.get(),3,"tampered candidate proof closes lease");
+            CelineFutureMemoryRecall.OwnerLineageVerifier badPublisher =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,pubRevision::get,pubLease,(pubGeneration,summaries) -> {
+                        pubInvocations.incrementAndGet();
+                        throw new IllegalArgumentException("publication partially committed");
+                    });
+            boolean ambiguousPublish = false;
+            try {
+                CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                    "Meine Katze heisst Momo",newProjection,newRevisionProof,badPublisher,8,NOW);
+            } catch (IllegalStateException ex) {
+                ambiguousPublish = ex.getMessage().contains("do not retry");
+            }
+            eq(ambiguousPublish,true,"owner publication started: no retryable false after exception");
+            eq(pubInvocations.get(),2,"failing publisher never automatically replayed");
+            eq(pubCloses.get(),4,"ambiguous publication still attempts lease close");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",newProjection,null,pubVerifier,8,NOW),false,
+                "missing owner lineage certificate never publishes");
+            eq(pubInvocations.get(),2,"missing certificate does not enter owner publisher");
+            final java.util.concurrent.atomic.AtomicInteger emptyValues =
+                new java.util.concurrent.atomic.AtomicInteger(-1);
+            CelineFutureMemoryRecall.OwnerLineageVerifier emptyVerifier =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,pubRevision::get,pubLease,(pubGeneration,summaries) ->
+                        emptyValues.set(summaries.size()));
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "fremdes thema ohne treffer",newProjection,newRevisionProof,emptyVerifier,8,NOW),true,
+                "valid owner snapshot can publish empty context without guessing a memory");
+            eq(emptyValues.get(),0,"irrelevant query cannot expose a candidate to provider");
+            eq(pubCloses.get(),5,"owner closes lease after invalid and empty publication");
+            final java.util.concurrent.atomic.AtomicInteger closePublisherCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicInteger closeAttempts =
+                new java.util.concurrent.atomic.AtomicInteger();
+            CelineFutureMemoryRecall.OwnerLineageVerifier closeBad =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,pubRevision::get,() -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                        public String generation() { return pubRevision.get(); }
+                        public void close() {
+                            closeAttempts.incrementAndGet();
+                            throw new IllegalStateException("G1 lease close uncertain");
+                        }
+                    },(pubGeneration,summaries) -> closePublisherCalls.incrementAndGet());
+            boolean closeIndeterminate = false;
+            try {
+                CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                    "Meine Katze heisst Momo",newProjection,newRevisionProof,closeBad,8,NOW);
+            } catch (IllegalStateException ex) {
+                closeIndeterminate = ex.getMessage().contains("do not retry");
+            }
+            eq(closeIndeterminate,true,"owner publisher completed but close failed: indeterminate not retryable");
+            eq(closePublisherCalls.get(),1,"owner publisher was already invoked exactly once");
+            eq(closeAttempts.get(),1,"lease close attempted once after publication");
+            final java.util.concurrent.atomic.AtomicReference<List<String>> pubRetained =
+                new java.util.concurrent.atomic.AtomicReference<>();
+            CelineFutureMemoryRecall.OwnerLineageVerifier retainingOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,pubRevision::get,pubLease,(pubGeneration,summaries) ->
+                        pubRetained.set(summaries));
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,retainingOwner,8,NOW),true,
+                "even a registered owner sink can cache immutable plain-text context");
+            pubRevision.set(revisionOld);
+            eq(pubRetained.get().get(0),"Meine Katze heisst Momo",
+                "KNOWN UNSAFE: retained owner strings remain readable after revocation");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,retainingOwner,8,NOW),false,
+                "revoked generation denies new publication but cannot retract prior strings");
+            System.out.println("FUTURE_G1_OWNER_TEXT_RETENTION_RISK=REPRODUCED_NOT_SOLVED");
+            // The hypothetical owner itself can still retain strings; real
+            // durable journal/rollback proof and trusted G1 wiring remain absent.
+        }
+        System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);

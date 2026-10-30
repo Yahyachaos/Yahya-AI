@@ -190,11 +190,24 @@ public final class CelineFutureMemoryRecall {
         void consume(List<Match> approvedMatches);
     }
 
+    /**
+     * FUTURE ONLY: trusted G1-owned context publisher, installed alongside the
+     * source key, generation reader and snapshot lease (not by a lookup caller).
+     * Only minimal text projections are supplied; no Candidate, Match, record
+     * ID or correction metadata object escapes through this API. A registered
+     * publisher can still retain strings: only real G1 owner trust, journal
+     * and provider-dispatch integration can make that boundary meaningful.
+     */
+    public interface OwnerContextPublisher {
+        void publish(String generation, List<String> approvedSummaries);
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
         private final OwnerGenerationReader ownerGenerationReader;
         private final OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority;
+        private final OwnerContextPublisher ownerContextPublisher;
 
         /**
          * Historical fixture-only pinned generation. A long-lived verifier
@@ -209,6 +222,7 @@ public final class CelineFutureMemoryRecall {
             expectedGeneration = trustedG1Generation;
             ownerGenerationReader = null;
             ownerSnapshotLeaseAuthority = null;
+            ownerContextPublisher = null;
         }
 
         /**
@@ -231,6 +245,14 @@ public final class CelineFutureMemoryRecall {
         public OwnerLineageVerifier(byte[] trustedG1Key,
                 OwnerGenerationReader ownerGenerationReader,
                 OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority) {
+            this(trustedG1Key, ownerGenerationReader, ownerSnapshotLeaseAuthority, null);
+        }
+
+        /** A future production G1 owner must create this COMPLETE authority. */
+        public OwnerLineageVerifier(byte[] trustedG1Key,
+                OwnerGenerationReader ownerGenerationReader,
+                OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority,
+                OwnerContextPublisher ownerContextPublisher) {
             if (trustedG1Key == null || trustedG1Key.length < 32
                     || ownerGenerationReader == null)
                 throw new IllegalArgumentException("Missing G1 revision authority");
@@ -238,6 +260,7 @@ public final class CelineFutureMemoryRecall {
             expectedGeneration = null;
             this.ownerGenerationReader = ownerGenerationReader;
             this.ownerSnapshotLeaseAuthority = ownerSnapshotLeaseAuthority;
+            this.ownerContextPublisher = ownerContextPublisher;
         }
 
         private OwnerSnapshotReadLease openOwnerReadLease() {
@@ -354,6 +377,35 @@ public final class CelineFutureMemoryRecall {
         byte[] utf8 = (value == null ? "" : value).getBytes(StandardCharsets.UTF_8);
         out.writeInt(utf8.length);
         out.write(utf8);
+    }
+
+    /**
+     * FUTURE ONLY: source-owner-controlled publication boundary. In contrast
+     * to consumeCertifiedProviderContext(), callers cannot inject a per-request
+     * callback that receives internal Match/Candidate objects. The publisher
+     * is registered with the G1 owner authority, and the handoff occurs during
+     * the same certified snapshot lease. A missing registered publisher fails
+     * closed. The owner still must supply a durable idempotent publication
+     * journal, rollback protection and trusted provider adapter: this method
+     * alone guarantees none of those properties and must NOT be integrated
+     * into v83 or exposed to tools/providers as a public callable capability.
+     *
+     * The boolean and non-retryable exception have precisely the same semantics
+     * as consumeCertifiedProviderContext: true = publisher returned, false =
+     * publisher never started, IllegalStateException = started/uncertain.
+     */
+    public static boolean publishCertifiedOwnerContext(String query,
+            List<Candidate> candidates, OwnerLineageCertificate certificate,
+            OwnerLineageVerifier trustedG1Verifier, int maxResults, long now) {
+        if (trustedG1Verifier == null || trustedG1Verifier.ownerContextPublisher == null)
+            return false;
+        return consumeCertifiedProviderContext(query, candidates, certificate,
+                trustedG1Verifier, maxResults, now, matches -> {
+                    ArrayList<String> summaries = new ArrayList<>(matches.size());
+                    for (Match m : matches) summaries.add(m.candidate.summary);
+                    trustedG1Verifier.ownerContextPublisher.publish(
+                            certificate.generation, Collections.unmodifiableList(summaries));
+                });
     }
 
     /**
