@@ -14,7 +14,7 @@ public final class GermanStreamingDeliveryLedgerTest {
         ok(Objects.equals(expected, actual), label + " expected=" + expected + " got=" + actual);
     }
     private static String norm(String text) {
-        return text.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
+        return text.replaceAll("(?U)\\s+", " ").trim();
     }
     public static void main(String[] args) {
         GermanStreamingDeliveryLedger d = new GermanStreamingDeliveryLedger();
@@ -93,6 +93,35 @@ public final class GermanStreamingDeliveryLedgerTest {
             }
             eq(norm(text), String.join(" ", heard), "no missing or repeated text " + run);
             eq(norm(text), d.confirmedText(), "independently verified confirmed prefix " + run);
+        }
+        // Regression: the streaming ledger must use the same Unicode-space
+        // normalization as the German planner, including across a safe STOP/restart.
+        String[] unicodeSpaces = {"\u00a0", "\u202f", "\u2007", "\u2009", "\t", "\n", " "};
+        for (String space : unicodeSpaces) {
+            String input = "Guten Morgen!" + space + "Mein Sohn ist in der 1." + space
+                    + "Klasse." + space + "Weiter!";
+            long id = d.begin(input);
+            List<String> expected = GermanSpeechChunkPlanner.split(input);
+            eq(norm(input), d.normalizedPlanText(), "Unicode plan text intact");
+            eq(expected.size(), d.chunkCount(), "Unicode chunk count");
+            for (int i = 0; i < expected.size(); i++) {
+                GermanStreamingDeliveryLedger.Ticket ticket = d.leaseNext(id);
+                ok(ticket != null, "Unicode ticket available");
+                eq(expected.get(i), ticket.text, "Unicode text chunk exactly once");
+                ok(d.synthesisEnded(ticket), "Unicode synthesis completed");
+                ok(d.playbackDrained(ticket), "Unicode raw drain completed");
+                if (i == 0) {
+                    ok(d.stop(id), "Unicode safe STOP between chunks");
+                    long nextId = d.restart(id,
+                            GermanStreamingDeliveryLedger.Recovery.CONTINUE_WITH_NO_IN_FLIGHT);
+                    ok(nextId > id, "Unicode safe STOP rotates epoch");
+                    ok(!d.playbackDrained(ticket), "Unicode prior epoch callback rejected");
+                    id = nextId;
+                }
+            }
+            eq(GermanStreamingDeliveryLedger.Phase.COMPLETE, d.phase(),
+                    "Unicode complete after STOP/restart");
+            eq(norm(input), d.confirmedText(), "Unicode text neither lost nor replayed");
         }
         System.out.println("VOICE_GERMAN_STREAM_LEDGER_PASS checks=" + checks);
     }

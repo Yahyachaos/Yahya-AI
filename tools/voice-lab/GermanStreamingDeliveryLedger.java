@@ -25,7 +25,7 @@ public final class GermanStreamingDeliveryLedger {
     public synchronized long begin(String text) {
         if (generation == Long.MAX_VALUE) throw new IllegalStateException("generation exhausted");
         List<String> newChunks = GermanSpeechChunkPlanner.split(text);
-        String normalized = text == null ? "" : text.replace('\u00a0', ' ').replaceAll("\\s+", " ").trim();
+        String normalized = text == null ? "" : text.replaceAll("(?U)\\s+", " ").trim();
         if (!normalized.equals(String.join(" ", newChunks)))
             throw new IllegalStateException("German planner lost or rewrote text");
         generation++;
