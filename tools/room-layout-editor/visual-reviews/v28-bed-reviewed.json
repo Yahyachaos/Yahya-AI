@@ -1,0 +1,102 @@
+{
+  "reviewed_at": "2026-10-30",
+  "run_id": 40973222157,
+  "exact_head": "9cf1e862db45e4c2923008623c6b668f766301fb",
+  "run_url": "https://github.com/Yahyachaos/Yahya-AI/actions/runs/40973222157",
+  "artifact_id": 12943105827,
+  "artifact_name": "celine-room-editor-architecture-v20-evidence",
+  "zip_sha256": "492ffdfc434ac2c51c5c4ba8de641cd692334993ff839c5b1b92c504f34fc576",
+  "real_webgl_700x560_viewed": 5,
+  "source_photo_pairs_1400x560_viewed": 5,
+  "original_reference_px": [
+    1402,
+    1122
+  ],
+  "verified_audit_exact_head": true,
+  "technical_jobs_pass": "12/12",
+  "native_save_reload": true,
+  "source_hashes_unchanged": true,
+  "other12_frozen": true,
+  "room_m": [
+    4.4,
+    4.2,
+    2.65
+  ],
+  "camera_frozen": true,
+  "visual_notes": "Actual screenshot contact-sheet inspection: reference has a long beige bed extending left/forward from right wall, while the immutable GLB projects too narrow and far to the right; prominent light couch-like foot and large light foreground table occlude the reference silhouette. Shifts +/-0.13-0.17m or scale 0.96 to 1.04 do not resolve model/occlusion/camera mismatch. Do not treat projected source AABB center as visible pixel silhouette.",
+  "candidates": [
+    {
+      "name": "baseline",
+      "spec": [
+        1.08,
+        0.22,
+        0.96
+      ],
+      "center_norm": [
+        0.6413243833,
+        0.4951224773
+      ],
+      "real_sha256": "b75b4b9e68f1e72a8ed5461ace9116d6c152a0d038869c451d1c8861c49bbf92",
+      "verdict": "FAIL"
+    },
+    {
+      "name": "left",
+      "spec": [
+        0.95,
+        0.22,
+        0.96
+      ],
+      "center_norm": [
+        0.6197114993,
+        0.495389964
+      ],
+      "real_sha256": "7833c0b54b728478a44bc0feb9e8191e4a8d00dab4abe8c83ad4ec1d0e48824e",
+      "verdict": "FAIL"
+    },
+    {
+      "name": "larger",
+      "spec": [
+        0.91,
+        0.22,
+        1.04
+      ],
+      "center_norm": [
+        0.6136467421,
+        0.4857906975
+      ],
+      "real_sha256": "341a98c5e0a7d15c8e66b906e4a0fb2c4c06415929893b718eaae2877de8c2a4",
+      "verdict": "FAIL"
+    },
+    {
+      "name": "front",
+      "spec": [
+        0.92,
+        0.37,
+        1.04
+      ],
+      "center_norm": [
+        0.6211612336,
+        0.4968314544
+      ],
+      "real_sha256": "4e3868a3270b2a77a83fd685a302844d66b2a894b7ed65c5fc0e02009ab3b2c7",
+      "verdict": "FAIL"
+    },
+    {
+      "name": "back",
+      "spec": [
+        0.92,
+        0.05,
+        1.04
+      ],
+      "center_norm": [
+        0.609271522,
+        0.474315255
+      ],
+      "real_sha256": "2a3b328eea54b31ff68e52ac9938955630ca80dfe6c6c51eadfe8b23046c669f",
+      "verdict": "FAIL"
+    }
+  ],
+  "selection": "NONE: preserve V27 rug candidate + V19 baseline bed locked=true, no V28 bed position promoted",
+  "next_object": "room_dresser: bounded V29 candidates, actual Chromium photographs pending",
+  "whole_scene": "VISUAL_FAIL_G2_3_PAUSED"
+}

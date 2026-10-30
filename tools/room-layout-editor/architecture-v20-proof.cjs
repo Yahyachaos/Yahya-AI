@@ -329,6 +329,55 @@ async function run(){
    v28Frames.push({spec,real,paired,actualAabb:trialBed.conservative_world_aabb_m,
     projectedCenter:projection.projected_centers.room_bed,manualVisual:'FAIL_PENDING_IMAGE_INSPECTION'});
   }
+  // V29: genuine, bounded dresser-only reference trials. V28 bed had five
+  // source-fidelity WebGL images but all remain manual VISUAL FAIL; do not
+  // silently promote an unreviewed bed transform.
+  const v29DresserSpecs=[
+   {name:'baseline',x:-1.95,z:.40,s:.80},
+   {name:'inward',x:-1.78,z:.40,s:.80},
+   {name:'rear',x:-1.78,z:.18,s:.80},
+   {name:'forward',x:-1.78,z:.62,s:.80},
+   {name:'compact',x:-1.84,z:.40,s:.72}
+  ];
+  const v29DresserFrames=[];
+  for(const spec of v29DresserSpecs){
+   const candidate=JSON.parse(JSON.stringify(v27Layout));
+   candidate.status='V29_DRESSER_SCREEN_UNREVIEWED_VISUAL_FAIL';
+   candidate.candidate_name='v29-dresser-'+spec.name;
+   const dresser=candidate.objects.find(o=>o.id==='room_dresser');
+   assert(dresser&&dresser.locked,'V29 must preserve existing provisional dresser lock');
+   dresser.translation_m=[spec.x,.446813*spec.s/.80,spec.z];
+   dresser.scale_xyz=[spec.s,spec.s,spec.s];dresser.uniform_scale=spec.s;
+   // Preserve the source GLB rotation and all 12 other original transforms.
+   const upload='v29-dresser-'+spec.name+'.json';
+   await page.locator('#file').setInputFiles({name:upload,mimeType:'application/json',buffer:Buffer.from(JSON.stringify(candidate))});
+   await page.waitForFunction(n=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: '+n),upload,{timeout:60000});
+   const state=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+   const projection=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+   assert.equal(state.model_count,13);assert(state.all_source_fidelity_glbs_loaded);
+   assert.deepEqual(state.room_m,layout.room);assert.deepEqual(projection.canvas_px,[700,560]);
+   assert(Math.abs(projection.aspect-1402/1122)<.002,'V29 reference framing must remain frozen');
+   for(const original of v27Layout.objects){
+    const got=state.objects.find(o=>o.id===original.id);assert(got,'V29 source missing '+original.id);
+    assert(got.locked===original.locked&&got.source_sha256===layout.original_source_hashes[original.id],
+     'V29 original hash/lock '+original.id);
+    if(original.id!=='room_dresser')for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
+     assert.deepEqual(got.transform[key],original[key],'V29 other 12 frozen '+original.id+' '+key);
+    if(original.id==='room_dresser')assert.deepEqual(got.transform.rotation_euler_deg,original.rotation_euler_deg,
+     'V29 preserve dresser source rotation');
+   }
+   const measured=state.objects.find(o=>o.id==='room_dresser');
+   assert(Math.abs(measured.floor_bottom_y_m)<.005,'V29 dresser source-grounded');
+   for(const face of ['left','right','floor','ceiling','back','front'])
+    assert(Number.isFinite(measured.overflow_faces_m?.[face])&&measured.overflow_faces_m[face]<.005,
+     'V29 dresser must fit exact 4.40x4.20x2.65 room '+face);
+   const real=png('layout-v29-dresser-'+spec.name+'-real-webgl.png',
+    await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
+   const paired=png('layout-v29-dresser-'+spec.name+'-reference-side-by-side.png',
+    await v27PairImage(),[1400,560]);
+   v29DresserFrames.push({spec,real,paired,sourceWorldAabb:measured.conservative_world_aabb_m,
+    projectedCenter:projection.projected_centers.room_dresser,manualVisual:'FAIL_PENDING_AUTHENTIC_PNG_REVIEW'});
+  }
   await page.locator('#file').setInputFiles(local);
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen: 2026-10-29-room-window-drapes-screened-v19.json'),null,{timeout:60000});
 
@@ -382,7 +431,8 @@ async function run(){
    v24ForegroundTableDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v24Candidates,manualVisual:'FAIL_PENDING_HUMAN_COMPARISON'},
    v25RugDiagnostic:{frozenOther12:true,restoredV19:true,realSourceWebgl:v25RugCandidates,manualVisual:'FAIL_PENDING_GENUINE_WEBGL_REVIEW'},
    v27RugPartial:{real:v27Screenshot,paired:v27Comparison,nativeSaveReload:true,visual:'FAIL_PARTIAL_BETTER'},
-   v28BedTests:{other12Frozen:true,realSourceFrames:v28Frames,visual:'FAIL_PENDING_REAL_REVIEW'},
+   v28BedTests:{other12Frozen:true,realSourceFrames:v28Frames,visual:'FAIL_MANUALLY_REVIEWED_ALL_FIVE_NO_TRANSFORM_SELECTED'},
+   v29DresserTests:{other12Frozen:true,realSourceFrames:v29DresserFrames,visual:'FAIL_PENDING_AUTHENTIC_PNG_REVIEW'},
    nativeSaveReload:true,technical:'PASS',manualVisual:'FAIL_PENDING_HUMAN_REFERENCE_COMPARISON',wholeScene:'VISUAL_FAIL_G2_3_PAUSED'
   },null,2)+'\n');
   console.log('CELINE_ROOM_ARCHITECTURE_V20_GENUINE_WEBGL_TECH_PASS');
