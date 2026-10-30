@@ -202,12 +202,41 @@ public final class CelineFutureMemoryRecall {
         void publish(String generation, List<String> approvedSummaries);
     }
 
+    /**
+     * FUTURE-ONLY dispatch lifecycle. "COMPLETED" means a trusted synchronous
+     * owner publisher returned and the owner journal acknowledged that return;
+     * it is NOT proof of external provider delivery or durable Android storage.
+     * STARTED_INDETERMINATE must NEVER be automatically retried with a new ID.
+     */
+    public enum OwnerPublicationOutcome {
+        REJECTED_BEFORE_START, STARTED_INDETERMINATE, COMPLETED
+    }
+
+    /**
+     * Prototype contract for a G1-owned durable, transactionally serialized
+     * dispatch journal. reserve() MUST atomically bind ID to digest and durably
+     * write STARTED before returning NEW_STARTED. A prior STARTED entry must
+     * NEVER be reset to NEW_STARTED on crash/restart. acknowledgeCompleted()
+     * MUST durably write COMPLETED only for the exact matching identity.
+     * Journal/key/revision/lease/publisher must all be installed by the trusted
+     * G1 owner, not by a provider, chat message, plugin, or lookup caller.
+     * No real journal is shipped with this standalone experiment.
+     */
+    public interface OwnerPublicationJournal {
+        enum Reservation {
+            NEW_STARTED, ALREADY_STARTED, ALREADY_COMPLETED, INTENT_CONFLICT
+        }
+        Reservation reserve(String ownerIssuedRequestId, byte[] intentSha256);
+        boolean acknowledgeCompleted(String ownerIssuedRequestId, byte[] intentSha256);
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
         private final OwnerGenerationReader ownerGenerationReader;
         private final OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority;
         private final OwnerContextPublisher ownerContextPublisher;
+        private final OwnerPublicationJournal ownerPublicationJournal;
 
         /**
          * Historical fixture-only pinned generation. A long-lived verifier
@@ -223,6 +252,7 @@ public final class CelineFutureMemoryRecall {
             ownerGenerationReader = null;
             ownerSnapshotLeaseAuthority = null;
             ownerContextPublisher = null;
+            ownerPublicationJournal = null;
         }
 
         /**
@@ -253,6 +283,16 @@ public final class CelineFutureMemoryRecall {
                 OwnerGenerationReader ownerGenerationReader,
                 OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority,
                 OwnerContextPublisher ownerContextPublisher) {
+            this(trustedG1Key, ownerGenerationReader, ownerSnapshotLeaseAuthority,
+                    ownerContextPublisher, null);
+        }
+
+        /** Journal is owner-bound at construction; callers cannot substitute it per dispatch. */
+        public OwnerLineageVerifier(byte[] trustedG1Key,
+                OwnerGenerationReader ownerGenerationReader,
+                OwnerSnapshotLeaseAuthority ownerSnapshotLeaseAuthority,
+                OwnerContextPublisher ownerContextPublisher,
+                OwnerPublicationJournal ownerPublicationJournal) {
             if (trustedG1Key == null || trustedG1Key.length < 32
                     || ownerGenerationReader == null)
                 throw new IllegalArgumentException("Missing G1 revision authority");
@@ -261,6 +301,7 @@ public final class CelineFutureMemoryRecall {
             this.ownerGenerationReader = ownerGenerationReader;
             this.ownerSnapshotLeaseAuthority = ownerSnapshotLeaseAuthority;
             this.ownerContextPublisher = ownerContextPublisher;
+            this.ownerPublicationJournal = ownerPublicationJournal;
         }
 
         private OwnerSnapshotReadLease openOwnerReadLease() {
@@ -406,6 +447,98 @@ public final class CelineFutureMemoryRecall {
                     trustedG1Verifier.ownerContextPublisher.publish(
                             certificate.generation, Collections.unmodifiableList(summaries));
                 });
+    }
+
+    /**
+     * Owner-only FUTURE prototype of at-most-once context dispatch. The opaque
+     * request ID MUST originate from the trusted G1 owner. It is bound to the
+     * exact verified projection, query, time, result bound and generation, but
+     * this pure-Java class cannot authenticate who issued that ID.
+     *
+     * The journal reserves STARTED durably BEFORE any publisher invocation.
+     * If process death or any exception occurs after attempted reserve, the
+     * safest answer is STARTED_INDETERMINATE, never a retryable rejection. A
+     * duplicate STARTED request remains indeterminate even after restart; a
+     * duplicate COMPLETED request returns completed WITHOUT republishing.
+     * Only synchronous owner publisher return is acknowledged; this is NOT a
+     * remote provider receipt and NOT a production Android G1 implementation.
+     */
+    public static OwnerPublicationOutcome publishCertifiedOwnerContextOnce(
+            String ownerIssuedRequestId, String query, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier trustedG1Verifier,
+            int maxResults, long now) {
+        if (!validId(ownerIssuedRequestId, false) || query == null
+                || query.length() > MAX_INPUT || hasNonTextControl(query)
+                || certificate == null || trustedG1Verifier == null
+                || trustedG1Verifier.ownerPublicationJournal == null
+                || trustedG1Verifier.ownerContextPublisher == null)
+            return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        OwnerSnapshotReadLease lease = trustedG1Verifier.openOwnerReadLease();
+        if (lease == null) return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        boolean journalAttempted = false;
+        try (OwnerSnapshotReadLease held = lease) {
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.verifies(certificate, candidates))
+                return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            List<Match> matches = retrieveAssumingOwnerVerified(query, candidates,
+                    certificate.retiredIds, certificate.confirmedRetiredParentIds,
+                    maxResults, now);
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            ArrayList<String> summaries = new ArrayList<>(matches.size());
+            for (Match match : matches) summaries.add(match.candidate.summary);
+            byte[] intent = ownerDispatchIntent(ownerIssuedRequestId, query,
+                    certificate, candidates, maxResults, now, summaries);
+            if (intent.length != 32)
+                return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            journalAttempted = true;
+            OwnerPublicationJournal.Reservation reservation =
+                    trustedG1Verifier.ownerPublicationJournal.reserve(ownerIssuedRequestId, intent.clone());
+            if (reservation == OwnerPublicationJournal.Reservation.ALREADY_COMPLETED)
+                return OwnerPublicationOutcome.COMPLETED;
+            if (reservation != OwnerPublicationJournal.Reservation.NEW_STARTED)
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            // A faulty owner lease must not authorize dispatch. Keep the
+            // durable STARTED record to avoid retrying an uncertain attempt.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                return OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            trustedG1Verifier.ownerContextPublisher.publish(certificate.generation,
+                    Collections.unmodifiableList(summaries));
+            return trustedG1Verifier.ownerPublicationJournal.acknowledgeCompleted(
+                    ownerIssuedRequestId, intent.clone())
+                    ? OwnerPublicationOutcome.COMPLETED
+                    : OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        } catch (RuntimeException ex) {
+            return journalAttempted ? OwnerPublicationOutcome.STARTED_INDETERMINATE
+                    : OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        }
+    }
+
+    private static byte[] ownerDispatchIntent(String requestId, String query,
+            OwnerLineageCertificate certificate, List<Candidate> candidates,
+            int maxResults, long now, List<String> summaries) {
+        byte[] projection = certificatePayload(certificate.generation, candidates,
+                certificate.retiredIds, certificate.confirmedRetiredParentIds);
+        if (projection.length == 0) return new byte[0];
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(bytes);
+            writeProofString(out, "CELINE_G1_OWNER_DISPATCH_INTENT_V1");
+            writeProofString(out, requestId);
+            writeProofString(out, query);
+            out.writeInt(maxResults);
+            out.writeLong(now);
+            out.writeInt(projection.length);
+            out.write(projection);
+            out.writeInt(summaries.size());
+            for (String summary : summaries) writeProofString(out, summary);
+            out.flush();
+            return MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray());
+        } catch (IOException | GeneralSecurityException | RuntimeException ex) {
+            return new byte[0];
+        }
     }
 
     /**

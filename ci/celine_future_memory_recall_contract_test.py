@@ -87,6 +87,72 @@ public final class FutureMemoryRecallContract {
                 sourceFixture(c,retired,certified),VERIFIED,now);
         }
     }
+    /** Disk-backed TEST FIXTURE, not G1/Android secure storage or crash-safe production I/O. */
+    static final class DiskJournal implements CelineFutureMemoryRecall.OwnerPublicationJournal {
+        final java.nio.file.Path directory;
+        boolean crashAfterReserve, crashBeforeReserve, crashBeforeAck;
+        int actualReserves, actualAcknowledgements;
+        DiskJournal(java.nio.file.Path directory) throws Exception {
+            this.directory = directory;
+            java.nio.file.Files.createDirectories(directory);
+        }
+        private java.nio.file.Path entry(String id) {
+            try {
+                byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(id.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                return directory.resolve(java.util.HexFormat.of().formatHex(digest) + ".journal");
+            } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        }
+        private static String digest(byte[] bytes) {
+            return java.util.HexFormat.of().formatHex(bytes);
+        }
+        private static void persist(java.nio.file.Path to, String text) throws Exception {
+            java.nio.file.Path tmp = to.resolveSibling(to.getFileName().toString() + ".pending-" +
+                    java.util.UUID.randomUUID());
+            try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(tmp,
+                    java.nio.file.StandardOpenOption.CREATE_NEW,
+                    java.nio.file.StandardOpenOption.WRITE)) {
+                java.nio.ByteBuffer buf = java.nio.charset.StandardCharsets.UTF_8.encode(text);
+                while (buf.hasRemaining()) ch.write(buf);
+                ch.force(true);
+            }
+            java.nio.file.Files.move(tmp,to,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        @Override public synchronized Reservation reserve(String id, byte[] sha256) {
+            if (crashBeforeReserve) throw new IllegalStateException("journal unavailable");
+            try {
+                java.nio.file.Path entry = entry(id);
+                String intended = digest(sha256);
+                if (java.nio.file.Files.exists(entry)) {
+                    String[] fields = java.nio.file.Files.readString(entry).split(" ",2);
+                    if (fields.length != 2 || !fields[1].equals(intended))
+                        return Reservation.INTENT_CONFLICT;
+                    return fields[0].equals("COMPLETED")
+                        ? Reservation.ALREADY_COMPLETED : Reservation.ALREADY_STARTED;
+                }
+                persist(entry,"STARTED " + intended);
+                actualReserves++;
+                if (crashAfterReserve) throw new IllegalStateException("crash after durable STARTED");
+                return Reservation.NEW_STARTED;
+            } catch (Exception ex) { throw new IllegalStateException(ex); }
+        }
+        @Override public synchronized boolean acknowledgeCompleted(String id, byte[] sha256) {
+            try {
+                java.nio.file.Path entry = entry(id);
+                if (!java.nio.file.Files.exists(entry)) return false;
+                String intended = digest(sha256);
+                String before = java.nio.file.Files.readString(entry);
+                if (!before.equals("STARTED " + intended)) return false;
+                if (crashBeforeAck) throw new IllegalStateException("crash after publisher before ack");
+                persist(entry,"COMPLETED " + intended);
+                actualAcknowledgements++;
+                return true;
+            } catch (Exception ex) { throw new IllegalStateException(ex); }
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         List<CelineFutureMemoryRecall.Candidate> data = Arrays.asList(
             c("beverage","Mein Lieblingsgetränk ist Tee"),
@@ -2284,6 +2350,174 @@ public final class FutureMemoryRecallContract {
             System.out.println("FUTURE_G1_OWNER_TEXT_RETENTION_RISK=REPRODUCED_NOT_SOLVED");
             // The hypothetical owner itself can still retain strings; real
             // durable journal/rollback proof and trusted G1 wiring remain absent.
+        }
+        // Source-owner publication journal: started is durably reserved BEFORE
+        // callback; callback return must be durably acknowledged before status
+        // is completed. The disk-backed fixture exercises process-like restarts
+        // but DOES NOT prove power-cut durability, owner authentication or a
+        // production remote provider delivery acknowledgement.
+        {
+            final String query = "Meine Katze heisst Momo";
+            final java.nio.file.Path store = java.nio.file.Files.createTempDirectory("future-g1-journal-");
+            final java.util.concurrent.atomic.AtomicInteger publications =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicReference<String> revision =
+                new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+            final java.util.concurrent.atomic.AtomicInteger leaseCloses =
+                new java.util.concurrent.atomic.AtomicInteger();
+            CelineFutureMemoryRecall.OwnerSnapshotLeaseAuthority journalLease = () ->
+                new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                    public String generation() { return revision.get(); }
+                    public void close() { leaseCloses.incrementAndGet(); }
+                };
+            CelineFutureMemoryRecall.OwnerContextPublisher publisher = (publishedGeneration, summaries) -> {
+                publications.incrementAndGet();
+                eq(publishedGeneration,revisionNew,"journal publisher receives certified generation");
+                eq(summaries,java.util.Collections.singletonList("Meine Katze heisst Momo"),
+                    "journal publisher receives only signed context text");
+            };
+            DiskJournal ledger = new DiskJournal(store);
+            CelineFutureMemoryRecall.OwnerLineageVerifier journalOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,publisher,ledger);
+            CelineFutureMemoryRecall.OwnerPublicationOutcome denied =
+                CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+            CelineFutureMemoryRecall.OwnerPublicationOutcome uncertain =
+                CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+            CelineFutureMemoryRecall.OwnerPublicationOutcome finished =
+                CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-1",query,newProjection,newRevisionProof,journalOwner,8,NOW),finished,
+                "first journaled dispatch receives acknowledged completion");
+            eq(ledger.actualReserves,1,"dispatch STARTED persisted exactly once");
+            eq(ledger.actualAcknowledgements,1,"completion acknowledgement persisted once");
+            eq(publications.get(),1,"callback invoked once for accepted dispatch");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-1",query,newProjection,newRevisionProof,journalOwner,8,NOW),finished,
+                "completed duplicate returns status without replaying publisher");
+            eq(publications.get(),1,"completed duplicate never publishes twice");
+            DiskJournal restarted = new DiskJournal(store);
+            CelineFutureMemoryRecall.OwnerLineageVerifier afterRestart =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,publisher,restarted);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-1",query,newProjection,newRevisionProof,afterRestart,8,NOW),finished,
+                "fresh journal instance sees durable completed receipt");
+            eq(publications.get(),1,"restart cannot replay completed request");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-1","anderes Thema",newProjection,newRevisionProof,afterRestart,8,NOW),uncertain,
+                "same owner request ID with different intent denied without republish");
+            eq(publications.get(),1,"intent collision cannot reach publisher");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-1",query,newProjection,newRevisionProof,afterRestart,1,NOW),uncertain,
+                "changing result bound under same request ID is an intent collision");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-1",query,newProjection,newRevisionProof,afterRestart,8,NOW+1),uncertain,
+                "changing time under same request ID is an intent collision");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "bad/id",query,newProjection,newRevisionProof,afterRestart,8,NOW),denied,
+                "malformed ID rejected before any journal attempt");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-invalid",query,newProjection,oldRevisionProof,afterRestart,8,NOW),denied,
+                "stale HMAC rejected before journal reservation");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-invalid",query,newProjection,newRevisionProof,livePinnedOwner,8,NOW),denied,
+                "reader-only verifier cannot dispatch without owner journal or lease");
+            revision.set(revisionOld);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-revoked",query,newProjection,newRevisionProof,afterRestart,8,NOW),denied,
+                "revocation before reservation denies dispatch");
+            revision.set(revisionNew);
+            DiskJournal crashReserved = new DiskJournal(store);
+            crashReserved.crashAfterReserve = true;
+            CelineFutureMemoryRecall.OwnerLineageVerifier crashOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,publisher,crashReserved);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-crash",query,newProjection,newRevisionProof,crashOwner,8,NOW),uncertain,
+                "crash after durable STARTED can never look retryable");
+            eq(publications.get(),1,"reservation crash happens before any callback");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-crash",query,newProjection,newRevisionProof,afterRestart,8,NOW),uncertain,
+                "restarted process refuses to dispatch uncleared STARTED reservation");
+            eq(publications.get(),1,"restart after reservation crash never duplicates");
+            DiskJournal crashAck = new DiskJournal(store);
+            crashAck.crashBeforeAck = true;
+            CelineFutureMemoryRecall.OwnerLineageVerifier crashAckOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,publisher,crashAck);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-ack-crash",query,newProjection,newRevisionProof,crashAckOwner,8,NOW),uncertain,
+                "crash after publisher returns but before durable acknowledgement");
+            eq(publications.get(),2,"publisher may already have received crash-window content");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-ack-crash",query,newProjection,newRevisionProof,afterRestart,8,NOW),uncertain,
+                "restart after missing acknowledgement must never resend");
+            eq(publications.get(),2,"started record keeps at-most-once after acknowledgement crash");
+            DiskJournal failBeforeReserve = new DiskJournal(store);
+            failBeforeReserve.crashBeforeReserve = true;
+            CelineFutureMemoryRecall.OwnerLineageVerifier journalUnavailable =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,publisher,failBeforeReserve);
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-disk-error",query,newProjection,newRevisionProof,journalUnavailable,8,NOW),uncertain,
+                "unknown journal write outcome must not authorize blind retry");
+            eq(publications.get(),2,"storage error prevents dispatch");
+            CelineFutureMemoryRecall.OwnerContextPublisher failingPublisher = (publishedGeneration, summaries) -> {
+                publications.incrementAndGet();
+                throw new IllegalStateException("provider could have been given text");
+            };
+            CelineFutureMemoryRecall.OwnerLineageVerifier publisherCrashOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,failingPublisher,new DiskJournal(store));
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-publisher-error",query,newProjection,newRevisionProof,publisherCrashOwner,8,NOW),uncertain,
+                "callback throws after publication started: uncertain not retryable");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-publisher-error",query,newProjection,newRevisionProof,afterRestart,8,NOW),uncertain,
+                "publisher error survives journal reload without replay");
+            eq(publications.get(),3,"throwing publisher only ran once");
+            // Concurrency: both calls use the same owner journal; the second
+            // must observe STARTED before the first publisher is acknowledged.
+            final java.util.concurrent.CountDownLatch began = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.CountDownLatch finish = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.atomic.AtomicInteger concurrentCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.atomic.AtomicReference<CelineFutureMemoryRecall.OwnerPublicationOutcome>
+                firstOutcome = new java.util.concurrent.atomic.AtomicReference<>();
+            CelineFutureMemoryRecall.OwnerLineageVerifier parallelOwner =
+                new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    replayKey,revision::get,journalLease,(publishedGeneration,summaries) -> {
+                        concurrentCalls.incrementAndGet();
+                        began.countDown();
+                        try {
+                            if (!finish.await(5,java.util.concurrent.TimeUnit.SECONDS))
+                                throw new IllegalStateException("test fixture timed out");
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(ex);
+                        }
+                    },new DiskJournal(store));
+            Thread first = new Thread(() -> firstOutcome.set(
+                CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                    "send-parallel",query,newProjection,newRevisionProof,parallelOwner,8,NOW)));
+            first.start();
+            eq(began.await(5,java.util.concurrent.TimeUnit.SECONDS),true,
+                "parallel first dispatch reached owner callback");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-parallel",query,newProjection,newRevisionProof,parallelOwner,8,NOW),uncertain,
+                "concurrent same-ID duplicate refused while first dispatch active");
+            eq(concurrentCalls.get(),1,"parallel callback count remains one");
+            finish.countDown();
+            first.join(5000);
+            eq(first.isAlive(),false,"first dispatch completes after release");
+            eq(firstOutcome.get(),finished,"first concurrent publisher persisted acknowledgement");
+            eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextOnce(
+                "send-parallel",query,newProjection,newRevisionProof,parallelOwner,8,NOW),finished,
+                "after concurrent first completes subsequent calls read completed receipt");
+            eq(concurrentCalls.get(),1,"later duplicate never republishes concurrently completed ID");
+            eq(leaseCloses.get() > 0,true,"all journaled paths exercised owner lease closing");
+            System.out.println("FUTURE_G1_DISPATCH_JOURNAL_RESTART_AND_RACE=TEST_FIXTURE_ONLY");
         }
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
