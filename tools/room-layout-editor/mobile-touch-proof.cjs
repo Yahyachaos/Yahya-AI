@@ -170,6 +170,15 @@ async function main(){
       tolerance_absolute_m_or_degree_or_scale:1e-9});
     const initial=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
     record.push({name:'REAL_MOBILE_VIEWPORT_13_ORIGINAL_GLB_PASS',viewport:[412,915],canvas:initial.canvas_px});
+    // Phone-first framing: real original furniture must remain visible when
+    // the extra editing toolbar is closed. Open it using a genuine touch for
+    // the existing selection/rotate/scale/undo/redo/JSON acceptance sequence.
+    assert.equal(await page.locator('#mobile-tools-panel').evaluate(el=>el.open),false,
+      'Mobile editing drawer must start closed for visible original GLBs');
+    await page.locator('#mobile-tools-panel > summary').tap();
+    assert.equal(await page.locator('#mobile-tools-panel').evaluate(el=>el.open),true,
+      'Mobile editing tools must genuinely open to touchscreen input');
+    record.push({name:'MOBILE_EDIT_DRAWER_OPENS_BY_REAL_TOUCH_PASS'});
     await page.locator('#mobile-object').selectOption('room_bed');
     assert.equal(await page.locator('#object').inputValue(),'room_bed');
     await page.locator('[data-mobile-action="rotate"]').tap();
@@ -342,6 +351,21 @@ async function main(){
     // read alone does NOT prove a committed top-of-page viewport frame.
     // Unfocus lingering form controls, wait for two animation frames, then
     // check page, visual viewport and stage before real compositor capture.
+    // Return the mobile editing controls to their compact default before
+    // the genuine full viewport proof; do not crop, replace or hide the GLBs.
+    await page.locator('#mobile-tools-panel > summary').tap();
+    const mobileChrome=await page.evaluate(()=>{
+      const panel=document.getElementById('mobile-tools-panel');
+      const tools=document.getElementById('mobile-controls').getBoundingClientRect();
+      const stage=document.getElementById('viewport').getBoundingClientRect();
+      return {panel_open:panel.open,controls_height:tools.height,stage_height:stage.height,
+        visible_stage_fraction:(stage.height-tools.height)/stage.height};
+    });
+    assert.equal(mobileChrome.panel_open,false,
+      'Full phone view must not be obscured by expanded editor controls');
+    assert(mobileChrome.visible_stage_fraction>0.70,
+      'At least 70% of genuine mobile WebGL stage must remain unobscured by tools');
+    record.push({name:'OWNER_FINAL_COMPACT_MOBILE_CONTROLS_PASS',mobileChrome});
     const captureScroll=await page.evaluate(async()=>{
       document.getElementById('camera-persp').click();
       if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
