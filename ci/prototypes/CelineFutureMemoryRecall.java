@@ -228,6 +228,46 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE ONLY: owner-held atomic recovery capability, NOT a trusted Android
+     * implementation. A real product composition root must supply a pinned,
+     * independently authenticated, nonrollbackable owner handle. This handle
+     * must NEVER be built from a provider/chat-selected owner path or key.
+     *
+     * Unlike snapshot() followed by claimIfCurrent(), validation of identity,
+     * key, revision, nonce, signature, revoked status and single-use consumption
+     * MUST happen inside one owner-side atomic operation. Returning a successful
+     * value from a caller-supplied implementation is not a security guarantee.
+     * A lost/unavailable authority must BLOCK; it must not reload a file-based
+     * owner and re-issue or replay a spent challenge.
+     */
+    public interface OwnerHeldRecoveryCapability {
+        RecoveryDisposition validateAndConsume(String exactId, long sourceRevision,
+                String sourceStatus, String orphanSha256, String challenge,
+                byte[] ownerSignature);
+    }
+
+    /** Conditional, fail-closed adapter: this class provides NO trusted owner. */
+    public static RecoveryDisposition attestRevokedOrphanWithOwnerHeldClaim(
+            String exactId, long sourceRevision, String sourceStatus,
+            String orphanSha256, String challenge, byte[] ownerSignature,
+            OwnerHeldRecoveryCapability capability) {
+        if (capability == null || !"REVOKED".equals(sourceStatus)
+                || sourceRevision < 2 || revokedRecoveryPayload(exactId,
+                        sourceRevision, orphanSha256, challenge).length == 0
+                || ownerSignature == null || ownerSignature.length != 64)
+            return RecoveryDisposition.BLOCKED;
+        try {
+            RecoveryDisposition result = capability.validateAndConsume(exactId,
+                    sourceRevision, sourceStatus, orphanSha256, challenge,
+                    ownerSignature.clone());
+            return result == RecoveryDisposition.QUARANTINE_REVOKED_ONLY
+                    ? result : RecoveryDisposition.BLOCKED;
+        } catch (RuntimeException e) {
+            return RecoveryDisposition.BLOCKED;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
