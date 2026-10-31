@@ -871,6 +871,51 @@ public final class FutureMemoryRecallContract {
     }
 
     public static void main(String[] args) throws Exception {
+        // A trusted owner must pin the verifier OUTSIDE the snapshot; this
+        // deterministic fixture proves signatures only, not G1/Android custody.
+        java.security.KeyPair owner=java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        java.security.KeyPair intruder=java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        String orphanHash="a".repeat(64), recoveryNonce="owner-manual-approval-0001";
+        byte[] recoveryApprovedPayload=CelineFutureMemoryRecall.revokedRecoveryPayload(
+                "cat-private",2,orphanHash,recoveryNonce);
+        java.security.Signature ownerSigner=java.security.Signature.getInstance("Ed25519");
+        ownerSigner.initSign(owner.getPrivate());ownerSigner.update(recoveryApprovedPayload);
+        byte[] signature=ownerSigner.sign();
+        var blocked=CelineFutureMemoryRecall.RecoveryDisposition.BLOCKED;
+        var quarantine=CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY;
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                orphanHash,recoveryNonce,signature,owner.getPublic()),quarantine,
+                "owner Ed25519 attests quarantining already revoked ID only");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"ACTIVE",2,
+                orphanHash,recoveryNonce,signature,owner.getPublic()),blocked,
+                "never restore ACTIVE even with valid signed revoked proof");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",1,"REVOKED",1,
+                orphanHash,recoveryNonce,signature,owner.getPublic()),blocked,
+                "old snapshot revision denied");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",3,
+                orphanHash,recoveryNonce,signature,owner.getPublic()),blocked,
+                "independent highwater advancement denies stale snapshot");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                "b".repeat(64),recoveryNonce,signature,owner.getPublic()),blocked,
+                "changed orphan fingerprint denies old attestation");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                orphanHash,"new-recovery-nonce-999",signature,owner.getPublic()),blocked,
+                "stale nonce denies replayed attestation");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                orphanHash,recoveryNonce,null,owner.getPublic()),blocked,
+                "missing owner attestation denied");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                orphanHash,recoveryNonce,signature,intruder.getPublic()),blocked,
+                "forged verifier identity denied when owner key pinned");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                orphanHash,recoveryNonce,signature,null),blocked,
+                "caller-owned ordinary file never supplies trust root");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                "corrupt",recoveryNonce,signature,owner.getPublic()),blocked,
+                "malformed orphan digest denied");
+        eq(CelineFutureMemoryRecall.attestRevokedOrphan("cat-private",2,"REVOKED",2,
+                orphanHash,"short",signature,owner.getPublic()),blocked,
+                "missing durable challenge rejected");
         List<CelineFutureMemoryRecall.Candidate> data = Arrays.asList(
             c("beverage","Mein Lieblingsgetränk ist Tee"),
             c("cat","Meine Katze heißt Luna"),
@@ -6035,6 +6080,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     memory_id_child.write_text(memory_id_process_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child)], check=True)
     import sys
+    if '--focused-attestation' in sys.argv:
+        subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
+        raise SystemExit(0)
     if '--focused-torn' in sys.argv:
         process_memory_id_torn_witness_proof(temp)
         raise SystemExit(0)
