@@ -313,6 +313,7 @@ final class CelineRoomEnvironmentV80 {
                 CelineRoomWorldContractV80 contract = CelineRoomWorldContractV80.load(context);
                 Map<String, JSONObject> exactLayout = readExactS25Layout();
                 int exactApplied = 0;
+                int verifiedFurnitureMeshNodes = 0;
                 FilamentAsset shell = null;
                 int renderables = 0;
                 for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
@@ -335,7 +336,8 @@ final class CelineRoomEnvironmentV80 {
                             alignRoomRoot(part);
                         } else {
                             String authoredId = S25_IDS[partitionIndex - 1];
-                            applyExactS25Furniture(part, authoredId, exactLayout.get(authoredId));
+                            verifiedFurnitureMeshNodes += applyExactS25Furniture(
+                                    part, authoredId, exactLayout.get(authoredId));
                             exactApplied++;
                         }
                         // Preserve original S25 GLB material/UV/texture without image-derived tint.
@@ -347,13 +349,9 @@ final class CelineRoomEnvironmentV80 {
                         throw error;
                     }
                 }
-                if (shell == null || exactApplied != 13) {
+                if (shell == null || exactApplied != 13 || verifiedFurnitureMeshNodes < 13) {
                     throw new IllegalStateException("S25 layout requires shell plus exactly 13 GLB instances: " + exactApplied);
                 }
-                Celine3DDiagnostics.record(context, "ROOM-S25-13",
-                        "13/13 S25 furniture source transforms bound to actual Filament roots",
-                        "sourceSHA256=" + S25_LAYOUT_SHA256
-                        + " room=4.4x4.2x2.65; shell/WorldContract integration pending BUILD owner");
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
@@ -413,6 +411,16 @@ final class CelineRoomEnvironmentV80 {
                                 + " materialEmission=false");
                 failureLogged = false;
                 roomBuilt = true;
+                // Emit whole-scene 13/13 evidence only after scene attachment and
+                // all resource/light setup succeeds; partial imports must never
+                // produce a misleading completed-room diagnostic.
+                Celine3DDiagnostics.record(context, "ROOM-S25-13",
+                        "13/13 S25 GLB roots and descendant nodes verified after Room build",
+                        "verifiedFurniture=" + exactApplied
+                                + " verifiedMeshNodes=" + verifiedFurnitureMeshNodes
+                                + " sourceSHA256=" + S25_LAYOUT_SHA256
+                                + " room=4.4x4.2x2.65"
+                                + " shellAndWorldContract=UNVERIFIED visual=UNVERIFIED G2.3=PAUSED");
                 return true;
             } catch (Throwable error) {
                 for (FilamentAsset candidate : candidates) {
@@ -524,7 +532,7 @@ final class CelineRoomEnvironmentV80 {
          * set ROOT to wrapper*T(-source-bounds-center)*original-root. Never
          * apply the legacy 180deg root yaw or image-fitted drape/dresser offsets.
          */
-        private void applyExactS25Furniture(FilamentAsset part, String id, JSONObject item)
+        private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item)
                 throws Exception {
             if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
             double[] pos = requireFiniteTriple(item, "translation_m", false);
@@ -612,6 +620,7 @@ final class CelineRoomEnvironmentV80 {
                             + " rootMatrixMaxError=" + worst
                             + " meshWorldMatrixMaxError=" + meshWorst
                             + " meshNodesChecked=" + originalMeshWorlds.size());
+            return originalMeshWorlds.size();
         }
 
         /**
