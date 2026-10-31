@@ -314,6 +314,9 @@ final class CelineRoomEnvironmentV80 {
                 Map<String, JSONObject> exactLayout = readExactS25Layout();
                 int exactApplied = 0;
                 int verifiedFurnitureMeshNodes = 0;
+                // Expected GLB world matrices captured from actual Filament nodes, not JSON guesses.
+                Map<Integer, float[]> expectedS25Roots = new LinkedHashMap<>();
+                Map<Integer, float[]> expectedS25Meshes = new LinkedHashMap<>();
                 FilamentAsset shell = null;
                 int renderables = 0;
                 for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
@@ -337,7 +340,8 @@ final class CelineRoomEnvironmentV80 {
                         } else {
                             String authoredId = S25_IDS[partitionIndex - 1];
                             verifiedFurnitureMeshNodes += applyExactS25Furniture(
-                                    part, authoredId, exactLayout.get(authoredId));
+                                    part, authoredId, exactLayout.get(authoredId),
+                                    expectedS25Roots, expectedS25Meshes);
                             exactApplied++;
                         }
                         // Preserve original S25 GLB material/UV/texture without image-derived tint.
@@ -355,6 +359,10 @@ final class CelineRoomEnvironmentV80 {
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
+                // Verify the same thirteen authored GLB hierarchies after Scene attachment.
+                // A pre-attachment root readback alone must not count as running scene proof.
+                verifyS25WorldNodesAfterAttach(expectedS25Roots, expectedS25Meshes,
+                        exactApplied, verifiedFurnitureMeshNodes);
                 int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
                 if (frontWallEntity == 0) {
                     throw new IllegalStateException("Recovery shell front entity missing");
@@ -418,6 +426,8 @@ final class CelineRoomEnvironmentV80 {
                         "13/13 S25 GLB roots and descendant nodes verified after Room build",
                         "verifiedFurniture=" + exactApplied
                                 + " verifiedMeshNodes=" + verifiedFurnitureMeshNodes
+                                + " postAttachRootNodes=" + expectedS25Roots.size()
+                                + " postAttachMeshNodes=" + expectedS25Meshes.size()
                                 + " sourceSHA256=" + S25_LAYOUT_SHA256
                                 + " room=4.4x4.2x2.65"
                                 + " shellAndWorldContract=UNVERIFIED visual=UNVERIFIED G2.3=PAUSED");
@@ -532,8 +542,9 @@ final class CelineRoomEnvironmentV80 {
          * set ROOT to wrapper*T(-source-bounds-center)*original-root. Never
          * apply the legacy 180deg root yaw or image-fitted drape/dresser offsets.
          */
-        private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item)
-                throws Exception {
+        private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item,
+                Map<Integer, float[]> expectedS25Roots,
+                Map<Integer, float[]> expectedS25Meshes) throws Exception {
             if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
             // Verify that the *loaded partition* owns this furniture anchor, not
             // merely that the combined scene contains an anchor with this name.
@@ -594,6 +605,10 @@ final class CelineRoomEnvironmentV80 {
                 throw new IllegalStateException("Filament S25 root readback mismatch " + id
                         + " worst=" + worst);
             }
+            if (expectedS25Roots.put(part.getRoot(),
+                    transforms.getWorldTransform(root, new float[16])) != null) {
+                throw new IllegalStateException("Duplicate Filament furniture root entity: " + id);
+            }
             // With the unmodified GLB hierarchy, each descendant must move as
             // authoredWrapper * originalWorld. Detect lost/doubled node transforms,
             // not just a successfully written but visually unused root matrix.
@@ -611,6 +626,9 @@ final class CelineRoomEnvironmentV80 {
                     }
                     meshWorst = Math.max(meshWorst,
                             Math.abs(observedMeshWorld[axis] - expectedMeshWorld[axis]));
+                }
+                if (expectedS25Meshes.put(mesh.getKey(), observedMeshWorld) != null) {
+                    throw new IllegalStateException("Duplicate S25 renderable entity: " + id);
                 }
             }
             if (meshWorst > 0.0001f) {
@@ -631,6 +649,49 @@ final class CelineRoomEnvironmentV80 {
                             + " meshWorldMatrixMaxError=" + meshWorst
                             + " meshNodesChecked=" + originalMeshWorlds.size());
             return originalMeshWorlds.size();
+        }
+
+        /**
+         * The first 13/13 checks run while gltfio assets are imported. Re-read the
+         * actual loaded root and renderable world matrices AFTER Scene.addEntities,
+         * without reapplying any transform or modifying the user's JSON values.
+         * This is structural proof only, not evidence of a visible Android frame.
+         */
+        private void verifyS25WorldNodesAfterAttach(
+                Map<Integer, float[]> rootWorlds, Map<Integer, float[]> meshWorlds,
+                int expectedFurniture, int expectedMeshNodes) {
+            if (rootWorlds.size() != expectedFurniture || expectedFurniture != S25_IDS.length
+                    || meshWorlds.size() != expectedMeshNodes || expectedMeshNodes < S25_IDS.length) {
+                throw new IllegalStateException("Incomplete post-attach S25 scene readback");
+            }
+            Map<Integer, float[]> all = new LinkedHashMap<>(rootWorlds);
+            for (Map.Entry<Integer, float[]> node : meshWorlds.entrySet()) {
+                if (all.put(node.getKey(), node.getValue()) != null) {
+                    throw new IllegalStateException("S25 root/renderable entity collision");
+                }
+            }
+            float worst = 0f;
+            for (Map.Entry<Integer, float[]> node : all.entrySet()) {
+                int instance = transforms.getInstance(node.getKey());
+                if (instance == 0) {
+                    throw new IllegalStateException("Detached S25 scene node " + node.getKey());
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                for (int i = 0; i < 16; i++) {
+                    if (!Float.isFinite(actual[i]) || !Float.isFinite(node.getValue()[i])) {
+                        throw new IllegalStateException("Nonfinite S25 attached GLB node");
+                    }
+                    worst = Math.max(worst, Math.abs(actual[i] - node.getValue()[i]));
+                }
+            }
+            if (worst > 0.0001f) {
+                throw new IllegalStateException("S25 post-attach node movement mismatch: " + worst);
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-ATTACH",
+                    "13/13 GLB scene roots and real descendant renderables unchanged after Scene.addEntities",
+                    "rootNodes=" + rootWorlds.size() + " meshNodes=" + meshWorlds.size()
+                            + " maxMatrixError=" + worst
+                            + " AndroidVisibleFrame=UNVERIFIED shell=UNVERIFIED");
         }
 
         /**
