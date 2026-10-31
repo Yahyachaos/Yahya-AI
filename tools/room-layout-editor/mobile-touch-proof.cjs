@@ -248,6 +248,40 @@ async function main(){
     assert.equal(await page.locator('#x').isDisabled(),true);
     record.push({name:'MOBILE_JSON_EXPORT_IMPORT_13_LOCKS_PASS'});
     assert.deepEqual(errors,[],'No browser/HTTP errors allowed');
+    // Restore the OWNER'S exact approved JSON after the deliberate touch/nudge
+    // exercises. The compositor image must show the user's unmodified baseline,
+    // not the test's temporary +X bed move or temporary orbit/zoom.
+    const approvedFile=path.join(__dirname,'layout-candidates',
+      '2026-10-31-s25-user-approved-final-13glb.json');
+    await page.locator('#file').setInputFiles(approvedFile);
+    await page.waitForFunction(expectedX=>{
+      const bed=window.__celineRoomEditorE2E.auditScene().objects.find(o=>o.id==='room_bed');
+      return !!bed && Math.abs(bed.transform.translation_m[0]-expectedX)<1e-9;
+    },approved.objects[0].translation_m[0],{timeout:5000});
+    const restored=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(restored.model_count,13);
+    assert.equal(restored.all_source_fidelity_glbs_loaded,true);
+    for(const expected of approved.objects){
+      const actual=restored.objects.find(o=>o.id===expected.id);
+      assert(actual?.loaded,'Owner-final screenshot source GLB '+expected.id);
+      assert.equal(actual.locked,expected.locked,'Owner-final screenshot lock '+expected.id);
+      for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
+        for(let i=0;i<3;i++)
+          assert(Math.abs(actual.transform[key][i]-expected[key][i])<1e-9,
+            'Owner-final screenshot transform '+expected.id+' '+key+'['+i+']');
+    }
+    // Earlier full viewport succeeded at scrollOffsetY=1640: although a real
+    // screenshot, it mostly showed the scrolled form rather than the room.
+    // Restore the default editor camera and the initial 412x915 visual frame.
+    const captureScrollY=await page.evaluate(()=>{
+      document.getElementById('camera-persp').click();
+      window.scrollTo({top:0,left:0,behavior:'instant'});
+      return window.scrollY;
+    });
+    assert.equal(captureScrollY,0,'Owner-final mobile capture must start at page top');
+    record.push({name:'OWNER_FINAL_13_GLB_RESTORED_FOR_TOP_VIEWPORT',
+      layout_sha256:approvedSha,objects:13,locks:approved.objects.filter(o=>o.locked).length,
+      scroll_y:0,camera:'existing 3D default; stored owner transforms untouched'});
     // Compositor capture is last; if it stalls, preserve native PNG and JSON.
     // A missing true full-viewport shot is a FAIL, never a mobile visual PASS.
     let compositorError=null;
@@ -304,6 +338,8 @@ async function main(){
       const dimensions=[full.readUInt32BE(16),full.readUInt32BE(20)];
       assert.deepEqual(dimensions,[412,915],
         'True full 412x915 CSS-pixel screenshot required; DPR3 emulated device stays intact');
+      assert.equal(Math.round(capture.metadata?.scrollOffsetY??-1),0,
+        'True mobile screenshot must show top-of-page room, not scrolled form controls');
       record.push({name:'MOBILE_FULL_VIEWPORT_COMPOSITOR_CAPTURE_PASS',
         filename:'mobile-s25-viewport-412x915.png',
         sha256:crypto.createHash('sha256').update(full).digest('hex'),pixels:dimensions});
