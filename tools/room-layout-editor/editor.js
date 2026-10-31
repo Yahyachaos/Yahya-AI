@@ -51,9 +51,15 @@ const NAMES = {
 
 const stage = $('viewport');
 const E2E_PROOF = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') && new URLSearchParams(location.search).get('e2e') === '1';
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: E2E_PROOF });
-// Mobile GPU memory/battery safeguard: full original GLBs, no substitute meshes.
 const TOUCH_DEVICE = window.matchMedia('(pointer: coarse)').matches;
+// Original 13 GLBs and owner JSON are immutable. A genuine lock tap on
+// Chromium SwiftShader cost 7334 ms and one WebGL draw cost 3195.8 ms.
+// Mobile-only MSAA off is a bounded raster-cost hypothesis, not yet PASS.
+// Strict real-touch <5s and real 412x915 proof gates remain unchanged.
+// exact_next_action: inspect this commit's exact mobile lock/redo timing,
+// 13-field source roundtrip and true viewport; never overwrite owner poses.
+const renderer = new THREE.WebGLRenderer({ antialias: !TOUCH_DEVICE, alpha: false, preserveDrawingBuffer: E2E_PROOF });
+// Mobile GPU memory/battery safeguard: full original GLBs, no substitute meshes.
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TOUCH_DEVICE ? 1.5 : 2));
 renderer.domElement.style.touchAction = 'none';
 renderer.setSize(stage.clientWidth, stage.clientHeight);
