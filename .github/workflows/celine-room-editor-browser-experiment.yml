@@ -118,10 +118,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # 2026-11-01 OWNER-FINAL POLICY: these 12 V12-V32 scripts replay historical
+  # 2026-10-29 photo-layout CANDIDATES. They make strict ground/overflow
+  # assumptions about superseded positions and do not validate the user's
+  # immutable 2026-10-31 S25 saved layout. They remain executable by explicit
+  # workflow_dispatch with UNCHANGED fail-closed assertions and evidence uploads;
+  # they are NOT silently marked PASS or used to move the user's furniture.
+  # On normal editor pushes the mandatory functional job, the separate real
+  # 412x915 Chromium/WebGL S25 touch+JSON/13-GLB+six-lock+source-AABB-drift job
+  # and source curtain-material V21 job continue unchanged, and visual acceptance
+  # remains FAIL/G2.3 PAUSED until a genuine user-approved visual image exists.
   mirror_visual:
     name: Targeted V12 source-GLB mirror WebGL and saved layout proof
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -171,7 +181,7 @@ jobs:
   nightstand_visual:
     name: Targeted V13 rear nightstand source-GLB WebGL and saved layout proof
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -221,7 +231,7 @@ jobs:
   front_nightstand_visual:
     name: Targeted V14 front nightstand source-GLB WebGL and saved layout proof
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -271,7 +281,7 @@ jobs:
   plant_and_floor_visual_v15:
     name: Targeted V15 source-GLB large-plant and front-nightstand ground-contact proof
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -321,7 +331,7 @@ jobs:
   small_plant_visual_v16:
     name: Targeted V16 source-GLB small plant and independently screened large-plant proof
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -371,7 +381,7 @@ jobs:
   floorlamp_visual_v17:
     name: Targeted V17 original GLB floor-lamp WebGL, 700x560 and native locked layout
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -421,7 +431,7 @@ jobs:
   wallshelf_visual:
     name: Targeted V18 original bookshelf GLB, fixed-camera WebGL and native Save/Reload
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -471,7 +481,7 @@ jobs:
   drapes_visual_v19:
     name: Targeted V19 original window/drape GLB, fixed-camera WebGL and native Save/Reload
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -521,7 +531,7 @@ jobs:
   architecture_v20:
     name: Targeted V20 fixed-camera warm room shell and grid-free original-WebGL proof
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -621,7 +631,7 @@ jobs:
   chair_v30:
     name: Targeted V30 original lounge-chair WebGL depth and yaw with native Save Reload
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -670,7 +680,7 @@ jobs:
   camera_v31:
     name: V31 targeted architecture camera landmark diagnostic original WebGL, no scene promotion
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -720,7 +730,7 @@ jobs:
   window_material_v32:
     name: Targeted V32 original-curtain GLB material translucency comparisons, frozen-camera WebGL
     needs: functional_browser
-    if: ${{ needs.functional_browser.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.functional_browser.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
