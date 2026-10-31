@@ -8692,6 +8692,75 @@ def process_root_same_key_rollback_with_receipt_fence(temp, strict=False):
             for p in children:
                 if p.poll() is None: p.kill();p.communicate(timeout=5)
 
+
+# FUTURE ONLY: independent Java processes + rollbackable owner/journal stores.
+# Real Ed25519 identities persist; this is a negative security control, NOT a fix.
+import base64 as _future_b64, zlib as _future_zlib
+atomic_owner_restart_harness = _future_zlib.decompress(_future_b64.b64decode(
+    "eNrNV21T2zgQ/s6vUP2h44BjKAedFsZ3kwZzpECScUy5mw7DCFtJVBzJZ8sBT+G/3+rFTkIIUKa9OT4QWVrt8+x635zi6BqPCIqJW+JxiV1M99foJOWZQN/wFLuMcndIE+KuL+9HY5zlRLgDgVmMs7itn/NFyZxERUZF+VBDvZ+nJHp4WAiayL21zfV1dFiIIiNNzpISCZILNKS3cmcPiRuOeBZThrMSSZooFzwjuYO6fic88gOU8SS5AiObacYFiQSJXbS+uZYWVwmN4ArDCYoSnOcGpSX4hEYBoOBM9DMeETj6voZAMRZw46oU5OsFygiO7T4WY5Q2kBhn/CZH/m1EUkE5Q9/hHJQxdAiUclcKt5LkE1zN7bSxj+5n+voZnWJBjkmJ+A0jmXnWumOaPaYdbqMKAS4e4giMLt0RER0GallEbMuPt3d33320GrANakFlpZmRG9Q/bg8++CziMYlBwwDegK1MAkSgm/NkCjoUITeFe1YD/vYBd565cuGMuHr8Fby1Ykn7r92tjy9lXVw9RnogMspG6JqUnfjFXI/I7SHPJli4fGg33KFaw6Z9CsEB2XNARxAvi3YMjlrN7d33YEesTl9J9BsHAjg5/j/wNVxWMZ5yGiPKqHiep06LCCAEkMmIjAMKuSHv7CsJ4Ixs44M0I5Dwe+iE5soi7TjLQRUjYGMUIxlXfUwzdJ16ZvmnjiOePRdoRt42FCqaN1CkyIInNKENy6SGA2BSd5VgUqMwYWo3nKo69lLCesoLbjvwW6F/2fXPfwBLer2G0jnxCqT7tQdo2smPRSbUZSYA07KchxXePQsPLz+8CPAZqCqofg7YoMwFmbi8EPLdMJEw2+p0O6EuUZ61oRNfxtmGhUYFqKOYwf5CnsnjR6MbGgWd1OHtVElK43o5gVexMuyNjC6XlHkzMk7NRe4vkdHGmdaT4jLhOPbaJKGM6K51SiZQSQMS4SQB3075NYnhiU9JBjGt5G0rwqKZ6hi1nO0Tx8IWyKaQhPb7HfC84tWkLIY9+MdEk3FIlebW1tY7q3IwHTEsEVEOK3BpvbEiu/a1nCsLg5S1F7qc9rQRKdJY7hn7Fo3OKxjPCMufKlNXeqInsaqOHhGaijbX4wKUAxTJtQeFTp040PDBBAe858h3XuTOGOdjR/nAATiHpDwaN5q/V6VGwMxRrec9A06nQ/oS31SSyjtf5ENpzzfTOhD1Xy1uPPWjETBn4cy0eQA6RPabGmWqCYHpUF9Na1kJueDlXiEiPiFu4H/226F/cPnJP+wF/uUgbAXhDM7kgwCuzNPkNqw9awMIql/Fbyau8i7hAOc9Ua2qluk9VWaWOKh9bzaumVKl0B44SIm6EWcCU5bbiv0vcpCEkxXFJf8UOMltS1UJEs83vDkjzOmyGcb6OUO0bnPhvzEGoc1N1Dnt94Kw1Q1hdh/TXM/s8FsP8dW8jq/MMA/zioMYF6ge4FFUwEFcunOql7uMsdlRJm1YdzKsFN05L9wjkuSAP1z0csGuGQSV9VpHKMPBD53ugR/6wWmnC11qhlphvlkATcgIR+WrMbu9y9ZZeNQLOuHfM6hlt6iIftIpr4Jv905POyEYXem5R9BuorE964HkFoL2J/pTTzL3GnCKM8S1+OrGiIX8egx0cTynYryqNdjGCGjsy10z8L/0jv0D68f6p1N3MGfnxDH6FwIAX+WqNv3BiiTZU83piakm8AdnJyFMLsZqGGd6510/uOx3unLXzBiw/bl3FnRbJ+Zgbs6oRxzzMTw/6UygHJj5G7ovXjnSVLOQJxdyOMdf310Y2lQ+bV3UBsomB/GtPhFmU02VDQuiatCyGujtW4TdhLCRGHveTkPPX3L0wl+3L+DfbxfzWhRHJD8UO4lMp6SVjYoJOLVmDbktP4D21HeK5I3u9FCn1iYXmmC/zsY7UyDv9Lu5qwuD9tz92r+3UtNt"
+)).decode("utf-8")
+
+
+def process_atomic_owner_restart_proof(temp, strict=False):
+    passed=0
+    def ok(condition, label):
+        nonlocal passed
+        if not condition:
+            raise AssertionError('ATOMIC OWNER RESTART SECURITY FAIL: '+label)
+        passed+=1
+    runner=['java','-cp',temp,'de.yahya.ai.FutureAtomicRestartProcess']
+    with tempfile.TemporaryDirectory(prefix='future_atomic_restart_') as folder:
+        root=Path(folder)
+        def call(*args):
+            out=subprocess.run(runner+list(map(str,args)),text=True,
+                capture_output=True,timeout=15)
+            ok(out.returncode==0,'fresh JVM successfully ran '+str(args)+': '+out.stderr[-220:])
+            return out.stdout.strip()
+        def check(receipt,mode,expected):
+            value=call('claim',root,receipt,mode)
+            ok(value.startswith('RESULT='+expected+' '),
+                'result '+receipt+' '+mode+' expected '+expected+' got '+value)
+            ok('OWNER_PIN='+owner_pin in value and 'JOURNAL_PIN='+journal_pin in value,
+                'original Ed25519 operator key identities remained pinned in fresh JVM')
+        initialized=call('init',root)
+        owner_pin=initialized.split('owner=')[-1].split()[0]
+        journal_pin=initialized.split('guardian=')[-1].split()[0]
+        ok(len(owner_pin)==64 and len(journal_pin)==64 and owner_pin!=journal_pin,
+            'two independent Ed25519 signer identities enrolled')
+        key_before=(root/'owner.priv').read_bytes()
+        root_before=(root/'journal.priv').read_bytes()
+        check('missing-root','absent','NO_AUTHORITY')
+        check('no-answer','unknown','STARTED_INDETERMINATE')
+        ok((root/'owner.spent').read_text()=='' and (root/'journal.spent').read_text()=='',
+            'missing/uncertain root does not authorize a record')
+        check('receipt-one','guarded','COMMITTED')
+        ok((root/'owner.spent').read_text().endswith('|receipt-one') and
+           (root/'journal.spent').read_text().endswith('|receipt-one'),
+            'both volatile owner and test-only journal record first receipt')
+        check('receipt-two','guarded','REJECTED_BEFORE_START')
+        # A fresh JVM per call: malicious owner spent+ack rollback.
+        (root/'owner.spent').write_text('',encoding='utf-8')
+        check('receipt-three','legacy','COMMITTED')
+        ok((root/'owner.priv').read_bytes()==key_before,
+            'replay uses exact original owner private signing key')
+        (root/'owner.spent').write_text('',encoding='utf-8')
+        check('receipt-four','guarded','REJECTED_BEFORE_START')
+        ok((root/'journal.spent').read_text().endswith('|receipt-one'),
+            'unmodified journal conditionally blocks replay on owner restart')
+        # Roll back the journal itself with original signing key/pin intact.
+        (root/'journal.spent').write_text('',encoding='utf-8')
+        if strict:
+            check('receipt-five','guarded','REJECTED_BEFORE_START')
+        else:
+            check('receipt-five','guarded','COMMITTED')
+            ok((root/'journal.priv').read_bytes()==root_before and
+               (root/'owner.priv').read_bytes()==key_before,
+               'KNOWN FAIL: same-key authorities accept rollback replay')
+            print('FUTURE_ATOMIC_OWNER_RESTART_PASS cases='+str(passed))
+            print('FUTURE_ATOMIC_OWNER_SAME_SIGNER_ROLLBACK=KNOWN_SECURITY_FAIL')
+            print('FUTURE_GUARDIAN_SAME_SIGNER_ROLLBACK=KNOWN_SECURITY_FAIL')
+            print('FUTURE_INDEPENDENT_NONROLLBACKABLE_JOURNAL=UNIMPLEMENTED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -8723,8 +8792,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     dual_client.write_text(independent_ledger_client_harness, encoding='utf-8')
     triple_client=Path(temp) / 'FutureReceiptFenceClientProcess.java'
     triple_client.write_text(receipt_fence_client_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client)], check=True)
+    atomic_restart_child=Path(temp)/'FutureAtomicRestartProcess.java'
+    atomic_restart_child.write_text(atomic_owner_restart_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child)], check=True)
     import sys
+    if '--strict-atomic-owner-restart' in sys.argv:
+        process_atomic_owner_restart_proof(temp,strict=True)
+        raise SystemExit(0)
+    if '--focused-atomic-owner-restart' in sys.argv:
+        process_atomic_owner_restart_proof(temp)
+        raise SystemExit(0)
     if '--strict-root-same-key-rollback' in sys.argv:
         process_root_same_key_rollback_with_receipt_fence(temp, strict=True)
         raise SystemExit(0)
@@ -8817,3 +8894,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_same_key_witness_ledger_rollback_proof(temp)
     process_independent_once_ledger_proof(temp)
     process_root_same_key_rollback_with_receipt_fence(temp)
+    process_atomic_owner_restart_proof(temp)
