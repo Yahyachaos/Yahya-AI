@@ -5692,14 +5692,17 @@ public final class FutureMemoryIdProcessChild {
                 }
                 throw new IllegalArgumentException("unrecognized witness fault");
             }
-            // A process may die before the atomic witness rename. Even if both
-            // old visible files appear consistent, an unresolved witness temp
-            // makes their generation uncertifiable. Never silently clean it up.
-            try(DirectoryStream<Path> pending=Files.newDirectoryStream(root,
-                    "memory-id-highwater.txt.tmp.*")) {
-                if(pending.iterator().hasNext())
-                    throw new IllegalStateException(
-                        "untrusted selected-ID witness pending transaction");
+            // A process may die before an atomic witness OR state rename.
+            // Matching old visible files cannot certify an unresolved temp.
+            // Never silently delete or recover either half of a transaction.
+            for(String pendingPattern:List.of("memory-id-highwater.txt.tmp.*",
+                    "memory-id-state.txt.tmp.*")) {
+                try(DirectoryStream<Path> pending=Files.newDirectoryStream(root,
+                        pendingPattern)) {
+                    if(pending.iterator().hasNext())
+                        throw new IllegalStateException(
+                            "untrusted selected-ID witness/state pending transaction");
+                }
             }
             Snapshot current=read(state); // Fail closed if missing, partial or corrupt.
             // Toy high-water authority: separate ordinary local file, not G1
@@ -5994,6 +5997,27 @@ def process_memory_id_torn_witness_proof(temp):
                  +': '+check.stdout[-120:]+' '+check.stderr[-120:])
             case(state.read_text()=='1|ACTIVE',
                  'no auto-repair, revoke or correction after '+restart_action+' '+action)
+    # An abandoned owner-state rename also makes a supposedly complete source
+    # pair untrustworthy: fail closed instead of silently discarding temp data.
+    root=Path(temp)/'memory-id-unresolved-snapshot-temp'
+    root.mkdir()
+    case(invoke(root,'init').returncode==0,'owner-state temp fixture initialized')
+    orphan=root/'memory-id-state.txt.tmp.aborted'
+    orphan.write_text('2|REVOKED|TRUNCATED')
+    for restart_action in ('inspect','suggest-without-id','correct','revoke'):
+        stopped=invoke(root,restart_action)
+        case(stopped.returncode!=0 and
+             'untrusted selected-ID witness' in stopped.stderr,
+             'orphan state temp blocks separate JVM '+restart_action)
+        case((root/'memory-id-state.txt').read_text()=='1|ACTIVE',
+             'orphan state temp cannot auto-repair source '+restart_action)
+    # Negative control: ordinary temp files have no external monotonic custody.
+    # An unauthorized actor who removes the orphan can defeat this local guard.
+    orphan.unlink()
+    replay=invoke(root,'correct')
+    case(replay.returncode==0 and 'RESULT=APPLIED' in replay.stdout,
+         'KNOWN UNSAFE: local temp erasure bypasses simulated crash marker')
+    print('FUTURE_G1_MEMORY_ID_ORPHAN_ERASURE=KNOWN_SECURITY_FAIL_UNFIXED')
     print('FUTURE_G1_MEMORY_ID_TORN_WITNESS_2JVM_PASS cases='+str(count))
     print('FUTURE_G1_MEMORY_ID_TORN_WITNESS=TEST_FIXTURE_NOT_POWER_LOSS_PROOF')
     print('FUTURE_G1_MEMORY_ID_RECOVERY=MANUAL_OWNER_VERIFICATION_REQUIRED')
