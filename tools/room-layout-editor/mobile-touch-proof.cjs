@@ -168,7 +168,49 @@ async function main(){
       layout_sha256:approvedSha,saved_at:approved.saved_at,model_count:13,
       locks:approved.objects.filter(o=>o.locked).length,
       tolerance_absolute_m_or_degree_or_scale:1e-9});
+    // Strict original owner-S25 RAW geometry frame, independent of JSON only.
+    // Offsets recovered from the actual 99MB standalone original handset HTML.
+    const ownerFrames=await page.evaluate(()=>window.__celineRoomEditorE2E.ownerSourceFrameAudit());
+    const originalS25Offsets={
+      room_bed:[0,0.13571697473526,0],
+      room_dresser:[0,0.012040197849273682,0],
+      room_plant_large:[0,0.1285751461982727,0],
+      room_plant_small:[-0.0000021457672119140625,0.11341476440429688,0],
+      room_floor_lamp:[0,0.04433482885360718,0],
+      room_nightstand_back:[0,0,0], // offline lookup by instance, not rear GLB stem
+      room_nightstand_front:[0,-0.6299548149108887,0],
+      room_lounge_chair:[0,0.2647475004196167,0],
+      room_rug:[0,0.006009998731315136,0],
+      room_foreground_table:[0,-0.13141870498657227,0],
+      room_window_drapes:[0,0,0],
+      room_wall_shelf_books:[0,0,0],
+      room_round_mirror:[0,0,0]
+    };
+    assert.equal(ownerFrames.model_count,13);
+    assert.equal(ownerFrames.all_owner_s25_raw_frames_valid,true,
+      '13 real GLBs must have original S25 raw geometry, not their extra source anchors');
+    assert.deepEqual(ownerFrames.objects.map(o=>o.id),approved.objects.map(o=>o.id));
+    for(const item of ownerFrames.objects){
+      assert(item.ignored_original_source_anchor,'Missing source GLB anchor '+item.id);
+      assert(item.anchor_is_identity&&item.raw_geometry_offset_exact&&item.model_root_not_recentered,
+        'Unexpected additional glTF anchor or world center applied to '+item.id);
+      assert.equal(item.owner_rotation_order,'ZYX','S25 raw Euler multiplication order '+item.id);
+      for(let i=0;i<3;i++)
+        assert(Math.abs(item.owner_geometry_offset_m[i]-originalS25Offsets[item.id][i])<1e-5,
+          'Original S25 geometry offset mismatch '+item.id+' axis '+i);
+    }
+    record.push({name:'ORIGINAL_OWNER_S25_RAW_GLB_FRAME_13_OF_13_PASS',
+      source_layout_sha256:approvedSha,original_s25_camera:ownerFrames.original_s25_camera,
+      geometry_offsets_m:Object.fromEntries(ownerFrames.objects.map(o=>[o.id,o.owner_geometry_offset_m]))});
     const initial=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
+    const sy=0.19,sp=0.42,sd=6.6;
+    const expectedS25Camera=[Math.sin(sy)*Math.cos(sp)*sd,
+      0.85+Math.sin(sp)*sd,Math.cos(sy)*Math.cos(sp)*sd];
+    assert.equal(initial.vertical_fov_deg,60,'Original owner S25 vertical FOV');
+    assert.deepEqual(initial.camera_target_m,[0,0.85,0]);
+    for(let i=0;i<3;i++)
+      assert(Math.abs(initial.camera_position_m[i]-expectedS25Camera[i])<1e-5,
+        'Original S25 camera coordinate '+i);
     record.push({name:'REAL_MOBILE_VIEWPORT_13_ORIGINAL_GLB_PASS',viewport:[412,915],canvas:initial.canvas_px});
     // Genuine 44px+ view shortcut stays reachable in the 3D stage without
     // opening nested mobile drawers; no layout or camera is changed.

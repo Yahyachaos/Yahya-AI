@@ -71,10 +71,20 @@ const scene = new THREE.Scene();
 // V20 architecture-only color study: reference room is warm, not blue/gray.
 // Furniture source GLB materials, frozen camera and fixed dimensions are untouched.
 scene.background = new THREE.Color(0x947257);
-const camera = new THREE.PerspectiveCamera(53, stage.clientWidth / stage.clientHeight, 0.01, 250);
-camera.position.set(5.3, 3.7, 6.5);
+// Match the ORIGINAL S25 offline editing camera, not the historical photo.
+const OWNER_S25_CAMERA = Object.freeze({yaw:0.19,pitch:0.42,distance_m:6.6,
+  target_m:[0,0.85,0],vertical_fov_deg:60});
+function ownerS25CameraPosition(){
+  const {yaw,pitch,distance_m,target_m}=OWNER_S25_CAMERA;
+  return [Math.sin(yaw)*Math.cos(pitch)*distance_m+target_m[0],
+    Math.sin(pitch)*distance_m+target_m[1],
+    Math.cos(yaw)*Math.cos(pitch)*distance_m+target_m[2]];
+}
+const camera = new THREE.PerspectiveCamera(OWNER_S25_CAMERA.vertical_fov_deg,
+  stage.clientWidth / stage.clientHeight, 0.01, 250);
+camera.position.set(...ownerS25CameraPosition());
 const orbit = new OrbitControls(camera, renderer.domElement);
-orbit.target.set(0, 1.15, 0);
+orbit.target.set(...OWNER_S25_CAMERA.target_m);
 orbit.enableDamping = true;
 orbit.touches.ONE = THREE.TOUCH.ROTATE;
 orbit.touches.TWO = THREE.TOUCH.DOLLY_PAN;
@@ -494,18 +504,58 @@ function setSourceSheerPreview(enabled) {
   return {ready:true,enabled,meshCount,affectedMaterialSlots,affectedBackdropSlots};
 }
 
+// Reproduce the ORIGINAL offline owner-S25 raw GLB primitive frame:
+// world(owner) * T(doc.nodes.find(name===instance_id+'__geometry')?.translation||[0,0,0]).
+// The owner's viewer ignored embedded glTF __anchor transforms and did NOT
+// recenter the mesh. A GLTFLoader scene applies both unless neutralized.
+// This changes the editor's viewing graph, never model bytes or owner JSON.
+function applyOwnerS25RawMeshFrame(gltf,entry){
+  const model=gltf.scene;
+  const stem=FILES[entry.id].slice(0,-4);
+  const anchorName=stem+'__anchor',geometryName=stem+'__geometry';
+  const anchor=model.getObjectByName(anchorName);
+  const geometry=model.getObjectByName(geometryName);
+  const nodes=gltf.parser?.json?.nodes;
+  if(!anchor||!geometry||!Array.isArray(nodes))
+    throw new Error('S25-Modellrahmen fehlt: '+entry.id+' '+anchorName+'/'+geometryName);
+  const identityMatrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+  const near=(a,b)=>!a || (a.length===b.length && a.every((v,i)=>Math.abs(v-b[i])<1e-6));
+  const meshNodes=nodes.filter(n=>Number.isInteger(n.mesh));
+  if(!meshNodes.length || meshNodes.some(n=>!near(n.translation,[0,0,0]) ||
+      !near(n.rotation,[0,0,0,1]) || !near(n.scale,[1,1,1]) ||
+      !near(n.matrix,identityMatrix)))
+    throw new Error('S25-Rohmesh-Quelle enthält unbekannte Mesh-Knotentransforms: '+entry.id);
+  const geometryNode=nodes.find(n=>n.name===geometryName);
+  if(!geometryNode || !near(geometryNode.rotation,[0,0,0,1]) ||
+     !near(geometryNode.scale,[1,1,1]) || !near(geometryNode.matrix,identityMatrix))
+    throw new Error('S25-Geometrieknoten hat unerwartete Rotation/Skalierung: '+entry.id);
+  // For instance room_nightstand_back the original offline code finds NO
+  // instance-named __geometry node (its GLB is room_nightstand_rear).
+  const instanceNode=nodes.find(n=>n.name===entry.id+'__geometry');
+  const ownerOffset=instanceNode?.translation??[0,0,0];
+  if(ownerOffset.length!==3||!ownerOffset.every(Number.isFinite))
+    throw new Error('Ungültiger originaler S25-Geometrieoffset: '+entry.id);
+  const originalAnchor={translation_m:anchor.position.toArray(),
+    rotation_quaternion:anchor.quaternion.toArray(),scale_xyz:anchor.scale.toArray()};
+  anchor.position.set(0,0,0);
+  anchor.quaternion.identity();
+  anchor.scale.set(1,1,1);
+  geometry.position.fromArray(ownerOffset);
+  model.position.set(0,0,0);
+  model.quaternion.identity();
+  model.scale.set(1,1,1);
+  model.updateMatrixWorld(true);
+  entry.ownerSourceFrame={anchorName,geometryName,ownerOffset_m:[...ownerOffset],
+    originalAnchor,mesh_node_count:meshNodes.length};
+  return model;
+}
+
 async function loadModel(entry) {
   const url=GLB_ROOT+encodeURIComponent(FILES[entry.id]);
   try {
     const gltf = await loader.loadAsync(url);
-    const model = gltf.scene;
-    model.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(model);
-    if (box.isEmpty()) throw new Error('Leeres Modell');
-    // Normalize the geometry to its center. World placement is owned solely by the
-    // editor wrapper; never rewrite or export the source GLB's mesh vertices.
-    const center = box.getCenter(new THREE.Vector3());
-    model.position.sub(center);
+    const model=applyOwnerS25RawMeshFrame(gltf,entry);
+    if(new THREE.Box3().setFromObject(model).isEmpty()) throw new Error('Leeres S25-Modell');
     entry.group.add(model);
     entry.loaded = true;
     if (entry.id === 'room_window_drapes' && ($('sheer-preview').checked || neutralShellPreview)) {
@@ -695,7 +745,8 @@ function viewPreset(position,target,fov=53) {
   camera.up.set(0,1,0);
   orbit.update();
 }
-$('camera-persp').onclick=()=>viewPreset([5.3,3.7,6.5],[0,1.15,0]);
+$('camera-persp').onclick=()=>viewPreset(ownerS25CameraPosition(),
+  OWNER_S25_CAMERA.target_m,OWNER_S25_CAMERA.vertical_fov_deg);
 $('camera-call').onclick=()=>viewPreset([0,1.55,5.5],[0,1.3,0]);
 $('camera-top').onclick=()=>viewPreset([0,8,0.001],[0,0,0]);
 $('camera-reference').onclick=()=>viewPreset(
@@ -943,6 +994,33 @@ if (E2E_PROOF) {
       return {...mobileRenderStats,pending:mobileFramePending,touch_device:TOUCH_DEVICE};
     },
     serializedLayout() { return JSON.parse(snapshot()); },
+    ownerSourceFrameAudit(){
+      const objects=[...entries.values()].map(entry=>{
+        const f=entry.ownerSourceFrame,model=entry.group.children[0];
+        const anchor=f&&model?.getObjectByName(f.anchorName);
+        const geometry=f&&model?.getObjectByName(f.geometryName);
+        const zero=v=>v?.every(x=>Math.abs(x)<1e-6);
+        const one=v=>v?.every(x=>Math.abs(x-1)<1e-6);
+        return {id:entry.id,loaded:entry.loaded,
+          source_anchor_name:f?.anchorName||null,
+          ignored_original_source_anchor:f?.originalAnchor||null,
+          owner_geometry_offset_m:f?.ownerOffset_m||null,
+          original_mesh_node_count:f?.mesh_node_count||0,
+          anchor_is_identity:!!anchor&&zero(anchor.position.toArray())&&
+            zero(anchor.quaternion.toArray().slice(0,3))&&
+            Math.abs(anchor.quaternion.w-1)<1e-6&&one(anchor.scale.toArray()),
+          raw_geometry_offset_exact:!!geometry&&!!f&&f.ownerOffset_m.every((v,i)=>
+            Math.abs(geometry.position.toArray()[i]-v)<1e-6),
+          model_root_not_recentered:!!model&&zero(model.position.toArray()),
+          owner_rotation_order:entry.group.rotation.order};
+      });
+      return {model_count:objects.length,
+        all_owner_s25_raw_frames_valid:objects.every(o=>o.loaded&&o.anchor_is_identity&&
+          o.raw_geometry_offset_exact&&o.model_root_not_recentered&&
+          o.owner_rotation_order==='ZYX'&&o.original_mesh_node_count>0),
+        original_s25_camera:OWNER_S25_CAMERA,objects};
+    },
+
     focus(id, direction = [1, 0.35, 1]) {
       const entry = entries.get(id);
       if (!entry || !entry.loaded) throw new Error('No loaded GLB for ' + id);
@@ -1267,6 +1345,7 @@ async function start() {
     for(const object of assembly.objects){
       if (!FILES[object.id]) throw new Error('Unbekannter Modellname '+object.id);
       const g=new THREE.Group();
+      g.rotation.order='ZYX'; // Original S25 raw-mesh view multiplies RZ * RY * RX
       g.name=object.id;
       g.userData.editorObjectId=object.id;
       const t=object.transform;
