@@ -197,18 +197,37 @@ function status(message, type='') {
   $('status').textContent = message;
   $('status').className = 'status ' + type;
 }
+// Legacy rotation_y_deg and uniform_scale are independent data in the S25
+// owner export. Store them alongside effective Euler and XYZ transforms.
+function rememberSerializedTransform(entry, item, angles, scales) {
+  entry.serializedTransform = {
+    rotation_y_deg: item.rotation_y_deg ?? angles[1],
+    rotation_euler_deg: [...angles],
+    uniform_scale: item.uniform_scale ?? scales[0],
+    scale_xyz: [...scales],
+    rotation_rad: ['x','y','z'].map(a=>entry.group.rotation[a])
+  };
+}
 function snapshot() {
   return JSON.stringify({
     room: { ...room },
-    objects: [...entries.values()].map((entry) => ({
-      id: entry.id,
-      translation_m: entry.group.position.toArray(),
-      rotation_y_deg: THREE.MathUtils.radToDeg(entry.group.rotation.y),
-      rotation_euler_deg: ['x','y','z'].map(a=>THREE.MathUtils.radToDeg(entry.group.rotation[a])),
-      scale_xyz: entry.group.scale.toArray(),
-      uniform_scale: entry.group.scale.x,
-      locked: entry.locked
-    }))
+    objects: [...entries.values()].map(entry => {
+      const g=entry.group, prior=entry.serializedTransform, axes=['x','y','z'];
+      const unchangedAngle=axes.map((axis,i)=>!!prior && g.rotation[axis]===prior.rotation_rad[i]);
+      const euler=axes.map((axis,i)=>unchangedAngle[i]
+        ? prior.rotation_euler_deg[i] : THREE.MathUtils.radToDeg(g.rotation[axis]));
+      const xyz=g.scale.toArray();
+      const unchangedScale=!!prior && xyz.every((v,i)=>v===prior.scale_xyz[i]);
+      return {
+        id:entry.id,
+        translation_m:g.position.toArray(),
+        rotation_y_deg:unchangedAngle[1] ? prior.rotation_y_deg : euler[1],
+        rotation_euler_deg:euler,
+        scale_xyz:xyz,
+        uniform_scale:unchangedScale ? prior.uniform_scale : xyz[0],
+        locked:entry.locked
+      };
+    })
   });
 }
 function autosave() {
@@ -217,6 +236,12 @@ function autosave() {
 function commitEdit() {
   const next = snapshot();
   if (next === lastSnapshot) return;
+  // A deliberate rotation/scale edit creates a consistent new source-field
+  // baseline. A position/lock-only edit retains original legacy values.
+  for(const item of JSON.parse(next).objects) {
+    const entry=entries.get(item.id);
+    rememberSerializedTransform(entry,item,item.rotation_euler_deg,item.scale_xyz);
+  }
   if (lastSnapshot) {
     history.push(lastSnapshot);
     if (history.length > 80) history.shift();
@@ -269,18 +294,24 @@ function applyState(state) {
     const angles = item.rotation_euler_deg ?? [0,item.rotation_y_deg,0];
     const scales = item.scale_xyz ?? [item.uniform_scale,item.uniform_scale,item.uniform_scale];
     const locked = item.locked ?? false;
+    const legacyYaw=item.rotation_y_deg ?? angles?.[1];
+    const legacyScale=item.uniform_scale ?? scales?.[0];
+    if(!Number.isFinite(legacyYaw)||Math.abs(legacyYaw)>36000||
+       !Number.isFinite(legacyScale)||legacyScale<0.01||legacyScale>20)
+      throw new Error('Ungültiger ursprünglicher Dreh-/Skalierungswert: '+item.id);
     if (!Array.isArray(pos) || pos.length !== 3 || !pos.every(v=>Number.isFinite(v)&&Math.abs(v)<=100) ||
         !Array.isArray(angles) || angles.length!==3 || !angles.every(v=>Number.isFinite(v)&&Math.abs(v)<=36000) ||
         !Array.isArray(scales) || scales.length!==3 || !scales.every(v=>Number.isFinite(v)&&v>=0.01&&v<=20) ||
         typeof locked!=='boolean') throw new Error('Ungültiger Objektzustand: '+item.id);
-    candidate.push({entry,pos,angles,scales,locked});
+    candidate.push({entry,pos,angles,scales,locked,sourceItem:item});
   }
   room = {width,depth,height};
   buildRoom();
-  for (const {entry,pos,angles,scales,locked} of candidate) {
+  for (const {entry,pos,angles,scales,locked,sourceItem} of candidate) {
     entry.group.position.fromArray(pos);
     entry.group.rotation.set(...angles.map(v=>THREE.MathUtils.degToRad(v)));
     entry.group.scale.fromArray(scales);
+    rememberSerializedTransform(entry,sourceItem,angles,scales);
     entry.locked=locked;
     updateObjectOption(entry);
   }
@@ -699,6 +730,7 @@ function restoreUserApprovedInitial(entry) {
   const scales=base.scale_xyz ?? [base.uniform_scale,base.uniform_scale,base.uniform_scale];
   entry.group.rotation.set(...angles.map(v=>THREE.MathUtils.degToRad(v)));
   entry.group.scale.fromArray(scales);
+  rememberSerializedTransform(entry,base,angles,scales);
 }
 $('reset-object').onclick=()=>{
   if(!selected||selected.locked)return;
@@ -832,6 +864,7 @@ if (E2E_PROOF) {
     mobileRenderStats() {
       return {...mobileRenderStats,pending:mobileFramePending,touch_device:TOUCH_DEVICE};
     },
+    serializedLayout() { return JSON.parse(snapshot()); },
     focus(id, direction = [1, 0.35, 1]) {
       const entry = entries.get(id);
       if (!entry || !entry.loaded) throw new Error('No loaded GLB for ' + id);

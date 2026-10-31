@@ -156,6 +156,14 @@ async function main(){
           assert(Math.abs(actual.transform[key][i]-expected[key][i])<1e-9,
             'User-approved '+expected.id+' '+key+'['+i+'] differs from saved JSON');
     }
+    const baseline=await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout());
+    assert.deepEqual(baseline.objects.map(o=>o.id),approved.objects.map(o=>o.id));
+    for(let i=0;i<13;i++)
+      for(const key of ['translation_m','rotation_y_deg','rotation_euler_deg',
+        'scale_xyz','uniform_scale','locked'])
+        assert.deepEqual(baseline.objects[i][key],approved.objects[i][key],
+          'Owner exact source field '+approved.objects[i].id+' '+key);
+    record.push({name:'OWNER_FINAL_EXACT_SOURCE_FIELDS_BEFORE_TOUCH_PASS'});
     record.push({name:'USER_APPROVED_FINAL_13_ORIGINAL_GLB_IMPORT_PASS',
       layout_sha256:approvedSha,saved_at:approved.saved_at,model_count:13,
       locks:approved.objects.filter(o=>o.locked).length,
@@ -219,9 +227,12 @@ async function main(){
     const lockHit=await page.locator('#mobile-lock').evaluate(el=>{
       const box=el.getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
       const hit=document.elementFromPoint(x,y);
-      window.__celineLockTouchEvidence={touchstart:0,pointerdown:0,click:0};
+      window.__celineLockTouchEvidence={touchstart:0,pointerdown:0,click:0,events:[]};
       for(const type of ['touchstart','pointerdown','click'])
-        el.addEventListener(type,()=>{window.__celineLockTouchEvidence[type]++;},{capture:true});
+        el.addEventListener(type,()=>{
+          window.__celineLockTouchEvidence[type]++;
+          window.__celineLockTouchEvidence.events.push({type,performance_ms:performance.now()});
+        },{capture:true});
       return {hit_tag:hit?.tagName||null,hit_id:hit?.id||null,
         hit_inside_lock:hit===el||el.contains(hit),disabled:el.disabled,
         box:[box.x,box.y,box.width,box.height]};
@@ -231,11 +242,13 @@ async function main(){
       JSON.stringify({source_sha:process.env.GITHUB_SHA||null,lockHit,record},null,2));
     assert(lockHit.hit_inside_lock && !lockHit.disabled,
       'Mobile lock touch center obstructed or button disabled');
+    const renderingBeforeLock=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
     const lockStarted=Date.now();
     await page.locator('#mobile-lock').tap();
     const lockTouch=await page.evaluate(()=>window.__celineLockTouchEvidence);
     const lockElapsed=Date.now()-lockStarted;
     record.push({name:'GENUINE_MOBILE_LOCK_TOUCH_PASS',elapsed_ms:lockElapsed,lockTouch,
+      rendering_before:renderingBeforeLock,
       rendering:await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats())});
     assert(lockTouch.touchstart>=1&&lockTouch.pointerdown>=1&&lockTouch.click>=1,
       'Mobile lock must receive genuine touch/pointer/click events');

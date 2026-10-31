@@ -49,6 +49,26 @@ async function run() {
   }));
   assert.equal(rendererStatus.gl,true,'real WebGL context required');
   record('REAL_WEBGL_13_GLB_REFERENCE_LOADED_PASS',{rendererStatus});
+  const ownerPath=path.join(__dirname,'layout-candidates',
+    '2026-10-31-s25-user-approved-final-13glb.json');
+  const owner=JSON.parse(fs.readFileSync(ownerPath,'utf8'));
+  const exactFields=['translation_m','rotation_y_deg','rotation_euler_deg',
+    'scale_xyz','uniform_scale','locked'];
+  function sameOwnerFields(actual,phase) {
+    assert.deepEqual(actual.room,owner.room,phase+' room');
+    assert.deepEqual(actual.objects.map(o=>o.id),owner.objects.map(o=>o.id),phase+' IDs');
+    for(let i=0;i<owner.objects.length;i++)
+      for(const key of exactFields)
+        assert.deepEqual(actual.objects[i][key],owner.objects[i][key],
+          phase+' '+owner.objects[i].id+' '+key);
+  }
+  const ownerDownloadPromise=page.waitForEvent('download');
+  await page.locator('#save').click();
+  const ownerDownload=await ownerDownloadPromise;
+  const ownerInitial=path.join(out,'owner-exact-initial-export.json');
+  await ownerDownload.saveAs(ownerInitial);
+  sameOwnerFields(JSON.parse(fs.readFileSync(ownerInitial,'utf8')),'initial 13-field export');
+  record('OWNER_FINAL_ALL_FIELDS_EXACT_INITIAL_EXPORT_PASS');
   // Screenshots and mouse gizmo proof are handled by a distinct optional job.
   const list=await page.locator('#object option').evaluateAll(options=>options.map(o=>o.value));
   for(const id of list){
@@ -118,6 +138,15 @@ async function run() {
   assert.equal(await page.locator('#x').inputValue(),lastX,'incomplete input cannot alter saved bed');
   assert.equal(await page.locator('#x').isDisabled(),true,'failed imports cannot unlock bed');
   record('REAL_BROWSER_MALFORMED_IMPORT_DUPLICATE_AND_PARTIAL_REJECTED_PASS');
+  await page.locator('#file').setInputFiles(ownerPath);
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('Gespeichertes Layout geladen'));
+  const finalDownloadPromise=page.waitForEvent('download');
+  await page.locator('#save').click();
+  const finalDownload=await finalDownloadPromise;
+  const finalPath=path.join(out,'owner-exact-after-import-export.json');
+  await finalDownload.saveAs(finalPath);
+  sameOwnerFields(JSON.parse(fs.readFileSync(finalPath,'utf8')),'second original import/export');
+  record('OWNER_FINAL_ALL_FIELDS_EXACT_SECOND_IMPORT_EXPORT_PASS');
   assert.deepEqual(errors,[],'browser page / network errors');
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({
     verdict:'PASS',testedHead:process.env.GITHUB_SHA||null,proof:steps,browserErrors:errors
