@@ -6161,6 +6161,21 @@ public final class FutureOwnerAttestationProcess {
             try {
                 Path registry=Paths.get(args[8]);
                 Path selected=owner.toRealPath();
+                Path registryCanonical=registry.toRealPath();
+                // Refuse symlink/path indirection and mutable entry aliases in
+                // this isolated test fixture. This is only a best-effort path
+                // check: not an atomic filesystem or Android trust boundary.
+                boolean directPaths=owner.toAbsolutePath().normalize().equals(selected)
+                    && registry.toAbsolutePath().normalize().equals(registryCanonical)
+                    && !Files.isSymbolicLink(selected.resolve("owner.pub"))
+                    && !Files.isSymbolicLink(selected.resolve("owner-state.txt"))
+                    && !Files.isSymbolicLink(registry.resolve("owner-realpath.txt"))
+                    && !Files.isSymbolicLink(registry.resolve("pinned-owner.pub"))
+                    && !Files.isSymbolicLink(registry.resolve("owner-epoch.txt"));
+                if(!directPaths) {
+                    System.out.println("RESULT=BLOCKED");
+                    return;
+                }
                 String registered=Files.readString(registry.resolve("owner-realpath.txt"))
                     .trim();
                 Path expected=Paths.get(registered).toRealPath();
@@ -6366,6 +6381,119 @@ def process_caller_selected_owner_adversary_proof(temp):
         print('FUTURE_G1_ADVERSARIAL_OWNER_JVM_PASS cases='+str(count))
         print('FUTURE_G1_GENUINE_EXTERNAL_OWNER_IDENTITY_NONCE=UNPROVEN')
 
+def process_owner_root_matrix_proof(temp):
+    """Independent JVM pinned-root matrix; ordinary-file trust is only a mock.
+
+    A test PASS means this Java *fixture* rejected the individual attack.
+    Rewinding every ordinary authority file is explicitly still vulnerable.
+    """
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    count = 0
+    def case(ok,label):
+        nonlocal count
+        if not ok: raise AssertionError('owner-root matrix FAIL: '+label)
+        count += 1
+    with TemporaryDirectory(prefix='future_owner_root_matrix_') as t:
+        root=Path(t)
+        command=['java','-cp',temp,'de.yahya.ai.FutureOwnerAttestationProcess']
+        consumer=root/'consumer'; consumer.mkdir()
+        def issue(label):
+            owner=root/(label+'-owner')
+            p=subprocess.run(command+['issue',str(owner)],capture_output=True,
+                             text=True,timeout=15)
+            case(p.returncode==0 and p.stdout.startswith('TOKEN='),
+                 label+': new JVM signs revocation')
+            token=p.stdout.strip().split('=',1)[1]
+            registry=root/(label+'-root'); registry.mkdir()
+            (registry/'owner-realpath.txt').write_text(str(owner.resolve())+'\n')
+            (registry/'pinned-owner.pub').write_bytes((owner/'owner.pub').read_bytes())
+            (registry/'owner-epoch.txt').write_text('2|owner-independent-nonce-0001\n')
+            return owner,registry,token
+        def verify(owner,registry,token,rev='2',nonce='owner-independent-nonce-0001',
+                   status='REVOKED'):
+            p=subprocess.run(command+['verify-bound',str(owner),str(consumer),status,
+                rev,'a'*64,nonce,token,str(registry)],capture_output=True,
+                text=True,timeout=15)
+            case(p.returncode==0 and p.stdout.startswith('RESULT='),
+                 'independent consumer JVM produced decision')
+            return p.stdout.strip().split('RESULT=',1)[1]
+        def blocked(label,make_attack):
+            owner,registry,token=issue(label)
+            make_attack(owner,registry)
+            before=(owner/'owner-state.txt').read_bytes()
+            case(verify(owner,registry,token)=='BLOCKED',label+': fail closed')
+            case((owner/'owner-state.txt').read_bytes()==before,
+                 label+': did not consume rejected challenge')
+        owner,registry,token=issue('control')
+        case(verify(owner,registry,token)=='QUARANTINE_REVOKED_ONLY',
+             'pinned direct owner can quarantine a revoked ID once')
+        case(verify(owner,registry,token)=='BLOCKED',
+             'second JVM refuses previously consumed challenge')
+        blocked('pinned-key-changed',lambda o,r:(r/'pinned-owner.pub').write_bytes(b'not-ed25519'))
+        blocked('owner-key-changed',lambda o,r:(o/'owner.pub').write_bytes(b'attacker-key'))
+        blocked('epoch-removed',lambda o,r:(r/'owner-epoch.txt').unlink())
+        blocked('key-removed',lambda o,r:(r/'pinned-owner.pub').unlink())
+        blocked('registered-owner-missing',lambda o,r:(r/'owner-realpath.txt').unlink())
+        blocked('epoch-malformed',lambda o,r:(r/'owner-epoch.txt').write_text('not-a-version\n'))
+        # Path substitutions are invalid even when their symlink target currently
+        # contains the right bytes. Using toRealPath() alone misses that fact.
+        def alias_owner(o,r):
+            alias=root/'owner-alias'; alias.symlink_to(o, target_is_directory=True)
+            return alias
+        owner,registry,token=issue('owner-alias')
+        alias=alias_owner(owner,registry)
+        before=(owner/'owner-state.txt').read_bytes()
+        case(verify(alias,registry,token)=='BLOCKED',
+             'symbolic owner alias denied even if it points at trusted owner')
+        case((owner/'owner-state.txt').read_bytes()==before,
+             'alias cannot consume owner claim')
+        owner,registry,token=issue('registry-alias')
+        regalias=root/'registry-alias-link'; regalias.symlink_to(registry,target_is_directory=True)
+        case(verify(owner,regalias,token)=='BLOCKED',
+             'symbolic registry root forbidden despite matching bytes')
+        def symlink_entry(entry):
+            def attack(o,r):
+                original=(r/entry).read_bytes()
+                target=root/(o.name+'-'+entry+'-external')
+                target.write_bytes(original)
+                (r/entry).unlink()
+                (r/entry).symlink_to(target)
+            return attack
+        blocked('key-symlink',symlink_entry('pinned-owner.pub'))
+        blocked('epoch-symlink',symlink_entry('owner-epoch.txt'))
+        blocked('owner-path-symlink',symlink_entry('owner-realpath.txt'))
+        blocked('owner-state-symlink',lambda o,r: (
+            (o/'owner-state.txt').rename(o/'state-original.txt'),
+            (o/'owner-state.txt').symlink_to(o/'state-original.txt')))
+        blocked('owner-public-symlink',lambda o,r: (
+            (o/'owner.pub').rename(o/'public-original.pub'),
+            (o/'owner.pub').symlink_to(o/'public-original.pub')))
+        owner,registry,token=issue('nonce-rotation')
+        (registry/'owner-epoch.txt').write_text('2|rotated-independent-nonce-999\n')
+        case(verify(owner,registry,token)=='BLOCKED',
+             'registry nonce rotated ahead of owner denies stale signed challenge')
+        (owner/'owner-state.txt').write_text('2|rotated-independent-nonce-999|REVOKED|0\n')
+        case(verify(owner,registry,token,nonce='rotated-independent-nonce-999')=='BLOCKED',
+             'independent owner nonce rotation invalidates old signature')
+        owner,registry,token=issue('epoch-advance')
+        (owner/'owner-state.txt').write_text('3|new-owner-nonce-00000001|REVOKED|0\n')
+        (registry/'owner-epoch.txt').write_text('3|new-owner-nonce-00000001\n')
+        case(verify(owner,registry,token,rev='3',nonce='new-owner-nonce-00000001')=='BLOCKED',
+             'epoch advance cannot revive old revision-2 signature')
+        # IMPORTANT NEGATIVE CONTROL: the ordinary-file registry and state are
+        # rollbackable TOGETHER. A fake PIN is NOT a genuine external authority.
+        owner,registry,token=issue('joint-rollback')
+        case(verify(owner,registry,token)=='QUARANTINE_REVOKED_ONLY',
+             'initial pinned challenge consumed before rollback')
+        (owner/'owner-state.txt').write_text('2|owner-independent-nonce-0001|REVOKED|0\n')
+        (registry/'owner-epoch.txt').write_text('2|owner-independent-nonce-0001\n')
+        case(verify(owner,registry,token)=='QUARANTINE_REVOKED_ONLY',
+             'KNOWN UNSAFE: ordinary owner and root rollback replays spent token')
+        print('FUTURE_G1_OWNER_ROOT_JOINT_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
+        print('FUTURE_G1_OWNER_ROOT_MATRIX_PASS cases='+str(count))
+        print('FUTURE_G1_EXTERNAL_NONROLLBACKABLE_PIN_AND_CAS=UNIMPLEMENTED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -6381,6 +6509,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     owner_child.write_text(owner_process_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child)], check=True)
     import sys
+    if '--focused-owner-root' in sys.argv:
+        process_owner_root_matrix_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-forgery' in sys.argv:
         process_caller_selected_owner_adversary_proof(temp)
         raise SystemExit(0)
@@ -6408,3 +6539,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_memory_id_torn_witness_proof(temp)
     process_independent_owner_attestation_proof(temp)
     process_caller_selected_owner_adversary_proof(temp)
+    process_owner_root_matrix_proof(temp)
