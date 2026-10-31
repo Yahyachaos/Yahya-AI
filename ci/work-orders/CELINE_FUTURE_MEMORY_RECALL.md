@@ -592,3 +592,27 @@ The existing retired-ID-only retrieval and correction-target overloads now quara
 **§12 release:** All intended repository writes are pushed to the registered Cognitive branch and checked by GitHub SHA; no shared/build/product files or main were touched. Cognitive writer lease **RELEASED** after the clean handoff. There is no request for Build to integrate this future prototype.
 
 **Single `exact_next_action`:** Turn the supplemental 53-case same-original-root rollback + independent-third-guardian real-JVM scenario into a canonical test in the existing owned Python contract, then design/test a genuinely atomic receipt/ack protocol with explicit unavailable/uncertain outcomes; preserve the known guardian-self-rollback FAIL until independent custody is actually proved.
+
+
+## 31 October 2026 — canonical 53-process rollback regression and atomic receipt API (FUTURE ONLY)
+
+**Domain/owned branch:** issue #115, DRAFT PR #116, auto/celine/future-memory-recall-policy. FUTURE-ONLY / RELEASE-INDEPENDENT / NOT INTEGRATION-READY / excluded from published v83. The sole Build & Release task 6ae29695b7a48191af25b982ab3606f0 owns Android/API29+, MainActivity, Gradle, CI, signing, APK, updater and release. Frozen Core #113, merged Room #111, Voice #118, editor #121, Build #120, main, AGENTS, shared Queue and app runtime unchanged. No Android/runtime fingerprint or APK claim.
+
+**Exact sequential commits and Cognitive-only paths:**
+- 42c5b00ee3f594dded42cdd51b101e76bb1aa659 changed only ci/celine_future_memory_recall_contract_test.py, Git blob 3d00f8d3a0ccb96397b9e9ee610d091cd6a0c679. Canonicalized the previous local-only **53/53** independent JVM same-original-root rollback fixture with focused and strict negative modes; retained earlier 848 direct assertions.
+- 4366e8cf94f3191b7cb2424d3a464246c9ba7902 changed only ci/prototypes/CelineFutureMemoryRecall.java, Git blob 7b98c33a4b4f52fb6ddaab19ad136ecf69934be2. Added owner-injected OwnerAtomicReceiptCoordinator with explicit outcomes REJECTED_BEFORE_START / NO_AUTHORITY / STARTED_INDETERMINATE / COMMITTED. It validates required fields, copies source signature, and makes a callback crash/unknown result indeterminate. No actual atomic/durable authority is implemented.
+- 0e7fa7e556fcff4950693ce0525762edb05eb765 changed only ci/celine_future_memory_recall_contract_test.py, Git blob 8ec59ceab7c5cf62ba42da68ff4827d88e55b428. Added 18 direct Java assertions incl. 16 real Java threads with one synchronized in-memory spent+ack fixture. Two Git blobs were checked against exact local files.
+
+**Real OpenJDK 21.0.12.1 RED/FIX/PASS evidence (not Android):**
+- Original source lacked the new coordinator; standalone Java test javac **expected RED exit 1**. With new source, standalone **18/18 PASS**, output SHA-256 8aa25d16dc70980a322e6253f4f2edb4bf5d485eaad1543f9dcd24473f6d4ba6.
+- Exact current Python/JVM --focused-attestation: **866/866 PASS**, exit 0, output SHA-256 df7f34693bbe75d05733e64348b85ade04e5e5d2446307e7c342943f67a55478.
+- Exact current --focused-root-receipt-fence: **53/53 PASS**, exit 0, SHA-256 8a41d1f28135875abf40188f1ac574099b450c577b9c02670efe8b93b6bd9810.
+- Exact current --focused-independent-once-ledger: **42/42 PASS**, exit 0, SHA-256 cf46042bed81d9c7ea369a5937284e6f9320a23569bb1291f04dd72fff996937.
+- Exact current --strict-root-same-key-rollback: **expected security RED exit 1**, AssertionError MUST-BLOCK, log SHA-256 9dfc2275d12d8311ed9151a2e91915734d54445a6a124bcb7f0cadf7a2232e16; security flaw remains UNFIXED.
+- Java compilation and Python py_compile succeeded. Full combined suite was attempted but interrupted after earlier base group: NO complete suite PASS. No Android build, emulator, physical device, G1 production runtime or provider proof.
+
+**Current security boundary:** The synchronized Java mock atomically marks spent+ack while alive, but it is not crash-safe or rollback-proof. Original root and witness retaining their Ed25519 keys and same epoch can replay after spent-file rollback. A separately pinned live third guardian conditionally blocks this; guardian death/rollback or caller-chosen replacement pin defeats it. Protected monotonic owner revision, consumed receipts, secure first enrollment, owner-issued receipt IDs, encrypted tombstone transaction, provider publication, Android KeyStore and actual persistence remain unimplemented. The COMMITTED callback from arbitrary caller code cannot be trusted for production, and cannot enter v83. Historical v83 signer exception does not cover future releases.
+
+**AGENTS §12 clean handoff:** Three owned Cognitive paths only, all changes committed/pushed and GitHub read back; this docs-only follow-up records exact proofs and releases the Core file lease. No Android/CI/Queue/shared/main/Room/Voice/signing/release edits, no new worker and no merge. Automatic future-only PR Android failure is Build-owned and NOT Java or Android proof.
+
+**Single exact_next_action:** RED-test the new volatile atomic receipt coordinator across genuine JVM termination and restart with the SAME original signer but rolled-back spent+ack state. Then require an independently pinned monotonic owner-receipt journal before returning COMMITTED, with STARTED_INDETERMINATE on unavailable/ambiguous custody. Stay in future-only owned paths; no Android/CI/release writes.
