@@ -5595,6 +5595,195 @@ def process_high_water_killed_callback_proof(temp):
     print('FUTURE_G1_KILLED_CALLBACK_OS_LOCK_RECOVERY_PASS cases='+str(checks))
     print('FUTURE_G1_POST_SINK_PROCESS_KILL=EXTERNAL_DELIVERY_UNCERTAIN_NO_RETRY')
 
+# FUTURE-ONLY: real independent-JVM selected-ID correction versus revoke fixture.
+# This disk-state test double is NOT authoritative G1 persistence or Android proof.
+memory_id_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+public final class FutureMemoryIdProcessChild {
+    static final long NOW=1900000000000L;
+    static final String PRIVATE_ID="cat-private", PUBLIC_ID="cat-public";
+    static final class Snapshot {
+        final int revision;
+        final String status;
+        Snapshot(int revision,String status){this.revision=revision;this.status=status;}
+    }
+    static Snapshot read(Path file) throws Exception {
+        String[] bits=Files.readString(file).trim().split("\\|",-1);
+        if(bits.length!=2 || !bits[0].matches("[1-9][0-9]*")
+                || !List.of("ACTIVE","REVOKED","CORRECTED").contains(bits[1]))
+            throw new IllegalStateException("untrusted selected-ID state");
+        return new Snapshot(Integer.parseInt(bits[0]),bits[1]);
+    }
+    static void store(Path file,String value) throws Exception {
+        Path tmp=file.resolveSibling("memory-id-state.tmp."+ProcessHandle.current().pid());
+        Files.writeString(tmp,value,StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
+        try(FileChannel fd=FileChannel.open(tmp,StandardOpenOption.WRITE)){fd.force(true);}
+        Files.move(tmp,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+    }
+    static String suggested(Snapshot state) {
+        var scope=CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE;
+        var privateScope=CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE;
+        var publicCat=new CelineFutureMemoryRecall.Candidate(PUBLIC_ID,
+            "Meine Katze Luna schwarz","",scope,true,true,NOW-100,0,0.6);
+        var privateCat=new CelineFutureMemoryRecall.Candidate(PRIVATE_ID,
+            "Meine Katze Luna grau","",privateScope,false,true,NOW-100,0,0.5);
+        var records=new ArrayList<CelineFutureMemoryRecall.Candidate>();
+        records.add(publicCat);records.add(privateCat);
+        var retired=new HashSet<String>();
+        if(!state.status.equals("ACTIVE"))retired.add(PRIVATE_ID);
+        if(state.status.equals("CORRECTED"))records.add(
+            new CelineFutureMemoryRecall.Candidate("cat-private-replacement",
+                "Meine Katze Luna weiß",PRIVATE_ID,privateScope,false,true,NOW-10,0,0.8));
+        return CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+            "Meine Katze Luna",records,retired,NOW);
+    }
+    public static void main(String[] args) throws Exception {
+        if(args.length!=2)throw new IllegalArgumentException("root action");
+        Path root=Path.of(args[0]),state=root.resolve("memory-id-state.txt");
+        String action=args[1];
+        Files.createDirectories(root);
+        Path lockPath=root.resolve("memory-id-owner.lock");
+        try(FileChannel channel=FileChannel.open(lockPath,
+                StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+            FileLock lock=channel.lock()) {
+            if(action.equals("init")) {
+                if(Files.exists(state))throw new IllegalStateException("already initialized");
+                store(state,"1|ACTIVE");
+                System.out.println("STATE=ACTIVE;REV=1;SUGGEST="+suggested(read(state)));return;
+            }
+            Snapshot current=read(state); // Fail closed if missing, partial or corrupt.
+            if(action.equals("inspect")) {
+                System.out.println("STATE="+current.status+";REV="+current.revision
+                    +";SUGGEST="+suggested(current));return;
+            }
+            if(action.equals("suggest-without-id")) {
+                System.out.println("NO_ID_SUGGEST="+suggested(current));return;
+            }
+            if(action.equals("hold-revoke") || action.equals("hold-correct")) {
+                Files.createFile(root.resolve("first-source-owner-held"));
+                long deadline=System.nanoTime()+12_000_000_000L;
+                while(!Files.exists(root.resolve("release-first-source-owner"))
+                        && System.nanoTime()<deadline)Thread.sleep(10);
+                if(!Files.exists(root.resolve("release-first-source-owner")))
+                    throw new IllegalStateException("owner-release timeout");
+            }
+            boolean revoke=action.equals("revoke")||action.equals("hold-revoke")
+                ||action.equals("fault-revoke-after-commit");
+            boolean correct=action.equals("correct")||action.equals("hold-correct");
+            if(!revoke&&!correct)throw new IllegalArgumentException("bad selected-ID action");
+            // Both callers hold an explicit old revision 1 and EXACT source ID;
+            // no natural-language suggestion authorizes this mutation.
+            if(!Boolean.getBoolean("celine.fixture.skipRevisionCheck")
+                    && (current.revision!=1 || !current.status.equals("ACTIVE"))) {
+                System.out.println("RESULT=STALE_EXPECTED_REVISION;ACTUAL="+current.revision);return;
+            }
+            String updated=revoke?"REVOKED":"CORRECTED";
+            store(state,(current.revision+1)+"|"+updated);
+            if(action.equals("fault-revoke-after-commit")) {
+                System.out.flush();Runtime.getRuntime().halt(96);
+            }
+            System.out.println("RESULT=APPLIED;SELECTED_ID="+PRIVATE_ID
+                +";STATUS="+updated+";REV="+(current.revision+1));
+        }
+    }
+}
+'''
+
+def process_memory_id_revoke_correction_proof(temp):
+    """Different JVMs compete on the exact private memory ID and revision.
+
+    A Java file lock and a plain-text toy snapshot are not authentic G1
+    source-authority, permission, durable tombstone or power-loss protection.
+    """
+    import time
+    tests=0
+    def case(condition,description):
+        nonlocal tests
+        if not condition: raise AssertionError('MEMORY_ID_PROCESS_FAIL: '+description)
+        tests+=1
+    def cmd(root,action,broken=False):
+        return ['java']+(['-Dceline.fixture.skipRevisionCheck=true'] if broken else [])+[
+            '-cp',temp,'de.yahya.ai.FutureMemoryIdProcessChild',str(root),action]
+    def run(root,action,broken=False):
+        proc=subprocess.run(cmd(root,action,broken),text=True,capture_output=True,timeout=20)
+        case(proc.returncode==0,'child exited cleanly '+action+' '+proc.stderr[-200:])
+        return proc.stdout.strip()
+    for first,second in (('hold-revoke','correct'),('hold-correct','revoke')):
+        label=first+'-before-'+second
+        root=Path(temp)/('memory-id-'+label)
+        root.mkdir()
+        case('STATE=ACTIVE;REV=1;SUGGEST=' in run(root,'init'),
+             label+' initialized two exact IDs')
+        case(run(root,'suggest-without-id')=='NO_ID_SUGGEST=',
+             label+' ambiguous private/public correction demands selected ID')
+        holder=subprocess.Popen(cmd(root,first),stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,text=True)
+        contender=None
+        try:
+            deadline=time.monotonic()+10
+            while not (root/'first-source-owner-held').exists() and time.monotonic()<deadline:
+                if holder.poll() is not None:break
+                time.sleep(.01)
+            case((root/'first-source-owner-held').exists(),
+                 label+' first JVM acquired source file lock')
+            contender=subprocess.Popen(cmd(root,second),stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,text=True)
+            time.sleep(.22)
+            case(contender.poll() is None,
+                 label+' second JVM blocked pending first owner release')
+            case((root/'memory-id-state.txt').read_text()=='1|ACTIVE',
+                 label+' source unchanged while selected-ID owner lock held')
+        finally:
+            (root/'release-first-source-owner').touch()
+        firstout,firsterr=holder.communicate(timeout=20)
+        secondout,seconderr=contender.communicate(timeout=20)
+        case(holder.returncode==0 and 'RESULT=APPLIED' in firstout,
+             label+' first JVM committed '+firsterr[-200:])
+        case(contender.returncode==0 and 'RESULT=STALE_EXPECTED_REVISION' in secondout,
+             label+' stale second JVM rejected '+seconderr[-200:])
+        status='REVOKED' if first=='hold-revoke' else 'CORRECTED'
+        state=run(root,'inspect')
+        case('STATE='+status+';REV=2;' in state,
+             label+' final authoritative toy snapshot has one revision only')
+        case('SUGGEST=cat-private' not in state,
+             label+' old selected private ID never suggested after correction/revocation')
+        case('RESULT=STALE_EXPECTED_REVISION' in run(root,second),
+             label+' rebooted independent JVM cannot replay stale selected-ID action')
+    root=Path(temp)/'memory-id-process-killed-after-revocation'
+    root.mkdir()
+    run(root,'init')
+    killed=subprocess.run(cmd(root,'fault-revoke-after-commit'),
+                          text=True,capture_output=True,timeout=20)
+    case(killed.returncode==96,'actual JVM terminated after persisted revoke')
+    case((root/'memory-id-state.txt').read_text()=='2|REVOKED',
+         'committed selected-ID tombstone survives ordinary JVM termination')
+    case('RESULT=STALE_EXPECTED_REVISION' in run(root,'correct'),
+         'after process death stale correction cannot restore revoked ID')
+    # A real faulty revision guard permits a second independent JVM to rewrite
+    # the already-revoked memory. This negative control must remain observed FAIL.
+    case('RESULT=APPLIED' in run(root,'correct',True),
+         'KNOWN UNSAFE NEGATIVE CONTROL: skipping revision CAS resurrects a correction')
+    root=Path(temp)/'memory-id-malformed-snapshot'
+    root.mkdir()
+    run(root,'init')
+    corrupt='1|ACTIVE\n2|CORRECTED'
+    (root/'memory-id-state.txt').write_text(corrupt)
+    for command in ('correct','revoke','suggest-without-id'):
+        stopped=subprocess.run(cmd(root,command),text=True,capture_output=True,timeout=20)
+        case(stopped.returncode!=0 and 'untrusted selected-ID state' in stopped.stderr,
+             'malformed owner snapshot rejects '+command+' in independent JVM')
+        case((root/'memory-id-state.txt').read_text()==corrupt,
+             'malformed owner state not implicitly repaired after '+command)
+    print('FUTURE_G1_MEMORY_ID_PROCESS_SERIALIZATION_PASS cases='+str(tests))
+    print('FUTURE_G1_MEMORY_ID_SOURCE_OWNER=SIMULATED_FILE_LOCK_NOT_ANDROID')
+    print('FUTURE_G1_MEMORY_ID_REVISION_CAS_BYPASS=KNOWN_UNSAFE_NEGATIVE_CONTROL')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -5603,11 +5792,18 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     strict_child = Path(temp) / 'FutureStrictOwnerProcessChild.java'
     strict_child.write_text(strict_child_harness, encoding='utf-8')
     highwater_child = Path(temp) / 'FutureHighWaterProcessChild.java'
+    memory_id_child = Path(temp) / 'FutureMemoryIdProcessChild.java'
     highwater_child.write_text(high_water_process_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child)], check=True)
+    memory_id_child.write_text(memory_id_process_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child)], check=True)
+    import sys
+    if '--focused-id-race' in sys.argv:
+        process_memory_id_revoke_correction_proof(temp)
+        raise SystemExit(0)
     subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
     process_owner_proof(temp)
     process_strict_owner_proof(temp)
     process_high_water_proof(temp)
     process_high_water_locked_callback_proof(temp)
     process_high_water_killed_callback_proof(temp)
+    process_memory_id_revoke_correction_proof(temp)
