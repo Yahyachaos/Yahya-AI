@@ -4082,6 +4082,59 @@ public final class FutureMemoryRecallContract {
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
         System.out.println("FUTURE_G1_DURABLE_ANTI_ROLLBACK_GATE=UNIMPLEMENTED");
+        // FUTURE-ONLY: three independently injected capabilities are NOT a
+        // trust root. They only model conditional prevention while the last
+        // guardian has retained its own nonrollbackable spent-claim state.
+        java.util.concurrent.atomic.AtomicInteger pairCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger guardianCalls =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority allow =
+            (id,rev,status,digest,nonce,ownerSig,epoch) -> {
+                pairCalls.incrementAndGet();
+                return CelineFutureMemoryRecall.WitnessClaimOutcome.QUARANTINE_REVOKED_ONLY;
+            };
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority guardian =
+            (id,rev,status,digest,nonce,ownerSig,epoch) -> {
+                guardianCalls.incrementAndGet();
+                return CelineFutureMemoryRecall.WitnessClaimOutcome.BLOCKED;
+            };
+        byte[] simulatedSignature = new byte[64];
+        String simulatedDigest = "a".repeat(64);
+        String simulatedChallenge = "owner-independent-nonce-0001";
+        eq(CelineFutureMemoryRecall.attestRevokedWithIndependentReceiptFence(
+            "cat-private",2,"REVOKED",simulatedDigest,simulatedChallenge,
+            simulatedSignature,4,allow,allow,guardian),
+            CelineFutureMemoryRecall.WitnessClaimOutcome.BLOCKED,
+            "independent receipt guardian blocks a rolled-back pair admission");
+        eq(pairCalls.get(),2,"both earlier authorities consulted before guardian");
+        eq(guardianCalls.get(),1,"independent guardian consulted for admitted pair");
+        eq(CelineFutureMemoryRecall.attestRevokedWithIndependentReceiptFence(
+            "cat-private",2,"REVOKED",simulatedDigest,simulatedChallenge,
+            simulatedSignature,4,allow,allow,null),
+            CelineFutureMemoryRecall.WitnessClaimOutcome.NO_AUTHORITY,
+            "missing independently pinned guardian fails closed");
+        eq(CelineFutureMemoryRecall.attestRevokedWithIndependentReceiptFence(
+            "cat-private",2,"ACTIVE",simulatedDigest,simulatedChallenge,
+            simulatedSignature,4,allow,allow,guardian),
+            CelineFutureMemoryRecall.WitnessClaimOutcome.BLOCKED,
+            "ACTIVE restoration cannot pass even with permissive callbacks");
+        eq(CelineFutureMemoryRecall.attestRevokedWithIndependentReceiptFence(
+            "cat-private",2,"REVOKED",simulatedDigest,simulatedChallenge,
+            simulatedSignature,4,allow,allow,
+            (id,rev,status,digest,nonce,ownerSig,epoch) -> null),
+            CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN,
+            "ambiguous guardian response cannot authorize");
+        eq(CelineFutureMemoryRecall.attestRevokedWithIndependentReceiptFence(
+            "cat-private",2,"REVOKED",simulatedDigest,simulatedChallenge,
+            simulatedSignature,4,allow,allow,
+            (id,rev,status,digest,nonce,ownerSig,epoch) -> {
+                throw new IllegalStateException("simulated guardian restart");
+            }),
+            CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN,
+            "guardian exception cannot authorize");
+        System.out.println("FUTURE_RECEIPT_GUARDIAN=CONDITIONAL_JVM_MODEL_ONLY");
+        System.out.println("FUTURE_ROOT_SAME_KEY_ROLLBACK=NOT_PREVENTED_WITHOUT_DURABLE_GUARDIAN");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
