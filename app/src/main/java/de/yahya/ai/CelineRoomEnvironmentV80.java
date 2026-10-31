@@ -360,6 +360,9 @@ final class CelineRoomEnvironmentV80 {
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
+                // The native floor-centered shell must also be physically attached;
+                // valid imported root matrices alone cannot establish Scene membership.
+                verifyNativeS25ShellAfterAttach(shell);
                 // Verify the same thirteen authored GLB hierarchies after Scene attachment.
                 // A pre-attachment root readback alone must not count as running scene proof.
                 verifyS25WorldNodesAfterAttach(expectedS25Roots, expectedS25Meshes,
@@ -703,6 +706,63 @@ final class CelineRoomEnvironmentV80 {
                     "rootNodes=" + rootWorlds.size() + " meshNodes=" + meshWorlds.size()
                             + " maxMatrixError=" + worst
                             + " AndroidVisibleFrame=UNVERIFIED shell=UNVERIFIED");
+        }
+
+        /**
+         * Recheck the REAL source shell after Scene attachment. A gltfio asset
+         * can own valid native root transforms even if its meshes were never
+         * attached to the Filament Scene. Do not modify furniture or shell TRS.
+         * This structural check cannot establish Android raster visibility.
+         */
+        private void verifyNativeS25ShellAfterAttach(FilamentAsset shell) {
+            int authoredRoot = shell.getFirstEntityByName("room_world_root");
+            if (authoredRoot == 0) {
+                throw new IllegalStateException("Attached S25 shell source root missing");
+            }
+            for (int entity : new int[] { shell.getRoot(), authoredRoot }) {
+                int instance = transforms.getInstance(entity);
+                if (instance == 0) {
+                    throw new IllegalStateException("Attached S25 shell transform missing");
+                }
+                float[] world = transforms.getWorldTransform(instance, new float[16]);
+                for (int i = 0; i < 16; i++) {
+                    float identity = (i % 5 == 0 ? 1.0f : 0.0f);
+                    if (!Float.isFinite(world[i])
+                            || Math.abs(world[i] - identity) > 0.00002f) {
+                        throw new IllegalStateException(
+                                "Attached S25 shell displaced from native XYZ frame: "
+                                        + entity + " component=" + i);
+                    }
+                }
+            }
+            RenderableManager renderables = engine.getRenderableManager();
+            int attachedMeshes = 0;
+            for (int entity : shell.getEntities()) {
+                if (!renderables.hasComponent(entity)) continue;
+                if (!scene.hasEntity(entity)) {
+                    throw new IllegalStateException(
+                            "S25 shell renderable absent from Filament Scene: " + entity);
+                }
+                int instance = transforms.getInstance(entity);
+                if (instance == 0) {
+                    throw new IllegalStateException("S25 shell renderable lacks transform");
+                }
+                float[] world = transforms.getWorldTransform(instance, new float[16]);
+                for (float value : world) {
+                    if (!Float.isFinite(value)) {
+                        throw new IllegalStateException("Nonfinite attached S25 shell mesh");
+                    }
+                }
+                attachedMeshes++;
+            }
+            if (attachedMeshes == 0) {
+                throw new IllegalStateException("Attached S25 shell contains no renderables");
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
+                    "Native shell root and real scene renderables verified after attachment",
+                    "sourceRoom_m=4.40x4.20x2.65"
+                            + " rootWorld=IDENTITY attachedMeshes=" + attachedMeshes
+                            + " sharedWorldContract=UNVERIFIED AndroidVisibleFrame=UNVERIFIED");
         }
 
         /**
