@@ -6067,6 +6067,176 @@ def process_memory_id_torn_witness_proof(temp):
     print('FUTURE_G1_MEMORY_ID_TORN_WITNESS=TEST_FIXTURE_NOT_POWER_LOSS_PROOF')
     print('FUTURE_G1_MEMORY_ID_RECOVERY=MANUAL_OWNER_VERIFICATION_REQUIRED')
 
+# Two distinct operating-system JVM processes. The signer keeps its key in an
+# operator-owned model directory; the verifier pins ONLY that independent
+# directory's key, never a consumer-owned replacement key. This is NOT Android
+# trusted custody: the test operator could still roll back the entire directory.
+owner_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+public final class FutureOwnerAttestationProcess {
+    static final String REVOCATION_ID="cat-private";
+    static final String HASH="a".repeat(64);
+    static final String CHALLENGE="owner-independent-nonce-0001";
+    static String[] state(Path owner) throws Exception {
+        String[] s=Files.readString(owner.resolve("owner-state.txt")).trim().split("\\|",-1);
+        if(s.length!=4 || !s[0].matches("[0-9]+") || !s[1].matches("[A-Za-z0-9_-]{16,64}")
+                || !"REVOKED".equals(s[2]) || !("0".equals(s[3]) || "1".equals(s[3])))
+            throw new IllegalStateException("untrusted owner state");
+        return s;
+    }
+    static PublicKey pinned(Path owner) throws Exception {
+        byte[] bytes=Files.readAllBytes(owner.resolve("owner.pub"));
+        return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(bytes));
+    }
+    static void durableReplace(Path owner,String content) throws Exception {
+        Path target=owner.resolve("owner-state.txt");
+        Path tmp=owner.resolve("owner-state.txt.tmp");
+        Files.writeString(tmp,content,StandardCharsets.UTF_8);
+        try(FileChannel ch=FileChannel.open(tmp,StandardOpenOption.WRITE)){ch.force(true);}
+        Files.move(tmp,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+        // Model-only file force; this does NOT establish Android power-cut proof.
+    }
+    static class Owner implements CelineFutureMemoryRecall.OneShotRecoveryOwner {
+        final Path owner;
+        Owner(Path dir){owner=dir;}
+        public CelineFutureMemoryRecall.RecoveryOwnerSnapshot snapshot(String id) {
+            try {
+                if(!REVOCATION_ID.equals(id)) return null;
+                String[] s=state(owner);
+                return new CelineFutureMemoryRecall.RecoveryOwnerSnapshot(
+                    Long.parseLong(s[0]),s[1],pinned(owner),"REVOKED".equals(s[2]));
+            } catch(Exception ex){return null;}
+        }
+        public boolean claimIfCurrent(String id,long rev,String nonce,byte[] exactKey) {
+            try(FileChannel ch=FileChannel.open(owner.resolve("owner-claim.lock"),
+                    StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+                FileLock ignored=ch.lock()) {
+                String[] s=state(owner);
+                boolean ok=REVOCATION_ID.equals(id)&&Long.parseLong(s[0])==rev
+                    && nonce.equals(s[1])&&"REVOKED".equals(s[2])&&"0".equals(s[3])
+                    && MessageDigest.isEqual(pinned(owner).getEncoded(),exactKey);
+                if(!ok)return false;
+                durableReplace(owner,rev+"|"+nonce+"|REVOKED|1\n");
+                return true;
+            } catch(Exception ex){return false;}
+        }
+    }
+    public static void main(String[] args) throws Exception {
+        String cmd=args[0];
+        Path owner=Paths.get(args[1]);
+        if("issue".equals(cmd)) {
+            Files.createDirectories(owner);
+            KeyPair kp=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+            Files.write(owner.resolve("owner.pub"),kp.getPublic().getEncoded());
+            Files.write(owner.resolve("owner.private"),kp.getPrivate().getEncoded());
+            durableReplace(owner,"2|"+CHALLENGE+"|REVOKED|0\n");
+            Signature sig=Signature.getInstance("Ed25519");
+            sig.initSign(kp.getPrivate());
+            sig.update(CelineFutureMemoryRecall.revokedRecoveryPayload(
+                REVOCATION_ID,2,HASH,CHALLENGE));
+            System.out.println("TOKEN="+Base64.getEncoder().encodeToString(sig.sign()));
+            return;
+        }
+        if("issue-forgery".equals(cmd)) {
+            KeyPair kp=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+            Files.createDirectories(owner);
+            Files.write(owner.resolve("owner.pub"),kp.getPublic().getEncoded());
+            Signature sig=Signature.getInstance("Ed25519");
+            sig.initSign(kp.getPrivate());
+            sig.update(CelineFutureMemoryRecall.revokedRecoveryPayload(
+                REVOCATION_ID,2,HASH,CHALLENGE));
+            System.out.println("TOKEN="+Base64.getEncoder().encodeToString(sig.sign()));
+            return;
+        }
+        if("verify".equals(cmd)) {
+            // args[2] is attacker/consumer-owned. It is intentionally NEVER
+            // consulted as authority or as the Ed25519 pinned-key source.
+            Path consumer=Paths.get(args[2]);
+            if(!Files.isDirectory(consumer))throw new IllegalArgumentException("consumer missing");
+            byte[] signature;
+            try{signature=Base64.getDecoder().decode(args[7]);}
+            catch(IllegalArgumentException ex){signature=new byte[0];}
+            var result=CelineFutureMemoryRecall.attestRevokedOrphanOnce(
+                REVOCATION_ID,Long.parseLong(args[4]),args[3],args[5],args[6],
+                signature,new Owner(owner));
+            System.out.println("RESULT="+result.name());
+            return;
+        }
+        throw new IllegalArgumentException(cmd);
+    }
+}
+'''
+
+def process_independent_owner_attestation_proof(temp):
+    import base64
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    import concurrent.futures
+    count=0
+    def case(ok,label):
+        nonlocal count
+        if not ok: raise AssertionError('independent owner attest FAIL: '+label)
+        count+=1
+    with TemporaryDirectory(prefix='future_owner_process_') as t:
+        root=Path(t)
+        consumer=root/'consumer-controlled'; consumer.mkdir()
+        trusted=root/'trusted-owner-model'
+        invalid=root/'untrusted-attacker'
+        command=['java','-cp',temp,'de.yahya.ai.FutureOwnerAttestationProcess']
+        def issue(dir,mode='issue'):
+            p=subprocess.run(command+[mode,str(dir)],capture_output=True,text=True,timeout=15)
+            case(p.returncode==0 and p.stdout.startswith('TOKEN='),mode+' signer JVM completed')
+            return p.stdout.strip().split('=',1)[1]
+        def verify(token,source='REVOKED',rev='2',orphan='a'*64,
+                   challenge='owner-independent-nonce-0001',owner=None):
+            p=subprocess.run(command+['verify',str(owner or trusted),str(consumer),
+                        source,rev,orphan,challenge,token],capture_output=True,
+                        text=True,timeout=15)
+            case(p.returncode==0 and 'RESULT=' in p.stdout,'independent verifier JVM launched')
+            return p.stdout.strip().split('RESULT=',1)[1]
+        token=issue(trusted)
+        spoof=issue(invalid,'issue-forgery')
+        # The consumer can replace its key, but not the key pinned by the owner.
+        (consumer/'owner.pub').write_bytes((invalid/'owner.pub').read_bytes())
+        case(verify(spoof)=='BLOCKED','untrusted consumer key substitution rejected')
+        case(verify(token,source='ACTIVE')=='BLOCKED','signed revoked proof cannot restore ACTIVE')
+        case(verify(token,rev='3')=='BLOCKED','different source revision blocked')
+        case(verify(token,orphan='b'*64)=='BLOCKED','different orphan fingerprint blocked')
+        case(verify(token,challenge='stale-independent-nonce-999')=='BLOCKED',
+             'changed challenge rejects token reuse')
+        case(verify('AAAA')=='BLOCKED','malformed signature blocked')
+        case(verify(token,owner=root/'missing-owner')=='BLOCKED',
+             'no independent owner means closed')
+        case(verify(token)=='QUARANTINE_REVOKED_ONLY',
+             'one genuine signer JVM token consumed by independent verifier')
+        case((trusted/'owner-state.txt').read_text().strip().endswith('|1'),
+             'the independent owner permanently marks claim as spent in model')
+        case(verify(token)=='BLOCKED','new verifier JVM refuses identical replay')
+        # A fresh owner challenge simulates a revision advance outside consumer scope.
+        newer=root/'advanced-owner'; newer_token=issue(newer)
+        (newer/'owner-state.txt').write_text('3|owner-independent-nonce-0002|REVOKED|0\n')
+        case(verify(newer_token,owner=newer)=='BLOCKED',
+             'advanced monotonic revision refuses old token')
+        # Simultaneous independently launched consumers: owner CAS permits one.
+        race=root/'race-owner'; race_token=issue(race)
+        def race_verify(_):
+            return verify(race_token,owner=race)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            replies=list(pool.map(race_verify,range(2)))
+        case(sorted(replies)==['BLOCKED','QUARANTINE_REVOKED_ONLY'],
+             'two concurrent verifier JVMs cannot both consume the one-use token')
+        case((race/'owner-state.txt').read_text().strip().endswith('|1'),
+             'atomic owner claim persists across JVM race')
+        print('FUTURE_G1_OWNER_ATTESTATION_2JVM_PASS cases='+str(count))
+        print('FUTURE_G1_EXTERNAL_OWNER_CUSTODY=TEST_MODEL_ONLY')
+        print('FUTURE_G1_REAL_HARDWARE_MONOTONIC_ROLLBACK=UNPROVEN')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -6078,8 +6248,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     memory_id_child = Path(temp) / 'FutureMemoryIdProcessChild.java'
     highwater_child.write_text(high_water_process_harness, encoding='utf-8')
     memory_id_child.write_text(memory_id_process_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child)], check=True)
+    owner_child = Path(temp) / 'FutureOwnerAttestationProcess.java'
+    owner_child.write_text(owner_process_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child)], check=True)
     import sys
+    if '--focused-owner-2jvm' in sys.argv:
+        process_independent_owner_attestation_proof(temp)
+        raise SystemExit(0)
     if '--focused-attestation' in sys.argv:
         subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
         raise SystemExit(0)
@@ -6099,3 +6274,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_memory_id_revoke_correction_proof(temp)
     process_memory_id_witness_proof(temp)
     process_memory_id_torn_witness_proof(temp)
+    process_independent_owner_attestation_proof(temp)
