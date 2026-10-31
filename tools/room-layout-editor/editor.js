@@ -518,17 +518,14 @@ function applyOwnerS25RawMeshFrame(gltf,entry){
   const nodes=gltf.parser?.json?.nodes;
   if(!anchor||!geometry||!Array.isArray(nodes))
     throw new Error('S25-Modellrahmen fehlt: '+entry.id+' '+anchorName+'/'+geometryName);
-  const identityMatrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-  const near=(a,b)=>!a || (a.length===b.length && a.every((v,i)=>Math.abs(v-b[i])<1e-6));
   const meshNodes=nodes.filter(n=>Number.isInteger(n.mesh));
-  if(!meshNodes.length || meshNodes.some(n=>!near(n.translation,[0,0,0]) ||
-      !near(n.rotation,[0,0,0,1]) || !near(n.scale,[1,1,1]) ||
-      !near(n.matrix,identityMatrix)))
-    throw new Error('S25-Rohmesh-Quelle enthält unbekannte Mesh-Knotentransforms: '+entry.id);
   const geometryNode=nodes.find(n=>n.name===geometryName);
-  if(!geometryNode || !near(geometryNode.rotation,[0,0,0,1]) ||
-     !near(geometryNode.scale,[1,1,1]) || !near(geometryNode.matrix,identityMatrix))
-    throw new Error('S25-Geometrieknoten hat unerwartete Rotation/Skalierung: '+entry.id);
+  if(!meshNodes.length||!geometryNode)
+    throw new Error('S25-Rohmesh-Knoten fehlen: '+entry.id);
+  // Unlike Three.js, the REAL S25 offline draw path ignores node
+  // transforms even on mesh nodes. The original room_plant_small source has
+  // one such non-identity mesh node; rejecting it wrongly removed that GLB.
+  // Reset all VIEW node transforms except the one exact owner geometry offset.
   // For instance room_nightstand_back the original offline code finds NO
   // instance-named __geometry node (its GLB is room_nightstand_rear).
   const instanceNode=nodes.find(n=>n.name===entry.id+'__geometry');
@@ -537,16 +534,29 @@ function applyOwnerS25RawMeshFrame(gltf,entry){
     throw new Error('Ungültiger originaler S25-Geometrieoffset: '+entry.id);
   const originalAnchor={translation_m:anchor.position.toArray(),
     rotation_quaternion:anchor.quaternion.toArray(),scale_xyz:anchor.scale.toArray()};
-  anchor.position.set(0,0,0);
-  anchor.quaternion.identity();
-  anchor.scale.set(1,1,1);
+  let clearedNonIdentityNodes=0;
+  model.traverse(node=>{
+    if(node===geometry)return; // apply the exact original instance geometry offset below
+    const q=node.quaternion,p=node.position,sc=node.scale;
+    if(p.lengthSq()>1e-12||Math.abs(q.x)>1e-6||Math.abs(q.y)>1e-6||
+       Math.abs(q.z)>1e-6||Math.abs(q.w-1)>1e-6||
+       Math.abs(sc.x-1)>1e-6||Math.abs(sc.y-1)>1e-6||Math.abs(sc.z-1)>1e-6)
+      clearedNonIdentityNodes++;
+    node.position.set(0,0,0);
+    node.quaternion.identity();
+    node.scale.set(1,1,1);
+    node.matrixAutoUpdate=true;
+    node.updateMatrix();
+  });
   geometry.position.fromArray(ownerOffset);
-  model.position.set(0,0,0);
-  model.quaternion.identity();
-  model.scale.set(1,1,1);
+  geometry.quaternion.identity();
+  geometry.scale.set(1,1,1);
+  geometry.matrixAutoUpdate=true;
+  geometry.updateMatrix();
   model.updateMatrixWorld(true);
   entry.ownerSourceFrame={anchorName,geometryName,ownerOffset_m:[...ownerOffset],
-    originalAnchor,mesh_node_count:meshNodes.length};
+    originalAnchor,mesh_node_count:meshNodes.length,
+    stripped_extra_glb_nodes:clearedNonIdentityNodes};
   return model;
 }
 
@@ -1012,12 +1022,25 @@ if (E2E_PROOF) {
           raw_geometry_offset_exact:!!geometry&&!!f&&f.ownerOffset_m.every((v,i)=>
             Math.abs(geometry.position.toArray()[i]-v)<1e-6),
           model_root_not_recentered:!!model&&zero(model.position.toArray()),
+          other_nodes_identity:(()=>{
+            if(!model||!geometry)return false;
+            let same=true;
+            model.traverse(node=>{
+              if(node===geometry)return;
+              const q=node.quaternion,p=node.position,sc=node.scale;
+              if(!zero(p.toArray())||!zero(q.toArray().slice(0,3))||
+                 Math.abs(q.w-1)>1e-6||!one(sc.toArray()))same=false;
+            });
+            return same;
+          })(),
+          stripped_extra_glb_nodes:f?.stripped_extra_glb_nodes??null,
           owner_rotation_order:entry.group.rotation.order};
       });
       return {model_count:objects.length,
         all_owner_s25_raw_frames_valid:objects.every(o=>o.loaded&&o.anchor_is_identity&&
           o.raw_geometry_offset_exact&&o.model_root_not_recentered&&
-          o.owner_rotation_order==='ZYX'&&o.original_mesh_node_count>0),
+          o.other_nodes_identity&&o.owner_rotation_order==='ZYX'&&
+          o.original_mesh_node_count>0),
         original_s25_camera:OWNER_S25_CAMERA,objects};
     },
 

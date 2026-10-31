@@ -192,7 +192,8 @@ async function main(){
     assert.deepEqual(ownerFrames.objects.map(o=>o.id),approved.objects.map(o=>o.id));
     for(const item of ownerFrames.objects){
       assert(item.ignored_original_source_anchor,'Missing source GLB anchor '+item.id);
-      assert(item.anchor_is_identity&&item.raw_geometry_offset_exact&&item.model_root_not_recentered,
+      assert(item.anchor_is_identity&&item.raw_geometry_offset_exact&&
+        item.model_root_not_recentered&&item.other_nodes_identity,
         'Unexpected additional glTF anchor or world center applied to '+item.id);
       assert.equal(item.owner_rotation_order,'ZYX','S25 raw Euler multiplication order '+item.id);
       for(let i=0;i<3;i++)
