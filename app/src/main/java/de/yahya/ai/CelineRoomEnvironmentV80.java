@@ -664,6 +664,16 @@ final class CelineRoomEnvironmentV80 {
                     || meshWorlds.size() != expectedMeshNodes || expectedMeshNodes < S25_IDS.length) {
                 throw new IllegalStateException("Incomplete post-attach S25 scene readback");
             }
+            // World matrices alone can be valid even for a renderable absent from
+            // the actual Filament Scene. Verify genuine post-attachment membership.
+            RenderableManager sceneRenderables = engine.getRenderableManager();
+            for (Integer meshEntity : meshWorlds.keySet()) {
+                if (!scene.hasEntity(meshEntity)
+                        || !sceneRenderables.hasComponent(meshEntity)) {
+                    throw new IllegalStateException(
+                            "S25 furniture mesh missing from Filament Scene: " + meshEntity);
+                }
+            }
             Map<Integer, float[]> all = new LinkedHashMap<>(rootWorlds);
             for (Map.Entry<Integer, float[]> node : meshWorlds.entrySet()) {
                 if (all.put(node.getKey(), node.getValue()) != null) {
