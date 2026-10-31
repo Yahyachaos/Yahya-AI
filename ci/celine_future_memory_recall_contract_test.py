@@ -5621,7 +5621,7 @@ public final class FutureMemoryIdProcessChild {
         return new Snapshot(Integer.parseInt(bits[0]),bits[1]);
     }
     static void store(Path file,String value) throws Exception {
-        Path tmp=file.resolveSibling("memory-id-state.tmp."+ProcessHandle.current().pid());
+        Path tmp=file.resolveSibling(file.getFileName()+".tmp."+ProcessHandle.current().pid());
         Files.writeString(tmp,value,StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
         try(FileChannel fd=FileChannel.open(tmp,StandardOpenOption.WRITE)){fd.force(true);}
         Files.move(tmp,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
@@ -5645,7 +5645,8 @@ public final class FutureMemoryIdProcessChild {
     }
     public static void main(String[] args) throws Exception {
         if(args.length!=2)throw new IllegalArgumentException("root action");
-        Path root=Path.of(args[0]),state=root.resolve("memory-id-state.txt");
+        Path root=Path.of(args[0]),state=root.resolve("memory-id-state.txt"),
+                witness=root.resolve("memory-id-highwater.txt");
         String action=args[1];
         Files.createDirectories(root);
         Path lockPath=root.resolve("memory-id-owner.lock");
@@ -5653,11 +5654,20 @@ public final class FutureMemoryIdProcessChild {
                 StandardOpenOption.CREATE,StandardOpenOption.WRITE);
             FileLock lock=channel.lock()) {
             if(action.equals("init")) {
-                if(Files.exists(state))throw new IllegalStateException("already initialized");
+                if(Files.exists(state)||Files.exists(witness))
+                    throw new IllegalStateException("already initialized");
+                // Simulated independent witness first: a crash here denies future
+                // use rather than accepting an old active selected-ID snapshot.
+                store(witness,"1");
                 store(state,"1|ACTIVE");
                 System.out.println("STATE=ACTIVE;REV=1;SUGGEST="+suggested(read(state)));return;
             }
             Snapshot current=read(state); // Fail closed if missing, partial or corrupt.
+            // Toy high-water authority: separate ordinary local file, not G1
+            // antirollback hardware. Match exact bytes, not parsed/truncated input.
+            String certified=Files.exists(witness)?Files.readString(witness):"";
+            if(!String.valueOf(current.revision).equals(certified))
+                throw new IllegalStateException("untrusted selected-ID witness");
             if(action.equals("inspect")) {
                 System.out.println("STATE="+current.status+";REV="+current.revision
                     +";SUGGEST="+suggested(current));return;
@@ -5674,7 +5684,8 @@ public final class FutureMemoryIdProcessChild {
                     throw new IllegalStateException("owner-release timeout");
             }
             boolean revoke=action.equals("revoke")||action.equals("hold-revoke")
-                ||action.equals("fault-revoke-after-commit");
+                ||action.equals("fault-revoke-after-commit")
+                ||action.equals("fault-revoke-after-witness");
             boolean correct=action.equals("correct")||action.equals("hold-correct");
             if(!revoke&&!correct)throw new IllegalArgumentException("bad selected-ID action");
             // Both callers hold an explicit old revision 1 and EXACT source ID;
@@ -5684,6 +5695,11 @@ public final class FutureMemoryIdProcessChild {
                 System.out.println("RESULT=STALE_EXPECTED_REVISION;ACTUAL="+current.revision);return;
             }
             String updated=revoke?"REVOKED":"CORRECTED";
+            // Witness advance BEFORE snapshot write: partial commit fails closed.
+            store(witness,String.valueOf(current.revision+1));
+            if(action.equals("fault-revoke-after-witness")) {
+                System.out.flush();Runtime.getRuntime().halt(97);
+            }
             store(state,(current.revision+1)+"|"+updated);
             if(action.equals("fault-revoke-after-commit")) {
                 System.out.flush();Runtime.getRuntime().halt(96);
@@ -5784,6 +5800,88 @@ def process_memory_id_revoke_correction_proof(temp):
     print('FUTURE_G1_MEMORY_ID_SOURCE_OWNER=SIMULATED_FILE_LOCK_NOT_ANDROID')
     print('FUTURE_G1_MEMORY_ID_REVISION_CAS_BYPASS=KNOWN_UNSAFE_NEGATIVE_CONTROL')
 
+
+# FUTURE-ONLY: a *simulated* independent high-water witness for exact-ID mutations.
+# Ordinary local files are NOT a hardware monotonic counter; joint rollback is unsafe.
+def process_memory_id_witness_proof(temp):
+    tests = 0
+    def case(ok, description):
+        nonlocal tests
+        if not ok: raise AssertionError('MEMORY_ID_WITNESS_FAIL: '+description)
+        tests += 1
+    def run(root, action):
+        return subprocess.run(['java','-cp',temp,
+            'de.yahya.ai.FutureMemoryIdProcessChild',str(root),action],
+            text=True,capture_output=True,timeout=20)
+    def valid(root, action):
+        result=run(root,action)
+        case(result.returncode==0,'successful '+action+': '+result.stderr[-200:])
+        return result.stdout.strip()
+    def rejected(root, action, expected='untrusted selected-ID witness'):
+        result=run(root,action)
+        case(result.returncode!=0 and expected in result.stderr,
+            'reject '+action+' with witness mismatch/missing/corruption: '+result.stderr[-200:])
+
+    root=Path(temp)/'memory-id-witness-rollback'
+    root.mkdir()
+    witness=root/'memory-id-highwater.txt'
+    state=root/'memory-id-state.txt'
+    valid(root,'init')
+    case(witness.exists() and witness.read_text()=='1','initial independently tracked revision')
+    case('RESULT=APPLIED' in valid(root,'revoke'),'exact ID revoke applied once')
+    case(witness.read_text()=='2','witness advanced before publication is accepted')
+    case(state.read_text()=='2|REVOKED','snapshot updated to source revision')
+    # Restore ONLY the ordinary owner snapshot; external witness stays at revision 2.
+    state.write_text('1|ACTIVE')
+    for action in ('inspect','correct','revoke','suggest-without-id'):
+        rejected(root,action)
+        case(state.read_text()=='1|ACTIVE' and witness.read_text()=='2',
+             'no stale snapshot repair or stale ID mutation after '+action)
+    state.write_text('2|REVOKED')  # Manual test fixture repair, not an app recovery API.
+    case('STATE=REVOKED;REV=2' in valid(root,'inspect'),
+         'externally revalidated aligned state available for read')
+    case('STALE_EXPECTED_REVISION' in valid(root,'correct'),
+         'stale selected-ID correction still refused after restart')
+
+    for mode in ('missing','malformed','decreased','advanced'):
+        r=Path(temp)/('memory-id-witness-'+mode)
+        r.mkdir()
+        valid(r,'init')
+        w=r/'memory-id-highwater.txt'
+        before=(r/'memory-id-state.txt').read_text()
+        if mode=='missing': w.unlink()
+        elif mode=='malformed': w.write_text('2|invalid')
+        elif mode=='decreased': w.write_text('0')
+        else: w.write_text('2')
+        for action in ('inspect','revoke','correct'):
+            rejected(r,action)
+            case((r/'memory-id-state.txt').read_text()==before,
+                 mode+' leaves exact memory ID unchanged after '+action)
+
+    root=Path(temp)/'memory-id-witness-interrupted-commit'
+    root.mkdir()
+    valid(root,'init')
+    stopped=run(root,'fault-revoke-after-witness')
+    case(stopped.returncode==97,'real process killed after witness advance before snapshot write')
+    case((root/'memory-id-highwater.txt').read_text()=='2',
+         'witness retains advance across abrupt process exit')
+    case((root/'memory-id-state.txt').read_text()=='1|ACTIVE',
+         'snapshot remains old after killed process')
+    for action in ('inspect','correct','revoke','suggest-without-id'):
+        rejected(root,action)
+    # The limitation is deliberately witnessed, not suppressed or called solved.
+    root=Path(temp)/'memory-id-witness-joint-rollback-negative-control'
+    root.mkdir()
+    valid(root,'init')
+    valid(root,'revoke')
+    (root/'memory-id-state.txt').write_text('1|ACTIVE')
+    (root/'memory-id-highwater.txt').write_text('1')
+    case('RESULT=APPLIED' in valid(root,'correct'),
+         'KNOWN UNSAFE NEGATIVE CONTROL: resetting all ordinary files replays old ID')
+    print('FUTURE_G1_MEMORY_ID_WITNESS_JVM_PASS cases='+str(tests))
+    print('FUTURE_G1_MEMORY_ID_JOINT_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
+    print('FUTURE_G1_MEMORY_ID_WITNESS=UNTRUSTED_FILE_SIMULATION_NOT_ANDROID')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -5799,6 +5897,7 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     import sys
     if '--focused-id-race' in sys.argv:
         process_memory_id_revoke_correction_proof(temp)
+        process_memory_id_witness_proof(temp)
         raise SystemExit(0)
     subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
     process_owner_proof(temp)
@@ -5807,3 +5906,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_high_water_locked_callback_proof(temp)
     process_high_water_killed_callback_proof(temp)
     process_memory_id_revoke_correction_proof(temp)
+    process_memory_id_witness_proof(temp)
