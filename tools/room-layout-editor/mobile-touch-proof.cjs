@@ -202,9 +202,15 @@ async function main(){
     const redoHit=await page.locator('#mobile-redo').evaluate(el=>{
       const box=el.getBoundingClientRect(), px=box.left+box.width/2, py=box.top+box.height/2;
       const hit=document.elementFromPoint(px,py);
-      window.__celineRedoTouchEvidence={touchstart:0,pointerdown:0,click:0};
+      window.__celineRedoTouchEvidence={touchstart:0,pointerdown:0,click:0,
+        events:[],after_click_microtask_ms:null};
       for(const type of ['touchstart','pointerdown','click'])
-        el.addEventListener(type,()=>{window.__celineRedoTouchEvidence[type]++;},{capture:true});
+        el.addEventListener(type,()=>{
+          const evidence=window.__celineRedoTouchEvidence;
+          evidence[type]++;
+          evidence.events.push({type,performance_ms:performance.now()});
+          if(type==='click')queueMicrotask(()=>{evidence.after_click_microtask_ms=performance.now();});
+        },{capture:true});
       return {button_id:el.id,hit_id:hit?.id||null,
         hit_inside_redo:hit===el||el.contains(hit),visible:box.width>0&&box.height>0,
         disabled:el.disabled,box:[box.x,box.y,box.width,box.height]};
@@ -213,15 +219,23 @@ async function main(){
     fs.writeFileSync(path.join(out,'mobile-redo-preflight.json'),JSON.stringify({source_sha:process.env.GITHUB_SHA||null,redoHit,record},null,2));
     assert(redoHit.hit_inside_redo,'mobile-redo center obscured by overlay');
     assert.equal(redoHit.disabled,false,'redo must be enabled after undo');
+    const beforeRedoRendering=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
+    const redoPageStarted=await page.evaluate(()=>performance.now());
     const redoStarted=Date.now();
     await page.locator('#mobile-redo').tap();
     const redoTouch=await page.evaluate(()=>window.__celineRedoTouchEvidence);
+    const redoPageCompleted=await page.evaluate(()=>performance.now());
     assert(redoTouch.touchstart>=1&&redoTouch.pointerdown>=1&&redoTouch.click>=1,
       'mobile redo must receive genuine touch/pointer/click events');
     const redoElapsed=Date.now()-redoStarted;
     const afterRedoRendering=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
-    record.push({name:'GENUINE_MOBILE_REDO_TOUCH_PASS',elapsed_ms:redoElapsed,redoTouch,
-      rendering:afterRedoRendering});
+    const redoDiagnostic={name:'GENUINE_MOBILE_REDO_TOUCH_TIMING_DIAGNOSTIC',
+      elapsed_ms:redoElapsed,page_elapsed_ms:redoPageCompleted-redoPageStarted,
+      page_start_ms:redoPageStarted,page_end_ms:redoPageCompleted,redoTouch,
+      render_before:beforeRedoRendering,render_after:afterRedoRendering};
+    record.push(redoDiagnostic);
+    fs.writeFileSync(path.join(out,'mobile-redo-timing.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,redoDiagnostic},null,2));
     assert(redoElapsed<5000,'Genuine mobile redo remains too slow for interactive touch (<5s required)');
     assert(Math.abs(Number(await page.locator('#x').inputValue())-movedX)<0.003);
     const lockHit=await page.locator('#mobile-lock').evaluate(el=>{
