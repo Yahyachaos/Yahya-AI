@@ -7042,6 +7042,235 @@ def process_owner_service_bootstrap_spoof_proof(temp):
                 if child is not None and child.poll() is None:
                     child.kill();child.communicate(timeout=5)
 
+# FUTURE-ONLY: TEST OPERATOR-ANCHORED OWNER ROOT.
+# A trusted test coordinator fixes the live owner's public key into a newly
+# compiled verifier class. That class is executed as an independent JVM and
+# never accepts a caller-provided key, registry or owner path as a trust root.
+# This ONLY proves conditional Java composition in this test threat model.
+# Neither secure first enrollment nor OS custody, durable antirollback across
+# owner reboot, AndroidKeyStore, authenticated IPC or G1 integration exist.
+def process_operator_root_capability_proof(temp):
+    from pathlib import Path
+    import time
+    count = 0
+    def case(ok, why):
+        nonlocal count
+        if not ok:
+            raise AssertionError('operator-root capability FAIL: '+why)
+        count += 1
+
+    with tempfile.TemporaryDirectory(prefix='future_owner_root_capability_') as tmp:
+        root = Path(tmp)
+        owner_cmd = ['java','-cp',temp,'de.yahya.ai.FutureOwnerHeldServiceProcess']
+        legit = subprocess.Popen(owner_cmd+['server'], stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, text=True, bufsize=1)
+        rogue = None
+        replacement = None
+        clients = []
+        try:
+            authentic = legit.stdout.readline().strip().split()
+            case(len(authentic)==4 and authentic[0]=='READY',
+                 'independent original owner JVM online')
+            legit_port, legit_pin, legit_token = authentic[1:]
+            rogue = subprocess.Popen(owner_cmd+['server'], stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True, bufsize=1)
+            forged = rogue.stdout.readline().strip().split()
+            case(len(forged)==4 and forged[0]=='READY',
+                 'independent attacker owner JVM online')
+            rogue_port, rogue_pin, rogue_token = forged[1:]
+            case(legit_pin != rogue_pin and legit_token != rogue_token,
+                 'attacker and owner minted independent Ed25519 credentials')
+
+            def compile_pinned(name, operator_pin):
+                # Literal is fixed by the trusted TEST COORDINATOR at compile
+                # time; neither a chat/provider argument nor an on-disk registry.
+                # A hostile build tool or pre-enrollment owner remains OUTSIDE
+                # the model, and production cannot rely on this fixture.
+                java = r'''package de.yahya.ai;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+public final class __CLASS__ {
+    private static final String OPERATOR_PIN="__PIN__";
+    private static final String ID="cat-private";
+    private static final String NONCE="owner-independent-nonce-0001";
+    public static void main(String[] a) throws Exception {
+        // port, caller-suggested key, token, ID, revision, status, SHA, nonce,
+        // optional test-only barrier dir; suggested key MUST NOT be trusted.
+        if (a.length<8 || a.length>9 || OPERATOR_PIN.isEmpty()
+                || !ID.equals(a[3]) || !"2".equals(a[4])
+                || !"REVOKED".equals(a[5]) || !a[6].matches("[0-9a-f]{64}")
+                || !NONCE.equals(a[7])) {
+            System.out.println("RESULT=BLOCKED");return;
+        }
+        if(a.length==9){
+            Path barrier=Paths.get(a[8]);
+            Files.writeString(barrier.resolve("preflight-done.flag"),"pinned\\n");
+            long cutoff=System.nanoTime()+5_000_000_000L;
+            while(!Files.exists(barrier.resolve("resume.flag")) && System.nanoTime()<cutoff)
+                Thread.sleep(8L);
+            if(!Files.exists(barrier.resolve("resume.flag"))){
+                System.out.println("RESULT=BLOCKED");return;
+            }
+        }
+        FutureOwnerHeldServiceProcess.client(new String[]{"client",a[0],
+                OPERATOR_PIN,a[3],a[4],a[5],a[6],a[7],a[2]});
+    }
+}
+'''
+                assert name.isidentifier()
+                java = java.replace('__CLASS__',name).replace('__PIN__',operator_pin)
+                file=Path(temp)/(name+'.java')
+                file.write_text(java,encoding='utf-8')
+                compiled=subprocess.run(['javac','-encoding','UTF-8','-cp',temp,
+                                         '-d',temp,str(file)],
+                                         capture_output=True,text=True,timeout=20)
+                case(compiled.returncode==0,
+                     'operator-root verifier JVM class compiles '+compiled.stderr[-400:])
+                return 'de.yahya.ai.'+name
+
+            verified_class=compile_pinned('FutureOperatorPinnedVerifier',legit_pin)
+            missing_class=compile_pinned('FutureMissingOperatorRootVerifier','')
+
+            def verify(port,claimed,token,identity='cat-private',revision='2',
+                       status='REVOKED',hashval='a'*64,nonce='owner-independent-nonce-0001',
+                       klass=verified_class,barrier=None):
+                args=['java','-cp',temp,klass,str(port),claimed,token,identity,
+                      revision,status,hashval,nonce]
+                if barrier is not None: args.append(str(barrier))
+                child=subprocess.run(args,capture_output=True,text=True,timeout=13)
+                case(child.returncode==0 and 'RESULT=' in child.stdout,
+                     'independent pinned-verifier JVM terminates: '+child.stderr[-300:])
+                return child.stdout.strip().split('RESULT=')[-1]
+
+            # New verifier must reject a fresh forged service *before* the
+            # fake owner has consumed its only claim, regardless of suggested
+            # caller pin, fake token, or alternative endpoint.
+            case(verify(rogue_port,rogue_pin,rogue_token)=='BLOCKED',
+                 'operator-pinned root rejects self-appointed service')
+            case(verify(rogue_port,legit_pin,rogue_token)=='BLOCKED',
+                 'caller cannot select alternate root using ordinary arguments')
+            case(verify(rogue_port,'',rogue_token)=='BLOCKED',
+                 'missing caller key cannot cause permissive fallback')
+            case(verify(legit_port,rogue_pin,rogue_token)=='BLOCKED',
+                 'genuine service refuses forged token even with attacker key')
+            case(verify(legit_port,legit_pin,legit_token,status='ACTIVE')=='BLOCKED',
+                 'ACTIVE restoration never gets recovery authorization')
+            case(verify(legit_port,legit_pin,legit_token,revision='1')=='BLOCKED',
+                 'revision rollback is rejected')
+            case(verify(legit_port,legit_pin,legit_token,nonce='replayed-other-nonce-0002')=='BLOCKED',
+                 'wrong security nonce is rejected')
+            case(verify(legit_port,legit_pin,legit_token,identity='cat-other')=='BLOCKED',
+                 'wrong exact memory ID is rejected')
+            case(verify(legit_port,legit_pin,legit_token,hashval='b'*64)=='BLOCKED',
+                 'incorrect orphan fingerprint is rejected')
+            # Two distinct pinned verifier JVMs submit the same legitimate
+            # claim concurrently. Only the owner-held atomic claim may win;
+            # caller-suggested pin values cannot change the trusted identity.
+            concurrent=[]
+            for suggested_pin in (legit_pin,rogue_pin):
+                concurrent.append(subprocess.Popen(['java','-cp',temp,verified_class,
+                        str(legit_port),suggested_pin,legit_token,'cat-private','2',
+                        'REVOKED','a'*64,'owner-independent-nonce-0001'],
+                        stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True))
+            clients.extend(concurrent)
+            answers=[]
+            for child in concurrent:
+                out,err=child.communicate(timeout=13)
+                case(child.returncode==0 and out.startswith('RESULT='),
+                     'parallel independent pinned client JVM ended '+err[-200:])
+                answers.append(out.strip().split('RESULT=')[-1])
+                clients.remove(child)
+            case(sorted(answers)==['BLOCKED','QUARANTINE_REVOKED_ONLY'],
+                 'only one parallel verifier can consume the owner-held claim')
+            case(verify(legit_port,legit_pin,legit_token)=='BLOCKED',
+                 'owner held one-shot claim rejects replay after verifier restart')
+
+            # A missing operator root is not replaced from a perfectly valid
+            # caller key, even for the genuine service itself.
+            case(verify(legit_port,legit_pin,legit_token,klass=missing_class)=='BLOCKED',
+                 'missing independently installed root fails closed')
+            case(verify(rogue_port,rogue_pin,rogue_token,klass=missing_class)=='BLOCKED',
+                 'missing root refuses rogue self-enrollment')
+
+            registry = root/'caller-controlled-owner-pin.txt'
+            registry.write_text(legit_pin+'\n',encoding='utf-8')
+            case(registry.read_text(encoding='utf-8').strip()==legit_pin,
+                 'attacker-writable registry starts with genuine identity')
+            registry.write_text(rogue_pin+'\n',encoding='utf-8')
+            case(registry.read_text(encoding='utf-8').strip()==rogue_pin,
+                 'attacker can substitute ordinary-file bootstrap')
+            case(verify(rogue_port,registry.read_text().strip(),rogue_token)=='BLOCKED',
+                 'compiled owner-root does not follow attacker registry')
+
+            # Model the prior preflight->claim time-of-check/time-of-use race:
+            # verifier pauses with its already compiled root, while attacker
+            # redirects a mutable owner path from genuine to rogue credentials.
+            owner_path=root/'owner-active'; owner_path.mkdir()
+            (owner_path/'owner.pub').write_text(legit_pin+'\n',encoding='utf-8')
+            fake_dir=root/'owner-attacker'; fake_dir.mkdir()
+            (fake_dir/'owner.pub').write_text(rogue_pin+'\n',encoding='utf-8')
+            barrier=root/'barrier'; barrier.mkdir()
+            args=['java','-cp',temp,verified_class,str(rogue_port),rogue_pin,rogue_token,
+                  'cat-private','2','REVOKED','a'*64,'owner-independent-nonce-0001',str(barrier)]
+            pending=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            clients.append(pending)
+            deadline=time.monotonic()+5
+            while not (barrier/'preflight-done.flag').exists() and time.monotonic()<deadline:
+                time.sleep(0.01)
+            case((barrier/'preflight-done.flag').exists(),
+                 'separate verifier JVM reached deterministic preflight latch')
+            (owner_path/'owner.pub').unlink(); owner_path.rmdir()
+            owner_path.symlink_to(fake_dir,target_is_directory=True)
+            case(owner_path.is_symlink() and
+                 (owner_path/'owner.pub').read_text().strip()==rogue_pin,
+                 'attacker swapped ordinary-file owner path after preflight')
+            (barrier/'resume.flag').write_text('go\n',encoding='utf-8')
+            out,err=pending.communicate(timeout=12)
+            case(pending.returncode==0 and out.strip()=='RESULT=BLOCKED',
+                 'preflight-to-claim path swap remains blocked by pinned JVM root '+err[-200:])
+            clients.remove(pending)
+            # The fake service has not consumed its claim: show that unsafe
+            # caller-selected trust still self-appoints on the exact same case.
+            old=subprocess.run(owner_cmd+['client',str(rogue_port),rogue_pin,
+                    'cat-private','2','REVOKED','a'*64,
+                    'owner-independent-nonce-0001',rogue_token],
+                    capture_output=True,text=True,timeout=13)
+            case(old.returncode==0 and old.stdout.strip()=='RESULT=QUARANTINE_REVOKED_ONLY',
+                 'KNOWN FAIL: old caller-supplied bootstrap still accepts rogue')
+            case(verify(rogue_port,rogue_pin,rogue_token)=='BLOCKED',
+                 'compiled trusted root remains separate after unsafe claim')
+
+            legit.terminate();legit.wait(timeout=5)
+            case(legit.poll() is not None,
+                 'real original owner JVM died before replacement attempt')
+            case(verify(legit_port,legit_pin,legit_token)=='BLOCKED',
+                 'dead owner cannot be resurrected by a stale pinned verifier')
+            replacement=subprocess.Popen(owner_cmd+['server'],stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,text=True,bufsize=1)
+            fresh=replacement.stdout.readline().strip().split()
+            case(len(fresh)==4 and fresh[0]=='READY',
+                 'new independent owner JVM started after genuine death')
+            fresh_port,fresh_pin,fresh_token=fresh[1:]
+            case(fresh_pin not in (legit_pin,rogue_pin),
+                 'replacement has fresh unauthorized owner identity')
+            registry.write_text(fresh_pin+'\n',encoding='utf-8')
+            case(registry.read_text().strip()==fresh_pin,
+                 'attacker can install replacement public key in mutable registry')
+            case(verify(fresh_port,registry.read_text().strip(),fresh_token)=='BLOCKED',
+                 'new unknown owner identity rejected across verifier restart')
+            case(verify(fresh_port,fresh_pin,fresh_token,klass=missing_class)=='BLOCKED',
+                 'missing root still UNSATISFIED after owner death')
+            print('FUTURE_G1_OPERATOR_ROOT_COMPILED_TRUST_MODEL_PASS cases='+str(count))
+            print('FUTURE_G1_OLD_CALLER_BOOTSTRAP_SELF_APPOINTMENT=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_EXTERNAL_NONROLLBACKABLE_OWNER_ROOT=UNSATISFIED')
+            print('FUTURE_G1_ANDROID_DEVICE_IPC_AND_DURABLE_ONESHOT=UNPROVEN')
+        finally:
+            for pending in clients:
+                if pending.poll() is None:pending.kill();pending.communicate(timeout=5)
+            for child in (legit,rogue,replacement):
+                if child is not None and child.poll() is None:
+                    child.kill();child.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7059,6 +7288,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     atomic_child.write_text(owner_held_service_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child)], check=True)
     import sys
+    if '--focused-root-capability' in sys.argv:
+        process_operator_root_capability_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-bootstrap' in sys.argv:
         process_owner_service_bootstrap_spoof_proof(temp)
         raise SystemExit(0)
@@ -7102,3 +7334,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_owner_preflight_to_claim_race_proof(temp)
     process_owner_held_atomic_capability_proof(temp)
     process_owner_service_bootstrap_spoof_proof(temp)
+    process_operator_root_capability_proof(temp)
