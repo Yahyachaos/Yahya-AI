@@ -268,6 +268,51 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY conditional external witness boundary, NOT durable custody.
+     * NO_AUTHORITY and UNCERTAIN are non-authorizing, distinct from a proven
+     * negative BLOCKED decision. This prototype does not provision a witness,
+     * secure its signing key, protect its epoch/ledger or perform Android IPC.
+     * Only an independent operator/G1 owner may install the capability. Never
+     * accept a chat/provider/caller-selected capability or a fresh self-pin.
+     */
+    public enum WitnessClaimOutcome {
+        NO_AUTHORITY, UNCERTAIN, BLOCKED, QUARANTINE_REVOKED_ONLY
+    }
+
+    public interface OperatorProvisionedWitnessEpochAuthority {
+        /**
+         * Atomically bind verified source signature, exact revoked ID, epoch,
+         * challenge and a permanently consumed claim in protected storage.
+         * A positive value is trustworthy ONLY when the actual implementation
+         * has independently anchored identity and rollback-resistant custody.
+         */
+        WitnessClaimOutcome claimRevokedOnce(String exactId, long sourceRevision,
+                String sourceStatus, String orphanSha256, String challenge,
+                byte[] ownerSignature, long minimumWitnessEpoch);
+    }
+
+    /** No alternative local or caller-chosen recovery on missing/uncertain root. */
+    public static WitnessClaimOutcome attestRevokedOrphanWithOperatorWitness(
+            String exactId, long sourceRevision, String sourceStatus,
+            String orphanSha256, String challenge, byte[] ownerSignature,
+            long minimumWitnessEpoch, OperatorProvisionedWitnessEpochAuthority authority) {
+        if (authority == null) return WitnessClaimOutcome.NO_AUTHORITY;
+        if (minimumWitnessEpoch <= 0 || !"REVOKED".equals(sourceStatus)
+                || sourceRevision < 2 || revokedRecoveryPayload(exactId,
+                        sourceRevision, orphanSha256, challenge).length == 0
+                || ownerSignature == null || ownerSignature.length != 64)
+            return WitnessClaimOutcome.BLOCKED;
+        try {
+            WitnessClaimOutcome result = authority.claimRevokedOnce(exactId,
+                    sourceRevision, sourceStatus, orphanSha256, challenge,
+                    ownerSignature.clone(), minimumWitnessEpoch);
+            return result == null ? WitnessClaimOutcome.UNCERTAIN : result;
+        } catch (RuntimeException e) {
+            return WitnessClaimOutcome.UNCERTAIN;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
