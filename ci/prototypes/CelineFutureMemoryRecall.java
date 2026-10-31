@@ -344,6 +344,36 @@ public final class CelineFutureMemoryRecall {
                 minimumWitnessEpoch, independentlyPinnedLedger);
     }
 
+    /**
+     * FUTURE-ONLY/TEST-ONLY: a third *independently provisioned* receipt guard
+     * can fence a rollback of both the original witness and its once-ledger,
+     * conditional on the guard retaining its own nonrollbackable spent state.
+     *
+     * This is NOT a production trust root or an atomic three-party commit.
+     * Earlier claims may be consumed when a later authority refuses/vanishes.
+     * An untrusted caller can substitute every interface; real G1 integration
+     * requires authenticated, operator-custodied, rollback-resistant storage.
+     * Only REVOKED quarantine is ever authorized; ACTIVE never is.
+     */
+    public static WitnessClaimOutcome attestRevokedWithIndependentReceiptFence(
+            String exactId, long sourceRevision, String sourceStatus,
+            String orphanSha256, String challenge, byte[] ownerSignature,
+            long minimumWitnessEpoch,
+            OperatorProvisionedWitnessEpochAuthority ordinaryWitness,
+            OperatorProvisionedWitnessEpochAuthority onceLedger,
+            OperatorProvisionedWitnessEpochAuthority independentlyPinnedReceiptGuard) {
+        if (ordinaryWitness == null || onceLedger == null || independentlyPinnedReceiptGuard == null)
+            return WitnessClaimOutcome.NO_AUTHORITY;
+        WitnessClaimOutcome pair = attestRevokedWithIndependentOnceLedger(
+                exactId, sourceRevision, sourceStatus, orphanSha256, challenge,
+                ownerSignature, minimumWitnessEpoch, ordinaryWitness, onceLedger);
+        if (pair != WitnessClaimOutcome.QUARANTINE_REVOKED_ONLY)
+            return pair;
+        return attestRevokedOrphanWithOperatorWitness(exactId,
+                sourceRevision, sourceStatus, orphanSha256, challenge,
+                ownerSignature, minimumWitnessEpoch, independentlyPinnedReceiptGuard);
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
