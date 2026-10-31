@@ -164,6 +164,33 @@ async function main(){
         assert.deepEqual(baseline.objects[i][key],approved.objects[i][key],
           'Owner exact source field '+approved.objects[i].id+' '+key);
     record.push({name:'OWNER_FINAL_EXACT_SOURCE_FIELDS_BEFORE_TOUCH_PASS'});
+
+    // Preserve the owner's raw source AABBs, including any existing saved
+    // out-of-room geometry. Do not normalize or clamp that user-owned scene.
+    const ownerBounds={};
+    const faces=['left','right','floor','ceiling','back','front'];
+    for(const object of userAudit.objects){
+      const box=object.conservative_world_aabb_m;
+      assert(box&&Array.isArray(box.min)&&Array.isArray(box.max),
+        'Missing original owner GLB bounds '+object.id);
+      const values=[...box.min,...box.max,object.floor_bottom_y_m,
+        ...faces.map(face=>object.overflow_faces_m?.[face])];
+      assert.equal(values.length,13);
+      assert(values.every(Number.isFinite),'Non-finite owner GLB bounds '+object.id);
+      ownerBounds[object.id]={
+        min:box.min,max:box.max,
+        ground:object.floor_bottom_y_m,
+        overflow:Object.fromEntries(faces.map(face=>[face,object.overflow_faces_m[face]]))
+      };
+    }
+    assert.equal(Object.keys(ownerBounds).length,13);
+    fs.writeFileSync(path.join(out,'owner-final-source-boundary-diagnostic.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+        approved_layout_sha256:approvedSha,room:approved.room,
+        policy:'OWNER_SAVED_SOURCE_BOUNDS_DIAGNOSTIC_NOT_AUTO_CLAMP',
+        source_bounds:ownerBounds},null,2));
+    record.push({name:'OWNER_FINAL_SOURCE_GEOMETRY_BOUNDS_RECORDED',source_count:13});
+
     record.push({name:'USER_APPROVED_FINAL_13_ORIGINAL_GLB_IMPORT_PASS',
       layout_sha256:approvedSha,saved_at:approved.saved_at,model_count:13,
       locks:approved.objects.filter(o=>o.locked).length,
@@ -475,6 +502,29 @@ async function main(){
           assert(Math.abs(actual.transform[key][i]-expected[key][i])<1e-9,
             'Owner-final screenshot transform '+expected.id+' '+key+'['+i+']');
     }
+
+    // The owner's SAME exact input must reproduce identical actual source
+    // geometry after the second JSON import; unexpected drift is a hard FAIL.
+    for(const object of restored.objects){
+      const base=ownerBounds[object.id],box=object.conservative_world_aabb_m;
+      assert(base&&box,'Missing source bounds after owner reload '+object.id);
+      for(let i=0;i<3;i++){
+        assert(Number.isFinite(box.min[i])&&Math.abs(box.min[i]-base.min[i])<1e-6,
+          'Unexpected owner raw GLB min-bound change '+object.id+' axis '+i);
+        assert(Number.isFinite(box.max[i])&&Math.abs(box.max[i]-base.max[i])<1e-6,
+          'Unexpected owner raw GLB max-bound change '+object.id+' axis '+i);
+      }
+      assert(Math.abs(object.floor_bottom_y_m-base.ground)<1e-6,
+        'Unexpected owner floor-bound change '+object.id);
+      for(const face of faces){
+        const v=object.overflow_faces_m?.[face];
+        assert(Number.isFinite(v)&&Math.abs(v-base.overflow[face])<1e-6,
+          'Unexpected owner boundary overflow change '+object.id+' '+face);
+      }
+    }
+    record.push({name:'OWNER_13_RAW_SOURCE_BOUNDS_UNCHANGED_AFTER_SECOND_IMPORT_PASS',
+      field_tolerance_m:0.000001,diagnostic_file:'owner-final-source-boundary-diagnostic.json'});
+
     // Earlier full viewport succeeded at scrollOffsetY=1640: although a real
     // screenshot, it mostly showed the scrolled form rather than the room.
     // Restore the default editor camera and the initial 412x915 visual frame.
