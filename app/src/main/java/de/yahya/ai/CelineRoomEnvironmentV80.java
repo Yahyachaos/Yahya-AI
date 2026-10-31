@@ -648,10 +648,12 @@ final class CelineRoomEnvironmentV80 {
                 if (renderInstance == 0 || transformInstance == 0) {
                     throw new IllegalStateException("Renderable missing GLB transform: " + entity);
                 }
-                Box b = manager.getAxisAlignedBoundingBox(renderInstance);
+                // Filament 1.72.0 exposes an explicit Box out-argument and
+                // float[3] getters (not the newer getCenterX() accessors).
+                Box b = manager.getAxisAlignedBoundingBox(renderInstance, new Box());
                 float[] matrix = transforms.getWorldTransform(transformInstance, new float[16]);
-                float[] c = {b.getCenterX(), b.getCenterY(), b.getCenterZ()};
-                float[] r = {b.getHalfExtentX(), b.getHalfExtentY(), b.getHalfExtentZ()};
+                float[] c = b.getCenter();
+                float[] r = b.getHalfExtent();
                 for (int corner = 0; corner < 8; corner++) {
                     float x = c[0] + ((corner & 1) == 0 ? -r[0] : r[0]);
                     float y = c[1] + ((corner & 2) == 0 ? -r[1] : r[1]);
