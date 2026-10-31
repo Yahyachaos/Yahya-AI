@@ -334,9 +334,10 @@ final class CelineRoomEnvironmentV80 {
                             throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
                         }
                         if (partitionIndex == 0) {
-                            // Legacy shell/world contract is intentionally a separate
-                            // serialized BUILD-owner dependency (not a furniture override).
-                            alignRoomRoot(part);
+                            // Native S25 shell and 13 furniture GLBs share the
+                            // floor-centered XYZ frame. No legacy 180-degree yaw or
+                            // WorldContract offset is allowed on the shell alone.
+                            verifyNativeS25ShellFrame(part);
                         } else {
                             String authoredId = S25_IDS[partitionIndex - 1];
                             verifiedFurnitureMeshNodes += applyExactS25Furniture(
@@ -403,7 +404,7 @@ final class CelineRoomEnvironmentV80 {
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "sourceGlbsImmutable=true roomPartitions14=true authoredFurnitureInstances13=true extraReferenceGeometry=false furnitureOrientationOverride=false furnitureSharedRootYawDeg=0 shellLegacyFramePendingBuild=true frontWallHidden=true originalDrapeMaterial=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
+                        "sourceGlbsImmutable=true roomPartitions14=true authoredFurnitureInstances13=true extraReferenceGeometry=false furnitureOrientationOverride=false furnitureSharedRootYawDeg=0 shellNativeS25Frame=true sharedWorldContractPendingBuild=true frontWallHidden=true originalDrapeMaterial=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
                                 + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
@@ -758,32 +759,42 @@ final class CelineRoomEnvironmentV80 {
             RenderableManager manager = engine.getRenderableManager();
             int count = 0;
             for (int entity : asset.getEntities()) {
-                if (manager.hasComponent(entity)) count++;
+                if (manager.ha        /**
+         * The original room_shell.glb defines a 4.40 x 4.20 x 2.65 m
+         * floor-centered user XYZ space, exactly like the S25 furniture JSON.
+         * The old shell-only 180-degree rotation + runtime offset separated
+         * the shell from all thirteen authored furniture instances.
+         * Validate both imported GLB roots instead of modifying the source.
+         * The shared WorldContract, camera and 9R data belong to BUILD.
+         */
+        private void verifyNativeS25ShellFrame(FilamentAsset asset) {
+            int authoredRoot = asset.getFirstEntityByName("room_world_root");
+            if (authoredRoot == 0) {
+                throw new IllegalStateException("S25 shell missing source room_world_root");
             }
-            return count;
+            for (int entity : new int[] { asset.getRoot(), authoredRoot }) {
+                int instance = transforms.getInstance(entity);
+                if (instance == 0) {
+                    throw new IllegalStateException("S25 shell root transform missing");
+                }
+                float[] actual = transforms.getTransform(instance, new float[16]);
+                for (int i = 0; i < 16; i++) {
+                    float identity = i % 5 == 0 ? 1.0f : 0.0f;
+                    if (!Float.isFinite(actual[i])
+                            || Math.abs(actual[i] - identity) > 0.00002f) {
+                        throw new IllegalStateException(
+                                "S25 shell already transformed (no silent yaw/offset): "
+                                        + entity + " component=" + i);
+                    }
+                }
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-SHELL",
+                    "Native floor-centered source shell retained without legacy yaw or offset",
+                    "interior_m=4.4,4.2,2.65 shellRoot=IDENTITY"
+                            + " oldRuntimeOffsetApplied=false"
+                            + " sharedWorldContractAndCamera=UNVERIFIED");
         }
-
-        private void alignRoomRoot(FilamentAsset asset) {
-            int root = transforms.getInstance(asset.getRoot());
-            if (root == 0) {
-                throw new IllegalStateException("4R Raum-Root-Transform fehlt");
-            }
-            float[] base = transforms.getTransform(root, new float[16]);
-            float[] runtimeFrameYaw = new float[16];
-            float[] framed = new float[16];
-            float[] translation = new float[16];
-            float[] aligned = new float[16];
-            // Standard Blender Y-up glTF export is (X,height,-depth), while the accepted
-            // Proof #63 runtime camera contract is (-X,height,+depth) plus room offset.
-            // Apply the missing common 180deg Filament-Y frame once at every partition root.
-            Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f, 0.0f, 1.0f, 0.0f);
-            Matrix.multiplyMM(framed, 0, runtimeFrameYaw, 0, base, 0);
-            Matrix.setIdentityM(translation, 0);
-            Matrix.translateM(translation, 0,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
-            Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
+n, 0, framed, 0);
             transforms.setTransform(root, aligned);
         }
 
