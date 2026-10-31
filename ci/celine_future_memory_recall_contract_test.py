@@ -6667,6 +6667,277 @@ def process_owner_preflight_to_claim_race_proof(temp):
         print('FUTURE_G1_OWNER_PREFLIGHT_RACE_JVM_PASS cases='+str(count))
         print('FUTURE_G1_ATOMIC_EXTERNAL_OWNER_KEY_AND_CAS=UNIMPLEMENTED')
 
+
+# FUTURE-ONLY conditional owner-held handle model, not an Android service.
+# The running owner JVM retains its Ed25519 identity, revision, nonce and spent
+# bit in one process and validates+claims under a single synchronized method.
+# Verifier JVMs have a tested authenticated service session, not a file path
+# reopened after preflight. An authority restart or lost root pin is UNSATISFIED.
+owner_held_service_harness = r''' 
+package de.yahya.ai;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+public final class FutureOwnerHeldServiceProcess {
+    static final String ID="cat-private";
+    static final long REV=2L;
+    static final String NONCE="owner-independent-nonce-0001";
+    static final String HASH="a".repeat(64);
+    static final java.util.Base64.Encoder ENC=Base64.getEncoder();
+    static final java.util.Base64.Decoder DEC=Base64.getDecoder();
+    static String encode(byte[] bytes) {return ENC.encodeToString(bytes);}
+    static byte[] sign(PrivateKey key,String msg) throws Exception {
+        Signature s=Signature.getInstance("Ed25519");s.initSign(key);
+        s.update(msg.getBytes(StandardCharsets.UTF_8));return s.sign();
+    }
+    static boolean valid(PublicKey key,String msg,byte[] signed) {
+        try {Signature s=Signature.getInstance("Ed25519");s.initVerify(key);
+            s.update(msg.getBytes(StandardCharsets.UTF_8));return s.verify(signed);
+        } catch(Exception e) {return false;}
+    }
+    static final class Owner implements CelineFutureMemoryRecall.OwnerHeldRecoveryCapability {
+        final PublicKey pub;
+        private boolean spent;
+        Owner(PublicKey p){pub=p;}
+        @Override public synchronized CelineFutureMemoryRecall.RecoveryDisposition validateAndConsume(
+                String exactId,long revision,String sourceStatus,String orphanSha,
+                String nonce,byte[] signature) {
+            if(spent || !ID.equals(exactId) || !NONCE.equals(nonce))
+                return CelineFutureMemoryRecall.RecoveryDisposition.BLOCKED;
+            if(CelineFutureMemoryRecall.attestRevokedOrphan(exactId,revision,sourceStatus,
+                REV,orphanSha,nonce,signature,pub)
+                !=CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY)
+                return CelineFutureMemoryRecall.RecoveryDisposition.BLOCKED;
+            spent=true;
+            return CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY;
+        }
+    }
+    static final class Service {
+        final KeyPair keys;
+        final Owner owner;
+        Service() throws Exception {
+            keys=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+            owner=new Owner(keys.getPublic());
+        }
+        String genuineToken() throws Exception {
+            byte[] payload=CelineFutureMemoryRecall.revokedRecoveryPayload(ID,REV,HASH,NONCE);
+            Signature s=Signature.getInstance("Ed25519");s.initSign(keys.getPrivate());
+            s.update(payload);return encode(s.sign());
+        }
+        void serve(Socket socket) throws Exception {
+            socket.setSoTimeout(6000);
+            try(socket;
+                BufferedReader r=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
+                PrintWriter w=new PrintWriter(new OutputStreamWriter(socket.getOutputStream(),StandardCharsets.UTF_8),true)) {
+                String hello=r.readLine();
+                if(hello==null||!hello.matches("HELLO [A-Za-z0-9_-]{16,64}"))return;
+                String clientNonce=hello.substring(6);
+                String proof=encode(sign(keys.getPrivate(),"owner-session/v1\n"+clientNonce+"\n"));
+                w.println("IDENTITY "+proof);
+                String req=r.readLine();
+                if(req==null)return;
+                String[] a=req.split(" ",-1);
+                if(a.length!=7||!"CLAIM".equals(a[0]))return;
+                CelineFutureMemoryRecall.RecoveryDisposition decision;
+                try {
+                    decision=CelineFutureMemoryRecall.attestRevokedOrphanWithOwnerHeldClaim(
+                        a[1],Long.parseLong(a[2]),a[3],a[4],a[5],DEC.decode(a[6]),owner);
+                } catch(Exception e){decision=CelineFutureMemoryRecall.RecoveryDisposition.BLOCKED;}
+                String message="owner-result/v1\n"+clientNonce+"\n"+req+"\n"+decision.name()+"\n";
+                w.println("RESULT "+decision.name()+" "+encode(sign(keys.getPrivate(),message)));
+            }
+        }
+    }
+    static void server() throws Exception {
+        Service service=new Service();
+        try(ServerSocket srv=new ServerSocket(0,20,InetAddress.getLoopbackAddress())){
+            srv.setSoTimeout(20000);
+            System.out.println("READY "+srv.getLocalPort()+" "+encode(service.keys.getPublic().getEncoded())+" "+service.genuineToken());
+            System.out.flush();
+            while(true) {
+                try {service.serve(srv.accept());}
+                catch(SocketTimeoutException e) {return;}
+                catch(Exception e) {System.err.println("REFUSED_CLIENT "+e.getClass().getSimpleName());}
+            }
+        }
+    }
+    static void client(String[] a) {
+        String decision="BLOCKED";
+        try {
+            int port=Integer.parseInt(a[1]);
+            PublicKey trusted=KeyFactory.getInstance("Ed25519").generatePublic(
+                new X509EncodedKeySpec(DEC.decode(a[2])));
+            String exactId=a[3],rev=a[4],status=a[5],hash=a[6],nonce=a[7],token=a[8];
+            if(a.length>=10 && !"-".equals(a[9])){
+                // Interlock after verifier holds an owner-service capability.
+                // No on-disk owner file is ever read to make the claim.
+                Path consumer=Paths.get(a[9]);
+                Files.writeString(consumer.resolve("preflight-done.flag"),"ready\n");
+                long end=System.nanoTime()+6_000_000_000L;
+                while(!Files.exists(consumer.resolve("resume-claim.flag")) && System.nanoTime()<end)
+                    Thread.sleep(10L);
+                if(!Files.exists(consumer.resolve("resume-claim.flag"))){System.out.println("RESULT=BLOCKED");return;}
+            }
+            try(Socket s=new Socket(InetAddress.getLoopbackAddress(),port)){
+                s.setSoTimeout(5000);
+                BufferedReader r=new BufferedReader(new InputStreamReader(s.getInputStream(),StandardCharsets.UTF_8));
+                PrintWriter w=new PrintWriter(new OutputStreamWriter(s.getOutputStream(),StandardCharsets.UTF_8),true);
+                String challenge=UUID.randomUUID().toString().replace("-", "");
+                w.println("HELLO "+challenge);
+                String hello=r.readLine();
+                if(hello==null||!hello.startsWith("IDENTITY ") || !valid(trusted,
+                    "owner-session/v1\n"+challenge+"\n",DEC.decode(hello.substring(9)))){
+                    System.out.println("RESULT=BLOCKED");return;
+                }
+                String req="CLAIM "+exactId+" "+rev+" "+status+" "+hash+" "+nonce+" "+token;
+                w.println(req);
+                String response=r.readLine();
+                if(response==null){System.out.println("RESULT=BLOCKED");return;}
+                String[] fields=response.split(" ",-1);
+                if(fields.length==3 && "RESULT".equals(fields[0])
+                    && ("BLOCKED".equals(fields[1])||"QUARANTINE_REVOKED_ONLY".equals(fields[1]))
+                    && valid(trusted,"owner-result/v1\n"+challenge+"\n"+req+"\n"+fields[1]+"\n",
+                        DEC.decode(fields[2]))) decision=fields[1];
+            }
+        } catch(Exception e) {decision="BLOCKED";}
+        System.out.println("RESULT="+decision);
+    }
+    public static void main(String[] a) throws Exception {
+        if("server".equals(a[0]))server();
+        else if("client".equals(a[0]))client(a);
+        else throw new IllegalArgumentException("unknown action");
+    }
+}
+'''
+
+def process_owner_held_atomic_capability_proof(temp):
+    """Real server/client/attacker JVMs; owner state is in process memory only.
+
+    Passing an operator-generated key to these processes is a test fixture, NOT
+    genuine Android key custody, secure IPC, or persistent antirollback proof.
+    """
+    import time
+    import base64
+    from pathlib import Path
+    count=0
+    def case(ok,description):
+        nonlocal count
+        if not ok: raise AssertionError('owner-held capability FAIL: '+description)
+        count+=1
+    with tempfile.TemporaryDirectory(prefix='future_owner_held_') as tmp:
+        root=Path(tmp)
+        cmd=['java','-cp',temp,'de.yahya.ai.FutureOwnerHeldServiceProcess']
+        owner_process=['java','-cp',temp,'de.yahya.ai.FutureOwnerAttestationProcess']
+        service=subprocess.Popen(cmd+['server'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+        try:
+            ready=service.stdout.readline().strip().split(' ')
+            case(len(ready)==4 and ready[0]=='READY','independent owner JVM started')
+            port, pinned, good=ready[1:]
+            consumer=root/'consumer'; consumer.mkdir()
+            def verify(token=good,key=pinned,status='REVOKED',rev='2',nonce='owner-independent-nonce-0001',hashval='a'*64,wait=None,port_override=None):
+                arguments=['client',str(port_override or port),key,'cat-private',rev,status,hashval,nonce,token]
+                if wait is not None:arguments.append(str(wait))
+                p=subprocess.run(cmd+arguments,capture_output=True,text=True,timeout=15)
+                case(p.returncode==0 and 'RESULT=' in p.stdout,'independent client JVM completed: '+p.stderr[-200:])
+                return p.stdout.strip().split('RESULT=')[-1]
+            attacker=root/'untrusted-owner'; attacker.mkdir()
+            attack=subprocess.run(owner_process+['issue-forgery',str(attacker)],capture_output=True,text=True,timeout=12)
+            case(attack.returncode==0 and 'TOKEN=' in attack.stdout,'attacker JVM issued forged Ed25519 token')
+            forged=attack.stdout.strip().split('TOKEN=',1)[1]
+            falsekey=base64.b64encode((attacker/'owner.pub').read_bytes()).decode()
+            case(verify(forged)=='BLOCKED','owner service ignores forged signer even if caller-selected old path')
+            case(verify(good,key=falsekey)=='BLOCKED','unauthenticated service identity fails session handshake')
+            case(verify(good,status='ACTIVE')=='BLOCKED','owner refuses to restore revoked memory as ACTIVE')
+            case(verify(good,rev='1')=='BLOCKED','owner rejects stale source revision')
+            case(verify(good,nonce='old-nonce-1234567890')=='BLOCKED','owner rejects stale nonce')
+            case(verify(good,hashval='b'*64)=='BLOCKED','owner rejects orphan hash substitution')
+            # Reproduce the file-path swap in a separate OS attacker JVM, AFTER
+            # a verifier has already taken the future owner-held capability.
+            legit=root/'legacy-files';legacy=root/'legacy-files-forged'
+            subprocess.run(owner_process+['issue',str(legit)],check=True,capture_output=True,text=True,timeout=12)
+            subprocess.run(owner_process+['issue-forgery',str(legacy)],check=True,capture_output=True,text=True,timeout=12)
+            raced=root/'consumer-race';raced.mkdir()
+            proc=subprocess.Popen(cmd+['client',port,pinned,'cat-private','2','REVOKED','a'*64,
+                        'owner-independent-nonce-0001',forged,str(raced)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            try:
+                deadline=time.monotonic()+8
+                while not (raced/'preflight-done.flag').exists() and proc.poll() is None and time.monotonic()<deadline:
+                    time.sleep(.01)
+                case((raced/'preflight-done.flag').exists() and proc.poll() is None,
+                     'verifier paused after owner-held handle provisioning')
+                raced_swap=subprocess.run(owner_process+['swap-path-after-preflight',str(legit),str(legacy),str(raced)],
+                        capture_output=True,text=True,timeout=12)
+                case(raced_swap.returncode==0 and 'ATTACK=OWNER_PATH_REDIRECTED_AFTER_PREFLIGHT' in raced_swap.stdout,
+                     'independent attacker JVM replaced owner path with forged symlink')
+                stdout,stderr=proc.communicate(timeout=12)
+                case(proc.returncode==0 and 'RESULT=BLOCKED' in stdout,
+                     'owner-held in-memory identity refuses forged token across path swap '+stderr[-200:])
+            finally:
+                if proc.poll() is None:proc.kill();proc.communicate(timeout=5)
+            case(legit.is_symlink() and legit.resolve()==legacy.resolve(),
+                 'attacker path swap actually persists in ordinary file fixture')
+            case(verify(good)=='QUARANTINE_REVOKED_ONLY',
+                 'one genuine signature consumed after attacker swaps unrelated file path')
+            case(verify(good)=='BLOCKED','second independent JVM replay rejected by live owner')
+            # Ordinary-file joint owner/snapshot rollback cannot reset the
+            # independent in-memory owner's consumed nonce. This is conditional
+            # on the SERVICE STAYING ALIVE, not hardware anti-rollback proof.
+            rolled_back=legit.with_name(legit.name+'.saved')
+            (rolled_back/'owner-state.txt').write_text(
+                '2|owner-independent-nonce-0001|REVOKED|0\n')
+            case((rolled_back/'owner-state.txt').read_text().strip().endswith('|0'),
+                 'attacker restored a spent=false ordinary file owner checkpoint')
+            case(verify(good)=='BLOCKED',
+                 'live owner-held service refuses token after ordinary-file rollback')
+            # A now-dead service must fail CLOSED. No restoration from local
+            # checkpoint or replacement authority is allowed by this contract.
+            service.terminate();service.wait(timeout=5)
+            case(verify(good)=='BLOCKED','lost external authority fails closed after JVM termination')
+            # After service death, another separately launched authority has
+            # a DIFFERENT pinned identity. It cannot silently replace the
+            # lost original. If a caller is allowed to replace the pin too,
+            # self-appointment remains possible and MUST be treated as unsafe.
+            another=subprocess.Popen(cmd+['server'],stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,text=True,bufsize=1)
+            try:
+                hello=another.stdout.readline().strip().split(' ')
+                case(len(hello)==4 and hello[0]=='READY',
+                     'separate restarted test owner has a new process-held identity')
+                p2,new_pin,new_token=hello[1:]
+                case(new_pin!=pinned,'owner restart does not preserve authenticated old key')
+                case(verify(good,port_override=p2)=='BLOCKED',
+                     'previously pinned verification root rejects replacement service')
+                case(verify(good,key=new_pin,port_override=p2)=='BLOCKED',
+                     'fresh server rejects old source-signature token even with caller-chosen pin')
+                # Truly independently launched client OS processes, not threads
+                # racing a shared in-process object; exactly one atomic claim.
+                args=['client',p2,new_pin,'cat-private','2','REVOKED','a'*64,
+                      'owner-independent-nonce-0001',new_token]
+                one=subprocess.Popen(cmd+args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                two=subprocess.Popen(cmd+args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                outputs=[]
+                for contender in (one,two):
+                    out,err=contender.communicate(timeout=12)
+                    case(contender.returncode==0 and 'RESULT=' in out,
+                         'concurrent independent verifier JVM completed '+err[-150:])
+                    outputs.append(out.strip().split('RESULT=')[-1])
+                case(sorted(outputs)==['BLOCKED','QUARANTINE_REVOKED_ONLY'],
+                     'atomic owner-held in-memory nonce permits at most one JVM claimant')
+                case(verify(new_token,key=new_pin,port_override=p2)=='BLOCKED',
+                     'third independent client restart cannot replay consumed nonce')
+                print('FUTURE_G1_OWNER_RESTART_WITH_LOST_PIN=BLOCKED_MODEL_ONLY')
+            finally:
+                if another.poll() is None: another.kill();another.communicate(timeout=5)
+            print('FUTURE_G1_OWNER_HELD_ATOMIC_CAPABILITY_JVM_PASS cases='+str(count))
+            print('FUTURE_G1_PATH_SWAP_RACE_BLOCKED_WITH_LIVE_PINNED_SERVICE=MODEL_ONLY')
+            print('FUTURE_G1_REAL_NONROLLBACKABLE_OWNER_AND_ANDROID_IPC=UNSATISFIED')
+        finally:
+            if service.poll() is None:service.kill();service.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -6680,8 +6951,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     memory_id_child.write_text(memory_id_process_harness, encoding='utf-8')
     owner_child = Path(temp) / 'FutureOwnerAttestationProcess.java'
     owner_child.write_text(owner_process_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child)], check=True)
+    atomic_child = Path(temp) / 'FutureOwnerHeldServiceProcess.java'
+    atomic_child.write_text(owner_held_service_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child)], check=True)
     import sys
+    if '--focused-owner-held' in sys.argv:
+        process_owner_held_atomic_capability_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-race' in sys.argv:
         process_owner_preflight_to_claim_race_proof(temp)
         raise SystemExit(0)
@@ -6717,3 +6993,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_caller_selected_owner_adversary_proof(temp)
     process_owner_root_matrix_proof(temp)
     process_owner_preflight_to_claim_race_proof(temp)
+    process_owner_held_atomic_capability_proof(temp)
