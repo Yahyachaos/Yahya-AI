@@ -30,11 +30,52 @@ async function captureRealWebGL(page,filename){
     bytes:bytes.length,pixels:[bytes.readUInt32BE(16),bytes.readUInt32BE(20)],
     screen_css:data.screen_css,canvas_css:data.canvas_css,dpr:data.device_pixel_ratio};
 }
+// Isolate the compositor in fresh, otherwise empty Chromium processes BEFORE
+// loading any GLBs. Neither control is a screenshot of the user room.
+const chromiumArgs=[
+  '--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
+  '--enable-unsafe-swiftshader','--disable-dev-shm-usage'
+];
+async function probeEmptyMobileViewport(label,channel){
+  let browser;
+  const started=Date.now();
+  try {
+    browser=await chromium.launch({headless:true,
+      ...(channel?{channel}:{}),args:chromiumArgs});
+    const context=await browser.newContext({
+      viewport:{width:412,height:915},screen:{width:412,height:915},
+      deviceScaleFactor:3,isMobile:true,hasTouch:true
+    });
+    const page=await context.newPage();
+    await page.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>Isolated compositor diagnostic only</body></html>');
+    const bytes=await page.screenshot({timeout:3000,scale:'css'});
+    const dimensions=[bytes.readUInt32BE(16),bytes.readUInt32BE(20)];
+    assert.deepEqual(dimensions,[412,915],'Diagnostic blank viewport must be exactly 412x915');
+    return {label,verdict:'PASS_BLANK_DIAGNOSTIC_ONLY',
+      browser_version:browser.version(),elapsed_ms:Date.now()-started,
+      sha256:crypto.createHash('sha256').update(bytes).digest('hex'),pixels:dimensions};
+  } catch(err) {
+    return {label,verdict:'FAIL_BLANK_DIAGNOSTIC_ONLY',
+      elapsed_ms:Date.now()-started,error:String(err.stack||err)};
+  } finally {if(browser)await browser.close();}
+}
 async function main(){
-  const browser=await chromium.launch({headless:true,args:[
-    '--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
-    '--enable-unsafe-swiftshader','--disable-dev-shm-usage'
-  ]});
+  // Pairwise single-flight control: default headless shell versus new/full
+  // Chromium headless. Historic tests exercised only the former; the genuine
+  // room viewport below is still a mandatory independent acceptance gate.
+  const isolatedControls=[
+    await probeEmptyMobileViewport('playwright-default-headless-shell',null),
+    await probeEmptyMobileViewport('full-chromium-new-headless','chromium')
+  ];
+  fs.writeFileSync(path.join(out,'mobile-isolated-compositor-controls.json'),
+    JSON.stringify({source_sha:process.env.GITHUB_SHA||null,isolatedControls},null,2));
+  record.push({name:'ISOLATED_CHROMIUM_CAPTURE_MODE_COMPARISON_DIAGNOSTIC_ONLY',
+    isolatedControls});
+  // Use the Playwright-installed FULL Chromium rather than its different
+  // headless-shell renderer for the existing genuine 13-source-GLB workflow.
+  // Do not change the strict 412x915 viewport, captures or furniture state.
+  const browser=await chromium.launch({headless:true,channel:'chromium',
+    args:chromiumArgs});
   try {
     const context=await browser.newContext({
       viewport:{width:412,height:915},screen:{width:412,height:915},
