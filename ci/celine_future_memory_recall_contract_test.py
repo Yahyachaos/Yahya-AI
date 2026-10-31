@@ -4135,6 +4135,91 @@ public final class FutureMemoryRecallContract {
             "guardian exception cannot authorize");
         System.out.println("FUTURE_RECEIPT_GUARDIAN=CONDITIONAL_JVM_MODEL_ONLY");
         System.out.println("FUTURE_ROOT_SAME_KEY_ROLLBACK=NOT_PREVENTED_WITHOUT_DURABLE_GUARDIAN");
+        // FUTURE ONLY: owner-injected atomic claim+ack contract; fixture is
+        // synchronized volatile JVM memory, NOT durable/Android/G1 authority.
+        final byte[] atomicSig=new byte[64];
+        final String atomicHash="a".repeat(64), atomicNonce="owner-independent-nonce-0001";
+        final class FutureAtomicFixtureRun11 implements CelineFutureMemoryRecall.OwnerAtomicReceiptCoordinator {
+            final Map<String,String> receipts=new HashMap<>();
+            final Set<String> consumed=new HashSet<>();
+            int calls=0, spent=0, acked=0;
+            @Override public synchronized CelineFutureMemoryRecall.AtomicReceiptOutcome commitRevokedReceipt(
+                    String request,String exact,long revision,String status,String hash,
+                    String challenge,byte[] signature,long epoch) {
+                calls++;
+                String token=exact+":"+revision+":"+challenge;
+                if(receipts.containsKey(request)) return receipts.get(request).equals(token)
+                    ? CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED
+                    : CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START;
+                if(consumed.contains(token))
+                    return CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START;
+                consumed.add(token);spent++;
+                receipts.put(request,token);acked++;
+                return CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED;
+            }
+        }
+        final FutureAtomicFixtureRun11 atomicFixture=new FutureAtomicFixtureRun11();
+        java.util.function.BiFunction<String,String,CelineFutureMemoryRecall.AtomicReceiptOutcome> atomicCall=
+            (rid,status)->CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+                rid,"cat-private",2L,status,atomicHash,atomicNonce,atomicSig,4L,atomicFixture);
+        eq(atomicCall.apply("owner-issued-1","REVOKED"),CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED,"atomic first claim");
+        eq(atomicFixture.spent==1 && atomicFixture.acked==1,true,"fixture spent+ack synchronized");
+        eq(atomicCall.apply("owner-issued-1","REVOKED"),CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED,"atomic same receipt idempotent");
+        eq(atomicFixture.spent==1 && atomicFixture.acked==1,true,"atomic no duplicate spent/ack");
+        eq(atomicCall.apply("owner-issued-2","REVOKED"),CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START,"atomic new ID spent-token replay denied");
+        eq(atomicCall.apply("owner-issued-3","ACTIVE"),CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START,"atomic ACTIVE before dispatch denied");
+        eq(atomicCall.apply(" ","REVOKED"),CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START,"atomic blank ID denied");
+        eq(atomicCall.apply("x".repeat(129),"REVOKED"),CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START,"atomic oversized ID denied");
+        eq(CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+            "owner-issued-4","cat-private",2L,"REVOKED",atomicHash,atomicNonce,new byte[8],4L,atomicFixture),
+            CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START,"atomic bad owner signature denied");
+        eq(atomicFixture.calls,3,"invalid atomic requests never dispatched");
+        eq(CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+            "owner-issued-4","cat-private",2L,"REVOKED",atomicHash,atomicNonce,atomicSig,4L,null),
+            CelineFutureMemoryRecall.AtomicReceiptOutcome.NO_AUTHORITY,"atomic missing owner fails closed");
+        byte[] atomicOriginal=new byte[64];
+        eq(CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+            "owner-issued-5","cat-private",2L,"REVOKED",atomicHash,atomicNonce,atomicOriginal,4L,
+            (rid,id,rev,status,digest,nonce,sigInput,epoch)->{
+                sigInput[0]=(byte)99;return CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED;
+            }),CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED,"atomic coordinator receives copy");
+        eq(atomicOriginal[0],(byte)0,"atomic source signature retained");
+        eq(CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+            "owner-issued-6","cat-private",2L,"REVOKED",atomicHash,atomicNonce,atomicSig,4L,
+            (rid,id,rev,status,digest,nonce,sigInput,epoch)->null),
+            CelineFutureMemoryRecall.AtomicReceiptOutcome.STARTED_INDETERMINATE,"atomic missing acknowledgement uncertain");
+        final java.util.concurrent.atomic.AtomicInteger atomicInvocations=new java.util.concurrent.atomic.AtomicInteger();
+        eq(CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+            "owner-issued-7","cat-private",2L,"REVOKED",atomicHash,atomicNonce,atomicSig,4L,
+            (rid,id,rev,status,digest,nonce,sigInput,epoch)->{
+                atomicInvocations.incrementAndGet();throw new IllegalStateException("post-commit crash");
+            }),CelineFutureMemoryRecall.AtomicReceiptOutcome.STARTED_INDETERMINATE,"atomic post-commit crash not retryable denial");
+        eq(atomicInvocations.get(),1,"atomic no automatic retry");
+        final FutureAtomicFixtureRun11 atomicRace=new FutureAtomicFixtureRun11();
+        final java.util.concurrent.ExecutorService atomicPool=java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            java.util.List<java.util.concurrent.Future<CelineFutureMemoryRecall.AtomicReceiptOutcome>> futures=new ArrayList<>();
+            final java.util.concurrent.CountDownLatch gate=new java.util.concurrent.CountDownLatch(1);
+            for(int k=0;k<16;k++) {
+                final int n=k;
+                futures.add(atomicPool.submit(()->{
+                    gate.await();
+                    return CelineFutureMemoryRecall.attestRevokedWithAtomicReceiptCoordinator(
+                        "race-"+n,"cat-private",2L,"REVOKED",atomicHash,atomicNonce,atomicSig,4L,atomicRace);
+                }));
+            }
+            gate.countDown();int accepted=0,raceDenied=0;
+            for(var result:futures){
+                var value=result.get(15,java.util.concurrent.TimeUnit.SECONDS);
+                if(value==CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED)accepted++;
+                else if(value==CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START)raceDenied++;
+                else throw new AssertionError("unexpected fixture result "+value);
+            }
+            eq(accepted==1 && raceDenied==15,true,"atomic synchronized fixture one of 16 concurrent requests");
+            eq(atomicRace.spent==1 && atomicRace.acked==1,true,"atomic fixture no partial spent/ack under race");
+        } finally {atomicPool.shutdownNow();}
+        System.out.println("FUTURE_ATOMIC_RECEIPT_API_CONTRACT=VOLATILE_JVM_FIXTURE_ONLY");
+        System.out.println("FUTURE_ATOMIC_RECEIPT_DURABLE_CUSTODY=UNIMPLEMENTED");
         System.out.println("FUTURE_MEMORY_RECALL_CONTRACT_PASS cases="+passed);
     }
 }
