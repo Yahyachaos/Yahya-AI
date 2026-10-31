@@ -6992,6 +6992,12 @@ def process_owner_service_bootstrap_spoof_proof(temp):
                  'original real owner remains independent of attacker claim')
             case(client(trusted_port,trusted_pin,genuine_token)=='BLOCKED',
                  'original owner still consumes authentic nonce once')
+            # Real owner termination precedes the replacement bootstrap.
+            # A dead service must not be silently replaced by a new identity.
+            real.terminate(); real.wait(timeout=5)
+            case(real.poll() is not None, 'original owner JVM actually terminated')
+            case(client(trusted_port,trusted_pin,genuine_token)=='BLOCKED',
+                 'dead genuine owner cannot issue a new one-shot claim')
             # Restart with a NEW attacker key and replace an ordinary-file
             # registry. The registry is deliberately NOT a trust anchor.
             successor=subprocess.Popen(cmd+['server'],stdout=subprocess.PIPE,
