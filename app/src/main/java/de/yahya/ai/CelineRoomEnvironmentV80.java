@@ -3,6 +3,7 @@ package de.yahya.ai;
 import android.content.Context;
 import android.opengl.Matrix;
 
+import com.google.android.filament.Box;
 import com.google.android.filament.Engine;
 import com.google.android.filament.EntityManager;
 import com.google.android.filament.LightManager;
@@ -14,6 +15,15 @@ import com.google.android.filament.gltfio.FilamentAsset;
 import com.google.android.filament.gltfio.ResourceLoader;
 
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -45,12 +55,20 @@ final class CelineRoomEnvironmentV80 {
             ROOM_PARTITION_BASE + "room_foreground_table.glb",
             ROOM_PARTITION_BASE + "room_window_drapes.glb",
             ROOM_PARTITION_BASE + "room_wall_shelf_books.glb",
-            ROOM_PARTITION_BASE + "room_round_mirror.glb",
-            ROOM_PARTITION_BASE + "room_plant_small.glb" // source-faithful foreground pot
+            ROOM_PARTITION_BASE + "room_round_mirror.glb"
     };
-    // The extra foreground prop reuses one optimized plant; all 12 canonical source
-    // GLBs and their 13 authored furniture instances remain strictly untouched.
-    private static final int FOREGROUND_PLANT_DERIVED_INDEX = ROOM_PATHS.length - 1;
+    // Exactly thirteen user-authored furniture instances, in the same index order
+    // as ROOM_PATHS after the shell. "back" is the GLB filename "rear".
+    private static final String[] S25_IDS = {
+            "room_bed", "room_dresser", "room_plant_large", "room_plant_small",
+            "room_floor_lamp", "room_nightstand_back", "room_nightstand_front",
+            "room_lounge_chair", "room_rug", "room_foreground_table",
+            "room_window_drapes", "room_wall_shelf_books", "room_round_mirror"
+    };
+    private static final String S25_LAYOUT_ASSET =
+            "models/room/layouts/YahyaAI_Raumlayout_FINAL_2026-10-31.json";
+    private static final String S25_LAYOUT_SHA256 =
+            "471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f";
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
     private static final int ROOM_LIGHT_CHANNEL = 1;
     // Phase-A floor-raster #286 showed an underlit, featureless floor while the back
@@ -293,6 +311,8 @@ final class CelineRoomEnvironmentV80 {
             ArrayList<FilamentAsset> candidates = new ArrayList<>();
             try {
                 CelineRoomWorldContractV80 contract = CelineRoomWorldContractV80.load(context);
+                Map<String, JSONObject> exactLayout = readExactS25Layout();
+                int exactApplied = 0;
                 FilamentAsset shell = null;
                 int renderables = 0;
                 for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
@@ -309,17 +329,16 @@ final class CelineRoomEnvironmentV80 {
                         if (partRenderables <= 0) {
                             throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
                         }
-                        alignRoomRoot(part);
-                        if (partitionIndex == FOREGROUND_PLANT_DERIVED_INDEX) {
-                            positionForegroundDerivedPlant(part);
-                        }
-                        if (roomPath.endsWith("room_dresser.glb")) {
-                            correctDresserReferenceEnvelope(part);
+                        if (partitionIndex == 0) {
+                            // Legacy shell/world contract is intentionally a separate
+                            // serialized BUILD-owner dependency (not a furniture override).
+                            alignRoomRoot(part);
+                        } else {
+                            String authoredId = S25_IDS[partitionIndex - 1];
+                            applyExactS25Furniture(part, authoredId, exactLayout.get(authoredId));
+                            exactApplied++;
                         }
                         if (roomPath.endsWith("room_window_drapes.glb")) {
-                            correctWindowDrapeVisibleWidth(part);
-                            // C148: source drape alone, never the independent opaque night pane.
-                            widenVisibleSourceDrapeOnly(part);
                             // C136: The exact Android #341 CALL still shows cold, high-contrast
                             // source-fabric stripes. The recovery baseline no longer invokes
                             // the old window appearance owner at all. Restore ONLY the
@@ -341,7 +360,13 @@ final class CelineRoomEnvironmentV80 {
                         throw error;
                     }
                 }
-                if (shell == null) throw new IllegalStateException("Room shell partition missing");
+                if (shell == null || exactApplied != 13) {
+                    throw new IllegalStateException("S25 layout requires shell plus exactly 13 GLB instances: " + exactApplied);
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-13",
+                        "13/13 S25 furniture source transforms bound to actual Filament roots",
+                        "sourceSHA256=" + S25_LAYOUT_SHA256
+                        + " room=4.4x4.2x2.65; shell/WorldContract integration pending BUILD owner");
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
@@ -470,6 +495,188 @@ final class CelineRoomEnvironmentV80 {
                 }
                 return false;
             }
+        }
+
+
+        /**
+         * Fail-closed source read. Never rewrite, clamp or normalize the S25 export.
+         * The legacy yaw/scale and locked flags remain independent JSON metadata.
+         */
+        private Map<String, JSONObject> readExactS25Layout() throws Exception {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream(8192);
+            try (InputStream in = context.getAssets().open(S25_LAYOUT_ASSET)) {
+                byte[] block = new byte[4096];
+                int count;
+                while ((count = in.read(block)) != -1) {
+                    if (count > 0) bytes.write(block, 0, count);
+                }
+            }
+            byte[] raw = bytes.toByteArray();
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(raw);
+            StringBuilder digest = new StringBuilder(64);
+            for (byte b : hash) {
+                digest.append(Character.forDigit((b >>> 4) & 15, 16));
+                digest.append(Character.forDigit(b & 15, 16));
+            }
+            if (!S25_LAYOUT_SHA256.equals(digest.toString())) {
+                throw new IllegalStateException("Canonical S25 source bytes changed: " + digest);
+            }
+            JSONObject json = new JSONObject(new String(raw, StandardCharsets.UTF_8));
+            if (!"yahya-room-layout-editor/v1".equals(json.getString("schema"))) {
+                throw new IllegalStateException("Unexpected S25 layout schema");
+            }
+            JSONObject room = json.getJSONObject("room");
+            JSONObject originalRoom = json.getJSONObject("original_room_m");
+            for (JSONObject dimensions : new JSONObject[] { room, originalRoom }) {
+                if (dimensions.getDouble("width") != 4.4
+                        || dimensions.getDouble("depth") != 4.2
+                        || dimensions.getDouble("height") != 2.65) {
+                    throw new IllegalStateException("S25 room shell dimensions are not 4.4x4.2x2.65m");
+                }
+            }
+            JSONArray objects = json.getJSONArray("objects");
+            if (objects.length() != S25_IDS.length) {
+                throw new IllegalStateException("S25 requires exactly 13 author objects");
+            }
+            Map<String, JSONObject> byId = new LinkedHashMap<>();
+            Set<String> expected = new HashSet<>();
+            for (String id : S25_IDS) expected.add(id);
+            for (int i = 0; i < objects.length(); i++) {
+                JSONObject item = objects.getJSONObject(i);
+                String id = item.getString("id");
+                if (!expected.contains(id) || byId.put(id, item) != null) {
+                    throw new IllegalStateException("Unexpected or duplicate S25 furniture ID: " + id);
+                }
+                requireFiniteTriple(item, "translation_m", false);
+                requireFiniteTriple(item, "rotation_euler_deg", false);
+                requireFiniteTriple(item, "scale_xyz", true);
+                if (!Double.isFinite(item.getDouble("rotation_y_deg"))
+                        || !Double.isFinite(item.getDouble("uniform_scale"))) {
+                    throw new IllegalStateException("Invalid independent S25 metadata: " + id);
+                }
+                item.getBoolean("locked");
+            }
+            if (byId.size() != S25_IDS.length) {
+                throw new IllegalStateException("Missing S25 furniture IDs");
+            }
+            return byId;
+        }
+
+        private double[] requireFiniteTriple(JSONObject object, String field, boolean positive)
+                throws Exception {
+            JSONArray a = object.getJSONArray(field);
+            if (a.length() != 3) throw new IllegalStateException("Invalid S25 " + field);
+            double[] values = new double[3];
+            for (int i = 0; i < 3; i++) {
+                values[i] = a.getDouble(i);
+                if (!Double.isFinite(values[i]) || (positive && values[i] <= 0)) {
+                    throw new IllegalStateException("Invalid S25 " + field + " axis " + i);
+                }
+            }
+            return values;
+        }
+
+        /**
+         * THREE editor: wrapper T(position)*RZ*RY*RX*S(scale_xyz);
+         * GLTFLoader scene offset T(-Box3.setFromObject(model).getCenter()).
+         * gltfio already owns the identical unmodified GLB hierarchy; therefore
+         * set ROOT to wrapper*T(-source-bounds-center)*original-root. Never
+         * apply the legacy 180deg root yaw or image-fitted drape/dresser offsets.
+         */
+        private void applyExactS25Furniture(FilamentAsset part, String id, JSONObject item)
+                throws Exception {
+            if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
+            double[] pos = requireFiniteTriple(item, "translation_m", false);
+            double[] euler = requireFiniteTriple(item, "rotation_euler_deg", false);
+            double[] scale = requireFiniteTriple(item, "scale_xyz", true);
+            int root = transforms.getInstance(part.getRoot());
+            if (root == 0) throw new IllegalStateException("Missing GLB root: " + id);
+            float[] originalRoot = transforms.getTransform(root, new float[16]);
+            float[] center = originalGeometryCenter(part);
+            float[] wrapper = new float[16];
+            float[] target = new float[16];
+            Matrix.setIdentityM(wrapper, 0);
+            Matrix.translateM(wrapper, 0, (float) pos[0], (float) pos[1], (float) pos[2]);
+            Matrix.rotateM(wrapper, 0, (float) euler[2], 0, 0, 1);
+            Matrix.rotateM(wrapper, 0, (float) euler[1], 0, 1, 0);
+            Matrix.rotateM(wrapper, 0, (float) euler[0], 1, 0, 0);
+            Matrix.scaleM(wrapper, 0, (float) scale[0], (float) scale[1], (float) scale[2]);
+            Matrix.translateM(wrapper, 0, -center[0], -center[1], -center[2]);
+            Matrix.multiplyMM(target, 0, wrapper, 0, originalRoot, 0);
+            transforms.setTransform(root, target);
+
+            // Actual Filament root readback: measured float matrix vs serialized
+            // target. The untouched JSON doubles retain exact user precision.
+            float[] observed = transforms.getTransform(root, new float[16]);
+            float worst = 0f;
+            for (int i = 0; i < 16; i++) {
+                if (!Float.isFinite(observed[i])) {
+                    throw new IllegalStateException("Nonfinite Filament S25 root: " + id);
+                }
+                worst = Math.max(worst, Math.abs(observed[i] - target[i]));
+            }
+            if (worst > 0.00002f) {
+                throw new IllegalStateException("Filament S25 root readback mismatch " + id
+                        + " worst=" + worst);
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-READBACK",
+                    "Verified authored furniture root " + id,
+                    "translation_m=" + pos[0] + "," + pos[1] + "," + pos[2]
+                            + " euler_xyz_deg=" + euler[0] + "," + euler[1] + "," + euler[2]
+                            + " scale_xyz=" + scale[0] + "," + scale[1] + "," + scale[2]
+                            + " rotation_y_deg_legacy=" + item.getDouble("rotation_y_deg")
+                            + " uniform_scale_legacy=" + item.getDouble("uniform_scale")
+                            + " locked=" + item.getBoolean("locked")
+                            + " originalCenter=" + center[0] + "," + center[1] + "," + center[2]
+                            + " rootMatrixMaxError=" + worst);
+        }
+
+        /**
+         * Mirrors Three.js Box3.setFromObject BEFORE model.position.sub(center).
+         * Includes GLB anchor/mesh baked transforms (rather than assuming the
+         * authoring anchor's origin is the visible geometry's center).
+         */
+        private float[] originalGeometryCenter(FilamentAsset part) {
+            RenderableManager manager = engine.getRenderableManager();
+            float[] low = { Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY };
+            float[] high = { Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
+            int seen = 0;
+            for (int entity : part.getEntities()) {
+                if (!manager.hasComponent(entity)) continue;
+                int renderInstance = manager.getInstance(entity);
+                int transformInstance = transforms.getInstance(entity);
+                if (renderInstance == 0 || transformInstance == 0) {
+                    throw new IllegalStateException("Renderable missing GLB transform: " + entity);
+                }
+                Box b = manager.getAxisAlignedBoundingBox(renderInstance);
+                float[] matrix = transforms.getWorldTransform(transformInstance, new float[16]);
+                float[] c = {b.getCenterX(), b.getCenterY(), b.getCenterZ()};
+                float[] r = {b.getHalfExtentX(), b.getHalfExtentY(), b.getHalfExtentZ()};
+                for (int corner = 0; corner < 8; corner++) {
+                    float x = c[0] + ((corner & 1) == 0 ? -r[0] : r[0]);
+                    float y = c[1] + ((corner & 2) == 0 ? -r[1] : r[1]);
+                    float z = c[2] + ((corner & 4) == 0 ? -r[2] : r[2]);
+                    float[] v = {
+                            matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12],
+                            matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13],
+                            matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14]
+                    };
+                    for (int a = 0; a < 3; a++) {
+                        low[a] = Math.min(low[a], v[a]);
+                        high[a] = Math.max(high[a], v[a]);
+                    }
+                }
+                seen++;
+            }
+            if (seen == 0) throw new IllegalStateException("No renderable AABBs to center");
+            float[] center = new float[3];
+            for (int i = 0; i < 3; i++) {
+                center[i] = (low[i] + high[i]) * 0.5f;
+                if (!Float.isFinite(center[i])) {
+                    throw new IllegalStateException("Invalid source GLB geometry center");
+                }
+            }
+            return center;
         }
 
         private int countRenderables(FilamentAsset asset) {
