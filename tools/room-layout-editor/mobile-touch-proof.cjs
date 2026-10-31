@@ -63,6 +63,32 @@ async function main(){
     assert.equal(await page.locator('#reference-preview').evaluate(e=>e.naturalWidth>0),true);
     assert.equal(await page.locator('canvas').evaluate(c=>!!(c.getContext('webgl2')||c.getContext('webgl'))),true);
     assert.equal(await page.locator('canvas').evaluate(c=>getComputedStyle(c).touchAction),'none');
+    // The specific user-approved S25 JSON is the sole arrangement baseline.
+    // Check original source GLB wrappers against the exact exported transforms
+    // before touch exercises mutate the selected (unlocked) bed.
+    const approvedBytes=fs.readFileSync(path.join(__dirname,'layout-candidates',
+      '2026-10-31-s25-user-approved-final-13glb.json'));
+    const approvedSha=crypto.createHash('sha256').update(approvedBytes).digest('hex');
+    assert.equal(approvedSha,'471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f');
+    const approved=JSON.parse(approvedBytes.toString('utf8'));
+    const userAudit=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.deepEqual(userAudit.room_m,{width:4.4,depth:4.2,height:2.65});
+    assert.equal(userAudit.model_count,13);
+    assert.equal(userAudit.all_source_fidelity_glbs_loaded,true);
+    assert.deepEqual(approved.objects.map(o=>o.id),["room_bed","room_dresser","room_plant_large","room_plant_small","room_floor_lamp","room_nightstand_back","room_nightstand_front","room_lounge_chair","room_rug","room_foreground_table","room_window_drapes","room_wall_shelf_books","room_round_mirror"]);
+    for(const expected of approved.objects) {
+      const actual=userAudit.objects.find(o=>o.id===expected.id);
+      assert(actual?.loaded,'Missing original GLB '+expected.id);
+      assert.equal(actual.locked,expected.locked,'User lock '+expected.id);
+      for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
+        for(let i=0;i<3;i++)
+          assert(Math.abs(actual.transform[key][i]-expected[key][i])<1e-9,
+            'User-approved '+expected.id+' '+key+'['+i+'] differs from saved JSON');
+    }
+    record.push({name:'USER_APPROVED_FINAL_13_ORIGINAL_GLB_IMPORT_PASS',
+      layout_sha256:approvedSha,saved_at:approved.saved_at,model_count:13,
+      locks:approved.objects.filter(o=>o.locked).length,
+      tolerance_absolute_m_or_degree_or_scale:1e-9});
     const initial=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
     record.push({name:'REAL_MOBILE_VIEWPORT_13_ORIGINAL_GLB_PASS',viewport:[412,915],canvas:initial.canvas_px});
     await page.locator('#mobile-object').selectOption('room_bed');

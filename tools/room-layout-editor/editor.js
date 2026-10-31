@@ -17,7 +17,11 @@ const REFERENCE_CAMERA_PROPOSAL = Object.freeze({
   target: [0.469, 0.241, 0],
   fov: 41.1
 });
-const STORAGE_KEY = 'yahya-ai-room-editor-experiment-v1';
+// The user's own 31 Oct S25 arrangement is canonical. Keep prior local drafts
+// in the old storage namespace, never allow them to replace this final baseline.
+const STORAGE_KEY = 'yahya-ai-room-editor-user-final-471a0cbf-v1';
+const USER_FINAL_LAYOUT_URL = new URL('./layout-candidates/2026-10-31-s25-user-approved-final-13glb.json', import.meta.url);
+const USER_FINAL_LAYOUT_SHA256 = '471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f';
 const ROOT = '../../app/src/main/assets/models/room/';
 const GLB_ROOT = ROOT + 'source-fidelity/';
 const REFERENCE_URL = '../../Refernzbild.png';
@@ -688,22 +692,24 @@ for(const btn of document.querySelectorAll('[data-nudge]')) {
     refreshFields();commitEdit();
   };
 }
+function restoreUserApprovedInitial(entry) {
+  const base=entry.initial;
+  entry.group.position.fromArray(base.translation_m);
+  const angles=base.rotation_euler_deg ?? [0,base.rotation_y_deg,0];
+  const scales=base.scale_xyz ?? [base.uniform_scale,base.uniform_scale,base.uniform_scale];
+  entry.group.rotation.set(...angles.map(v=>THREE.MathUtils.degToRad(v)));
+  entry.group.scale.fromArray(scales);
+}
 $('reset-object').onclick=()=>{
   if(!selected||selected.locked)return;
-  const base=selected.initial;
-  selected.group.position.fromArray(base.translation_m);
-  selected.group.rotation.set(0,THREE.MathUtils.degToRad(base.rotation_y_deg),0);
-  selected.group.scale.setScalar(base.uniform_scale);
+  restoreUserApprovedInitial(selected);
   refreshFields();commitEdit();
 };
 $('reset-all').onclick=()=>{
   if (!confirm('Alle Möbelpositionen auf den Ausgangsentwurf zurücksetzen?'))return;
   for(const entry of entries.values()){
     if(entry.locked)continue;
-    const base=entry.initial;
-    entry.group.position.fromArray(base.translation_m);
-    entry.group.rotation.set(0,THREE.MathUtils.degToRad(base.rotation_y_deg),0);
-    entry.group.scale.setScalar(base.uniform_scale);
+    restoreUserApprovedInitial(entry);
   }
   refreshFields();commitEdit();
 };
@@ -1139,6 +1145,36 @@ async function start() {
       option.textContent=NAMES[object.id]||object.id;
       $('object').append(option);
       $('mobile-object').append(option.cloneNode(true));
+    }
+    // Fail closed on missing, altered or obsolete final user-layout bytes.
+    // Never reconstruct manually approved furniture transforms from V40/V47.
+    const approvedResponse=await fetch(USER_FINAL_LAYOUT_URL,{cache:'no-store'});
+    if(!approvedResponse.ok)
+      throw new Error('Kanonischer finaler Nutzerraum HTTP '+approvedResponse.status);
+    const approvedBytes=await approvedResponse.arrayBuffer();
+    if(!globalThis.crypto?.subtle)
+      throw new Error('SHA-256-Validierung braucht HTTPS oder localhost');
+    const digest=await globalThis.crypto.subtle.digest('SHA-256',approvedBytes);
+    const actualSha=Array.from(new Uint8Array(digest),
+      v=>v.toString(16).padStart(2,'0')).join('');
+    if(actualSha!==USER_FINAL_LAYOUT_SHA256)
+      throw new Error('Finaler Nutzerraum: SHA-256 stimmt nicht');
+    const approved=JSON.parse(new TextDecoder().decode(approvedBytes));
+    if(approved.schema!=='yahya-room-layout-editor/v1' ||
+       approved.saved_at!=='2026-10-31T03:29:20.855Z' ||
+       approved.objects?.length!==13 ||
+       Object.keys(CANONICAL).some(k=>approved.room?.[k]!==CANONICAL[k]))
+      throw new Error('Finaler Nutzerraum hat falsche Version oder Raummaße');
+    applyState(stateFromImported(approved));
+    // Reset must restore the user's transforms, NOT the old assembly draft.
+    for(const obj of approved.objects){
+      entries.get(obj.id).initial={
+        translation_m:[...obj.translation_m],
+        rotation_y_deg:obj.rotation_y_deg,
+        rotation_euler_deg:[...obj.rotation_euler_deg],
+        uniform_scale:obj.uniform_scale,
+        scale_xyz:[...obj.scale_xyz]
+      };
     }
     lastSnapshot=snapshot();
     try {
