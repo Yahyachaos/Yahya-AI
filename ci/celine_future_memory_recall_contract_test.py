@@ -8460,6 +8460,153 @@ def process_independent_once_ledger_proof(temp):
                 if p.poll() is None:
                     p.kill();p.communicate(timeout=5)
 
+# FUTURE-ONLY. The 'root' below is now the ORIGINAL same-key process with
+# rollbackable ordinary files, not a freshly minted impersonation. A distinct
+# third Java guardian remains live to demonstrate conditional isolation ONLY.
+# Killing/rolling back this third guardian is an intentionally unclosed attack.
+receipt_fence_client_harness = r"""
+package de.yahya.ai;
+import java.util.*;
+public final class FutureReceiptFenceClientProcess {
+    public static void main(String[] a) throws Exception {
+        // ordinaryPort ordinaryPin rootPort rootPin guardPort guardPin epoch status token
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority ordinary =
+            "-".equals(a[1]) ? null :
+                new FutureOperatorWitnessClientProcess.Remote(Integer.parseInt(a[0]),a[1]);
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority root =
+            "-".equals(a[3]) ? null :
+                new FutureOperatorWitnessClientProcess.Remote(Integer.parseInt(a[2]),a[3]);
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority guardian =
+            "-".equals(a[5]) ? null :
+                new FutureOperatorWitnessClientProcess.Remote(Integer.parseInt(a[4]),a[5]);
+        System.out.println("RESULT="+
+            CelineFutureMemoryRecall.attestRevokedWithIndependentReceiptFence(
+                "cat-private",2L,a[7],"a".repeat(64),
+                "owner-independent-nonce-0001",Base64.getDecoder().decode(a[8]),
+                Long.parseLong(a[6]),ordinary,root,guardian).name());
+    }
+}
+"""
+
+
+def process_root_same_key_rollback_with_receipt_fence(temp, strict=False):
+    """Real 4 authority JVMs + independent gateway JVMs; a test, NOT Android."""
+    from pathlib import Path
+    passed=0
+    children=[]
+    def ok(value, label):
+        nonlocal passed
+        if not value: raise AssertionError('ROOT SAME-KEY ROLLBACK SECURITY FAIL: '+label)
+        passed+=1
+    owner=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+    witness=['java','-cp',temp,'de.yahya.ai.FutureSameKeyEpochWitnessProcess']
+    guardian=['java','-cp',temp,'de.yahya.ai.FutureOperatorEpochWitnessProcess']
+    dual=['java','-cp',temp,'de.yahya.ai.FutureIndependentLedgerClientProcess']
+    triple=['java','-cp',temp,'de.yahya.ai.FutureReceiptFenceClientProcess']
+    with tempfile.TemporaryDirectory(prefix='future_same_key_root_receipt_') as tmp:
+        base=Path(tmp)
+        source_key=base/'owner.key'; source_spent=base/'owner.spent'
+        weak_key=base/'weak.key'; weak_ledger=base/'weak.ledger'
+        root_key=base/'root.key'; root_ledger=base/'root.ledger'
+        for cmd,tag in ((owner+['init-test-only',str(source_key),str(source_spent)],'BACKUP_CREATED'),
+                        (witness+['init-test-only',str(weak_key),str(weak_ledger)],'WITNESS_BACKUP_CREATED'),
+                        (witness+['init-test-only',str(root_key),str(root_ledger)],'WITNESS_BACKUP_CREATED')):
+            p=subprocess.run(cmd,text=True,capture_output=True,timeout=14)
+            ok(p.returncode==0 and p.stdout.strip()==tag,'genuine signer/ledger initialization '+p.stderr[-200:])
+        pin=source_key.read_text().splitlines()[0]
+        weak_pin=weak_key.read_text().splitlines()[0]
+        root_pin=root_key.read_text().splitlines()[0]
+        root_identity=root_key.read_bytes()
+        def start(cmd):
+            p=subprocess.Popen(cmd,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=1)
+            children.append(p)
+            ready=p.stdout.readline().strip().split()
+            ok(len(ready)==4 and ready[0]=='READY' and p.poll() is None,
+               'independent JVM service ready: '+str(ready)+' '+str(p.poll()))
+            return p,ready[1],ready[2],ready[3]
+        def call(binary,args):
+            p=subprocess.run(binary+args,text=True,capture_output=True,timeout=15)
+            ok(p.returncode==0 and p.stdout.strip().startswith('RESULT='),
+               'independent fresh verifier JVM returned '+p.stderr[-350:])
+            return p.stdout.strip().split('RESULT=')[-1]
+        def ask_two(wport,wpin,rport,rpin,token,status='REVOKED'):
+            return call(dual,[wport,wpin,rport,rpin,'4',status,token])
+        def ask_three(wport,wpin,rport,rpin,gport,gpin,token,status='REVOKED'):
+            return call(triple,[wport,wpin,rport,rpin,gport,gpin,'4',status,token])
+        def restart_witnesses():
+            weak_ledger.write_text('epoch=4;spent=0\n')
+            root_ledger.write_text('epoch=4;spent=0\n')
+            w,wp,wk,_=start(witness+['server',pin,str(weak_key),str(weak_ledger)])
+            r,rp,rk,_=start(witness+['server',pin,str(root_key),str(root_ledger)])
+            ok(wk==weak_pin and rk==root_pin,'both ORIGINAL Ed25519 identities retained')
+            return w,wp,wk,r,rp,rk
+        try:
+            signer,_,owner_pin,token=start(owner+['server',str(source_key),str(source_spent)])
+            ok(owner_pin==pin,'source original key pinned')
+            weak,wp,wk,root,rp,rk=restart_witnesses()
+            g,gp,gk,_=start(guardian+['server',pin])
+            ok(gk!=root_pin and gk!=weak_pin,'independent third guardian identity')
+            ok(ask_three(wp,wk,rp,rk,gp,gk,token)=='QUARANTINE_REVOKED_ONLY',
+               'first triple decision quarantines REVOKED only')
+            ok(weak_ledger.read_text()=='epoch=4;spent=1\n' and
+               root_ledger.read_text()=='epoch=4;spent=1\n',
+               'both original authorities actually consumed and persisted claim')
+            ok(ask_three(wp,wk,rp,rk,gp,gk,token)=='BLOCKED','live duplicate blocked')
+            weak.terminate();weak.wait(timeout=5)
+            root.terminate();root.wait(timeout=5)
+            ok(root.poll() is not None,'independent original root JVM genuinely killed')
+            weak2,wp2,wk2,root2,rp2,rk2=restart_witnesses()
+            ok(root_key.read_bytes()==root_identity and rk2==root_pin,
+               'malicious same-epoch ledger rollback retains exact original root key/pin')
+            vulnerable=ask_two(wp2,wk2,rp2,rk2,token)
+            if strict:
+                ok(vulnerable=='BLOCKED','STRICT same-identity original ROOT replay MUST fail')
+            else:
+                ok(vulnerable=='QUARANTINE_REVOKED_ONLY',
+                   'KNOWN SECURITY FAIL: exact same ORIGINAL ROOT replays consumed claim')
+                weak2.terminate();weak2.wait(timeout=5)
+                root2.terminate();root2.wait(timeout=5)
+                weak3,wp3,wk3,root3,rp3,rk3=restart_witnesses()
+                for _ in range(3):
+                    ok(ask_three(wp3,wk3,rp3,rk3,gp,gk,token)=='BLOCKED',
+                       'live pinned guardian conditionally blocks original-root rollback')
+                ok(ask_three(wp3,wk3,rp3,rk3,gp,'-',token)=='NO_AUTHORITY',
+                   'no guardian pin is non-authorizing')
+                ok(ask_three(wp3,wk3,rp3,rk3,gp,gk,token,status='ACTIVE')=='BLOCKED',
+                   'ACTIVE cannot be restored')
+                g.terminate();g.wait(timeout=5)
+                # Renew already-spent ordinary/root authorities so they do not
+                # short-circuit before testing the actually DEAD guardian.
+                weak3.terminate();weak3.wait(timeout=5)
+                root3.terminate();root3.wait(timeout=5)
+                weak4,wp4,wk4,root4,rp4,rk4=restart_witnesses()
+                ok(ask_three(wp4,wk4,rp4,rk4,gp,gk,token)=='NO_AUTHORITY',
+                   'dead guardian cannot authorize despite available rolled-back pair')
+                replacement,gp2,gk2,_=start(guardian+['server',pin])
+                ok(gk2!=gk,'new guardian not original trusted signer')
+                # Again refresh the pair after the negative attempt if a pair
+                # consumed during fail-closed validation.
+                weak4.terminate();weak4.wait(timeout=5)
+                root4.terminate();root4.wait(timeout=5)
+                weak5,wp5,wk5,root5,rp5,rk5=restart_witnesses()
+                ok(ask_three(wp5,wk5,rp5,rk5,gp2,gk,token)=='NO_AUTHORITY',
+                   'original pinned guardian key rejects fresh replacement')
+                weak5.terminate();weak5.wait(timeout=5)
+                root5.terminate();root5.wait(timeout=5)
+                weak6,wp6,wk6,root6,rp6,rk6=restart_witnesses()
+                ok(ask_three(wp6,wk6,rp6,rk6,gp2,gk2,token)=='QUARANTINE_REVOKED_ONLY',
+                   'KNOWN FAIL: untrusted freshly self-pinned guardian replays claim')
+                ok(root_key.read_bytes()==root_identity,
+                   'no root signer replacement throughout attack')
+                print('FUTURE_ROOT_SAME_KEY_RECEIPT_FENCE_JVM_PASS cases='+str(passed))
+                print('FUTURE_ROOT_SAME_PIN_EPOCH_LEDGER_ROLLBACK=KNOWN_SECURITY_FAIL')
+                print('FUTURE_THIRD_GUARDIAN_BLOCK=CONDITIONAL_ONLY_WHILE_LIVE')
+                print('FUTURE_THIRD_GUARDIAN_SELF_RESET=KNOWN_SECURITY_FAIL')
+                print('FUTURE_ANDROID_DURABLE_CUSTODY=UNIMPLEMENTED')
+        finally:
+            for p in children:
+                if p.poll() is None: p.kill();p.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -8489,8 +8636,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     same_witness_child.write_text(same_key_epoch_witness_harness, encoding='utf-8')
     dual_client=Path(temp) / 'FutureIndependentLedgerClientProcess.java'
     dual_client.write_text(independent_ledger_client_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client)], check=True)
+    triple_client=Path(temp) / 'FutureReceiptFenceClientProcess.java'
+    triple_client.write_text(receipt_fence_client_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client)], check=True)
     import sys
+    if '--strict-root-same-key-rollback' in sys.argv:
+        process_root_same_key_rollback_with_receipt_fence(temp, strict=True)
+        raise SystemExit(0)
+    if '--focused-root-receipt-fence' in sys.argv:
+        process_root_same_key_rollback_with_receipt_fence(temp)
+        raise SystemExit(0)
     if '--focused-independent-once-ledger' in sys.argv:
         process_independent_once_ledger_proof(temp)
         raise SystemExit(0)
@@ -8576,3 +8731,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_operator_witness_epoch_guard_proof(temp)
     process_same_key_witness_ledger_rollback_proof(temp)
     process_independent_once_ledger_proof(temp)
+    process_root_same_key_rollback_with_receipt_fence(temp)
