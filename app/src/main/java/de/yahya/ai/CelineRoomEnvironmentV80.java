@@ -534,6 +534,22 @@ final class CelineRoomEnvironmentV80 {
             if (root == 0) throw new IllegalStateException("Missing GLB root: " + id);
             float[] originalRoot = transforms.getTransform(root, new float[16]);
             float[] center = originalGeometryCenter(part);
+            // Snapshot the REAL loaded GLB renderable nodes before changing their
+            // common gltfio root. Root readback alone cannot prove descendant motion.
+            RenderableManager meshManager = engine.getRenderableManager();
+            Map<Integer, float[]> originalMeshWorlds = new LinkedHashMap<>();
+            for (int entity : part.getEntities()) {
+                if (!meshManager.hasComponent(entity)) continue;
+                int meshTransform = transforms.getInstance(entity);
+                if (meshTransform == 0) {
+                    throw new IllegalStateException("S25 renderable has no transform: " + id);
+                }
+                originalMeshWorlds.put(entity,
+                        transforms.getWorldTransform(meshTransform, new float[16]));
+            }
+            if (originalMeshWorlds.isEmpty()) {
+                throw new IllegalStateException("S25 furniture GLB has no renderables: " + id);
+            }
             float[] wrapper = new float[16];
             float[] target = new float[16];
             Matrix.setIdentityM(wrapper, 0);
@@ -560,8 +576,32 @@ final class CelineRoomEnvironmentV80 {
                 throw new IllegalStateException("Filament S25 root readback mismatch " + id
                         + " worst=" + worst);
             }
+            // With the unmodified GLB hierarchy, each descendant must move as
+            // authoredWrapper * originalWorld. Detect lost/doubled node transforms,
+            // not just a successfully written but visually unused root matrix.
+            float meshWorst = 0f;
+            for (Map.Entry<Integer, float[]> mesh : originalMeshWorlds.entrySet()) {
+                int meshTransform = transforms.getInstance(mesh.getKey());
+                float[] observedMeshWorld = transforms.getWorldTransform(
+                        meshTransform, new float[16]);
+                float[] expectedMeshWorld = new float[16];
+                Matrix.multiplyMM(expectedMeshWorld, 0, wrapper, 0, mesh.getValue(), 0);
+                for (int axis = 0; axis < 16; axis++) {
+                    if (!Float.isFinite(observedMeshWorld[axis])
+                            || !Float.isFinite(expectedMeshWorld[axis])) {
+                        throw new IllegalStateException("Nonfinite S25 GLB node matrix: " + id);
+                    }
+                    meshWorst = Math.max(meshWorst,
+                            Math.abs(observedMeshWorld[axis] - expectedMeshWorld[axis]));
+                }
+            }
+            if (meshWorst > 0.0001f) {
+                throw new IllegalStateException("S25 GLB node world readback mismatch " + id
+                        + " worst=" + meshWorst);
+            }
             Celine3DDiagnostics.record(context, "ROOM-S25-READBACK",
-                    "Verified authored furniture root " + id,
+                    "Verified authored furniture root and " + originalMeshWorlds.size()
+                            + " GLB renderable nodes " + id,
                     "translation_m=" + pos[0] + "," + pos[1] + "," + pos[2]
                             + " euler_xyz_deg=" + euler[0] + "," + euler[1] + "," + euler[2]
                             + " scale_xyz=" + scale[0] + "," + scale[1] + "," + scale[2]
@@ -569,7 +609,9 @@ final class CelineRoomEnvironmentV80 {
                             + " uniform_scale_legacy=" + item.getDouble("uniform_scale")
                             + " locked=" + item.getBoolean("locked")
                             + " originalCenter=" + center[0] + "," + center[1] + "," + center[2]
-                            + " rootMatrixMaxError=" + worst);
+                            + " rootMatrixMaxError=" + worst
+                            + " meshWorldMatrixMaxError=" + meshWorst
+                            + " meshNodesChecked=" + originalMeshWorlds.size());
         }
 
         /**
