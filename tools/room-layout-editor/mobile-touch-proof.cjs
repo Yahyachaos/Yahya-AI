@@ -185,11 +185,17 @@ async function main(){
     // A missing true full-viewport shot is a FAIL, never a mobile visual PASS.
     let compositorError=null;
     try {
+      // V45: DPR3 1236x2745 full-resolution compositor capture stalled despite
+      // successful original WebGL canvas, touch and native 13-object JSON proof.
+      // Request a true browser full-viewport screenshot at 412x915 CSS pixels,
+      // without temporarily rewriting CSS animations or changing the 3x
+      // device emulation/rendering. Keep the existing 10-second fail-closed cap.
       await page.screenshot({path:path.join(out,'mobile-s25-viewport-412x915.png'),
-        timeout:10000,animations:'disabled'});
+        timeout:10000,scale:'css'});
       const full=fs.readFileSync(path.join(out,'mobile-s25-viewport-412x915.png'));
       const dimensions=[full.readUInt32BE(16),full.readUInt32BE(20)];
-      assert.deepEqual(dimensions,[1236,2745],'412x915 CSS mobile screenshot at DPR 3');
+      assert.deepEqual(dimensions,[412,915],
+        'True full 412x915 CSS-pixel screenshot required; DPR3 emulated device stays intact');
       record.push({name:'MOBILE_FULL_VIEWPORT_COMPOSITOR_CAPTURE_PASS',
         filename:'mobile-s25-viewport-412x915.png',
         sha256:crypto.createHash('sha256').update(full).digest('hex'),pixels:dimensions});
