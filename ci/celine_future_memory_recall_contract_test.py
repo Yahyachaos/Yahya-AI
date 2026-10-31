@@ -7900,6 +7900,199 @@ def process_external_witness_self_restart_proof(temp, strict=False):
             for process in children:
                 if process.poll() is None: process.kill();process.communicate(timeout=5)
 
+# FUTURE-ONLY: conditional independent witness epoch authority model. This
+# extra JVM holds a spent set + epoch ONLY in its volatile memory. An attacker
+# can roll back an ordinary receipt file; the authority never reads that file.
+# Identity is pinned by a trusted TEST COORDINATOR, not a real Android owner.
+# If THIS authority dies or its private key/ledger is restored, independence
+# and nonrollbackable custody are UNIMPLEMENTED. Do not release this design.
+operator_epoch_witness_harness = (external_witness_service_harness
+    .replace('FutureExternalWitnessProcess', 'FutureOperatorEpochWitnessProcess')
+    .replace('static final long REV=2L;',
+             'static final long REV=2L;\n    static final long PROTECTED_EPOCH=4L;')
+    .replace('String message="owner-result/v1\\n"+clientNonce+"\\n"+req+"\\n"+decision.name()+"\\n";',
+             'String message="operator-witness-result/v1\\n"+clientNonce+"\\n"+req+"\\n"+PROTECTED_EPOCH+"\\n"+decision.name()+"\\n";')
+    .replace('w.println("RESULT "+decision.name()+" "+encode(sign(keys.getPrivate(),message)));',
+             'w.println("WITNESS_RESULT "+PROTECTED_EPOCH+" "+decision.name()+" "+encode(sign(keys.getPrivate(),message)));'))
+assert 'static final long PROTECTED_EPOCH=4L;' in operator_epoch_witness_harness
+assert 'operator-witness-result/v1' in operator_epoch_witness_harness
+assert 'WITNESS_RESULT' in operator_epoch_witness_harness
+
+operator_witness_client_harness = r"""
+package de.yahya.ai;
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+public final class FutureOperatorWitnessClientProcess {
+    static final Base64.Decoder DEC=Base64.getDecoder();
+    static boolean valid(PublicKey key,String message,String token) {
+        try {Signature sig=Signature.getInstance("Ed25519");sig.initVerify(key);
+            sig.update(message.getBytes(StandardCharsets.UTF_8));
+            return sig.verify(DEC.decode(token));
+        } catch(Exception e) {return false;}
+    }
+    static final class Remote implements CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority {
+        final int port;
+        final PublicKey authorityPin;
+        Remote(int port,String operatorPin) throws Exception {
+            this.port=port;
+            authorityPin=KeyFactory.getInstance("Ed25519").generatePublic(
+                new X509EncodedKeySpec(DEC.decode(operatorPin)));
+        }
+        public CelineFutureMemoryRecall.WitnessClaimOutcome claimRevokedOnce(
+                String id,long sourceRev,String status,String digest,String nonce,
+                byte[] ownerSignature,long minimumEpoch) {
+            // A caller injecting this Remote is NOT authority; this test
+            // coordinator's pinned root is an experimental process boundary.
+            try(Socket socket=new Socket(InetAddress.getLoopbackAddress(),port)) {
+                socket.setSoTimeout(2500);
+                BufferedReader reader=new BufferedReader(new InputStreamReader(
+                    socket.getInputStream(),StandardCharsets.UTF_8));
+                PrintWriter writer=new PrintWriter(new OutputStreamWriter(
+                    socket.getOutputStream(),StandardCharsets.UTF_8),true);
+                String random=UUID.randomUUID().toString().replace("-","");
+                writer.println("HELLO "+random);
+                String ident=reader.readLine();
+                if(ident==null) return CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN;
+                if(!ident.startsWith("IDENTITY ") || !valid(authorityPin,
+                    "owner-session/v1\n"+random+"\n",ident.substring(9)))
+                    return CelineFutureMemoryRecall.WitnessClaimOutcome.NO_AUTHORITY;
+                String request="CLAIM "+id+" "+sourceRev+" "+status+" "+digest+" "+nonce
+                        +" "+Base64.getEncoder().encodeToString(ownerSignature);
+                writer.println(request);
+                String answer=reader.readLine();
+                if(answer==null) return CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN;
+                String[] words=answer.split(" ",-1);
+                if(words.length!=4 || !"WITNESS_RESULT".equals(words[0]))
+                    return CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN;
+                long witnessed=Long.parseLong(words[1]);
+                if(witnessed<minimumEpoch || witnessed<=0)
+                    return CelineFutureMemoryRecall.WitnessClaimOutcome.BLOCKED;
+                String outcome=words[2];
+                if(!"BLOCKED".equals(outcome) && !"QUARANTINE_REVOKED_ONLY".equals(outcome))
+                    return CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN;
+                String signed="operator-witness-result/v1\n"+random+"\n"+request+"\n"
+                        +witnessed+"\n"+outcome+"\n";
+                if(!valid(authorityPin,signed,words[3]))
+                    return CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN;
+                return CelineFutureMemoryRecall.WitnessClaimOutcome.valueOf(outcome);
+            } catch(ConnectException e) {
+                return CelineFutureMemoryRecall.WitnessClaimOutcome.NO_AUTHORITY;
+            } catch(Exception e) {
+                return CelineFutureMemoryRecall.WitnessClaimOutcome.UNCERTAIN;
+            }
+        }
+    }
+    public static void main(String[] args) throws Exception {
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority remote=null;
+        int port=Integer.parseInt(args[0]);
+        if(!"-".equals(args[1])) {
+            try {remote=new Remote(port,args[1]);}catch(Exception ignored){}
+        }
+        if("throw".equals(args[9]))
+            remote=(id,rev,status,digest,nonce,token,epoch)->{throw new IllegalStateException("uncertain");};
+        if("null".equals(args[9]))
+            remote=(id,rev,status,digest,nonce,token,epoch)->null;
+        CelineFutureMemoryRecall.WitnessClaimOutcome decision=
+            CelineFutureMemoryRecall.attestRevokedOrphanWithOperatorWitness(
+                args[3],Long.parseLong(args[4]),args[5],args[6],args[7],
+                DEC.decode(args[8]),Long.parseLong(args[2]),remote);
+        System.out.println("RESULT="+decision.name());
+    }
+}
+"""
+
+
+def process_operator_witness_epoch_guard_proof(temp):
+    """Owner, volatile authority and clients are separate genuine JVM processes.
+
+    No Android storage or durable trusted root: operator identity is held by
+    this test coordinator and cannot be recovered by reading ordinary files.
+    """
+    from pathlib import Path
+    count=0
+    children=[]
+    def case(ok, why):
+        nonlocal count
+        if not ok: raise AssertionError('operator witness epoch FAIL: '+why)
+        count+=1
+    owner=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+    auth=['java','-cp',temp,'de.yahya.ai.FutureOperatorEpochWitnessProcess']
+    client=['java','-cp',temp,'de.yahya.ai.FutureOperatorWitnessClientProcess']
+    with tempfile.TemporaryDirectory(prefix='future_operator_witness_epoch_') as tmp:
+        root=Path(tmp); signer=root/'original-signer.txt'; spent=root/'ordinary-owner-spent.txt'
+        ordinary=root/'ordinary-rollbackable-witness-receipt.txt'
+        init=subprocess.run(owner+['init-test-only',str(signer),str(spent)],
+                            capture_output=True,text=True,timeout=12)
+        case(init.returncode==0 and init.stdout.strip()=='BACKUP_CREATED',
+             'actual independent original signer initialized')
+        original_pin=signer.read_text().splitlines()[0]
+        def start(cmd):
+            p=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                               text=True,bufsize=1)
+            children.append(p)
+            ready=p.stdout.readline().strip().split()
+            case(len(ready)==4 and ready[0]=='READY' and p.poll() is None,
+                 'independent JVM authority/owner started: '+str(ready))
+            return p,ready[1],ready[2],ready[3]
+        def ask(port,pin,token,epoch='4',status='REVOKED',mode='ordinary'):
+            cmd=client+[str(port),pin,epoch,'cat-private','2',status,
+                        'a'*64,'owner-independent-nonce-0001',token,mode]
+            p=subprocess.run(cmd,capture_output=True,text=True,timeout=12)
+            case(p.returncode==0 and p.stdout.strip().startswith('RESULT='),
+                 'independent verifier JVM returned '+p.stderr[-400:])
+            return p.stdout.strip().split('RESULT=')[-1]
+        try:
+            original,owner_port,source_pin,token=start(owner+['server',str(signer),str(spent)])
+            case(source_pin==original_pin, 'original signer pin remains unchanged')
+            authority,port,pinned,_=start(auth+['server',source_pin])
+            case(pinned!=source_pin,'authority has separately minted test session key')
+            ordinary.write_text('epoch=4;spent=0\n')
+            case(ask(port,pinned,token)=='QUARANTINE_REVOKED_ONLY',
+                 'first claim accepted only for revoked quarantine by live authority')
+            ordinary.write_text('epoch=3;spent=0\n')
+            case('epoch=3;spent=0' in ordinary.read_text(),
+                 'attacker actually restored ordinary ledger to stale epoch and unspent state')
+            for _ in range(3):
+                case(ask(port,pinned,token)=='BLOCKED',
+                     'fresh independent verifier JVM blocks replay despite ordinary rollback')
+            case(ask(port,pinned,token,epoch='5')=='BLOCKED',
+                 'minimum epoch 5 rejects signed epoch 4 witness response')
+            case(ask(port,pinned,token,status='ACTIVE')=='BLOCKED',
+                 'ACTIVE memory restoration is categorically blocked')
+            case(ask(port,'-',token)=='NO_AUTHORITY',
+                 'missing independently pinned authority never falls back to caller')
+            case(ask(port,pinned,token,mode='throw')=='UNCERTAIN',
+                 'uncertain authority callback exception fails closed')
+            case(ask(port,pinned,token,mode='null')=='UNCERTAIN',
+                 'ambiguous null authoritative result fails closed')
+            case(ask(port,pinned,'AAAA')=='BLOCKED',
+                 'invalid source-owner signature is rejected')
+            authority.terminate();authority.wait(timeout=5)
+            case(authority.poll() is not None,'original trusted authority JVM stopped')
+            case(ask(port,pinned,token)=='NO_AUTHORITY',
+                 'unavailable authority does not use untrusted ordinary ledger')
+            replacement,new_port,new_pin,_=start(auth+['server',source_pin])
+            case(new_pin!=pinned,'attacker replacement has an untrusted fresh session pin')
+            case(ask(new_port,pinned,token)=='NO_AUTHORITY',
+                 'previous operator pin rejects re-enrolled replacement service')
+            case(ask(new_port,new_pin,token)=='QUARANTINE_REVOKED_ONLY',
+                 'KNOWN UNSAFE: caller-selected new pin can replay spent claim')
+            case(original_pin==signer.read_text().splitlines()[0],
+                 'original source signer unchanged throughout malicious rollback')
+            print('FUTURE_OPERATOR_WITNESS_EPOCH_JVM_PASS cases='+str(count))
+            print('FUTURE_OPERATOR_WITNESS_EPOCH_ROLLBACK=BLOCKED_IF_ORIGINAL_AUTHORITY_LIVE')
+            print('FUTURE_OPERATOR_WITNESS_SELF_REBOOT_CUSTODY=UNIMPLEMENTED')
+            print('FUTURE_OPERATOR_WITNESS_NEW_PIN_REPLAY=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_OPERATOR_WITNESS_ANDROID_API29_SECURITY=UNPROVEN')
+        finally:
+            for proc in children:
+                if proc.poll() is None:
+                    proc.kill();proc.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7921,8 +8114,15 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     restored_child.write_text(restored_key_owner_harness, encoding='utf-8')
     witness_child = Path(temp) / 'FutureExternalWitnessProcess.java'
     witness_child.write_text(external_witness_service_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child)], check=True)
+    epoch_authority_child = Path(temp) / 'FutureOperatorEpochWitnessProcess.java'
+    epoch_authority_child.write_text(operator_epoch_witness_harness, encoding='utf-8')
+    epoch_client_child = Path(temp) / 'FutureOperatorWitnessClientProcess.java'
+    epoch_client_child.write_text(operator_witness_client_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child)], check=True)
     import sys
+    if '--focused-operator-witness-epoch' in sys.argv:
+        process_operator_witness_epoch_guard_proof(temp)
+        raise SystemExit(0)
     if '--strict-witness-self-restart' in sys.argv:
         process_external_witness_self_restart_proof(temp, strict=True)
         raise SystemExit(0)
@@ -7993,3 +8193,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_same_original_key_rollback_proof(temp)
     process_external_witness_original_reboot_proof(temp)
     process_external_witness_self_restart_proof(temp)
+    process_operator_witness_epoch_guard_proof(temp)
