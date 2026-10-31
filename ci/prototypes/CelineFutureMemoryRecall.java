@@ -313,6 +313,37 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY two-authority experiment: the ordinary witness is NOT the
+     * rollback root. Its conditional admission is also gated by a separately
+     * operator-provisioned single-use claim ledger. The second authority MUST
+     * hold its pinned identity, epoch and spent claims independently, atomically
+     * and nonrollbackably; a caller callback alone does NOT supply that trust.
+     *
+     * Fail closed if EITHER authority is unavailable/uncertain/denies. A
+     * successful double decision permits only REVOKED quarantine, not restore.
+     * This does not provide a distributed transaction: a ledger consume may
+     * succeed when the outer operation fails; safely retrying requires an
+     * independently designed receipt/ack protocol. No Android implementation.
+     */
+    public static WitnessClaimOutcome attestRevokedWithIndependentOnceLedger(
+            String exactId, long sourceRevision, String sourceStatus,
+            String orphanSha256, String challenge, byte[] ownerSignature,
+            long minimumWitnessEpoch,
+            OperatorProvisionedWitnessEpochAuthority ordinaryWitness,
+            OperatorProvisionedWitnessEpochAuthority independentlyPinnedLedger) {
+        if (ordinaryWitness == null || independentlyPinnedLedger == null)
+            return WitnessClaimOutcome.NO_AUTHORITY;
+        WitnessClaimOutcome ordinary = attestRevokedOrphanWithOperatorWitness(
+                exactId, sourceRevision, sourceStatus, orphanSha256, challenge,
+                ownerSignature, minimumWitnessEpoch, ordinaryWitness);
+        if (ordinary != WitnessClaimOutcome.QUARANTINE_REVOKED_ONLY)
+            return ordinary;
+        return attestRevokedOrphanWithOperatorWitness(exactId, sourceRevision,
+                sourceStatus, orphanSha256, challenge, ownerSignature,
+                minimumWitnessEpoch, independentlyPinnedLedger);
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;

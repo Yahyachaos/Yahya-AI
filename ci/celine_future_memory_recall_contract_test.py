@@ -8258,6 +8258,155 @@ def process_same_key_witness_ledger_rollback_proof(temp, strict=False):
                 if proc.poll() is None:
                     proc.kill();proc.communicate(timeout=5)
 
+# FUTURE-ONLY conditional *two independent authorities* contract. The
+# ordinary witness is deliberately rollbackable while the separately pinned
+# once-ledger JVM survives that witness's restart. This is a test-provisioned
+# live authority, NOT durable custody across the authority's own death.
+independent_ledger_client_harness = r"""
+package de.yahya.ai;
+import java.util.*;
+public final class FutureIndependentLedgerClientProcess {
+    public static void main(String[] a) throws Exception {
+        // ordinaryPort ordinaryPin rootPort rootPin minimumEpoch status token
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority ordinary =
+            "-".equals(a[1]) ? null :
+                new FutureOperatorWitnessClientProcess.Remote(Integer.parseInt(a[0]),a[1]);
+        CelineFutureMemoryRecall.OperatorProvisionedWitnessEpochAuthority root =
+            "-".equals(a[3]) ? null :
+                new FutureOperatorWitnessClientProcess.Remote(Integer.parseInt(a[2]),a[3]);
+        CelineFutureMemoryRecall.WitnessClaimOutcome outcome=
+            CelineFutureMemoryRecall.attestRevokedWithIndependentOnceLedger(
+                "cat-private",2L,a[5],"a".repeat(64),
+                "owner-independent-nonce-0001",Base64.getDecoder().decode(a[6]),
+                Long.parseLong(a[4]),ordinary,root);
+        System.out.println("RESULT="+outcome.name());
+    }
+}
+"""
+
+
+def process_independent_once_ledger_proof(temp):
+    """3 real JVM services + fresh JVM gateways; independent live root only.
+
+    Signed source token and original witness key remain unchanged. Rollback of
+    the ordinary witness ledger reopens the old single-witness path; double
+    custody refuses. If the pinned ROOT itself dies, deny; if the caller pins a
+    newly invented replacement root, record the still-unsafe replay route.
+    """
+    from pathlib import Path
+    passed=0
+    children=[]
+    def ok(condition, label):
+        nonlocal passed
+        if not condition: raise AssertionError('independent once ledger FAIL: '+label)
+        passed+=1
+    owner=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+    witness=['java','-cp',temp,'de.yahya.ai.FutureSameKeyEpochWitnessProcess']
+    root=['java','-cp',temp,'de.yahya.ai.FutureOperatorEpochWitnessProcess']
+    client=['java','-cp',temp,'de.yahya.ai.FutureOperatorWitnessClientProcess']
+    dual=['java','-cp',temp,'de.yahya.ai.FutureIndependentLedgerClientProcess']
+    with tempfile.TemporaryDirectory(prefix='future_independent_once_ledger_') as tmp:
+        base=Path(tmp); key=base/'owner.key'; spent=base/'owner.spent'
+        witness_key=base/'witness.key'; witness_ledger=base/'witness.ledger'
+        for command,tag in ((owner+['init-test-only',str(key),str(spent)],'BACKUP_CREATED'),
+                            (witness+['init-test-only',str(witness_key),str(witness_ledger)],
+                             'WITNESS_BACKUP_CREATED')):
+            p=subprocess.run(command,capture_output=True,text=True,timeout=14)
+            ok(p.returncode==0 and p.stdout.strip()==tag,'test-source keys initialized')
+        original_witness_bytes=witness_key.read_bytes()
+        source_pin=key.read_text().splitlines()[0]
+        witness_pin=witness_key.read_text().splitlines()[0]
+        def launch(command):
+            p=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                               text=True,bufsize=1)
+            children.append(p)
+            line=p.stdout.readline().strip().split()
+            ok(len(line)==4 and line[0]=='READY' and p.poll() is None,
+               'separate JVM started '+str(line[:2]))
+            return p,line[1],line[2],line[3]
+        def one(port,pin,token):
+            p=subprocess.run(client+[port,pin,'4','cat-private','2','REVOKED',
+               'a'*64,'owner-independent-nonce-0001',token,'ordinary'],
+               capture_output=True,text=True,timeout=14)
+            ok(p.returncode==0 and p.stdout.strip().startswith('RESULT='),
+               'single-witness verifier process '+p.stderr[-150:])
+            return p.stdout.strip().split('RESULT=')[-1]
+        def combined(wport,wpin,rport,rpin,token,status='REVOKED'):
+            p=subprocess.run(dual+[wport,wpin,rport,rpin,'4',status,token],
+               capture_output=True,text=True,timeout=14)
+            ok(p.returncode==0 and p.stdout.strip().startswith('RESULT='),
+               'two-root verifier process '+p.stderr[-250:])
+            return p.stdout.strip().split('RESULT=')[-1]
+        try:
+            source,_,live_source_pin,token=launch(owner+['server',str(key),str(spent)])
+            ok(live_source_pin==source_pin,'stable source signer pin')
+            weak,wport,wpin,_=launch(witness+['server',source_pin,
+                                                str(witness_key),str(witness_ledger)])
+            ok(wpin==witness_pin,'stable ordinary witness pin')
+            anchor,rport,rpin,_=launch(root+['server',source_pin])
+            ok(rpin!=wpin,'independent root Ed25519 identity')
+            ok(combined(wport,wpin,rport,rpin,token)=='QUARANTINE_REVOKED_ONLY',
+               'both independent authorities agree once on revoked-only quarantine')
+            ok(witness_ledger.read_text()=='epoch=4;spent=1\n',
+               'ordinary witness wrote consumed receipt')
+            ok(combined(wport,wpin,rport,rpin,token)=='BLOCKED',
+               'repeated double claim rejected')
+            weak.terminate();weak.wait(timeout=5)
+            ok(weak.poll() is not None,'ordinary witness killed before rollback')
+            witness_ledger.write_text('epoch=4;spent=0\n')
+            ok(witness_key.read_bytes()==original_witness_bytes,
+               'attack retains original witness private/public keys')
+            weak2,wport2,wpin2,_=launch(witness+['server',source_pin,
+                                                 str(witness_key),str(witness_ledger)])
+            ok(wpin2==witness_pin,'same-key witness reboot authenticated')
+            ok(one(wport2,wpin2,token)=='QUARANTINE_REVOKED_ONLY',
+               'KNOWN FAIL: unanchored original replayed old spent claim')
+            # Re-open weak witness again, with the same key, while the independent
+            # root still holds the consumed claim. This is a second real reboot.
+            weak2.terminate();weak2.wait(timeout=5)
+            witness_ledger.write_text('epoch=4;spent=0\n')
+            weak3,wport3,wpin3,_=launch(witness+['server',source_pin,
+                                                 str(witness_key),str(witness_ledger)])
+            ok(wpin3==witness_pin,'second rollback authenticated under same key')
+            ok(combined(wport3,wpin3,rport,rpin,token)=='BLOCKED',
+               'conditional BLOCKED: independent root retains once-only receipt')
+            ok(one(wport3,wpin3,token)=='BLOCKED',
+               'weak witness spent a claim, despite independent root denial')
+            ok(combined(wport3,wpin3,rport,'-',token)=='NO_AUTHORITY',
+               'missing independent operator root cannot authorize')
+            ok(combined(wport3,'-',rport,rpin,token)=='NO_AUTHORITY',
+               'missing ordinary authority cannot authorize')
+            anchor.terminate();anchor.wait(timeout=5)
+            ok(anchor.poll() is not None,'independent root was killed')
+            weak3.terminate();weak3.wait(timeout=5)
+            witness_ledger.write_text('epoch=4;spent=0\n')
+            weak4,wport4,wpin4,_=launch(witness+['server',source_pin,
+                                                 str(witness_key),str(witness_ledger)])
+            ok(combined(wport4,wpin4,rport,rpin,token)=='NO_AUTHORITY',
+               'dead root fails closed rather than falling back to weak witness')
+            replacement,rport2,rpin2,_=launch(root+['server',source_pin])
+            ok(rpin2!=rpin,'restarted root has independently untrusted key')
+            ok(one(rport2,rpin,token)=='NO_AUTHORITY',
+               'pinned ORIGINAL root identity blocks unauthorised replacement')
+            weak4.terminate();weak4.wait(timeout=5)
+            witness_ledger.write_text('epoch=4;spent=0\n')
+            weak5,wport5,wpin5,_=launch(witness+['server',source_pin,
+                                                 str(witness_key),str(witness_ledger)])
+            ok(wpin5==witness_pin,'original ordinary witness pin survives another reboot')
+            ok(combined(wport5,wpin5,rport2,rpin2,token)=='QUARANTINE_REVOKED_ONLY',
+               'KNOWN FAIL: caller-selected replacement root still replays spent claim')
+            ok(key.read_text().splitlines()[0]==source_pin,
+               'source public pin remains identical throughout')
+            print('FUTURE_INDEPENDENT_ONCE_LEDGER_JVM_PASS cases='+str(passed))
+            print('FUTURE_WEAK_WITNESS_REBOOT_REPLAY=REPRODUCED_UNANCHORED')
+            print('FUTURE_INDEPENDENT_PINNED_LEDGER=CONDITIONAL_BLOCK_WHILE_LIVE')
+            print('FUTURE_LEDGER_AUTHORITY_OWN_DEATH_RESET=KNOWN_FAIL_UNFIXED')
+            print('FUTURE_DURABLE_ANDROID_CUSTODY=UNIMPLEMENTED')
+        finally:
+            for p in children:
+                if p.poll() is None:
+                    p.kill();p.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -8285,8 +8434,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     epoch_client_child.write_text(operator_witness_client_harness, encoding='utf-8')
     same_witness_child = Path(temp) / 'FutureSameKeyEpochWitnessProcess.java'
     same_witness_child.write_text(same_key_epoch_witness_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child)], check=True)
+    dual_client=Path(temp) / 'FutureIndependentLedgerClientProcess.java'
+    dual_client.write_text(independent_ledger_client_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client)], check=True)
     import sys
+    if '--focused-independent-once-ledger' in sys.argv:
+        process_independent_once_ledger_proof(temp)
+        raise SystemExit(0)
     if '--strict-witness-same-key-rollback' in sys.argv:
         process_same_key_witness_ledger_rollback_proof(temp, strict=True)
         raise SystemExit(0)
@@ -8368,3 +8522,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_external_witness_self_restart_proof(temp)
     process_operator_witness_epoch_guard_proof(temp)
     process_same_key_witness_ledger_rollback_proof(temp)
+    process_independent_once_ledger_proof(temp)
