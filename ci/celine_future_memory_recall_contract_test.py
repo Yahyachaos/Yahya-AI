@@ -7271,6 +7271,140 @@ public final class __CLASS__ {
                 if child is not None and child.poll() is None:
                     child.kill();child.communicate(timeout=5)
 
+# FUTURE-ONLY: hostile first enrollment + owner restart with ordinary-state
+# rollback. This is a real multi-JVM adversarial NEGATIVE CONTROL, not an
+# Android trust anchor or repair of cross-reboot one-shot revocation.
+def process_owner_root_lifecycle_proof(temp):
+    from pathlib import Path
+    count = 0
+    def case(ok, reason):
+        nonlocal count
+        if not ok: raise AssertionError('owner-root lifecycle FAIL: '+reason)
+        count += 1
+
+    with tempfile.TemporaryDirectory(prefix='future_owner_root_lifecycle_') as tmp:
+        root = Path(tmp)
+        owner_cmd = ['java','-cp',temp,'de.yahya.ai.FutureOwnerHeldServiceProcess']
+        children = []
+        try:
+            def new_owner():
+                proc = subprocess.Popen(owner_cmd+['server'],stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,text=True,bufsize=1)
+                children.append(proc)
+                line = proc.stdout.readline().strip().split()
+                case(len(line)==4 and line[0]=='READY' and proc.poll() is None,
+                     'independent owner-service JVM started')
+                return proc, line[1], line[2], line[3]
+
+            def compile_client(name,pin):
+                # This deliberately models different authorities compiling a
+                # verifier. Passing a pin from an untrusted file is NOT secure
+                # first enrollment merely because the Java literal is static.
+                assert name.isidentifier() and '\"' not in pin and '\\' not in pin
+                code = r'''PACKAGE_HOLE
+import java.util.*;
+public final class CLASS_HOLE {
+    private static final String ROOT_PIN="PIN_HOLE";
+    public static void main(String[] args) {
+        if(args.length!=2 || ROOT_PIN.isEmpty()) {
+            System.out.println("RESULT=BLOCKED");return;
+        }
+        FutureOwnerHeldServiceProcess.client(new String[]{"client",args[0],
+            ROOT_PIN,"cat-private","2","REVOKED","a".repeat(64),
+            "owner-independent-nonce-0001",args[1]});
+    }
+}
+'''.replace('PACKAGE_HOLE','package de.yahya.ai;').replace('CLASS_HOLE',name).replace('PIN_HOLE',pin)
+                javafile=Path(temp)/(name+'.java')
+                javafile.write_text(code,encoding='utf-8')
+                compiled=subprocess.run(['javac','-encoding','UTF-8','-cp',temp,
+                                         '-d',temp,str(javafile)],
+                                        capture_output=True,text=True,timeout=25)
+                case(compiled.returncode==0,
+                     'separately compiled verifier JVM '+name+' '+compiled.stderr[-300:])
+                return 'de.yahya.ai.'+name
+
+            def ask(client,port,token):
+                result=subprocess.run(['java','-cp',temp,client,str(port),token],
+                                      capture_output=True,text=True,timeout=13)
+                case(result.returncode==0 and result.stdout.startswith('RESULT='),
+                     'independent verifier JVM returned decision '+result.stderr[-250:])
+                return result.stdout.strip().split('RESULT=')[-1]
+
+            # Attacker enrolls FIRST, before any legitimate owner is present.
+            attacker,attack_port,attack_pin,attack_token=new_owner()
+            registry=root/'bootstrap-untrusted.txt'
+            registry.write_text(attack_pin+'\n',encoding='utf-8')
+            case(registry.read_text().strip()==attack_pin,
+                 'ordinary-file first enrollment is attacker-controlled')
+            malicious=compile_client('FutureFirstEnrollFromFile',registry.read_text().strip())
+            missing=compile_client('FutureNoExternalEnrollmentRoot','')
+            case(ask(missing,attack_port,attack_token)=='BLOCKED',
+                 'absent external root fails closed even before genuine owner exists')
+            # KNOWN FAIL: a self-appointed first root signs its own sessions and
+            # trivially passes a verifier compiled from an attacker registry.
+            case(ask(malicious,attack_port,attack_token)=='QUARANTINE_REVOKED_ONLY',
+                 'KNOWN SECURITY FAIL: malicious first enrollment self-appoints')
+            case(ask(malicious,attack_port,attack_token)=='BLOCKED',
+                 'attacker-issued token remains one-shot only in live attacker JVM')
+
+            genuine,real_port,real_pin,real_token=new_owner()
+            case(real_pin != attack_pin,
+                 'legitimate and first-enrollment attacker have independent identities')
+            trusted=compile_client('FutureTrulyOperatorPinnedLifecycle',real_pin)
+            case(ask(trusted,attack_port,attack_token)=='BLOCKED',
+                 'independent original root rejects attacker even after fake enrollment')
+            case(ask(malicious,real_port,real_token)=='BLOCKED',
+                 'self-appointed first root rejects legitimate owner identity')
+            case(ask(trusted,real_port,real_token)=='QUARANTINE_REVOKED_ONLY',
+                 'properly pre-provisioned independent root permits genuine revoke quarantine once')
+            case(ask(trusted,real_port,real_token)=='BLOCKED',
+                 'genuine in-memory one-shot guard rejects same-owner replay')
+
+            # First service's consumed state is NOT durably authenticated.
+            # Simulate an ordinary backup of spent=false and tampered startup
+            # after the authorized owner's death. The next JVM independently
+            # starts with a fresh Ed25519 identity and unspent nonce.
+            checkpoint=root/'rollback-owner-status.txt'
+            checkpoint.write_text('id=cat-private;rev=2;spent=1\n',encoding='utf-8')
+            case('spent=1' in checkpoint.read_text(),
+                 'checkpoint records completed revocation before service death')
+            genuine.terminate();genuine.wait(timeout=5)
+            case(genuine.poll() is not None,
+                 'original trusted owner JVM actually terminated')
+            case(ask(trusted,real_port,real_token)=='BLOCKED',
+                 'dead owner cannot be silently resumed from stale endpoint')
+            checkpoint.write_text('id=cat-private;rev=2;spent=0\n',encoding='utf-8')
+            case('spent=0' in checkpoint.read_text(),
+                 'attacker rolled back the ordinary-file consumption marker')
+            restarted,next_port,next_pin,next_token=new_owner()
+            case(next_pin not in (real_pin,attack_pin),
+                 'post-reboot process has unregistered new signing identity')
+            case(ask(trusted,next_port,next_token)=='BLOCKED',
+                 'external original root rejects unauthorized service reboot')
+            case(ask(missing,next_port,next_token)=='BLOCKED',
+                 'missing independent root never silently re-enrolls rebooted service')
+            registry.write_text(next_pin+'\n',encoding='utf-8')
+            case(registry.read_text().strip()==next_pin,
+                 'attacker rewrote ordinary bootstrap registry after reboot')
+            unsafe_reboot=compile_client('FuturePostRebootFromMutableRegistry',
+                                         registry.read_text().strip())
+            case(ask(unsafe_reboot,next_port,next_token)=='QUARANTINE_REVOKED_ONLY',
+                 'KNOWN SECURITY FAIL: mutable bootstrap + reboot accepts same ID/rev again')
+            case(ask(unsafe_reboot,next_port,next_token)=='BLOCKED',
+                 'new process one-shot check does not repair cross-reboot rollback')
+            case(ask(trusted,next_port,next_token)=='BLOCKED',
+                 'original independent root remains fail-closed after rogue claim')
+            print('FUTURE_G1_FIRST_ENROLLMENT_AND_REBOOT_JVM_PASS cases='+str(count))
+            print('FUTURE_G1_ATTACKER_FIRST_ENROLLMENT=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_REBOOT_WITH_MUTABLE_REGISTRY_REPLAY=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_EXTERNAL_NONROLLBACKABLE_TRUST_AND_CAS=UNSATISFIED')
+            print('FUTURE_G1_ANDROID_API29_SECURITY_PROOF=UNPROVEN')
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill();child.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7288,6 +7422,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     atomic_child.write_text(owner_held_service_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child)], check=True)
     import sys
+    if '--focused-root-lifecycle' in sys.argv:
+        process_owner_root_lifecycle_proof(temp)
+        raise SystemExit(0)
     if '--focused-root-capability' in sys.argv:
         process_operator_root_capability_proof(temp)
         raise SystemExit(0)
@@ -7335,3 +7472,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_owner_held_atomic_capability_proof(temp)
     process_owner_service_bootstrap_spoof_proof(temp)
     process_operator_root_capability_proof(temp)
+    process_owner_root_lifecycle_proof(temp)
