@@ -8093,6 +8093,171 @@ def process_operator_witness_epoch_guard_proof(temp):
                 if proc.poll() is None:
                     proc.kill();proc.communicate(timeout=5)
 
+# FUTURE-ONLY NEGATIVE CONTROL: the witness is a separate real JVM, but its
+# original Ed25519 identity and epoch/spent ledger are backed by ordinary,
+# attacker-rollbackable files. The coordinator retains the genuine witness pin.
+# This explicitly does NOT create a durable, nonrollbackable Android authority.
+same_key_epoch_witness_harness = (operator_epoch_witness_harness
+    .replace('FutureOperatorEpochWitnessProcess', 'FutureSameKeyEpochWitnessProcess')
+    .replace('static final long PROTECTED_EPOCH=4L;', '')
+    .replace('Owner(PublicKey p){pub=p;}', r'''final Path ledger;
+        final long epoch;
+        Owner(PublicKey p, Path file) throws Exception {
+            pub=p;ledger=file;
+            String saved=Files.readString(file,StandardCharsets.UTF_8);
+            if(!"epoch=3;spent=0\n".equals(saved) && !"epoch=3;spent=1\n".equals(saved)
+                && !"epoch=4;spent=0\n".equals(saved) && !"epoch=4;spent=1\n".equals(saved))
+                throw new SecurityException("invalid witness epoch/consumption ledger");
+            epoch=Long.parseLong(saved.substring(6,7));
+            spent=saved.contains("spent=1");
+        }''')
+    .replace('spent=true;\n            return CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY;', r'''try {Files.writeString(ledger,"epoch="+epoch+";spent=1\n",StandardCharsets.UTF_8);}
+            catch(Exception e) {return CelineFutureMemoryRecall.RecoveryDisposition.BLOCKED;}
+            spent=true;
+            return CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY;''')
+    .replace('Service(String sourcePin) throws Exception {\n            keys=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();\n            PublicKey source=KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(DEC.decode(sourcePin)));\n            owner=new Owner(source);\n        }', r'''Service(String sourcePin,String backup,String ledger) throws Exception {
+            List<String> parts=Files.readAllLines(Paths.get(backup),StandardCharsets.UTF_8);
+            if(parts.size()!=2) throw new SecurityException("invalid witness identity");
+            KeyFactory f=KeyFactory.getInstance("Ed25519");
+            PublicKey pub=f.generatePublic(new X509EncodedKeySpec(DEC.decode(parts.get(0))));
+            PrivateKey priv=f.generatePrivate(new PKCS8EncodedKeySpec(DEC.decode(parts.get(1))));
+            if(!valid(pub,"future-same-key-witness-pair/v1",
+                    sign(priv,"future-same-key-witness-pair/v1")))
+                throw new SecurityException("mismatched witness keys");
+            keys=new KeyPair(pub,priv);
+            PublicKey source=f.generatePublic(new X509EncodedKeySpec(DEC.decode(sourcePin)));
+            owner=new Owner(source,Paths.get(ledger));
+        }''')
+    .replace('if(a.length!=2) throw new SecurityException("missing pinned source");\n        Service service=new Service(a[1]);',
+             'if(a.length!=4) throw new SecurityException("missing pinned source/identity/ledger");\n        Service service=new Service(a[1],a[2],a[3]);')
+    .replace('+PROTECTED_EPOCH+', '+owner.epoch+')
+    .replace('"WITNESS_RESULT "+PROTECTED_EPOCH+', '"WITNESS_RESULT "+owner.epoch+')
+    .replace('if("server".equals(a[0]))server(a);', r'''if("server".equals(a[0]))server(a);
+        else if("init-test-only".equals(a[0]) && a.length==3) {
+            KeyPair kp=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+            Files.writeString(Paths.get(a[1]),encode(kp.getPublic().getEncoded())+"\n"
+                    +encode(kp.getPrivate().getEncoded())+"\n",StandardCharsets.UTF_8);
+            Files.writeString(Paths.get(a[2]),"epoch=4;spent=0\n",StandardCharsets.UTF_8);
+            System.out.println("WITNESS_BACKUP_CREATED");
+        }'''))
+assert 'final long epoch;' in same_key_epoch_witness_harness
+assert 'owner.epoch' in same_key_epoch_witness_harness
+assert 'PROTECTED_EPOCH' not in same_key_epoch_witness_harness
+assert 'WITNESS_BACKUP_CREATED' in same_key_epoch_witness_harness
+
+
+def process_same_key_witness_ledger_rollback_proof(temp, strict=False):
+    """Real source/witness/verifier JVMs with unchanged signer and witness pins.
+
+    The strict version intentionally FAILS when an already consumed claim is
+    accepted after both the epoch and spent ledger are restored to epoch 4.
+    """
+    from pathlib import Path
+    count=0
+    children=[]
+    def case(ok, reason):
+        nonlocal count
+        if not ok: raise AssertionError('same-key witness ledger FAIL: '+reason)
+        count+=1
+    owner=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+    witness=['java','-cp',temp,'de.yahya.ai.FutureSameKeyEpochWitnessProcess']
+    client=['java','-cp',temp,'de.yahya.ai.FutureOperatorWitnessClientProcess']
+    with tempfile.TemporaryDirectory(prefix='future_same_key_witness_') as tmp:
+        root=Path(tmp); source=root/'source.key'; spent=root/'source.spent'
+        signer=root/'witness.key'; ledger=root/'witness.ledger'
+        try:
+            for cmd,expected in ((owner+['init-test-only',str(source),str(spent)],'BACKUP_CREATED'),
+                                 (witness+['init-test-only',str(signer),str(ledger)],'WITNESS_BACKUP_CREATED')):
+                p=subprocess.run(cmd,capture_output=True,text=True,timeout=12)
+                case(p.returncode==0 and p.stdout.strip()==expected,'original test key initialized')
+            original_pin=source.read_text().splitlines()[0]
+            witness_pin=signer.read_text().splitlines()[0]
+            original_signer_bytes=source.read_bytes()
+            original_witness_bytes=signer.read_bytes()
+            def start(cmd):
+                proc=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                      text=True,bufsize=1)
+                children.append(proc)
+                ready=proc.stdout.readline().strip().split()
+                case(len(ready)==4 and ready[0]=='READY' and proc.poll() is None,
+                     'independent JVM service booted: '+str(ready[:2]))
+                return proc,ready[1],ready[2],ready[3]
+            def ask(port,pin,token,minimum='4',state='REVOKED'):
+                result=subprocess.run(client+[port,pin,minimum,'cat-private','2',state,
+                       'a'*64,'owner-independent-nonce-0001',token,'ordinary'],
+                       capture_output=True,text=True,timeout=12)
+                case(result.returncode==0 and result.stdout.strip().startswith('RESULT='),
+                     'independent verifier finished '+result.stderr[-200:])
+                return result.stdout.strip().split('RESULT=')[-1]
+            original,_,public_source,token=start(owner+['server',str(source),str(spent)])
+            case(public_source==original_pin,'original source root matches durable coordinator pin')
+            live,port,pin,_=start(witness+['server',original_pin,str(signer),str(ledger)])
+            case(pin==witness_pin,'original witness session pin matches coordinator')
+            case(ask(port,witness_pin,token)=='QUARANTINE_REVOKED_ONLY','first revoked claim consumed')
+            case(ledger.read_text()=='epoch=4;spent=1\n','witness persisted consumed marker')
+            case(ask(port,witness_pin,token)=='BLOCKED','same-process duplicate rejected')
+            live.terminate();live.wait(timeout=5)
+            case(live.poll() is not None,'witness JVM killed before first reboot')
+            resumed,port2,pin2,_=start(witness+['server',original_pin,str(signer),str(ledger)])
+            case(pin2==witness_pin,'honest reboot retains original witness Ed25519 key')
+            case(ask(port2,witness_pin,token)=='BLOCKED','honest persisted spent state blocks replay')
+            resumed.terminate();resumed.wait(timeout=5)
+            ledger.write_text('epoch=3;spent=0\n')
+            stale,port3,pin3,_=start(witness+['server',original_pin,str(signer),str(ledger)])
+            case(pin3==witness_pin,'rolled-back epoch still uses original pinned key')
+            case(ask(port3,witness_pin,token,minimum='4')=='BLOCKED',
+                 'previous known minimum epoch rejects rollback to epoch 3')
+            stale.terminate();stale.wait(timeout=5)
+            # Restore the SAME epoch, so an epoch minimum is insufficient.
+            ledger.write_text('epoch=4;spent=0\n')
+            case(signer.read_bytes()==original_witness_bytes and source.read_bytes()==original_signer_bytes,
+                 'both original Ed25519 identity files unchanged by attacker')
+            restored,port4,pin4,_=start(witness+['server',original_pin,str(signer),str(ledger)])
+            case(pin4==witness_pin,'malicious same-epoch reboot retains original pinned witness')
+            replay=ask(port4,witness_pin,token,minimum='4')
+            if strict:
+                case(replay=='BLOCKED','MUST reject spent claim after rollback with identical key/epoch')
+            else:
+                case(replay=='QUARANTINE_REVOKED_ONLY',
+                     'KNOWN SECURITY FAIL: original witness key/epoch replays consumed claim')
+            case(ask(port4,witness_pin,token)=='BLOCKED',
+                 'once compromised reboot consumes, further duplicates are blocked')
+            case(ledger.read_text()=='epoch=4;spent=1\n','compromised witness re-spent ordinary ledger')
+            case(ask(port4,witness_pin,token,state='ACTIVE')=='BLOCKED',
+                 'ACTIVE memory status remains rejected despite replay problem')
+            restored.terminate();restored.wait(timeout=5)
+            case(restored.poll() is not None,'replayed witness stopped for corrupt-boot controls')
+            def reject_boot():
+                p=subprocess.run(witness+['server',original_pin,str(signer),str(ledger)],
+                                 capture_output=True,text=True,timeout=9)
+                case(p.returncode!=0 and 'READY ' not in p.stdout,
+                     'invalid witness persisted state rejected before boot')
+            ledger.write_text('epoch=4;spent=garbled\n')
+            reject_boot()
+            ledger.unlink()
+            reject_boot()
+            ledger.write_text('epoch=4;spent=1\n')
+            attacker_key=root/'attacker.witness.key'; attacker_state=root/'attacker.ledger'
+            p=subprocess.run(witness+['init-test-only',str(attacker_key),str(attacker_state)],
+                             capture_output=True,text=True,timeout=12)
+            case(p.returncode==0 and p.stdout.strip()=='WITNESS_BACKUP_CREATED',
+                 'unrelated signer generated in independent Java process')
+            own=signer.read_text().splitlines(); foreign=attacker_key.read_text().splitlines()
+            case(own[0]!=foreign[0], 'attacker identity differs from original pin')
+            signer.write_text(own[0]+'\n'+foreign[1]+'\n')
+            reject_boot()
+            signer.write_bytes(original_witness_bytes)
+            case(signer.read_bytes()==original_witness_bytes,
+                 'original witness signing bytes restored for exact provenance')
+            print('FUTURE_WITNESS_SAME_KEY_ROLLBACK_JVM_PASS cases='+str(count))
+            print('FUTURE_WITNESS_SAME_PIN_EPOCH_AND_LEDGER_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_WITNESS_INDEPENDENT_DURABLE_ONCE_CUSTODY=UNIMPLEMENTED')
+            print('FUTURE_WITNESS_ANDROID_API29_SECURITY=UNPROVEN')
+        finally:
+            for proc in children:
+                if proc.poll() is None:
+                    proc.kill();proc.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -8118,8 +8283,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     epoch_authority_child.write_text(operator_epoch_witness_harness, encoding='utf-8')
     epoch_client_child = Path(temp) / 'FutureOperatorWitnessClientProcess.java'
     epoch_client_child.write_text(operator_witness_client_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child)], check=True)
+    same_witness_child = Path(temp) / 'FutureSameKeyEpochWitnessProcess.java'
+    same_witness_child.write_text(same_key_epoch_witness_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child)], check=True)
     import sys
+    if '--strict-witness-same-key-rollback' in sys.argv:
+        process_same_key_witness_ledger_rollback_proof(temp, strict=True)
+        raise SystemExit(0)
+    if '--focused-witness-same-key-rollback' in sys.argv:
+        process_same_key_witness_ledger_rollback_proof(temp)
+        raise SystemExit(0)
     if '--focused-operator-witness-epoch' in sys.argv:
         process_operator_witness_epoch_guard_proof(temp)
         raise SystemExit(0)
@@ -8194,3 +8367,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_external_witness_original_reboot_proof(temp)
     process_external_witness_self_restart_proof(temp)
     process_operator_witness_epoch_guard_proof(temp)
+    process_same_key_witness_ledger_rollback_proof(temp)
