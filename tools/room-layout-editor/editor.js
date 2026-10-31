@@ -771,7 +771,17 @@ $('reset-room').onclick=()=>{
   }
   $('edit-room').checked=false;buildRoom();commitEdit();
 };
-$('toggle-walls').onclick=()=>{wallVisible=!wallVisible;walls.visible=wallVisible;};
+$('toggle-walls').onclick=()=>{
+  // View-only visibility switch: never modify owner-final room geometry or JSON.
+  wallVisible=!wallVisible;
+  walls.visible=wallVisible;
+  const mobile=document.querySelector('[data-mobile-action="toggle-walls"]');
+  if(mobile){
+    mobile.textContent=wallVisible?'Wände ausblenden':'Wände einblenden';
+    mobile.setAttribute('aria-pressed',String(!wallVisible));
+  }
+  invalidateMobileFrame();
+};
 $('sheer-preview').onchange=()=>{
   const preview=setSourceSheerPreview($('sheer-preview').checked);
   if (preview.ready && preview.enabled && preview.affectedMaterialSlots!==1)
@@ -1110,6 +1120,7 @@ if (E2E_PROOF) {
         ground_hex:ground?.material?.color.getHexString(),
         wall_hex:wall?.material?.color.getHexString(),
         wall_opacity:wall?.material?.opacity,
+        walls_visible:walls.visible,
         grid_exists:!!grid,
         grid_visible:grid?.visible,
         guide_control_checked:$('show-grid').checked

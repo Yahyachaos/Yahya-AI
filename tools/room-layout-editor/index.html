@@ -85,10 +85,11 @@
         <label class="file-label" for="file" aria-label="Gespeichertes JSON-Layout laden">JSON ↑</label>
       </div>
       <details class="mobile-extra">
-        <summary>Ansicht, Referenz und nächstes Möbel</summary>
+        <summary>Ansicht, historische Bildanzeige und nächstes Möbel</summary>
         <div class="mobile-toolbar">
           <button type="button" data-mobile-action="camera-persp">3D</button>
           <button type="button" data-mobile-action="camera-top">Oben</button>
+          <button type="button" data-mobile-action="toggle-walls" aria-pressed="false" aria-label="Raumwände nur in der Editor-Ansicht ein- oder ausblenden">Wände ausblenden</button>
           <button type="button" data-mobile-action="camera-reference">Referenzsicht</button>
           <button type="button" data-mobile-action="reference-toggle">Bild</button>
           <button type="button" data-mobile-action="next-unlocked">Nächstes</button>
@@ -120,7 +121,7 @@
       <p class="small">Die Möbel bleiben unabhängig davon frei beweglich. Eine Maßänderung verändert keine Original-GLB-Datei und keine laufende App.</p>
     </section>
     <section>
-      <h2>Original-Referenzbild</h2>
+      <h2>Historisches Bild (keine Layoutvorgabe)</h2>
       <div class="button-row"><button id="reference-toggle">Referenz anzeigen</button><label class="file-label" for="reference-file">Eigenes Bild laden</label><input id="reference-file" type="file" accept="image/*" hidden></div>
       <label>Bild-Deckkraft <input id="reference-opacity" type="range" min="15" max="100" value="80"></label>
       <img id="reference-preview" alt="Referenzbild-Vorschau" style="max-width:100%;max-height:170px;object-fit:contain;border:1px solid #334155;border-radius:7px" hidden>

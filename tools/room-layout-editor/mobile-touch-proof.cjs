@@ -198,6 +198,30 @@ async function main(){
     fs.writeFileSync(path.join(out,'mobile-capture-preflight.json'),JSON.stringify(preflight,null,2));
     const nativeFirst=await captureRealWebGL(page,'mobile-13-original-glb-before-history-real-webgl.png');
     record.push({name:'MOBILE_NATIVE_REAL_WEBGL_BEFORE_HISTORY',nativeFirst});
+    // View-only mobile wall toggle: the same 13 approved GLBs must render
+    // unobstructed without ever changing the stored owner-final scene.
+    // The wall-hidden PNG is a DIAGNOSTIC perspective, NOT a room-shell PASS.
+    const beforeWallToggle=await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout());
+    assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,true);
+    await page.locator('.mobile-extra > summary').tap();
+    const wallButton=page.locator('[data-mobile-action="toggle-walls"]');
+    assert.equal(await wallButton.getAttribute('aria-pressed'),'false');
+    await wallButton.tap();
+    assert.equal(await wallButton.getAttribute('aria-pressed'),'true');
+    assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,false);
+    const wallHiddenPreview=await captureRealWebGL(page,'mobile-owner-final-walls-hidden-diagnostic-webgl.png');
+    assert.notEqual(wallHiddenPreview.sha256,nativeFirst.sha256,
+      'Wall-only visibility preview must have genuinely different WebGL pixels');
+    assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
+      'Hiding walls may not alter any owner-final furniture transform or JSON metadata');
+    await wallButton.tap();
+    assert.equal(await wallButton.getAttribute('aria-pressed'),'false');
+    assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,true);
+    await page.locator('.mobile-extra > summary').tap();
+    assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle);
+    record.push({name:'MOBILE_VIEW_ONLY_WALL_VISIBILITY_TOUCH_PASS',
+      original_layout_sha256:approvedSha,hidden_view_diagnostic_only:wallHiddenPreview,
+      room_shell_geometry_unchanged:true,original_13_transform_fields_unchanged:true});
     fs.writeFileSync(path.join(out,'mobile-capture-preflight.json'),JSON.stringify({...preflight,nativeFirst},null,2));
     const baseX=Number(await page.locator('#x').inputValue());
     await page.locator('[data-nudge="x:1"]').tap();
