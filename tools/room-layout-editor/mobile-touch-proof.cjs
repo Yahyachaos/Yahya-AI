@@ -170,6 +170,26 @@ async function main(){
       tolerance_absolute_m_or_degree_or_scale:1e-9});
     const initial=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
     record.push({name:'REAL_MOBILE_VIEWPORT_13_ORIGINAL_GLB_PASS',viewport:[412,915],canvas:initial.canvas_px});
+    // Genuine 44px+ view shortcut stays reachable in the 3D stage without
+    // opening nested mobile drawers; no layout or camera is changed.
+    const quickNeutral=await page.evaluate(()=>{
+      const el=document.getElementById('mobile-neutral-shortcut');
+      const stage=document.getElementById('viewport').getBoundingClientRect();
+      const b=el.getBoundingClientRect();
+      const hit=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);
+      return {rect:[b.x,b.y,b.width,b.height],stage:[stage.x,stage.y,stage.width,stage.height],
+        visible:getComputedStyle(el).display!=='none',
+        hit:hit===el||el.contains(hit)};
+    });
+    assert(quickNeutral.visible && quickNeutral.hit,
+      'Neutral quick-view must be a genuine unoccluded viewport touch target');
+    assert(quickNeutral.rect[2]>=44 && quickNeutral.rect[3]>=44,
+      'Mobile neutral quick-view must be >=44x44 CSS pixels');
+    assert(quickNeutral.rect[1]>=quickNeutral.stage[1] &&
+      quickNeutral.rect[1]+quickNeutral.rect[3]<=quickNeutral.stage[1]+quickNeutral.stage[3],
+      'Neutral quick-view must stay inside the genuine 3D stage');
+    record.push({name:'MOBILE_NEUTRAL_VIEW_SHORTCUT_VISIBLE_WHEN_DRAWER_CLOSED_PASS',quickNeutral});
+
     // Phone-first framing: real original furniture must remain visible when
     // the extra editing toolbar is closed. Open it using a genuine touch for
     // the existing selection/rotate/scale/undo/redo/JSON acceptance sequence.

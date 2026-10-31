@@ -11,6 +11,7 @@
     main{display:grid;grid-template-columns:minmax(0,1fr) 330px;height:calc(100dvh - 76px);min-height:520px}
     #viewport{position:relative;overflow:hidden;background:#0b1220} #viewport canvas{display:block;touch-action:none}
     #mobile-controls{display:none}
+    .mobile-view-shortcut{display:none}
     .mobile-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .mobile-toolbar button,.mobile-toolbar .file-label{min-height:44px;min-width:44px;padding:8px}
     .mobile-toolbar button.active{border-color:#38bdf8;background:#164e63}
@@ -40,6 +41,8 @@
       aside{border-left:0;border-top:1px solid #334155;padding:12px}
       .hint{display:none}
       #reference-overlay{max-width:35%;max-height:29%;top:7px;left:7px}
+      .mobile-view-shortcut{display:block;position:absolute;top:8px;right:8px;z-index:6;min-width:44px;min-height:44px;padding:8px 10px;font-size:.79rem;background:#0f172ae9;touch-action:manipulation}
+      .mobile-view-shortcut[aria-pressed="true"]{border-color:#38bdf8;background:#164e63}
       #mobile-controls{display:flex;position:absolute;z-index:4;left:6px;right:6px;bottom:6px;
         flex-direction:column;gap:5px;pointer-events:none}
       #mobile-controls>*,#mobile-controls .mobile-toolbar>*{pointer-events:auto}
@@ -64,6 +67,7 @@
   <div id="viewport">
     <img id="reference-overlay" alt="Originalreferenz" hidden>
     <div class="hint">Möbel anklicken · Gizmo ziehen · Verschieben / Drehen / Skalieren · Maus rechts: Kamera · Rad: Zoom</div>
+    <button type="button" id="mobile-neutral-shortcut" class="mobile-view-shortcut" data-mobile-action="neutral-shell" aria-pressed="false" aria-label="Helle neutrale Ansicht umschalten, ohne Möbelpositionen oder Raumlayout zu ändern">☀ Helle Ansicht</button>
     <div id="mobile-controls" aria-label="Raumeditor Touch-Steuerung">
       <div class="mobile-toolbar">
         <select id="mobile-object" aria-label="Möbel auf dem Handy wählen"></select>
@@ -90,7 +94,7 @@
           <button type="button" data-mobile-action="camera-persp">3D</button>
           <button type="button" data-mobile-action="camera-top">Oben</button>
           <button type="button" data-mobile-action="toggle-walls" aria-pressed="false" aria-label="Raumwände nur in der Editor-Ansicht ein- oder ausblenden">Wände ausblenden</button>
-          <button type="button" data-mobile-action="neutral-shell" aria-pressed="false" aria-label="Reversible neutrale Raumhülle nur in der 3D-Editor-Ansicht, keine Möbeländerung">Neutrale Hülle</button>
+
           <button type="button" data-mobile-action="camera-reference">Referenzsicht</button>
           <button type="button" data-mobile-action="reference-toggle">Bild</button>
           <button type="button" data-mobile-action="next-unlocked">Nächstes</button>
