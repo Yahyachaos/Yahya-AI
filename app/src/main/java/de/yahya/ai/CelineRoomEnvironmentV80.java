@@ -84,28 +84,23 @@ final class CelineRoomEnvironmentV80 {
     // than the same reference ROIs, while calibrated walls/ceiling are close.
     // A constrained downward, room-channel-only warm fill targets left/near floor;
     // do not retune the shared key or alter the 9R.5 user-toggle lamp.
-    private static final float ROOM_WARM_FLOOR_FILL_X = -0.80f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
-    private static final float ROOM_WARM_FLOOR_FILL_Y = 2.25f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-    private static final float ROOM_WARM_FLOOR_FILL_Z = 0.75f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    // S25 native shell and loaded furniture use the floor-centered XYZ frame.
+    // Auxiliary Room light positions must not inherit the old shared 4R runtime
+    // offsets. Preserve the source-local fill location and its light parameters.
+    private static final float ROOM_WARM_FLOOR_FILL_X = -0.80f;
+    private static final float ROOM_WARM_FLOOR_FILL_Y = 2.25f;
+    private static final float ROOM_WARM_FLOOR_FILL_Z = 0.75f;
     private static final float ROOM_WARM_FLOOR_FILL_LUMENS = 38_000.0f;
     private static final float ROOM_WARM_FLOOR_FILL_FALLOFF_M = 2.85f;
     private static final float ROOM_WARM_FLOOR_FILL_CONE_INNER_RAD = 0.34f;
     private static final float ROOM_WARM_FLOOR_FILL_CONE_OUTER_RAD = 0.50f;
-    // The CURRENT source-fidelity floor-lamp GLB has a reference-solved anchor at
-    // (+1.71406245, +0.72000003, +1.70734370) before the common 180-degree room yaw.
-    // alignRoomRoot rotates it to X=-1.71406245, Z=-1.70734370 and then applies the
-    // locked runtime offset. The old 6.4m room constants (-1.55,+1.55) left the light
-    // 3.26 m from its actual shade. Bind this focused source-light to the real fitted
-    // lamp position without mutating the original furniture GLB or accepted toggle.
-    private static final float FLOOR_LAMP_LIGHT_X = -1.71406245f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
-    private static final float FLOOR_LAMP_LIGHT_Y = 1.45f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-    private static final float FLOOR_LAMP_LIGHT_Z = -1.70734370f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    // Legacy optional lamp spotlight: retain the pre-existing room-local bulb
+    // candidate until actual S25 GLB bulb geometry and ON/OFF pixels are checked.
+    // Only remove the obsolete WorldContract offset that placed this light well
+    // outside the native 4.40 x 4.20 x 2.65 m shell. Never move the GLB itself.
+    private static final float FLOOR_LAMP_LIGHT_X = -1.71406245f;
+    private static final float FLOOR_LAMP_LIGHT_Y = 1.45f;
+    private static final float FLOOR_LAMP_LIGHT_Z = -1.70734370f;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
     // 9R.5 exact real ON/OFF proof #273 changed 0 static wall/floor pixels.
     // The former fitted-chair aim was behind this bulb toward the opaque back
