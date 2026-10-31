@@ -7741,6 +7741,75 @@ def process_same_original_key_rollback_proof(temp):
                 if child.poll() is None:
                     child.kill();child.communicate(timeout=5)
 
+
+# FUTURE-ONLY / TEST ONLY: independently pinned source signer and one-shot
+# external JVM witness. Independent witness death or first enrollment remains
+# UNSATISFIED; this is NOT protected Android storage or a production gate.
+external_witness_service_harness = (owner_held_service_harness
+    .replace('FutureOwnerHeldServiceProcess', 'FutureExternalWitnessProcess')
+    .replace('Service() throws Exception {\n            keys=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();\n            owner=new Owner(keys.getPublic());\n        }',
+             'Service(String sourcePin) throws Exception {\n            keys=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();\n            PublicKey source=KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(DEC.decode(sourcePin)));\n            owner=new Owner(source);\n        }')
+    .replace('static void server() throws Exception {\n        Service service=new Service();',
+             'static void server(String[] a) throws Exception {\n        if(a.length!=2) throw new SecurityException("missing pinned source");\n        Service service=new Service(a[1]);')
+    .replace('if("server".equals(a[0]))server();', 'if("server".equals(a[0]))server(a);')
+    .replace('" "+service.genuineToken());', '" NO_SOURCE_TOKEN");'))
+
+
+def process_external_witness_original_reboot_proof(temp):
+    """Real independent owner/verifier JVMs: same signed claim cannot be consumed twice while witness survives."""
+    from pathlib import Path
+    count=0
+    def case(valid, message):
+        nonlocal count
+        if not valid: raise AssertionError('external witness FAIL: '+message)
+        count+=1
+    owner=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+    witness=['java','-cp',temp,'de.yahya.ai.FutureExternalWitnessProcess']
+    children=[]
+    with tempfile.TemporaryDirectory(prefix='future_external_witness_') as tmp:
+        root=Path(tmp); backup=root/'signer'; spent=root/'spent'
+        init=subprocess.run(owner+['init-test-only',str(backup),str(spent)],capture_output=True,text=True,timeout=10)
+        case(init.returncode==0 and init.stdout.strip()=='BACKUP_CREATED','source signer initialized')
+        source_pin=backup.read_text().splitlines()[0]
+        def start(cmd):
+            p=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+            children.append(p); info=p.stdout.readline().split()
+            case(len(info)==4 and info[0]=='READY' and p.poll() is None,'JVM service ready')
+            return p,info[1],info[2],info[3]
+        def claim(cmd,port,pin,token):
+            result=subprocess.run(cmd+['client',port,pin,'cat-private','2','REVOKED',
+                       'a'*64,'owner-independent-nonce-0001',token],capture_output=True,text=True,timeout=10)
+            case(result.returncode==0,'client JVM completed')
+            return result.stdout.strip()
+        try:
+            original,owner_port,owner_pin,token=start(owner+['server',str(backup),str(spent)])
+            case(owner_pin==source_pin,'original owner matches pinned source')
+            guard,guard_port,guard_pin,_=start(witness+['server',source_pin])
+            case(guard_pin!=source_pin,'independent witness has separate session signer')
+            case(claim(owner,owner_port,owner_pin,token)=='RESULT=QUARANTINE_REVOKED_ONLY',
+                 'original signer consumed first claim')
+            case(claim(witness,guard_port,guard_pin,token)=='RESULT=QUARANTINE_REVOKED_ONLY',
+                 'external witness atomically consumed original claim')
+            original.terminate();original.wait(timeout=5)
+            spent.write_text('spent=0\n')  # simulated attacker rollback; external witness untouched
+            reboot,new_port,new_pin,new_token=start(owner+['server',str(backup),str(spent)])
+            case(new_pin==source_pin and new_token==token,'same-signature same-key reboot')
+            case(claim(owner,new_port,new_pin,new_token)=='RESULT=QUARANTINE_REVOKED_ONLY',
+                 'KNOWN UNSAFE unprotected owner replay is still reproducible')
+            for _ in range(3):
+                case(claim(witness,guard_port,guard_pin,new_token)=='RESULT=BLOCKED',
+                     'external witness blocks replay from fresh verifier JVM')
+            guard.terminate();guard.wait(timeout=5)
+            case(claim(witness,guard_port,guard_pin,new_token)=='RESULT=BLOCKED',
+                 'dead independent witness fails closed')
+            print('FUTURE_G1_EXTERNAL_WITNESS_REBOOT_PASS cases='+str(count))
+            print('FUTURE_G1_EXTERNAL_WITNESS_BOOTSTRAP_PERSISTENCE=UNPROVEN')
+            print('FUTURE_G1_SAME_ORIGINAL_SIGNER_REPLAY=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_ANDROID_API29=UNPROVEN')
+        finally:
+            for process in children:
+                if process.poll() is None: process.kill();process.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7760,8 +7829,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     epoch_child.write_text(external_epoch_service_harness, encoding='utf-8')
     restored_child = Path(temp) / 'FutureRestoredSignerOwnerProcess.java'
     restored_child.write_text(restored_key_owner_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child)], check=True)
+    witness_child = Path(temp) / 'FutureExternalWitnessProcess.java'
+    witness_child.write_text(external_witness_service_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child)], check=True)
     import sys
+    if '--focused-external-witness' in sys.argv:
+        process_external_witness_original_reboot_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-key-rollback' in sys.argv:
         process_same_original_key_rollback_proof(temp)
         raise SystemExit(0)
@@ -7821,3 +7895,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_owner_root_lifecycle_proof(temp)
     process_external_epoch_fence_proof(temp)
     process_same_original_key_rollback_proof(temp)
+    process_external_witness_original_reboot_proof(temp)
