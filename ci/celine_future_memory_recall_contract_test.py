@@ -7405,6 +7405,153 @@ public final class CLASS_HOLE {
                 if child.poll() is None:
                     child.kill();child.communicate(timeout=5)
 
+# FUTURE ONLY: conditional owner-side revision fence with a pinned live root.
+# This is a JVM MODEL, not a durable Android root. The test coordinator pins the
+# first root key; no chat/provider/file-supplied key is an authority. The root
+# holds a high-water revision in memory across independent client JVM deaths.
+# If that *root* dies, automatic recovery is forbidden; restoring the owner key
+# and an old consumed bit without external antirollback remains UNSAFE.
+external_epoch_service_harness = (owner_held_service_harness
+    .replace('FutureOwnerHeldServiceProcess', 'FutureExternalEpochOwnerProcess')
+    .replace('static final long REV=2L;', 'static final long REV=3L;')
+    .replace('String genuineToken() throws Exception {',
+             'String tokenAt(long revision) throws Exception {')
+    .replace('revokedRecoveryPayload(ID,REV,HASH,NONCE)',
+             'revokedRecoveryPayload(ID,revision,HASH,NONCE)')
+    .replace('service.genuineToken()', 'service.tokenAt(REV)+" "+service.tokenAt(2L)'))
+
+
+def process_external_epoch_fence_proof(temp):
+    """Signed stale-version negative controls against a separately held live root.
+
+    The root JVM's in-memory revision survives verifier JVM restarts only; this
+    cannot claim AndroidKeyStore or secure persistence across authority death.
+    """
+    from pathlib import Path
+    count = 0
+    def case(ok, why):
+        nonlocal count
+        if not ok:
+            raise AssertionError('external epoch fence FAIL: ' + why)
+        count += 1
+
+    with tempfile.TemporaryDirectory(prefix='future_epoch_fence_') as tmp:
+        root = Path(tmp)
+        legacy_cmd = ['java', '-cp', temp, 'de.yahya.ai.FutureOwnerHeldServiceProcess']
+        cmd = ['java', '-cp', temp, 'de.yahya.ai.FutureExternalEpochOwnerProcess']
+        live = subprocess.Popen(cmd + ['server'], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, bufsize=1)
+        forged = None
+        replacement = None
+        try:
+            ready = live.stdout.readline().strip().split()
+            case(len(ready) == 5 and ready[0] == 'READY' and live.poll() is None,
+                 'revision-3 root lives in a genuinely independent JVM')
+            port, pinned, current_token, legacy_token = ready[1:]
+            case(current_token != legacy_token,
+                 'old and new revisions have distinct Ed25519 signatures')
+            journal = root / 'ordinary-g1-owner-state.txt'
+            journal.write_text('id=cat-private;rev=3;status=REVOKED;spent=0\n')
+            case('rev=3' in journal.read_text(), 'ordinary state begins current')
+
+            def verify(port=port, pin=pinned, token=current_token,
+                       rev='3', status='REVOKED', nonce='owner-independent-nonce-0001',
+                       digest='a'*64, identity='cat-private', process_cmd=cmd):
+                args = ['client', str(port), pin, identity, rev, status,
+                        digest, nonce, token]
+                child = subprocess.run(process_cmd + args,
+                                       capture_output=True, text=True, timeout=14)
+                case(child.returncode == 0 and child.stdout.strip().startswith('RESULT='),
+                     'independent Java verifier finished: ' + child.stderr[-280:])
+                return child.stdout.strip().split('RESULT=')[-1]
+
+            # Strict negative-control: a legacy v2 owner is unaware that an
+            # independent high-water revision 3 has already been committed.
+            old = subprocess.Popen(legacy_cmd + ['server'], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True, bufsize=1)
+            try:
+                old_ready = old.stdout.readline().strip().split()
+                case(len(old_ready) == 4 and old_ready[0] == 'READY',
+                     'independent legacy revision-2 owner JVM actually started')
+                old_port, old_pin, old_token = old_ready[1:]
+                case(verify(old_port, old_pin, old_token, rev='2',
+                            process_cmd=legacy_cmd) == 'QUARANTINE_REVOKED_ONLY',
+                     'KNOWN UNSAFE: old root accepts signed revision 2 in isolation')
+            finally:
+                if old.poll() is None:
+                    old.terminate(); old.communicate(timeout=5)
+
+            # The same stale rev2 proof is correctly signed by the CURRENT
+            # root. Signature validity MUST NOT override its revision fence.
+            case(verify(token=legacy_token, rev='2') == 'BLOCKED',
+                 'live independent high-water blocks genuine signed stale revision')
+            journal.write_text('id=cat-private;rev=2;status=REVOKED;spent=0\n')
+            case('rev=2' in journal.read_text(),
+                 'attacker restored ordinary source revision and spent marker')
+            for _ in range(3):
+                case(verify(token=legacy_token, rev='2') == 'BLOCKED',
+                     'fresh verifier JVM cannot inherit rolled-back source authority')
+            case(verify(token=current_token, rev='2') == 'BLOCKED',
+                 'current proof cannot sign a stale source revision')
+            case(verify(token=legacy_token, rev='3') == 'BLOCKED',
+                 'legacy signature cannot be relabeled with new revision')
+            case(verify(status='ACTIVE') == 'BLOCKED',
+                 'ACTIVE status denied despite current signed revision')
+            case(verify(nonce='forged-user-challenge-0001') == 'BLOCKED',
+                 'changed challenge denied')
+            case(verify(digest='b'*64) == 'BLOCKED',
+                 'changed orphan digest denied')
+            case(verify(identity='cat-forged') == 'BLOCKED',
+                 'different memory ID denied')
+            case(verify(token='AAAA') == 'BLOCKED',
+                 'invalid signature denied')
+            case(verify() == 'QUARANTINE_REVOKED_ONLY',
+                 'independently held current revision allows only revoked quarantine')
+            journal.write_text('id=cat-private;rev=3;status=REVOKED;spent=0\n')
+            for _ in range(3):
+                case(verify() == 'BLOCKED',
+                     'new Java verifier after ordinary consumed-bit rollback stays blocked')
+            case(verify(token=legacy_token, rev='2') == 'BLOCKED',
+                 'stale revision stays blocked after current token consumption')
+            forged = subprocess.Popen(cmd + ['server'], stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE, text=True, bufsize=1)
+            rogue = forged.stdout.readline().strip().split()
+            case(len(rogue) == 5 and rogue[0] == 'READY',
+                 'independently minted attacker root JVM started')
+            rogue_port, rogue_pin, rogue_current, _ = rogue[1:]
+            case(rogue_pin != pinned, 'attacker has a distinct owner public key')
+            case(verify(port=rogue_port, pin=pinned, token=rogue_current) == 'BLOCKED',
+                 'pre-provisioned root pin rejects substituted service')
+            # Even with correct cryptography, the old caller-chosen trust route
+            # accepts a replacement root: record the known vulnerability.
+            case(verify(port=rogue_port, pin=rogue_pin, token=rogue_current)
+                 == 'QUARANTINE_REVOKED_ONLY',
+                 'KNOWN UNSAFE: caller-selected trust pin accepts rogue service')
+            live.terminate(); live.wait(timeout=5)
+            case(live.poll() is not None, 'genuine root service actually terminated')
+            case(verify() == 'BLOCKED',
+                 'offline original root fails closed instead of recreating spent key')
+            replacement = subprocess.Popen(cmd + ['server'], stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE, text=True, bufsize=1)
+            restart = replacement.stdout.readline().strip().split()
+            case(len(restart) == 5 and restart[0] == 'READY',
+                 'new post-root-death authority JVM started')
+            next_port, next_pin, next_token, _ = restart[1:]
+            case(next_pin not in (pinned, rogue_pin),
+                 'unregistered restart identity is not the original root')
+            case(verify(port=next_port, pin=pinned, token=next_token) == 'BLOCKED',
+                 'root identity cannot be silently enrolled across service reboot')
+            print('FUTURE_G1_EXTERNAL_EPOCH_JVM_MODEL_PASS cases=' + str(count))
+            print('FUTURE_G1_ROLLEDBACK_SOURCE_REVISION=BLOCKED_WHILE_TRUSTED_ROOT_LIVE')
+            print('FUTURE_G1_OLD_UNANCHORED_SERVICE=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_CALLER_SELECTED_ROOT=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_DURABLE_EXTERNAL_ROOT_HIGHWATER=UNIMPLEMENTED')
+            print('FUTURE_G1_ANDROID_API29_RUNTIME=UNPROVEN')
+        finally:
+            for child in (live, forged, replacement):
+                if child is not None and child.poll() is None:
+                    child.kill(); child.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7420,8 +7567,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     owner_child.write_text(owner_process_harness, encoding='utf-8')
     atomic_child = Path(temp) / 'FutureOwnerHeldServiceProcess.java'
     atomic_child.write_text(owner_held_service_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child)], check=True)
+    epoch_child = Path(temp) / 'FutureExternalEpochOwnerProcess.java'
+    epoch_child.write_text(external_epoch_service_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child)], check=True)
     import sys
+    if '--focused-external-epoch' in sys.argv:
+        process_external_epoch_fence_proof(temp)
+        raise SystemExit(0)
     if '--focused-root-lifecycle' in sys.argv:
         process_owner_root_lifecycle_proof(temp)
         raise SystemExit(0)
@@ -7473,3 +7625,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_owner_service_bootstrap_spoof_proof(temp)
     process_operator_root_capability_proof(temp)
     process_owner_root_lifecycle_proof(temp)
+    process_external_epoch_fence_proof(temp)
