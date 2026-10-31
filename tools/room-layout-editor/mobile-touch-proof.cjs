@@ -217,6 +217,33 @@ async function main(){
     await wallButton.tap();
     assert.equal(await wallButton.getAttribute('aria-pressed'),'false');
     assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,true);
+    // New opt-in neutral cutaway: real touch, real original WebGL pixels,
+    // exact source JSON unchanged. This is an optical diagnostic, not VISUAL PASS.
+    const shellBefore=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
+    const neutralButton=page.locator('[data-mobile-action="neutral-shell"]');
+    assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
+    const neutralStart=Date.now();
+    await neutralButton.tap();
+    const neutralElapsed=Date.now()-neutralStart;
+    assert(neutralElapsed<5000,'Neutral editor-only shell toggle must respond within 5000ms');
+    assert.equal(await neutralButton.getAttribute('aria-pressed'),'true');
+    const shellDuring=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
+    assert.deepEqual(shellDuring.room_m,shellBefore.room_m);
+    assert.equal(shellDuring.wall_count,shellBefore.wall_count);
+    assert.notEqual(shellDuring.wall_hex,shellBefore.wall_hex);
+    const neutralWebgl=await captureRealWebGL(page,'mobile-owner-final-neutral-cutaway-webgl.png');
+    assert.notEqual(neutralWebgl.sha256,nativeFirst.sha256,
+      'Genuine neutral shell WebGL must differ from original shell frame');
+    assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
+      'Visual-only neutral shell must preserve every original owner JSON source field');
+    await neutralButton.tap();
+    assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
+    assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit()),shellBefore,
+      'Original editor shell material must be exactly restorable');
+    record.push({name:'MOBILE_REVERSIBLE_NEUTRAL_CUTAWAY_TECHNICAL_PROOF',
+      neutralWebgl,neutral_touch_elapsed_ms:neutralElapsed,
+      room_geometry_unchanged:true,owner_13_source_fields_unchanged:true,
+      visual_acceptance:'NOT_GRANTED'});
     await page.locator('.mobile-extra > summary').tap();
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle);
     record.push({name:'MOBILE_VIEW_ONLY_WALL_VISIBILITY_TOUCH_PASS',

@@ -90,6 +90,7 @@
           <button type="button" data-mobile-action="camera-persp">3D</button>
           <button type="button" data-mobile-action="camera-top">Oben</button>
           <button type="button" data-mobile-action="toggle-walls" aria-pressed="false" aria-label="Raumwände nur in der Editor-Ansicht ein- oder ausblenden">Wände ausblenden</button>
+          <button type="button" data-mobile-action="neutral-shell" aria-pressed="false" aria-label="Reversible neutrale Raumhülle nur in der 3D-Editor-Ansicht, keine Möbeländerung">Neutrale Hülle</button>
           <button type="button" data-mobile-action="camera-reference">Referenzsicht</button>
           <button type="button" data-mobile-action="reference-toggle">Bild</button>
           <button type="button" data-mobile-action="next-unlocked">Nächstes</button>
@@ -110,6 +111,8 @@
       </div>
       <label>Raumdarstellung (nur Editor)</label>
       <div class="button-row"><button id="toggle-walls">Wände ein-/ausblenden</button><button id="reset-room">Referenzmaße wiederherstellen</button></div>
+      <div class="button-row"><button id="neutral-shell">Neutrale Schnittansicht</button></div>
+      <p class="small">Nur eine reversible, nicht gespeicherte Schnitt-/Materialansicht für freie Möbelkontrolle. Weder deine 13 Möbel noch Raumhülle/Kamera/JSON werden neu positioniert.</p>
       <label><input type="checkbox" id="show-grid"> Blaues Editor-Hilfsraster einblenden</label>
       <label><input type="checkbox" id="reference-shell-preview"> V23-Versuch: Referenznahe dunklere Wände und warmere Decke</label>
       <p class="small">Nur als umschaltbarer, noch nicht visuell abgenommener WebGL-Architekturvergleich. Keine Änderung an den 13 Quell-GLBs, ihren Positionen oder der festen Kamera.</p>

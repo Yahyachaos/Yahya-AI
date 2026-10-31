@@ -117,6 +117,7 @@ let room = { ...CANONICAL };
 let wallVisible = true;
 let guideGridVisible = false; // Keep a usable editor grid on demand, not in reference views.
 let referenceShellPreview = false; // V23 opt-in architecture color test; not a saved GLB change.
+let neutralShellPreview = false; // Reversible editor-only cutaway skin; never serialized.
 // V22 editor-only source-fidelity preview. Cache original immutable GLB material objects.
 const sourceDrapeMaterials = new WeakMap();
 const SHEER_SOURCE_MATERIAL = 'material.010'; // original map-bearing white drape slot
@@ -182,7 +183,49 @@ function buildRoom() {
   outline.position.y = room.height/2;
   walls.add(outline);
   walls.visible = wallVisible;
+  if (neutralShellPreview) applyNeutralShellPreview();
   refreshWarnings();
+}
+
+
+// Neutral cutaway is a DISPLAY-ONLY material/background diagnostic. It never
+// moves, floors/clamps, rescales or replaces any of the owner's original 13 GLBs,
+// camera, room dimensions, wall geometry, locks or JSON source/legacy fields.
+// Save/Undo/Redo/autosave intentionally do NOT serialize this view preference.
+function applyNeutralShellPreview() {
+  const colors = [
+    {hex:0xd9dddc,alpha:0.82}, // back wall: legible without solid near-wall blocking
+    {hex:0xe4e9e8,alpha:0.09}, // left cutaway
+    {hex:0xe4e9e8,alpha:0.09}, // right cutaway
+    {hex:0xf0f2ef,alpha:0.06}  // overhead cutaway
+  ];
+  const parts=walls.children.filter(child=>child.isMesh);
+  for (let i=0; i<parts.length; i++) {
+    const mat=parts[i].material;
+    if (!parts[i].userData.originalEditorWallSkin) {
+      parts[i].userData.originalEditorWallSkin={
+        color:mat.color.getHex(),opacity:mat.opacity,
+        transparent:mat.transparent,depthWrite:mat.depthWrite
+      };
+    }
+    const original=parts[i].userData.originalEditorWallSkin;
+    mat.color.setHex(neutralShellPreview?colors[i].hex:original.color);
+    mat.opacity=neutralShellPreview?colors[i].alpha:original.opacity;
+    mat.transparent=neutralShellPreview?true:original.transparent;
+    mat.depthWrite=neutralShellPreview?false:original.depthWrite;
+    mat.needsUpdate=true;
+  }
+  const ground=floor.children.find(child=>child.isMesh);
+  if (ground) ground.material.color.setHex(neutralShellPreview?0xb4b0aa:0x67482c);
+  scene.background.setHex(neutralShellPreview?0xb9bdbb:0x947257);
+  const mobile=document.querySelector('[data-mobile-action="neutral-shell"]');
+  if (mobile) {
+    mobile.textContent=neutralShellPreview?'Originalhülle':'Neutrale Hülle';
+    mobile.setAttribute('aria-pressed',String(neutralShellPreview));
+  }
+  const desktop=$('neutral-shell');
+  if (desktop) desktop.textContent=neutralShellPreview?'Neutrale Ansicht beenden':'Neutrale Schnittansicht';
+  invalidateMobileFrame();
 }
 
 const entries = new Map();
@@ -781,6 +824,10 @@ $('toggle-walls').onclick=()=>{
     mobile.setAttribute('aria-pressed',String(!wallVisible));
   }
   invalidateMobileFrame();
+};
+$('neutral-shell').onclick=()=>{
+  neutralShellPreview=!neutralShellPreview;
+  applyNeutralShellPreview();
 };
 $('sheer-preview').onchange=()=>{
   const preview=setSourceSheerPreview($('sheer-preview').checked);
