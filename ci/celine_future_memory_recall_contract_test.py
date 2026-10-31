@@ -7581,6 +7581,9 @@ restored_key_owner_harness = (owner_held_service_harness
             PublicKey pub=f.generatePublic(new X509EncodedKeySpec(DEC.decode(parts.get(0))));
             PrivateKey priv=f.generatePrivate(new PKCS8EncodedKeySpec(DEC.decode(parts.get(1))));
             keys=new KeyPair(pub,priv);
+            // Backup coherence is necessary, though NEVER sufficient for antirollback.
+            if(!valid(pub,"future-restored-owner-pair/v1",sign(priv,"future-restored-owner-pair/v1")))
+                throw new SecurityException("mismatched restored owner signer");
             owner=new Owner(pub,Paths.get(status));
         }""")
     .replace('static void server() throws Exception {\n        Service service=new Service();',
@@ -7696,6 +7699,38 @@ def process_same_original_key_rollback_proof(temp):
                                   capture_output=True,text=True,timeout=9)
             case(absent.returncode!=0 and 'READY' not in absent.stdout,
                  'missing original signer backup fails closed')
+            # Test-only backup mixing: public pin from genuine key A, valid but
+            # unrelated private key B. A service must reject this at bootstrap,
+            # not announce READY and defer failure until the verifier requests.
+            other_backup=root/'attacker-signer.pk8'
+            other_state=root/'attacker-spent.txt'
+            case(invoke('init-test-only',str(backup),str(status))=='BACKUP_CREATED',
+                 'fresh operator source for backup consistency control')
+            case(invoke('init-test-only',str(other_backup),str(other_state))=='BACKUP_CREATED',
+                 'separate attacker keypair generated in an independent JVM')
+            original_lines=backup.read_text().splitlines()
+            rogue_lines=other_backup.read_text().splitlines()
+            case(len(original_lines)==2 and len(rogue_lines)==2 and
+                 original_lines[0]!=rogue_lines[0],
+                 'two original and attacker identities are different')
+            backup.write_text(original_lines[0]+'\n'+rogue_lines[1]+'\n')
+            mixed=subprocess.Popen(cmd+['server',str(backup),str(status)],
+                                   stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                   text=True,bufsize=1)
+            children.append(mixed)
+            first=mixed.stdout.readline().strip()
+            case(not first.startswith('READY'),
+                 'mismatched original public and foreign private key fails before ready')
+            mixed.wait(timeout=5)
+            case(mixed.returncode!=0,'mismatched keypair fails closed at JVM startup')
+            backup.write_text('\n'.join(original_lines)+'\n')
+            good,good_port,good_pin,good_token=owner()
+            case(ask(good_port,good_pin,good_token)=='QUARANTINE_REVOKED_ONLY',
+                 'restored original matching keypair is not incorrectly rejected')
+            case(status.read_text()=='spent=1\n',
+                 'control original pairing consumed exactly once')
+            good.terminate();good.wait(timeout=5)
+            case(good.poll() is not None,'control keypair JVM cleanly terminated')
             print('FUTURE_G1_SAME_ORIGINAL_SIGNER_REBOOT_JVM_PASS cases='+str(count))
             print('FUTURE_G1_SIGNER_PIN_ALONE_PREVENTS_ROLLBACK=FALSE')
             print('FUTURE_G1_SIGNER_REUSE_AND_ORDINARY_SPENT_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
