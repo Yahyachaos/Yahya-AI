@@ -5662,6 +5662,45 @@ public final class FutureMemoryIdProcessChild {
                 store(state,"1|ACTIVE");
                 System.out.println("STATE=ACTIVE;REV=1;SUGGEST="+suggested(read(state)));return;
             }
+            // Test-only independent-JVM crash injection under the exact-ID
+            // owner lock. These are simulated file-corruption boundaries,
+            // NOT genuine Android/fsync power-loss guarantees.
+            if(action.startsWith("hold-fault-witness-")) {
+                Files.createFile(root.resolve("witness-owner-held"));
+                long deadline=System.nanoTime()+12_000_000_000L;
+                while(!Files.exists(root.resolve("release-witness-owner"))
+                        && System.nanoTime()<deadline)Thread.sleep(10);
+                if(!Files.exists(root.resolve("release-witness-owner")))
+                    throw new IllegalStateException("witness-owner release timeout");
+                if(action.equals("hold-fault-witness-torn-temp")) {
+                    Path pending=witness.resolveSibling(witness.getFileName()
+                        +".tmp."+ProcessHandle.current().pid());
+                    Files.writeString(pending,"2|INCOMPLETE",StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE_NEW);
+                    try(FileChannel fd=FileChannel.open(pending,StandardOpenOption.WRITE)) {
+                        fd.force(true);
+                    }
+                    Runtime.getRuntime().halt(91);
+                }
+                if(action.equals("hold-fault-witness-torn-commit")) {
+                    store(witness,"2|INCOMPLETE");
+                    Runtime.getRuntime().halt(92);
+                }
+                if(action.equals("hold-fault-witness-advanced")) {
+                    store(witness,"2");
+                    Runtime.getRuntime().halt(93);
+                }
+                throw new IllegalArgumentException("unrecognized witness fault");
+            }
+            // A process may die before the atomic witness rename. Even if both
+            // old visible files appear consistent, an unresolved witness temp
+            // makes their generation uncertifiable. Never silently clean it up.
+            try(DirectoryStream<Path> pending=Files.newDirectoryStream(root,
+                    "memory-id-highwater.txt.tmp.*")) {
+                if(pending.iterator().hasNext())
+                    throw new IllegalStateException(
+                        "untrusted selected-ID witness pending transaction");
+            }
             Snapshot current=read(state); // Fail closed if missing, partial or corrupt.
             // Toy high-water authority: separate ordinary local file, not G1
             // antirollback hardware. Match exact bytes, not parsed/truncated input.
@@ -5882,6 +5921,83 @@ def process_memory_id_witness_proof(temp):
     print('FUTURE_G1_MEMORY_ID_JOINT_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
     print('FUTURE_G1_MEMORY_ID_WITNESS=UNTRUSTED_FILE_SIMULATION_NOT_ANDROID')
 
+# FUTURE-ONLY: real process deaths at three simulated witness-commit cuts.
+# The source owner must NOT ignore a left-behind incomplete temp transaction,
+# even when the old state and old witness still appear to match. A plain
+# witness file cannot guarantee real anti-rollback or power-loss durability.
+def process_memory_id_torn_witness_proof(temp):
+    import time
+    count=0
+    def case(ok, description):
+        nonlocal count
+        if not ok: raise AssertionError('MEMORY_ID_TORN_WITNESS_FAIL: '+description)
+        count+=1
+    def cmd(root, action):
+        return ['java','-cp',temp,
+            'de.yahya.ai.FutureMemoryIdProcessChild',str(root),action]
+    def invoke(root,action):
+        return subprocess.run(cmd(root,action),capture_output=True,text=True,timeout=20)
+
+    for action,halt_status in (
+            ('hold-fault-witness-torn-temp',91),
+            ('hold-fault-witness-torn-commit',92),
+            ('hold-fault-witness-advanced',93)):
+        root=Path(temp)/('memory-id-interrupted-'+action)
+        root.mkdir()
+        init=invoke(root,'init')
+        case(init.returncode==0,'independent source initialized '+action)
+        hold=subprocess.Popen(cmd(root,action),stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,text=True)
+        contender=None
+        try:
+            deadline=time.monotonic()+10
+            while not (root/'witness-owner-held').exists() and time.monotonic()<deadline:
+                if hold.poll() is not None:break
+                time.sleep(.01)
+            case((root/'witness-owner-held').exists(),
+                 'first independent JVM holds owner lock '+action)
+            contender=subprocess.Popen(cmd(root,'inspect'),stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,text=True)
+            time.sleep(.15)
+            case(contender.poll() is None,
+                 'second independent JVM remains blocked on source lock '+action)
+        finally:
+            (root/'release-witness-owner').touch()
+        out,err=hold.communicate(timeout=20)
+        case(hold.returncode==halt_status,
+             'actual first JVM death at '+action+': '+err[-200:])
+        second_out,second_err=contender.communicate(timeout=20)
+        case(contender.returncode!=0 and
+             'untrusted selected-ID witness' in second_err,
+             'concurrent reader fails closed after killed first JVM '+action
+             +': '+second_out[-150:]+' '+second_err[-150:])
+        state=(root/'memory-id-state.txt')
+        witness=(root/'memory-id-highwater.txt')
+        case(state.read_text()=='1|ACTIVE',
+             'uncommitted selected-ID snapshot stays at revision one '+action)
+        if action.endswith('torn-temp'):
+            case(witness.read_text()=='1',
+                 'pre-rename witness remains old but pending transaction is suspicious')
+            case(len(list(root.glob('memory-id-highwater.txt.tmp.*')))==1,
+                 'aborted witness write leaves authentic pending temp file')
+        elif action.endswith('torn-commit'):
+            case(witness.read_text()=='2|INCOMPLETE',
+                 'incomplete replacement witness is corrupt and never trusted')
+        else:
+            case(witness.read_text()=='2',
+                 'advanced witness survives while selected-ID snapshot stays old')
+        for restart_action in ('inspect','suggest-without-id','correct','revoke'):
+            check=invoke(root,restart_action)
+            case(check.returncode!=0 and
+                 'untrusted selected-ID witness' in check.stderr,
+                 'independent restarted JVM refuses '+restart_action+' after '+action
+                 +': '+check.stdout[-120:]+' '+check.stderr[-120:])
+            case(state.read_text()=='1|ACTIVE',
+                 'no auto-repair, revoke or correction after '+restart_action+' '+action)
+    print('FUTURE_G1_MEMORY_ID_TORN_WITNESS_2JVM_PASS cases='+str(count))
+    print('FUTURE_G1_MEMORY_ID_TORN_WITNESS=TEST_FIXTURE_NOT_POWER_LOSS_PROOF')
+    print('FUTURE_G1_MEMORY_ID_RECOVERY=MANUAL_OWNER_VERIFICATION_REQUIRED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -5895,6 +6011,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     memory_id_child.write_text(memory_id_process_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child)], check=True)
     import sys
+    if '--focused-torn' in sys.argv:
+        process_memory_id_torn_witness_proof(temp)
+        raise SystemExit(0)
     if '--focused-id-race' in sys.argv:
         process_memory_id_revoke_correction_proof(temp)
         process_memory_id_witness_proof(temp)
@@ -5907,3 +6026,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_high_water_killed_callback_proof(temp)
     process_memory_id_revoke_correction_proof(temp)
     process_memory_id_witness_proof(temp)
+    process_memory_id_torn_witness_proof(temp)
