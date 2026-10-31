@@ -4606,7 +4606,16 @@ public final class FutureHighWaterProcessChild {
                         throw new IllegalStateException("callback lock hold timed out");
                 }
                 Files.writeString(root.resolve("test-only-high-water-sink"),"sent\\n",
-                StandardOpenOption.CREATE,StandardOpenOption.APPEND);}
+                    StandardOpenOption.CREATE,StandardOpenOption.APPEND);
+                if(action.equals("hold-after-sink")) {
+                    Files.createFile(root.resolve("callback-after-sink-source-lock"));
+                    long until=System.nanoTime()+15_000_000_000L;
+                    while(!Files.exists(root.resolve("release-after-sink"))
+                            && System.nanoTime()<until) Thread.sleep(15);
+                    if(!Files.exists(root.resolve("release-after-sink")))
+                        throw new IllegalStateException("post-sink callback gate timeout");
+                }
+            }
             catch(Exception failure){throw new IllegalStateException(failure);}
         });
         var result=CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
@@ -5510,6 +5519,82 @@ def process_high_water_locked_callback_proof(temp):
     print('FUTURE_G1_INDEPENDENT_CALLBACK_WRITER_OS_LOCK_PROOF_PASS cases='+str(checks))
     print('FUTURE_G1_UNLOCKED_WITNESS_WRITER=KNOWN_UNSAFE_CALLBACK_EXPOSURE')
 
+
+def process_high_water_killed_callback_proof(temp):
+    """Independent JVM killed under source OS lock, before/after sink marker.
+
+    A provider marker stands in for a non-idempotent external action. Killing
+    its JVM cannot establish that a real provider did (or did not) deliver.
+    An uncertain STARTED intent must not auto-retry under any witness state.
+    """
+    import time
+    cls='de.yahya.ai.FutureHighWaterProcessChild'
+    checks=0
+    def case(ok,reason):
+        nonlocal checks
+        if not ok: raise AssertionError('HIGH_WATER_CRASH_LOCK_FAIL: '+reason)
+        checks+=1
+    def cmd(root,witness,action):
+        return ['java','-cp',temp,cls,str(root),str(witness),action]
+    def invoke(root,witness,action):
+        process=subprocess.run(cmd(root,witness,action),text=True,
+                capture_output=True,timeout=20)
+        case(process.returncode==0,action+' JVM failed '+process.stderr[-350:])
+        return process.stdout
+    def ready(file,child,label):
+        deadline=time.monotonic()+12
+        while not file.is_file() and time.monotonic()<deadline:
+            if child.poll() is not None: break
+            time.sleep(.015)
+        case(file.is_file(),label+' reached by independent JVM')
+    for after_sink in (False,True):
+        label='after-sink' if after_sink else 'before-sink'
+        root=Path(temp)/('killed-locked-callback-'+label)
+        witness=Path(temp)/('independent-kill-authority-'+label)/'epoch.txt'
+        root.mkdir()
+        case('INIT_OWNER_AND_WITNESS' in invoke(root,witness,'init'),
+             label+' owner initialized')
+        claimant=subprocess.Popen(cmd(root,witness,
+                                     'hold-after-sink' if after_sink else 'hold-claim'),
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        writer=None
+        try:
+            ready(root/('callback-after-sink-source-lock' if after_sink else
+                        'callback-inside-source-lock'),claimant,label+' callback held')
+            case((root/'test-only-high-water-sink').is_file()==after_sink,
+                 label+' sink event observed exactly at required crash boundary')
+            writer=subprocess.Popen(cmd(root,witness,'advance-serialized'),
+                    stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            ready(root/'writer-requested',writer,label+' independent writer waiting')
+            time.sleep(.20)
+            case(writer.poll() is None and not (root/'writer-finished').exists(),
+                 label+' writer blocked by still-live callback OS lock')
+        finally:
+            # A true OS kill, not a Java throw caught by the publisher.
+            claimant.kill()
+        killed_out,killed_err=claimant.communicate(timeout=20)
+        case(claimant.returncode!=0,label+' caller actually died in external process')
+        writer_out,writer_err=writer.communicate(timeout=20)
+        case(writer.returncode==0 and 'WITNESS_MUTATED=advance-serialized' in writer_out,
+             label+' writer acquired kernel-released OS lock '+writer_err[-200:])
+        case((root/'writer-finished').is_file() and
+             witness.read_text().startswith('future-owner-generation-2'),
+             label+' generation advanced after process death')
+        frame=(root/'strict-owner.frame').read_text()
+        case('|STARTED|' in frame and '|COMPLETED|' not in frame,
+             label+' ambiguous durable intent never falsely sealed COMPLETED')
+        sink=root/'test-only-high-water-sink'
+        expected='sent\\n' if after_sink else ''
+        case((sink.read_text() if sink.exists() else '')==expected,
+             label+' external non-idempotent marker preserved exactly')
+        retry=invoke(root,witness,'claim')
+        case('RESULT=COMPLETED' not in retry,
+             label+' fresh JVM cannot silently reuse interrupted receipt')
+        case((sink.read_text() if sink.exists() else '')==expected,
+             label+' no second provider marker on restart')
+    print('FUTURE_G1_KILLED_CALLBACK_OS_LOCK_RECOVERY_PASS cases='+str(checks))
+    print('FUTURE_G1_POST_SINK_PROCESS_KILL=EXTERNAL_DELIVERY_UNCERTAIN_NO_RETRY')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -5525,3 +5610,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_strict_owner_proof(temp)
     process_high_water_proof(temp)
     process_high_water_locked_callback_proof(temp)
+    process_high_water_killed_callback_proof(temp)
