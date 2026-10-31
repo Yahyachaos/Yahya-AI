@@ -6154,7 +6154,41 @@ public final class FutureOwnerAttestationProcess {
             System.out.println("TOKEN="+Base64.getEncoder().encodeToString(sig.sign()));
             return;
         }
-        if("verify".equals(cmd)) {
+        if("verify-bound".equals(cmd)) {
+            // Model-only: a pre-provisioned app/owner-owned registry must be
+            // selected OUTSIDE the caller's authority. Supplying this path as
+            // an argv value is only a test seam, NOT a secure Android design.
+            try {
+                Path registry=Paths.get(args[8]);
+                Path selected=owner.toRealPath();
+                String registered=Files.readString(registry.resolve("owner-realpath.txt"))
+                    .trim();
+                Path expected=Paths.get(registered).toRealPath();
+                byte[] pinnedKey=Files.readAllBytes(registry.resolve("pinned-owner.pub"));
+                byte[] actualKey=Files.readAllBytes(selected.resolve("owner.pub"));
+                String[] external=Files.readString(registry.resolve("owner-epoch.txt"))
+                    .trim().split("\\|",-1);
+                String[] onDisk=state(selected);
+                boolean identityPinned=selected.equals(expected)
+                    && pinnedKey.length>0 && MessageDigest.isEqual(pinnedKey,actualKey);
+                boolean revisionPinned=external.length==2
+                    && external[0].matches("[0-9]+")
+                    && external[1].matches("[A-Za-z0-9_-]{16,64}")
+                    && external[0].equals(args[4])&&external[1].equals(args[6])
+                    && external[0].equals(onDisk[0])&&external[1].equals(onDisk[1]);
+                if(!identityPinned || !revisionPinned) {
+                    System.out.println("RESULT=BLOCKED");
+                    return;
+                }
+            } catch(Exception ex) {
+                System.out.println("RESULT=BLOCKED");
+                return;
+            }
+            // The same owner API below still has no authentic hardware trust
+            // root or rollback-resistant revision. This proves a boundary,
+            // not production authentication.
+        }
+        if("verify".equals(cmd) || "verify-bound".equals(cmd)) {
             // args[2] is attacker/consumer-owned. It is intentionally NEVER
             // consulted as authority or as the Ed25519 pinned-key source.
             Path consumer=Paths.get(args[2]);
@@ -6247,6 +6281,91 @@ def process_independent_owner_attestation_proof(temp):
         print('FUTURE_G1_EXTERNAL_OWNER_CUSTODY=TEST_MODEL_ONLY')
         print('FUTURE_G1_REAL_HARDWARE_MONOTONIC_ROLLBACK=UNPROVEN')
 
+
+def process_caller_selected_owner_adversary_proof(temp):
+    """Two actual JVMs: a self-appointed issuer can fool a caller-chosen owner.
+
+    The opt-in registry here is a *fixture* representing a pinned external trust
+    root, NOT a secure Android authority; caller substitution of that registry
+    itself must be reported as a known security failure, not silently passed.
+    """
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    count=0
+    def case(ok,label):
+        nonlocal count
+        if not ok: raise AssertionError('caller-owner adversary FAIL: '+label)
+        count+=1
+    with TemporaryDirectory(prefix='future_forged_owner_') as t:
+        root=Path(t)
+        trusted=root/'registered-owner'; attacker=root/'caller-selected-owner'
+        consumer=root/'consumer'; consumer.mkdir()
+        cmd=['java','-cp',temp,'de.yahya.ai.FutureOwnerAttestationProcess']
+        def issue(owner):
+            p=subprocess.run(cmd+['issue',str(owner)],capture_output=True,text=True,timeout=15)
+            case(p.returncode==0 and p.stdout.startswith('TOKEN='),
+                 'independent issuer JVM generated signed token')
+            return p.stdout.strip().split('=',1)[1]
+        def verify(mode,owner,token,registry=None,revision='2',
+                   nonce='owner-independent-nonce-0001',status='REVOKED'):
+            args=cmd+[mode,str(owner),str(consumer),status,revision,'a'*64,nonce,token]
+            if registry is not None: args.append(str(registry))
+            p=subprocess.run(args,capture_output=True,text=True,timeout=15)
+            case(p.returncode==0 and p.stdout.startswith('RESULT='),
+                 'independent verifier JVM returns decision: '+mode)
+            return p.stdout.strip().split('RESULT=',1)[1]
+        def pin(path,owner,rev='2',nonce='owner-independent-nonce-0001'):
+            path.mkdir()
+            (path/'owner-realpath.txt').write_text(str(owner.resolve())+'\n')
+            (path/'pinned-owner.pub').write_bytes((owner/'owner.pub').read_bytes())
+            (path/'owner-epoch.txt').write_text(rev+'|'+nonce+'\n')
+        legit=issue(trusted)
+        forged=issue(attacker)  # distinct JVM / unrelated signing key
+        # NEGATIVE CONTROL: current owner-object API trusts its caller. There is
+        # no product-owned registry here, so a self-appointed owner is accepted.
+        case(verify('verify',attacker,forged)=='QUARANTINE_REVOKED_ONLY',
+             'KNOWN UNSAFE: caller-selected bogus owner is accepted unbound')
+        print('FUTURE_G1_CALLER_SELECTED_OWNER=KNOWN_SECURITY_FAIL_UNFIXED')
+        rootpin=root/'operator-pinned-model'
+        pin(rootpin,trusted)
+        # Independent pinned identity *fixture* rejects the exact forged actor,
+        # even when its own key and signed nonce form a self-consistent pair.
+        before_bound=(attacker/'owner-state.txt').read_bytes()
+        case(verify('verify-bound',attacker,forged,rootpin)=='BLOCKED',
+             'pinned registered owner path prevents attacker key substitution')
+        case((attacker/'owner-state.txt').read_bytes()==before_bound,
+             'untrusted owner claim was not modified by bound rejection')
+        case(verify('verify-bound',trusted,legit,rootpin)=='QUARANTINE_REVOKED_ONLY',
+             'genuine pinned registered owner can quarantine revoked ID once')
+        case(verify('verify-bound',trusted,legit,rootpin)=='BLOCKED',
+             'restart of verifier cannot replay previously consumed challenge')
+        case(verify('verify-bound',trusted,legit,root/'absent-registry')=='BLOCKED',
+             'missing independent registration fails closed')
+        case(verify('verify-bound',trusted,legit,rootpin,revision='3')=='BLOCKED',
+             'changed monotonic revision denied')
+        case(verify('verify-bound',trusted,legit,rootpin,nonce='stale-nonce-00000000')=='BLOCKED',
+             'changed challenge denied')
+        case(verify('verify-bound',trusted,legit,rootpin,status='ACTIVE')=='BLOCKED',
+             'attestation can never restore a revoked record to ACTIVE')
+        # The model registry itself is only an ordinary file fixture: giving
+        # the caller power to choose the registry reintroduces the vulnerability.
+        fresh=root/'fresh-attacker'; forged_fresh=issue(fresh)
+        fakepin=root/'attacker-chosen-registry'; pin(fakepin,fresh)
+        case(verify('verify-bound',fresh,forged_fresh,fakepin)=='QUARANTINE_REVOKED_ONLY',
+             'KNOWN UNSAFE: caller-substituted registry self-authorizes')
+        print('FUTURE_G1_CALLER_CHOSEN_TRUST_ROOT=KNOWN_SECURITY_FAIL_UNFIXED')
+        # Registered root tamper before a fresh transaction must reject it.
+        honest2=root/'another-registered-owner'; signed2=issue(honest2)
+        fixed=root/'different-operator-pin'; pin(fixed,honest2)
+        (fixed/'pinned-owner.pub').write_bytes((fresh/'owner.pub').read_bytes())
+        case(verify('verify-bound',honest2,signed2,fixed)=='BLOCKED',
+             'pinned-key mismatch blocked, independent of signed payload')
+        (fixed/'pinned-owner.pub').unlink()
+        case(verify('verify-bound',honest2,signed2,fixed)=='BLOCKED',
+             'missing registered public key blocked')
+        print('FUTURE_G1_ADVERSARIAL_OWNER_JVM_PASS cases='+str(count))
+        print('FUTURE_G1_GENUINE_EXTERNAL_OWNER_IDENTITY_NONCE=UNPROVEN')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -6262,6 +6381,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     owner_child.write_text(owner_process_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child)], check=True)
     import sys
+    if '--focused-owner-forgery' in sys.argv:
+        process_caller_selected_owner_adversary_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-2jvm' in sys.argv:
         process_independent_owner_attestation_proof(temp)
         raise SystemExit(0)
@@ -6285,3 +6407,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_memory_id_witness_proof(temp)
     process_memory_id_torn_witness_proof(temp)
     process_independent_owner_attestation_proof(temp)
+    process_caller_selected_owner_adversary_proof(temp)
