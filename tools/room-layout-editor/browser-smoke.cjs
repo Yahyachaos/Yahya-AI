@@ -20,7 +20,10 @@ async function run() {
   const context = await browser.newContext({viewport:{width:920,height:660},acceptDownloads:true});
   const page = await context.newPage();
   page.on('pageerror', e => errors.push('PAGE_ERROR ' + e.message));
-  page.on('console', m => { if(m.type()==='error')errors.push('CONSOLE_ERROR ' + m.text()); });
+  // Capture original loadModel console warnings; required for fail-closed
+  // owner-S25 raw geometry contract failures (never silently use placeholders).
+  page.on('console', m => { if(m.type()==='error'||m.type()==='warning')
+    errors.push('CONSOLE_'+m.type().toUpperCase()+' '+m.text()); });
   page.on('response', r => {
     if(r.status()>=400 && r.url().includes('localhost'))errors.push('HTTP '+r.status()+' '+r.url());
   });
@@ -40,6 +43,11 @@ async function run() {
                              null,{timeout:240000});
   const text=await page.locator('#status').innerText();
   assert.match(text,/13\/13/);
+  if(!/0 Fehler/.test(text)) {
+    const warnings=await page.locator('#warnings').innerText();
+    console.error('OWNER_S25_SOURCE_GLB_LOAD_DIAGNOSTIC',
+      JSON.stringify({status:text,warnings,browser_messages:errors.slice(0,35)}));
+  }
   assert.match(text,/0 Fehler/,'All 13 real GLB files must load without placeholder');
   assert.equal(await page.locator('#object option').count(),13);
   assert.equal(await page.locator('#reference-preview').evaluate(n=>n.naturalWidth>0),true);

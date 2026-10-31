@@ -203,9 +203,10 @@ async function main(){
       source_layout_sha256:approvedSha,original_s25_camera:ownerFrames.original_s25_camera,
       geometry_offsets_m:Object.fromEntries(ownerFrames.objects.map(o=>[o.id,o.owner_geometry_offset_m]))});
     const initial=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection());
-    const sy=0.19,sp=0.42,sd=6.6;
-    const expectedS25Camera=[Math.sin(sy)*Math.cos(sp)*sd,
-      0.85+Math.sin(sp)*sd,Math.cos(sy)*Math.cos(sp)*sd];
+    const ownerYaw=0.19,ownerPitch=0.42,ownerDistance=6.6;
+    const expectedS25Camera=[Math.sin(ownerYaw)*Math.cos(ownerPitch)*ownerDistance,
+      0.85+Math.sin(ownerPitch)*ownerDistance,
+      Math.cos(ownerYaw)*Math.cos(ownerPitch)*ownerDistance];
     assert.equal(initial.vertical_fov_deg,60,'Original owner S25 vertical FOV');
     assert.deepEqual(initial.camera_target_m,[0,0.85,0]);
     for(let i=0;i<3;i++)
