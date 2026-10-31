@@ -185,14 +185,36 @@ async function main(){
     // A missing true full-viewport shot is a FAIL, never a mobile visual PASS.
     let compositorError=null;
     try {
-      // V45: DPR3 1236x2745 full-resolution compositor capture stalled despite
-      // successful original WebGL canvas, touch and native 13-object JSON proof.
-      // Request a true browser full-viewport screenshot at 412x915 CSS pixels,
-      // without temporarily rewriting CSS animations or changing the 3x
-      // device emulation/rendering. Keep the existing 10-second fail-closed cap.
-      await page.screenshot({path:path.join(out,'mobile-s25-viewport-412x915.png'),
-        timeout:10000,scale:'css'});
-      const full=fs.readFileSync(path.join(out,'mobile-s25-viewport-412x915.png'));
+      // V46: after repeated Playwright compositor stalls, isolate Chromium's
+      // independent CDP view capture. Same full 412x915 viewport, DPR3, real
+      // original GLBs, touch/JSON and strict 10-second capture limit. Never
+      // create a stitched or synthetic substitute for the browser screenshot.
+      const shotSession=await context.newCDPSession(page);
+      let shotTimeout;
+      const snapshotBefore=await page.evaluate(()=>
+        window.__celineRoomEditorE2E.mobileRenderStats());
+      const captureStarted=Date.now();
+      const capture=await Promise.race([
+        shotSession.send('Page.captureScreenshot',{
+          format:'png',fromSurface:false,captureBeyondViewport:false,
+          clip:{x:0,y:0,width:412,height:915,scale:1}
+        }),
+        new Promise((_,reject)=>{
+          shotTimeout=setTimeout(
+            ()=>reject(new Error('CDP full-viewport view capture exceeded 10000ms')),
+            10000);
+        })
+      ]).finally(()=>clearTimeout(shotTimeout));
+      const full=Buffer.from(capture.data,'base64');
+      assert.equal(full.subarray(1,4).toString('ascii'),'PNG');
+      assert(full.length>2000,'CDP full-viewport PNG unexpectedly small');
+      fs.writeFileSync(path.join(out,'mobile-s25-viewport-412x915.png'),full);
+      record.push({name:'MOBILE_CDP_VIEWPORT_CAPTURE_DIAGNOSTIC',
+        backend:'Page.captureScreenshot fromSurface=false',
+        elapsed_ms:Date.now()-captureStarted,
+        rendering_before:snapshotBefore,
+        rendering_after:await page.evaluate(()=>
+          window.__celineRoomEditorE2E.mobileRenderStats())});
       const dimensions=[full.readUInt32BE(16),full.readUInt32BE(20)];
       assert.deepEqual(dimensions,[412,915],
         'True full 412x915 CSS-pixel screenshot required; DPR3 emulated device stays intact');
