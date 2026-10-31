@@ -6218,6 +6218,16 @@ def process_independent_owner_attestation_proof(temp):
         case((trusted/'owner-state.txt').read_text().strip().endswith('|1'),
              'the independent owner permanently marks claim as spent in model')
         case(verify(token)=='BLOCKED','new verifier JVM refuses identical replay')
+        # Known limitation: the independent *file-backed* owner is itself
+        # rollbackable. Rolling back its consumed-claim checkpoint permits
+        # replay. This must remain a visible security FAIL, not a PASS claim.
+        (trusted/'owner-state.txt').write_text(
+            '2|owner-independent-nonce-0001|REVOKED|0\n')
+        case(verify(token)=='QUARANTINE_REVOKED_ONLY',
+             'KNOWN UNSAFE: jointly rolled-back owner file reaccepts signed token')
+        case((trusted/'owner-state.txt').read_text().strip().endswith('|1'),
+             'replayed token is consumed again in untrusted file-backed model')
+        print('FUTURE_G1_JOINT_OWNER_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
         # A fresh owner challenge simulates a revision advance outside consumer scope.
         newer=root/'advanced-owner'; newer_token=issue(newer)
         (newer/'owner-state.txt').write_text('3|owner-independent-nonce-0002|REVOKED|0\n')
