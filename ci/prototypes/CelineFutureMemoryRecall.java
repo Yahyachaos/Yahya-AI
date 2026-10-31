@@ -374,6 +374,51 @@ public final class CelineFutureMemoryRecall {
                 ownerSignature, minimumWitnessEpoch, independentlyPinnedReceiptGuard);
     }
 
+    /**
+     * FUTURE ONLY: caller-independent G1-owned receipt-commit authority.
+     * The coordinator must atomically verify all original witness/once/guard
+     * evidence, durably record the one-shot claim AND its acknowledgement,
+     * and never return COMMITTED after owner revision/receipt rollback.
+     * This method merely validates the request and preserves uncertainty;
+     * it does NOT implement a trusted coordinator, durable storage or Android.
+     * A caller-chosen coordinator or request ID is never production authority.
+     */
+    public enum AtomicReceiptOutcome {
+        REJECTED_BEFORE_START, NO_AUTHORITY, STARTED_INDETERMINATE, COMMITTED
+    }
+
+    public interface OwnerAtomicReceiptCoordinator {
+        AtomicReceiptOutcome commitRevokedReceipt(String ownerIssuedReceiptId,
+                String exactId, long sourceRevision, String sourceStatus,
+                String orphanSha256, String challenge, byte[] ownerSignature,
+                long minimumWitnessEpoch);
+    }
+
+    public static AtomicReceiptOutcome attestRevokedWithAtomicReceiptCoordinator(
+            String ownerIssuedReceiptId, String exactId, long sourceRevision,
+            String sourceStatus, String orphanSha256, String challenge,
+            byte[] ownerSignature, long minimumWitnessEpoch,
+            OwnerAtomicReceiptCoordinator coordinator) {
+        if (coordinator == null) return AtomicReceiptOutcome.NO_AUTHORITY;
+        if (ownerIssuedReceiptId == null || ownerIssuedReceiptId.isBlank()
+                || ownerIssuedReceiptId.length() > 128
+                || minimumWitnessEpoch <= 0 || !"REVOKED".equals(sourceStatus)
+                || sourceRevision < 2 || revokedRecoveryPayload(exactId,
+                        sourceRevision, orphanSha256, challenge).length == 0
+                || ownerSignature == null || ownerSignature.length != 64)
+            return AtomicReceiptOutcome.REJECTED_BEFORE_START;
+        try {
+            AtomicReceiptOutcome outcome = coordinator.commitRevokedReceipt(
+                    ownerIssuedReceiptId, exactId, sourceRevision, sourceStatus,
+                    orphanSha256, challenge, ownerSignature.clone(), minimumWitnessEpoch);
+            // After dispatch, a missing/throwing acknowledgement is not
+            // retryable denial: an irreversible claim may have happened.
+            return outcome == null ? AtomicReceiptOutcome.STARTED_INDETERMINATE : outcome;
+        } catch (RuntimeException e) {
+            return AtomicReceiptOutcome.STARTED_INDETERMINATE;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
