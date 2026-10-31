@@ -49,6 +49,12 @@ public final class GermanStreamingStopReceiptIntegrationTest {
                 "user action required");
         reject(s.abortAndBeginNewSession(plan + 1, USER, request, "No.", 1_060_000_000L) != null,
                 "wrong plan cannot consume STOP");
+        reject(s.abortAndBeginNewSession(plan, USER, request, null, 1_062_000_000L) != null,
+                "null replacement must not consume acknowledged STOP");
+        reject(s.abortAndBeginNewSession(plan, USER, request, " \u200b\u034f ", 1_064_000_000L) != null,
+                "invisible-only replacement must not consume acknowledged STOP");
+        reject(s.abortAndBeginNewSession(plan, USER, request, "\u0301\u20dd", 1_066_000_000L) != null,
+                "combining marks cannot consume acknowledged STOP");
         var receipt = s.abortAndBeginNewSession(plan, USER, request, "Ganz neu. Fertig.",
                 1_070_000_000L);
         check(receipt != null && receipt.previousSpeechAudibilityUnknown,

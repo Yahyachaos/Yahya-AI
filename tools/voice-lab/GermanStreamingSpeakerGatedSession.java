@@ -94,6 +94,8 @@ public final class GermanStreamingSpeakerGatedSession {
         if (!abandonable() || oldStopRequest == null || oldStopRequest != pendingStopRequest
                 || oldStopRequest.planGeneration != expectedPlanGeneration
                 || oldStopRequest.audioGeneration != lastAudioGeneration
+                // Reject empty/invisible replacement BEFORE consuming one-shot STOP.
+                || !VoiceAbortNewTextGate.hasNonInvisibleContent(newText)
                 || !VoiceExplicitAbortGate.mayAbandon(expectedPlanGeneration, raw.generation(),
                     activeDispatch != null,
                     pendingTail != null
