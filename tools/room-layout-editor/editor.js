@@ -121,6 +121,7 @@ let neutralShellPreview = false; // Reversible editor-only cutaway skin; never s
 // V22 editor-only source-fidelity preview. Cache original immutable GLB material objects.
 const sourceDrapeMaterials = new WeakMap();
 const SHEER_SOURCE_MATERIAL = 'material.010'; // original map-bearing white drape slot
+const NIGHT_BACKDROP_MATERIAL = 'CELINE_WindowNightDepth_Background'; // original dark opaque window insert
 const SHEER_PREVIEW_ALPHA = 0.35; // V21 real WebGL: light-35 preserves the dark night panel
 const SHEER_PREVIEW_TINT = 'a68c6f'; // V32 7 real WebGL pairs: provisional warm umber preview only; whole room VISUAL FAIL
 
@@ -225,6 +226,9 @@ function applyNeutralShellPreview() {
   }
   const desktop=$('neutral-shell');
   if (desktop) desktop.textContent=neutralShellPreview?'Neutrale Ansicht beenden':'Neutrale Schnittansicht';
+  // Display-only original-material clone for the source GLB's opaque black window insert.
+  // Return the exact source material instance when leaving neutral mode.
+  setSourceSheerPreview($('sheer-preview').checked);
   invalidateMobileFrame();
 }
 
@@ -453,8 +457,8 @@ function placeholder(id) {
 
 function setSourceSheerPreview(enabled) {
   const entry = entries.get('room_window_drapes');
-  if (!entry?.loaded) return {ready:false, enabled, affectedMaterialSlots:0};
-  let meshCount=0, affectedMaterialSlots=0;
+  if (!entry?.loaded) return {ready:false, enabled, affectedMaterialSlots:0, affectedBackdropSlots:0};
+  let meshCount=0, affectedMaterialSlots=0, affectedBackdropSlots=0;
   entry.group.traverse(mesh => {
     if (!mesh.isMesh) return;
     meshCount++;
@@ -462,13 +466,23 @@ function setSourceSheerPreview(enabled) {
     const base=sourceDrapeMaterials.get(mesh), original=Array.isArray(base)?base:[base];
     const old=Array.isArray(mesh.material)?mesh.material:[mesh.material];
     const next=original.map(mat => {
-      if (!mat || !enabled || mat.name!==SHEER_SOURCE_MATERIAL || !mat.map) return mat;
-      const preview=mat.clone(); // Never mutate original GLB material / texture / source bytes.
-      preview.color.set('#'+SHEER_PREVIEW_TINT); // V33 opt-in editor preview only; original material stays intact.
-      preview.transparent=true;
-      preview.opacity=SHEER_PREVIEW_ALPHA;
-      preview.depthWrite=false;
-      affectedMaterialSlots++;
+      if (!mat) return mat;
+      const sheer=enabled && mat.name===SHEER_SOURCE_MATERIAL && !!mat.map;
+      const neutralBackdrop=neutralShellPreview && mat.name===NIGHT_BACKDROP_MATERIAL && !mat.map;
+      if (!sheer && !neutralBackdrop) return mat;
+      const preview=mat.clone(); // Never mutate an original GLB source material or its bytes.
+      if (sheer) {
+        preview.color.set('#'+SHEER_PREVIEW_TINT);
+        preview.transparent=true;
+        preview.opacity=SHEER_PREVIEW_ALPHA;
+        preview.depthWrite=false;
+        affectedMaterialSlots++;
+      } else {
+        // Opt-in, reversible editor-only daylight insert. Source remains opaque #1d242b.
+        // This cannot reposition curtains, camera or any user's saved object.
+        preview.color.set('#b7bfc2');
+        affectedBackdropSlots++;
+      }
       return preview;
     });
     mesh.material=Array.isArray(base)?next:next[0];
@@ -476,7 +490,8 @@ function setSourceSheerPreview(enabled) {
       if (material && !original.includes(material)) material.dispose();
     }
   });
-  return {ready:true,enabled,meshCount,affectedMaterialSlots};
+  invalidateMobileFrame();
+  return {ready:true,enabled,meshCount,affectedMaterialSlots,affectedBackdropSlots};
 }
 
 async function loadModel(entry) {
@@ -493,7 +508,7 @@ async function loadModel(entry) {
     model.position.sub(center);
     entry.group.add(model);
     entry.loaded = true;
-    if (entry.id === 'room_window_drapes' && $('sheer-preview').checked) {
+    if (entry.id === 'room_window_drapes' && ($('sheer-preview').checked || neutralShellPreview)) {
       const preview=setSourceSheerPreview(true);
       if (preview.affectedMaterialSlots!==1)
         console.warn('Unveränderte Originalgardine: Quellmaterial-Auswahl nicht eindeutig.',preview);
@@ -1107,6 +1122,33 @@ if (E2E_PROOF) {
           s.name==='CELINE_WindowNightDepth_Background'&&s.originalIdentity).length,
         slots
       };
+    },
+
+    // Read-only proof of owner-final original GLB material identity. The new
+    // neutral preview must clone exactly one dark window material, then restore
+    // the same source instance and color. Source file bytes are never changed.
+    windowBackdropAudit() {
+      const entry=entries.get('room_window_drapes');
+      if (!entry?.loaded) throw new Error('Original window GLB must be loaded');
+      const matches=[];
+      entry.group.traverse(mesh=>{
+        if (!mesh.isMesh) return;
+        if (!sourceDrapeMaterials.has(mesh)) sourceDrapeMaterials.set(mesh,mesh.material);
+        const base=sourceDrapeMaterials.get(mesh);
+        const original=Array.isArray(base)?base:[base];
+        const shown=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+        for(let i=0;i<original.length;i++) {
+          if(original[i]?.name!==NIGHT_BACKDROP_MATERIAL) continue;
+          matches.push({
+            source_hex:original[i].color?.getHexString()??null,
+            displayed_hex:shown[i]?.color?.getHexString()??null,
+            source_opacity:original[i].opacity,
+            displayed_opacity:shown[i]?.opacity??null,
+            original_identity:original[i]===shown[i]
+          });
+        }
+      });
+      return {matches};
     },
     // V21 REAL WEBGL MATERIAL DIAGNOSTIC ONLY: never modify immutable GLB bytes,
     // saved placement JSON, original material instances, or Android surfaces.

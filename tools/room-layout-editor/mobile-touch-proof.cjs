@@ -240,6 +240,11 @@ async function main(){
     // New opt-in neutral cutaway: real touch, real original WebGL pixels,
     // exact source JSON unchanged. This is an optical diagnostic, not VISUAL PASS.
     const shellBefore=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
+    const nightBefore=await page.evaluate(()=>window.__celineRoomEditorE2E.windowBackdropAudit());
+    assert.equal(nightBefore.matches.length,1,
+      'Owner-final original window GLB must have one dark opaque source backdrop material');
+    assert.equal(nightBefore.matches[0].original_identity,true,
+      'Default view must use the unmodified original GLB window material');
     const neutralButton=page.locator('[data-mobile-action="neutral-shell"]');
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
     const neutralStart=Date.now();
@@ -251,6 +256,14 @@ async function main(){
     assert.deepEqual(shellDuring.room_m,shellBefore.room_m);
     assert.equal(shellDuring.wall_count,shellBefore.wall_count);
     assert.notEqual(shellDuring.wall_hex,shellBefore.wall_hex);
+    const nightDuring=await page.evaluate(()=>window.__celineRoomEditorE2E.windowBackdropAudit());
+    assert.equal(nightDuring.matches.length,1);
+    assert.equal(nightDuring.matches[0].source_hex,nightBefore.matches[0].source_hex,
+      'Immutable original window material must retain its exact source color');
+    assert.notEqual(nightDuring.matches[0].displayed_hex,nightBefore.matches[0].displayed_hex,
+      'Neutral editor preview must actually lighten the opaque source window backplane');
+    assert.equal(nightDuring.matches[0].original_identity,false,
+      'Neutral window must be a copied display material, never the modified original');
     const neutralWebgl=await captureRealWebGL(page,'mobile-owner-final-neutral-cutaway-webgl.png');
     assert.notEqual(neutralWebgl.sha256,nativeFirst.sha256,
       'Genuine neutral shell WebGL must differ from original shell frame');
@@ -260,9 +273,13 @@ async function main(){
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit()),shellBefore,
       'Original editor shell material must be exactly restorable');
+    assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.windowBackdropAudit()),nightBefore,
+      'Original source GLB window material identity and opacity must be restored after neutral view');
     record.push({name:'MOBILE_REVERSIBLE_NEUTRAL_CUTAWAY_TECHNICAL_PROOF',
       neutralWebgl,neutral_touch_elapsed_ms:neutralElapsed,
       room_geometry_unchanged:true,owner_13_source_fields_unchanged:true,
+      source_window_material_identity_restored:true,
+      window_backdrop_before:nightBefore,window_backdrop_neutral:nightDuring,
       visual_acceptance:'NOT_GRANTED'});
     await page.locator('.mobile-extra > summary').tap();
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle);
