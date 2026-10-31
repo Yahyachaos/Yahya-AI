@@ -540,3 +540,18 @@ Live main AGENTS §§2,4,5,10,12; complete Queue and Validation Policy; issue #1
 **Open:** complete exact SHA-verified Voice checkout + all 40 mains including STOP-receipt/explicit-abort integration is required; user-device German female neural audio, true acoustic tail/viseme timing, licenses and S25 Ultra remain UNVERIFIED. Future-only draft must not be merged into v83. Scope-only source changes do not imply APK permission.
 
 **exact_next_action:** Obtain and SHA-verify all current branch tools/voice-lab Java files, execute sh tools/voice-lab/run_tests.sh including the modified GermanStreamingStopReceiptIntegrationTest and GermanStreamingExplicitAbortIntegrationTest, repair only a proved failure, then continue independent streaming prosody/audio-latency work. Build & Release alone owns a separately authorized later Android adapter.
+
+
+## 31 October 2026 — consumed STOP plan-lineage isolation (FUTURE ONLY, excluded from v83)
+
+Prewrite live reconcile: current main AGENTS sections 2/4/5/10/12, complete queue, Validation Policy, Voice issue #117/WORK_ORDER, draft PR #118 exact old HEAD 4e0b2388dd91d376d7298f6db16749ff7ce6b46c, merged Room #111, separate Core #113, CI/Build owner and Actions were inspected. No exact-head Voice CI was running. Only tools/voice-lab/** changed.
+
+Original source-exact RED: VoiceOutputStopReceiptGate.java Git blob 4b8dc88c48e5d8884643bb562661a364d1161502 matched git hash-object. New VoiceOutputStopConsumedPlanLineageTest compiled on OpenJDK 21 and exited 1: "consumed plan may not acquire fresh nonce for fabricated later audio epoch", check 4. RED stderr SHA-256 9e59524d480cc0a0c9731406dee7ba8751d87cdbf1036b4b98e6befa4976ea1c. This is a synthetic future reducer defect, NOT proof of repeated audible speech.
+
+Minimal fix: Successfully consumed STOP terminates the abandoned plan generation, not just the exact old plan/audio identity. A fabricated higher audio generation cannot rearm the same consumed plan; a genuinely newer plan together with a newer audio generation may still obtain a fresh receipt. No Android app/CI/Room/Core/build/signing/updater/runtime code touched.
+
+Executed source-exact focused JVM tests (OpenJDK 21): new lineage 49,164 PASS, existing VoiceAbortNewTextGateTest 12,014 PASS, existing VoiceAbortReceiptAdmissibilityTest 21,010 PASS. Total 82,188 focused assertions PASS, combined stdout SHA-256 bac15174ccda679d94a3fb870d7a193d4aea41543c16ff401467d5819d786cc4. Local modified gate Git blob 2130dba2ed1007de3da4ff53bd64d4cd2d8260fe; new test blob 681a3cd756defe6ab409a7f96d58d12834ec3a71. These do NOT prove real speaker silence or Samsung behavior.
+
+Runner registers 53 Java files and 41 JVM test mains after this change. Complete 53/41 runner including both cross-contract STOP/explicit-abort integration mains was NOT run in a complete GitHub source checkout. No model download, real German female speech, acoustic latency, physical S25 lip-sync, APK or integration acceptance. Old Android-8 Pico OS failure is separate and not a v83 gate. Build & Release alone owns later approved Android integration.
+
+One exact_next_action: Stage and SHA-verify all 53 current Voice Java blobs at the new PR head; run sh tools/voice-lab/run_tests.sh (41 mains, especially combined STOP/explicit-abort integration); fix only an evidenced Voice-scope failure, then resume FUTURE-ONLY speech work. Leave PR draft and excluded from v83.
