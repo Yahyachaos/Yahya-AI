@@ -30,6 +30,36 @@ async function captureRealWebGL(page,filename){
     bytes:bytes.length,pixels:[bytes.readUInt32BE(16),bytes.readUInt32BE(20)],
     screen_css:data.screen_css,canvas_css:data.canvas_css,dpr:data.device_pixel_ratio};
 }
+// A file input change handler awaits File.text() before applyState().  Do not
+// schedule another import or claim JSON success until the preceding handler
+// has actually reported completion.  This is a 5s strict readiness gate, not
+// a longer timeout or a bypass of the real 13-GLB transform assertions.
+async function completedMobileJsonImport(page,filename,stage) {
+  const started=Date.now(), basename=path.basename(filename);
+  await page.locator('#file').setInputFiles(filename);
+  try {
+    await page.waitForFunction((name)=>{
+      const message=document.getElementById('status')?.textContent||'';
+      return message==='Gespeichertes Layout geladen: '+name ||
+        message.startsWith('Layout nicht importiert:');
+    },basename,{timeout:5000,polling:100});
+  } catch (err) {
+    const diagnostic=await page.evaluate(()=>({
+      status:document.getElementById('status')?.textContent||'',
+      selectedFile:document.getElementById('file')?.files?.[0]?.name||null,
+      bedX:window.__celineRoomEditorE2E.auditScene().objects
+        .find(o=>o.id==='room_bed')?.transform.translation_m[0],
+      renderer:window.__celineRoomEditorE2E.mobileRenderStats()
+    })).catch(e=>({readback_error:String(e)}));
+    record.push({name:stage+'_TIMEOUT',elapsed_ms:Date.now()-started,diagnostic});
+    throw new Error(stage+': async import confirmation exceeded unchanged 5000ms: '+
+      JSON.stringify(diagnostic)+'; '+String(err));
+  }
+  const message=await page.locator('#status').textContent();
+  record.push({name:stage+'_HANDLER_FINISHED',elapsed_ms:Date.now()-started,status:message});
+  assert.equal(message,'Gespeichertes Layout geladen: '+basename,
+    stage+': actual importer rejected the JSON');
+}
 // Isolate the compositor in fresh, otherwise empty Chromium processes BEFORE
 // loading any GLBs. Neither control is a screenshot of the user room.
 const chromiumArgs=[
@@ -243,7 +273,18 @@ async function main(){
     assert.equal(json.objects.length,13);
     assert.equal(new Set(json.objects.map(o=>o.id)).size,13);
     assert.equal(json.objects.find(o=>o.id==='room_bed').locked,true);
-    await page.locator('#file').setInputFiles(saved);
+    await completedMobileJsonImport(page,saved,'FIRST_EXPORTED_JSON_REIMPORT');
+    const firstReload=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
+    assert.equal(firstReload.model_count,13);
+    for(const expected of json.objects){
+      const actual=firstReload.objects.find(o=>o.id===expected.id);
+      assert(actual?.loaded,'Exported JSON source GLB '+expected.id);
+      assert.equal(actual.locked,expected.locked,'Exported JSON lock '+expected.id);
+      for(const key of ['translation_m','rotation_euler_deg','scale_xyz'])
+        for(let i=0;i<3;i++)
+          assert(Math.abs(actual.transform[key][i]-expected[key][i])<1e-9,
+            'Exported JSON import transform '+expected.id+' '+key+'['+i+']');
+    }
     assert.equal(await page.locator('#mobile-object').inputValue(),'room_bed');
     assert.equal(await page.locator('#x').isDisabled(),true);
     record.push({name:'MOBILE_JSON_EXPORT_IMPORT_13_LOCKS_PASS'});
@@ -253,11 +294,7 @@ async function main(){
     // not the test's temporary +X bed move or temporary orbit/zoom.
     const approvedFile=path.join(__dirname,'layout-candidates',
       '2026-10-31-s25-user-approved-final-13glb.json');
-    await page.locator('#file').setInputFiles(approvedFile);
-    await page.waitForFunction(expectedX=>{
-      const bed=window.__celineRoomEditorE2E.auditScene().objects.find(o=>o.id==='room_bed');
-      return !!bed && Math.abs(bed.transform.translation_m[0]-expectedX)<1e-9;
-    },approved.objects[0].translation_m[0],{timeout:5000});
+    await completedMobileJsonImport(page,approvedFile,'SECOND_OWNER_FINAL_JSON_REIMPORT');
     const restored=await page.evaluate(()=>window.__celineRoomEditorE2E.auditScene());
     assert.equal(restored.model_count,13);
     assert.equal(restored.all_source_fidelity_glbs_loaded,true);
