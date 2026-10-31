@@ -535,6 +535,16 @@ final class CelineRoomEnvironmentV80 {
         private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item)
                 throws Exception {
             if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
+            // Verify that the *loaded partition* owns this furniture anchor, not
+            // merely that the combined scene contains an anchor with this name.
+            // The user id "back" intentionally maps to the GLB's "rear" anchor.
+            String sourceAnchor = ("room_nightstand_back".equals(id)
+                    ? "room_nightstand_rear" : id) + "__anchor";
+            int anchorEntity = part.getFirstEntityByName(sourceAnchor);
+            if (anchorEntity == 0 || transforms.getInstance(anchorEntity) == 0) {
+                throw new IllegalStateException("Wrong or unanchored S25 GLB partition "
+                        + id + " expected=" + sourceAnchor);
+            }
             double[] pos = requireFiniteTriple(item, "translation_m", false);
             double[] euler = requireFiniteTriple(item, "rotation_euler_deg", false);
             double[] scale = requireFiniteTriple(item, "scale_xyz", true);
