@@ -759,13 +759,18 @@ final class CelineRoomEnvironmentV80 {
             RenderableManager manager = engine.getRenderableManager();
             int count = 0;
             for (int entity : asset.getEntities()) {
-                if (manager.ha        /**
+                if (manager.hasComponent(entity)) count++;
+            }
+            return count;
+        }
+
+        /**
          * The original room_shell.glb defines a 4.40 x 4.20 x 2.65 m
          * floor-centered user XYZ space, exactly like the S25 furniture JSON.
-         * The old shell-only 180-degree rotation + runtime offset separated
+         * The old shell-only 180-degree rotation and runtime offset separated
          * the shell from all thirteen authored furniture instances.
-         * Validate both imported GLB roots instead of modifying the source.
-         * The shared WorldContract, camera and 9R data belong to BUILD.
+         * Validate both imported GLB roots instead of changing the source.
+         * Shared WorldContract, camera and 9R data remain BUILD-owned.
          */
         private void verifyNativeS25ShellFrame(FilamentAsset asset) {
             int authoredRoot = asset.getFirstEntityByName("room_world_root");
@@ -793,9 +798,6 @@ final class CelineRoomEnvironmentV80 {
                     "interior_m=4.4,4.2,2.65 shellRoot=IDENTITY"
                             + " oldRuntimeOffsetApplied=false"
                             + " sharedWorldContractAndCamera=UNVERIFIED");
-        }
-n, 0, framed, 0);
-            transforms.setTransform(root, aligned);
         }
 
         /**
