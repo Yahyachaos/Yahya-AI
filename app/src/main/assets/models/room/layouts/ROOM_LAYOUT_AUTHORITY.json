@@ -1,0 +1,37 @@
+{
+  "schema": "yahya-room-layout-authority/v1",
+  "authority": "user-authored-13-object-json-only",
+  "canonical_layout": "models/room/layouts/YahyaAI_Raumlayout_FINAL_2026-10-31.json",
+  "original_source_file": "YahyaAI_Raumlayout_13_Moebel (3).json",
+  "original_source_sha256": "471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f",
+  "source_saved_at": "2026-10-31T03:29:20.855Z",
+  "room_m": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "furniture_instance_count": 13,
+  "coordinate_system": "X horizontal / left-right; Y vertical / up-down; Z depth / front-back, origin at floor center",
+  "mandatory_untouched_fields": [
+    "id",
+    "translation_m",
+    "rotation_euler_deg",
+    "rotation_y_deg",
+    "scale_xyz",
+    "uniform_scale",
+    "locked"
+  ],
+  "reference_image_role": "historical_metadata_only",
+  "reference_image_is_layout_source": false,
+  "reference_image_must_not_drive_furniture_changes": true,
+  "allow_automatic_fit_to_reference_image": false,
+  "allow_auto_clamp_or_ground_or_normalize": false,
+  "allow_automatic_scale_or_rotation_reconciliation": false,
+  "editing_rule": "Do not modify any user furniture transformation without a new explicit user-authored layout",
+  "runtime_rule": "Source JSON must be applied to the actual 13 partitioned GLB scene nodes in the Android renderer; copying the JSON alone is not runtime integration.",
+  "current_android_runtime_integrated": false,
+  "original_app_assembly_backup": "models/room/layouts/backups/celine_room_v80_assembly_previous.json",
+  "original_app_world_backup": "models/room/layouts/backups/celine_room_v80_world_contract_previous.json",
+  "acceptance": "Exact 13/13 field-by-field numeric roundtrip plus original room dimensions, actual Filament transform readback, and genuine mobile visual inspection before claiming completion.",
+  "notes": "The original canonical JSON intentionally retains historical reference_image and source_assembly keys for byte-semantic fidelity; neither key grants authority to change positions, rotations, heights, scale or room geometry. Do not remove image assets that are needed for materials or separately approved decoration."
+}
