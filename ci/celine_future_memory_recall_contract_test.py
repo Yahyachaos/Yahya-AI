@@ -8761,6 +8761,147 @@ def process_atomic_owner_restart_proof(temp, strict=False):
             print('FUTURE_GUARDIAN_SAME_SIGNER_ROLLBACK=KNOWN_SECURITY_FAIL')
             print('FUTURE_INDEPENDENT_NONROLLBACKABLE_JOURNAL=UNIMPLEMENTED')
 
+pinned_journal_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+
+/** Test-only independent JVM process; plain-text journal floor IS rollbackable. */
+public final class FuturePinnedJournalProcess {
+  static final String ID="cat-private";
+  static final String CLAIM="owner-claim-0001";
+  static final String HASH="a".repeat(64);
+  static final String NONCE="pinned-journal-nonce-0001";
+  static byte[] read(Path dir,String filename) throws Exception {
+    return Files.readAllBytes(dir.resolve(filename));
+  }
+  static PublicKey pub(Path dir,String prefix) throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePublic(
+        new X509EncodedKeySpec(read(dir,prefix+".pub")));
+  }
+  static PrivateKey priv(Path dir,String prefix) throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePrivate(
+        new PKCS8EncodedKeySpec(read(dir,prefix+".priv")));
+  }
+  static byte[] sign(PrivateKey key,byte[] bytes) throws Exception {
+    Signature s=Signature.getInstance("Ed25519");s.initSign(key);s.update(bytes);return s.sign();
+  }
+  static String pin(Path dir,String prefix) throws Exception {
+    return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+        .digest(read(dir,prefix+".pub")));
+  }
+  static void init(Path dir) throws Exception {
+    Files.createDirectories(dir);
+    for(String prefix:List.of("owner","journal")) {
+      KeyPair kp=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+      Files.write(dir.resolve(prefix+".priv"),kp.getPrivate().getEncoded(),StandardOpenOption.CREATE_NEW);
+      Files.write(dir.resolve(prefix+".pub"),kp.getPublic().getEncoded(),StandardOpenOption.CREATE_NEW);
+    }
+    Files.writeString(dir.resolve("journal.floor"),"0",StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
+    System.out.println("INIT owner="+pin(dir,"owner")+" journal="+pin(dir,"journal"));
+  }
+  static void attempt(Path dir,String mode) throws Exception {
+    final long seq=1L;
+    byte[] sigOwner=sign(priv(dir,"owner"),
+        CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE));
+    if(mode.equals("owner-forge"))sigOwner[1]^=3;
+    byte[] payload=CelineFutureMemoryRecall.independentJournalReceiptPayload(
+        CLAIM,ID,2L,"REVOKED",HASH,NONCE,sigOwner,4L,seq);
+    byte[] signedJournal=sign(priv(dir,"journal"),payload);
+    if(mode.equals("journal-forge"))signedJournal[2]^=1;
+    final int[] dispatch={0};
+    CelineFutureMemoryRecall.ExternallyPinnedMonotonicJournal authority=
+        new CelineFutureMemoryRecall.ExternallyPinnedMonotonicJournal(){
+          public PublicKey pinnedOriginalOwnerKey(){try{return pub(dir,"owner");}catch(Exception e){return null;}}
+          public PublicKey pinnedJournalKey(){try{return pub(dir,"journal");}catch(Exception e){return null;}}
+          public long trustedOwnerRevision(){return mode.equals("bad-revision")?3L:2L;}
+          public long trustedConsumedSequence(){
+            try{return Long.parseLong(Files.readString(dir.resolve("journal.floor")).trim());}
+            catch(Exception e){return -1;}
+          }
+          public CelineFutureMemoryRecall.AtomicReceiptOutcome consumeOnce(String id,long sequence,
+              byte[] exactPayload,byte[] receiptSignature,byte[] originalSignature) {
+            dispatch[0]++;
+            if(mode.equals("uncertain"))return null;
+            if(mode.equals("authority-vanished"))return CelineFutureMemoryRecall.AtomicReceiptOutcome.NO_AUTHORITY;
+            if(mode.equals("throw"))throw new IllegalStateException("I/O lost after dispatch");
+            if(mode.equals("deny"))return CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START;
+            try {
+              long floor=Long.parseLong(Files.readString(dir.resolve("journal.floor")).trim());
+              if(sequence!=floor+1 || !CLAIM.equals(id)
+                  || !Arrays.equals(exactPayload,payload)
+                  || !Arrays.equals(receiptSignature,signedJournal)
+                  || !Arrays.equals(originalSignature,sigOwner))
+                return CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START;
+              // Test-only ordinary file: not a production CAS or durable root!
+              Files.writeString(dir.resolve("journal.floor"),Long.toString(sequence),StandardCharsets.UTF_8);
+              return CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED;
+            }catch(Exception e){return CelineFutureMemoryRecall.AtomicReceiptOutcome.STARTED_INDETERMINATE;}
+          }
+        };
+    String id=mode.equals("wrong-claim")?"other-claim-0001":CLAIM;
+    String target=mode.equals("wrong-id")?"other-private":ID;
+    String nonce=mode.equals("wrong-nonce")?"other-journal-nonce-0001":NONCE;
+    long receivedSeq=mode.equals("wrong-seq")?2L:seq;
+    byte[] suppliedSig=mode.equals("absent-proof")?null:signedJournal;
+    var result=CelineFutureMemoryRecall.attestRevokedWithPinnedMonotonicJournal(
+      id,target,2L,"REVOKED",HASH,nonce,sigOwner,4L,receivedSeq,suppliedSig,
+      mode.equals("missing")?null:authority);
+    System.out.println("RESULT="+result+" DISPATCH="+dispatch[0]
+        +" OWNER_PIN="+pin(dir,"owner")+" JOURNAL_PIN="+pin(dir,"journal"));
+  }
+  public static void main(String[] a) throws Exception {
+    if(a.length<2)throw new IllegalArgumentException("init|attempt dir [mode]");
+    Path dir=Path.of(a[1]);
+    if(a[0].equals("init"))init(dir);
+    else if(a[0].equals("attempt") && a.length==3)attempt(dir,a[2]);
+    else throw new IllegalArgumentException("init|attempt dir [mode]");
+  }
+}
+'''
+
+def process_pinned_journal_attestation_proof(compiled,strict=False):
+    # A fresh java invocation for every assertion verifies original signer and
+    # guardian public keys survive process restarts. All local files are
+    # deliberately rollbackable; strict rollback is an EXPECTED security FAIL.
+    with tempfile.TemporaryDirectory(prefix='future_pinned_journal_') as work:
+        target = Path(work)
+        def run(*args):
+            output=subprocess.run(['java','-cp',compiled,
+                'de.yahya.ai.FuturePinnedJournalProcess',*args],
+                capture_output=True,text=True,check=True)
+            return output.stdout.strip()
+        init=run('init',str(target))
+        assert 'INIT owner=' in init and ' journal=' in init, init
+        passed=0
+        def expect(mode,verdict,dispatch):
+            nonlocal passed
+            out=run('attempt',str(target),mode)
+            assert 'RESULT='+verdict in out and 'DISPATCH='+str(dispatch) in out,(mode,out)
+            assert ('OWNER_PIN='+init.split('owner=')[1].split()[0]) in out,(mode,out)
+            assert ('JOURNAL_PIN='+init.split('journal=')[1]) in out,(mode,out)
+            passed+=1
+        expect('missing','NO_AUTHORITY',0)
+        for m in ('owner-forge','journal-forge','wrong-claim','wrong-id',
+                  'wrong-nonce','wrong-seq','bad-revision','absent-proof'):
+            expect(m,'REJECTED_BEFORE_START',0)
+        expect('uncertain','STARTED_INDETERMINATE',1)
+        expect('authority-vanished','STARTED_INDETERMINATE',1)
+        expect('throw','STARTED_INDETERMINATE',1)
+        expect('deny','REJECTED_BEFORE_START',1)
+        expect('normal','COMMITTED',1)
+        expect('normal','REJECTED_BEFORE_START',0)
+        if strict:
+            (target/'journal.floor').write_text('0',encoding='utf-8')
+            out=run('attempt',str(target),'normal')
+            assert 'RESULT=REJECTED_BEFORE_START' in out, (
+                'KNOWN UNSAFE SAME-KEY ROLLBACK: strict must BLOCK after own-floor restore: '+out)
+        print('FUTURE_PINNED_MONOTONIC_JOURNAL_PASS cases='+str(passed))
+        print('FUTURE_PINNED_MONOTONIC_JOURNAL_DURABLE_CUSTODY=UNIMPLEMENTED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -8794,8 +8935,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     triple_client.write_text(receipt_fence_client_harness, encoding='utf-8')
     atomic_restart_child=Path(temp)/'FutureAtomicRestartProcess.java'
     atomic_restart_child.write_text(atomic_owner_restart_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child)], check=True)
+    pinned_child=Path(temp)/'FuturePinnedJournalProcess.java'
+    pinned_child.write_text(pinned_journal_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child)], check=True)
     import sys
+    if '--strict-pinned-journal' in sys.argv:
+        process_pinned_journal_attestation_proof(temp,strict=True)
+        raise SystemExit(0)
+    if '--focused-pinned-journal' in sys.argv:
+        process_pinned_journal_attestation_proof(temp)
+        raise SystemExit(0)
     if '--strict-atomic-owner-restart' in sys.argv:
         process_atomic_owner_restart_proof(temp,strict=True)
         raise SystemExit(0)
@@ -8895,3 +9044,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_independent_once_ledger_proof(temp)
     process_root_same_key_rollback_with_receipt_fence(temp)
     process_atomic_owner_restart_proof(temp)
+    process_pinned_journal_attestation_proof(temp)

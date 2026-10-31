@@ -419,6 +419,101 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY conditionally authenticated journal receipt. This is NOT
+     * persistent, Android-backed or a way to bootstrap trust from a new key.
+     * The authentic pinned keys, owner high-water, and external journal floor
+     * MUST be supplied by a separately controlled, rollback-resistant custodian.
+     * The custodian MUST recheck and advance its floor atomically in consumeOnce;
+     * a signed receipt and an ordinary restored file alone do NOT stop replay.
+     */
+    public interface ExternallyPinnedMonotonicJournal {
+        java.security.PublicKey pinnedOriginalOwnerKey();
+        java.security.PublicKey pinnedJournalKey();
+        long trustedOwnerRevision();
+        long trustedConsumedSequence();
+        AtomicReceiptOutcome consumeOnce(String claimId, long sequence,
+                byte[] exactSignedPayload, byte[] journalSignature,
+                byte[] originalOwnerSignature);
+    }
+
+    public static byte[] independentJournalReceiptPayload(String claimId,
+            String exactId, long sourceRevision, String sourceStatus,
+            String orphanSha256, String challenge, byte[] originalOwnerSignature,
+            long witnessEpoch, long journalSequence) {
+        if (claimId == null || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || witnessEpoch <= 0 || journalSequence <= 0
+                || originalOwnerSignature == null || originalOwnerSignature.length != 64
+                || !"REVOKED".equals(sourceStatus)
+                || revokedRecoveryPayload(exactId, sourceRevision,
+                        orphanSha256, challenge).length == 0) return new byte[0];
+        // Fixed-format ASCII, bounded G1 IDs/claim IDs, and Base64 owner proof
+        // avoid delimiter/encoding ambiguity across independent JVM processes.
+        return ("future-g1/pinned-monotonic-journal/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\nREVOKED\n"
+                + orphanSha256 + "\n" + challenge + "\n"
+                + java.util.Base64.getEncoder().encodeToString(originalOwnerSignature)
+                + "\n" + witnessEpoch + "\n" + journalSequence + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Source and receipt signatures are checked BEFORE handing the claim to
+     * the external custodian. A dispatch failure is uncertain, never retryable
+     * negative proof. A COMMITTED answer is only conditional on the caller's
+     * independent provision and the custodian's *real* nonrollbackable CAS.
+     */
+    public static AtomicReceiptOutcome attestRevokedWithPinnedMonotonicJournal(
+            String claimId, String exactId, long sourceRevision,
+            String sourceStatus, String orphanSha256, String challenge,
+            byte[] originalOwnerSignature, long witnessEpoch,
+            long journalSequence, byte[] journalSignature,
+            ExternallyPinnedMonotonicJournal journal) {
+        if (journal == null) return AtomicReceiptOutcome.NO_AUTHORITY;
+        byte[] payload = independentJournalReceiptPayload(claimId, exactId,
+                sourceRevision, sourceStatus, orphanSha256, challenge,
+                originalOwnerSignature, witnessEpoch, journalSequence);
+        if (payload.length == 0 || journalSignature == null
+                || journalSignature.length != 64) return AtomicReceiptOutcome.REJECTED_BEFORE_START;
+        try {
+            java.security.PublicKey ownerKey = journal.pinnedOriginalOwnerKey();
+            java.security.PublicKey journalKey = journal.pinnedJournalKey();
+            long revision = journal.trustedOwnerRevision();
+            long consumed = journal.trustedConsumedSequence();
+            if (ownerKey == null || journalKey == null || revision < 2
+                    || consumed < 0 || consumed == Long.MAX_VALUE)
+                return AtomicReceiptOutcome.NO_AUTHORITY;
+            if (journalSequence != consumed + 1
+                    || attestRevokedOrphan(exactId, sourceRevision, sourceStatus,
+                            revision, orphanSha256, challenge,
+                            originalOwnerSignature, ownerKey)
+                    != RecoveryDisposition.QUARANTINE_REVOKED_ONLY)
+                return AtomicReceiptOutcome.REJECTED_BEFORE_START;
+            java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+            verify.initVerify(journalKey);
+            verify.update(payload);
+            if (!verify.verify(journalSignature))
+                return AtomicReceiptOutcome.REJECTED_BEFORE_START;
+        } catch (java.security.SignatureException e) {
+            // Malformed/forged signature is a proven pre-dispatch rejection,
+            // not an unavailable authority that might invite re-enrollment.
+            return AtomicReceiptOutcome.REJECTED_BEFORE_START;
+        } catch (GeneralSecurityException | RuntimeException e) {
+            return AtomicReceiptOutcome.NO_AUTHORITY;
+        }
+        try {
+            AtomicReceiptOutcome result = journal.consumeOnce(claimId,
+                    journalSequence, payload.clone(), journalSignature.clone(),
+                    originalOwnerSignature.clone());
+            // A custodian that disappears AFTER dispatch cannot prove that
+            // no irreversible journal consumption already occurred.
+            return result == null || result == AtomicReceiptOutcome.NO_AUTHORITY
+                    ? AtomicReceiptOutcome.STARTED_INDETERMINATE : result;
+        } catch (RuntimeException e) {
+            return AtomicReceiptOutcome.STARTED_INDETERMINATE;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
