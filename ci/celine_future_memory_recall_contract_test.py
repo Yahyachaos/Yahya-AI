@@ -6938,6 +6938,104 @@ def process_owner_held_atomic_capability_proof(temp):
         finally:
             if service.poll() is None:service.kill();service.communicate(timeout=5)
 
+# FUTURE ONLY: an authenticated channel cannot establish its OWN trust root.
+# Both owner and attacker are genuinely separate JVM services, each with an
+# independent Ed25519 key. A caller-supplied replacement pin accepts an
+# attacker-issued recovery claim even when every socket signature is valid.
+# This is an intentional KNOWN_SECURITY_FAIL negative control, not a fix.
+def process_owner_service_bootstrap_spoof_proof(temp):
+    import base64
+    from pathlib import Path
+    cmd=['java','-cp',temp,'de.yahya.ai.FutureOwnerHeldServiceProcess']
+    count=0
+    def case(ok, why):
+        nonlocal count
+        if not ok: raise AssertionError('owner bootstrap substitution FAIL: '+why)
+        count+=1
+    with tempfile.TemporaryDirectory(prefix='future_bootstrap_spoof_') as tmp:
+        root=Path(tmp)
+        real=subprocess.Popen(cmd+['server'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                              text=True,bufsize=1)
+        fake=None
+        successor=None
+        try:
+            genuine=real.stdout.readline().strip().split()
+            case(len(genuine)==4 and genuine[0]=='READY', 'genuine owner JVM online')
+            trusted_port, trusted_pin, genuine_token=genuine[1:]
+            fake=subprocess.Popen(cmd+['server'],stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,text=True,bufsize=1)
+            forged=fake.stdout.readline().strip().split()
+            case(len(forged)==4 and forged[0]=='READY', 'separate attacker owner JVM online')
+            rogue_port, rogue_pin, rogue_token=forged[1:]
+            case(rogue_pin!=trusted_pin and rogue_token!=genuine_token,
+                 'attacker generated own key and signed token in independent process')
+            def client(port,pin,token,status='REVOKED',rev='2',nonce='owner-independent-nonce-0001'):
+                child=subprocess.run(cmd+['client',port,pin,'cat-private',rev,status,
+                                          'a'*64,nonce,token],capture_output=True,text=True,timeout=12)
+                case(child.returncode==0 and 'RESULT=' in child.stdout,
+                     'distinct verifier JVM terminated normally '+child.stderr[-200:])
+                return child.stdout.strip().split('RESULT=')[-1]
+            case(client(rogue_port,trusted_pin,rogue_token)=='BLOCKED',
+                 'independently pinned legitimate root rejects forged service handshake')
+            case(client(rogue_port,trusted_pin,genuine_token)=='BLOCKED',
+                 'attacker cannot reuse genuine token with old pinned key')
+            case(client(trusted_port,rogue_pin,rogue_token)=='BLOCKED',
+                 'attacker pin does not authenticate genuine service')
+            # Deliberately detect the vulnerability: the attacker may control
+            # bootstrap input AND present a fully self-consistent socket proof.
+            self_appointed=client(rogue_port,rogue_pin,rogue_token)
+            case(self_appointed=='QUARANTINE_REVOKED_ONLY',
+                 'caller-selected attacker trust root SELF-APPOINTS: KNOWN SECURITY FAIL')
+            case(client(rogue_port,rogue_pin,rogue_token)=='BLOCKED',
+                 'attacker service replay guard does not repair initial false trust')
+            case(client(trusted_port,trusted_pin,genuine_token)=='QUARANTINE_REVOKED_ONLY',
+                 'original real owner remains independent of attacker claim')
+            case(client(trusted_port,trusted_pin,genuine_token)=='BLOCKED',
+                 'original owner still consumes authentic nonce once')
+            # Restart with a NEW attacker key and replace an ordinary-file
+            # registry. The registry is deliberately NOT a trust anchor.
+            successor=subprocess.Popen(cmd+['server'],stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE,text=True,bufsize=1)
+            replacement=successor.stdout.readline().strip().split()
+            case(len(replacement)==4 and replacement[0]=='READY',
+                 'fresh independently launched replacement owner JVM online')
+            replaced_port,replaced_pin,replaced_token=replacement[1:]
+            case(replaced_pin not in (trusted_pin,rogue_pin),
+                 'replacement owner minted yet another unrelated identity')
+            registry=root/'caller-writable-bootstrap.txt'
+            registry.write_text(trusted_pin+'\n',encoding='utf-8')
+            case(registry.read_text(encoding='utf-8').strip()==trusted_pin,
+                 'ordinary bootstrap registry initially carries correct owner pin')
+            registry.write_text(replaced_pin+'\n',encoding='utf-8')
+            case(registry.read_text(encoding='utf-8').strip()==replaced_pin,
+                 'attacker replaced caller-controlled key-bootstrap entry')
+            case(client(replaced_port,trusted_pin,replaced_token)=='BLOCKED',
+                 'externally retained original pin blocks replacement service')
+            case(client(replaced_port,registry.read_text().strip(),replaced_token)
+                 =='QUARANTINE_REVOKED_ONLY',
+                 'mutable bootstrap selects attacker root and accepts false owner')
+            case(client(replaced_port,registry.read_text().strip(),replaced_token)
+                 =='BLOCKED', 'new attacker owner also rejects direct token replay')
+            case(client(replaced_port,registry.read_text().strip(),replaced_token,
+                        status='ACTIVE')=='BLOCKED',
+                 'ACTIVE restoration remains blocked but does not cure spoof acceptance')
+            # A missing real root is UNSATISFIED, not permission to fall back to
+            # the caller's pin. This guard is the *test orchestrator's* custody,
+            # NOT product-backed Android identity or durable anti-rollback.
+            pinned_external=None
+            decision=('BLOCKED' if pinned_external is None else
+                      client(replaced_port,pinned_external,replaced_token))
+            case(decision=='BLOCKED', 'no independently anchored root fails closed')
+            print('FUTURE_G1_CALLER_BOOTSTRAP_REPLACEMENT=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_TRUSTED_PIN_HELD_OUTSIDE_CALLER=BLOCKED_MODEL_ONLY')
+            print('FUTURE_G1_SERVICE_AUTHENTICATED_SOCKET_IS_NOT_IDENTITY_AUTHORITY')
+            print('FUTURE_G1_NONROLLBACKABLE_EXTERNAL_BOOTSTRAP=UNSATISFIED')
+            print('FUTURE_G1_OWNER_BOOTSTRAP_SPOOF_JVM_PASS cases='+str(count))
+        finally:
+            for child in (real,fake,successor):
+                if child is not None and child.poll() is None:
+                    child.kill();child.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -6955,6 +7053,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     atomic_child.write_text(owner_held_service_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child)], check=True)
     import sys
+    if '--focused-owner-bootstrap' in sys.argv:
+        process_owner_service_bootstrap_spoof_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-held' in sys.argv:
         process_owner_held_atomic_capability_proof(temp)
         raise SystemExit(0)
@@ -6994,3 +7095,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_owner_root_matrix_proof(temp)
     process_owner_preflight_to_claim_race_proof(temp)
     process_owner_held_atomic_capability_proof(temp)
+    process_owner_service_bootstrap_spoof_proof(temp)
