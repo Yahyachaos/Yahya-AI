@@ -132,6 +132,51 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY, read-only MANUAL recovery gate, NOT a recovery operation.
+     * The pinned Ed25519 key and nonrollbackable high-water value MUST come
+     * from an independent trusted G1 owner, never chat, the caller or local
+     * snapshot/temp files. This Java prototype cannot provide either owner.
+     * Even a valid proof permits only quarantine of a dangling transaction
+     * while preserving an already revoked exact ID; ACTIVE is never restored.
+     */
+    public enum RecoveryDisposition { BLOCKED, QUARANTINE_REVOKED_ONLY }
+
+    public static byte[] revokedRecoveryPayload(String id, long revision,
+            String orphanSha256, String nonce) {
+        if (!validId(id, false) || revision < 2 || orphanSha256 == null
+                || !orphanSha256.matches("[0-9a-f]{64}") || nonce == null
+                || !nonce.matches("[A-Za-z0-9_-]{16,64}")) return new byte[0];
+        return ("future-g1/revoked-recovery/v1\n" + id + "\n" + revision
+                + "\nREVOKED\n" + orphanSha256 + "\n" + nonce + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static RecoveryDisposition attestRevokedOrphan(String exactId,
+            long sourceRevision, String sourceStatus, long independentHighWater,
+            String orphanSha256, String nonce, byte[] ownerSignature,
+            java.security.PublicKey pinnedOwnerKey) {
+        if (!"REVOKED".equals(sourceStatus) || sourceRevision < 2
+                || sourceRevision != independentHighWater || pinnedOwnerKey == null
+                || !"EdDSA".equalsIgnoreCase(pinnedOwnerKey.getAlgorithm())
+                        && !"Ed25519".equalsIgnoreCase(pinnedOwnerKey.getAlgorithm())
+                || ownerSignature == null || ownerSignature.length != 64)
+            return RecoveryDisposition.BLOCKED;
+        byte[] payload = revokedRecoveryPayload(exactId, sourceRevision,
+                orphanSha256, nonce);
+        if (payload.length == 0) return RecoveryDisposition.BLOCKED;
+        try {
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(pinnedOwnerKey);
+            verifier.update(payload);
+            return verifier.verify(ownerSignature)
+                    ? RecoveryDisposition.QUARANTINE_REVOKED_ONLY
+                    : RecoveryDisposition.BLOCKED;
+        } catch (GeneralSecurityException e) {
+            return RecoveryDisposition.BLOCKED;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
