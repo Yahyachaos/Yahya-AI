@@ -337,15 +337,30 @@ async function main(){
     // Earlier full viewport succeeded at scrollOffsetY=1640: although a real
     // screenshot, it mostly showed the scrolled form rather than the room.
     // Restore the default editor camera and the initial 412x915 visual frame.
-    const captureScrollY=await page.evaluate(()=>{
+    // Touch/form scroll left the sticky stage at document y=0 while Chrome's
+    // compositor later reported scrollOffsetY=1640. A synchronous scrollY=0
+    // read alone does NOT prove a committed top-of-page viewport frame.
+    // Unfocus lingering form controls, wait for two animation frames, then
+    // check page, visual viewport and stage before real compositor capture.
+    const captureScroll=await page.evaluate(async()=>{
       document.getElementById('camera-persp').click();
+      if(document.activeElement instanceof HTMLElement)document.activeElement.blur();
       window.scrollTo({top:0,left:0,behavior:'instant'});
-      return window.scrollY;
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      return {scroll_y:window.scrollY,
+        visual_page_top:window.visualViewport?.pageTop??null,
+        stage_top:document.getElementById('viewport').getBoundingClientRect().top,
+        focused:document.activeElement?.id||document.activeElement?.tagName||null};
     });
-    assert.equal(captureScrollY,0,'Owner-final mobile capture must start at page top');
+    assert.equal(captureScroll.scroll_y,0,'Owner-final mobile capture must start at page top');
+    assert.equal(Math.round(captureScroll.visual_page_top??-1),0,
+      'Owner-final mobile visual viewport must start at page top');
+    assert(captureScroll.stage_top>0,
+      'Unscrolled mobile capture must show room below header, not a sticky-scrolled form');
     record.push({name:'OWNER_FINAL_13_GLB_RESTORED_FOR_TOP_VIEWPORT',
       layout_sha256:approvedSha,objects:13,locks:approved.objects.filter(o=>o.locked).length,
-      scroll_y:0,camera:'existing 3D default; stored owner transforms untouched'});
+      capture_scroll_preflight:captureScroll,
+      camera:'existing 3D default; stored owner transforms untouched'});
     // Compositor capture is last; if it stalls, preserve native PNG and JSON.
     // A missing true full-viewport shot is a FAIL, never a mobile visual PASS.
     let compositorError=null;
@@ -357,12 +372,16 @@ async function main(){
       // Keep the same strict 412x915 pixel and 10s acceptance limits.
       const shotSession=await context.newCDPSession(page);
       let shotTimeout, framesSeen=0;
+      const staleFrames=[];
       const framePromise=new Promise(resolve=>{
         shotSession.on('Page.screencastFrame',frame=>{
           framesSeen++;
           void shotSession.send('Page.screencastFrameAck',
             {sessionId:frame.sessionId}).catch(()=>{});
-          if(framesSeen===1)resolve(frame);
+          const offset=Math.round(frame.metadata?.scrollOffsetY??-1);
+          if(offset===0)resolve(frame);
+          else staleFrames.push({frame:framesSeen,scroll_offset_y:offset,
+            timestamp:frame.metadata?.timestamp??null});
         });
       });
       const snapshotBefore=await page.evaluate(()=>
@@ -394,7 +413,8 @@ async function main(){
       fs.writeFileSync(path.join(out,'mobile-s25-viewport-412x915.png'),full);
       record.push({name:'MOBILE_CHROMIUM_SCREENCAST_VIEWPORT_DIAGNOSTIC',
         backend:'Page.startScreencast genuine Chromium compositor PNG',
-        frames_seen:framesSeen,frame_metadata:capture.metadata,
+        frames_seen:framesSeen,rejected_scrolled_frames:staleFrames,
+        frame_metadata:capture.metadata,
         elapsed_ms:Date.now()-captureStarted,
         rendering_before:snapshotBefore,
         rendering_after:await page.evaluate(()=>
