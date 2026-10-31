@@ -338,20 +338,7 @@ final class CelineRoomEnvironmentV80 {
                             applyExactS25Furniture(part, authoredId, exactLayout.get(authoredId));
                             exactApplied++;
                         }
-                        if (roomPath.endsWith("room_window_drapes.glb")) {
-                            // C136: The exact Android #341 CALL still shows cold, high-contrast
-                            // source-fabric stripes. The recovery baseline no longer invokes
-                            // the old window appearance owner at all. Restore ONLY the
-                            // already-derived UV-preserving fabric palette, not its rejected
-                            // overlay planes, opaque backdrop or source-visibility changes.
-                            try {
-                                CelineRoomWindowTextureV80.applySourceMaterialOnly(view, part, engine);
-                            } catch (Throwable drapeError) {
-                                Celine3DDiagnostics.error(context, "ROOM-150",
-                                        "Gardinen-Farbmaterial fehlgeschlagen; Quellgeometrie bleibt",
-                                        drapeError);
-                            }
-                        }
+                        // Preserve original S25 GLB material/UV/texture without image-derived tint.
                         candidates.add(part);
                         renderables += partRenderables;
                         if (ROOM_SHELL_PATH.equals(roomPath)) shell = part;
@@ -398,54 +385,8 @@ final class CelineRoomEnvironmentV80 {
                     Celine3DDiagnostics.error(context, "ROOM-145",
                             "Holzboden-Bindung FEHLER; Original-Boden unveraendert", floorError);
                 }
-
-                // C139: restore the reference's conspicuously missing framed right-wall print.
-                // Cropped only from the canonical image, as Room-owned derived decor;
-                // no GLASS/opening, original furniture, Celine, camera or Core mutation.
-                try {
-                    CelineRoomReferenceArtworkV80.apply(view, shell, engine, scene);
-                } catch (Throwable artworkError) {
-                    Celine3DDiagnostics.error(context, "ROOM-151",
-                            "Referenz-Wandbild konnte nicht geladen werden", artworkError);
-                }
-
-                // C141: The authentic C140 Android CALL still lacks both framed
-                // botanical prints on the reference's upper left wall. Reuse
-                // fixed crops of the already-packaged canonical reference image,
-                // independently of all original furniture and window semantics.
-                try {
-                    CelineRoomReferenceLeftArtworkV80.apply(view, shell, engine, scene);
-                } catch (Throwable leftArtError) {
-                    Celine3DDiagnostics.error(context, "ROOM-155",
-                            "Linke Referenz-Wandbilder konnten nicht geladen werden", leftArtError);
-                }
-
-
-                // C149: Exact Android CALL #369 still has a bare foreground table.
-                // The source-faithful furniture GLBs never contained the laptop lid,
-                // although Refernzbild.png assigns it the dominant bottom-center
-                // quadrilateral. Re-enable the already reference-solved, Room-owned
-                // derived lid against the explicitly available shell (not the
-                // obsolete combined-room reflective field). No window, glass,
-                // backplane, source furniture or Celine transforms are changed.
-                try {
-                    CelineRoomForegroundLaptopV80.apply(view, shell, engine);
-                } catch (Throwable laptopError) {
-                    Celine3DDiagnostics.error(context, "ROOM-159",
-                            "Referenz-Laptop-Vordergrund konnte nicht geladen werden", laptopError);
-                }
-
-                // C150: the real partitioned Android CALL has no foreground candle.
-                // Reuse ONLY the measured upright source-derived jar from the existing
-                // Room geometry owner, with the current shell explicitly supplied.
-                // Leave GLASS/backplanes, original furniture, camera and Celine alone.
-                try {
-                    CelineRoomForegroundPlantV80.applyCandleOnly(view, shell, engine);
-                } catch (Throwable candleError) {
-                    Celine3DDiagnostics.error(context, "ROOM-160",
-                            "Referenzkerze im Raum konnte nicht geladen werden", candleError);
-                }
-
+                // S25 scene is the shell plus thirteen user-authored furniture GLBs:
+                // reject reference-photo artwork, extra laptop and candle geometry.
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
                         "partitions=" + roomAssets.size() + " renderables=" + renderables
@@ -456,7 +397,7 @@ final class CelineRoomEnvironmentV80 {
                         "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "combined098M=false partitions15=true sourceGlbsImmutable=true authoredFurnitureInstances13Unchanged=true derivedForegroundPlant=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
+                        "sourceGlbsImmutable=true roomPartitions14=true authoredFurnitureInstances13=true extraReferenceGeometry=false furnitureOrientationOverride=false furnitureSharedRootYawDeg=0 shellLegacyFramePendingBuild=true frontWallHidden=true originalDrapeMaterial=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
                                 + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
