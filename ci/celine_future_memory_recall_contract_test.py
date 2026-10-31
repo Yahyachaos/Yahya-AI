@@ -4560,20 +4560,33 @@ public final class FutureHighWaterProcessChild {
         String action=args[2];
         Files.createDirectories(root);
         Files.createDirectories(witness.getParent());
+        // Mark attempted write BEFORE constructing DiskOwner: its constructor
+        // itself acquires the same OS file lock and may be blocked by callback.
+        if(action.equals("advance-serialized"))
+            Files.createFile(root.resolve("writer-requested"));
+        // NEGATIVE CONTROL ONLY: a witness writer outside the source lock can
+        // change authority while an external callback is already in flight.
+        if(action.equals("advance-unlocked-testonly")) {
+            FutureStrictOwnerProcessChild.atomic(witness,WITNESS_ADVANCED);
+            System.out.println("WITNESS_MUTATED=unsafe-unlocked");return;
+        }
         WitnessOwner owner=new WitnessOwner(root,witness,action.equals("pause-claim"));
         if(action.equals("init")) {
             if(Files.exists(witness))throw new IllegalStateException("witness already exists");
             FutureStrictOwnerProcessChild.atomic(witness,WITNESS_CURRENT);
             System.out.println("INIT_OWNER_AND_WITNESS");return;
         }
-        if(action.equals("advance")||action.equals("erase")||action.equals("corrupt")) {
+        if(action.equals("advance")||action.equals("advance-serialized")
+                ||action.equals("erase")||action.equals("corrupt")) {
             owner.local.withLock(()->{
-                if(action.equals("advance"))
+                if(action.equals("advance")||action.equals("advance-serialized"))
                     FutureStrictOwnerProcessChild.atomic(witness,WITNESS_ADVANCED);
                 else if(action.equals("erase"))Files.delete(witness);
                 else FutureStrictOwnerProcessChild.atomic(witness,"malformed-epoch");
                 return null;
             });
+            if(action.equals("advance-serialized"))
+                Files.createFile(root.resolve("writer-finished"));
             System.out.println("WITNESS_MUTATED="+action);return;
         }
         var candidate=new CelineFutureMemoryRecall.Candidate("strict-cat","Meine Katze Luna","",
@@ -4583,7 +4596,16 @@ public final class FutureHighWaterProcessChild {
         Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(KEY,"HmacSHA256"));
         var cert=new CelineFutureMemoryRecall.OwnerLineageCertificate(GEN,Set.of(),Set.of(),mac.doFinal(data));
         var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(KEY,owner,(gen,contexts)->{
-            try {Files.writeString(root.resolve("test-only-high-water-sink"),"sent\\n",
+            try {
+                if(action.equals("hold-claim")) {
+                    Files.createFile(root.resolve("callback-inside-source-lock"));
+                    long until=System.nanoTime()+15_000_000_000L;
+                    while(!Files.exists(root.resolve("release-callback"))
+                            && System.nanoTime()<until) Thread.sleep(15);
+                    if(!Files.exists(root.resolve("release-callback")))
+                        throw new IllegalStateException("callback lock hold timed out");
+                }
+                Files.writeString(root.resolve("test-only-high-water-sink"),"sent\\n",
                 StandardOpenOption.CREATE,StandardOpenOption.APPEND);}
             catch(Exception failure){throw new IllegalStateException(failure);}
         });
@@ -5388,6 +5410,106 @@ def process_high_water_proof(temp):
     print('FUTURE_G1_JOINT_WITNESS_AND_SNAPSHOT_ROLLBACK=KNOWN_SECURITY_FAIL')
     print('FUTURE_G1_HIGH_WATER_JVM_PROCESS_PROOF_PASS cases='+str(checks))
 
+
+def process_high_water_locked_callback_proof(temp):
+    """Real interprocess OS-lock serialization WHILE provider callback is held.
+
+    DiskOwner and ordinary witness are JVM test doubles; this deliberately
+    does NOT establish Android/provider exactly-once or anti-rollback.
+    """
+    import time
+    cls='de.yahya.ai.FutureHighWaterProcessChild'
+    checks=0
+    def case(condition, description):
+        nonlocal checks
+        if not condition:
+            raise AssertionError('HIGH_WATER_CALLBACK_LOCK_FAIL: '+description)
+        checks+=1
+    def cmd(root,witness,action):
+        return ['java','-cp',temp,cls,str(root),str(witness),action]
+    def invoke(root,witness,action):
+        p=subprocess.run(cmd(root,witness,action),capture_output=True,text=True,timeout=20)
+        case(p.returncode==0,action+' child process exited: '+p.stderr[-450:])
+        return p.stdout
+    def until_file(file, process, title):
+        deadline=time.monotonic()+12
+        while not file.exists() and time.monotonic()<deadline:
+            if process.poll() is not None: break
+            time.sleep(.015)
+        case(file.is_file(),title+' actually reached in child JVM')
+    root=Path(temp)/'locked-callback-source-os-lock'
+    witness=Path(temp)/'independent-locked-callback-authority'/'epoch.txt'
+    root.mkdir()
+    case('INIT_OWNER_AND_WITNESS' in invoke(root,witness,'init'), 'new OS-lock fixture')
+    old=witness.read_bytes()
+    claimant=subprocess.Popen(cmd(root,witness,'hold-claim'),stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,text=True)
+    writer=None
+    try:
+        until_file(root/'callback-inside-source-lock',claimant,
+                   'published callback is executing inside owner source lock')
+        case(not (root/'test-only-high-water-sink').exists(),
+             'callback has not written external marker before hold is released')
+        writer=subprocess.Popen(cmd(root,witness,'advance-serialized'),
+                                stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        until_file(root/'writer-requested',writer,
+                   'independent JVM announced source-locked generation advance')
+        # Absence is observed over a deliberate interval, not just one tick.
+        time.sleep(.30)
+        case(writer.poll() is None,'independent generation writer is still blocked')
+        case(not (root/'writer-finished').exists(),
+             'generation writer did not complete while callback owns OS lock')
+        case(witness.read_bytes()==old,
+             'witness cannot change before callback owner transaction releases')
+    finally:
+        (root/'release-callback').touch()
+    claim_out,claim_err=claimant.communicate(timeout=25)
+    writer_out,writer_err=writer.communicate(timeout=25)
+    case(claimant.returncode==0,'claimant finished after callback release '+claim_err[-300:])
+    case(writer.returncode==0,'source-serialized writer finished '+writer_err[-300:])
+    case('WITNESS_MUTATED=advance-serialized' in writer_out
+         and (root/'writer-finished').exists(),'OS-lock writer eventually advanced generation')
+    case(witness.read_bytes()!=old,'writer update became visible only after owner released')
+    case('STATE=COMPLETED' in claim_out,
+         'callback transaction committed completed receipt before generation advance')
+    case((root/'test-only-high-water-sink').read_text()=='sent\\n',
+         'exactly one local simulated sink event, no duplicate callback')
+    stale=invoke(root,witness,'claim')
+    case('RESULT=COMPLETED' not in stale,
+         'stale completed receipt cannot be accepted after writer advances')
+    case((root/'test-only-high-water-sink').read_text()=='sent\\n',
+         'fresh post-advance JVM did not redeliver stale context')
+    # Deliberate negative control proves why the *independent authority writer*
+    # MUST participate in the source lock rather than just the claimants.
+    root=Path(temp)/'unsafe-unlocked-authority-negative-control'
+    witness=Path(temp)/'unsafe-unlocked-authority'/'epoch.txt'
+    root.mkdir()
+    invoke(root,witness,'init')
+    held=subprocess.Popen(cmd(root,witness,'hold-claim'),stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE,text=True)
+    try:
+        until_file(root/'callback-inside-source-lock',held,
+                   'negative-control callback held inside source OS lock')
+        case('WITNESS_MUTATED=unsafe-unlocked' in invoke(root,witness,
+                'advance-unlocked-testonly'),
+             'deliberately broken independent authority writer bypassed source lock')
+        case(witness.read_text().startswith('future-owner-generation-2'),
+             'unsafe writer genuinely changed witness before callback finished')
+    finally:
+        (root/'release-callback').touch()
+    negative_out,negative_err=held.communicate(timeout=25)
+    case(held.returncode==0,'negative-control claimant finished '+negative_err[-300:])
+    case('RESULT=STARTED_INDETERMINATE' in negative_out,
+         'post-callback attestation refuses false success after unsafe witness change')
+    case((root/'test-only-high-water-sink').read_text()=='sent\\n',
+         'KNOWN unsafe-owner exposure: postflight cannot undo callback plaintext')
+    case('STATE=STARTED' in negative_out,
+         'unsafe external generation update cannot be automatically acknowledged')
+    case('RESULT=COMPLETED' not in invoke(root,witness,'claim'),
+         'unsafe owner cannot automatically retry stale interrupted delivery')
+    print('FUTURE_G1_INDEPENDENT_CALLBACK_WRITER_OS_LOCK_PROOF_PASS cases='+str(checks))
+    print('FUTURE_G1_UNLOCKED_WITNESS_WRITER=KNOWN_UNSAFE_CALLBACK_EXPOSURE')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -5402,3 +5524,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_owner_proof(temp)
     process_strict_owner_proof(temp)
     process_high_water_proof(temp)
+    process_high_water_locked_callback_proof(temp)
