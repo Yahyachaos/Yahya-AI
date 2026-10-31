@@ -7552,6 +7552,160 @@ def process_external_epoch_fence_proof(temp):
                 if child is not None and child.poll() is None:
                     child.kill(); child.communicate(timeout=5)
 
+
+# FUTURE ONLY: adversarial *same-key* restored owner JVM. Reusing the original
+# Ed25519 private key and pinned public key is NOT antirollback. A clean service
+# boot with copied key+old ordinary spent=0 can repeat a revoked memory claim.
+# This is a deliberately unsafe negative-control SERVICE, not a suggested
+# production persistence implementation. No physical Android security is proven.
+restored_key_owner_harness = (owner_held_service_harness
+    .replace('FutureOwnerHeldServiceProcess', 'FutureRestoredSignerOwnerProcess')
+    .replace('Owner(PublicKey p){pub=p;}', r"""final Path status;
+        Owner(PublicKey p, Path file) throws Exception {
+            pub=p;status=file;
+            String current=Files.readString(status,StandardCharsets.UTF_8);
+            if(!"spent=0\n".equals(current) && !"spent=1\n".equals(current))
+                throw new SecurityException("invalid spent marker");
+            spent="spent=1\n".equals(current);
+        }""")
+    .replace('spent=true;\n            return CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY;',
+             r"""try {Files.writeString(status,"spent=1\n",StandardCharsets.UTF_8);}
+            catch(Exception ex) {return CelineFutureMemoryRecall.RecoveryDisposition.BLOCKED;}
+            spent=true;
+            return CelineFutureMemoryRecall.RecoveryDisposition.QUARANTINE_REVOKED_ONLY;""")
+    .replace('Service() throws Exception {\n            keys=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();\n            owner=new Owner(keys.getPublic());\n        }',
+             r"""Service(String backup, String status) throws Exception {
+            List<String> parts=Files.readAllLines(Paths.get(backup),StandardCharsets.UTF_8);
+            if(parts.size()!=2) throw new SecurityException("invalid private key backup");
+            KeyFactory f=KeyFactory.getInstance("Ed25519");
+            PublicKey pub=f.generatePublic(new X509EncodedKeySpec(DEC.decode(parts.get(0))));
+            PrivateKey priv=f.generatePrivate(new PKCS8EncodedKeySpec(DEC.decode(parts.get(1))));
+            keys=new KeyPair(pub,priv);
+            owner=new Owner(pub,Paths.get(status));
+        }""")
+    .replace('static void server() throws Exception {\n        Service service=new Service();',
+             r"""static void initialize(String backup, String status) throws Exception {
+        KeyPair kp=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        Files.writeString(Paths.get(backup),encode(kp.getPublic().getEncoded())+"\n"
+            +encode(kp.getPrivate().getEncoded())+"\n",StandardCharsets.UTF_8);
+        Files.writeString(Paths.get(status),"spent=0\n",StandardCharsets.UTF_8);
+        System.out.println("BACKUP_CREATED");
+    }
+    static void server(String[] a) throws Exception {
+        if(a.length!=3) throw new SecurityException("missing key and spent paths");
+        Service service=new Service(a[1],a[2]);""")
+    .replace('if("server".equals(a[0]))server();',
+             'if("server".equals(a[0]))server(a);\n        else if("init-test-only".equals(a[0]) && a.length==3)initialize(a[1],a[2]);'))
+
+
+def process_same_original_key_rollback_proof(temp):
+    """Two actual owner-service JVMs: same original signer, rolled-back spent bit.
+
+    A local writable key backup is an ATTACK FIXTURE and cannot substitute for
+    independent nonrollbackable root/epoch+atomic consumed-claim authority.
+    """
+    from pathlib import Path
+    count=0
+    def case(ok, description):
+        nonlocal count
+        if not ok: raise AssertionError('same-key owner rollback FAIL: '+description)
+        count += 1
+
+    with tempfile.TemporaryDirectory(prefix='future_same_original_signer_') as raw:
+        root=Path(raw)
+        backup=root/'writable-original-signer.pk8'
+        status=root/'ordinary-consumed.txt'
+        cmd=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+        children=[]
+        def invoke(*args):
+            r=subprocess.run(cmd+list(args),capture_output=True,text=True,timeout=12)
+            case(r.returncode==0,'standalone JVM action exited cleanly '+r.stderr[-220:])
+            return r.stdout.strip()
+        def owner():
+            proc=subprocess.Popen(cmd+['server',str(backup),str(status)],
+                                  stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                  text=True,bufsize=1)
+            children.append(proc)
+            line=proc.stdout.readline().strip().split()
+            case(len(line)==4 and line[0]=='READY' and proc.poll() is None,
+                 'independent restored-owner JVM started successfully')
+            return proc,line[1],line[2],line[3]
+        def ask(port,pin,token,revision='2',identity='cat-private',state='REVOKED'):
+            r=subprocess.run(cmd+['client',str(port),pin,identity,revision,
+                state,'a'*64,'owner-independent-nonce-0001',token],
+                capture_output=True,text=True,timeout=12)
+            case(r.returncode==0 and r.stdout.startswith('RESULT='),
+                 'separate verifier JVM returned authenticated outcome '+r.stderr[-220:])
+            return r.stdout.strip().split('RESULT=')[-1]
+        try:
+            case(invoke('init-test-only',str(backup),str(status))=='BACKUP_CREATED',
+                 'test operator created signed identity and rollbackable state')
+            original_key=backup.read_bytes()
+            case(status.read_text()=='spent=0\n','original ordinary spent marker is unconsumed')
+            genuine,port,pinned,original_token=owner()
+            case(ask(port,pinned,original_token)=='QUARANTINE_REVOKED_ONLY',
+                 'first signed revoked-ID quarantine consumes genuine claim')
+            case(status.read_text()=='spent=1\n','first JVM wrote consumed marker')
+            case(ask(port,pinned,original_token)=='BLOCKED',
+                 'same live owner refuses immediate replay')
+            genuine.terminate();genuine.wait(timeout=5)
+            case(genuine.poll() is not None,'original authority JVM really terminated')
+            case(ask(port,pinned,original_token)=='BLOCKED',
+                 'dead original owner fails closed')
+            # Reboot before rollback still rejects: the ordinary file accurately
+            # records the spent bit and the exact pinned signer is reused.
+            honest,honest_port,honest_pin,honest_token=owner()
+            case(honest_pin==pinned,'honest reboot preserves exact original public key')
+            case(honest_token==original_token,'honest reboot reissues same signed claim')
+            case(ask(honest_port,pinned,original_token)=='BLOCKED',
+                 'honest reboot with intact consumed marker rejects replay')
+            honest.terminate();honest.wait(timeout=5)
+            case(honest.poll() is not None,'honest reboot JVM terminated')
+            # Independent attacker restores ONLY the previously saved unspent
+            # marker. The public pin and private signing key remain ORIGINAL.
+            status.write_text('spent=0\n',encoding='utf-8')
+            case(backup.read_bytes()==original_key,'attacker did not replace signer key')
+            restored,new_port,new_pin,new_token=owner()
+            case(new_pin==pinned,'restarted malicious owner has SAME trusted public pin')
+            case(new_token==original_token,'old signed revoked proof is still byte-valid')
+            case(ask(new_port,pinned,original_token)=='QUARANTINE_REVOKED_ONLY',
+                 'KNOWN SECURITY FAIL: original signer + spent rollback replays old claim')
+            case(status.read_text()=='spent=1\n','replayed claim reconsumed ordinary file')
+            case(ask(new_port,pinned,original_token)=='BLOCKED',
+                 'in-process replay blocking cannot repair prior reboot replay')
+            case(ask(new_port,pinned,original_token,revision='3')=='BLOCKED',
+                 'original signature must not be relabeled to newer revision')
+            case(ask(new_port,pinned,original_token,state='ACTIVE')=='BLOCKED',
+                 'replayed claim cannot convert revoked memory to ACTIVE')
+            case(ask(new_port,pinned,original_token,identity='other-id')=='BLOCKED',
+                 'different memory ID remains rejected')
+            restored.terminate();restored.wait(timeout=5)
+            case(restored.poll() is not None,'replayed owner JVM terminated')
+            status.write_text('corrupt-state\n',encoding='utf-8')
+            bad=subprocess.run(cmd+['server',str(backup),str(status)],
+                               capture_output=True,text=True,timeout=9)
+            case(bad.returncode!=0 and 'READY' not in bad.stdout,
+                 'corrupt consumed marker fails closed instead of treating it as unused')
+            status.unlink()
+            missing=subprocess.run(cmd+['server',str(backup),str(status)],
+                                   capture_output=True,text=True,timeout=9)
+            case(missing.returncode!=0 and 'READY' not in missing.stdout,
+                 'missing consumed marker fails closed')
+            backup.unlink()
+            absent=subprocess.run(cmd+['server',str(backup),str(status)],
+                                  capture_output=True,text=True,timeout=9)
+            case(absent.returncode!=0 and 'READY' not in absent.stdout,
+                 'missing original signer backup fails closed')
+            print('FUTURE_G1_SAME_ORIGINAL_SIGNER_REBOOT_JVM_PASS cases='+str(count))
+            print('FUTURE_G1_SIGNER_PIN_ALONE_PREVENTS_ROLLBACK=FALSE')
+            print('FUTURE_G1_SIGNER_REUSE_AND_ORDINARY_SPENT_ROLLBACK=KNOWN_SECURITY_FAIL_UNFIXED')
+            print('FUTURE_G1_EXTERNAL_NONROLLBACKABLE_CONSUME_AUTHORITY=UNSATISFIED')
+            print('FUTURE_G1_ANDROID_API29_RUNTIME=UNPROVEN')
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill();child.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7569,8 +7723,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     atomic_child.write_text(owner_held_service_harness, encoding='utf-8')
     epoch_child = Path(temp) / 'FutureExternalEpochOwnerProcess.java'
     epoch_child.write_text(external_epoch_service_harness, encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child)], check=True)
+    restored_child = Path(temp) / 'FutureRestoredSignerOwnerProcess.java'
+    restored_child.write_text(restored_key_owner_harness, encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child)], check=True)
     import sys
+    if '--focused-owner-key-rollback' in sys.argv:
+        process_same_original_key_rollback_proof(temp)
+        raise SystemExit(0)
     if '--focused-external-epoch' in sys.argv:
         process_external_epoch_fence_proof(temp)
         raise SystemExit(0)
@@ -7626,3 +7785,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_operator_root_capability_proof(temp)
     process_owner_root_lifecycle_proof(temp)
     process_external_epoch_fence_proof(temp)
+    process_same_original_key_rollback_proof(temp)
