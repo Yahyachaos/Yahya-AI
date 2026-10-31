@@ -54,7 +54,7 @@ async function run(){
    assert.equal(a.locked,b.locked);
   }
   const arch=await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit());
-  assert.deepEqual(arch,{room_m:layout.room,background_hex:'947257',ground_hex:'67482c',wall_hex:'c3a98a',wall_opacity:.36,grid_exists:true,grid_visible:false,guide_control_checked:false});
+  assert.deepEqual(arch,{room_m:layout.room,background_hex:'947257',ground_hex:'67482c',wall_hex:'c3a98a',wall_opacity:.36,grid_exists:true,grid_visible:false,guide_control_checked:false,walls_visible:true});
   // V22 source-identity and REAL WebGL before/after toggle; this is one proof job,
   // not a competing CI rerun, and the saved furniture/layout remain immutable.
   // Warm reference shell is identical across all real V32 WebGL color trials.

@@ -54,7 +54,7 @@ async function run(){
    assert.equal(a.locked,b.locked);
   }
   const arch=await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit());
-  assert.deepEqual(arch,{room_m:layout.room,background_hex:'947257',ground_hex:'67482c',wall_hex:'c3a98a',wall_opacity:.36,grid_exists:true,grid_visible:false,guide_control_checked:false});
+  assert.deepEqual(arch,{room_m:layout.room,background_hex:'947257',ground_hex:'67482c',wall_hex:'c3a98a',wall_opacity:.36,grid_exists:true,grid_visible:false,guide_control_checked:false,walls_visible:true});
   const clean=png('layout-v20-room-shell-genuine-webgl.png',await page.evaluate(()=>window.__celineRoomEditorE2E.framePng({clean:true})),[700,560]);
   const comparison=png('layout-v20-original-reference-side-by-side.png',await page.evaluate(async()=>{
    const r=document.querySelector('#reference-preview'),im=new Image();
