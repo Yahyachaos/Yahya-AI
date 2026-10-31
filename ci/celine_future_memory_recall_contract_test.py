@@ -6154,7 +6154,35 @@ public final class FutureOwnerAttestationProcess {
             System.out.println("TOKEN="+Base64.getEncoder().encodeToString(sig.sign()));
             return;
         }
-        if("verify-bound".equals(cmd)) {
+        if("swap-path-after-preflight".equals(cmd)) {
+            // The verifier previously resolved a normal direct owner path.
+            // A separate JVM now moves it and installs a symlink to a forged
+            // owner. No direct-path preflight is repeated at claim time.
+            Path attacker=Paths.get(args[2]);
+            Path consumer=Paths.get(args[3]);
+            if(!Files.exists(consumer.resolve("preflight-done.flag")))
+                throw new IllegalStateException("no observed verifier preflight");
+            Files.move(owner,owner.resolveSibling(owner.getFileName()+".saved"));
+            Files.createSymbolicLink(owner,attacker.toAbsolutePath());
+            Files.writeString(consumer.resolve("resume-claim.flag"),"go\n");
+            System.out.println("ATTACK=OWNER_PATH_REDIRECTED_AFTER_PREFLIGHT");
+            return;
+        }
+        if("swap-after-preflight".equals(cmd)) {
+            // An independent attacker JVM races the file-backed authority.
+            // Only disposable test directories are touched, never real G1.
+            Path adversary=Paths.get(args[2]);
+            Path consumer=Paths.get(args[3]);
+            if(!Files.exists(consumer.resolve("preflight-done.flag")))
+                throw new IllegalStateException("no observed verifier preflight");
+            Files.write(owner.resolve("owner.pub"),
+                    Files.readAllBytes(adversary.resolve("owner.pub")));
+            durableReplace(owner,Files.readString(adversary.resolve("owner-state.txt")));
+            Files.writeString(consumer.resolve("resume-claim.flag"),"go\n");
+            System.out.println("ATTACK=REPLACED_AFTER_PREFLIGHT");
+            return;
+        }
+        if("verify-bound".equals(cmd) || "verify-bound-paused".equals(cmd)) {
             // Model-only: a pre-provisioned app/owner-owned registry must be
             // selected OUTSIDE the caller's authority. Supplying this path as
             // an argv value is only a test seam, NOT a secure Android design.
@@ -6199,11 +6227,26 @@ public final class FutureOwnerAttestationProcess {
                 System.out.println("RESULT=BLOCKED");
                 return;
             }
+            if("verify-bound-paused".equals(cmd)) {
+                // Deterministic test interlock, not a production pause/permission.
+                // The owner path and pinned bytes passed the check above; an
+                // independent process now gets a chance to replace them.
+                Path consumer=Paths.get(args[2]);
+                Files.writeString(consumer.resolve("preflight-done.flag"),"done\n");
+                long deadline=System.nanoTime()+8_000_000_000L;
+                while(!Files.exists(consumer.resolve("resume-claim.flag"))
+                        && System.nanoTime()<deadline) Thread.sleep(10L);
+                if(!Files.exists(consumer.resolve("resume-claim.flag"))) {
+                    System.out.println("RESULT=BLOCKED");
+                    return;
+                }
+            }
             // The same owner API below still has no authentic hardware trust
             // root or rollback-resistant revision. This proves a boundary,
             // not production authentication.
         }
-        if("verify".equals(cmd) || "verify-bound".equals(cmd)) {
+        if("verify".equals(cmd) || "verify-bound".equals(cmd)
+                || "verify-bound-paused".equals(cmd)) {
             // args[2] is attacker/consumer-owned. It is intentionally NEVER
             // consulted as authority or as the Ed25519 pinned-key source.
             Path consumer=Paths.get(args[2]);
@@ -6494,6 +6537,136 @@ def process_owner_root_matrix_proof(temp):
         print('FUTURE_G1_OWNER_ROOT_MATRIX_PASS cases='+str(count))
         print('FUTURE_G1_EXTERNAL_NONROLLBACKABLE_PIN_AND_CAS=UNIMPLEMENTED')
 
+
+def process_owner_preflight_to_claim_race_proof(temp):
+    """Three OS JVMs expose the pinned-root preflight -> claim TOCTOU.
+
+    Passing here means the attack is *observed*, not that it is prevented.
+    The only files involved are temporary, entirely untrusted test fixtures.
+    """
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+    import time
+    count=0
+    def case(ok,label):
+        nonlocal count
+        if not ok: raise AssertionError('owner-root preflight TOCTOU FAIL: '+label)
+        count+=1
+    with TemporaryDirectory(prefix='future_owner_path_race_') as t:
+        root=Path(t)
+        command=['java','-cp',temp,'de.yahya.ai.FutureOwnerAttestationProcess']
+        consumer=root/'consumer'; consumer.mkdir()
+        def issue(name):
+            owner=root/name
+            p=subprocess.run(command+['issue',str(owner)],capture_output=True,
+                             text=True,timeout=15)
+            case(p.returncode==0 and p.stdout.startswith('TOKEN='),
+                 name+' signer JVM issued token')
+            return owner,p.stdout.strip().split('=',1)[1]
+        def registry_for(owner):
+            registry=root/'pinned-registry'; registry.mkdir()
+            (registry/'owner-realpath.txt').write_text(str(owner.resolve())+'\n')
+            (registry/'pinned-owner.pub').write_bytes((owner/'owner.pub').read_bytes())
+            (registry/'owner-epoch.txt').write_text(
+                '2|owner-independent-nonce-0001\n')
+            return registry
+        def verify(mode,owner,token,registry):
+            return command+[mode,str(owner),str(consumer),'REVOKED',
+                '2','a'*64,'owner-independent-nonce-0001',token,str(registry)]
+        owner,legit=issue('registered-owner')
+        attacker,forged=issue('forged-owner')
+        registry=registry_for(owner)
+        control=subprocess.run(verify('verify-bound',owner,forged,registry),
+                               capture_output=True,text=True,timeout=15)
+        case(control.returncode==0 and 'RESULT=BLOCKED' in control.stdout,
+             'unraced pinned-root verifier rejects forged issuer')
+        case((owner/'owner-state.txt').read_text().strip().endswith('|0'),
+             'rejected token leaves owner unclaimed')
+        verifier=subprocess.Popen(verify('verify-bound-paused',owner,forged,registry),
+                                  stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try:
+            deadline=time.monotonic()+10
+            while not (consumer/'preflight-done.flag').is_file() \
+                    and verifier.poll() is None and time.monotonic()<deadline:
+                time.sleep(0.01)
+            case((consumer/'preflight-done.flag').is_file()
+                 and verifier.poll() is None,
+                 'independent verifier JVM paused after successful pinned preflight')
+            attack=subprocess.run(command+['swap-after-preflight',str(owner),
+                str(attacker),str(consumer)],capture_output=True,text=True,timeout=15)
+            case(attack.returncode==0 and
+                 'ATTACK=REPLACED_AFTER_PREFLIGHT' in attack.stdout,
+                 'independent attacker JVM replaced owner key/state and resumed claim')
+            out,err=verifier.communicate(timeout=15)
+            case(verifier.returncode==0 and
+                 'RESULT=QUARANTINE_REVOKED_ONLY' in out,
+                 'KNOWN UNSAFE: stale preflight trusts attacker-swapped owner at claim: '+err)
+        finally:
+            if verifier.poll() is None:
+                verifier.kill(); verifier.communicate(timeout=5)
+        case((owner/'owner-state.txt').read_text().strip().endswith('|1'),
+             'forged claimant consumed the substituted owner state')
+        case((registry/'pinned-owner.pub').read_bytes()!=
+             (owner/'owner.pub').read_bytes(),
+             'accepted forged authority differs from independently pinned key')
+        after=subprocess.run(verify('verify-bound',owner,legit,registry),
+                             capture_output=True,text=True,timeout=15)
+        case(after.returncode==0 and 'RESULT=BLOCKED' in after.stdout,
+             'fresh preflight detects key substitution too late for prior claim')
+        # A stronger variant replaces the DIRECTORY PATH itself after the
+        # preflight check, instead of merely swapping files within it.
+        # The verifier's Owner object follows the new link at claim time.
+        consumer2=root/'consumer-path'; consumer2.mkdir()
+        trusted2,legit2=issue('direct-path-owner')
+        forged2,forged_token2=issue('forged-path-owner')
+        root2=root/'path-registry'; root2.mkdir()
+        (root2/'owner-realpath.txt').write_text(str(trusted2.resolve())+'\n')
+        (root2/'pinned-owner.pub').write_bytes((trusted2/'owner.pub').read_bytes())
+        (root2/'owner-epoch.txt').write_text('2|owner-independent-nonce-0001\n')
+        def v2(mode,token):
+            return command+[mode,str(trusted2),str(consumer2),'REVOKED',
+                '2','a'*64,'owner-independent-nonce-0001',token,str(root2)]
+        un_raced=subprocess.run(v2('verify-bound',forged_token2),
+                               capture_output=True,text=True,timeout=15)
+        case(un_raced.returncode==0 and 'RESULT=BLOCKED' in un_raced.stdout,
+             'direct-path preflight blocks alternate-owner signature before race')
+        verifier2=subprocess.Popen(v2('verify-bound-paused',forged_token2),
+                                   stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try:
+            deadline=time.monotonic()+10
+            while not (consumer2/'preflight-done.flag').is_file() \
+                    and verifier2.poll() is None and time.monotonic()<deadline:
+                time.sleep(0.01)
+            case((consumer2/'preflight-done.flag').is_file()
+                 and verifier2.poll() is None,
+                 'second independent verifier paused with a canonical direct owner')
+            attacker2=subprocess.run(command+['swap-path-after-preflight',
+                str(trusted2),str(forged2),str(consumer2)],capture_output=True,
+                text=True,timeout=15)
+            case(attacker2.returncode==0 and
+                 'ATTACK=OWNER_PATH_REDIRECTED_AFTER_PREFLIGHT' in attacker2.stdout,
+                 'independent attacker JVM changed canonical owner to symlink')
+            out2,err2=verifier2.communicate(timeout=15)
+            case(verifier2.returncode==0 and
+                 'RESULT=QUARANTINE_REVOKED_ONLY' in out2,
+                 'KNOWN UNSAFE: same argument path resolves attacker at claim: '+err2)
+        finally:
+            if verifier2.poll() is None:
+                verifier2.kill(); verifier2.communicate(timeout=5)
+        case(trusted2.is_symlink() and
+             trusted2.resolve()==forged2.resolve(),
+             'owner directory path now points to a different forged root')
+        case((root2/'pinned-owner.pub').read_bytes()!=
+             (trusted2/'owner.pub').read_bytes(),
+             'registry still pins genuine key, despite completed forged claim')
+        after2=subprocess.run(v2('verify-bound',legit2),
+                              capture_output=True,text=True,timeout=15)
+        case(after2.returncode==0 and 'RESULT=BLOCKED' in after2.stdout,
+             'new verifier correctly blocks symlink but cannot undo prior claim')
+        print('FUTURE_G1_PINNED_ROOT_PREFLIGHT_TO_CLAIM_TOCTOU=KNOWN_SECURITY_FAIL_UNFIXED')
+        print('FUTURE_G1_OWNER_PREFLIGHT_RACE_JVM_PASS cases='+str(count))
+        print('FUTURE_G1_ATOMIC_EXTERNAL_OWNER_KEY_AND_CAS=UNIMPLEMENTED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -6509,6 +6682,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     owner_child.write_text(owner_process_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child)], check=True)
     import sys
+    if '--focused-owner-race' in sys.argv:
+        process_owner_preflight_to_claim_race_proof(temp)
+        raise SystemExit(0)
     if '--focused-owner-root' in sys.argv:
         process_owner_root_matrix_proof(temp)
         raise SystemExit(0)
@@ -6540,3 +6716,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_independent_owner_attestation_proof(temp)
     process_caller_selected_owner_adversary_proof(temp)
     process_owner_root_matrix_proof(temp)
+    process_owner_preflight_to_claim_race_proof(temp)
