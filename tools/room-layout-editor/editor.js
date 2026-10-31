@@ -20,7 +20,7 @@ const REFERENCE_CAMERA_PROPOSAL = Object.freeze({
 // The user's own 31 Oct S25 arrangement is canonical. Keep prior local drafts
 // in the old storage namespace, never allow them to replace this final baseline.
 const STORAGE_KEY = 'yahya-ai-room-editor-user-final-471a0cbf-v1';
-const USER_FINAL_LAYOUT_URL = new URL('./layout-candidates/2026-10-31-s25-user-approved-final-13glb.json', import.meta.url);
+const USER_FINAL_LAYOUT_URL = new URL('./layout-candidates/2026-10-31-s25-user-approved-final-13glb.json', location.href);
 const USER_FINAL_LAYOUT_SHA256 = '471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f';
 const ROOT = '../../app/src/main/assets/models/room/';
 const GLB_ROOT = ROOT + 'source-fidelity/';
