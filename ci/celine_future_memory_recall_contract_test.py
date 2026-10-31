@@ -7810,6 +7810,96 @@ def process_external_witness_original_reboot_proof(temp):
             for process in children:
                 if process.poll() is None: process.kill();process.communicate(timeout=5)
 
+# FUTURE-ONLY / TEST-ONLY: killing the independent witness destroys its volatile
+# consumed bit. A source-signer public pin authenticates the claim but is NOT
+# a nonrollbackable witness epoch or a replacement for protected provisioning.
+# A real product requires an independently provisioned witness identity AND an
+# authenticated, atomic, monotonically increasing, nonrollbackable receipt / ID
+# ledger that survives witness death, reset, backup restore, and process changes.
+# A caller-approved fresh session key may not substitute for this ledger.
+def process_external_witness_self_restart_proof(temp, strict=False):
+    """Actual Java owner/witness/clients: source signer pinned, witness rolled back on restart."""
+    from pathlib import Path
+    count=0
+    children=[]
+    def case(ok, message):
+        nonlocal count
+        if not ok: raise AssertionError('external witness restart FAIL: '+message)
+        count+=1
+    owner=['java','-cp',temp,'de.yahya.ai.FutureRestoredSignerOwnerProcess']
+    witness=['java','-cp',temp,'de.yahya.ai.FutureExternalWitnessProcess']
+    with tempfile.TemporaryDirectory(prefix='future_witness_self_restart_') as tmp:
+        root=Path(tmp); signer=root/'owner.key'; spent=root/'owner.spent'
+        boot=subprocess.run(owner+['init-test-only',str(signer),str(spent)],
+                            capture_output=True,text=True,timeout=10)
+        case(boot.returncode==0 and boot.stdout.strip()=='BACKUP_CREATED',
+             'original test signer created')
+        source_pin=signer.read_text().splitlines()[0]
+        def start(command):
+            proc=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                                  text=True,bufsize=1)
+            children.append(proc)
+            ready=proc.stdout.readline().split()
+            case(len(ready)==4 and ready[0]=='READY' and proc.poll() is None,
+                 'actual independent JVM service started')
+            return proc,ready[1],ready[2],ready[3]
+        def ask(command,port,pin,token):
+            response=subprocess.run(command+['client',port,pin,'cat-private','2',
+                              'REVOKED','a'*64,'owner-independent-nonce-0001',token],
+                              capture_output=True,text=True,timeout=10)
+            case(response.returncode==0,'independent verifier JVM completed')
+            return response.stdout.strip()
+        try:
+            original,op,original_pin,token=start(owner+['server',str(signer),str(spent)])
+            case(original_pin==source_pin,'source original signer independently pinned')
+            first,wp,first_pin,_=start(witness+['server',source_pin])
+            case(first_pin!=source_pin,'first witness has separate per-service identity')
+            case(ask(witness,wp,first_pin,token)=='RESULT=QUARANTINE_REVOKED_ONLY',
+                 'first witness accepted only revoked quarantine once')
+            case(ask(witness,wp,first_pin,token)=='RESULT=BLOCKED',
+                 'first live witness rejects duplicate')
+            first.terminate();first.wait(timeout=5)
+            case(first.poll() is not None,'first witness JVM actually terminated')
+            case(ask(witness,wp,first_pin,token)=='RESULT=BLOCKED',
+                 'dead witness endpoint fails closed')
+            second,sp,second_pin,_=start(witness+['server',source_pin])
+            case(second_pin!=first_pin and second_pin!=source_pin,
+                 'replacement witness has freshly minted session key')
+            case(ask(witness,sp,first_pin,token)=='RESULT=BLOCKED',
+                 'independently held prior witness pin rejects replacement')
+            observed=ask(witness,sp,second_pin,token)
+            if strict:
+                # Deliberate negative-control RED: the current in-memory design
+                # must fail this stronger durability requirement after restart.
+                case(observed=='RESULT=BLOCKED',
+                     'STRICT old claim MUST remain spent after witness reboot')
+            else:
+                case(observed=='RESULT=QUARANTINE_REVOKED_ONLY',
+                     'KNOWN UNSAFE caller re-enrolls fresh witness: consumed bit rolled back')
+                case(ask(witness,sp,second_pin,token)=='RESULT=BLOCKED',
+                     'new witness blocks only until its next own death')
+                second.terminate();second.wait(timeout=5)
+                case(second.poll() is not None,'replacement witness actually terminated')
+                third,tp,third_pin,_=start(witness+['server',source_pin])
+                case(third_pin!=second_pin and third_pin!=first_pin,
+                     'third witness is another unregistered authority identity')
+                case(ask(witness,tp,second_pin,token)=='RESULT=BLOCKED',
+                     'second independently pinned session does not authenticate third')
+                case(ask(witness,tp,third_pin,token)=='RESULT=QUARANTINE_REVOKED_ONLY',
+                     'KNOWN UNSAFE third witness loses consumed state again')
+                case(signer.read_text().splitlines()[0]==source_pin,
+                     'original Ed25519 source pin unchanged throughout attacks')
+                case(spent.read_text()=='spent=0\n',
+                     'owner spent marker was not needed to reset witness')
+                print('FUTURE_G1_WITNESS_SELF_RESTART_JVM_PASS cases='+str(count))
+                print('FUTURE_G1_REVOKED_CLAIM_REPLAY_AFTER_WITNESS_DEATH=KNOWN_SECURITY_FAIL')
+                print('FUTURE_G1_PINNED_SOURCE_SIGNER_ANTIROLLBACK=FALSE')
+                print('FUTURE_G1_WITNESS_MONOTONIC_DURABLE_LEDGER=UNIMPLEMENTED')
+                print('FUTURE_G1_ANDROID_API29_DEVICE=UNPROVEN')
+        finally:
+            for process in children:
+                if process.poll() is None: process.kill();process.communicate(timeout=5)
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -7833,6 +7923,12 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     witness_child.write_text(external_witness_service_harness, encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child)], check=True)
     import sys
+    if '--strict-witness-self-restart' in sys.argv:
+        process_external_witness_self_restart_proof(temp, strict=True)
+        raise SystemExit(0)
+    if '--focused-witness-self-restart' in sys.argv:
+        process_external_witness_self_restart_proof(temp)
+        raise SystemExit(0)
     if '--focused-external-witness' in sys.argv:
         process_external_witness_original_reboot_proof(temp)
         raise SystemExit(0)
@@ -7896,3 +7992,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_external_epoch_fence_proof(temp)
     process_same_original_key_rollback_proof(temp)
     process_external_witness_original_reboot_proof(temp)
+    process_external_witness_self_restart_proof(temp)
