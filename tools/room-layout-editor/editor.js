@@ -426,6 +426,7 @@ async function loadModel(entry) {
     ' Fehler. ' + (loadCount===13 ? 'Editor bereit (Modellqualität siehe Warnungen).' : 'Ladevorgang…'),
     failCount?'warn':'ok');
   refreshWarnings();
+  invalidateMobileFrame(); // freshly decoded genuine GLB must appear without continuous redraw
 }
 
 function getStateForExport() {
@@ -548,14 +549,44 @@ window.addEventListener('resize',()=>{
   if(!w||!h)return;
   camera.aspect=w/h;camera.updateProjectionMatrix();
   renderer.setSize(w,h);
+  invalidateMobileFrame();
 });
 new ResizeObserver(()=>{
   const w=stage.clientWidth,h=stage.clientHeight;
   if(!w||!h)return;
   camera.aspect=w/h;camera.updateProjectionMatrix();
   renderer.setSize(w,h);
+  invalidateMobileFrame();
 }).observe(stage);
-renderer.setAnimationLoop(()=>{orbit.update();renderer.render(scene,camera);});
+// A source-heavy mobile scene rendered unconditionally at display refresh.
+// The V43 real SwiftShader readback proved 13 GLBs and recorded a 25.9-second
+// redo tap followed by a tap-dispatch stall. Main-thread/GPU contention is
+// a concrete suspect, not yet a demonstrated sole root cause.
+// On touch devices keep orbit damping updated, but rasterize only when a
+// real scene/control/UI change requests a frame. Desktop behavior is unchanged.
+let mobileFramePending = true;
+const mobileRenderStats = {renders:0, skipped:0, worst_render_ms:0, total_render_ms:0};
+function invalidateMobileFrame(){ if(TOUCH_DEVICE) mobileFramePending=true; }
+orbit.addEventListener('change',invalidateMobileFrame);
+transform.addEventListener('change',invalidateMobileFrame);
+for(const eventName of ['click','change','input'])
+  document.addEventListener(eventName,invalidateMobileFrame,true);
+renderer.setAnimationLoop(()=>{
+  const moved=orbit.update();
+  if(TOUCH_DEVICE && !mobileFramePending && !moved){
+    mobileRenderStats.skipped++;
+    return;
+  }
+  mobileFramePending=false;
+  const began=performance.now();
+  renderer.render(scene,camera);
+  if(TOUCH_DEVICE){
+    const elapsed=performance.now()-began;
+    mobileRenderStats.renders++;
+    mobileRenderStats.total_render_ms+=elapsed;
+    mobileRenderStats.worst_render_ms=Math.max(mobileRenderStats.worst_render_ms,elapsed);
+  }
+});
 
 function viewPreset(position,target,fov=53) {
   camera.position.set(...position);
@@ -792,6 +823,9 @@ $('chair-tint-preview').onchange=()=>{
 if (E2E_PROOF) {
   // Material diagnostics share the true originals cached before the V22 preview.
   window.__celineRoomEditorE2E = Object.freeze({
+    mobileRenderStats() {
+      return {...mobileRenderStats,pending:mobileFramePending,touch_device:TOUCH_DEVICE};
+    },
     focus(id, direction = [1, 0.35, 1]) {
       const entry = entries.get(id);
       if (!entry || !entry.loaded) throw new Error('No loaded GLB for ' + id);

@@ -72,7 +72,9 @@ async function main(){
     await page.locator('[data-mobile-action="scale-mode"]').tap();
     assert.equal(await page.locator('#scale-mode').getAttribute('class'),'active');
     await page.locator('[data-mobile-action="move"]').tap();
-    record.push({name:'MOBILE_TOUCH_MODES_AND_SELECTION_PASS'});
+    record.push({name:'MOBILE_TOUCH_MODES_AND_SELECTION_PASS',
+      rendering:await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats())});
+    // V44: retain the actual native WebGL baseline and fail closed on touch latency.
     // Previous V42 failure was at compositor screenshot after 13/13 GLBs.
     // Capture the actual framebuffer FIRST, then perform the genuine touch/JSON
     // workflow before attempting the compositor capture. No fake furniture.
@@ -111,9 +113,36 @@ async function main(){
     const redoTouch=await page.evaluate(()=>window.__celineRedoTouchEvidence);
     assert(redoTouch.touchstart>=1&&redoTouch.pointerdown>=1&&redoTouch.click>=1,
       'mobile redo must receive genuine touch/pointer/click events');
-    record.push({name:'GENUINE_MOBILE_REDO_TOUCH_PASS',elapsed_ms:Date.now()-redoStarted,redoTouch});
+    const redoElapsed=Date.now()-redoStarted;
+    const afterRedoRendering=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
+    record.push({name:'GENUINE_MOBILE_REDO_TOUCH_PASS',elapsed_ms:redoElapsed,redoTouch,
+      rendering:afterRedoRendering});
+    assert(redoElapsed<5000,'Genuine mobile redo remains too slow for interactive touch (<5s required)');
     assert(Math.abs(Number(await page.locator('#x').inputValue())-movedX)<0.003);
+    const lockHit=await page.locator('#mobile-lock').evaluate(el=>{
+      const box=el.getBoundingClientRect(),x=box.left+box.width/2,y=box.top+box.height/2;
+      const hit=document.elementFromPoint(x,y);
+      window.__celineLockTouchEvidence={touchstart:0,pointerdown:0,click:0};
+      for(const type of ['touchstart','pointerdown','click'])
+        el.addEventListener(type,()=>{window.__celineLockTouchEvidence[type]++;},{capture:true});
+      return {hit_tag:hit?.tagName||null,hit_id:hit?.id||null,
+        hit_inside_lock:hit===el||el.contains(hit),disabled:el.disabled,
+        box:[box.x,box.y,box.width,box.height]};
+    });
+    record.push({name:'LOCK_TRUE_TOUCH_PREFLIGHT',lockHit});
+    fs.writeFileSync(path.join(out,'mobile-lock-preflight.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,lockHit,record},null,2));
+    assert(lockHit.hit_inside_lock && !lockHit.disabled,
+      'Mobile lock touch center obstructed or button disabled');
+    const lockStarted=Date.now();
     await page.locator('#mobile-lock').tap();
+    const lockTouch=await page.evaluate(()=>window.__celineLockTouchEvidence);
+    const lockElapsed=Date.now()-lockStarted;
+    record.push({name:'GENUINE_MOBILE_LOCK_TOUCH_PASS',elapsed_ms:lockElapsed,lockTouch,
+      rendering:await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats())});
+    assert(lockTouch.touchstart>=1&&lockTouch.pointerdown>=1&&lockTouch.click>=1,
+      'Mobile lock must receive genuine touch/pointer/click events');
+    assert(lockElapsed<5000,'Genuine mobile lock remains too slow for interactive touch (<5s required)');
     assert.equal(await page.locator('#x').isDisabled(),true);
     await page.locator('#mobile-lock').tap();
     assert.equal(await page.locator('#x').isEnabled(),true);
