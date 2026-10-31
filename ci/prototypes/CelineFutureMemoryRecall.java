@@ -177,6 +177,57 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY test contract: an INDEPENDENT owner supplies the public key,
+     * unrollbackable revision, revocation flag and challenge. The owner MUST
+     * atomically compare AND durably consume the one-use challenge in its own
+     * security domain. File-backed test owners below are NOT real protection.
+     */
+    public static final class RecoveryOwnerSnapshot {
+        public final long highWater;
+        public final String challenge;
+        public final java.security.PublicKey pinnedKey;
+        public final boolean revoked;
+        public RecoveryOwnerSnapshot(long highWater, String challenge,
+                java.security.PublicKey pinnedKey, boolean revoked) {
+            this.highWater = highWater;
+            this.challenge = challenge;
+            this.pinnedKey = pinnedKey;
+            this.revoked = revoked;
+        }
+    }
+
+    public interface OneShotRecoveryOwner {
+        RecoveryOwnerSnapshot snapshot(String exactId);
+        /** Atomic CAS, permanent across process restarts and owner-key rotation. */
+        boolean claimIfCurrent(String exactId, long highWater, String challenge,
+                byte[] exactPinnedKeyEncoding);
+    }
+
+    /** A valid signature alone is replayable; a trustworthy one-use owner is required. */
+    public static RecoveryDisposition attestRevokedOrphanOnce(String exactId,
+            long sourceRevision, String sourceStatus, String orphanSha256,
+            String challenge, byte[] ownerSignature, OneShotRecoveryOwner owner) {
+        if (owner == null || challenge == null) return RecoveryDisposition.BLOCKED;
+        try {
+            RecoveryOwnerSnapshot state = owner.snapshot(exactId);
+            if (state == null || !state.revoked || state.pinnedKey == null
+                    || !challenge.equals(state.challenge)) return RecoveryDisposition.BLOCKED;
+            if (attestRevokedOrphan(exactId, sourceRevision, sourceStatus,
+                    state.highWater, orphanSha256, challenge, ownerSignature,
+                    state.pinnedKey) != RecoveryDisposition.QUARANTINE_REVOKED_ONLY)
+                return RecoveryDisposition.BLOCKED;
+            byte[] exactKey = state.pinnedKey.getEncoded();
+            if (exactKey == null || exactKey.length == 0) return RecoveryDisposition.BLOCKED;
+            return owner.claimIfCurrent(exactId, state.highWater, challenge, exactKey)
+                    ? RecoveryDisposition.QUARANTINE_REVOKED_ONLY
+                    : RecoveryDisposition.BLOCKED;
+        } catch (RuntimeException e) {
+            // Missing/corrupt external authority never authorizes recovery.
+            return RecoveryDisposition.BLOCKED;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
