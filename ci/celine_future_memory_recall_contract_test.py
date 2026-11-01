@@ -8883,7 +8883,8 @@ public final class FutureProtectedAnchorProcess {
             if(q.length!=4){out.println("ERROR");continue;}
             long floor=readFloor(custody);
             if(floor<0){out.println("NO_AUTHORITY");continue;}
-            String status=floor>0?"CONSUMED":"ABSENT";
+            // A floor alone is NOT proof that this specific claim was spent.
+            String status=(floor>0 && CLAIM.equals(q[1]))?"CONSUMED":"ABSENT";
             byte[] ownerSig=sign(priv(shared,"owner"),
               CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE));
             String signedClaim=q[3].equals("CROSS_CLAIM")?"other-claim-0001":q[1];
@@ -8975,6 +8976,7 @@ public final class FutureProtectedAnchorProcess {
     try {key=rawPub(pinnedKey);}catch(Exception e){System.out.println("RESULT=NO_AUTHORITY QUERY=0");return;}
     byte[] ownerSig=sign(priv(shared,"owner"),
         CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE));
+    if(mode.equals("BAD_OWNER_SIGNATURE"))ownerSig[5]^=1;
     String nonce=ENC.withoutPadding().encodeToString(new SecureRandom().generateSeed(24))
         .replace('+','_').replace('/','-');
     final int[] queries={0};
@@ -8994,7 +8996,8 @@ public final class FutureProtectedAnchorProcess {
           }
         };
     if(mode.equals("WRONG_PIN"))independentPin=pub(shared,"journal").getEncoded();
-    String claim=mode.equals("BAD_CLAIM")?"unsafe claim":CLAIM;
+    String claim=mode.equals("BAD_CLAIM")?"unsafe claim":
+        (mode.equals("UNKNOWN_CLAIM")?"another-claim-0001":CLAIM);
     var outcome=CelineFutureMemoryRecall.reconcileIndeterminateReceiptReadOnly(
         claim,ID,2L,ownerSig,nonce,independentPin,provider);
     System.out.println("RESULT="+outcome+" QUERY="+queries[0]);
@@ -9161,6 +9164,7 @@ def process_read_only_receipt_status_proof(compiled, strict=False):
             expect(port,'DROP_REPLY','REMAIN_INDETERMINATE')
             expect(port,'WRONG_PIN','NO_AUTHORITY',0)
             expect(port,'BAD_CLAIM','UNVERIFIABLE',0)
+            expect(port,'UNKNOWN_CLAIM','ABSENT_UNSAFE_TO_RETRY')
             assert (custody/'anchor.floor').read_text().strip()=='0'
             passed+=1
             got=child(port,'attempt','ack-lost')
@@ -9171,6 +9175,8 @@ def process_read_only_receipt_status_proof(compiled, strict=False):
         service,port=serve(custody)
         try:
             for _ in range(3):expect(port,'NORMAL','CONSUMED_VERIFIED')
+            expect(port,'UNKNOWN_CLAIM','ABSENT_UNSAFE_TO_RETRY')
+            expect(port,'BAD_OWNER_SIGNATURE','UNVERIFIABLE')
             for mode in ('FORGED_SIGNATURE','STALE_NONCE','CROSS_CLAIM'):
                 expect(port,mode,'UNVERIFIABLE')
             assert (custody/'anchor.floor').read_text().strip()=='1'
@@ -9199,6 +9205,12 @@ def process_read_only_receipt_status_proof(compiled, strict=False):
                 assert (custody/'anchor.floor').read_text().strip()=='0'
                 passed+=1
         finally:stop(service)
+        if not strict:
+            (custody/'anchor.floor').write_text('corrupt',encoding='utf-8')
+            assert (custody/'anchor.priv').read_bytes()==original_priv
+            service,port=serve(custody)
+            try:expect(port,'NORMAL','REMAIN_INDETERMINATE')
+            finally:stop(service)
         print('FUTURE_READ_ONLY_RECEIPT_QUERY_PASS cases='+str(passed))
         print('FUTURE_AUTHORITY_SELF_ROLLBACK=UNFIXED_SECURITY_FAIL')
 
