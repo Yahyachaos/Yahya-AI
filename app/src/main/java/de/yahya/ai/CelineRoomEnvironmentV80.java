@@ -936,6 +936,15 @@ final class CelineRoomEnvironmentV80 {
             }
             RenderableManager renderables = engine.getRenderableManager();
             int attachedMeshes = 0;
+            // Identity roots are not proof that the imported shell GLB has the
+            // correct physical envelope. Measure its REAL attached mesh geometry;
+            // wall thickness may exceed interior dimensions, so do not rescale
+            // or reject bounds merely for lying outside the authored room.
+            int floorEntity = shell.getFirstEntityByName("room_shell_floor");
+            float[] shellBounds = { Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                    Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
+            float[] floorBounds = shellBounds.clone();
             for (int entity : shell.getEntities()) {
                 if (!renderables.hasComponent(entity)) continue;
                 if (!scene.hasEntity(entity)) {
@@ -952,11 +961,44 @@ final class CelineRoomEnvironmentV80 {
                         throw new IllegalStateException("Nonfinite attached S25 shell mesh");
                     }
                 }
+                Box box = renderables.getAxisAlignedBoundingBox(
+                        renderables.getInstance(entity), new Box());
+                float[] center = box.getCenter();
+                float[] extent = box.getHalfExtent();
+                for (int corner = 0; corner < 8; corner++) {
+                    float x = center[0] + ((corner & 1) == 0 ? -extent[0] : extent[0]);
+                    float y = center[1] + ((corner & 2) == 0 ? -extent[1] : extent[1]);
+                    float z = center[2] + ((corner & 4) == 0 ? -extent[2] : extent[2]);
+                    float[] p = {
+                            world[0] * x + world[4] * y + world[8] * z + world[12],
+                            world[1] * x + world[5] * y + world[9] * z + world[13],
+                            world[2] * x + world[6] * y + world[10] * z + world[14]
+                    };
+                    for (int axis = 0; axis < 3; axis++) {
+                        if (!Float.isFinite(p[axis])) {
+                            throw new IllegalStateException("Nonfinite S25 shell geometry");
+                        }
+                        shellBounds[axis] = Math.min(shellBounds[axis], p[axis]);
+                        shellBounds[axis + 3] = Math.max(shellBounds[axis + 3], p[axis]);
+                        if (entity == floorEntity) {
+                            floorBounds[axis] = Math.min(floorBounds[axis], p[axis]);
+                            floorBounds[axis + 3] = Math.max(floorBounds[axis + 3], p[axis]);
+                        }
+                    }
+                }
                 attachedMeshes++;
             }
             if (attachedMeshes == 0) {
                 throw new IllegalStateException("Attached S25 shell contains no renderables");
             }
+            Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-BOUNDS",
+                    "Actual attached shell and floor geometry AABBs (NOT visual acceptance)",
+                    "shellWorldMinXYZ=" + shellBounds[0] + "," + shellBounds[1] + "," + shellBounds[2]
+                            + " shellWorldMaxXYZ=" + shellBounds[3] + "," + shellBounds[4] + "," + shellBounds[5]
+                            + " floorRenderable=" + Float.isFinite(floorBounds[0])
+                            + " floorWorldMinXYZ=" + floorBounds[0] + "," + floorBounds[1] + "," + floorBounds[2]
+                            + " floorWorldMaxXYZ=" + floorBounds[3] + "," + floorBounds[4] + "," + floorBounds[5]
+                            + " interiorTarget_m=4.4,4.2,2.65 AndroidFrame=UNVERIFIED");
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
                     "Native shell root and real scene renderables verified after attachment",
                     "sourceRoom_m=4.40x4.20x2.65"
