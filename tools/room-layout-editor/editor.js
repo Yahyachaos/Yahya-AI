@@ -552,6 +552,24 @@ function refreshS25SelectedTint(){
   invalidateMobileFrame();
 }
 
+// The original offline S25 renderer draws the left room wall as ONE plane
+// at x=-width/2-0.005. In the normal editor its 0.045m wall-box extends
+// 0.0275m further into the room, covering the owner's real mirror surface.
+// Use the original wall plane only while the opt-in S25 shader preview is ON;
+// the canonical room measurements, normal shell and user GLB/TRS stay intact.
+function restoreS25LeftWallPreview(saved){
+  const prior=saved?.s25LeftWall;
+  if(!prior)return;
+  prior.mesh.geometry=prior.geometry;
+  prior.mesh.position.copy(prior.position);
+  prior.mesh.quaternion.copy(prior.quaternion);
+  prior.mesh.scale.copy(prior.scale);
+  prior.mesh.updateMatrix();
+  saved.s25LeftWallPlane?.dispose();
+  saved.s25LeftWall=null;
+  saved.s25LeftWallPlane=null;
+}
+
 function setS25RawPreview(enabled){
   enabled=!!enabled;
   if(s25RawPreview===enabled)return;
@@ -604,6 +622,22 @@ function setS25RawPreview(enabled){
       const wallMeshes=walls.children.filter(mesh=>mesh.isMesh);
       if(!ground||wallMeshes.length!==4)
         throw new Error('Vorhandene 4 Raumwandmeshes/Boden erforderlich');
+      // Genuine owner S25 left wall: zero-thickness plane at x=-2.205m
+      // for the fixed 4.40m room, rather than the editor's inward box face
+      // at -2.1775m. Without this opt-in-only swap the original mirror is
+      // wrongly depth-occluded, although its approved TRS is unchanged.
+      const left=wallMeshes[1];
+      saved.s25LeftWall={
+        mesh:left,geometry:left.geometry,
+        position:left.position.clone(),quaternion:left.quaternion.clone(),
+        scale:left.scale.clone()
+      };
+      saved.s25LeftWallPlane=new THREE.PlaneGeometry(room.depth,room.height);
+      left.geometry=saved.s25LeftWallPlane;
+      left.position.set(-room.width/2-0.005,room.height/2,0);
+      left.rotation.set(0,Math.PI/2,0);
+      left.scale.set(1,1,1);
+      left.updateMatrix();
       function displaySurface(mesh,hex){
         const m=new THREE.MeshBasicMaterial({
           color:hex,side:THREE.DoubleSide,transparent:false,
@@ -630,6 +664,7 @@ function setS25RawPreview(enabled){
       for(const {mesh,material,visible} of [...saved.surfaces,...saved.floorSurfaces]){
         mesh.material=material;mesh.visible=visible;
       }
+      restoreS25LeftWallPreview(saved);
       scene.background.copy(saved.background);walls.visible=saved.wallsVisible;
       for(const mat of saved.created)mat.dispose();
       throw e;
@@ -641,6 +676,7 @@ function setS25RawPreview(enabled){
     for(const {mesh,material,visible} of [...saved.surfaces,...saved.floorSurfaces]){
       mesh.material=material;mesh.visible=visible;
     }
+    restoreS25LeftWallPreview(saved);
     scene.background.copy(saved.background);walls.visible=saved.wallsVisible;
     for(const {control,disabled} of saved.disabled)control.disabled=disabled;
     s25RawLastRestoreOk=saved.sources.every(x=>x.mesh.material===x.material)&&
@@ -1191,6 +1227,8 @@ if (E2E_PROOF) {
           m.name?.startsWith('S25_UNLIT_DISPLAY_')&&!!m.map).length,
         source_material_identity_restored:s25RawLastRestoreOk,
         room_m:{...room},wall_count:wallMeshes.length,
+        left_wall_geometry:wallMeshes[1]?.geometry?.type||null,
+        left_wall_center_x_m:wallMeshes[1]?.position.x??null,
         visible_wall_count:wallMeshes.filter(m=>m.visible).length,
         ceiling_visible:wallMeshes[3]?.visible??null,
         background_hex:scene.background.getHexString(),
