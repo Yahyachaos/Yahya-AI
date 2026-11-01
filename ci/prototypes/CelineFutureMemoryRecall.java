@@ -854,6 +854,132 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY proof of a PRE-EXISTING consumed claim from a fourth,
+     * separately enrolled checkpoint signer. The checkpoint MUST already be
+     * in independently provisioned, nonrollbackable custody. This method
+     * cannot create that custody and never writes, consumes or retries a claim.
+     * It deliberately has NO signed-ABSENT success path: missing/lost custody
+     * is NO_AUTHORITY, and disagreeing reset root/operator state is rejected.
+     */
+    public static final class SignedExternalConsumedCheckpoint {
+        public final String claimId, exactId;
+        public final long sourceRevision, anchorEpoch, consumedSequence;
+        private final byte[] signature;
+
+        public SignedExternalConsumedCheckpoint(String claimId, String exactId,
+                long sourceRevision, long anchorEpoch, long consumedSequence,
+                byte[] signature) {
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.anchorEpoch = anchorEpoch;
+            this.consumedSequence = consumedSequence;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] externalConsumedCheckpointPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            byte[] previouslyPinnedOwner, byte[] previouslyPinnedRoot,
+            byte[] previouslyPinnedOperator, long anchorEpoch, long consumedSequence) {
+        if (originalOwnerClaimPayload(claimId, exactId, sourceRevision).length == 0
+                || originalOwnerSignature == null || originalOwnerSignature.length != 64
+                || previouslyPinnedOwner == null || previouslyPinnedOwner.length == 0
+                || previouslyPinnedRoot == null || previouslyPinnedRoot.length == 0
+                || previouslyPinnedOperator == null || previouslyPinnedOperator.length == 0
+                || anchorEpoch <= 0 || consumedSequence <= 0)
+            return new byte[0];
+        java.util.Base64.Encoder base64 = java.util.Base64.getEncoder();
+        return ("future-g1/external-consumed-checkpoint/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\n"
+                + base64.encodeToString(originalOwnerSignature) + "\n"
+                + base64.encodeToString(previouslyPinnedOwner) + "\n"
+                + base64.encodeToString(previouslyPinnedRoot) + "\n"
+                + base64.encodeToString(previouslyPinnedOperator) + "\n"
+                + anchorEpoch + "\n" + consumedSequence + "\nCONSUMED\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Verify a claim-specific positive checkpoint against the CURRENT signed
+     * owner/root/operator statements. The anchor key and minimum epoch must
+     * be independently pinned BEFORE the claim, not learned from replies.
+     * Even a PASS proves signatures/consistency only, NOT external durability.
+     */
+    public static ReceiptStatusOutcome verifyWithExternalConsumedCheckpoint(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] previouslyPinnedOwner, byte[] previouslyPinnedRoot,
+            byte[] previouslyPinnedOperator, byte[] previouslyPinnedExternalAnchor,
+            long trustedOperatorEpoch, long trustedAnchorEpoch,
+            long trustedClaimMinimumSequence,
+            SignedExternalConsumedCheckpoint checkpoint,
+            SignedOperatorClaimCommitment currentOperator,
+            SignedReceiptStatus currentRoot) {
+        if (checkpoint == null || previouslyPinnedExternalAnchor == null
+                || previouslyPinnedOwner == null || previouslyPinnedRoot == null
+                || previouslyPinnedOperator == null)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (trustedAnchorEpoch <= 0 || trustedClaimMinimumSequence < 0
+                || checkpoint.anchorEpoch < trustedAnchorEpoch
+                || checkpoint.consumedSequence < trustedClaimMinimumSequence
+                || checkpoint.consumedSequence <= 0
+                || !java.util.Objects.equals(checkpoint.claimId, claimId)
+                || !java.util.Objects.equals(checkpoint.exactId, exactId)
+                || checkpoint.sourceRevision != sourceRevision
+                || currentOperator == null || currentRoot == null
+                || !"CONSUMED".equals(currentOperator.status)
+                || !"CONSUMED".equals(currentRoot.status)
+                || currentOperator.consumedSequence != checkpoint.consumedSequence)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] payload = externalConsumedCheckpointPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, previouslyPinnedOwner,
+                previouslyPinnedRoot, previouslyPinnedOperator,
+                checkpoint.anchorEpoch, checkpoint.consumedSequence);
+        byte[] signature = checkpoint.signature();
+        if (payload.length == 0 || signature == null || signature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory keys = java.security.KeyFactory.getInstance("Ed25519");
+            byte[][] pins = {previouslyPinnedOwner, previouslyPinnedRoot,
+                    previouslyPinnedOperator, previouslyPinnedExternalAnchor};
+            java.security.PublicKey[] verified = new java.security.PublicKey[pins.length];
+            for (int i = 0; i < pins.length; i++) {
+                verified[i] = keys.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[i].clone()));
+                if (!java.util.Arrays.equals(pins[i], verified[i].getEncoded()))
+                    return ReceiptStatusOutcome.NO_AUTHORITY;
+                for (int j = 0; j < i; j++) {
+                    if (java.util.Arrays.equals(pins[i], pins[j]))
+                        return ReceiptStatusOutcome.NO_AUTHORITY;
+                }
+            }
+            java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+            verify.initVerify(verified[3]);
+            verify.update(payload);
+            if (!verify.verify(signature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+        } catch (java.security.SignatureException badSignature) {
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        }
+        ReceiptStatusOutcome consensus = verifyOperatorClaimCommitment(claimId,
+                exactId, sourceRevision, originalOwnerSignature, freshQueryNonce,
+                previouslyPinnedOwner, previouslyPinnedRoot,
+                previouslyPinnedOperator, trustedOperatorEpoch,
+                Math.max(trustedClaimMinimumSequence, checkpoint.consumedSequence),
+                currentOperator, currentRoot);
+        // A rollbackable signer's freshly signed ABSENT must NEVER override a
+        // positive externally protected checkpoint or authorize a retry.
+        return consensus == ReceiptStatusOutcome.CONSUMED_VERIFIED
+                ? consensus : (consensus == ReceiptStatusOutcome.NO_AUTHORITY
+                        ? consensus : ReceiptStatusOutcome.UNVERIFIABLE);
+    }
+
+    /**
      * FUTURE-ONLY contract for a separately enrolled anti-reset custodian.
      * The operator key, owner/root pins, and trusted epoch/floor MUST be held
      * outside this process in genuinely rollback-resistant custody. Supplying
