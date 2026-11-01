@@ -9361,3 +9361,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_root_same_key_rollback_with_receipt_fence(temp)
     process_atomic_owner_restart_proof(temp)
     process_pinned_journal_attestation_proof(temp)
+    process_protected_anchor_journal_proof(temp)
