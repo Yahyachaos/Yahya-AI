@@ -701,6 +701,127 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY contract for a separately enrolled anti-reset custodian.
+     * The operator key, owner/root pins, and trusted epoch/floor MUST be held
+     * outside this process in genuinely rollback-resistant custody. Supplying
+     * those values in ordinary caller-controlled storage provides NO security.
+     * A valid operator signature alone is NOT proof of nonrollbackable storage.
+     */
+    public enum CustodyEnrollmentVerdict {
+        VERIFIED_CONDITIONALLY, ROLLBACK_DETECTED, NO_AUTHORITY, UNVERIFIABLE
+    }
+
+    public static final class SignedCustodyEnrollment {
+        public final String claimId, nonce;
+        public final long epoch, consumedFloor;
+        private final byte[] rootPin, signature;
+
+        public SignedCustodyEnrollment(String claimId, String nonce, long epoch,
+                long consumedFloor, byte[] rootPin, byte[] signature) {
+            this.claimId = claimId;
+            this.nonce = nonce;
+            this.epoch = epoch;
+            this.consumedFloor = consumedFloor;
+            this.rootPin = rootPin == null ? null : rootPin.clone();
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] rootPin() { return rootPin == null ? null : rootPin.clone(); }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    public static byte[] custodyEnrollmentPayload(String claimId,
+            byte[] ownerPin, byte[] rootPin, long epoch, long consumedFloor,
+            String nonce) {
+        if (claimId == null || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || nonce == null || !nonce.matches("[A-Za-z0-9_-]{16,128}")
+                || epoch <= 0 || consumedFloor < 0 || ownerPin == null
+                || rootPin == null || ownerPin.length == 0 || rootPin.length == 0)
+            return new byte[0];
+        return ("future-g1/operator-anchored-enrollment/v1\n" + claimId + "\n"
+                + java.util.Base64.getEncoder().encodeToString(ownerPin) + "\n"
+                + java.util.Base64.getEncoder().encodeToString(rootPin) + "\n"
+                + epoch + "\n" + consumedFloor + "\n" + nonce + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static CustodyEnrollmentVerdict verifyOperatorCustodyEnrollment(
+            String claimId, String freshNonce, byte[] previouslyPinnedOwner,
+            byte[] previouslyPinnedRoot, byte[] previouslyPinnedOperator,
+            long previouslyTrustedEpoch, long previouslyTrustedFloor,
+            SignedCustodyEnrollment enrollment) {
+        if (previouslyPinnedOwner == null || previouslyPinnedRoot == null
+                || previouslyPinnedOperator == null || enrollment == null)
+            return CustodyEnrollmentVerdict.NO_AUTHORITY;
+        if (previouslyTrustedEpoch <= 0 || previouslyTrustedFloor < 0
+                || !java.util.Objects.equals(claimId, enrollment.claimId)
+                || !java.util.Objects.equals(freshNonce, enrollment.nonce))
+            return CustodyEnrollmentVerdict.UNVERIFIABLE;
+        byte[] signed = custodyEnrollmentPayload(enrollment.claimId,
+                previouslyPinnedOwner, enrollment.rootPin(), enrollment.epoch,
+                enrollment.consumedFloor, enrollment.nonce);
+        if (signed.length == 0 || enrollment.signature() == null
+                || enrollment.signature().length != 64)
+            return CustodyEnrollmentVerdict.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            java.security.PublicKey owner = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyPinnedOwner.clone()));
+            java.security.PublicKey root = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyPinnedRoot.clone()));
+            java.security.PublicKey operator = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyPinnedOperator.clone()));
+            if (!java.util.Arrays.equals(owner.getEncoded(), previouslyPinnedOwner)
+                    || !java.util.Arrays.equals(root.getEncoded(), previouslyPinnedRoot)
+                    || !java.util.Arrays.equals(operator.getEncoded(), previouslyPinnedOperator)
+                    || java.util.Arrays.equals(owner.getEncoded(), root.getEncoded())
+                    || java.util.Arrays.equals(owner.getEncoded(), operator.getEncoded())
+                    || java.util.Arrays.equals(root.getEncoded(), operator.getEncoded())
+                    || !java.util.Arrays.equals(root.getEncoded(), enrollment.rootPin()))
+                return CustodyEnrollmentVerdict.NO_AUTHORITY;
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(operator);
+            verifier.update(signed);
+            if (!verifier.verify(enrollment.signature()))
+                return CustodyEnrollmentVerdict.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return CustodyEnrollmentVerdict.UNVERIFIABLE;
+        }
+        // Check the floor only AFTER authenticating operator-signed bytes.
+        // This catches original-key reprovision when an independent trusted
+        // floor survives, but cannot protect a simultaneously rolled-back pin.
+        if (enrollment.epoch < previouslyTrustedEpoch
+                || enrollment.consumedFloor < previouslyTrustedFloor)
+            return CustodyEnrollmentVerdict.ROLLBACK_DETECTED;
+        return CustodyEnrollmentVerdict.VERIFIED_CONDITIONALLY;
+    }
+
+    /**
+     * READ ONLY: an invalid/reprovisioned enrollment MUST NOT query the root.
+     * A positive answer remains CONDITIONAL on external nonrollbackable custody;
+     * this adapter never creates, retries, or consumes a claim.
+     */
+    public static ReceiptStatusOutcome reconcileReceiptWithCustodyEnrollment(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshNonce,
+            byte[] previouslyPinnedOwner, byte[] previouslyPinnedRoot,
+            byte[] previouslyPinnedOperator, long trustedEpoch, long trustedFloor,
+            SignedCustodyEnrollment enrollment,
+            ReadOnlyReceiptStatusAuthority originalRoot) {
+        CustodyEnrollmentVerdict gate = verifyOperatorCustodyEnrollment(
+                claimId, freshNonce, previouslyPinnedOwner, previouslyPinnedRoot,
+                previouslyPinnedOperator, trustedEpoch, trustedFloor, enrollment);
+        if (gate == CustodyEnrollmentVerdict.NO_AUTHORITY)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (gate != CustodyEnrollmentVerdict.VERIFIED_CONDITIONALLY)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        // Never accept the root's status below the authenticated enrollment.
+        long minimum = Math.max(trustedFloor, enrollment.consumedFloor);
+        return reconcileReceiptWithIndependentHighWater(claimId, exactId,
+                sourceRevision, originalOwnerSignature, freshNonce,
+                previouslyPinnedOwner, previouslyPinnedRoot, minimum, originalRoot);
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
