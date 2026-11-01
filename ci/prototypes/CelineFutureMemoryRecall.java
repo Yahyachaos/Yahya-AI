@@ -1363,6 +1363,168 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY signed enrollment: only the independently administered
+     * bootstrap may bind these five pinned identities to one authority ID.
+     * The root signature authenticates enrollment, NOT nonrollbackable custody.
+     * The epoch minimum must be kept outside any rollbackable client snapshot.
+     */
+    public static byte[] oneShotEnrollmentPayload(String authorityId, long epoch,
+            byte[] ownerPin, byte[] rootPin, byte[] operatorPin,
+            byte[] custodianPin, byte[] providerPin) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || ownerPin == null || rootPin == null
+                || operatorPin == null || custodianPin == null || providerPin == null)
+            return new byte[0];
+        for (byte[] pin : new byte[][] {ownerPin, rootPin, operatorPin,
+                custodianPin, providerPin}) if (pin.length == 0) return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/independent-one-shot-enrollment/v1\n" + authorityId
+                + "\n" + epoch + "\n" + b64.encodeToString(ownerPin) + "\n"
+                + b64.encodeToString(rootPin) + "\n"
+                + b64.encodeToString(operatorPin) + "\n"
+                + b64.encodeToString(custodianPin) + "\n"
+                + b64.encodeToString(providerPin) + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static final class SignedOneShotEnrollment {
+        public final String authorityId;
+        public final long epoch;
+        private final byte[][] pins;
+        private final byte[] signature;
+        public SignedOneShotEnrollment(String authorityId, long epoch,
+                byte[][] pins, byte[] signature) {
+            this.authorityId = authorityId;
+            this.epoch = epoch;
+            this.pins = pins == null ? null : new byte[pins.length][];
+            if (pins != null) for (int i = 0; i < pins.length; i++)
+                this.pins[i] = pins[i] == null ? null : pins[i].clone();
+            this.signature = signature == null ? null : signature.clone();
+        }
+    }
+
+    /**
+     * A single provisioned capability, not a caller-selected per-request
+     * provider. Only the separate administrative bootstrap may call bind;
+     * callers receive this already-bound capability without backend access.
+     * This pure Java prototype CANNOT prove who called bind, protect the
+     * remote ledger, or make an in-process fixture rollback-resistant.
+     * Both enrolled identities AND independently held minimum epoch are required.
+     */
+    public static final class ProvisionedOneShotGateway {
+        private final IndependentMonotonicClaimFloorProvider authority;
+        private final byte[][] pins;
+        private final long epoch;
+        private ProvisionedOneShotGateway(IndependentMonotonicClaimFloorProvider backend,
+                byte[][] pinned, long enrolledEpoch) {
+            authority = backend;
+            pins = new byte[pinned.length][];
+            for (int i = 0; i < pinned.length; i++) pins[i] = pinned[i].clone();
+            epoch = enrolledEpoch;
+        }
+
+        public static ProvisionedOneShotGateway bindFromIndependentBootstrap(
+                byte[][] externallyPinnedIdentities,
+                SignedOneShotEnrollment enrollment, long independentlyTrustedEnrollmentEpoch,
+                IndependentMonotonicClaimFloorProvider externallyProvisionedBackend) {
+            if (enrollment == null || externallyProvisionedBackend == null
+                    || externallyPinnedIdentities == null
+                    || externallyPinnedIdentities.length != 5 || enrollment.pins == null
+                    || enrollment.pins.length != 5 || enrollment.signature == null
+                    || enrollment.signature.length != 64
+                    || independentlyTrustedEnrollmentEpoch <= 0
+                    || enrollment.epoch < independentlyTrustedEnrollmentEpoch) return null;
+            try {
+                java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+                java.security.PublicKey[] keys = new java.security.PublicKey[5];
+                for (int i = 0; i < 5; i++) {
+                    byte[] pin = externallyPinnedIdentities[i];
+                    if (pin == null || !java.util.Arrays.equals(pin, enrollment.pins[i]))
+                        return null;
+                    keys[i] = factory.generatePublic(
+                            new java.security.spec.X509EncodedKeySpec(pin.clone()));
+                    if (!java.util.Arrays.equals(pin, keys[i].getEncoded())) return null;
+                    for (int j = 0; j < i; j++)
+                        if (java.util.Arrays.equals(pin, externallyPinnedIdentities[j]))
+                            return null;
+                }
+                byte[] payload = oneShotEnrollmentPayload(enrollment.authorityId,
+                        enrollment.epoch, enrollment.pins[0], enrollment.pins[1],
+                        enrollment.pins[2], enrollment.pins[3], enrollment.pins[4]);
+                if (payload.length == 0) return null;
+                java.security.Signature check = java.security.Signature.getInstance("Ed25519");
+                check.initVerify(keys[1]); // PRE-PINNED independent enrollment root
+                check.update(payload);
+                if (!check.verify(enrollment.signature)) return null;
+                return new ProvisionedOneShotGateway(externallyProvisionedBackend,
+                        externallyPinnedIdentities, enrollment.epoch);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+
+        /** Exactly one remote atomic CAS call, never an automatic retry. */
+        public MonotonicReservationOutcome reserveOnce(String claimId, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce,
+                long previouslyTrustedSequence) {
+            if (!validOwnerClaim(claimId, exactId, revision, ownerSignature)
+                    || freshNonce == null
+                    || !freshNonce.matches("[A-Za-z0-9_-]{16,128}")
+                    || previouslyTrustedSequence < 0)
+                return MonotonicReservationOutcome.UNVERIFIABLE;
+            final SignedMonotonicReservation result;
+            try {
+                result = authority.reserveOnce(claimId, exactId, revision,
+                        ownerSignature.clone(), freshNonce);
+            } catch (Exception unavailableOrLostAck) {
+                // Could have committed before the exception: NEVER retry here.
+                return MonotonicReservationOutcome.NO_AUTHORITY;
+            }
+            return verifyMonotonicReservation(claimId, exactId, revision,
+                    ownerSignature, freshNonce, pins[0], pins[1], pins[2],
+                    pins[3], pins[4], epoch, previouslyTrustedSequence, result);
+        }
+
+        /** A lost reserve acknowledgement is recoverable ONLY by query. */
+        public MonotonicQueryOutcome queryExisting(String claimId, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce,
+                long previouslyTrustedSequence) {
+            if (!validOwnerClaim(claimId, exactId, revision, ownerSignature)
+                    || freshNonce == null
+                    || !freshNonce.matches("[A-Za-z0-9_-]{16,128}")
+                    || previouslyTrustedSequence < 0)
+                return MonotonicQueryOutcome.UNVERIFIABLE;
+            final SignedMonotonicReservationStatus status;
+            try {
+                status = authority.queryExisting(claimId, exactId, revision,
+                        ownerSignature.clone(), freshNonce);
+            } catch (Exception unavailable) {
+                return MonotonicQueryOutcome.REMAIN_INDETERMINATE;
+            }
+            return verifyMonotonicQueryExisting(claimId, exactId, revision,
+                    ownerSignature, freshNonce, pins[0], pins[1], pins[2],
+                    pins[3], pins[4], epoch, previouslyTrustedSequence, status);
+        }
+
+        private boolean validOwnerClaim(String claim, String id, long revision, byte[] sig) {
+            if (sig == null || sig.length != 64
+                    || originalOwnerClaimPayload(claim, id, revision).length == 0)
+                return false;
+            try {
+                java.security.PublicKey owner = java.security.KeyFactory
+                        .getInstance("Ed25519").generatePublic(
+                          new java.security.spec.X509EncodedKeySpec(pins[0]));
+                java.security.Signature check = java.security.Signature.getInstance("Ed25519");
+                check.initVerify(owner);
+                check.update(originalOwnerClaimPayload(claim, id, revision));
+                return check.verify(sig);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return false;
+            }
+        }
+    }
+
+    /**
      * FUTURE-ONLY external provider boundary, not a local trust implementation.
      * The separately administered provider MUST first authenticate the owner,
      * then atomically record a claim reservation in non-caller-replaceable,
