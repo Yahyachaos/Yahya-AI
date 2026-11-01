@@ -1401,6 +1401,89 @@ public final class CelineFutureMemoryRecall {
                 this.pins[i] = pins[i] == null ? null : pins[i].clone();
             this.signature = signature == null ? null : signature.clone();
         }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+        public byte[][] pins() {
+            if (pins == null) return null;
+            byte[][] copy = new byte[pins.length][];
+            for (int i = 0; i < pins.length; i++)
+                copy[i] = pins[i] == null ? null : pins[i].clone();
+            return copy;
+        }
+    }
+
+    /**
+     * FUTURE-ONLY bootstrap challenge signed by the separately provisioned
+     * provider Ed25519 key (identity #5), not merely by the enrollment root.
+     * This proves key possession for the fresh challenge, NOT independent
+     * administration, persistence, anti-rollback hardware, or exclusivity.
+     */
+    public static byte[] oneShotProviderAttestationPayload(String authorityId,
+            long epoch, byte[] enrollmentPayload, byte[] rootSignature,
+            String freshChallenge) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || enrollmentPayload == null || enrollmentPayload.length == 0
+                || rootSignature == null || rootSignature.length != 64
+                || freshChallenge == null
+                || !freshChallenge.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        try {
+            java.security.MessageDigest sha = java.security.MessageDigest.getInstance("SHA-256");
+            java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+            return ("future-g1/one-shot-provider-attest-enrollment/v1\n"
+                    + authorityId + "\n" + epoch + "\n"
+                    + b64.encodeToString(sha.digest(enrollmentPayload)) + "\n"
+                    + b64.encodeToString(rootSignature) + "\n"
+                    + freshChallenge + "\n").getBytes(StandardCharsets.UTF_8);
+        } catch (GeneralSecurityException invalid) {
+            return new byte[0];
+        }
+    }
+
+    public static final class SignedOneShotProviderAttestation {
+        public final String authorityId, freshChallenge;
+        public final long epoch;
+        private final byte[] providerPin, signature;
+        public SignedOneShotProviderAttestation(String authorityId, long epoch,
+                String freshChallenge, byte[] providerPin, byte[] signature) {
+            this.authorityId = authorityId;
+            this.epoch = epoch;
+            this.freshChallenge = freshChallenge;
+            this.providerPin = providerPin == null ? null : providerPin.clone();
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] providerPin() {
+            return providerPin == null ? null : providerPin.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    /**
+     * Scope every downstream v1 receipt nonce to the root-enrolled authority.
+     * The nonce is signed in the existing reserve/query receipts. An unchanged
+     * original caller nonce cannot be replayed between authority A and B even
+     * if both are legitimately enrolled with the SAME five Ed25519 keys.
+     * This is NOT a guarantee against a compromised provider signing a new B
+     * receipt or a rollback of every independently trusted claim-floor state.
+     */
+    public static String oneShotBoundNonce(String authorityId, long epoch,
+            String originalNonce) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || originalNonce == null
+                || !originalNonce.matches("[A-Za-z0-9_-]{16,128}"))
+            return "";
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(("future-g1/one-shot-authority-nonce/v1\n"
+                            + authorityId + "\n" + epoch + "\n"
+                            + originalNonce + "\n").getBytes(StandardCharsets.UTF_8));
+            return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (GeneralSecurityException invalid) {
+            return "";
+        }
     }
 
     /**
@@ -1415,12 +1498,14 @@ public final class CelineFutureMemoryRecall {
         private final IndependentMonotonicClaimFloorProvider authority;
         private final byte[][] pins;
         private final long epoch;
+        private final String authorityId;
         private ProvisionedOneShotGateway(IndependentMonotonicClaimFloorProvider backend,
-                byte[][] pinned, long enrolledEpoch) {
+                byte[][] pinned, long enrolledEpoch, String enrolledAuthorityId) {
             authority = backend;
             pins = new byte[pinned.length][];
             for (int i = 0; i < pinned.length; i++) pins[i] = pinned[i].clone();
             epoch = enrolledEpoch;
+            authorityId = enrolledAuthorityId;
         }
 
         public static ProvisionedOneShotGateway bindFromIndependentBootstrap(
@@ -1456,8 +1541,37 @@ public final class CelineFutureMemoryRecall {
                 check.initVerify(keys[1]); // PRE-PINNED independent enrollment root
                 check.update(payload);
                 if (!check.verify(enrollment.signature)) return null;
+                // A root-signed identity list alone cannot authenticate the
+                // backend currently bound to that enrollment. Require a fresh
+                // provider-side challenge, validated with the fifth pinned key.
+                byte[] nonceBytes = new byte[24];
+                new java.security.SecureRandom().nextBytes(nonceBytes);
+                String challenge = java.util.Base64.getUrlEncoder()
+                        .withoutPadding().encodeToString(nonceBytes);
+                final SignedOneShotProviderAttestation attestation;
+                try {
+                    attestation = externallyProvisionedBackend.attestEnrollment(
+                            enrollment, challenge);
+                } catch (Exception unavailable) {
+                    return null;
+                }
+                if (attestation == null
+                        || !java.util.Objects.equals(enrollment.authorityId, attestation.authorityId)
+                        || enrollment.epoch != attestation.epoch
+                        || !challenge.equals(attestation.freshChallenge)
+                        || !java.util.Arrays.equals(externallyPinnedIdentities[4],
+                                attestation.providerPin())
+                        || attestation.signature() == null
+                        || attestation.signature().length != 64) return null;
+                byte[] message = oneShotProviderAttestationPayload(
+                        enrollment.authorityId, enrollment.epoch, payload,
+                        enrollment.signature, challenge);
+                if (message.length == 0) return null;
+                check.initVerify(keys[4]);
+                check.update(message);
+                if (!check.verify(attestation.signature())) return null;
                 return new ProvisionedOneShotGateway(externallyProvisionedBackend,
-                        externallyPinnedIdentities, enrollment.epoch);
+                        externallyPinnedIdentities, enrollment.epoch, enrollment.authorityId);
             } catch (GeneralSecurityException | RuntimeException invalid) {
                 return null;
             }
@@ -1472,16 +1586,18 @@ public final class CelineFutureMemoryRecall {
                     || !freshNonce.matches("[A-Za-z0-9_-]{16,128}")
                     || previouslyTrustedSequence < 0)
                 return MonotonicReservationOutcome.UNVERIFIABLE;
+            String boundNonce = oneShotBoundNonce(authorityId, epoch, freshNonce);
+            if (boundNonce.isEmpty()) return MonotonicReservationOutcome.UNVERIFIABLE;
             final SignedMonotonicReservation result;
             try {
                 result = authority.reserveOnce(claimId, exactId, revision,
-                        ownerSignature.clone(), freshNonce);
+                        ownerSignature.clone(), boundNonce);
             } catch (Exception unavailableOrLostAck) {
                 // Could have committed before the exception: NEVER retry here.
                 return MonotonicReservationOutcome.NO_AUTHORITY;
             }
             return verifyMonotonicReservation(claimId, exactId, revision,
-                    ownerSignature, freshNonce, pins[0], pins[1], pins[2],
+                    ownerSignature, boundNonce, pins[0], pins[1], pins[2],
                     pins[3], pins[4], epoch, previouslyTrustedSequence, result);
         }
 
@@ -1494,15 +1610,17 @@ public final class CelineFutureMemoryRecall {
                     || !freshNonce.matches("[A-Za-z0-9_-]{16,128}")
                     || previouslyTrustedSequence < 0)
                 return MonotonicQueryOutcome.UNVERIFIABLE;
+            String boundNonce = oneShotBoundNonce(authorityId, epoch, freshNonce);
+            if (boundNonce.isEmpty()) return MonotonicQueryOutcome.UNVERIFIABLE;
             final SignedMonotonicReservationStatus status;
             try {
                 status = authority.queryExisting(claimId, exactId, revision,
-                        ownerSignature.clone(), freshNonce);
+                        ownerSignature.clone(), boundNonce);
             } catch (Exception unavailable) {
                 return MonotonicQueryOutcome.REMAIN_INDETERMINATE;
             }
             return verifyMonotonicQueryExisting(claimId, exactId, revision,
-                    ownerSignature, freshNonce, pins[0], pins[1], pins[2],
+                    ownerSignature, boundNonce, pins[0], pins[1], pins[2],
                     pins[3], pins[4], epoch, previouslyTrustedSequence, status);
         }
 
@@ -1533,6 +1651,16 @@ public final class CelineFutureMemoryRecall {
      * Signing a rollbackable file with the original private key is insufficient.
      */
     public interface IndependentMonotonicClaimFloorProvider {
+        /**
+         * Read-only signed provider-side enrollment challenge. Default denial
+         * preserves fail-closed behavior for old mock/provider implementations.
+         * The externally controlled provider must check the root enrollment;
+         * this interface alone cannot prove it really does so.
+         */
+        default SignedOneShotProviderAttestation attestEnrollment(
+                SignedOneShotEnrollment enrollment, String freshChallenge)
+                throws Exception { return null; }
+
         SignedMonotonicReservation reserveOnce(String claimId, String exactId,
                 long sourceRevision, byte[] ownerSignature,
                 String requestNonce) throws Exception;
