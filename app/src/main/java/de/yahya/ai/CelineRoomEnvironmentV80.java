@@ -943,10 +943,12 @@ final class CelineRoomEnvironmentV80 {
             // wall thickness may exceed interior dimensions, so do not rescale
             // or reject bounds merely for lying outside the authored room.
             int floorEntity = shell.getFirstEntityByName("room_shell_floor");
+            int ceilingEntity = shell.getFirstEntityByName("room_shell_ceiling");
             float[] shellBounds = { Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
                     Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
                     Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
             float[] floorBounds = shellBounds.clone();
+            float[] ceilingBounds = shellBounds.clone();
             // The floor anchor's name alone does not prove the native GLB floor
             // mesh survived scene attachment. The original floor texture binder
             // also requires this exact named entity to be a renderable. Fail closed
@@ -955,6 +957,11 @@ final class CelineRoomEnvironmentV80 {
                     || !renderables.hasComponent(floorEntity)
                     || !scene.hasEntity(floorEntity)) {
                 throw new IllegalStateException("S25 source floor renderable missing from Scene");
+            }
+            if (ceilingEntity == 0 || ceilingEntity == hiddenFrontWall
+                    || !renderables.hasComponent(ceilingEntity)
+                    || !scene.hasEntity(ceilingEntity)) {
+                throw new IllegalStateException("S25 source ceiling renderable missing from Scene");
             }
             if (scene.hasEntity(hiddenFrontWall)) {
                 throw new IllegalStateException("S25 front wall not detached");
@@ -999,6 +1006,10 @@ final class CelineRoomEnvironmentV80 {
                             floorBounds[axis] = Math.min(floorBounds[axis], p[axis]);
                             floorBounds[axis + 3] = Math.max(floorBounds[axis + 3], p[axis]);
                         }
+                        if (entity == ceilingEntity) {
+                            ceilingBounds[axis] = Math.min(ceilingBounds[axis], p[axis]);
+                            ceilingBounds[axis + 3] = Math.max(ceilingBounds[axis + 3], p[axis]);
+                        }
                     }
                 }
                 attachedMeshes++;
@@ -1009,6 +1020,27 @@ final class CelineRoomEnvironmentV80 {
                     || !Float.isFinite(floorBounds[5])) {
                 throw new IllegalStateException("Attached S25 shell or floor bounds missing");
             }
+            // Source room_shell.glb uses a floor-top origin at Y=0 and a
+            // ceiling underside at Y=2.65m. Verify REAL attached mesh geometry,
+            // not merely identity roots or a string claiming the target size.
+            // Floor thickness and outer wall extents are deliberately NOT
+            // mistaken for the authored 4.40 x 4.20 x 2.65m clear interior.
+            final float dimensionToleranceM = 0.002f;
+            float floorWidthM = floorBounds[3] - floorBounds[0];
+            float floorDepthM = floorBounds[5] - floorBounds[2];
+            float floorCenterX = (floorBounds[0] + floorBounds[3]) * 0.5f;
+            float floorCenterZ = (floorBounds[2] + floorBounds[5]) * 0.5f;
+            if (!Float.isFinite(ceilingBounds[1])
+                    || !Float.isFinite(floorWidthM) || !Float.isFinite(floorDepthM)
+                    || Math.abs(floorWidthM - 4.40f) > dimensionToleranceM
+                    || Math.abs(floorDepthM - 4.20f) > dimensionToleranceM
+                    || Math.abs(floorCenterX) > dimensionToleranceM
+                    || Math.abs(floorCenterZ) > dimensionToleranceM
+                    || Math.abs(floorBounds[4]) > dimensionToleranceM
+                    || Math.abs(ceilingBounds[1] - 2.65f) > dimensionToleranceM) {
+                throw new IllegalStateException(
+                        "Native attached S25 floor/ceiling interior geometry mismatch");
+            }
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-BOUNDS",
                     "Final attached visible-shell and floor AABBs (NOT raster acceptance)",
                     "shellWorldMinXYZ=" + shellBounds[0] + "," + shellBounds[1] + "," + shellBounds[2]
@@ -1017,7 +1049,9 @@ final class CelineRoomEnvironmentV80 {
                             + " floorWorldMinXYZ=" + floorBounds[0] + "," + floorBounds[1] + "," + floorBounds[2]
                             + " floorWorldMaxXYZ=" + floorBounds[3] + "," + floorBounds[4] + "," + floorBounds[5]
                             + " frontWallDetached=true interiorTarget_m=4.4,4.2,2.65"
-                            + " AndroidFrame=UNVERIFIED");
+                            + " measuredFloorWidthDepth_m=" + floorWidthM + "," + floorDepthM
+                            + " measuredCeilingUndersideY_m=" + ceilingBounds[1]
+                            + " nativeFloorCeilingGeometryVerified=true AndroidFrame=UNVERIFIED");
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
                     "Native shell root and final visible renderables checked",
                     "sourceRoom_m=4.40x4.20x2.65"
