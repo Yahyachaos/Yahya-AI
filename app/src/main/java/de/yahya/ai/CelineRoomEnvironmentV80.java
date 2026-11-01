@@ -759,6 +759,17 @@ final class CelineRoomEnvironmentV80 {
             }
             RenderableManager renderables = engine.getRenderableManager();
             Map<Integer, float[]> liveMeshes = new LinkedHashMap<>();
+            // The sixteen matrix floats alone do not reveal whether the real
+            // GLB geometry is on-screen or beyond the authored room shell.
+            // Aggregate the native renderable AABBs per original user furniture ID;
+            // NEVER clamp, move, rescale or infer user placement from these bounds.
+            Map<String, float[]> perFurnitureWorldBounds = new LinkedHashMap<>();
+            for (String id : S25_IDS) {
+                perFurnitureWorldBounds.put(id, new float[] {
+                        Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                        Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY
+                });
+            }
             for (Map.Entry<Integer, float[]> entry : originalMeshes.entrySet()) {
                 int entity = entry.getKey();
                 if (!liveRoots.containsKey(meshIds.get(entity))) {
@@ -778,10 +789,55 @@ final class CelineRoomEnvironmentV80 {
                     meshWorst = Math.max(meshWorst, Math.abs(actual[axis] - expected[axis]));
                 }
                 liveMeshes.put(entity, actual);
+                // Filament's Box is mesh-local; transform all eight corners by
+                // this *observed* post-attachment GLB mesh world matrix.
+                Box box = renderables.getAxisAlignedBoundingBox(
+                        renderables.getInstance(entity), new Box());
+                float[] center = box.getCenter();
+                float[] extent = box.getHalfExtent();
+                float[] furnitureBounds = perFurnitureWorldBounds.get(meshIds.get(entity));
+                for (int corner = 0; corner < 8; corner++) {
+                    float x = center[0] + ((corner & 1) == 0 ? -extent[0] : extent[0]);
+                    float y = center[1] + ((corner & 2) == 0 ? -extent[1] : extent[1]);
+                    float z = center[2] + ((corner & 4) == 0 ? -extent[2] : extent[2]);
+                    float[] world = {
+                            actual[0] * x + actual[4] * y + actual[8] * z + actual[12],
+                            actual[1] * x + actual[5] * y + actual[9] * z + actual[13],
+                            actual[2] * x + actual[6] * y + actual[10] * z + actual[14]
+                    };
+                    for (int axis = 0; axis < 3; axis++) {
+                        if (!Float.isFinite(world[axis])) {
+                            throw new IllegalStateException("Nonfinite ready S25 geometry bounds "
+                                    + meshIds.get(entity));
+                        }
+                        furnitureBounds[axis] = Math.min(furnitureBounds[axis], world[axis]);
+                        furnitureBounds[axis + 3] = Math.max(furnitureBounds[axis + 3], world[axis]);
+                    }
+                }
             }
             if (rootWorst > 0.0001f || meshWorst > 0.0001f) {
                 throw new IllegalStateException("S25 ready-scene transform drift roots="
                         + rootWorst + " meshes=" + meshWorst);
+            }
+            // Emit thirteen computed 3D geometry envelopes, not guesswork from
+            // the original anchor XYZ. Bounds beyond the room remain legitimate
+            // user-authored input, never grounds for an automatic placement fix.
+            for (Map.Entry<String, float[]> entry : perFurnitureWorldBounds.entrySet()) {
+                float[] bounds = entry.getValue();
+                for (int axis = 0; axis < 3; axis++) {
+                    if (!Float.isFinite(bounds[axis])
+                            || !Float.isFinite(bounds[axis + 3])
+                            || bounds[axis] > bounds[axis + 3]) {
+                        throw new IllegalStateException(
+                                "Missing actual S25 geometry AABB " + entry.getKey());
+                    }
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-READY-BOUNDS",
+                        "Ready actual GLB geometry envelope " + entry.getKey(),
+                        "id=" + entry.getKey()
+                                + " worldMinXYZ=" + bounds[0] + "," + bounds[1] + "," + bounds[2]
+                                + " worldMaxXYZ=" + bounds[3] + "," + bounds[4] + "," + bounds[5]
+                                + " userPositionsUnchanged=true AndroidFrame=UNVERIFIED");
             }
             // Emit a separately keyed 16-float row for every real attached GLB root.
             // Build/Proof owner can compare these with the canonical authored XYZ,
