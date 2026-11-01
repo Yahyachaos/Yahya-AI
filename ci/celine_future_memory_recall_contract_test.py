@@ -8761,6 +8761,289 @@ def process_atomic_owner_restart_proof(temp, strict=False):
             print('FUTURE_GUARDIAN_SAME_SIGNER_ROLLBACK=KNOWN_SECURITY_FAIL')
             print('FUTURE_INDEPENDENT_NONROLLBACKABLE_JOURNAL=UNIMPLEMENTED')
 
+protected_anchor_process_harness = r'''
+
+// FUTURE-ONLY independent-JVM conditional custody fixture. The separate
+// anchor directory is deliberately OUTSIDE the untrusted journal directory.
+// It is NOT a hardware/remote nonrollbackable root: rolling back its own floor
+// remains possible and is an explicit failing security test.
+package de.yahya.ai;
+import java.io.*;
+import java.net.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+
+public final class FutureProtectedAnchorProcess {
+  static final String ID="cat-private", CLAIM="owner-claim-0001";
+  static final String HASH="a".repeat(64), NONCE="pinned-journal-nonce-0001";
+  static final Base64.Encoder ENC=Base64.getEncoder();
+  static final Base64.Decoder DEC=Base64.getDecoder();
+  static byte[] ascii(String value){return value.getBytes(StandardCharsets.UTF_8);}
+  static byte[] read(Path dir,String name)throws Exception{return Files.readAllBytes(dir.resolve(name));}
+  static PublicKey pub(Path dir,String name)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePublic(
+        new X509EncodedKeySpec(read(dir,name+".pub")));
+  }
+  static PublicKey rawPub(String base64)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(DEC.decode(base64)));
+  }
+  static PrivateKey priv(Path dir,String name)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePrivate(
+        new PKCS8EncodedKeySpec(read(dir,name+".priv")));
+  }
+  static byte[] sign(PrivateKey key,byte[] value)throws Exception {
+    Signature s=Signature.getInstance("Ed25519");s.initSign(key);s.update(value);return s.sign();
+  }
+  static boolean valid(PublicKey key,byte[] value,byte[] sig)throws Exception {
+    Signature s=Signature.getInstance("Ed25519");s.initVerify(key);s.update(value);return s.verify(sig);
+  }
+  static void pair(Path dir,String prefix)throws Exception {
+    KeyPair kp=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    Files.write(dir.resolve(prefix+".priv"),kp.getPrivate().getEncoded(),StandardOpenOption.CREATE_NEW);
+    Files.write(dir.resolve(prefix+".pub"),kp.getPublic().getEncoded(),StandardOpenOption.CREATE_NEW);
+  }
+  static void init(Path shared,Path custody)throws Exception {
+    Files.createDirectories(shared);Files.createDirectories(custody);
+    pair(shared,"owner");pair(shared,"journal");pair(custody,"anchor");
+    Files.writeString(shared.resolve("journal.floor"),"0",StandardOpenOption.CREATE_NEW);
+    Files.writeString(custody.resolve("anchor.floor"),"0",StandardOpenOption.CREATE_NEW);
+    System.out.println("INITIALIZED");
+  }
+  static void initReplacement(Path custody)throws Exception {
+    Files.createDirectories(custody);pair(custody,"anchor");
+    Files.writeString(custody.resolve("anchor.floor"),"0",StandardOpenOption.CREATE_NEW);
+    System.out.println("REPLACEMENT_INITIALIZED");
+  }
+  static long readFloor(Path custody) {
+    try {
+      String v=Files.readString(custody.resolve("anchor.floor")).trim();
+      // NEVER silently bootstrap from a missing, truncated or malformed floor.
+      if (!v.matches("(0|[1-9][0-9]{0,17})")) return -1;
+      return Long.parseLong(v);
+    }catch(Exception e){return -1;}
+  }
+  static void commitFloor(Path custody,long floor)throws Exception {
+    // Test-only single authority process, synchronous write acknowledgement.
+    // Force() is NOT backup rollback protection and no Android durability claim.
+    try(FileChannel channel=FileChannel.open(custody.resolve("anchor.floor"),
+        StandardOpenOption.WRITE,StandardOpenOption.TRUNCATE_EXISTING)) {
+      ByteBuffer b=ByteBuffer.wrap(ascii(Long.toString(floor)));
+      while(b.hasRemaining())channel.write(b);
+      channel.force(true);
+    }
+  }
+  static String consume(Path shared,Path custody,String payload64,String journal64,String owner64){
+    try {
+      byte[] ownerSig=DEC.decode(owner64), journalSig=DEC.decode(journal64), payload=DEC.decode(payload64);
+      byte[] expected=CelineFutureMemoryRecall.independentJournalReceiptPayload(
+          CLAIM,ID,2L,"REVOKED",HASH,NONCE,ownerSig,4L,1L);
+      if(!Arrays.equals(expected,payload) || !valid(pub(shared,"owner"),
+          CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE),ownerSig)
+          || !valid(pub(shared,"journal"),payload,journalSig))return "REJECTED";
+      long current=readFloor(custody);
+      if(current<0)return "NO_AUTHORITY";
+      if(current!=0)return "REJECTED";
+      commitFloor(custody,1L);
+      return "COMMITTED";
+    }catch(SignatureException e){
+      // A malformed Ed25519 signature is a proven forged request, not a
+      // transient authority outage or a reason to attempt re-enrollment.
+      return "REJECTED";
+    }catch(Exception e){return "UNKNOWN";}
+  }
+  static void serve(Path shared,Path custody)throws Exception {
+    // A separate long-lived JVM holds an authenticated signing identity.
+    try(ServerSocket server=new ServerSocket(0,50,InetAddress.getLoopbackAddress())) {
+      server.setSoTimeout(120000);
+      System.out.println("READY "+server.getLocalPort());System.out.flush();
+      while(true){
+        try(Socket socket=server.accept()) {
+          socket.setSoTimeout(2500);
+          BufferedReader in=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
+          PrintWriter out=new PrintWriter(new OutputStreamWriter(socket.getOutputStream(),StandardCharsets.UTF_8),true);
+          String hello=in.readLine();
+          if(hello==null || !hello.startsWith("HELLO ")){out.println("ERROR");continue;}
+          byte[] nonce=DEC.decode(hello.substring(6));
+          if(nonce.length!=32){out.println("ERROR");continue;}
+          out.println("AUTH "+ENC.encodeToString(sign(priv(custody,"anchor"),
+              ascii("future-g1/anchor-challenge/v1\n"+ENC.encodeToString(nonce)))));
+          String cmd=in.readLine();
+          if(cmd==null){continue;}
+          if(cmd.equals("FLOOR")){out.println("FLOOR "+readFloor(custody));continue;}
+          String[] a=cmd.split(" ");
+          if(a.length!=4 || !a[0].equals("CONSUME")){out.println("ERROR");continue;}
+          out.println(consume(shared,custody,a[1],a[2],a[3]));
+        }catch(SocketTimeoutException e){continue;}
+        catch(Exception e){System.err.println("ANCHOR_CONNECTION_FAIL "+e.getClass().getSimpleName());}
+      }
+    }
+  }
+  static String connect(int port,PublicKey pin,String command)throws Exception {
+    try(Socket socket=new Socket(InetAddress.getLoopbackAddress(),port)) {
+      socket.setSoTimeout(2500);
+      BufferedReader in=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.UTF_8));
+      PrintWriter out=new PrintWriter(new OutputStreamWriter(socket.getOutputStream(),StandardCharsets.UTF_8),true);
+      byte[] nonce=new byte[32];new SecureRandom().nextBytes(nonce);
+      out.println("HELLO "+ENC.encodeToString(nonce));
+      String hello=in.readLine();
+      if(hello==null || !hello.startsWith("AUTH ") || !valid(pin,
+          ascii("future-g1/anchor-challenge/v1\n"+ENC.encodeToString(nonce)),DEC.decode(hello.substring(5))))
+        throw new SecurityException("operator pinned anchor challenge invalid");
+      out.println(command);
+      String response=in.readLine();
+      if(response==null)throw new EOFException("anchor disappeared after challenge");
+      return response;
+    }
+  }
+  static void attempt(Path shared,int port,String pinnedKey,String mode)throws Exception {
+    PublicKey root=rawPub(pinnedKey);
+    byte[] ownerSig=sign(priv(shared,"owner"),
+      CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE));
+    byte[] payload=CelineFutureMemoryRecall.independentJournalReceiptPayload(
+      CLAIM,ID,2L,"REVOKED",HASH,NONCE,ownerSig,4L,1L);
+    byte[] journalSig=sign(priv(shared,"journal"),payload);
+    if(mode.equals("forged-journal") || mode.equals("raw-forged-journal"))journalSig[1]^=1;
+    if(mode.equals("raw-forged-owner"))ownerSig[1]^=1;
+    if(mode.equals("raw-forged-journal") || mode.equals("raw-forged-owner")) {
+      String answer=connect(port,root,"CONSUME "+ENC.encodeToString(payload)+" "
+          +ENC.encodeToString(journalSig)+" "+ENC.encodeToString(ownerSig));
+      System.out.println("SERVER="+answer);
+      return;
+    }
+    byte[] finalJournalSig=journalSig;
+    final int[] dispatch={0};
+    CelineFutureMemoryRecall.ExternallyPinnedMonotonicJournal journal=
+      new CelineFutureMemoryRecall.ExternallyPinnedMonotonicJournal() {
+        public PublicKey pinnedOriginalOwnerKey(){try{return pub(shared,"owner");}catch(Exception e){return null;}}
+        public PublicKey pinnedJournalKey(){try{return pub(shared,"journal");}catch(Exception e){return null;}}
+        public long trustedOwnerRevision(){return 2L;}
+        public long trustedConsumedSequence(){
+          try {
+            String s=connect(port,root,"FLOOR");
+            return s.startsWith("FLOOR ")?Long.parseLong(s.substring(6)):-1;
+          }catch(Exception e){return -1L;}
+        }
+        public CelineFutureMemoryRecall.AtomicReceiptOutcome consumeOnce(String id,long seq,
+            byte[] exactPayload,byte[] receiptSignature,byte[] originalSignature) {
+          dispatch[0]++;
+          try {
+            String answer=connect(port,root,"CONSUME "+ENC.encodeToString(exactPayload)
+                +" "+ENC.encodeToString(receiptSignature)+" "+ENC.encodeToString(originalSignature));
+            if(answer.equals("COMMITTED"))return CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED;
+            if(answer.equals("REJECTED"))return CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START;
+            return CelineFutureMemoryRecall.AtomicReceiptOutcome.NO_AUTHORITY;
+          }catch(Exception e){return CelineFutureMemoryRecall.AtomicReceiptOutcome.NO_AUTHORITY;}
+        }
+      };
+    var result=CelineFutureMemoryRecall.attestRevokedWithPinnedMonotonicJournal(
+        CLAIM,ID,2L,"REVOKED",HASH,NONCE,ownerSig,4L,1L,finalJournalSig,journal);
+    System.out.println("RESULT="+result+" DISPATCH="+dispatch[0]);
+  }
+  public static void main(String[] a)throws Exception {
+    if(a.length==3 && a[0].equals("init"))init(Path.of(a[1]),Path.of(a[2]));
+    else if(a.length==2 && a[0].equals("init-replacement"))initReplacement(Path.of(a[1]));
+    else if(a.length==3 && a[0].equals("serve"))serve(Path.of(a[1]),Path.of(a[2]));
+    else if(a.length==5 && a[0].equals("attempt"))attempt(Path.of(a[1]),Integer.parseInt(a[2]),a[3],a[4]);
+    else throw new IllegalArgumentException("init|init-replacement|serve|attempt");
+  }
+}
+
+'''
+
+def process_protected_anchor_journal_proof(compiled, strict=False):
+    # First-pin identity is retained by this independent test coordinator;
+    # this is not a production provisioning mechanism or unrollbackable disk.
+    with tempfile.TemporaryDirectory(prefix='future_protected_anchor_') as directory:
+        root = Path(directory)
+        shared, custody, fake = root/'untrusted_journal', root/'independent_custody', root/'fake_root'
+        java = ['java','-cp',compiled,'de.yahya.ai.FutureProtectedAnchorProcess']
+        subprocess.run(java+['init',str(shared),str(custody)],check=True,capture_output=True,text=True)
+        original_pin = __import__('base64').b64encode((custody/'anchor.pub').read_bytes()).decode('ascii')
+        passed = 0
+        def server(custody_dir):
+            proc = subprocess.Popen(java+['serve',str(shared),str(custody_dir)],
+                                    stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+            ready = proc.stdout.readline().strip()
+            assert ready.startswith('READY '), (ready, proc.poll())
+            return proc,int(ready.split()[1])
+        def stop(proc):
+            proc.terminate()
+            try:proc.wait(timeout=4)
+            except subprocess.TimeoutExpired:
+                proc.kill(); proc.wait(timeout=4)
+            proc.stdout.close(); proc.stderr.close()
+        def ask(port,mode='normal',pin=original_pin):
+            r=subprocess.run(java+['attempt',str(shared),str(port),pin,mode],
+                             capture_output=True,text=True,check=True,timeout=12)
+            return r.stdout.strip()
+        def expect(out,status,dispatch):
+            nonlocal passed
+            assert 'RESULT='+status in out and 'DISPATCH='+str(dispatch) in out,out
+            passed += 1
+        honest,port=server(custody)
+        try:
+            expect(ask(port,'forged-journal'),'REJECTED_BEFORE_START',0)
+            # The external custodian checks signatures even when bypassing
+            # the untrusted caller's local preflight entirely.
+            for raw in ('raw-forged-owner','raw-forged-journal'):
+                assert 'SERVER=REJECTED' in ask(port,raw)
+                passed += 1
+            # Four truly separate Java claimant processes race for the SAME
+            # signed sequence. Only one can receive COMMITTED.
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                outcomes=list(pool.map(lambda _:ask(port),range(4)))
+            assert sum('RESULT=COMMITTED' in out for out in outcomes)==1,outcomes
+            assert all(('RESULT=COMMITTED' in out or
+                        'RESULT=REJECTED_BEFORE_START' in out)
+                       for out in outcomes),outcomes
+            passed += len(outcomes)
+            for i in range(3):
+                expect(ask(port),'REJECTED_BEFORE_START',0)
+            # The old journal state and both signer keys are untrusted/restorable.
+            (shared/'journal.floor').write_text('0',encoding='utf-8')
+            for i in range(3):
+                expect(ask(port),'REJECTED_BEFORE_START',0)
+        finally:stop(honest)
+        expect(ask(port),'NO_AUTHORITY',0)
+        # Independent root process really dies; unchanged separately protected
+        # floor and same Ed25519 signing identity survive process restart.
+        honest,port=server(custody)
+        try:
+            for i in range(3):expect(ask(port),'REJECTED_BEFORE_START',0)
+        finally:stop(honest)
+        # A replacement authority cannot self-enroll an unrelated signing key.
+        subprocess.run(java+['init-replacement',str(fake)],check=True,capture_output=True,text=True)
+        rogue,rogue_port=server(fake)
+        try:
+            for i in range(3):expect(ask(rogue_port),'NO_AUTHORITY',0)
+        finally:stop(rogue)
+        # Lost or corrupt authoritative state fails closed rather than silently
+        # resetting to zero. This is an availability denial, not recovery.
+        (custody/'anchor.floor').write_text('garbled',encoding='utf-8')
+        honest,port=server(custody)
+        try:
+            expect(ask(port),'NO_AUTHORITY',0)
+        finally:stop(honest)
+        # Strict owner-of-root rollback: even original key/pin is insufficient;
+        # ordinary disk custody permits replay. Assert MUST-BLOCK to produce RED.
+        if strict:
+            (custody/'anchor.floor').write_text('0',encoding='utf-8')
+            honest,port=server(custody)
+            try:
+                out=ask(port)
+                assert 'RESULT=REJECTED_BEFORE_START' in out, (
+                    'KNOWN UNSAFE ORIGINAL-KEY ANCHOR FLOOR ROLLBACK: '+out)
+            finally:stop(honest)
+        print('FUTURE_INDEPENDENT_ANCHOR_JVM_PASS cases='+str(passed))
+        print('FUTURE_INDEPENDENT_ANCHOR_OWN_ROLLBACK=UNSAFE_AND_UNFIXED')
+
+
 pinned_journal_process_harness = r'''
 package de.yahya.ai;
 import java.nio.file.*;
@@ -8939,8 +9222,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     atomic_restart_child.write_text(atomic_owner_restart_harness,encoding='utf-8')
     pinned_child=Path(temp)/'FuturePinnedJournalProcess.java'
     pinned_child.write_text(pinned_journal_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child)], check=True)
+    protected_child=Path(temp)/'FutureProtectedAnchorProcess.java'
+    protected_child.write_text(protected_anchor_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child)], check=True)
     import sys
+    if '--strict-protected-anchor' in sys.argv:
+        process_protected_anchor_journal_proof(temp,strict=True)
+        sys.exit(0)
+    if '--focused-protected-anchor' in sys.argv:
+        process_protected_anchor_journal_proof(temp)
+        sys.exit(0)
     if '--strict-pinned-journal' in sys.argv:
         process_pinned_journal_attestation_proof(temp,strict=True)
         raise SystemExit(0)
