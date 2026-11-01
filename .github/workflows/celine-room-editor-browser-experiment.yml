@@ -806,7 +806,11 @@ jobs:
       - name: Install local Three.js / Playwright
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
-          npx playwright install --with-deps chromium
+          # ubuntu-24.04 hosted runner: avoid an apt-get refresh from Playwright
+          # --with-deps that stalled in exact HEAD 41256116889 for 35 minutes.
+          # Pinned browser install and REAL Chromium WebGL/mobile gates stay strict;
+          # missing OS dependencies will fail the actual launch, never be waived.
+          npx playwright install chromium
       - name: Serve unchanged original models and isolated editor
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-mobile-http.log 2>&1 &
