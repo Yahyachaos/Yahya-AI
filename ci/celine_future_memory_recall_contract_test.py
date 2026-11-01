@@ -14,6 +14,8 @@ assert source.is_file(), source
 # snapshot. This is NOT evidence of independently administered production CAS.
 import sys
 if ('--focused-global-claim-set' in sys.argv
+        or '--focused-live-floor-witness' in sys.argv
+        or '--strict-live-floor-witness' in sys.argv
         or '--strict-global-claim-set-rollback' in sys.argv):
     global_claim_guard_harness = r'''package de.yahya.ai;
 import java.security.*;
@@ -106,6 +108,39 @@ public final class FutureGlobalClaimSetProcess {
       if(throwQuery)throw new IllegalStateException("query lost");
       return answer("QUERY",authority,epoch,claim,exact,revision,owner,nonce);
     }
+  }
+  /** Simulated separately retained witness file: NOT actual nonrollbackable custody. */
+  static final class LiveFloorWitness implements CelineFutureMemoryRecall.IndependentGlobalFloorWitnessAuthority {
+    final boolean down,replay,forge;
+    LiveFloorWitness(boolean down,boolean replay,boolean forge){
+      this.down=down;this.replay=replay;this.forge=forge;
+    }
+    public CelineFutureMemoryRecall.SignedGlobalFloorWitness readMinimum(
+        String authority,String freshChallenge)throws Exception {
+      if(down)throw new java.io.IOException("independent witness disconnected");
+      Path floorFile=externalDir.resolve("witness-minimum.txt");
+      if(!Files.exists(floorFile))throw new java.io.IOException("witness minimum missing");
+      long minimum=Long.parseLong(Files.readString(floorFile).trim());
+      String challenge=replay?"replayed-challenge-not-this-request-2026":freshChallenge;
+      byte[] data=CelineFutureMemoryRecall.globalFloorWitnessPayload(AUTH,challenge,minimum);
+      byte[] proof=sign(5,data);
+      if(forge)proof[0]^=1;
+      return new CelineFutureMemoryRecall.SignedGlobalFloorWitness(AUTH,challenge,minimum,proof);
+    }
+  }
+  static CelineFutureMemoryRecall.ExternallyWitnessedGlobalClaimGate liveGate(
+      long epoch,boolean down,boolean replay,boolean forge)throws Exception {
+    var enrollment=new CelineFutureMemoryRecall.SignedOneShotEnrollment(AUTH,epoch,pins,
+      sign(1,CelineFutureMemoryRecall.oneShotEnrollmentPayload(AUTH,epoch,
+        pins[0],pins[1],pins[2],pins[3],pins[4])));
+    var provider=CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+        pins,enrollment,epoch,new Provider(epoch));
+    ok(provider!=null,"epoch provider authenticated before live witness binding");
+    var bound=CelineFutureMemoryRecall.ExternallyWitnessedGlobalClaimGate.bind(
+        provider,new ExternalLedger(false,false,false,false,false),
+        new LiveFloorWitness(down,replay,forge),keys[5].getPublic().getEncoded());
+    ok(bound!=null,"live witness bound under sixth pinned identity");
+    return bound;
   }
   static final class Provider implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
     final long epoch;
@@ -241,6 +276,54 @@ public final class FutureGlobalClaimSetProcess {
       // can be reset with its sixth private signer key unchanged.
       ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
         "KNOWN SECURITY FAIL: sixth authority and floor reset with all six keys unchanged: "+outcome);
+    }else if(action.equals("SET_LIVE_FLOOR")){
+      atomicFile(externalDir.resolve("witness-minimum.txt"),"1\n");
+      ok(Files.readString(externalDir.resolve("witness-minimum.txt")).trim().equals("1"),
+          "simulated external high-water independently retained in JVM fixture");
+    }else if(action.equals("LIVE_EXISTING")){
+      var l=liveGate(3,false,false,false);
+      ok(l.reserveOnce(claim,ID,REV,owner(claim),nonce("read-live-existing"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "fresh signed live floor preserves epoch2 reservation at epoch3");
+    }else if(action.equals("LIVE_NEW")){
+      var l=liveGate(3,false,false,false);
+      String fresh="global-claim-0009";
+      ok(l.reserveOnce(fresh,ID,REV,owner(fresh),nonce("read-live-new"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+        "new epoch3 claim passes signed high-water and global CAS");
+    }else if(action.equals("LIVE_OUTAGE") || action.equals("LIVE_REPLAY")
+             || action.equals("LIVE_FORGERY")){
+      var l=liveGate(3,action.equals("LIVE_OUTAGE"),
+                         action.equals("LIVE_REPLAY"),action.equals("LIVE_FORGERY"));
+      String fresh=action.equals("LIVE_OUTAGE")?"global-claim-0010":
+          action.equals("LIVE_REPLAY")?"global-claim-0011":"global-claim-0012";
+      ok(l.reserveOnce(fresh,ID,REV,owner(fresh),nonce("live-witness-absent-replay"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+        "disconnected/replayed/forged external floor cannot authorize CAS");
+      ok(l.queryExisting(fresh,ID,REV,owner(fresh),nonce("live-witness-query-failure"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+        "read-only query cannot bypass missing live witness");
+      ok(!Files.exists(providerDir.resolve(fresh+".txt")),
+        "no epoch provider mutation on missing/invalid live proof");
+    }else if(action.equals("LIVE_PRESERVED_ROLLBACK")){
+      // Mock ledger/provider restored while witness minimum stays 1.
+      Files.deleteIfExists(externalDir.resolve("spent.txt"));
+      Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+      var l=liveGate(3,false,false,false);
+      ok(l.reserveOnce(claim,ID,REV,owner(claim),nonce("live-witness-rollback-blocked"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,
+        "retained witness min rejects ledger reset sequence1");
+      ok(!Files.exists(providerDir.resolve(claim+".txt")),
+        "no provider side effect after global claim verification fail");
+    }else if(action.equals("STRICT_LIVE_TOTAL_ROLLBACK")){
+      // This MUST FAIL: resetting BOTH witness and mock ledger is still unsafe.
+      Files.deleteIfExists(externalDir.resolve("spent.txt"));
+      Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+      atomicFile(externalDir.resolve("witness-minimum.txt"),"0\n");
+      var l=liveGate(3,false,false,false);
+      var result=l.reserveOnce(claim,ID,REV,owner(claim),nonce("live-witness-complete-rollback"));
+      ok(result==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "KNOWN SECURITY FAIL: whole protected-floor rollback permitted second FIRST: "+result);
     }else if(action.equals("QUERY_DOWN")){
       ok(g.queryExisting(claim,ID,REV,owner(claim),nonce("query-missing"))==
         CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
@@ -279,6 +362,16 @@ public final class FutureGlobalClaimSetProcess {
             before = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
                       for i in range(6)]
             run_guard('E2_FIRST', 'E2_FIRST_PASS')
+            run_guard('SET_LIVE_FLOOR', 'SET_LIVE_FLOOR_PASS')
+            if '--strict-live-floor-witness' in sys.argv:
+                attack = subprocess.run(runner+['STRICT_LIVE_TOTAL_ROLLBACK',state],
+                                        capture_output=True, text=True, timeout=20)
+                print('LIVE_FLOOR_STRICT_EXPECTED_SECURITY_FAIL exit='+str(attack.returncode))
+                print(attack.stderr.strip() or attack.stdout.strip())
+                assert attack.returncode == 0, (
+                    'KNOWN SECURITY FAIL: complete simulated global-ledger AND '
+                    'independent floor rollback reauthorizes same six keys')
+                sys.exit(0)
             if '--strict-global-claim-set-rollback' in sys.argv:
                 # EXPECTED SECURITY FAIL: rollback of BOTH simulated custody
                 # AND independently retained minimum, original six keys intact.
@@ -290,6 +383,11 @@ public final class FutureGlobalClaimSetProcess {
                     'KNOWN SECURITY FAIL: total global-ledger/minimum rollback '
                     'allows second FIRST with same six signer keys')
                 sys.exit(0)
+            run_guard('LIVE_EXISTING', 'LIVE_EXISTING_PASS')
+            run_guard('LIVE_OUTAGE', 'LIVE_OUTAGE_PASS')
+            run_guard('LIVE_REPLAY', 'LIVE_REPLAY_PASS')
+            run_guard('LIVE_FORGERY', 'LIVE_FORGERY_PASS')
+            run_guard('LIVE_NEW', 'LIVE_NEW_PASS')
             run_guard('SIXTH_PIN_SWAP', 'SIXTH_PIN_SWAP_PASS')
             run_guard('PROVIDER_ROLLBACK', 'PROVIDER_ROLLBACK_PASS')
             run_guard('E3_ALREADY', 'E3_ALREADY_PASS')
@@ -313,6 +411,7 @@ public final class FutureGlobalClaimSetProcess {
             assert wins == 1, 'global atomic CAS must allow exactly one FIRST'
             proof_count += 4
             run_guard('RESET_SIDE_WITH_FLOOR', 'RESET_SIDE_WITH_FLOOR_PASS')
+            run_guard('LIVE_PRESERVED_ROLLBACK', 'LIVE_PRESERVED_ROLLBACK_PASS')
             after = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
                      for i in range(6)]
             assert before == after, 'original six private signing keys changed'
