@@ -7,6 +7,320 @@ import hashlib
 
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
+
+# FUTURE-ONLY independent (sixth-key) global claim-set pre-commit. Run this
+# bounded contract without starting the unrelated 27-main legacy suite.
+# The test double stores its global spent-set outside the simulated caller
+# snapshot. This is NOT evidence of independently administered production CAS.
+import sys
+if ('--focused-global-claim-set' in sys.argv
+        or '--strict-global-claim-set-rollback' in sys.argv):
+    global_claim_guard_harness = r'''package de.yahya.ai;
+import java.security.*;
+import java.security.spec.*;
+import java.nio.file.*;
+import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+public final class FutureGlobalClaimSetProcess {
+  static final String AUTH="externally-owned-issuer", ID="memory-id-one";
+  static final long REV=2;
+  static Path root, providerDir, externalDir;
+  static KeyPair[] keys;
+  static byte[][] pins;
+  static int checks=0;
+  static void ok(boolean yes,String message){if(!yes)throw new AssertionError(message);checks++;}
+  static byte[] sign(int i,byte[] payload)throws Exception {
+    Signature s=Signature.getInstance("Ed25519");s.initSign(keys[i].getPrivate());s.update(payload);return s.sign();
+  }
+  static KeyPair pair(int i)throws Exception {
+    var f=KeyFactory.getInstance("Ed25519");
+    Path dir=root.resolve("keys");
+    return new KeyPair(f.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(dir.resolve(i+".pub")))),
+        f.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(dir.resolve(i+".priv")))));
+  }
+  static void init()throws Exception {
+    Files.createDirectories(root.resolve("keys"));
+    var gen=KeyPairGenerator.getInstance("Ed25519");
+    for(int i=0;i<6;i++){
+      var k=gen.generateKeyPair();
+      Files.write(root.resolve("keys/"+i+".pub"),k.getPublic().getEncoded());
+      Files.write(root.resolve("keys/"+i+".priv"),k.getPrivate().getEncoded());
+    }
+    System.out.println("INIT_OK");
+  }
+  static void load()throws Exception {
+    keys=new KeyPair[6];pins=new byte[5][];
+    for(int i=0;i<6;i++){keys[i]=pair(i);if(i<5)pins[i]=keys[i].getPublic().getEncoded();}
+  }
+  static void atomicFile(Path file,String data)throws Exception {
+    Files.createDirectories(file.getParent());
+    Path tmp=Files.createTempFile(file.getParent(),"claim-stage-",".tmp");
+    try {
+      try(var out=FileChannel.open(tmp,StandardOpenOption.WRITE)) {
+        var bytes=StandardCharsets.UTF_8.encode(data);
+        while(bytes.hasRemaining())out.write(bytes);
+        out.force(true);
+      }
+      Files.move(tmp,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+      try(var dir=FileChannel.open(file.getParent(),StandardOpenOption.READ)) {dir.force(true);}
+    }finally{Files.deleteIfExists(tmp);}
+  }
+  static final class ExternalLedger implements CelineFutureMemoryRecall.IndependentGlobalClaimSetAuthority {
+    final boolean crashAfter, unavailable, forge, wrongEpoch, throwQuery;
+    ExternalLedger(boolean crash,boolean down,boolean forged,boolean oldEpoch,boolean queryDown){
+      crashAfter=crash;unavailable=down;forge=forged;wrongEpoch=oldEpoch;throwQuery=queryDown;
+    }
+    CelineFutureMemoryRecall.SignedGlobalClaimDecision answer(String operation,String authority,
+      long epoch,String claim,String exact,long revision,byte[] owner,String nonce)throws Exception {
+      if(unavailable)throw new IllegalStateException("external authority unavailable");
+      Files.createDirectories(externalDir);
+      Path lock=externalDir.resolve("claim.lock"), ledger=externalDir.resolve("spent.txt");
+      try(var channel=FileChannel.open(lock,StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+          var guard=channel.lock()){
+        TreeSet<String> ids=new TreeSet<>();
+        if(Files.exists(ledger))ids.addAll(Files.readAllLines(ledger));
+        boolean already=ids.contains(claim);
+        String state;
+        if(operation.equals("RESERVE")) {
+          if(!already){ids.add(claim);atomicFile(ledger,String.join("\n",ids)+"\n");}
+          if(!already && crashAfter)Runtime.getRuntime().halt(79);
+          state=already?"ALREADY_COMMITTED":"FIRST_COMMITTED";
+        }else state=already?"COMMITTED":"ABSENT";
+        long sequence=ids.size();
+        long replyEpoch=wrongEpoch?epoch-1:epoch;
+        byte[] payload=CelineFutureMemoryRecall.globalClaimDecisionPayload(authority,replyEpoch,
+                claim,exact,revision,owner,nonce,operation,state,sequence);
+        byte[] signature=sign(5,payload);if(forge)signature[0]^=1;
+        return new CelineFutureMemoryRecall.SignedGlobalClaimDecision(authority,replyEpoch,
+                claim,exact,revision,nonce,operation,state,sequence,signature);
+      }
+    }
+    public CelineFutureMemoryRecall.SignedGlobalClaimDecision reserveOnce(String authority,
+      long epoch,String claim,String exact,long revision,byte[] owner,String nonce)throws Exception {
+      return answer("RESERVE",authority,epoch,claim,exact,revision,owner,nonce);
+    }
+    public CelineFutureMemoryRecall.SignedGlobalClaimDecision queryExisting(String authority,
+      long epoch,String claim,String exact,long revision,byte[] owner,String nonce)throws Exception {
+      if(throwQuery)throw new IllegalStateException("query lost");
+      return answer("QUERY",authority,epoch,claim,exact,revision,owner,nonce);
+    }
+  }
+  static final class Provider implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
+    final long epoch;
+    Provider(long epoch){this.epoch=epoch;}
+    public CelineFutureMemoryRecall.SignedOneShotProviderAttestation attestEnrollment(
+       CelineFutureMemoryRecall.SignedOneShotEnrollment enrollment,String challenge)throws Exception {
+      byte[] payload=CelineFutureMemoryRecall.oneShotEnrollmentPayload(AUTH,epoch,pins[0],pins[1],pins[2],pins[3],pins[4]);
+      byte[] m=CelineFutureMemoryRecall.oneShotProviderAttestationPayload(AUTH,epoch,
+                  payload,enrollment.signature(),challenge);
+      return new CelineFutureMemoryRecall.SignedOneShotProviderAttestation(AUTH,epoch,
+                  challenge,pins[4],sign(4,m));
+    }
+    public CelineFutureMemoryRecall.SignedMonotonicReservation reserveOnce(String claim,
+      String id,long revision,byte[] ownerSig,String nonce)throws Exception {
+      Files.createDirectories(providerDir);
+      Path file=providerDir.resolve(claim+".txt");
+      boolean first=!Files.exists(file);
+      if(first)atomicFile(file,claim+"\n");
+      String state=first?"FIRST_RESERVED":"ALREADY_RESERVED";
+      byte[] payload=CelineFutureMemoryRecall.monotonicReservationPayload(claim,id,revision,
+              ownerSig,nonce,pins[0],pins[1],pins[2],pins[3],epoch,1,state);
+      return new CelineFutureMemoryRecall.SignedMonotonicReservation(claim,id,
+              revision,nonce,epoch,1,state,pins[3],sign(4,payload));
+    }
+    public CelineFutureMemoryRecall.SignedMonotonicReservationStatus queryExisting(String claim,
+      String id,long revision,byte[] ownerSig,String nonce)throws Exception {
+      boolean present=Files.exists(providerDir.resolve(claim+".txt"));
+      String state=present?"RESERVED":"ABSENT";
+      long seq=present?1:0;
+      byte[] payload=CelineFutureMemoryRecall.monotonicQueryExistingPayload(claim,id,
+              revision,ownerSig,nonce,pins[0],pins[1],pins[2],pins[3],epoch,seq,state);
+      return new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(claim,id,
+              revision,nonce,epoch,seq,state,pins[3],sign(4,payload));
+    }
+  }
+  static CelineFutureMemoryRecall.ProvisionedGlobalClaimGate gate(long epoch,long minimum,
+      boolean crash,boolean down,boolean forge,boolean oldEpoch,boolean queryDown)throws Exception {
+    var enr=new CelineFutureMemoryRecall.SignedOneShotEnrollment(AUTH,epoch,pins,
+      sign(1,CelineFutureMemoryRecall.oneShotEnrollmentPayload(AUTH,epoch,
+        pins[0],pins[1],pins[2],pins[3],pins[4])));
+    var bound=CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+        pins,enr,epoch,new Provider(epoch));
+    ok(bound!=null,"signed five-key provider bound");
+    return CelineFutureMemoryRecall.ProvisionedGlobalClaimGate.bindFromExternalAdministrator(
+        bound, new ExternalLedger(crash,down,forge,oldEpoch,queryDown),
+        keys[5].getPublic().getEncoded(),minimum);
+  }
+  static String nonce(String suffix){return "global-claim-unique-nonce-2026-"+suffix;}
+  static byte[] owner(String claim)throws Exception {
+    return sign(0,CelineFutureMemoryRecall.originalOwnerClaimPayload(claim,ID,REV));
+  }
+  static CelineFutureMemoryRecall.GlobalClaimGateOutcome reserve(
+       CelineFutureMemoryRecall.ProvisionedGlobalClaimGate g,String claim,String suffix){
+    return g.reserveOnce(claim,ID,REV,ownerUnchecked(claim),nonce(suffix));
+  }
+  static byte[] ownerUnchecked(String claim){try{return owner(claim);}catch(Exception ex){throw new RuntimeException(ex);}}
+  static void test(String action)throws Exception {
+    boolean isE2=action.equals("E2_FIRST");
+    boolean e3=!isE2;
+    long epoch=e3?3:2;
+    String claim="global-claim-0001";
+    if(action.equals("PROVIDER_ROLLBACK"))Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+    if(action.equals("RESET_SIDE_WITH_FLOOR") || action.equals("STRICT_TOTAL_ROLLBACK")) {
+      Files.deleteIfExists(externalDir.resolve("spent.txt"));
+      Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+    }
+    long floor=action.equals("RESET_SIDE_WITH_FLOOR")?1:0;
+    var g=gate(epoch,floor,action.equals("CRASH_AFTER_SYNC"),
+      action.equals("SERVICE_DOWN"),action.equals("FORGED_RECEIPT"),
+      action.equals("REPLAY_EPOCH2"),action.equals("QUERY_DOWN"));
+    ok(g!=null,"sixth-key independent-bound facade");
+    if(isE2){
+      ok(reserve(g,claim,"e2first")==CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+        "epoch2 first globally reserved");
+      ok(g.queryExisting(claim,ID,REV,owner(claim),nonce("e2query"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,"read-only query sees existing");
+    }else if(action.equals("E3_ALREADY") || action.equals("PROVIDER_ROLLBACK")){
+      ok(reserve(g,claim,"e3repeat")==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "epoch3 must preserve claim already spent epoch2");
+      if(action.equals("PROVIDER_ROLLBACK"))
+        ok(!Files.exists(providerDir.resolve(claim+".txt")),"no provider retry after rollback");
+      String fresh="global-claim-0002";
+      if(action.equals("E3_ALREADY"))
+        ok(reserve(g,fresh,"e3newclaim")==CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+          "only new epoch3 claim may FIRST");
+    }else if(action.equals("CRASH_AFTER_SYNC")){
+      reserve(g,"global-claim-0003","crashafterdurable");
+      throw new AssertionError("crash not reached");
+    }else if(action.equals("CONCURRENT")){
+      var outcome=reserve(g,"global-claim-0007","simultaneous-epoch3");
+      ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+        || outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "concurrent claim globally fenced");
+      System.out.println("CONCURRENT_RESULT="+outcome);
+    }else if(action.equals("QUERY_ABSENT")){
+      String c="global-claim-0008";
+      ok(g.queryExisting(c,ID,REV,owner(c),nonce("query-absent-test"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "absent read-only result cannot authorize reserve");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"read-only absence makes no provider write");
+    }else if(action.equals("SIXTH_PIN_SWAP")){
+      var e=new CelineFutureMemoryRecall.SignedOneShotEnrollment(AUTH,3,pins,
+        sign(1,CelineFutureMemoryRecall.oneShotEnrollmentPayload(AUTH,3,
+          pins[0],pins[1],pins[2],pins[3],pins[4])));
+      var backend=CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+          pins,e,3,new Provider(3));
+      ok(CelineFutureMemoryRecall.ProvisionedGlobalClaimGate.bindFromExternalAdministrator(
+          backend,new ExternalLedger(false,false,false,false,false),pins[4],0)==null,
+          "sixth independent key cannot equal original provider key");
+    }else if(action.equals("QUERY_C")){
+      String c="global-claim-0003";
+      ok(g.queryExisting(c,ID,REV,owner(c),nonce("query-after-crash"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "lost ACK safely read-only recover");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"no post-crash provider retry");
+    }else if(action.equals("SERVICE_DOWN")){
+      ok(reserve(g,"global-claim-0004","service-missing")==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+        "external service unavailable must fail-closed");
+      ok(!Files.exists(providerDir.resolve("global-claim-0004.txt")),"no provider call when service down");
+    }else if(action.equals("FORGED_RECEIPT") || action.equals("REPLAY_EPOCH2")){
+      String c=action.equals("FORGED_RECEIPT")?"global-claim-0005":"global-claim-0006";
+      ok(reserve(g,c,"forgeryepochattest")==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,"forged/old epoch denied");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"provider untouched on forged receipt");
+    }else if(action.equals("RESET_SIDE_WITH_FLOOR")){
+      ok(reserve(g,claim,"oldfloorblocking")==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,"preserved minimum detects reset");
+      ok(!Files.exists(providerDir.resolve(claim+".txt")),"no provider call when global floor reset");
+    }else if(action.equals("STRICT_TOTAL_ROLLBACK")){
+      var outcome=reserve(g,claim,"totalrollbacksamekeys");
+      // This strict mode MUST FAIL while the stand-in external ledger itself
+      // can be reset with its sixth private signer key unchanged.
+      ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "KNOWN SECURITY FAIL: sixth authority and floor reset with all six keys unchanged: "+outcome);
+    }else if(action.equals("QUERY_DOWN")){
+      ok(g.queryExisting(claim,ID,REV,owner(claim),nonce("query-missing"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "query service down indeterminate, never retry");
+    }else throw new AssertionError("unknown action "+action);
+    System.out.println(action+"_PASS checks="+checks);
+  }
+  public static void main(String[] args)throws Exception {
+    root=Path.of(args[1]);providerDir=root.resolve("caller-snapshot/provider");
+    externalDir=root.resolve("outside-caller-snapshot/global-ledger");
+    if(args[0].equals("INIT")){init();return;}
+    load();test(args[0]);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_global_claim_guard_jvm_') as javadir:
+        child = Path(javadir) / 'FutureGlobalClaimSetProcess.java'
+        child.write_text(global_claim_guard_harness, encoding='utf-8')
+        compile_result = subprocess.run(
+            ['javac', '-encoding', 'UTF-8', '-d', javadir, str(source), str(child)],
+            capture_output=True, text=True, timeout=60)
+        assert compile_result.returncode == 0, compile_result.stderr
+        with tempfile.TemporaryDirectory(prefix='future_global_claim_custody_') as state:
+            runner = ['java', '-cp', javadir,
+                      'de.yahya.ai.FutureGlobalClaimSetProcess']
+            proof_count = 0
+            def run_guard(mode, marker, expected_exit=0):
+                global proof_count
+                proc = subprocess.run(runner+[mode,state], capture_output=True,
+                                      text=True, timeout=20)
+                assert proc.returncode == expected_exit and marker in proc.stdout, (
+                    mode, proc.returncode, proc.stdout, proc.stderr)
+                proof_count += 1
+                return proc
+            run_guard('INIT', 'INIT_OK')
+            before = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                      for i in range(6)]
+            run_guard('E2_FIRST', 'E2_FIRST_PASS')
+            if '--strict-global-claim-set-rollback' in sys.argv:
+                # EXPECTED SECURITY FAIL: rollback of BOTH simulated custody
+                # AND independently retained minimum, original six keys intact.
+                attack = subprocess.run(runner+['STRICT_TOTAL_ROLLBACK',state],
+                                        capture_output=True, text=True, timeout=20)
+                print('GLOBAL_CLAIM_STRICT_EXPECTED_SECURITY_FAIL exit='+str(attack.returncode))
+                print(attack.stderr.strip() or attack.stdout.strip())
+                assert attack.returncode == 0, (
+                    'KNOWN SECURITY FAIL: total global-ledger/minimum rollback '
+                    'allows second FIRST with same six signer keys')
+                sys.exit(0)
+            run_guard('SIXTH_PIN_SWAP', 'SIXTH_PIN_SWAP_PASS')
+            run_guard('PROVIDER_ROLLBACK', 'PROVIDER_ROLLBACK_PASS')
+            run_guard('E3_ALREADY', 'E3_ALREADY_PASS')
+            run_guard('SERVICE_DOWN', 'SERVICE_DOWN_PASS')
+            run_guard('FORGED_RECEIPT', 'FORGED_RECEIPT_PASS')
+            run_guard('REPLAY_EPOCH2', 'REPLAY_EPOCH2_PASS')
+            run_guard('QUERY_ABSENT', 'QUERY_ABSENT_PASS')
+            run_guard('QUERY_DOWN', 'QUERY_DOWN_PASS')
+            run_guard('CRASH_AFTER_SYNC', '', expected_exit=79)
+            run_guard('QUERY_C', 'QUERY_C_PASS')
+            # Four fresh JVMs race for the same global claim across file locks.
+            procs = [subprocess.Popen(runner+['CONCURRENT',state],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                     for _ in range(4)]
+            wins = 0
+            for proc in procs:
+                out,err = proc.communicate(timeout=20)
+                assert proc.returncode == 0 and 'CONCURRENT_PASS' in out, (out,err)
+                if 'CONCURRENT_RESULT=FIRST_RESERVED_PENDING_ACK' in out: wins += 1
+                else: assert 'CONCURRENT_RESULT=ALREADY_RESERVED_NO_RETRY' in out
+            assert wins == 1, 'global atomic CAS must allow exactly one FIRST'
+            proof_count += 4
+            run_guard('RESET_SIDE_WITH_FLOOR', 'RESET_SIDE_WITH_FLOOR_PASS')
+            after = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                     for i in range(6)]
+            assert before == after, 'original six private signing keys changed'
+            print('FUTURE_GLOBAL_CLAIM_SET_JVM_PASS processes='+str(proof_count)
+                  +' races=4 first=1 crash_exit=79 original_signers=6')
+            print('EXTERNAL_NONROLLBACKABLE_GLOBAL_CLAIM_CUSTODY_NOT_IMPLEMENTED')
+    sys.exit(0)
+
 harness = r'''
 package de.yahya.ai;
 import java.util.*;
