@@ -1448,6 +1448,57 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY recovery after a lost acknowledgement. Both replies MUST be
+     * freshly signed over the same original owner claim and query nonce by
+     * independently pre-enrolled provider and custodian identities. A provider
+     * reservation alone is NOT a completed memory operation. Only a separate
+     * read-only ALREADY_CONSUMED custodian acknowledgement can complete proof.
+     *
+     * This PURE verifier performs no reserveOnce/consume/query calls or disk
+     * writes. Missing, ABSENT, conflicting or untrusted evidence NEVER grants
+     * retry permission. The trusted minima MUST themselves be independently
+     * held outside rollbackable caller/provider/custodian snapshots. This
+     * method cannot implement or prove such external nonrollbackable custody.
+     */
+    public static ReceiptStatusOutcome reconcileLostAckAcrossAuthoritiesReadOnly(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] pinnedOwner, byte[] pinnedRoot, byte[] pinnedOperator,
+            byte[] pinnedCustodian, byte[] pinnedIndependentProvider,
+            long trustedProviderEpoch, long trustedReservationSequence,
+            long trustedCustodianEpoch, long trustedConsumedSequence,
+            SignedMonotonicReservationStatus providerStatus,
+            SignedAtomicCustodianAck custodianReadOnlyAck) {
+        if (providerStatus == null || custodianReadOnlyAck == null)
+            return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        // The initial COMMITTED acknowledgement is not a recovered read-only
+        // status. The status signer must attest ALREADY_CONSUMED for this query.
+        if (!"ALREADY_CONSUMED".equals(custodianReadOnlyAck.state))
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        MonotonicQueryOutcome reserved = verifyMonotonicQueryExisting(
+                claimId, exactId, sourceRevision, originalOwnerSignature,
+                freshQueryNonce, pinnedOwner, pinnedRoot, pinnedOperator,
+                pinnedCustodian, pinnedIndependentProvider,
+                trustedProviderEpoch, trustedReservationSequence, providerStatus);
+        if (reserved == MonotonicQueryOutcome.NO_AUTHORITY)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (reserved == MonotonicQueryOutcome.UNVERIFIABLE)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        if (reserved != MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY)
+            return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        ReceiptStatusOutcome consumed = verifyAtomicCustodianAck(
+                claimId, exactId, sourceRevision, originalOwnerSignature,
+                freshQueryNonce, pinnedOwner, pinnedRoot, pinnedOperator,
+                pinnedCustodian, trustedCustodianEpoch, trustedConsumedSequence,
+                custodianReadOnlyAck);
+        // No provider or caller status may substitute for an authenticated
+        // independently custodied positive memory-commit receipt.
+        return consumed == ReceiptStatusOutcome.CONSUMED_VERIFIED
+                ? consumed : (consumed == ReceiptStatusOutcome.NO_AUTHORITY
+                        ? consumed : ReceiptStatusOutcome.UNVERIFIABLE);
+    }
+
+    /**
      * Verifies a pre-consumption provider decision, not a memory commit.
      * FIRST_RESERVED_PENDING_ACK is NOT a success receipt and never triggers
      * an automatic custodian retry. ALREADY_RESERVED means no new attempt;
