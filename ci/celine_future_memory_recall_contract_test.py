@@ -10070,6 +10070,163 @@ public final class FutureAtomicCustodianProcess {
 }
 '''
 
+# A separate fifth-key JVM only simulates independent storage. The floor file
+# is intentionally rollbackable: neither Ed25519 nor a Python directory is a
+# genuine nonrollbackable external custody or product security guarantee.
+monotonic_claim_floor_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.util.*;
+
+public final class FutureIndependentClaimFloorProcess {
+  static final String ID="source-memory-1", CLAIM="memory-claim-0001";
+  static final long REV=2;
+  static byte[] pin(Path p)throws Exception{return FutureAtomicCustodianProcess.pub(p).getEncoded();}
+  static byte[] sign(Path p,byte[] data)throws Exception{
+    return FutureAtomicCustodianProcess.sign(p,data);
+  }
+  static byte[] original(Path o,String claim)throws Exception{
+    return FutureAtomicCustodianProcess.ownerSig(o,claim,ID);
+  }
+  static Path floorRecord(Path floor,String claim){return floor.resolve(claim+".floor");}
+  static void attest(Path owner,Path root,Path operator,Path custodian,Path floor,
+       String claim,String nonce,String mode,long trustedMinimum)throws Exception{
+    byte[] ownerPin=pin(owner),rootPin=pin(root),operatorPin=pin(operator);
+    byte[] custodianPin=pin(custodian),floorPin=pin(floor),ownerSignature=original(owner,claim);
+    byte[] correctOwner=ownerSignature.clone();
+    boolean present=Files.exists(FutureAtomicCustodianProcess.recordPath(custodian,claim));
+    if(present)present=FutureAtomicCustodianProcess.authenticatedExisting(
+      FutureAtomicCustodianProcess.recordPath(custodian,claim),custodian,
+      FutureAtomicCustodianProcess.durablePayload(owner,root,operator,claim,ID));
+    String ackState=mode.equals("COMMITTED_INITIAL")||mode.equals("REPLAY_COMMITTED")
+      ?"COMMITTED":"ALREADY_CONSUMED";
+    byte[] ackSignature=present?sign(custodian,
+      CelineFutureMemoryRecall.atomicCustodianAckPayload(claim,ID,REV,correctOwner,
+        nonce,ownerPin,rootPin,operatorPin,2,1,ackState)):null;
+    if(mode.equals("ACK_BAD_SIG")&&ackSignature!=null)ackSignature[0]^=1;
+    var ack=!present||mode.equals("MISSING_ACK")?null:
+      new CelineFutureMemoryRecall.SignedAtomicCustodianAck(claim,ID,REV,nonce,2,
+        mode.equals("ACK_WRONG_SEQ")?2:1,ackState,ackSignature);
+    Path floorFile=floorRecord(floor,claim);
+    boolean hasFloor=Files.exists(floorFile)&&!mode.equals("FLOOR_MISSING");
+    long seq=hasFloor?Long.parseLong(Files.readString(floorFile).trim()):0;
+    String state=seq>0?"CONSUMED":"ABSENT";
+    long epoch=mode.equals("FLOOR_EPOCH_ROLLBACK")?1:2;
+    byte[] signedFloorPin=mode.equals("FLOOR_CUSTODIAN_PIN_MISMATCH")?rootPin:custodianPin;
+    byte[] floorPayload=CelineFutureMemoryRecall.externalClaimFloorPayload(
+      claim,ID,REV,correctOwner,nonce,ownerPin,rootPin,operatorPin,
+      signedFloorPin,epoch,seq,state);
+    byte[] signature=hasFloor?sign(mode.equals("FLOOR_WRONG_KEY")?custodian:floor,floorPayload):null;
+    if(mode.equals("FLOOR_BAD_SIG")&&signature!=null)signature[0]^=1;
+    byte[] suppliedFloorPin=mode.equals("FLOOR_PIN_COLLISION")?ownerPin:floorPin;
+    if(mode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
+    var attestation=!hasFloor?null:new CelineFutureMemoryRecall.SignedExternalClaimFloor(
+      claim,mode.equals("FLOOR_WRONG_ID")?"other-id":ID,
+      mode.equals("FLOOR_WRONG_REV")?3:REV,
+      mode.equals("FLOOR_WRONG_NONCE")?"not-the-fresh-nonce":nonce,
+      epoch,seq,state,signedFloorPin,signature);
+    var result=CelineFutureMemoryRecall.verifyAtomicAckWithIndependentClaimFloor(
+      claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+      custodianPin,suppliedFloorPin,2,trustedMinimum,attestation,ack);
+    System.out.println("RESULT="+result+" CUSTODIAN="+present+" FLOOR="+seq
+      +" ACK="+ackState+" MIN="+trustedMinimum);
+  }
+  public static void main(String[] args)throws Exception{
+    if(args.length!=10)throw new IllegalArgumentException("expected check 5 dirs claim nonce mode trustedMin");
+    if(!args[0].equals("check"))throw new IllegalArgumentException("check only");
+    attest(Path.of(args[1]),Path.of(args[2]),Path.of(args[3]),Path.of(args[4]),
+      Path.of(args[5]),args[6],args[7],args[8],Long.parseLong(args[9]));
+  }
+}
+'''
+
+
+def process_independent_claim_floor_proof(compiled, strict=False):
+    import hashlib
+    with tempfile.TemporaryDirectory(prefix='future_monotonic_claim_floor_') as tmp:
+        top=Path(tmp)
+        owner,root,operator,custodian,floor=[top/x for x in
+            ('owner','root','operator','custodian','independent_floor')]
+        for path in (owner,root,operator,custodian,floor):
+            p=subprocess.run(['java','-cp',compiled,
+                'de.yahya.ai.FutureIndependentHighWaterProcess','init',str(path)],
+                capture_output=True,text=True,check=True,timeout=12)
+            assert 'INIT ' in p.stdout,(p.stdout,p.stderr)
+        keys=[(p/'identity.priv').read_bytes() for p in
+            (owner,root,operator,custodian,floor)]
+        claim='memory-claim-0001';nonce='monotonic-claim-floor-nonce-0001'
+        atomic=['java','-cp',compiled,'de.yahya.ai.FutureAtomicCustodianProcess']
+        client=['java','-cp',compiled,'de.yahya.ai.FutureIndependentClaimFloorProcess']
+        record=custodian/(hashlib.sha256(claim.encode()).hexdigest()+'.claim')
+        floor_record=floor/(claim+'.floor')
+        count=0
+        def consume():
+            return subprocess.run(atomic+['consume',str(owner),str(root),str(operator),
+                str(custodian),claim,nonce,'NORMAL'],capture_output=True,text=True,
+                check=True,timeout=14)
+        def verify(mode='NORMAL',minimum=1,expected='CONSUMED_VERIFIED'):
+            nonlocal count
+            p=subprocess.run(client+['check',str(owner),str(root),str(operator),
+                str(custodian),str(floor),claim,nonce,mode,str(minimum)],
+                capture_output=True,text=True,check=True,timeout=14)
+            assert 'RESULT='+expected+' ' in p.stdout,(mode,minimum,p.stdout,p.stderr)
+            count+=1
+            return p.stdout
+        verify(expected='NO_AUTHORITY',minimum=0)
+        first=consume()
+        assert 'ACK=COMMITTED' in first.stdout;count+=1
+        assert record.exists();count+=1
+        verify(expected='NO_AUTHORITY',minimum=0)
+        # Model a separate fifth authority whose floor is supplied independently
+        # of custodian status. Its plain file is NOT production nonrollbackable.
+        floor_record.write_text('1',encoding='ascii')
+        verify(mode='COMMITTED_INITIAL',minimum=0)
+        verify()
+        for _ in range(2):verify()
+        for mode,result,minimum in (
+            ('FLOOR_MISSING','NO_AUTHORITY',1),
+            ('FLOOR_BAD_SIG','UNVERIFIABLE',1),
+            ('FLOOR_WRONG_KEY','UNVERIFIABLE',1),
+            ('FLOOR_PIN_COLLISION','NO_AUTHORITY',1),
+            ('FLOOR_CUSTODIAN_PIN_MISMATCH','NO_AUTHORITY',1),
+            ('FLOOR_WRONG_ID','UNVERIFIABLE',1),
+            ('FLOOR_WRONG_REV','UNVERIFIABLE',1),
+            ('FLOOR_WRONG_NONCE','UNVERIFIABLE',1),
+            ('FLOOR_EPOCH_ROLLBACK','UNVERIFIABLE',1),
+            ('ACK_BAD_SIG','UNVERIFIABLE',1),
+            ('ACK_WRONG_SEQ','UNVERIFIABLE',1),
+            ('FORGED_OWNER','UNVERIFIABLE',1),
+            ('MISSING_ACK','REMAIN_INDETERMINATE',1),
+            ('REPLAY_COMMITTED','UNVERIFIABLE',1),
+            ('NORMAL','UNVERIFIABLE',2)):
+            verify(mode,minimum,result)
+        # Restore the same keys with only the custodian durable record gone.
+        # The floor alone cannot confer action/retry authority.
+        record.unlink()
+        verify(expected='REMAIN_INDETERMINATE')
+        for path,key in zip((owner,root,operator,custodian,floor),keys):
+            assert (path/'identity.priv').read_bytes()==key;count+=1
+        # Simultaneously reset the *fifth* authority's own ordinary file.
+        # Its original key signs ABSENT. A prior independently held sequence=1
+        # makes this a rejection; if that prior state is lost, trust is lost.
+        floor_record.write_text('0',encoding='ascii')
+        verify(expected='UNVERIFIABLE')
+        verify(minimum=0,expected='NO_AUTHORITY')
+        if strict:
+            # Known RED: no hardware/remote nonrollbackable floor; both files
+            # reset under original keys, then reconsume can appear first-time.
+            again=consume()
+            assert 'ACK=COMMITTED' in again.stdout,(again.stdout,again.stderr)
+            floor_record.write_text('1',encoding='ascii')
+            wrong=verify(mode='COMMITTED_INITIAL',minimum=0)
+            assert 'RESULT=UNVERIFIABLE' in wrong,(
+                'KNOWN SECURITY FAIL: all original keys reused after total '
+                'snapshot rollback, trust minimum reset and same claim '
+                'accepted again: '+wrong)
+        print('FUTURE_INDEPENDENT_CLAIM_FLOOR_REAL_JVM_PASS cases='+str(count))
+        print('FUTURE_INDEPENDENT_FLOOR_STORAGE_IS_SIMULATED_AND_ROLLBACKABLE')
+
 def process_atomic_custodian_proof(compiled, strict=False):
     import concurrent.futures
     import hashlib
@@ -10202,8 +10359,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     anchor_child.write_text(external_checkpoint_process_harness,encoding='utf-8')
     custodian_child=Path(temp)/'FutureAtomicCustodianProcess.java'
     custodian_child.write_text(atomic_custodian_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child)], check=True)
+    floor_child=Path(temp)/'FutureIndependentClaimFloorProcess.java'
+    floor_child.write_text(monotonic_claim_floor_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child)], check=True)
     import sys
+    if '--focused-independent-claim-floor' in sys.argv:
+        process_independent_claim_floor_proof(temp)
+        sys.exit(0)
+    if '--strict-independent-claim-floor' in sys.argv:
+        process_independent_claim_floor_proof(temp,strict=True)
+        sys.exit(0)
     if '--focused-atomic-custodian' in sys.argv:
         process_atomic_custodian_proof(temp)
         sys.exit(0)
@@ -10356,3 +10521,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_operator_claim_commitment_proof(temp)
     process_external_consumed_checkpoint_proof(temp)
     process_atomic_custodian_proof(temp)
+    process_independent_claim_floor_proof(temp)
