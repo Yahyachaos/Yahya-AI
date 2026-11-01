@@ -10675,9 +10675,17 @@ public final class FutureCrossAuthorityRecoveryProcess {
     CelineFutureMemoryRecall.SignedAtomicCustodianAck custodianAck=null;
     if(hasConsumed && !mode.equals("CUSTODIAN_MISSING")){
       String ackState=mode.equals("CUSTODIAN_COMMITTED")?"COMMITTED":"ALREADY_CONSUMED";
-      byte[] ackPayload=CelineFutureMemoryRecall.atomicCustodianAckPayload(
-        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
-        2,1,ackState);
+      // Distinct query-signature purpose: a real consume response cannot
+      // masquerade as a read-only status even if ALREADY_CONSUMED is signed.
+      boolean consumeReplay=mode.equals("CUSTODIAN_CONSUME_REPLAY")
+        ||mode.equals("CUSTODIAN_COMMITTED");
+      byte[] ackPayload=consumeReplay
+        ? CelineFutureMemoryRecall.atomicCustodianAckPayload(
+            claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+            2,1,ackState)
+        : CelineFutureMemoryRecall.atomicCustodianReadOnlyQueryPayload(
+            claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+            2,1,ackState);
       byte[] ackSignature=sign(mode.equals("CUSTODIAN_WRONG_KEY")?provider:custodian,
         ackPayload);
       if(mode.equals("CUSTODIAN_BAD_SIG"))ackSignature[0]^=1;
@@ -10691,6 +10699,15 @@ public final class FutureCrossAuthorityRecoveryProcess {
         ackState,ackSignature);
     }
     if(mode.equals("OWNER_FORGED"))ownerSignature[0]^=1;
+    // Reciprocal domain isolation: signed read-only status is not a consume ACK.
+    if(mode.equals("CUSTODIAN_QUERY_AS_CONSUME")){
+      var consume=CelineFutureMemoryRecall.verifyAtomicCustodianAck(
+        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+        custodianPin,2L,trustedCustodian,custodianAck);
+      System.out.println("RESULT="+consume+" RESERVED="+providerState+
+        " CUSTODIAN_PRESENT="+hasConsumed+" READ_ONLY=1");
+      return;
+    }
     var decision=CelineFutureMemoryRecall.reconcileLostAckAcrossAuthoritiesReadOnly(
       claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
       custodianPin,providerPin,2L,trustedProvider,2L,trustedCustodian,
@@ -10786,6 +10803,8 @@ def process_cross_authority_readonly_recovery_proof(compiled, strict=False):
             ('CUSTODIAN_WRONG_EPOCH','UNVERIFIABLE'),
             ('CUSTODIAN_WRONG_SEQ','UNVERIFIABLE'),
             ('CUSTODIAN_COMMITTED','UNVERIFIABLE'),
+            ('CUSTODIAN_CONSUME_REPLAY','UNVERIFIABLE'),
+            ('CUSTODIAN_QUERY_AS_CONSUME','UNVERIFIABLE'),
             ('OWNER_FORGED','UNVERIFIABLE'),
             ('PIN_COLLISION','NO_AUTHORITY')):
             verify(want,mode,provider_floor=1,custodian_floor=1)
