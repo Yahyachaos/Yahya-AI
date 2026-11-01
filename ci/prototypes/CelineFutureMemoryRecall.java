@@ -3777,6 +3777,28 @@ public final class CelineFutureMemoryRecall {
                 return null;
             }
         }
+        /**
+         * A signed seventh-key SPENT receipt means only that the pre-commit
+         * fence fired. It does NOT prove the later sixth-key global CAS or
+         * original epoch-provider reservation completed. Recover strictly by
+         * independently signed read-only checks at BOTH later stages.
+         * Neither an ABSENT result nor a disconnected authority permits retry.
+         * This still cannot detect a complete same-key rollback of all stores.
+         */
+        private GlobalClaimGateOutcome confirmedReservationReadOnly(
+                String claim, String id, long revision, byte[] ownerSignature,
+                String freshNonce) {
+            GlobalClaimGateOutcome globalStatus = global.queryExisting(
+                    claim, id, revision, ownerSignature, freshNonce);
+            if (globalStatus != GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY)
+                return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+            MonotonicQueryOutcome providerStatus = global.provider.queryExisting(
+                    claim, id, revision, ownerSignature, freshNonce, 0);
+            return providerStatus == MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY
+                    ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                    : GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+        }
+
         public GlobalClaimGateOutcome reserveOnce(String claim, String id, long revision,
                 byte[] ownerSignature, String freshNonce) {
             if (!validInput(claim, id, revision, ownerSignature, freshNonce))
@@ -3793,8 +3815,14 @@ public final class CelineFutureMemoryRecall {
             String state = checkedState(receipt, "SPEND", claim, id, revision,
                     ownerSignature, freshNonce);
             if (state == null) return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
-            if ("ALREADY_SPENT".equals(state))
-                return GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY;
+            if ("ALREADY_SPENT".equals(state)) {
+                // No write/retry after a spent fence. Only a verified global
+                // AND provider status can assert that reservation completed.
+                GlobalClaimGateOutcome recovered = confirmedReservationReadOnly(
+                        claim, id, revision, ownerSignature, freshNonce);
+                return recovered == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                        ? recovered : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            }
             GlobalClaimGateOutcome outcome = global.reserveOnce(claim, id, revision,
                     ownerSignature, freshNonce);
             return outcome == GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
@@ -3816,7 +3844,8 @@ public final class CelineFutureMemoryRecall {
             }
             String state = checkedState(receipt, "QUERY", claim, id, revision,
                     ownerSignature, freshNonce);
-            return "SPENT".equals(state) ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+            return "SPENT".equals(state) ? confirmedReservationReadOnly(
+                    claim, id, revision, ownerSignature, freshNonce)
                     : GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
         }
     }
