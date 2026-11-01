@@ -856,13 +856,23 @@ final class CelineRoomEnvironmentV80 {
             // user-authored input, never grounds for an automatic placement fix.
             for (Map.Entry<String, float[]> entry : perFurnitureWorldBounds.entrySet()) {
                 float[] bounds = entry.getValue();
+                int nonDegenerateAxes = 0;
                 for (int axis = 0; axis < 3; axis++) {
+                    float span = bounds[axis + 3] - bounds[axis];
                     if (!Float.isFinite(bounds[axis])
                             || !Float.isFinite(bounds[axis + 3])
-                            || bounds[axis] > bounds[axis + 3]) {
+                            || !Float.isFinite(span) || span < 0f) {
                         throw new IllegalStateException(
                                 "Missing actual S25 geometry AABB " + entry.getKey());
                     }
+                    // A valid flat rug or drape can have zero thickness on ONE axis;
+                    // a point or line is not drawable furniture geometry. Reject
+                    // collapsed GLB renderables without adjusting authored XYZ/scale.
+                    if (span > 0.001f) nonDegenerateAxes++;
+                }
+                if (nonDegenerateAxes < 2) {
+                    throw new IllegalStateException(
+                            "Degenerate attached S25 furniture geometry " + entry.getKey());
                 }
                 Celine3DDiagnostics.record(context, "ROOM-S25-READY-BOUNDS",
                         "Ready actual GLB geometry envelope " + entry.getKey(),
