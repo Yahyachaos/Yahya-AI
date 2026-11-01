@@ -431,6 +431,14 @@ final class CelineRoomEnvironmentV80 {
                 return true;
             } catch (Throwable error) {
                 for (FilamentAsset candidate : candidates) {
+                    // Scene.addEntities may already have attached this candidate before a
+                    // later S25 integrity check failed. Detach it before destroying the
+                    // gltfio asset so a retry cannot inherit stale/ghost Room meshes.
+                    for (int entity : candidate.getEntities()) {
+                        try {
+                            if (scene.hasEntity(entity)) scene.removeEntity(entity);
+                        } catch (Throwable ignored) {}
+                    }
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
                 if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0
