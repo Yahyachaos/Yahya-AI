@@ -608,17 +608,6 @@ jobs:
         run: |
           node --check tools/room-layout-editor/curtain-source-parity-audit.cjs
           node tools/room-layout-editor/curtain-source-parity-audit.cjs
-      # One-time immutable source-asset forensic readback into V21 evidence.
-      # No model, owner JSON, editor runtime, or pass/fail gates are modified.
-      - name: Export authorized source drape bytes for complete indexed parity readback (read-only)
-        run: |
-          set -eu
-          SOURCE=app/src/main/assets/models/room/source-fidelity/room_window_drapes.glb
-          EVIDENCE=/tmp/celine-room-editor-architecture-v21
-          mkdir -p "$EVIDENCE"
-          test "$(sha256sum "$SOURCE" | cut -d' ' -f1)" = "c070b36a8d25da6ed5295b327c01d9aa215ac4d7bdab3035225c0689bb6b6ac5"
-          gzip -n -9 -c "$SOURCE" > "$EVIDENCE/authorized-source-room_window_drapes.glb.gz"
-          sha256sum "$SOURCE" > "$EVIDENCE/authorized-source-room_window_drapes.source-sha256.txt"
       - name: Install pinned Chromium and Three.js
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
