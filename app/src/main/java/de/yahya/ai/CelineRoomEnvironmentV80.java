@@ -1030,6 +1030,12 @@ final class CelineRoomEnvironmentV80 {
             float floorDepthM = floorBounds[5] - floorBounds[2];
             float floorCenterX = (floorBounds[0] + floorBounds[3]) * 0.5f;
             float floorCenterZ = (floorBounds[2] + floorBounds[5]) * 0.5f;
+            // The genuine ceiling GLB must have the right horizontal footprint.
+            // Fail closed without changing any user-authored transform.
+            float ceilingWidthM = ceilingBounds[3] - ceilingBounds[0];
+            float ceilingDepthM = ceilingBounds[5] - ceilingBounds[2];
+            float ceilingCenterX = (ceilingBounds[0] + ceilingBounds[3]) * 0.5f;
+            float ceilingCenterZ = (ceilingBounds[2] + ceilingBounds[5]) * 0.5f;
             if (!Float.isFinite(ceilingBounds[1])
                     || !Float.isFinite(floorWidthM) || !Float.isFinite(floorDepthM)
                     || Math.abs(floorWidthM - 4.40f) > dimensionToleranceM
@@ -1037,6 +1043,11 @@ final class CelineRoomEnvironmentV80 {
                     || Math.abs(floorCenterX) > dimensionToleranceM
                     || Math.abs(floorCenterZ) > dimensionToleranceM
                     || Math.abs(floorBounds[4]) > dimensionToleranceM
+                    || !Float.isFinite(ceilingWidthM) || !Float.isFinite(ceilingDepthM)
+                    || Math.abs(ceilingWidthM - 4.40f) > dimensionToleranceM
+                    || Math.abs(ceilingDepthM - 4.20f) > dimensionToleranceM
+                    || Math.abs(ceilingCenterX) > dimensionToleranceM
+                    || Math.abs(ceilingCenterZ) > dimensionToleranceM
                     || Math.abs(ceilingBounds[1] - 2.65f) > dimensionToleranceM) {
                 throw new IllegalStateException(
                         "Native attached S25 floor/ceiling interior geometry mismatch");
@@ -1050,6 +1061,8 @@ final class CelineRoomEnvironmentV80 {
                             + " floorWorldMaxXYZ=" + floorBounds[3] + "," + floorBounds[4] + "," + floorBounds[5]
                             + " frontWallDetached=true interiorTarget_m=4.4,4.2,2.65"
                             + " measuredFloorWidthDepth_m=" + floorWidthM + "," + floorDepthM
+                            + " measuredCeilingWidthDepth_m=" + ceilingWidthM + "," + ceilingDepthM
+                            + " measuredCeilingCenterXZ_m=" + ceilingCenterX + "," + ceilingCenterZ
                             + " measuredCeilingUndersideY_m=" + ceilingBounds[1]
                             + " nativeFloorCeilingGeometryVerified=true AndroidFrame=UNVERIFIED");
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
