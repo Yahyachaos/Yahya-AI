@@ -1095,6 +1095,151 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY independent claim-floor readback. A pre-enrolled fifth key
+     * must be a separate authority, not chosen from the service reply. The
+     * previously trusted epoch/sequence are inputs from OUTSIDE the custodian
+     * and outside the signed response. Filesystem test fixtures below are
+     * rollbackable, so conditional verification is NOT an antirollback proof.
+     * No ABSENT response is ever interpreted as permission to consume/retry.
+     */
+    public static final class SignedExternalClaimFloor {
+        public final String claimId, exactId, requestNonce, status;
+        public final long sourceRevision, epoch, consumedSequence;
+        private final byte[] custodianPin, signature;
+        public SignedExternalClaimFloor(String claimId, String exactId,
+                long sourceRevision, String requestNonce, long epoch,
+                long consumedSequence, String status, byte[] custodianPin,
+                byte[] signature) {
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.requestNonce = requestNonce;
+            this.epoch = epoch;
+            this.consumedSequence = consumedSequence;
+            this.status = status;
+            this.custodianPin = custodianPin == null ? null : custodianPin.clone();
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] custodianPin() {
+            return custodianPin == null ? null : custodianPin.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] externalClaimFloorPayload(String claimId,
+            String exactId, long sourceRevision, byte[] ownerSignature,
+            String freshQueryNonce, byte[] enrolledOwnerPin,
+            byte[] enrolledRootPin, byte[] enrolledOperatorPin,
+            byte[] enrolledCustodianPin, long epoch, long consumedSequence,
+            String status) {
+        if (signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                ownerSignature, freshQueryNonce, consumedSequence,
+                "CONSUMED".equals(status) ? "CONSUMED" : "ABSENT").length == 0
+                || enrolledOwnerPin == null || enrolledOwnerPin.length == 0
+                || enrolledRootPin == null || enrolledRootPin.length == 0
+                || enrolledOperatorPin == null || enrolledOperatorPin.length == 0
+                || enrolledCustodianPin == null || enrolledCustodianPin.length == 0
+                || epoch <= 0 || consumedSequence < 0
+                || !("CONSUMED".equals(status) && consumedSequence > 0
+                    || "ABSENT".equals(status) && consumedSequence == 0))
+            return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/independent-external-claim-floor/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\n"
+                + b64.encodeToString(ownerSignature) + "\n" + freshQueryNonce + "\n"
+                + b64.encodeToString(enrolledOwnerPin) + "\n"
+                + b64.encodeToString(enrolledRootPin) + "\n"
+                + b64.encodeToString(enrolledOperatorPin) + "\n"
+                + b64.encodeToString(enrolledCustodianPin) + "\n"
+                + epoch + "\n" + consumedSequence + "\n" + status + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Authenticates a fresh fifth-party claim-specific floor BEFORE accepting
+     * any custodian acknowledgement. A valid result is CONDITIONAL on trusted,
+     * separately provisioned nonrollbackable storage that this code does not
+     * implement. A signer with its original key can sign a rolled-back floor.
+     * A missing/invalid floor never falls back to a custodian-only positive.
+     */
+    public static ReceiptStatusOutcome verifyAtomicAckWithIndependentClaimFloor(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String requestNonce,
+            byte[] pinnedOwner, byte[] pinnedRoot, byte[] pinnedOperator,
+            byte[] pinnedCustodian, byte[] pinnedIndependentFloor,
+            long previouslyTrustedFloorEpoch, long previouslyTrustedClaimSequence,
+            SignedExternalClaimFloor floor, SignedAtomicCustodianAck ack) {
+        if (floor == null || pinnedIndependentFloor == null || pinnedOwner == null
+                || pinnedRoot == null || pinnedOperator == null
+                || pinnedCustodian == null)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (!java.util.Objects.equals(claimId, floor.claimId)
+                || !java.util.Objects.equals(exactId, floor.exactId)
+                || sourceRevision != floor.sourceRevision
+                || !java.util.Objects.equals(requestNonce, floor.requestNonce)
+                || previouslyTrustedFloorEpoch <= 0
+                || previouslyTrustedClaimSequence < 0)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] floorPin = floor.custodianPin();
+        byte[] payload = externalClaimFloorPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, requestNonce,
+                pinnedOwner, pinnedRoot, pinnedOperator, floorPin,
+                floor.epoch, floor.consumedSequence, floor.status);
+        byte[] signature = floor.signature();
+        if (payload.length == 0 || signature == null || signature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            byte[][] pins = {pinnedOwner, pinnedRoot, pinnedOperator,
+                    pinnedCustodian, pinnedIndependentFloor};
+            java.security.PublicKey[] keys = new java.security.PublicKey[pins.length];
+            for (int i = 0; i < pins.length; i++) {
+                keys[i] = factory.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[i].clone()));
+                if (!java.util.Arrays.equals(keys[i].getEncoded(), pins[i]))
+                    return ReceiptStatusOutcome.NO_AUTHORITY;
+                for (int j = 0; j < i; j++) {
+                    if (java.util.Arrays.equals(pins[i], pins[j]))
+                        return ReceiptStatusOutcome.NO_AUTHORITY;
+                }
+            }
+            if (!java.util.Arrays.equals(floorPin, pinnedCustodian))
+                return ReceiptStatusOutcome.NO_AUTHORITY;
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(keys[0]);
+            verifier.update(originalOwnerClaimPayload(claimId, exactId, sourceRevision));
+            if (!verifier.verify(originalOwnerSignature))
+                return ReceiptStatusOutcome.UNVERIFIABLE;
+            verifier.initVerify(keys[4]);
+            verifier.update(payload);
+            if (!verifier.verify(signature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        }
+        // Only AFTER authenticating original fifth-party signature compare the
+        // caller's independently held prior floor. Never learn a minimum from
+        // a fresh response. In particular, ABSENT never grants a retry.
+        if (floor.epoch < previouslyTrustedFloorEpoch
+                || floor.consumedSequence < previouslyTrustedClaimSequence)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        if (!"CONSUMED".equals(floor.status))
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (ack == null) return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        if (ack.anchorEpoch != floor.epoch
+                || ack.consumedSequence != floor.consumedSequence
+                || ("COMMITTED".equals(ack.state)
+                    && previouslyTrustedClaimSequence > 0))
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        return verifyAtomicCustodianAck(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, pinnedOwner, pinnedRoot,
+                pinnedOperator, pinnedCustodian,
+                Math.max(previouslyTrustedFloorEpoch, floor.epoch),
+                Math.max(previouslyTrustedClaimSequence, floor.consumedSequence), ack);
+    }
+
+    /**
      * FUTURE-ONLY contract for a separately enrolled anti-reset custodian.
      * The operator key, owner/root pins, and trusted epoch/floor MUST be held
      * outside this process in genuinely rollback-resistant custody. Supplying
