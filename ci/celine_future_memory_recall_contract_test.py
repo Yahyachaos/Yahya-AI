@@ -10877,7 +10877,164 @@ def process_cross_authority_readonly_recovery_proof(compiled, strict=False):
         print('FUTURE_CROSS_AUTHORITY_READONLY_JVM_PASS cases='+str(cases))
         print('EXTERNAL_NONROLLBACKABLE_CUSTODY_REMAINS_UNIMPLEMENTED')
 
+# A pure-Java *administrative enrollment* fixture; in-memory CAS is NOT a
+# nonrollbackable external service. Independent real-JVM filesystem-CAS/crash
+# fixtures are exercised separately by --focused-provider-reservation.
+one_shot_enrollment_harness = r'''
+package de.yahya.ai;
+import java.security.*;
+import java.util.*;
+import java.util.concurrent.atomic.*;
+public final class FutureOneShotEnrollmentContract {
+  static int checks=0;
+  static void ok(boolean value,String description) {
+    if(!value)throw new AssertionError(description);
+    checks++;
+  }
+  static byte[] sign(PrivateKey key,byte[] data)throws Exception {
+    Signature s=Signature.getInstance("Ed25519");s.initSign(key);s.update(data);return s.sign();
+  }
+  static KeyPair key()throws Exception {
+    KeyPairGenerator g=KeyPairGenerator.getInstance("Ed25519");return g.generateKeyPair();
+  }
+  static final class BoundBackend implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
+    final KeyPair[] keys;
+    final byte[][] pins;
+    final AtomicBoolean reserved=new AtomicBoolean();
+    final AtomicInteger reserveCalls=new AtomicInteger();
+    final AtomicInteger queryCalls=new AtomicInteger();
+    boolean lostAck, forge, throwQuery;
+    BoundBackend(KeyPair[] keys,byte[][] pins){this.keys=keys;this.pins=pins;}
+    public CelineFutureMemoryRecall.SignedMonotonicReservation reserveOnce(
+        String claim,String id,long revision,byte[] ownerSig,String nonce)throws Exception {
+      reserveCalls.incrementAndGet();
+      boolean first=reserved.compareAndSet(false,true);
+      if(lostAck)throw new IllegalStateException("ack lost AFTER CAS commit");
+      String decision=first?"FIRST_RESERVED":"ALREADY_RESERVED";
+      byte[] payload=CelineFutureMemoryRecall.monotonicReservationPayload(claim,id,revision,
+        ownerSig,nonce,pins[0],pins[1],pins[2],pins[3],2,1,decision);
+      byte[] receipt=sign(keys[4].getPrivate(),payload);
+      if(forge)receipt[0]^=1;
+      return new CelineFutureMemoryRecall.SignedMonotonicReservation(claim,id,revision,
+        nonce,2,1,decision,pins[3],receipt);
+    }
+    public CelineFutureMemoryRecall.SignedMonotonicReservationStatus queryExisting(
+        String claim,String id,long revision,byte[] ownerSig,String nonce)throws Exception {
+      queryCalls.incrementAndGet();
+      if(throwQuery)throw new IllegalStateException("network lost");
+      boolean exists=reserved.get(); String status=exists?"RESERVED":"ABSENT";
+      long seq=exists?1:0;
+      byte[] payload=CelineFutureMemoryRecall.monotonicQueryExistingPayload(claim,id,
+        revision,ownerSig,nonce,pins[0],pins[1],pins[2],pins[3],2,seq,status);
+      return new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(claim,id,
+        revision,nonce,2,seq,status,pins[3],sign(keys[4].getPrivate(),payload));
+    }
+  }
+  static void run(boolean strict)throws Exception {
+    KeyPair[] keys=new KeyPair[5];byte[][] pins=new byte[5][];
+    for(int i=0;i<5;i++){keys[i]=key();pins[i]=keys[i].getPublic().getEncoded();}
+    String claim="enrolled-claim-0001",id="source-memory-1",nonce="one-shot-enrolled-nonce-0001";
+    long revision=2;
+    byte[] ownerSig=sign(keys[0].getPrivate(),
+      CelineFutureMemoryRecall.originalOwnerClaimPayload(claim,id,revision));
+    byte[] signed=sign(keys[1].getPrivate(),
+      CelineFutureMemoryRecall.oneShotEnrollmentPayload("out-of-band-issuer-1",2,
+        pins[0],pins[1],pins[2],pins[3],pins[4]));
+    var enrollment=new CelineFutureMemoryRecall.SignedOneShotEnrollment(
+      "out-of-band-issuer-1",2,pins,signed);
+    BoundBackend backend=new BoundBackend(keys,pins);
+    var gateway=CelineFutureMemoryRecall.ProvisionedOneShotGateway
+      .bindFromIndependentBootstrap(pins,enrollment,2,backend);
+    ok(gateway!=null,"valid root-signed five-pin enrollment");
+    byte[] wrongSig=signed.clone();wrongSig[0]^=1;
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,new CelineFutureMemoryRecall.SignedOneShotEnrollment(
+      "out-of-band-issuer-1",2,pins,wrongSig),2,backend)==null,"forged enrollment rejected");
+    byte[][] swapped=pins.clone();swapped[4]=key().getPublic().getEncoded();
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      swapped,enrollment,2,backend)==null,"caller-selected provider pin rejected");
+    byte[][] collision=pins.clone();collision[4]=pins[0];
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      collision,enrollment,2,backend)==null,"collided authority pin rejected");
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,new CelineFutureMemoryRecall.SignedOneShotEnrollment(
+      "other-issuer",2,pins,signed),2,backend)==null,"authority-id substitution rejected");
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,new CelineFutureMemoryRecall.SignedOneShotEnrollment(
+      "out-of-band-issuer-1",3,pins,signed),2,backend)==null,"epoch substitution rejected");
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,2,null)==null,"missing independent backend denied");
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,3,backend)==null,"trusted epoch prevents old enrollment replay");
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,0,backend)==null,"missing enrollment floor fails closed");
+    byte[] forgedOwner=ownerSig.clone();forgedOwner[0]^=1;
+    ok(gateway.reserveOnce(claim,id,revision,forgedOwner,nonce,0)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.UNVERIFIABLE,
+      "forged owner denied BEFORE reserve side effect");
+    ok(backend.reserveCalls.get()==0,"invalid request did not invoke authority");
+    ok(gateway.queryExisting(claim,id,revision,ownerSig,
+      "enrolled-status-nonce-0001",0)==
+      CelineFutureMemoryRecall.MonotonicQueryOutcome.REMAIN_INDETERMINATE,
+      "authentic ABSENT never permits reserve retry");
+    ok(!backend.reserved.get(),"read-only query did not reserve");
+    ok(gateway.reserveOnce(claim,id,revision,ownerSig,nonce,0)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.FIRST_RESERVED_PENDING_ACK,
+      "first enrolled CAS must remain pending acknowledgement");
+    ok(backend.reserved.get(),"first CAS persisted in test service");
+    ok(gateway.reserveOnce(claim,id,revision,ownerSig,"one-shot-nonce-replayed-02",0)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.ALREADY_RESERVED_NO_RETRY,
+      "same claim never gets another FIRST from intact authority");
+    ok(gateway.queryExisting(claim,id,revision,ownerSig,
+      "enrolled-status-nonce-0002",1)==
+      CelineFutureMemoryRecall.MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY,
+      "read-only status sees reservation");
+    int queries=backend.queryCalls.get();
+    ok(queries==2,"one authority query per request");
+    backend.forge=true;
+    ok(gateway.reserveOnce(claim,id,revision,ownerSig,"one-shot-forged-receipt-01",1)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.UNVERIFIABLE,
+      "forged receipt rejected despite intact enrollment");
+    backend.forge=false;
+    backend.lostAck=true;
+    int before=backend.reserveCalls.get();
+    ok(gateway.reserveOnce(claim,id,revision,ownerSig,"one-shot-lost-ack-nonce",1)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.NO_AUTHORITY,
+      "lost response has no retry entitlement");
+    ok(backend.reserveCalls.get()==before+1,"gateway did not retry failed CAS");
+    backend.lostAck=false;
+    ok(gateway.queryExisting(claim,id,revision,ownerSig,
+      "one-shot-ack-recovery-01",1)==
+      CelineFutureMemoryRecall.MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY,
+      "read-only lost-ACK recovery without a second reserve");
+    backend.throwQuery=true;
+    ok(gateway.queryExisting(claim,id,revision,ownerSig,
+      "one-shot-query-timeout-01",1)==
+      CelineFutureMemoryRecall.MonotonicQueryOutcome.REMAIN_INDETERMINATE,
+      "unavailable query never grants retry");
+    backend.throwQuery=false;
+    ok(backend.reserved.get(),"query failure did not reset consumed CAS");
+    if(strict){
+      // Explicit expected SECURITY RED: total rollback of provider's *own*
+      // mocked state plus trusted minimum with ALL FIVE keys unchanged.
+      backend.reserved.set(false);
+      var newFirst=gateway.reserveOnce(claim,id,revision,ownerSig,
+        "one-shot-total-rollback-01",0);
+      ok(newFirst==CelineFutureMemoryRecall.MonotonicReservationOutcome.ALREADY_RESERVED_NO_RETRY,
+        "KNOWN SECURITY FAIL: original keys with full provider rollback allow second FIRST: "+newFirst);
+    }
+    System.out.println("FUTURE_PROVISIONED_ONE_SHOT_JVM_PASS cases="+checks);
+    System.out.println("ADMIN_ENROLLMENT_AND_ATOMIC_CAS_ARE_MOCKS_NOT_PRODUCTION_CUSTODY");
+  }
+  public static void main(String[] a)throws Exception {
+    run(a.length>0 && a[0].equals("STRICT"));
+  }
+}
+'''
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
+    one_shot_child=Path(temp)/'FutureOneShotEnrollmentContract.java'
+    one_shot_child.write_text(one_shot_enrollment_harness,encoding='utf-8')
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
     child = Path(temp) / 'FutureProcessOwnerChild.java'
@@ -10930,8 +11087,15 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     cross_child.write_text(cross_authority_recovery_harness,encoding='utf-8')
     floor_child=Path(temp)/'FutureIndependentClaimFloorProcess.java'
     floor_child.write_text(monotonic_claim_floor_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child),str(cross_child)], check=True)
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child),str(cross_child),str(one_shot_child)], check=True)
     import sys
+    if '--focused-provisioned-one-shot' in sys.argv:
+        subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureOneShotEnrollmentContract'],check=True)
+        process_independent_reservation_provider_proof(temp)
+        sys.exit(0)
+    if '--strict-provisioned-one-shot' in sys.argv:
+        subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureOneShotEnrollmentContract','STRICT'],check=True)
+        sys.exit(0)
     if '--focused-cross-authority' in sys.argv:
         process_cross_authority_readonly_recovery_proof(temp)
         sys.exit(0)
@@ -11115,3 +11279,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_independent_reservation_provider_proof(temp)
     process_independent_reservation_status_proof(temp)
     process_cross_authority_readonly_recovery_proof(temp)
+    subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureOneShotEnrollmentContract'],check=True)
