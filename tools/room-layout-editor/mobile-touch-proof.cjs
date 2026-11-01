@@ -764,6 +764,93 @@ async function main(){
         JSON.stringify({source_sha:process.env.GITHUB_SHA||null,record,errors},null,2));
     }
     if(compositorError)throw new Error('Full 412x915 screenshot blocked despite native GLB/JSON evidence: '+compositorError);
+    // Read-only raster diagnostic AFTER every strict touch, JSON and real viewport
+    // gate. This cannot perturb the protected mobile <5s actions or owner view.
+    // The standalone 99MB S25 source REQUESTS antialias:true, DPR cap 1.45.
+    // We have not claimed its on-device getContextAttributes() as proven.
+    // These detached WebGL2 contexts exercise ACTUAL AA availability on the
+    // same mobile Chromium/SwiftShader GPU, but never render replacement GLBs.
+    try {
+      const msaa=await page.evaluate(()=>{
+        const canvas=document.querySelector('#viewport canvas');
+        const context=canvas.getContext('webgl2');
+        if(!context)throw new Error('Live room has no readable WebGL2 context');
+        const rect=canvas.getBoundingClientRect();
+        const current={
+          attributes:context.getContextAttributes(),
+          framebuffer_samples:context.getParameter(context.SAMPLES),
+          drawing_buffer_px:[context.drawingBufferWidth,context.drawingBufferHeight],
+          canvas_css_px:[rect.width,rect.height],
+          css_viewport_px:[innerWidth,innerHeight],
+          window_device_pixel_ratio:devicePixelRatio
+        };
+        function triangleProbe(wantAA){
+          const c=document.createElement('canvas');c.width=128;c.height=128;
+          const g=c.getContext('webgl2',{
+            alpha:false,antialias:wantAA,preserveDrawingBuffer:true,depth:false
+          });
+          if(!g)return {requested_antialias:wantAA,error:'WebGL2 unavailable'};
+          const compile=(kind,src)=>{
+            const sh=g.createShader(kind);g.shaderSource(sh,src);g.compileShader(sh);
+            if(!g.getShaderParameter(sh,g.COMPILE_STATUS))
+              throw new Error('AA probe shader: '+g.getShaderInfoLog(sh));
+            return sh;
+          };
+          const v=compile(g.VERTEX_SHADER,
+            '#version 300 es\\nlayout(location=0) in vec2 p; void main(){gl_Position=vec4(p,0.,1.);}');
+          const f=compile(g.FRAGMENT_SHADER,
+            '#version 300 es\\nprecision highp float;out vec4 o;void main(){o=vec4(1.);}');
+          const prog=g.createProgram();g.attachShader(prog,v);g.attachShader(prog,f);
+          g.linkProgram(prog);
+          if(!g.getProgramParameter(prog,g.LINK_STATUS))
+            throw new Error('AA probe link: '+g.getProgramInfoLog(prog));
+          g.useProgram(prog);
+          const vao=g.createVertexArray();g.bindVertexArray(vao);
+          const buf=g.createBuffer();g.bindBuffer(g.ARRAY_BUFFER,buf);
+          g.bufferData(g.ARRAY_BUFFER,new Float32Array([
+            -0.85,-0.85, 0.80,-0.60, -0.65,0.85
+          ]),g.STATIC_DRAW);
+          g.enableVertexAttribArray(0);g.vertexAttribPointer(0,2,g.FLOAT,false,0,0);
+          g.disable(g.DITHER);g.viewport(0,0,128,128);
+          g.clearColor(0,0,0,1);g.clear(g.COLOR_BUFFER_BIT);
+          g.drawArrays(g.TRIANGLES,0,3);
+          const rgba=new Uint8Array(128*128*4);
+          g.readPixels(0,0,128,128,g.RGBA,g.UNSIGNED_BYTE,rgba);
+          let black=0,white=0,partial=0;
+          for(let i=0;i<rgba.length;i+=4){
+            if(rgba[i]===0)black++;
+            else if(rgba[i]===255)white++;
+            else partial++;
+          }
+          const result={
+            requested_antialias:wantAA,actual_attributes:g.getContextAttributes(),
+            framebuffer_samples:g.getParameter(g.SAMPLES),
+            pixel_summary:{black,white,partial,total:128*128},
+            gl_error:g.getError(),drawing_buffer_px:[g.drawingBufferWidth,g.drawingBufferHeight]
+          };
+          g.getExtension('WEBGL_lose_context')?.loseContext();
+          return result;
+        }
+        return {
+          current_room_canvas:current,
+          aa_on_control:triangleProbe(true),
+          aa_off_control:triangleProbe(false),
+          original_s25_source_request:{webgl2:true,antialias:true,
+            device_pixel_ratio_cap:1.45,actual_on_owner_device:'NOT_MEASURED'},
+          interpretation_limit:'Controls prove the same Chromium GPU AA capability, not the original device or an exact furniture-frame AA pixel comparison'
+        };
+      });
+      fs.writeFileSync(path.join(out,'mobile-s25-msaa-raster-readback.json'),
+        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+          approved_layout_sha256:approvedSha,msaa,visual_acceptance:'NOT_GRANTED'},null,2));
+      record.push({name:'S25_MSAA_ACTUAL_WEBGL_CONTEXT_DIAGNOSTIC',
+        file:'mobile-s25-msaa-raster-readback.json',
+        msaa,owner_json_unchanged:true,visual_acceptance:'NOT_GRANTED'});
+    }catch(msaaError){
+      // Instrumentation is non-acceptance evidence. Never relax any prior gate.
+      record.push({name:'S25_MSAA_DIAGNOSTIC_UNAVAILABLE',
+        error:String(msaaError.stack||msaaError),visual_acceptance:'NOT_GRANTED'});
+    }
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');
