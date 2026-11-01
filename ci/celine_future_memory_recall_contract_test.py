@@ -10606,6 +10606,212 @@ def process_atomic_custodian_proof(compiled, strict=False):
         print('FUTURE_ATOMIC_CUSTODIAN_REAL_JVM_PASS cases='+str(count))
         print('FUTURE_FILESYSTEM_ROLLBACK_IS_STILL_SECURITY_FAIL')
 
+# FUTURE-ONLY cross-authority RECOVERY, not production storage. Five distinct
+# Ed25519 keys persist across actual JVM invocations; read-only checks never
+# create reservation, consumed record or service lock. BOTH independent
+# pre-existing positive proofs are required to assert consumed.
+cross_authority_recovery_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+public final class FutureCrossAuthorityRecoveryProcess {
+  static final String ID="source-memory-1";
+  static final long REV=2L;
+  static byte[] pin(Path p)throws Exception {
+    return FutureAtomicCustodianProcess.pub(p).getEncoded();
+  }
+  static byte[] sign(Path p,byte[] payload)throws Exception {
+    return FutureAtomicCustodianProcess.sign(p,payload);
+  }
+  static void check(Path owner,Path root,Path operator,Path custodian,Path provider,
+      String claim,String nonce,String mode,long trustedProvider,long trustedCustodian)
+      throws Exception {
+    byte[] ownerPin=pin(owner),rootPin=pin(root),operatorPin=pin(operator);
+    byte[] custodianPin=pin(custodian),providerPin=pin(provider);
+    byte[] ownerSignature=FutureAtomicCustodianProcess.ownerSig(owner,claim,ID);
+    Path reservation=FutureIndependentReservationProviderProcess.record(provider,claim);
+    Path consumed=FutureAtomicCustodianProcess.recordPath(custodian,claim);
+    String providerState="ABSENT";long reservationSequence=0;
+    boolean hasConsumed=false;
+    try {
+      if(Files.exists(reservation)) {
+        byte[] expected=(claim+"\n"+ID+"\n"+REV+"\n"+
+          Base64.getEncoder().encodeToString(ownerSignature)+"\n")
+          .getBytes(StandardCharsets.UTF_8);
+        if(!Arrays.equals(Files.readAllBytes(reservation),expected))
+          throw new SecurityException("provider record corrupt");
+        providerState="RESERVED";reservationSequence=1;
+      }
+      if(Files.exists(consumed)) {
+        hasConsumed=FutureAtomicCustodianProcess.authenticatedExisting(consumed,custodian,
+          FutureAtomicCustodianProcess.durablePayload(owner,root,operator,claim,ID));
+      }
+    } catch(SecurityException badRecord) {
+      System.out.println("RESULT=UNVERIFIABLE CORRUPT_RECORD=1");return;
+    }
+    if(mode.equals("PROVIDER_ABSENT")){
+      providerState="ABSENT";reservationSequence=0;
+    }
+    byte[] providerPayload=CelineFutureMemoryRecall.monotonicQueryExistingPayload(
+      claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+      custodianPin,2,reservationSequence,providerState);
+    byte[] providerSignature=sign(mode.equals("PROVIDER_WRONG_KEY")?custodian:provider,
+      providerPayload);
+    if(mode.equals("PROVIDER_BAD_SIG"))providerSignature[0]^=1;
+    String queryClaim=mode.equals("PROVIDER_WRONG_CLAIM")?"other-claim":claim;
+    String queryId=mode.equals("PROVIDER_WRONG_ID")?"wrong-id":ID;
+    long queryRev=mode.equals("PROVIDER_WRONG_REV")?3L:REV;
+    String queryNonce=mode.equals("PROVIDER_WRONG_NONCE")?"stale-query-nonce-0001":nonce;
+    long queryEpoch=mode.equals("PROVIDER_WRONG_EPOCH")?1L:2L;
+    long querySequence=mode.equals("PROVIDER_WRONG_SEQ")?reservationSequence+1:reservationSequence;
+    if(mode.equals("PIN_COLLISION"))providerPin=ownerPin;
+    CelineFutureMemoryRecall.SignedMonotonicReservationStatus providerStatus=
+      mode.equals("PROVIDER_MISSING")?null:
+      new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(
+        queryClaim,queryId,queryRev,queryNonce,queryEpoch,querySequence,
+        providerState,custodianPin,providerSignature);
+
+    CelineFutureMemoryRecall.SignedAtomicCustodianAck custodianAck=null;
+    if(hasConsumed && !mode.equals("CUSTODIAN_MISSING")){
+      String ackState=mode.equals("CUSTODIAN_COMMITTED")?"COMMITTED":"ALREADY_CONSUMED";
+      byte[] ackPayload=CelineFutureMemoryRecall.atomicCustodianAckPayload(
+        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+        2,1,ackState);
+      byte[] ackSignature=sign(mode.equals("CUSTODIAN_WRONG_KEY")?provider:custodian,
+        ackPayload);
+      if(mode.equals("CUSTODIAN_BAD_SIG"))ackSignature[0]^=1;
+      custodianAck=new CelineFutureMemoryRecall.SignedAtomicCustodianAck(
+        mode.equals("CUSTODIAN_WRONG_CLAIM")?"another-claim":claim,
+        mode.equals("CUSTODIAN_WRONG_ID")?"another-id":ID,
+        mode.equals("CUSTODIAN_WRONG_REV")?3L:REV,
+        mode.equals("CUSTODIAN_WRONG_NONCE")?"stale-query-nonce-0001":nonce,
+        mode.equals("CUSTODIAN_WRONG_EPOCH")?1L:2L,
+        mode.equals("CUSTODIAN_WRONG_SEQ")?2L:1L,
+        ackState,ackSignature);
+    }
+    if(mode.equals("OWNER_FORGED"))ownerSignature[0]^=1;
+    var decision=CelineFutureMemoryRecall.reconcileLostAckAcrossAuthoritiesReadOnly(
+      claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+      custodianPin,providerPin,2L,trustedProvider,2L,trustedCustodian,
+      providerStatus,custodianAck);
+    System.out.println("RESULT="+decision+" RESERVED="+providerState+
+      " CUSTODIAN_PRESENT="+hasConsumed+" READ_ONLY=1");
+  }
+  public static void main(String[] args)throws Exception {
+    if(args.length!=10)throw new IllegalArgumentException("5 paths, claim, nonce, mode, two floors");
+    check(Path.of(args[0]),Path.of(args[1]),Path.of(args[2]),
+      Path.of(args[3]),Path.of(args[4]),args[5],args[6],args[7],
+      Long.parseLong(args[8]),Long.parseLong(args[9]));
+  }
+}
+'''
+
+def process_cross_authority_readonly_recovery_proof(compiled, strict=False):
+    import hashlib
+    with tempfile.TemporaryDirectory(prefix='future_cross_authority_readonly_') as tmp:
+        base=Path(tmp)
+        owner,root,operator,custodian,provider=[base/n for n in
+            ('owner','root','operator','custodian','independent_provider')]
+        parties=(owner,root,operator,custodian,provider)
+        original=[]
+        for party in parties:
+            initialized=subprocess.run(['java','-cp',compiled,
+                'de.yahya.ai.FutureIndependentHighWaterProcess','init',str(party)],
+                check=True,capture_output=True,text=True,timeout=12)
+            assert 'INIT ' in initialized.stdout,initialized.stdout
+            original.append((party/'identity.priv').read_bytes())
+        claim='memory-claim-0001'; nonce='cross-authority-nonce-0001'; cases=0
+        checker=['java','-cp',compiled,'de.yahya.ai.FutureCrossAuthorityRecoveryProcess']
+        reserve=['java','-cp',compiled,'de.yahya.ai.FutureIndependentReservationProviderProcess']
+        consume=['java','-cp',compiled,'de.yahya.ai.FutureAtomicCustodianProcess']
+        provider_record=provider/(hashlib.sha256(claim.encode()).hexdigest()+'.reserve')
+        custodian_record=custodian/(hashlib.sha256(claim.encode()).hexdigest()+'.claim')
+        def files():
+            return {(p.name,f.name):(f.stat().st_size,f.stat().st_mtime_ns,f.read_bytes())
+                for p in parties for f in p.iterdir() if f.is_file()}
+        def verify(expected,mode='NORMAL',provider_floor=0,custodian_floor=0,
+                   query_claim=claim,query_nonce=nonce):
+            nonlocal cases
+            before=files()
+            result=subprocess.run(checker+list(map(str,parties))+[
+                query_claim,query_nonce,mode,str(provider_floor),str(custodian_floor)],
+                capture_output=True,text=True,check=True,timeout=14)
+            assert 'RESULT='+expected+' ' in result.stdout,(
+                expected,mode,provider_floor,custodian_floor,result.stdout,result.stderr)
+            assert before==files(),('read-only recovery modified storage',mode)
+            cases+=1
+            return result.stdout
+        def initial_reservation(claim=claim,mode='NORMAL'):
+            return subprocess.run(reserve+['reserve']+list(map(str,parties))+[
+                claim,nonce,mode,'0'],capture_output=True,text=True,
+                check=(mode!='CRASH_AFTER_SYNC'),timeout=14)
+        def initial_consumption(claim=claim,mode='NORMAL'):
+            return subprocess.run(consume+['consume',str(owner),str(root),str(operator),
+                str(custodian),claim,nonce,mode],capture_output=True,text=True,
+                check=(mode!='CRASH_AFTER_SYNC'),timeout=14)
+        verify('REMAIN_INDETERMINATE') # both statuses absent
+        consumed_without_reservation=initial_consumption()
+        assert 'ACK=COMMITTED' in consumed_without_reservation.stdout;cases+=1
+        verify('REMAIN_INDETERMINATE',custodian_floor=1) # custodian alone cannot prove consumed
+        custodian_record.unlink()
+        reserved=initial_reservation()
+        assert 'RESULT=FIRST_RESERVED_PENDING_ACK' in reserved.stdout;cases+=1
+        verify('REMAIN_INDETERMINATE',provider_floor=1) # reserved alone is not consumed
+        # Genuine independent JVM crash AFTER custodian fsync before ACK. Never
+        # call consume again during read-only recovery.
+        crashed=initial_consumption(mode='CRASH_AFTER_SYNC')
+        assert crashed.returncode==73,(crashed.returncode,crashed.stdout,crashed.stderr);cases+=1
+        assert provider_record.exists() and custodian_record.exists();cases+=1
+        verify('CONSUMED_VERIFIED',provider_floor=1,custodian_floor=1)
+        verify('CONSUMED_VERIFIED',provider_floor=1,custodian_floor=1,
+               query_nonce='cross-authority-fresh-nonce-2')
+        for mode,want in (
+            ('PROVIDER_MISSING','REMAIN_INDETERMINATE'),
+            ('CUSTODIAN_MISSING','REMAIN_INDETERMINATE'),
+            ('PROVIDER_BAD_SIG','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_KEY','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_CLAIM','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_ID','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_REV','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_NONCE','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_EPOCH','UNVERIFIABLE'),
+            ('PROVIDER_WRONG_SEQ','UNVERIFIABLE'),
+            ('CUSTODIAN_BAD_SIG','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_KEY','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_CLAIM','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_ID','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_REV','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_NONCE','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_EPOCH','UNVERIFIABLE'),
+            ('CUSTODIAN_WRONG_SEQ','UNVERIFIABLE'),
+            ('CUSTODIAN_COMMITTED','UNVERIFIABLE'),
+            ('OWNER_FORGED','UNVERIFIABLE'),
+            ('PIN_COLLISION','NO_AUTHORITY')):
+            verify(want,mode,provider_floor=1,custodian_floor=1)
+        verify('UNVERIFIABLE',provider_floor=2,custodian_floor=1)
+        verify('UNVERIFIABLE',provider_floor=1,custodian_floor=2)
+        verify('REMAIN_INDETERMINATE',mode='PROVIDER_ABSENT',provider_floor=0,custodian_floor=1)
+        verify('UNVERIFIABLE',mode='PROVIDER_ABSENT',provider_floor=1,custodian_floor=1)
+        # Exact original private keys held stable across separate JVMs.
+        for p,key in zip(parties,original):
+            assert (p/'identity.priv').read_bytes()==key;cases+=1
+        # Full snapshot rollback of provider and custodian claim records: even
+        # though all original five Ed25519 keys survive, no consumed verdict.
+        provider_record.unlink();custodian_record.unlink()
+        verify('REMAIN_INDETERMINATE',provider_floor=1,custodian_floor=1)
+        verify('REMAIN_INDETERMINATE',provider_floor=0,custodian_floor=0)
+        if strict:
+            # EXPECTED SECURITY RED: a mock provider with its own ordinary
+            # rollbackable file cannot resist a second first reservation.
+            again=initial_reservation()
+            assert 'RESULT=ALREADY_RESERVED_NO_RETRY' in again.stdout,(
+                'KNOWN SECURITY FAIL: all five original keys unchanged, full '
+                'provider/custodian snapshot and trusted floors reset permitted '
+                'a second FIRST reservation: '+again.stdout)
+        print('FUTURE_CROSS_AUTHORITY_READONLY_JVM_PASS cases='+str(cases))
+        print('EXTERNAL_NONROLLBACKABLE_CUSTODY_REMAINS_UNIMPLEMENTED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -10655,10 +10861,18 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     custodian_child.write_text(atomic_custodian_process_harness,encoding='utf-8')
     provider_child=Path(temp)/'FutureIndependentReservationProviderProcess.java'
     provider_child.write_text(independent_reservation_provider_harness,encoding='utf-8')
+    cross_child=Path(temp)/'FutureCrossAuthorityRecoveryProcess.java'
+    cross_child.write_text(cross_authority_recovery_harness,encoding='utf-8')
     floor_child=Path(temp)/'FutureIndependentClaimFloorProcess.java'
     floor_child.write_text(monotonic_claim_floor_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child)], check=True)
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child),str(cross_child)], check=True)
     import sys
+    if '--focused-cross-authority' in sys.argv:
+        process_cross_authority_readonly_recovery_proof(temp)
+        sys.exit(0)
+    if '--strict-cross-authority' in sys.argv:
+        process_cross_authority_readonly_recovery_proof(temp,strict=True)
+        sys.exit(0)
     if '--focused-provider-query' in sys.argv:
         process_independent_reservation_status_proof(temp)
         sys.exit(0)
@@ -10832,3 +11046,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_independent_claim_floor_proof(temp)
     process_independent_reservation_provider_proof(temp)
     process_independent_reservation_status_proof(temp)
+    process_cross_authority_readonly_recovery_proof(temp)
