@@ -16,7 +16,8 @@ import sys
 if ('--focused-global-claim-set' in sys.argv
         or '--focused-live-floor-witness' in sys.argv
         or '--strict-live-floor-witness' in sys.argv
-        or '--strict-global-claim-set-rollback' in sys.argv):
+        or '--strict-global-claim-set-rollback' in sys.argv
+        or '--strict-selective-claim-rollback' in sys.argv):
     global_claim_guard_harness = r'''package de.yahya.ai;
 import java.security.*;
 import java.security.spec.*;
@@ -291,6 +292,33 @@ public final class FutureGlobalClaimSetProcess {
       ok(l.reserveOnce(fresh,ID,REV,owner(fresh),nonce("read-live-new"))==
         CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
         "new epoch3 claim passes signed high-water and global CAS");
+    }else if(action.equals("LIVE_MONOTONIC_SESSION")){
+      // Both replies are correctly signed with the SAME original sixth key.
+      // The in-process gate must not accept a lower floor after seeing a
+      // higher one, even while the mock global claim ledger is untouched.
+      Path minFile=externalDir.resolve("witness-minimum.txt");
+      String saved=Files.readString(minFile);
+      try{
+        atomicFile(minFile,"2\n");
+        var l=liveGate(3,false,false,false);
+        ok(l.queryExisting(claim,ID,REV,owner(claim),nonce("live-floor-first-observation"))==
+            CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+            "original sixth-key signed floor=2 accepted");
+        atomicFile(minFile,"1\n");
+        ok(l.queryExisting(claim,ID,REV,owner(claim),nonce("live-floor-decrease-query"))==
+            CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+            "signed floor regression must fail closed in same bound session");
+        String fresh="global-claim-0014";
+        ok(l.reserveOnce(fresh,ID,REV,owner(fresh),nonce("live-floor-decrease-reserve"))==
+            CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+            "floor regression must stop global CAS before provider mutation");
+        ok(!Files.exists(providerDir.resolve(fresh+".txt")),
+            "no provider side effect on signed floor decrease");
+        atomicFile(minFile,"2\n");
+        ok(l.queryExisting(claim,ID,REV,owner(claim),nonce("live-floor-recovery"))==
+            CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+            "original authenticated floor recovery accepted");
+      }finally{atomicFile(minFile,saved);}
     }else if(action.equals("LIVE_OUTAGE") || action.equals("LIVE_REPLAY")
              || action.equals("LIVE_FORGERY")){
       var l=liveGate(3,action.equals("LIVE_OUTAGE"),
@@ -334,6 +362,21 @@ public final class FutureGlobalClaimSetProcess {
         "retained witness min rejects ledger reset sequence1");
       ok(!Files.exists(providerDir.resolve(claim+".txt")),
         "no provider side effect after global claim verification fail");
+    }else if(action.equals("STRICT_SELECTIVE_CLAIM_ROLLBACK")){
+      // A numeric floor does not bind a claim ID. With the original six keys,
+      // delete just ONE claim while retaining an unrelated spent claim. The
+      // legitimately signed floor remains 1, and the forged new sequence=2.
+      Path ledger=externalDir.resolve("spent.txt");
+      java.util.ArrayList<String> entries=new java.util.ArrayList<>(Files.readAllLines(ledger));
+      ok(entries.remove(claim) && entries.contains("global-claim-0009"),
+          "selective rollback preserves unrelated spent claim");
+      atomicFile(ledger,String.join("\n",entries)+"\n");
+      Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+      var live=liveGate(3,false,false,false);
+      var outcome=live.reserveOnce(claim,ID,REV,owner(claim),nonce("selective-rollback-six-keys"));
+      ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+          "KNOWN SECURITY FAIL: selectively dropped claim accepted as new FIRST "
+          +"despite unchanged six signers and original signed numeric floor: "+outcome);
     }else if(action.equals("STRICT_LIVE_TOTAL_ROLLBACK")){
       // This MUST FAIL: resetting BOTH witness and mock ledger is still unsafe.
       Files.deleteIfExists(externalDir.resolve("spent.txt"));
@@ -382,6 +425,19 @@ public final class FutureGlobalClaimSetProcess {
                       for i in range(6)]
             run_guard('E2_FIRST', 'E2_FIRST_PASS')
             run_guard('SET_LIVE_FLOOR', 'SET_LIVE_FLOOR_PASS')
+            if '--strict-selective-claim-rollback' in sys.argv:
+                run_guard('LIVE_NEW', 'LIVE_NEW_PASS')
+                attack = subprocess.run(runner+['STRICT_SELECTIVE_CLAIM_ROLLBACK',state],
+                                        capture_output=True,text=True,timeout=20)
+                after = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                         for i in range(6)]
+                assert before == after, 'six unchanged private keys required for rollback attack'
+                print('SELECTIVE_CLAIM_ROLLBACK_STRICT_EXPECTED_SECURITY_FAIL exit='+str(attack.returncode))
+                print(attack.stderr.strip() or attack.stdout.strip())
+                assert attack.returncode == 0, (
+                    'KNOWN SECURITY FAIL: even with a retained signed numeric floor, '
+                    'selective claim deletion allows a second FIRST at a higher sequence')
+                sys.exit(0)
             if '--strict-live-floor-witness' in sys.argv:
                 attack = subprocess.run(runner+['STRICT_LIVE_TOTAL_ROLLBACK',state],
                                         capture_output=True, text=True, timeout=20)
@@ -408,6 +464,7 @@ public final class FutureGlobalClaimSetProcess {
             run_guard('LIVE_FORGERY', 'LIVE_FORGERY_PASS')
             run_guard('LIVE_INVALID_INPUT', 'LIVE_INVALID_INPUT_PASS')
             run_guard('LIVE_NEW', 'LIVE_NEW_PASS')
+            run_guard('LIVE_MONOTONIC_SESSION', 'LIVE_MONOTONIC_SESSION_PASS')
             run_guard('SIXTH_PIN_SWAP', 'SIXTH_PIN_SWAP_PASS')
             run_guard('PROVIDER_ROLLBACK', 'PROVIDER_ROLLBACK_PASS')
             run_guard('E3_ALREADY', 'E3_ALREADY_PASS')

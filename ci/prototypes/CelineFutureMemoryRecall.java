@@ -3546,6 +3546,10 @@ public final class CelineFutureMemoryRecall {
         private final IndependentGlobalFloorWitnessAuthority witness;
         private final byte[] pin;
         private final java.security.SecureRandom random = new java.security.SecureRandom();
+        // Session-only defense-in-depth. It cannot substitute for the signed,
+        // separately retained nonrollbackable floor after an app/process restart.
+        private final java.util.concurrent.atomic.AtomicLong observedMinimum =
+                new java.util.concurrent.atomic.AtomicLong(-1L);
 
         private ExternallyWitnessedGlobalClaimGate(ProvisionedOneShotGateway provider,
                 IndependentGlobalClaimSetAuthority claimSet,
@@ -3591,8 +3595,21 @@ public final class CelineFutureMemoryRecall {
                         .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
                 verifier.update(payload);
                 if (!verifier.verify(reply.signature())) return null;
-                return ProvisionedGlobalClaimGate.bindFromExternalAdministrator(
-                        provider, claimSet, pin, reply.minimumSequence);
+                ProvisionedGlobalClaimGate authenticated =
+                        ProvisionedGlobalClaimGate.bindFromExternalAdministrator(
+                                provider, claimSet, pin, reply.minimumSequence);
+                if (authenticated == null) return null;
+                // A correctly signed but decreasing floor indicates rollback
+                // or a split-brain authority. Reject it before ANY CAS/query.
+                // Compare-and-set prevents concurrent calls from accepting a
+                // stale lower floor after a newer one was observed.
+                while (true) {
+                    long previous = observedMinimum.get();
+                    if (reply.minimumSequence < previous) return null;
+                    if (observedMinimum.compareAndSet(previous,
+                            reply.minimumSequence)) break;
+                }
+                return authenticated;
             } catch (Exception unavailableOrForged) {
                 return null;
             }
