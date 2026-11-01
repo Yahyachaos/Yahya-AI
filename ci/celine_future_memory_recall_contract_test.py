@@ -305,6 +305,25 @@ public final class FutureGlobalClaimSetProcess {
         "read-only query cannot bypass missing live witness");
       ok(!Files.exists(providerDir.resolve(fresh+".txt")),
         "no epoch provider mutation on missing/invalid live proof");
+    }else if(action.equals("LIVE_INVALID_INPUT")){
+      String fresh="global-claim-0013";
+      Path minFile=externalDir.resolve("witness-minimum.txt");
+      String saved=Files.readString(minFile);
+      Files.delete(minFile); // No witness should be consulted for invalid inputs.
+      try{
+        var l=liveGate(3,false,false,false);
+        ok(l.reserveOnce(fresh,ID,REV,owner(claim),nonce("wrong-owner-must-stop"))==
+          CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,
+          "wrong owner signature must be rejected before witness lookup");
+        ok(l.reserveOnce(fresh,ID,REV,owner(fresh),"invalid") ==
+          CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,
+          "malformed nonce must be rejected before witness lookup");
+        ok(l.queryExisting(fresh,ID,REV,owner(fresh),"invalid") ==
+          CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,
+          "malformed read nonce must be rejected before witness lookup");
+        ok(!Files.exists(providerDir.resolve(fresh+".txt")),
+          "invalid input cannot write provider ledger");
+      }finally{atomicFile(minFile,saved);}
     }else if(action.equals("LIVE_PRESERVED_ROLLBACK")){
       // Mock ledger/provider restored while witness minimum stays 1.
       Files.deleteIfExists(externalDir.resolve("spent.txt"));
@@ -387,6 +406,7 @@ public final class FutureGlobalClaimSetProcess {
             run_guard('LIVE_OUTAGE', 'LIVE_OUTAGE_PASS')
             run_guard('LIVE_REPLAY', 'LIVE_REPLAY_PASS')
             run_guard('LIVE_FORGERY', 'LIVE_FORGERY_PASS')
+            run_guard('LIVE_INVALID_INPUT', 'LIVE_INVALID_INPUT_PASS')
             run_guard('LIVE_NEW', 'LIVE_NEW_PASS')
             run_guard('SIXTH_PIN_SWAP', 'SIXTH_PIN_SWAP_PASS')
             run_guard('PROVIDER_ROLLBACK', 'PROVIDER_ROLLBACK_PASS')
