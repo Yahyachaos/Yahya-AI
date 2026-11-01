@@ -1083,8 +1083,8 @@ final class CelineRoomEnvironmentV80 {
             // planes, not only their named GLB nodes. In source room_shell.glb
             // the inner faces are back Z=+2.10, left X=-2.20, right X=+2.20.
             // Their height is Y=[0,2.65] and their spans match the clear
-            // 4.40 x 4.20 room. Outer 10cm wall thickness is intentionally
-            // excluded from the clear interior. Never move any authored mesh.
+            // 4.40 x 4.20 room. Check the original 10cm OUTER wall planes separately;
+             // those must never be folded into the clear interior. Never move any authored mesh.
             for (int wi = 0; wi < wallBounds.length; wi++) {
                 for (float value : wallBounds[wi]) {
                     if (!Float.isFinite(value)) {
@@ -1101,12 +1101,15 @@ final class CelineRoomEnvironmentV80 {
                     || Math.abs(backWall[1]) > dimensionToleranceM
                     || Math.abs(backWall[4] - 2.65f) > dimensionToleranceM
                     || Math.abs(backWall[2] - 2.10f) > dimensionToleranceM
+                    || Math.abs(backWall[5] - 2.20f) > dimensionToleranceM
+                    || Math.abs(leftWall[0] + 2.30f) > dimensionToleranceM
                     || Math.abs(leftWall[3] + 2.20f) > dimensionToleranceM
                     || Math.abs(leftWall[1]) > dimensionToleranceM
                     || Math.abs(leftWall[4] - 2.65f) > dimensionToleranceM
                     || Math.abs(leftWall[2] + 2.10f) > dimensionToleranceM
                     || Math.abs(leftWall[5] - 2.10f) > dimensionToleranceM
                     || Math.abs(rightWall[0] - 2.20f) > dimensionToleranceM
+                    || Math.abs(rightWall[3] - 2.30f) > dimensionToleranceM
                     || Math.abs(rightWall[1]) > dimensionToleranceM
                     || Math.abs(rightWall[4] - 2.65f) > dimensionToleranceM
                     || Math.abs(rightWall[2] + 2.10f) > dimensionToleranceM
@@ -1128,6 +1131,8 @@ final class CelineRoomEnvironmentV80 {
                             + " measuredCeilingUndersideY_m=" + ceilingBounds[1]
                             + " observedInnerWallPlanes_m=backZ:" + backWall[2]
                             + ",leftX:" + leftWall[3] + ",rightX:" + rightWall[0]
+                            + " observedOuterWallPlanes_m=backZ:" + backWall[5]
+                            + ",leftX:" + leftWall[0] + ",rightX:" + rightWall[3]
                             + " nativeFloorCeilingAndWallsVerified=true AndroidFrame=UNVERIFIED");
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
                     "Native shell root and final visible renderables checked",
