@@ -10355,3 +10355,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_operator_enrollment_proof(temp)
     process_operator_claim_commitment_proof(temp)
     process_external_consumed_checkpoint_proof(temp)
+    process_atomic_custodian_proof(temp)
