@@ -422,6 +422,7 @@ function setSelected(id) {
   if(selected&&!selected.locked)transform.attach(selected.group);
   else transform.detach();
   refreshFields();refreshWarnings();
+  refreshS25SelectedTint(); // selected GLB only, no JSON/transform mutation
 }
 function refreshFields() {
   const canEdit=!!selected&&!selected.locked;
@@ -515,6 +516,42 @@ function setSourceSheerPreview(enabled) {
 // It has no glTF PBR/ACES lighting and draws an opaque floor plus three walls,
 // with open front and ceiling. Recreate ONLY these display semantics. Never
 // change any owner JSON/GLB/mesh geometry, wall dimensions, camera or locks.
+// Reproduce the ORIGINAL offline S25 selection shader in DISPLAY sRGB:
+// c = clamp(c * (1.0 - uSel*0.10) + vec3(.015,.11,.11)*uSel, 0., 1.).
+// The selected-only clone is never saved or applied to source GLB materials.
+function s25SelectedDisplayMaterial(base,saved){
+  let material=saved.selectedTintByMaterial.get(base);
+  if(material)return material;
+  material=base.clone();
+  material.name='S25_SELECTED_DISPLAY_'+base.name;
+  material.onBeforeCompile=(shader)=>{
+    const s='#include <colorspace_fragment>';
+    if(!shader.fragmentShader.includes(s))
+      throw new Error('S25 selected-color output hook missing');
+    shader.fragmentShader=shader.fragmentShader.replace(s,s+'\n'+
+      'gl_FragColor.rgb=clamp(gl_FragColor.rgb*0.90+'+
+      'vec3(0.015,0.110,0.110),0.0,1.0);');
+  };
+  material.customProgramCacheKey=()=> 'S25_OWNER_SELECTED_OUTPUT_RGB_V1';
+  saved.created.add(material);
+  saved.selectedTintByMaterial.set(base,material);
+  return material;
+}
+function refreshS25SelectedTint(){
+  const saved=s25RawViewBackup;
+  if(!s25RawPreview||!saved)return;
+  for(const entry of entries.values())entry.group.traverse(mesh=>{
+    if(!mesh.isMesh)return;
+    const base=saved.displayBaseByMesh.get(mesh);
+    if(!base)return;
+    const shade=entry.id===selected?.id;
+    const arr=Array.isArray(base)?base:[base];
+    const displayed=shade?arr.map(m=>s25SelectedDisplayMaterial(m,saved)):arr;
+    mesh.material=Array.isArray(base)?displayed:displayed[0];
+  });
+  invalidateMobileFrame();
+}
+
 function setS25RawPreview(enabled){
   enabled=!!enabled;
   if(s25RawPreview===enabled)return;
@@ -527,6 +564,7 @@ function setS25RawPreview(enabled){
     });
     if(!meshes.length)throw new Error('Keine originalen S25-Meshes gefunden');
     const saved={
+      displayBaseByMesh:new Map(),selectedTintByMaterial:new Map(),
       sources:meshes.map(mesh=>({mesh,material:mesh.material})),
       surfaces:walls.children.map(mesh=>({mesh,material:mesh.material,visible:mesh.visible})),
       floorSurfaces:floor.children.map(mesh=>({mesh,material:mesh.material,visible:mesh.visible})),
@@ -560,6 +598,7 @@ function setS25RawPreview(enabled){
           return materials.get(original);
         });
         mesh.material=Array.isArray(mesh.material)?next:next[0];
+        saved.displayBaseByMesh.set(mesh,mesh.material);
       }
       const ground=floor.children.find(mesh=>mesh.isMesh);
       const wallMeshes=walls.children.filter(mesh=>mesh.isMesh);
@@ -583,6 +622,7 @@ function setS25RawPreview(enabled){
       scene.background.setHex(0x131b21);
       for(const {control} of saved.disabled)control.disabled=true;
       s25RawViewBackup=saved;s25RawPreview=true;
+      refreshS25SelectedTint(); // originally selected bed is tinted in owner S25
     }catch(e){
       for(const {mesh,material} of saved.sources)mesh.material=material;
       for(const {mesh,material,visible} of [...saved.surfaces,...saved.floorSurfaces]){
