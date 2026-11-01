@@ -10073,6 +10073,161 @@ public final class FutureAtomicCustodianProcess {
 # A separate fifth-key JVM only simulates independent storage. The floor file
 # is intentionally rollbackable: neither Ed25519 nor a Python directory is a
 # genuine nonrollbackable external custody or product security guarantee.
+# FUTURE-ONLY mock authority: *separate directory* and distinct JVM/key.
+# Its filesystem is still rollbackable and is NOT a real protected provider.
+independent_reservation_provider_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.util.*;
+public final class FutureIndependentReservationProviderProcess {
+  static final String ID="source-memory-1";
+  static final long REV=2;
+  static byte[] pin(Path p)throws Exception {return FutureAtomicCustodianProcess.pub(p).getEncoded();}
+  static byte[] sign(Path p,byte[] b)throws Exception {return FutureAtomicCustodianProcess.sign(p,b);}
+  static Path record(Path provider,String claim)throws Exception {
+    MessageDigest hash=MessageDigest.getInstance("SHA-256");
+    return provider.resolve(HexFormat.of().formatHex(hash.digest(claim.getBytes(StandardCharsets.UTF_8)))+".reserve");
+  }
+  static void durable(Path provider,Path file,byte[] data)throws Exception {
+    Path tmp=Files.createTempFile(provider,"reservation-",".tmp");
+    try {
+      try(FileChannel ch=FileChannel.open(tmp,StandardOpenOption.WRITE)) {
+        java.nio.ByteBuffer b=java.nio.ByteBuffer.wrap(data);
+        while(b.hasRemaining())ch.write(b);
+        ch.force(true);
+      }
+      Files.move(tmp,file,StandardCopyOption.ATOMIC_MOVE);
+      try(FileChannel dir=FileChannel.open(provider,StandardOpenOption.READ)){dir.force(true);}
+    } finally {Files.deleteIfExists(tmp);}
+  }
+  static void reserve(Path owner,Path root,Path operator,Path custodian,
+       Path provider,String claim,String nonce,String mode,long minimum)throws Exception {
+    byte[] ownerPin=pin(owner),rootPin=pin(root),operatorPin=pin(operator);
+    byte[] custodianPin=pin(custodian),providerPin=pin(provider);
+    byte[] ownerSignature=FutureAtomicCustodianProcess.ownerSig(owner,claim,ID);
+    Path ledger=record(provider,claim);
+    byte[] canonical=(claim+"\n"+ID+"\n"+REV+"\n"
+      +Base64.getEncoder().encodeToString(ownerSignature)+"\n").getBytes(StandardCharsets.UTF_8);
+    String state;
+    try(FileChannel ch=FileChannel.open(provider.resolve("provider.lock"),
+         StandardOpenOption.CREATE,StandardOpenOption.WRITE);FileLock lock=ch.lock()) {
+      if(Files.exists(ledger)) {
+        if(!Arrays.equals(Files.readAllBytes(ledger),canonical))throw new SecurityException("record mismatch");
+        state="ALREADY_RESERVED";
+      } else {
+        durable(provider,ledger,canonical);
+        if(mode.equals("CRASH_AFTER_SYNC"))Runtime.getRuntime().halt(74);
+        state="FIRST_RESERVED";
+      }
+    } catch(SecurityException conflict){System.out.println("RESULT=UNVERIFIABLE RECORD_CONFLICT");return;}
+    byte[] signature=sign(provider,CelineFutureMemoryRecall.monotonicReservationPayload(
+      claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,custodianPin,2,1,state));
+    String id=ID,claimField=claim,nonceField=nonce,decision=state;
+    long revision=REV,epoch=2,seq=1;
+    if(mode.equals("BAD_SIG"))signature[0]^=1;
+    if(mode.equals("WRONG_KEY"))signature=sign(custodian,
+      CelineFutureMemoryRecall.monotonicReservationPayload(claim,ID,REV,ownerSignature,
+        nonce,ownerPin,rootPin,operatorPin,custodianPin,2,1,state));
+    if(mode.equals("WRONG_ID"))id="other-id";
+    if(mode.equals("WRONG_CLAIM"))claimField="other-claim";
+    if(mode.equals("WRONG_NONCE"))nonceField="other-nonce";
+    if(mode.equals("WRONG_REV"))revision=REV+1;
+    if(mode.equals("WRONG_EPOCH"))epoch=1;
+    if(mode.equals("WRONG_SEQ"))seq=0;
+    if(mode.equals("ABSENT"))decision="ABSENT";
+    if(mode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
+    if(mode.equals("WRONG_CUSTODIAN"))custodianPin=rootPin;
+    if(mode.equals("FIRST_AGAIN"))decision="FIRST_RESERVED";
+    if(mode.equals("COLLIDED_PROVIDER"))providerPin=ownerPin;
+    var receipt=mode.equals("LOST_ACK")?null:
+      new CelineFutureMemoryRecall.SignedMonotonicReservation(
+       claimField,id,revision,nonceField,epoch,seq,decision,custodianPin,signature);
+    var status=CelineFutureMemoryRecall.verifyMonotonicReservation(
+      claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+      pin(custodian),providerPin,2,minimum,receipt);
+    System.out.println("RESULT="+status+" DECISION="+state+" MIN="+minimum);
+  }
+  public static void main(String[] a)throws Exception {
+    if(a.length!=9)throw new IllegalArgumentException("5 directories claim nonce mode min");
+    reserve(Path.of(a[0]),Path.of(a[1]),Path.of(a[2]),Path.of(a[3]),Path.of(a[4]),
+      a[5],a[6],a[7],Long.parseLong(a[8]));
+  }
+}
+'''
+
+
+def process_independent_reservation_provider_proof(compiled, strict=False):
+    import hashlib
+    from concurrent.futures import ThreadPoolExecutor
+    with tempfile.TemporaryDirectory(prefix='future_external_reservation_provider_') as tmp:
+        top=Path(tmp)
+        owner,root,operator,custodian,provider=[top/x for x in
+            ('owner','root','operator','custodian','external_provider')]
+        for path in (owner,root,operator,custodian,provider):
+            init=subprocess.run(['java','-cp',compiled,
+                'de.yahya.ai.FutureIndependentHighWaterProcess','init',str(path)],
+                capture_output=True,text=True,check=True,timeout=12)
+            assert 'INIT ' in init.stdout,(init.stdout,init.stderr)
+        keys=[(x/'identity.priv').read_bytes() for x in (owner,root,operator,custodian,provider)]
+        cmd=['java','-cp',compiled,'de.yahya.ai.FutureIndependentReservationProviderProcess']
+        claim='memory-claim-0001'; count=0
+        def request(c=claim,nonce='provider-nonce-0001',mode='NORMAL',minimum=0,check=True):
+            return subprocess.run(cmd+list(map(str,(owner,root,operator,custodian,provider)))+
+                [c,nonce,mode,str(minimum)],capture_output=True,text=True,
+                timeout=16,check=check)
+        def expect(expected,c=claim,nonce='provider-nonce-0001',mode='NORMAL',minimum=0):
+            nonlocal count
+            result=request(c,nonce,mode,minimum)
+            assert 'RESULT='+expected+' ' in result.stdout,(expected,mode,result.stdout,result.stderr)
+            count+=1
+            return result
+        expect('FIRST_RESERVED_PENDING_ACK')
+        for n in range(3):
+            expect('ALREADY_RESERVED_NO_RETRY',nonce='provider-nonce-'+str(n))
+        expect('ALREADY_RESERVED_NO_RETRY',minimum=1)
+        for mode,expected in (
+          ('BAD_SIG','UNVERIFIABLE'),('WRONG_KEY','UNVERIFIABLE'),
+          ('WRONG_ID','UNVERIFIABLE'),('WRONG_CLAIM','UNVERIFIABLE'),
+          ('WRONG_NONCE','UNVERIFIABLE'),('WRONG_REV','UNVERIFIABLE'),
+          ('WRONG_EPOCH','UNVERIFIABLE'),('WRONG_SEQ','UNVERIFIABLE'),
+          ('ABSENT','UNVERIFIABLE'),('FORGED_OWNER','UNVERIFIABLE'),
+          ('WRONG_CUSTODIAN','NO_AUTHORITY'),('FIRST_AGAIN','UNVERIFIABLE'),
+          ('COLLIDED_PROVIDER','NO_AUTHORITY'),('LOST_ACK','NO_AUTHORITY')):
+            expect(expected,mode=mode,minimum=1)
+        # Different claim atomically reserved; simulated crash after durable
+        # commit but BEFORE the response; status after JVM restart is ALREADY.
+        crash=request('crash-claim','provider-crash-nonce','CRASH_AFTER_SYNC',check=False)
+        assert crash.returncode==74,(crash.returncode,crash.stdout,crash.stderr);count+=1
+        expect('ALREADY_RESERVED_NO_RETRY',c='crash-claim',nonce='provider-crash-retry',minimum=0)
+        # Independently provisioned provider directory is outside the caller
+        # snapshot, so resetting caller-side records does not enable replay.
+        for file in custodian.glob('*.claim'): file.unlink()
+        expect('ALREADY_RESERVED_NO_RETRY')
+        # Four separate real JVM processes with OS FileLock for the same claim.
+        race='race-claim'
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            outcomes=list(pool.map(lambda i:request(race,'provider-race-nonce-000'+str(i)).stdout,range(4)))
+        assert sum('RESULT=FIRST_RESERVED_PENDING_ACK' in x for x in outcomes)==1,outcomes
+        assert sum('RESULT=ALREADY_RESERVED_NO_RETRY' in x for x in outcomes)==3,outcomes
+        count+=4
+        for path,key in zip((owner,root,operator,custodian,provider),keys):
+            assert (path/'identity.priv').read_bytes()==key;count+=1
+        if strict:
+            # Expected RED: provider itself is ordinary resettable file storage.
+            # Reusing all FIVE original keys after deleting its ledger permits a
+            # new FIRST, if the independently protected minimum also resets.
+            ledger=provider/(hashlib.sha256(claim.encode()).hexdigest()+'.reserve')
+            assert ledger.exists();ledger.unlink()
+            again=request(minimum=0)
+            assert 'RESULT=ALREADY_RESERVED_NO_RETRY' in again.stdout,(
+                'KNOWN SECURITY FAIL: externally managed provider also rolled '
+                'back under original keys: '+again.stdout)
+        print('FUTURE_INDEPENDENT_PROVIDER_RESERVATION_JVM_PASS cases='+str(count))
+        print('PROVIDER_CUSTODY_SIMULATED_NONROLLBACKABILITY_NOT_PROVEN')
+
 monotonic_claim_floor_harness = r'''
 package de.yahya.ai;
 import java.nio.file.*;
@@ -10359,10 +10514,18 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     anchor_child.write_text(external_checkpoint_process_harness,encoding='utf-8')
     custodian_child=Path(temp)/'FutureAtomicCustodianProcess.java'
     custodian_child.write_text(atomic_custodian_process_harness,encoding='utf-8')
+    provider_child=Path(temp)/'FutureIndependentReservationProviderProcess.java'
+    provider_child.write_text(independent_reservation_provider_harness,encoding='utf-8')
     floor_child=Path(temp)/'FutureIndependentClaimFloorProcess.java'
     floor_child.write_text(monotonic_claim_floor_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child)], check=True)
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child)], check=True)
     import sys
+    if '--focused-provider-reservation' in sys.argv:
+        process_independent_reservation_provider_proof(temp)
+        sys.exit(0)
+    if '--strict-provider-reservation' in sys.argv:
+        process_independent_reservation_provider_proof(temp,strict=True)
+        sys.exit(0)
     if '--focused-independent-claim-floor' in sys.argv:
         process_independent_claim_floor_proof(temp)
         sys.exit(0)
@@ -10522,3 +10685,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_external_consumed_checkpoint_proof(temp)
     process_atomic_custodian_proof(temp)
     process_independent_claim_floor_proof(temp)
+    process_independent_reservation_provider_proof(temp)
