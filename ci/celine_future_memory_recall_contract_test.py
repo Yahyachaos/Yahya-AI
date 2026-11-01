@@ -10899,7 +10899,7 @@ public final class FutureOneShotEnrollmentContract {
   static KeyPair key()throws Exception {
     KeyPairGenerator g=KeyPairGenerator.getInstance("Ed25519");return g.generateKeyPair();
   }
-  static final class BoundBackend implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
+  static class BoundBackend implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
     final KeyPair[] keys;
     final byte[][] pins;
     long providerEpoch=2;
@@ -10959,6 +10959,104 @@ public final class FutureOneShotEnrollmentContract {
       lastQuery=new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(claim,id,
         revision,nonce,providerEpoch,seq,status,pins[3],sign(keys[4].getPrivate(),payload));
       return lastQuery;
+    }
+  }
+  // Test-only disk CAS service. Its locking, atomic rename and fsync can
+  // survive a JVM crash but CANNOT defeat restoration of the entire directory.
+  static final class DurableEpochBackend extends BoundBackend {
+    final Path dir, ledger;
+    boolean killAfterDurableMigration, forgeMigrationAck;
+    DurableEpochBackend(KeyPair[] keys,byte[][] pins,Path dir)throws Exception {
+      super(keys,pins);this.dir=dir;ledger=dir.resolve("provider-ledger.txt");
+      if(Files.exists(ledger))providerEpoch=readLedger().epoch;
+    }
+    static final class State {
+      final long epoch;final TreeSet<String> claims;
+      State(long epoch,TreeSet<String> claims){this.epoch=epoch;this.claims=claims;}
+    }
+    State readLedger()throws Exception {
+      if(!Files.exists(ledger))return new State(2,new TreeSet<>());
+      var lines=Files.readAllLines(ledger);
+      TreeSet<String> claims=new TreeSet<>();
+      for(int i=1;i<lines.size();i++)if(!lines.get(i).isBlank())claims.add(lines.get(i));
+      return new State(Long.parseLong(lines.get(0)),claims);
+    }
+    byte[] digest()throws Exception {
+      if(!Files.exists(ledger))return MessageDigest.getInstance("SHA-256")
+        .digest("2\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      return MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(ledger));
+    }
+    void persist(long epoch,Set<String> claims)throws Exception {
+      TreeSet<String> sorted=new TreeSet<>(claims);
+      StringBuilder b=new StringBuilder().append(epoch).append('\n');
+      for(String claim:sorted)b.append(claim).append('\n');
+      Path temp=Files.createTempFile(dir,"ledger-",".tmp");
+      try {
+        Files.writeString(temp,b.toString());
+        try(var f=java.nio.channels.FileChannel.open(temp,StandardOpenOption.WRITE)){
+          f.force(true);
+        }
+        Files.move(temp,ledger,StandardCopyOption.ATOMIC_MOVE,
+          StandardCopyOption.REPLACE_EXISTING);
+        try(var f=java.nio.channels.FileChannel.open(dir,StandardOpenOption.READ)){
+          f.force(true);
+        }
+      } finally {Files.deleteIfExists(temp);}
+    }
+    public CelineFutureMemoryRecall.SignedMonotonicReservation reserveOnce(
+        String claim,String id,long revision,byte[] ownerSig,String nonce)throws Exception {
+      reserveCalls.incrementAndGet();
+      try(var f=java.nio.channels.FileChannel.open(dir.resolve("provider.lock"),
+              StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+          var lock=f.lock()) {
+        State st=readLedger();boolean first=st.claims.add(claim);
+        if(first)persist(st.epoch,st.claims);
+        String decision=first?"FIRST_RESERVED":"ALREADY_RESERVED";
+        byte[] payload=CelineFutureMemoryRecall.monotonicReservationPayload(
+          claim,id,revision,ownerSig,nonce,pins[0],pins[1],pins[2],pins[3],
+          st.epoch,1,decision);
+        lastReserve=new CelineFutureMemoryRecall.SignedMonotonicReservation(
+          claim,id,revision,nonce,st.epoch,1,decision,pins[3],
+          sign(keys[4].getPrivate(),payload));
+        return lastReserve;
+      }
+    }
+    public CelineFutureMemoryRecall.SignedMonotonicReservationStatus queryExisting(
+        String claim,String id,long revision,byte[] ownerSig,String nonce)throws Exception {
+      queryCalls.incrementAndGet();
+      State st=readLedger();boolean exists=st.claims.contains(claim);
+      String decision=exists?"RESERVED":"ABSENT";long sequence=exists?1:0;
+      byte[] payload=CelineFutureMemoryRecall.monotonicQueryExistingPayload(
+        claim,id,revision,ownerSig,nonce,pins[0],pins[1],pins[2],pins[3],
+        st.epoch,sequence,decision);
+      lastQuery=new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(
+        claim,id,revision,nonce,st.epoch,sequence,decision,pins[3],
+        sign(keys[4].getPrivate(),payload));
+      return lastQuery;
+    }
+    public CelineFutureMemoryRecall.SignedOneShotEpochMigrationReceipt advanceEpochAtomically(
+        CelineFutureMemoryRecall.SignedOneShotEnrollment target, long fromEpoch,
+        byte[] fullDigest,long expectedClaimCount,String nonce)throws Exception {
+      try(var f=java.nio.channels.FileChannel.open(dir.resolve("provider.lock"),
+              StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+          var lock=f.lock()) {
+        State st=readLedger();
+        if(st.epoch!=fromEpoch || target.epoch!=fromEpoch+1
+            || st.claims.size()!=expectedClaimCount
+            || !Arrays.equals(digest(),fullDigest))return null;
+        // All claimed IDs transfer together; a crash cannot persist a half-list.
+        persist(target.epoch,st.claims);
+        providerEpoch=target.epoch;
+        if(killAfterDurableMigration)Runtime.getRuntime().halt(78);
+        byte[] payload=CelineFutureMemoryRecall.oneShotEpochMigrationPayload(
+          target.authorityId,fromEpoch,target.epoch,expectedClaimCount,
+          fullDigest,nonce,target.signature());
+        byte[] attestation=sign(keys[4].getPrivate(),payload);
+        if(forgeMigrationAck)attestation[0]^=1;
+        return new CelineFutureMemoryRecall.SignedOneShotEpochMigrationReceipt(
+          target.authorityId,fromEpoch,target.epoch,expectedClaimCount,
+          fullDigest,nonce,attestation);
+      }
     }
   }
   static void run(boolean strict)throws Exception {
@@ -11174,6 +11272,44 @@ public final class FutureOneShotEnrollmentContract {
     long revision=2;
     byte[] ownerSig=sign(keys[0].getPrivate(),
       CelineFutureMemoryRecall.originalOwnerClaimPayload(CLAIM,MID,revision));
+    if(action.equals("MIGRATION_BAD_DIGEST") || action.equals("MIGRATION_COMMIT")
+        || action.equals("MIGRATION_CRASH") || action.equals("MIGRATION_FORGED_ACK")) {
+      ok(trusted==2,"migration must be requested from enrolled source epoch2");
+      DurableEpochBackend old=new DurableEpochBackend(keys,pins,dir);
+      var gate=CelineFutureMemoryRecall.ProvisionedOneShotGateway
+        .bindFromIndependentBootstrap(pins,rootEnrollment(keys,pins,2),trusted,old);
+      ok(gate!=null,"source epoch authenticated before transfer");
+      byte[] digest=Files.readAllBytes(dir.resolve("retained-ledger.digest"));
+      if(action.equals("MIGRATION_BAD_DIGEST")) {
+        var invalid=rootEnrollment(keys,pins,3);
+        byte[] forgedRoot=invalid.signature();forgedRoot[0]^=1;
+        ok(gate.migrateLedgerOnce(new CelineFutureMemoryRecall.SignedOneShotEnrollment(
+          AUTH,3,pins,forgedRoot),digest,2,"bad-root-migration-nonce-00001")==
+          CelineFutureMemoryRecall.OneShotEpochMigrationOutcome.UNVERIFIABLE,
+          "forged next-epoch root authorization rejected before provider call");
+        byte[] fake=digest.clone();fake[0]^=1;
+        ok(gate.migrateLedgerOnce(rootEnrollment(keys,pins,3),fake,2,
+          "epoch-migration-bad-digest-0001")==
+          CelineFutureMemoryRecall.OneShotEpochMigrationOutcome.NO_AUTHORITY,
+          "mismatched externally retained source digest rejects migration");
+        ok(old.readLedger().epoch==2,"bad digest did not advance persisted state");
+        System.out.println("MIGRATION_BAD_DIGEST_PASS checks="+checks);return;
+      }
+      old.killAfterDurableMigration=action.equals("MIGRATION_CRASH");
+      old.forgeMigrationAck=action.equals("MIGRATION_FORGED_ACK");
+      var result=gate.migrateLedgerOnce(rootEnrollment(keys,pins,3),digest,2,
+        "epoch-migration-full-ledger-0001");
+      if(action.equals("MIGRATION_FORGED_ACK")) {
+        ok(result==CelineFutureMemoryRecall.OneShotEpochMigrationOutcome.UNVERIFIABLE,
+          "forged provider acknowledgement rejected even after state transition");
+        ok(old.readLedger().epoch==3,"persisted migration is not undone by bad ACK");
+        System.out.println("MIGRATION_FORGED_ACK_PASS checks="+checks);return;
+      }
+      ok(result==CelineFutureMemoryRecall.OneShotEpochMigrationOutcome.MIGRATION_ATTESTED,
+        "successful migration returns authentic provider acknowledgement");
+      ok(old.readLedger().epoch==3,"complete atomically persisted new epoch");
+      System.out.println("MIGRATION_COMMIT_PASS checks="+checks);return;
+    }
     if(action.equals("MIGRATION_ADVANCE")) {
       ok(trusted==2,"advance from independently held epoch2 fixture");
       Files.writeString(dir.resolve("trusted-epoch.txt"),"3");
@@ -11181,7 +11317,7 @@ public final class FutureOneShotEnrollmentContract {
     }
     if(action.equals("MIGRATION_E2")) {
       ok(trusted==2,"epoch2 initial trusted floor");
-      BoundBackend old=new BoundBackend(keys,pins);
+      DurableEpochBackend old=new DurableEpochBackend(keys,pins,dir);
       var gate=CelineFutureMemoryRecall.ProvisionedOneShotGateway
         .bindFromIndependentBootstrap(pins,rootEnrollment(keys,pins,2),trusted,old);
       ok(gate!=null,"epoch2 genuine root/provider attestation binds");
@@ -11193,6 +11329,17 @@ public final class FutureOneShotEnrollmentContract {
         "epoch2 genuine read-only receipt");
       Files.write(dir.resolve("old-reserve.sig"),old.lastReserve.signature());
       Files.write(dir.resolve("old-query.sig"),old.lastQuery.signature());
+      String secondClaim="epoch2-second-claimed-id-0002";
+      byte[] secondSig=sign(keys[0].getPrivate(),
+        CelineFutureMemoryRecall.originalOwnerClaimPayload(secondClaim,"epoch2-second-memory",revision));
+      ok(gate.reserveOnce(secondClaim,"epoch2-second-memory",revision,secondSig,
+        "epoch2-second-reservation-0001",0)==
+        CelineFutureMemoryRecall.MonotonicReservationOutcome.FIRST_RESERVED_PENDING_ACK,
+        "second distinct epoch2 claim reserved before atomic migration");
+      Files.write(dir.resolve("retained-ledger.digest"),old.digest());
+      Files.copy(old.ledger,dir.resolve("epoch2-ledger.snapshot"),
+        StandardCopyOption.REPLACE_EXISTING);
+      ok(old.readLedger().claims.size()==2,"epoch2 source full ledger includes two IDs");
       System.out.println("MIGRATION_E2_PASS checks="+checks);return;
     }
     if(action.equals("MIGRATION_E3")) {
@@ -11240,12 +11387,40 @@ public final class FutureOneShotEnrollmentContract {
       ok(gate.queryExisting(freshClaim,freshId,revision,newOwnerSig,QNONCE,1)==
         CelineFutureMemoryRecall.MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY,
         "genuine epoch3 new-claim read-only status accepted");
+      DurableEpochBackend preserved=new DurableEpochBackend(keys,pins,dir);
+      ok(preserved.readLedger().epoch==3,"disk ledger advanced across fresh JVM");
+      var recovered=CelineFutureMemoryRecall.ProvisionedOneShotGateway
+        .bindFromIndependentBootstrap(pins,e3,trusted,preserved);
+      ok(recovered!=null,"after crash new provider epoch3 re-attested");
+      ok(recovered.queryExisting(CLAIM,MID,revision,ownerSig,
+        "migrated-old-claim-query-0001",0)==
+        CelineFutureMemoryRecall.MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY,
+        "old claimed ID is still reserved after epoch migration and reboot");
+      ok(recovered.reserveOnce(CLAIM,MID,revision,ownerSig,
+        "migrated-old-claim-reserve-0001",0)==
+        CelineFutureMemoryRecall.MonotonicReservationOutcome.ALREADY_RESERVED_NO_RETRY,
+        "old claimed ID cannot obtain a SECOND FIRST after epoch migration");
+      String secondClaim="epoch2-second-claimed-id-0002";
+      byte[] secondSig=sign(keys[0].getPrivate(),
+        CelineFutureMemoryRecall.originalOwnerClaimPayload(secondClaim,"epoch2-second-memory",revision));
+      ok(recovered.reserveOnce(secondClaim,"epoch2-second-memory",revision,secondSig,
+        "migrated-second-old-reserve-0001",0)==
+        CelineFutureMemoryRecall.MonotonicReservationOutcome.ALREADY_RESERVED_NO_RETRY,
+        "all old claimed IDs remain reserved, not just the first one");
+      ok(recovered.reserveOnce(freshClaim,freshId,revision,newOwnerSig,
+        "migrated-new-claim-reserve-0001",0)==
+        CelineFutureMemoryRecall.MonotonicReservationOutcome.FIRST_RESERVED_PENDING_ACK,
+        "a genuinely new epoch3 claim obtains the single FIRST");
+      ok(preserved.readLedger().claims.size()==3,
+        "both old claimed IDs preserved plus one new claim");
       System.out.println("MIGRATION_E3_PASS checks="+checks);return;
     }
     if(action.equals("MIGRATION_STRICT_REPEAT")) {
       // Expected security failure: new epoch alone does NOT carry prior
       // claim consumption into an empty/rolled-back external provider ledger.
-      BoundBackend rollback=new BoundBackend(keys,pins);rollback.providerEpoch=3;
+      DurableEpochBackend rollback=new DurableEpochBackend(keys,pins,dir);
+      rollback.persist(3,new TreeSet<>()); // ATTACK: wipe provider's own claim ledger.
+      rollback.providerEpoch=3;
       var gate=CelineFutureMemoryRecall.ProvisionedOneShotGateway
         .bindFromIndependentBootstrap(pins,rootEnrollment(keys,pins,3),trusted,rollback);
       ok(gate!=null,"valid epoch3 bootstrap before strict attack");
@@ -11259,7 +11434,9 @@ public final class FutureOneShotEnrollmentContract {
       // Expected security failure if even the independently held minimum and
       // provider ledger are restored to epoch2 while all keys remain intact.
       Files.writeString(dir.resolve("trusted-epoch.txt"),"2");
-      BoundBackend rollback=new BoundBackend(keys,pins);
+      Files.copy(dir.resolve("epoch2-ledger.snapshot"),dir.resolve("provider-ledger.txt"),
+        StandardCopyOption.REPLACE_EXISTING); // ATTACK: restore both old snapshots.
+      DurableEpochBackend rollback=new DurableEpochBackend(keys,pins,dir);
       var gate=CelineFutureMemoryRecall.ProvisionedOneShotGateway
         .bindFromIndependentBootstrap(pins,rootEnrollment(keys,pins,2),2,rollback);
       ok(gate==null,"KNOWN SECURITY FAIL: full snapshot rollback with five original "
@@ -11279,28 +11456,47 @@ public final class FutureOneShotEnrollmentContract {
 
 
 def process_one_shot_epoch_migration_proof(compiled, strict=False):
+    runner=['java','-cp',compiled,'de.yahya.ai.FutureOneShotEnrollmentContract']
     with tempfile.TemporaryDirectory(prefix='future_one_shot_epoch_migration_') as d:
-        runner=['java','-cp',compiled,'de.yahya.ai.FutureOneShotEnrollmentContract']
         def step(action, expected):
             p=subprocess.run(runner+[action,d],capture_output=True,text=True,timeout=15)
             assert p.returncode==0 and expected in p.stdout,(action,p.returncode,p.stdout,p.stderr)
             return p
         step('MIGRATION_INIT','MIGRATION_INIT_PASS')
         original=[(Path(d)/('original-'+str(i)+'.priv')).read_bytes() for i in range(5)]
-        step('MIGRATION_E2','MIGRATION_E2_PASS checks=4')
+        step('MIGRATION_E2','MIGRATION_E2_PASS checks=6')
+        step('MIGRATION_BAD_DIGEST','MIGRATION_BAD_DIGEST_PASS checks=5')
+        # Real hard JVM termination AFTER an atomic rename/fsync, BEFORE ACK.
+        crash=subprocess.run(runner+['MIGRATION_CRASH',d],capture_output=True,text=True,timeout=15)
+        assert crash.returncode==78, ('post-fsync crash not reached',crash.returncode,crash.stderr)
+        assert (Path(d)/'provider-ledger.txt').read_text().startswith('3\n'), 'crash lost migration'
         step('MIGRATION_ADVANCE','MIGRATION_ADVANCE_PASS')
-        step('MIGRATION_E3','MIGRATION_E3_PASS checks=12')
+        step('MIGRATION_E3','MIGRATION_E3_PASS checks=19')
         assert all((Path(d)/('original-'+str(i)+'.priv')).read_bytes()==original[i]
             for i in range(5)), 'original signing keys changed during migration'
         if strict:
-            # Deliberately fail when a newly enrolled epoch loses the old claim
-            # ledger, even if the externally supplied epoch minimum is still 3.
+            # Proven failure under complete provider ledger rollback, still
+            # using the SAME five independently persisted original keys.
             p=subprocess.run(runner+['MIGRATION_STRICT_REPEAT',d],capture_output=True,text=True,timeout=15)
-            assert p.returncode==0,('EXPECTED SECURITY FAIL: epoch migration must preserve old claims',p.stdout,p.stderr)
+            assert p.returncode==0,('EXPECTED SECURITY FAIL: total provider rollback',p.stdout,p.stderr)
             p=subprocess.run(runner+['MIGRATION_STRICT_RESET',d],capture_output=True,text=True,timeout=15)
             assert p.returncode==0,('EXPECTED SECURITY FAIL: full rollback with original keys',p.stdout,p.stderr)
-        print('FUTURE_ONE_SHOT_EPOCH_MIGRATION_JVM_PASS cases=19 fresh_JVMs=4')
-        print('PROTECTED_EPOCH_FLOOR_IS_A_ROLLBACKABLE_TEST_DOUBLE_NOT_PRODUCTION_CUSTODY')
+    if not strict:
+        # Independent no-crash success AND forged-ACK-but-durable cases.
+        for action,marker in (('MIGRATION_COMMIT','MIGRATION_COMMIT_PASS'),
+                              ('MIGRATION_FORGED_ACK','MIGRATION_FORGED_ACK_PASS')):
+            with tempfile.TemporaryDirectory(prefix='future_epoch_alternate_') as d:
+                def step(action, expected):
+                    p=subprocess.run(runner+[action,d],capture_output=True,text=True,timeout=15)
+                    assert p.returncode==0 and expected in p.stdout,(action,p.returncode,p.stdout,p.stderr)
+                step('MIGRATION_INIT','MIGRATION_INIT_PASS')
+                step('MIGRATION_E2','MIGRATION_E2_PASS checks=6')
+                step(action,marker)
+                step('MIGRATION_ADVANCE','MIGRATION_ADVANCE_PASS')
+                step('MIGRATION_E3','MIGRATION_E3_PASS checks=19')
+    print('FUTURE_ONE_SHOT_EPOCH_MIGRATION_JVM_PASS scenarios=3 crash_exit=78'
+          ' five_original_keys=5 cross_JVM=true')
+    print('CLAIM_LEDGER_AND_TRUSTED_MINIMUM_ARE_ROLLBACKABLE_TEST_DOUBLES')
 
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     one_shot_child=Path(temp)/'FutureOneShotEnrollmentContract.java'
@@ -11370,7 +11566,7 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
         # rollbackable minimum, retaining every original Ed25519 identity.
         with tempfile.TemporaryDirectory(prefix='future_one_shot_epoch_rollback_') as d:
             runner=['java','-cp',temp,'de.yahya.ai.FutureOneShotEnrollmentContract']
-            for mode in ('MIGRATION_INIT','MIGRATION_E2','MIGRATION_ADVANCE','MIGRATION_E3'):
+            for mode in ('MIGRATION_INIT','MIGRATION_E2','MIGRATION_COMMIT','MIGRATION_ADVANCE','MIGRATION_E3'):
                 subprocess.run(runner+[mode,d],capture_output=True,text=True,check=True,timeout=15)
             strict=subprocess.run(runner+['MIGRATION_STRICT_RESET',d],
                 capture_output=True,text=True,timeout=15)
