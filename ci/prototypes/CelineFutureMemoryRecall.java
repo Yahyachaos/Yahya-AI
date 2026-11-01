@@ -1487,6 +1487,62 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * POST-v83 simulation contract only. A migration acknowledgement authenticates
+     * an epoch and the complete expected ledger digest, but it CANNOT establish
+     * that the provider truly preserved every spent claim or resists rollback.
+     * The expected digest/count MUST come from separately retained trustworthy
+     * custody; allowing the migrating provider to select them is unsafe.
+     */
+    public enum OneShotEpochMigrationOutcome {
+        NO_AUTHORITY, UNVERIFIABLE, STARTED_INDETERMINATE, MIGRATION_ATTESTED
+    }
+
+    public static final class SignedOneShotEpochMigrationReceipt {
+        public final String authorityId, freshNonce;
+        public final long fromEpoch, toEpoch, claimCount;
+        private final byte[] ledgerDigest, signature;
+        public SignedOneShotEpochMigrationReceipt(String authorityId,
+                long fromEpoch, long toEpoch, long claimCount,
+                byte[] ledgerDigest, String freshNonce, byte[] signature) {
+            this.authorityId = authorityId;
+            this.fromEpoch = fromEpoch;
+            this.toEpoch = toEpoch;
+            this.claimCount = claimCount;
+            this.ledgerDigest = ledgerDigest == null ? null : ledgerDigest.clone();
+            this.freshNonce = freshNonce;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] ledgerDigest() {
+            return ledgerDigest == null ? null : ledgerDigest.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] oneShotEpochMigrationPayload(String authorityId,
+            long fromEpoch, long toEpoch, long claimCount,
+            byte[] expectedLedgerDigest, String freshNonce,
+            byte[] targetRootEnrollmentSignature) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || fromEpoch <= 0 || fromEpoch == Long.MAX_VALUE
+                || toEpoch <= fromEpoch || toEpoch != fromEpoch + 1
+                || claimCount < 0 || expectedLedgerDigest == null
+                || expectedLedgerDigest.length != 32
+                || freshNonce == null || !freshNonce.matches("[A-Za-z0-9_-]{24,128}")
+                || targetRootEnrollmentSignature == null
+                || targetRootEnrollmentSignature.length != 64)
+            return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/one-shot-atomic-epoch-ledger-migration/v1\n"
+                + authorityId + "\n" + fromEpoch + "\n" + toEpoch + "\n"
+                + claimCount + "\n" + b64.encodeToString(expectedLedgerDigest)
+                + "\n" + freshNonce + "\n"
+                + b64.encodeToString(targetRootEnrollmentSignature) + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
      * A single provisioned capability, not a caller-selected per-request
      * provider. Only the separate administrative bootstrap may call bind;
      * callers receive this already-bound capability without backend access.
@@ -1577,6 +1633,74 @@ public final class CelineFutureMemoryRecall {
             }
         }
 
+        /**
+         * Make at most ONE remotely provisioned provider migration attempt.
+         * Never treat absent/late acknowledgement as safe to retry. The signed
+         * response authenticates an expected full-ledger snapshot, NOT whether
+         * the injected provider is independently administered or nonrollbackable.
+         * New-epoch binding must be separately reauthenticated afterwards.
+         */
+        public OneShotEpochMigrationOutcome migrateLedgerOnce(
+                SignedOneShotEnrollment targetEnrollment,
+                byte[] independentlyRetainedSourceLedgerDigest,
+                long independentlyRetainedClaimCount, String freshNonce) {
+            if (targetEnrollment == null || targetEnrollment.pins == null
+                    || targetEnrollment.pins.length != 5
+                    || targetEnrollment.signature == null
+                    || targetEnrollment.signature.length != 64
+                    || !java.util.Objects.equals(authorityId, targetEnrollment.authorityId)
+                    || targetEnrollment.epoch != epoch + 1
+                    || independentlyRetainedSourceLedgerDigest == null
+                    || independentlyRetainedSourceLedgerDigest.length != 32
+                    || independentlyRetainedClaimCount < 0)
+                return OneShotEpochMigrationOutcome.UNVERIFIABLE;
+            for (int i = 0; i < 5; i++)
+                if (!java.util.Arrays.equals(pins[i], targetEnrollment.pins[i]))
+                    return OneShotEpochMigrationOutcome.NO_AUTHORITY;
+            byte[] message = oneShotEpochMigrationPayload(authorityId, epoch,
+                    targetEnrollment.epoch, independentlyRetainedClaimCount,
+                    independentlyRetainedSourceLedgerDigest, freshNonce,
+                    targetEnrollment.signature);
+            if (message.length == 0) return OneShotEpochMigrationOutcome.UNVERIFIABLE;
+            try {
+                java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+                java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+                verifier.initVerify(factory.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[1])));
+                verifier.update(oneShotEnrollmentPayload(authorityId,
+                        targetEnrollment.epoch, pins[0], pins[1], pins[2],
+                        pins[3], pins[4]));
+                if (!verifier.verify(targetEnrollment.signature))
+                    return OneShotEpochMigrationOutcome.UNVERIFIABLE;
+                final SignedOneShotEpochMigrationReceipt receipt;
+                try {
+                    receipt = authority.advanceEpochAtomically(targetEnrollment,
+                            epoch, independentlyRetainedSourceLedgerDigest.clone(),
+                            independentlyRetainedClaimCount, freshNonce);
+                } catch (Exception uncertain) {
+                    return OneShotEpochMigrationOutcome.STARTED_INDETERMINATE;
+                }
+                if (receipt == null) return OneShotEpochMigrationOutcome.NO_AUTHORITY;
+                if (!java.util.Objects.equals(authorityId, receipt.authorityId)
+                        || receipt.fromEpoch != epoch
+                        || receipt.toEpoch != targetEnrollment.epoch
+                        || receipt.claimCount != independentlyRetainedClaimCount
+                        || !java.util.Arrays.equals(independentlyRetainedSourceLedgerDigest,
+                                receipt.ledgerDigest())
+                        || !java.util.Objects.equals(freshNonce, receipt.freshNonce)
+                        || receipt.signature() == null || receipt.signature().length != 64)
+                    return OneShotEpochMigrationOutcome.UNVERIFIABLE;
+                verifier.initVerify(factory.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[4])));
+                verifier.update(message);
+                return verifier.verify(receipt.signature())
+                        ? OneShotEpochMigrationOutcome.MIGRATION_ATTESTED
+                        : OneShotEpochMigrationOutcome.UNVERIFIABLE;
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return OneShotEpochMigrationOutcome.UNVERIFIABLE;
+            }
+        }
+
         /** Exactly one remote atomic CAS call, never an automatic retry. */
         public MonotonicReservationOutcome reserveOnce(String claimId, String exactId,
                 long revision, byte[] ownerSignature, String freshNonce,
@@ -1660,6 +1784,16 @@ public final class CelineFutureMemoryRecall {
         default SignedOneShotProviderAttestation attestEnrollment(
                 SignedOneShotEnrollment enrollment, String freshChallenge)
                 throws Exception { return null; }
+
+        /**
+         * Single atomic provider transaction: check the source ledger hash,
+         * preserve ALL claimed IDs, advance epoch, durably commit, THEN sign.
+         * Default denial; a Java callback alone does not provide durable CAS.
+         */
+        default SignedOneShotEpochMigrationReceipt advanceEpochAtomically(
+                SignedOneShotEnrollment targetEnrollment, long fromEpoch,
+                byte[] expectedFullLedgerDigest, long expectedClaimCount,
+                String freshNonce) throws Exception { return null; }
 
         SignedMonotonicReservation reserveOnce(String claimId, String exactId,
                 long sourceRevision, byte[] ownerSignature,
