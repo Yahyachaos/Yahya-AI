@@ -313,6 +313,7 @@ final class CelineRoomEnvironmentV80 {
                 Map<Integer, float[]> expectedS25Roots = new LinkedHashMap<>();
                 Map<Integer, float[]> expectedS25Meshes = new LinkedHashMap<>();
                 Map<Integer, String> expectedS25RootIds = new LinkedHashMap<>();
+                Map<Integer, String> expectedS25MeshIds = new LinkedHashMap<>();
                 FilamentAsset shell = null;
                 int renderables = 0;
                 for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
@@ -338,7 +339,8 @@ final class CelineRoomEnvironmentV80 {
                             String authoredId = S25_IDS[partitionIndex - 1];
                             verifiedFurnitureMeshNodes += applyExactS25Furniture(
                                     part, authoredId, exactLayout.get(authoredId),
-                                    expectedS25Roots, expectedS25Meshes, expectedS25RootIds);
+                                    expectedS25Roots, expectedS25Meshes, expectedS25RootIds,
+                                    expectedS25MeshIds);
                             exactApplied++;
                         }
                         // Preserve original S25 GLB material/UV/texture without image-derived tint.
@@ -419,7 +421,7 @@ final class CelineRoomEnvironmentV80 {
                 // after resources, light channels and optional floor setup have settled.
                 // This checks numerical runtime state, never Android raster appearance.
                 recordReadyS25WorldMatrices(expectedS25RootIds,
-                        expectedS25Roots, expectedS25Meshes);
+                        expectedS25Roots, expectedS25Meshes, expectedS25MeshIds);
                 failureLogged = false;
                 roomBuilt = true;
                 // Emit whole-scene 13/13 evidence only after scene attachment and
@@ -556,7 +558,8 @@ final class CelineRoomEnvironmentV80 {
         private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item,
                 Map<Integer, float[]> expectedS25Roots,
                 Map<Integer, float[]> expectedS25Meshes,
-                Map<Integer, String> expectedS25RootIds) throws Exception {
+                Map<Integer, String> expectedS25RootIds,
+                Map<Integer, String> expectedS25MeshIds) throws Exception {
             if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
             // Verify that the *loaded partition* owns this furniture anchor, not
             // merely that the combined scene contains an anchor with this name.
@@ -642,7 +645,8 @@ final class CelineRoomEnvironmentV80 {
                     meshWorst = Math.max(meshWorst,
                             Math.abs(observedMeshWorld[axis] - expectedMeshWorld[axis]));
                 }
-                if (expectedS25Meshes.put(mesh.getKey(), observedMeshWorld) != null) {
+                if (expectedS25Meshes.put(mesh.getKey(), observedMeshWorld) != null
+                        || expectedS25MeshIds.put(mesh.getKey(), id) != null) {
                     throw new IllegalStateException("Duplicate S25 renderable entity: " + id);
                 }
             }
@@ -727,9 +731,10 @@ final class CelineRoomEnvironmentV80 {
          */
         private void recordReadyS25WorldMatrices(
                 Map<Integer, String> rootIds, Map<Integer, float[]> originalRoots,
-                Map<Integer, float[]> originalMeshes) {
+                Map<Integer, float[]> originalMeshes, Map<Integer, String> meshIds) {
             if (rootIds.size() != S25_IDS.length || originalRoots.size() != S25_IDS.length
-                    || originalMeshes.size() < S25_IDS.length) {
+                    || originalMeshes.size() < S25_IDS.length
+                    || meshIds.size() != originalMeshes.size()) {
                 throw new IllegalStateException("S25 ready-scene numeric proof incomplete");
             }
             float rootWorst = 0f;
@@ -753,8 +758,12 @@ final class CelineRoomEnvironmentV80 {
                 }
             }
             RenderableManager renderables = engine.getRenderableManager();
+            Map<Integer, float[]> liveMeshes = new LinkedHashMap<>();
             for (Map.Entry<Integer, float[]> entry : originalMeshes.entrySet()) {
                 int entity = entry.getKey();
+                if (!liveRoots.containsKey(meshIds.get(entity))) {
+                    throw new IllegalStateException("Unowned ready S25 mesh " + entity);
+                }
                 int instance = transforms.getInstance(entity);
                 if (instance == 0 || !scene.hasEntity(entity)
                         || !renderables.hasComponent(entity)) {
@@ -768,6 +777,7 @@ final class CelineRoomEnvironmentV80 {
                     }
                     meshWorst = Math.max(meshWorst, Math.abs(actual[axis] - expected[axis]));
                 }
+                liveMeshes.put(entity, actual);
             }
             if (rootWorst > 0.0001f || meshWorst > 0.0001f) {
                 throw new IllegalStateException("S25 ready-scene transform drift roots="
@@ -786,6 +796,19 @@ final class CelineRoomEnvironmentV80 {
                         "Ready Filament root readback " + entry.getKey(),
                         "id=" + entry.getKey() + " matrix16=" + csv
                                 + " runtimeScene=true AndroidFrame=UNVERIFIED");
+            }
+            // Preserve each real mesh's furniture identity in the final numeric readback.
+            // This is GLB geometry-node state, not a visual pass or authored-value rewrite.
+            for (Map.Entry<Integer, float[]> mesh : liveMeshes.entrySet()) {
+                StringBuilder csv = new StringBuilder(240);
+                for (float value : mesh.getValue()) {
+                    if (csv.length() != 0) csv.append(',');
+                    csv.append(value);
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-READY-MESH",
+                        "Ready Filament geometry-node readback " + meshIds.get(mesh.getKey()),
+                        "id=" + meshIds.get(mesh.getKey()) + " entity=" + mesh.getKey()
+                                + " matrix16=" + csv + " runtimeScene=true AndroidFrame=UNVERIFIED");
             }
             Celine3DDiagnostics.record(context, "ROOM-S25-READY-13",
                     "Thirteen authored GLB roots and all meshes remain live after full Room setup",
