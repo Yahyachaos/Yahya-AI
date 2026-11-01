@@ -9499,6 +9499,136 @@ def process_independent_high_water_floor_proof(compiled,strict=False):
         print('FUTURE_INDEPENDENT_HIGH_WATER_FLOOR_JVM_PASS cases='+str(count))
         print('FUTURE_EXTERNAL_CUSTODY_ROLLBACK_STILL_SECURITY_FAIL')
 
+
+# FUTURE-ONLY, independent Java process contract: a pinned operator (third key)
+# must sign a claim-specific current root enrollment. The *trusted minimum*
+# is provisioned outside the root and is not reconstructed from root replies.
+operator_enrollment_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+public final class FutureOperatorEnrollmentProcess {
+    static final String CLAIM="enroll-claim-0001", ID="source-memory-1";
+    static final String NONCE="fresh-enrollment-nonce-0001";
+    static final byte[] ORIGINAL_SIG = new byte[64];
+    static PublicKey pub(Path p)throws Exception{
+      return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(
+        Files.readAllBytes(p.resolve("identity.pub"))));
+    }
+    static PrivateKey priv(Path p)throws Exception{
+      return KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(
+        Files.readAllBytes(p.resolve("identity.priv"))));
+    }
+    static byte[] sign(Path p,byte[] payload)throws Exception{
+      Signature s=Signature.getInstance("Ed25519");s.initSign(priv(p));s.update(payload);return s.sign();
+    }
+    static void check(Path owner,Path root,Path operator,String mode,long trustedFloor)throws Exception{
+      final long floor=Long.parseLong(Files.readString(root.resolve("floor")).trim());
+      final long epoch=mode.equals("OLD_EPOCH")?1:2;
+      final String signedClaim=mode.equals("CROSS_CLAIM")?"another-claim-0001":CLAIM;
+      final String signedNonce=mode.equals("STALE_NONCE")?"stale-enrollment-nonce-0001":NONCE;
+      byte[] ownerPin=pub(owner).getEncoded(),rootPin=pub(root).getEncoded();
+      byte[] operatorPin=pub(operator).getEncoded();
+      if(mode.equals("SWAPPED_ROOT"))rootPin=ownerPin.clone();
+      if(mode.equals("SAME_OWNER_OPERATOR"))operatorPin=ownerPin.clone();
+      if(mode.equals("SAME_ROOT_OPERATOR"))operatorPin=rootPin.clone();
+      if(mode.equals("MISSING_OPERATOR"))operatorPin=null;
+      byte[] payload=CelineFutureMemoryRecall.custodyEnrollmentPayload(signedClaim,
+        ownerPin,rootPin,epoch,floor,signedNonce);
+      byte[] signature=sign(operator,payload);
+      if(mode.equals("FORGED_SIGNATURE"))signature[0]^=1;
+      if(mode.equals("SELF_SIGNED"))signature=sign(root,payload);
+      var enrollment=new CelineFutureMemoryRecall.SignedCustodyEnrollment(
+        signedClaim,signedNonce,epoch,floor,rootPin,signature);
+      final int[] calls={0};
+      CelineFutureMemoryRecall.ReadOnlyReceiptStatusAuthority service=new
+          CelineFutureMemoryRecall.ReadOnlyReceiptStatusAuthority(){
+        public PublicKey originalPinnedIdentity(){
+          try{return pub(root);}catch(Exception x){return null;}
+        }
+        public CelineFutureMemoryRecall.SignedReceiptStatus queryExistingClaim(
+            String claim,String nonce){
+          calls[0]++;
+          try{
+            String status=floor>0?"CONSUMED":"ABSENT";
+            byte[] data=CelineFutureMemoryRecall.signedReceiptStatusPayload(
+                CLAIM,ID,2L,ORIGINAL_SIG,nonce,floor,status);
+            return new CelineFutureMemoryRecall.SignedReceiptStatus(
+                CLAIM,floor,status,sign(root,data));
+          }catch(Exception x){return null;}
+        }
+      };
+      var verdict=CelineFutureMemoryRecall.verifyOperatorCustodyEnrollment(
+        CLAIM,NONCE,pub(owner).getEncoded(),pub(root).getEncoded(),operatorPin,
+        2, trustedFloor,enrollment);
+      var result=CelineFutureMemoryRecall.reconcileReceiptWithCustodyEnrollment(
+        CLAIM,ID,2L,ORIGINAL_SIG,NONCE,pub(owner).getEncoded(),
+        pub(root).getEncoded(),operatorPin,2,trustedFloor,enrollment,service);
+      System.out.println("GATE="+verdict+" RESULT="+result+" QUERIES="+calls[0]+
+        " ROOT_FLOOR="+floor);
+    }
+    public static void main(String[]a)throws Exception{
+      if(a.length!=6 || !a[0].equals("check"))throw new IllegalArgumentException("check owner root operator mode minFloor");
+      check(Path.of(a[1]),Path.of(a[2]),Path.of(a[3]),a[4],Long.parseLong(a[5]));
+    }
+}
+'''
+
+def process_operator_enrollment_proof(compiled, strict=False):
+    with tempfile.TemporaryDirectory(prefix='future_operator_enrollment_') as tmp:
+        root=Path(tmp);owner=root/'owner';external=root/'external';operator=root/'operator'
+        init=['java','-cp',compiled,'de.yahya.ai.FutureIndependentHighWaterProcess']
+        for target in (owner,external,operator):
+            p=subprocess.run(init+['init',str(target)],capture_output=True,text=True,check=True,timeout=12)
+            assert 'INIT ' in p.stdout,p.stdout
+        child=['java','-cp',compiled,'de.yahya.ai.FutureOperatorEnrollmentProcess']
+        key_before=(external/'identity.priv').read_bytes()
+        operator_before=(operator/'identity.priv').read_bytes()
+        count=0
+        def test(mode,minimum,gate,result,queries):
+            nonlocal count
+            p=subprocess.run(child+['check',str(owner),str(external),str(operator),
+                mode,str(minimum)],capture_output=True,text=True,check=True,timeout=12)
+            got=p.stdout.strip()
+            assert 'GATE='+gate+' RESULT='+result+' QUERIES='+str(queries) in got,(mode,got)
+            count+=1
+        test('NORMAL',0,'VERIFIED_CONDITIONALLY','ABSENT_UNSAFE_TO_RETRY',1)
+        for mode,gate,res in (
+            ('FORGED_SIGNATURE','UNVERIFIABLE','UNVERIFIABLE'),
+            ('SELF_SIGNED','UNVERIFIABLE','UNVERIFIABLE'),
+            ('STALE_NONCE','UNVERIFIABLE','UNVERIFIABLE'),
+            ('CROSS_CLAIM','UNVERIFIABLE','UNVERIFIABLE'),
+            ('MISSING_OPERATOR','NO_AUTHORITY','NO_AUTHORITY'),
+            ('SAME_OWNER_OPERATOR','NO_AUTHORITY','NO_AUTHORITY'),
+            ('SAME_ROOT_OPERATOR','NO_AUTHORITY','NO_AUTHORITY'),
+            ('SWAPPED_ROOT','NO_AUTHORITY','NO_AUTHORITY'),
+            ('OLD_EPOCH','ROLLBACK_DETECTED','UNVERIFIABLE')):
+            test(mode,0,gate,res,0)
+        # First independent authority actually consumes one exact claim.
+        (external/'floor').write_text('1',encoding='utf-8')
+        test('NORMAL',1,'VERIFIED_CONDITIONALLY','CONSUMED_VERIFIED',1)
+        # Original signer and operator key remain the SAME across reboots;
+        # root storage is reprovisioned/rolled back to the old floor 0.
+        (external/'floor').write_text('0',encoding='utf-8')
+        test('NORMAL',1,'ROLLBACK_DETECTED','UNVERIFIABLE',0)
+        assert (external/'identity.priv').read_bytes()==key_before
+        assert (operator/'identity.priv').read_bytes()==operator_before
+        count+=2
+        # A simultaneously lost trusted floor defeats caller-only contracts.
+        p=subprocess.run(child+['check',str(owner),str(external),str(operator),
+            'NORMAL','0'],capture_output=True,text=True,check=True,timeout=12)
+        got=p.stdout.strip()
+        if strict:
+            assert 'GATE=ROLLBACK_DETECTED' in got,(
+                'KNOWN BOTH TRUSTED FLOOR AND ORIGINAL ROOT ROLLBACK: '+got)
+        else:
+            assert 'GATE=VERIFIED_CONDITIONALLY RESULT=ABSENT_UNSAFE_TO_RETRY' in got,got
+            count+=1
+        print('FUTURE_OPERATOR_ENROLLMENT_JVM_PASS cases='+str(count))
+        print('FUTURE_ROOT_AND_TRUSTED_FLOOR_ROLLBACK_STILL_SECURITY_FAIL')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -9538,8 +9668,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     protected_child.write_text(protected_anchor_process_harness,encoding='utf-8')
     independent_floor_child=Path(temp)/'FutureIndependentHighWaterProcess.java'
     independent_floor_child.write_text(independent_floor_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child)], check=True)
+    enrollment_child=Path(temp)/'FutureOperatorEnrollmentProcess.java'
+    enrollment_child.write_text(operator_enrollment_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child)], check=True)
     import sys
+    if '--strict-operator-enrollment' in sys.argv:
+        process_operator_enrollment_proof(temp,strict=True)
+        sys.exit(0)
+    if '--focused-operator-enrollment' in sys.argv:
+        process_operator_enrollment_proof(temp)
+        sys.exit(0)
     if '--strict-independent-highwater' in sys.argv:
         process_independent_high_water_floor_proof(temp,strict=True)
         sys.exit(0)
@@ -9667,3 +9805,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_protected_anchor_journal_proof(temp)
     process_read_only_receipt_status_proof(temp)
     process_independent_high_water_floor_proof(temp)
+    process_operator_enrollment_proof(temp)
