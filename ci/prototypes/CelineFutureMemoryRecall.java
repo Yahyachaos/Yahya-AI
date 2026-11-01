@@ -1014,6 +1014,36 @@ public final class CelineFutureMemoryRecall {
             String requestNonce, byte[] enrolledOwnerPin, byte[] enrolledRootPin,
             byte[] enrolledOperatorPin, long anchorEpoch, long consumedSequence,
             String state) {
+        return atomicCustodianProofPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, enrolledOwnerPin,
+                enrolledRootPin, enrolledOperatorPin, anchorEpoch,
+                consumedSequence, state, "future-g1/external-atomic-consume-ack/v1");
+    }
+
+    /**
+     * Strictly read-only query attestation. This signing domain can never be
+     * supplied by a consume-path acknowledgement, even when its status is
+     * ALREADY_CONSUMED and its claim/nonce/sequence otherwise match.
+     * A query is evidence ONLY; it never authorizes a write or retry.
+     */
+    public static byte[] atomicCustodianReadOnlyQueryPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            String requestNonce, byte[] enrolledOwnerPin, byte[] enrolledRootPin,
+            byte[] enrolledOperatorPin, long anchorEpoch, long consumedSequence,
+            String state) {
+        if (!"ALREADY_CONSUMED".equals(state)) return new byte[0];
+        return atomicCustodianProofPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, enrolledOwnerPin,
+                enrolledRootPin, enrolledOperatorPin, anchorEpoch,
+                consumedSequence, state,
+                "future-g1/external-atomic-custodian-readonly-query/v1");
+    }
+
+    private static byte[] atomicCustodianProofPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            String requestNonce, byte[] enrolledOwnerPin, byte[] enrolledRootPin,
+            byte[] enrolledOperatorPin, long anchorEpoch, long consumedSequence,
+            String state, String signingDomain) {
         if (signedReceiptStatusPayload(claimId, exactId, sourceRevision,
                 originalOwnerSignature, requestNonce, consumedSequence, "CONSUMED").length == 0
                 || enrolledOwnerPin == null || enrolledOwnerPin.length == 0
@@ -1023,7 +1053,7 @@ public final class CelineFutureMemoryRecall {
                 || !("COMMITTED".equals(state) || "ALREADY_CONSUMED".equals(state)))
             return new byte[0];
         java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
-        return ("future-g1/external-atomic-consume-ack/v1\n" + claimId + "\n"
+        return (signingDomain + "\n" + claimId + "\n"
                 + exactId + "\n" + sourceRevision + "\n"
                 + b64.encodeToString(originalOwnerSignature) + "\n" + requestNonce + "\n"
                 + b64.encodeToString(enrolledOwnerPin) + "\n"
@@ -1046,7 +1076,35 @@ public final class CelineFutureMemoryRecall {
             byte[] enrolledOperatorPin, byte[] enrolledCustodianPin,
             long trustedAnchorEpoch, long trustedClaimMinimumSequence,
             SignedAtomicCustodianAck ack) {
+        return verifyAtomicCustodianProof(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, enrolledOwnerPin,
+                enrolledRootPin, enrolledOperatorPin, enrolledCustodianPin,
+                trustedAnchorEpoch, trustedClaimMinimumSequence, ack, false);
+    }
+
+    public static ReceiptStatusOutcome verifyAtomicCustodianReadOnlyQuery(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String requestNonce,
+            byte[] enrolledOwnerPin, byte[] enrolledRootPin,
+            byte[] enrolledOperatorPin, byte[] enrolledCustodianPin,
+            long trustedAnchorEpoch, long trustedClaimMinimumSequence,
+            SignedAtomicCustodianAck ack) {
+        return verifyAtomicCustodianProof(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, enrolledOwnerPin,
+                enrolledRootPin, enrolledOperatorPin, enrolledCustodianPin,
+                trustedAnchorEpoch, trustedClaimMinimumSequence, ack, true);
+    }
+
+    private static ReceiptStatusOutcome verifyAtomicCustodianProof(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String requestNonce,
+            byte[] enrolledOwnerPin, byte[] enrolledRootPin,
+            byte[] enrolledOperatorPin, byte[] enrolledCustodianPin,
+            long trustedAnchorEpoch, long trustedClaimMinimumSequence,
+            SignedAtomicCustodianAck ack, boolean readOnlyQuery) {
         if (ack == null) return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        if (readOnlyQuery && !"ALREADY_CONSUMED".equals(ack.state))
+            return ReceiptStatusOutcome.UNVERIFIABLE;
         if (enrolledOwnerPin == null || enrolledRootPin == null
                 || enrolledOperatorPin == null || enrolledCustodianPin == null)
             return ReceiptStatusOutcome.NO_AUTHORITY;
@@ -1059,10 +1117,15 @@ public final class CelineFutureMemoryRecall {
                 || ack.consumedSequence <= 0
                 || ack.consumedSequence < trustedClaimMinimumSequence)
             return ReceiptStatusOutcome.UNVERIFIABLE;
-        byte[] message = atomicCustodianAckPayload(claimId, exactId,
-                sourceRevision, originalOwnerSignature, requestNonce,
-                enrolledOwnerPin, enrolledRootPin, enrolledOperatorPin,
-                ack.anchorEpoch, ack.consumedSequence, ack.state);
+        byte[] message = (readOnlyQuery
+                ? atomicCustodianReadOnlyQueryPayload(claimId, exactId,
+                        sourceRevision, originalOwnerSignature, requestNonce,
+                        enrolledOwnerPin, enrolledRootPin, enrolledOperatorPin,
+                        ack.anchorEpoch, ack.consumedSequence, ack.state)
+                : atomicCustodianAckPayload(claimId, exactId,
+                        sourceRevision, originalOwnerSignature, requestNonce,
+                        enrolledOwnerPin, enrolledRootPin, enrolledOperatorPin,
+                        ack.anchorEpoch, ack.consumedSequence, ack.state));
         byte[] signature = ack.signature();
         if (message.length == 0 || signature == null || signature.length != 64)
             return ReceiptStatusOutcome.UNVERIFIABLE;
@@ -1486,7 +1549,7 @@ public final class CelineFutureMemoryRecall {
             return ReceiptStatusOutcome.UNVERIFIABLE;
         if (reserved != MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY)
             return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
-        ReceiptStatusOutcome consumed = verifyAtomicCustodianAck(
+        ReceiptStatusOutcome consumed = verifyAtomicCustodianReadOnlyQuery(
                 claimId, exactId, sourceRevision, originalOwnerSignature,
                 freshQueryNonce, pinnedOwner, pinnedRoot, pinnedOperator,
                 pinnedCustodian, trustedCustodianEpoch, trustedConsumedSequence,
