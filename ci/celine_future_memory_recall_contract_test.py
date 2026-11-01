@@ -8761,6 +8761,7 @@ def process_atomic_owner_restart_proof(temp, strict=False):
             print('FUTURE_GUARDIAN_SAME_SIGNER_ROLLBACK=KNOWN_SECURITY_FAIL')
             print('FUTURE_INDEPENDENT_NONROLLBACKABLE_JOURNAL=UNIMPLEMENTED')
 
+
 protected_anchor_process_harness = r'''
 
 // FUTURE-ONLY independent-JVM conditional custody fixture. The separate
@@ -9042,7 +9043,6 @@ def process_protected_anchor_journal_proof(compiled, strict=False):
             finally:stop(honest)
         print('FUTURE_INDEPENDENT_ANCHOR_JVM_PASS cases='+str(passed))
         print('FUTURE_INDEPENDENT_ANCHOR_OWN_ROLLBACK=UNSAFE_AND_UNFIXED')
-
 
 pinned_journal_process_harness = r'''
 package de.yahya.ai;
