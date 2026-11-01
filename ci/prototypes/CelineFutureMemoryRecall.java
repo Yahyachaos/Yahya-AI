@@ -3502,6 +3502,131 @@ public final class CelineFutureMemoryRecall {
      * of the backing service or that the admin retained the minimum safely.
      * No application/provider/epoch snapshot may replace that authority.
      */
+    /**
+     * FUTURE-ONLY read-only live high-water authority. The implementation must
+     * live outside the app/provider snapshot, and must NOT be supplied by the
+     * caller as a resettable local preference. This is a testable protocol,
+     * NOT evidence that such a production service has been provisioned.
+     */
+    public interface IndependentGlobalFloorWitnessAuthority {
+        SignedGlobalFloorWitness readMinimum(String authorityId,
+                String freshChallenge) throws Exception;
+    }
+
+    public static final class SignedGlobalFloorWitness {
+        public final String authorityId, challenge;
+        public final long minimumSequence;
+        private final byte[] signature;
+        public SignedGlobalFloorWitness(String authorityId, String challenge,
+                long minimumSequence, byte[] signature) {
+            this.authorityId = authorityId;
+            this.challenge = challenge;
+            this.minimumSequence = minimumSequence;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    /** The witness can never be reused as a reserve/claim signature. */
+    public static byte[] globalFloorWitnessPayload(String authorityId,
+            String challenge, long minimumSequence) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || challenge == null || !challenge.matches("[A-Za-z0-9_-]{24,128}")
+                || minimumSequence < 0) return new byte[0];
+        return ("future-g1/independent-global-floor-witness/v1\n" + authorityId
+                + "\n" + challenge + "\n" + minimumSequence + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Re-reads and verifies an independent signed floor for EACH operation;
+     * never accepts a caller-restored numeric floor as a production proof.
+     * A disconnected, forged or replayed witness stops BEFORE global CAS and
+     * BEFORE the epoch provider. Even this cannot detect a simultaneous total
+     * rollback of the external ledger AND its minimum with the original keys.
+     */
+    public static final class ExternallyWitnessedGlobalClaimGate {
+        private final ProvisionedOneShotGateway provider;
+        private final IndependentGlobalClaimSetAuthority claimSet;
+        private final IndependentGlobalFloorWitnessAuthority witness;
+        private final byte[] pin;
+        private final java.security.SecureRandom random = new java.security.SecureRandom();
+
+        private ExternallyWitnessedGlobalClaimGate(ProvisionedOneShotGateway provider,
+                IndependentGlobalClaimSetAuthority claimSet,
+                IndependentGlobalFloorWitnessAuthority witness, byte[] pin) {
+            this.provider = provider;
+            this.claimSet = claimSet;
+            this.witness = witness;
+            this.pin = pin.clone();
+        }
+
+        public static ExternallyWitnessedGlobalClaimGate bind(
+                ProvisionedOneShotGateway provider,
+                IndependentGlobalClaimSetAuthority preprovisionedClaimSet,
+                IndependentGlobalFloorWitnessAuthority preprovisionedWitness,
+                byte[] externallyPinnedSixthIdentity) {
+            if (preprovisionedWitness == null
+                    || ProvisionedGlobalClaimGate.bindFromExternalAdministrator(
+                            provider, preprovisionedClaimSet,
+                            externallyPinnedSixthIdentity, 0) == null) return null;
+            return new ExternallyWitnessedGlobalClaimGate(provider,
+                    preprovisionedClaimSet, preprovisionedWitness,
+                    externallyPinnedSixthIdentity);
+        }
+
+        private ProvisionedGlobalClaimGate verifyLiveFloor() {
+            byte[] nonce = new byte[24];
+            random.nextBytes(nonce);
+            String challenge = java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(nonce);
+            try {
+                SignedGlobalFloorWitness reply = witness.readMinimum(
+                        provider.authorityId, challenge);
+                if (reply == null || reply.signature() == null
+                        || reply.signature().length != 64
+                        || !provider.authorityId.equals(reply.authorityId)
+                        || !challenge.equals(reply.challenge)) return null;
+                byte[] payload = globalFloorWitnessPayload(reply.authorityId,
+                        challenge, reply.minimumSequence);
+                if (payload.length == 0) return null;
+                java.security.Signature verifier = java.security.Signature
+                        .getInstance("Ed25519");
+                verifier.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
+                verifier.update(payload);
+                if (!verifier.verify(reply.signature())) return null;
+                return ProvisionedGlobalClaimGate.bindFromExternalAdministrator(
+                        provider, claimSet, pin, reply.minimumSequence);
+            } catch (Exception unavailableOrForged) {
+                return null;
+            }
+        }
+
+        public GlobalClaimGateOutcome reserveOnce(String claim, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce) {
+            // An invalid owner claim must never trigger a witness/provider call.
+            if (!provider.validOwnerClaim(claim, exactId, revision, ownerSignature))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            ProvisionedGlobalClaimGate live = verifyLiveFloor();
+            return live == null ? GlobalClaimGateOutcome.NO_AUTHORITY
+                    : live.reserveOnce(claim, exactId, revision,
+                            ownerSignature, freshNonce);
+        }
+
+        public GlobalClaimGateOutcome queryExisting(String claim, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce) {
+            if (!provider.validOwnerClaim(claim, exactId, revision, ownerSignature))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            ProvisionedGlobalClaimGate live = verifyLiveFloor();
+            return live == null ? GlobalClaimGateOutcome.NO_AUTHORITY
+                    : live.queryExisting(claim, exactId, revision,
+                            ownerSignature, freshNonce);
+        }
+    }
+
     public static final class ProvisionedGlobalClaimGate {
         private final ProvisionedOneShotGateway provider;
         private final IndependentGlobalClaimSetAuthority claimSet;
