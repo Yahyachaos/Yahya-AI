@@ -8816,7 +8816,8 @@ public final class FuturePinnedJournalProcess {
     CelineFutureMemoryRecall.ExternallyPinnedMonotonicJournal authority=
         new CelineFutureMemoryRecall.ExternallyPinnedMonotonicJournal(){
           public PublicKey pinnedOriginalOwnerKey(){try{return pub(dir,"owner");}catch(Exception e){return null;}}
-          public PublicKey pinnedJournalKey(){try{return pub(dir,"journal");}catch(Exception e){return null;}}
+          public PublicKey pinnedJournalKey(){try{return pub(dir,
+              mode.equals("same-identity")?"owner":"journal");}catch(Exception e){return null;}}
           public long trustedOwnerRevision(){return mode.equals("bad-revision")?3L:2L;}
           public long trustedConsumedSequence(){
             try{return Long.parseLong(Files.readString(dir.resolve("journal.floor")).trim());}
@@ -8885,6 +8886,7 @@ def process_pinned_journal_attestation_proof(compiled,strict=False):
             assert ('JOURNAL_PIN='+init.split('journal=')[1]) in out,(mode,out)
             passed+=1
         expect('missing','NO_AUTHORITY',0)
+        expect('same-identity','NO_AUTHORITY',0)
         for m in ('owner-forge','journal-forge','wrong-claim','wrong-id',
                   'wrong-nonce','wrong-seq','bad-revision','absent-proof'):
             expect(m,'REJECTED_BEFORE_START',0)

@@ -483,6 +483,15 @@ public final class CelineFutureMemoryRecall {
             if (ownerKey == null || journalKey == null || revision < 2
                     || consumed < 0 || consumed == Long.MAX_VALUE)
                 return AtomicReceiptOutcome.NO_AUTHORITY;
+            // A caller may accidentally (or maliciously) provision the very
+            // same Ed25519 identity as both owner and "independent" journal.
+            // Two signatures made with one key are NOT independent custody.
+            byte[] ownerPin = ownerKey.getEncoded();
+            byte[] journalPin = journalKey.getEncoded();
+            if (ownerPin == null || journalPin == null || ownerPin.length == 0
+                    || journalPin.length == 0
+                    || java.util.Arrays.equals(ownerPin, journalPin))
+                return AtomicReceiptOutcome.NO_AUTHORITY;
             if (journalSequence != consumed + 1
                     || attestRevokedOrphan(exactId, sourceRevision, sourceStatus,
                             revision, orphanSha256, challenge,
