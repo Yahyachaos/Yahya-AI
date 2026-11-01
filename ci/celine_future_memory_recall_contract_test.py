@@ -9783,6 +9783,159 @@ def process_operator_claim_commitment_proof(compiled, strict=False):
         print('FUTURE_OPERATOR_CLAIM_JVM_PASS cases='+str(count))
         print('FUTURE_BOTH_SIGNERS_AND_TRUSTED_CLAIM_FLOOR_ROLLBACK_STILL_SECURITY_FAIL')
 
+# FUTURE-ONLY 4-key consumed checkpoint; every query is a separate real JVM.
+# The anchor is an ordinary independent test directory, NOT production
+# nonrollbackable custody. Missing/lost checkpoint denies authority.
+external_checkpoint_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+public final class FutureExternalConsumedCheckpointProcess {
+  static final String CLAIM="memory-claim-0001",ID="source-memory-1";
+  static final String NONCE="fresh-external-anchor-nonce-001";
+  static PublicKey pub(Path d)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePublic(
+      new X509EncodedKeySpec(Files.readAllBytes(d.resolve("identity.pub"))));
+  }
+  static PrivateKey priv(Path d)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePrivate(
+      new PKCS8EncodedKeySpec(Files.readAllBytes(d.resolve("identity.priv"))));
+  }
+  static byte[] sign(Path d,byte[] payload)throws Exception {
+    Signature s=Signature.getInstance("Ed25519");
+    s.initSign(priv(d));s.update(payload);return s.sign();
+  }
+  static long spent(Path d)throws Exception {
+    return Long.parseLong(Files.readString(d.resolve(CLAIM+".floor")).trim());
+  }
+  static byte[] ownerSig(Path owner)throws Exception {
+    return sign(owner,CelineFutureMemoryRecall.originalOwnerClaimPayload(CLAIM,ID,2L));
+  }
+  static byte[] checkpointPayload(Path owner,Path root,Path operator)throws Exception {
+    return CelineFutureMemoryRecall.externalConsumedCheckpointPayload(CLAIM,ID,2L,
+      ownerSig(owner),pub(owner).getEncoded(),pub(root).getEncoded(),
+      pub(operator).getEncoded(),2L,1L);
+  }
+  static void arm(Path owner,Path root,Path operator,Path anchor)throws Exception {
+    if(spent(root)!=1 || spent(operator)!=1)throw new IllegalStateException("not spent");
+    Files.write(anchor.resolve("claim.sig"),sign(anchor,checkpointPayload(owner,root,operator)),
+      StandardOpenOption.CREATE_NEW);
+    System.out.println("ARMED");
+  }
+  static void check(Path owner,Path root,Path operator,Path anchor,
+                    String mode,long trustedAnchorEpoch)throws Exception {
+    byte[] ownerPin=pub(owner).getEncoded(),rootPin=pub(root).getEncoded(),
+           operatorPin=pub(operator).getEncoded(),anchorPin=pub(anchor).getEncoded();
+    if(mode.equals("WRONG_ANCHOR_PIN"))anchorPin=ownerPin;
+    if(mode.equals("MISSING_OWNER_PIN"))ownerPin=null;
+    byte[] ownerSignature=ownerSig(owner);
+    if(mode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
+    long rootSpent=spent(root),operatorSpent=spent(operator);
+    String rootState=rootSpent>0?"CONSUMED":"ABSENT";
+    String operatorState=operatorSpent>0?"CONSUMED":"ABSENT";
+    byte[] rootPayload=CelineFutureMemoryRecall.signedReceiptStatusPayload(
+      CLAIM,ID,2L,ownerSignature,NONCE,rootSpent,rootState);
+    byte[] rootSignature=sign(root,rootPayload);
+    if(mode.equals("FORGED_ROOT"))rootSignature[0]^=1;
+    var rootReceipt=new CelineFutureMemoryRecall.SignedReceiptStatus(
+      CLAIM,rootSpent,rootState,rootSignature);
+    byte[] operatorPayload=CelineFutureMemoryRecall.operatorClaimCommitmentPayload(
+      CLAIM,ID,2L,ownerSignature,pub(owner).getEncoded(),pub(root).getEncoded(),
+      NONCE,2L,operatorSpent,operatorState);
+    byte[] operatorSignature=sign(operator,operatorPayload);
+    if(mode.equals("FORGED_OPERATOR"))operatorSignature[0]^=1;
+    var operatorReceipt=new CelineFutureMemoryRecall.SignedOperatorClaimCommitment(
+      CLAIM,ID,2L,NONCE,2L,operatorSpent,operatorState,operatorSignature);
+    byte[] anchorSignature=Files.exists(anchor.resolve("claim.sig"))
+      ?Files.readAllBytes(anchor.resolve("claim.sig")):null;
+    if(mode.equals("FORGED_ANCHOR")&&anchorSignature!=null)anchorSignature[0]^=1;
+    String signedClaim=mode.equals("WRONG_CLAIM")?"memory-claim-0002":CLAIM;
+    String signedId=mode.equals("WRONG_ID")?"other-memory":ID;
+    long signedRev=mode.equals("WRONG_REVISION")?3:2;
+    long signedSeq=mode.equals("WRONG_SEQUENCE")?2:1;
+    var checkpoint=anchorSignature==null?null:
+      new CelineFutureMemoryRecall.SignedExternalConsumedCheckpoint(
+        signedClaim,signedId,signedRev,2L,signedSeq,anchorSignature);
+    var result=CelineFutureMemoryRecall.verifyWithExternalConsumedCheckpoint(
+      CLAIM,ID,2L,ownerSignature,NONCE,ownerPin,rootPin,operatorPin,
+      anchorPin,2L,trustedAnchorEpoch,0L,checkpoint,operatorReceipt,rootReceipt);
+    System.out.println("RESULT="+result+" ROOT="+rootSpent+" OPERATOR="+operatorSpent+
+      " ANCHOR="+(anchorSignature!=null));
+  }
+  public static void main(String[] a)throws Exception {
+    if(a.length<5)throw new IllegalArgumentException();
+    Path o=Path.of(a[1]),r=Path.of(a[2]),p=Path.of(a[3]),x=Path.of(a[4]);
+    if(a[0].equals("arm")&&a.length==5)arm(o,r,p,x);
+    else if(a[0].equals("check")&&a.length==7)
+      check(o,r,p,x,a[5],Long.parseLong(a[6]));
+    else throw new IllegalArgumentException();
+  }
+}
+'''
+
+def process_external_consumed_checkpoint_proof(compiled):
+    with tempfile.TemporaryDirectory(prefix='future_external_claim_anchor_') as tmp:
+        top=Path(tmp)
+        owner,root,operator,anchor=[top/x for x in ('owner','root','operator','anchor')]
+        init=['java','-cp',compiled,'de.yahya.ai.FutureIndependentHighWaterProcess']
+        child=['java','-cp',compiled,'de.yahya.ai.FutureExternalConsumedCheckpointProcess']
+        count=0
+        for p in (owner,root,operator,anchor):
+            result=subprocess.run(init+['init',str(p)],capture_output=True,
+                                  text=True,check=True,timeout=12)
+            assert 'INIT ' in result.stdout,result.stdout
+            (p/'memory-claim-0001.floor').write_text('0',encoding='utf-8')
+        original_keys=[(p/'identity.priv').read_bytes()
+                       for p in (owner,root,operator,anchor)]
+        def run(action,*more):
+            p=subprocess.run(child+[action,str(owner),str(root),str(operator),
+                                     str(anchor),*map(str,more)],
+                             capture_output=True,text=True,check=True,timeout=12)
+            return p.stdout.strip()
+        def expect(mode,expected,epoch=2):
+            nonlocal count
+            output=run('check',mode,epoch)
+            assert 'RESULT='+expected+' ' in output,(mode,output)
+            count+=1
+            return output
+        # Neither an ABSENT claim nor a missing anchor grants retry authority.
+        expect('NORMAL','NO_AUTHORITY')
+        (root/'memory-claim-0001.floor').write_text('1',encoding='utf-8')
+        (operator/'memory-claim-0001.floor').write_text('1',encoding='utf-8')
+        expect('NORMAL','NO_AUTHORITY')
+        assert run('arm')=='ARMED';count+=1
+        for _ in range(3):expect('NORMAL','CONSUMED_VERIFIED')
+        for mode,outcome,epoch in (
+            ('FORGED_ANCHOR','UNVERIFIABLE',2),
+            ('FORGED_OWNER','UNVERIFIABLE',2),
+            ('FORGED_ROOT','UNVERIFIABLE',2),
+            ('FORGED_OPERATOR','UNVERIFIABLE',2),
+            ('WRONG_CLAIM','UNVERIFIABLE',2),
+            ('WRONG_ID','UNVERIFIABLE',2),
+            ('WRONG_REVISION','UNVERIFIABLE',2),
+            ('WRONG_SEQUENCE','UNVERIFIABLE',2),
+            ('WRONG_ANCHOR_PIN','NO_AUTHORITY',2),
+            ('MISSING_OWNER_PIN','NO_AUTHORITY',2),
+            ('NORMAL','UNVERIFIABLE',3)):
+            expect(mode,outcome,epoch)
+        # Original owner/root/operator keys survive, but both ordinary consumed
+        # stores are now independently rolled back to zero in fresh JVMs.
+        (root/'memory-claim-0001.floor').write_text('0',encoding='utf-8')
+        expect('NORMAL','UNVERIFIABLE')
+        (operator/'memory-claim-0001.floor').write_text('0',encoding='utf-8')
+        for _ in range(3):expect('NORMAL','UNVERIFIABLE')
+        for p,k in zip((owner,root,operator,anchor),original_keys):
+            assert (p/'identity.priv').read_bytes()==k
+            count+=1
+        # If external checkpoint custody is lost, fail CLOSED: there is no
+        # fallback to the current reset signers' ABSENT and no consume call.
+        (anchor/'claim.sig').unlink()
+        for _ in range(2):expect('NORMAL','NO_AUTHORITY')
+        print('FUTURE_EXTERNAL_CONSUMED_CHECKPOINT_JVM_PASS cases='+str(count))
+        print('FUTURE_EXTERNAL_NONROLLBACKABLE_CUSTODY_NOT_IMPLEMENTED')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -9826,8 +9979,13 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     enrollment_child.write_text(operator_enrollment_process_harness,encoding='utf-8')
     claim_child=Path(temp)/'FutureOperatorClaimProcess.java'
     claim_child.write_text(operator_claim_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child)], check=True)
+    anchor_child=Path(temp)/'FutureExternalConsumedCheckpointProcess.java'
+    anchor_child.write_text(external_checkpoint_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child)], check=True)
     import sys
+    if '--focused-external-claim-anchor' in sys.argv:
+        process_external_consumed_checkpoint_proof(temp)
+        sys.exit(0)
     if '--strict-operator-claim' in sys.argv:
         process_operator_claim_commitment_proof(temp,strict=True)
         sys.exit(0)
@@ -9969,3 +10127,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_independent_high_water_floor_proof(temp)
     process_operator_enrollment_proof(temp)
     process_operator_claim_commitment_proof(temp)
+    process_external_consumed_checkpoint_proof(temp)
