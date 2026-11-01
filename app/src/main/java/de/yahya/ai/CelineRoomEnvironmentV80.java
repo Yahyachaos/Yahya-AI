@@ -358,18 +358,19 @@ final class CelineRoomEnvironmentV80 {
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
-                // The native floor-centered shell must also be physically attached;
-                // valid imported root matrices alone cannot establish Scene membership.
-                verifyNativeS25ShellAfterAttach(shell);
+                int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
+                if (frontWallEntity == 0 || !scene.hasEntity(frontWallEntity)) {
+                    throw new IllegalStateException("Recovery shell front not attached");
+                }
+                // The final CALL scene explicitly hides its front wall. Measure
+                // the scene *after* that removal, not a pre-removal shell that
+                // would incorrectly count a hidden wall as a visible renderable.
+                scene.removeEntity(frontWallEntity);
+                verifyNativeS25ShellAfterAttach(shell, frontWallEntity);
                 // Verify the same thirteen authored GLB hierarchies after Scene attachment.
                 // A pre-attachment root readback alone must not count as running scene proof.
                 verifyS25WorldNodesAfterAttach(expectedS25Roots, expectedS25Meshes,
                         exactApplied, verifiedFurnitureMeshNodes);
-                int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
-                if (frontWallEntity == 0) {
-                    throw new IllegalStateException("Recovery shell front entity missing");
-                }
-                scene.removeEntity(frontWallEntity);
                 roomAssets.addAll(candidates);
                 candidates.clear();
                 roomShellAsset = shell;
@@ -908,12 +909,13 @@ final class CelineRoomEnvironmentV80 {
         }
 
         /**
-         * Recheck the REAL source shell after Scene attachment. A gltfio asset
-         * can own valid native root transforms even if its meshes were never
-         * attached to the Filament Scene. Do not modify furniture or shell TRS.
+         * Recheck the REAL source shell in the final scene, after the front
+         * wall was intentionally detached. A gltfio asset can own valid root
+         * transforms even if its meshes were not added to the Filament Scene.
+         * Only the single deliberately hidden front entity may be absent.
          * This structural check cannot establish Android raster visibility.
          */
-        private void verifyNativeS25ShellAfterAttach(FilamentAsset shell) {
+        private void verifyNativeS25ShellAfterAttach(FilamentAsset shell, int hiddenFrontWall) {
             int authoredRoot = shell.getFirstEntityByName("room_world_root");
             if (authoredRoot == 0) {
                 throw new IllegalStateException("Attached S25 shell source root missing");
@@ -945,7 +947,11 @@ final class CelineRoomEnvironmentV80 {
                     Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
                     Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
             float[] floorBounds = shellBounds.clone();
+            if (hiddenFrontWall == floorEntity || scene.hasEntity(hiddenFrontWall)) {
+                throw new IllegalStateException("S25 front-wall detach invalid or floor removed");
+            }
             for (int entity : shell.getEntities()) {
+                if (entity == hiddenFrontWall) continue;
                 if (!renderables.hasComponent(entity)) continue;
                 if (!scene.hasEntity(entity)) {
                     throw new IllegalStateException(
@@ -992,17 +998,18 @@ final class CelineRoomEnvironmentV80 {
                 throw new IllegalStateException("Attached S25 shell contains no renderables");
             }
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-BOUNDS",
-                    "Actual attached shell and floor geometry AABBs (NOT visual acceptance)",
+                    "Final attached visible-shell and floor AABBs (NOT raster acceptance)",
                     "shellWorldMinXYZ=" + shellBounds[0] + "," + shellBounds[1] + "," + shellBounds[2]
                             + " shellWorldMaxXYZ=" + shellBounds[3] + "," + shellBounds[4] + "," + shellBounds[5]
                             + " floorRenderable=" + Float.isFinite(floorBounds[0])
                             + " floorWorldMinXYZ=" + floorBounds[0] + "," + floorBounds[1] + "," + floorBounds[2]
                             + " floorWorldMaxXYZ=" + floorBounds[3] + "," + floorBounds[4] + "," + floorBounds[5]
-                            + " interiorTarget_m=4.4,4.2,2.65 AndroidFrame=UNVERIFIED");
+                            + " frontWallDetached=true interiorTarget_m=4.4,4.2,2.65"
+                            + " AndroidFrame=UNVERIFIED");
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
-                    "Native shell root and real scene renderables verified after attachment",
+                    "Native shell root and final visible renderables checked",
                     "sourceRoom_m=4.40x4.20x2.65"
-                            + " rootWorld=IDENTITY attachedMeshes=" + attachedMeshes
+                            + " frontWallDetached=true rootWorld=IDENTITY attachedMeshes=" + attachedMeshes
                             + " sharedWorldContract=UNVERIFIED AndroidVisibleFrame=UNVERIFIED");
         }
 
