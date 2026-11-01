@@ -980,6 +980,121 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY atomic one-shot custodian acknowledgement contract.
+     * This is a verification-only boundary: it does NOT perform consumption,
+     * authorize a retry, create external storage, or prove nonrollbackability.
+     * The consuming service must atomically and durably store an immutable
+     * claim record BEFORE signing an acknowledgement; an interrupted request
+     * without proof stays STARTED_INDETERMINATE at its owner.
+     */
+    public static final class SignedAtomicCustodianAck {
+        public final String claimId, exactId, requestNonce, state;
+        public final long sourceRevision, anchorEpoch, consumedSequence;
+        private final byte[] signature;
+
+        public SignedAtomicCustodianAck(String claimId, String exactId,
+                long sourceRevision, String requestNonce, long anchorEpoch,
+                long consumedSequence, String state, byte[] signature) {
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.requestNonce = requestNonce;
+            this.anchorEpoch = anchorEpoch;
+            this.consumedSequence = consumedSequence;
+            this.state = state;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] atomicCustodianAckPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            String requestNonce, byte[] enrolledOwnerPin, byte[] enrolledRootPin,
+            byte[] enrolledOperatorPin, long anchorEpoch, long consumedSequence,
+            String state) {
+        if (signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, consumedSequence, "CONSUMED").length == 0
+                || enrolledOwnerPin == null || enrolledOwnerPin.length == 0
+                || enrolledRootPin == null || enrolledRootPin.length == 0
+                || enrolledOperatorPin == null || enrolledOperatorPin.length == 0
+                || anchorEpoch <= 0
+                || !("COMMITTED".equals(state) || "ALREADY_CONSUMED".equals(state)))
+            return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/external-atomic-consume-ack/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\n"
+                + b64.encodeToString(originalOwnerSignature) + "\n" + requestNonce + "\n"
+                + b64.encodeToString(enrolledOwnerPin) + "\n"
+                + b64.encodeToString(enrolledRootPin) + "\n"
+                + b64.encodeToString(enrolledOperatorPin) + "\n"
+                + anchorEpoch + "\n" + consumedSequence + "\n" + state + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Positive evidence only. A valid result means that an independently
+     * enrolled key signed this exact claim/nonce; it DOES NOT establish that
+     * the remote record cannot be restored or erased. The caller MUST NOT
+     * convert a missing acknowledgement into a new consume or retry attempt.
+     */
+    public static ReceiptStatusOutcome verifyAtomicCustodianAck(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String requestNonce,
+            byte[] enrolledOwnerPin, byte[] enrolledRootPin,
+            byte[] enrolledOperatorPin, byte[] enrolledCustodianPin,
+            long trustedAnchorEpoch, long trustedClaimMinimumSequence,
+            SignedAtomicCustodianAck ack) {
+        if (ack == null) return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        if (enrolledOwnerPin == null || enrolledRootPin == null
+                || enrolledOperatorPin == null || enrolledCustodianPin == null)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (!java.util.Objects.equals(ack.claimId, claimId)
+                || !java.util.Objects.equals(ack.exactId, exactId)
+                || ack.sourceRevision != sourceRevision
+                || !java.util.Objects.equals(ack.requestNonce, requestNonce)
+                || trustedAnchorEpoch <= 0 || trustedClaimMinimumSequence < 0
+                || ack.anchorEpoch < trustedAnchorEpoch
+                || ack.consumedSequence <= 0
+                || ack.consumedSequence < trustedClaimMinimumSequence)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] message = atomicCustodianAckPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, requestNonce,
+                enrolledOwnerPin, enrolledRootPin, enrolledOperatorPin,
+                ack.anchorEpoch, ack.consumedSequence, ack.state);
+        byte[] signature = ack.signature();
+        if (message.length == 0 || signature == null || signature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            byte[][] pins = {enrolledOwnerPin, enrolledRootPin,
+                    enrolledOperatorPin, enrolledCustodianPin};
+            java.security.PublicKey[] keys = new java.security.PublicKey[pins.length];
+            for (int i = 0; i < pins.length; i++) {
+                keys[i] = factory.generatePublic(new java.security.spec.X509EncodedKeySpec(pins[i].clone()));
+                if (!java.util.Arrays.equals(keys[i].getEncoded(), pins[i]))
+                    return ReceiptStatusOutcome.NO_AUTHORITY;
+                for (int j = 0; j < i; j++) {
+                    if (java.util.Arrays.equals(pins[i], pins[j]))
+                        return ReceiptStatusOutcome.NO_AUTHORITY;
+                }
+            }
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(keys[0]);
+            verifier.update(originalOwnerClaimPayload(claimId, exactId, sourceRevision));
+            if (!verifier.verify(originalOwnerSignature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+            verifier.initVerify(keys[3]);
+            verifier.update(message);
+            return verifier.verify(signature)
+                    ? ReceiptStatusOutcome.CONSUMED_VERIFIED
+                    : ReceiptStatusOutcome.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        }
+    }
+
+    /**
      * FUTURE-ONLY contract for a separately enrolled anti-reset custodian.
      * The operator key, owner/root pins, and trusted epoch/floor MUST be held
      * outside this process in genuinely rollback-resistant custody. Supplying
