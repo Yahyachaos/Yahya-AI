@@ -481,10 +481,35 @@ async function main(){
     assert.equal(await page.locator('#x').isEnabled(),true);
     await page.locator('#mobile-lock').tap();
     record.push({name:'MOBILE_EDIT_UNDO_REDO_LOCK_PASS'});
-    // Real touch pointer dispatch checks that 1-finger orbit is not mistaken
-    // for a furniture transform. Run in a visible unobstructed upper canvas.
+    // A new 44px S25 shortcut is at the stage top-right. The former orbit
+    // swipe used x=87%,y=20% and now falls on that button rather than WebGL.
+    // Keep the original gesture as diagnostic, but START the true CDP touch
+    // only on a dynamically verified, unobstructed renderer canvas pixel.
     const rect=await page.locator('#viewport canvas').boundingBox();
-    const sx=Math.round(rect.x+rect.width*.87),sy=Math.round(rect.y+rect.height*.20);
+    assert(rect&&rect.width>0&&rect.height>0,'Real mobile WebGL canvas must have size');
+    const formerPoint={x:Math.round(rect.x+rect.width*.87),
+      y:Math.round(rect.y+rect.height*.20)};
+    const orbitPoint={x:Math.round(rect.x+rect.width*.53),
+      y:Math.round(rect.y+rect.height*.20)};
+    const orbitHit=await page.evaluate(({formerPoint,orbitPoint})=>{
+      const canvas=document.querySelector('#viewport canvas');
+      const inspect=point=>{
+        const hit=document.elementFromPoint(point.x,point.y);
+        return {...point,hit_id:hit?.id||null,hit_tag:hit?.tagName||null,
+          is_actual_canvas:hit===canvas};
+      };
+      const button=document.getElementById('mobile-s25-shortcut');
+      const box=button?.getBoundingClientRect();
+      return {former:inspect(formerPoint),verified:inspect(orbitPoint),
+        s25_button_rect:box?[box.x,box.y,box.width,box.height]:null,
+        s25_button_disabled:button?.disabled??null};
+    },{formerPoint,orbitPoint});
+    record.push({name:'REAL_MOBILE_ORBIT_GESTURE_HIT_PREFLIGHT',orbitHit});
+    fs.writeFileSync(path.join(out,'mobile-orbit-hit-preflight.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,orbitHit},null,2));
+    assert(orbitHit.verified.is_actual_canvas,
+      'One-finger orbit must start on genuine WebGL canvas, not mobile shortcut/form/UI');
+    const sx=orbitPoint.x,sy=orbitPoint.y;
     const cdp=await context.newCDPSession(page);
     const before=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection().camera_position_m);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:sx,y:sy,id:1}]});
