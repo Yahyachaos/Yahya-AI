@@ -947,8 +947,17 @@ final class CelineRoomEnvironmentV80 {
                     Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
                     Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
             float[] floorBounds = shellBounds.clone();
-            if (hiddenFrontWall == floorEntity || scene.hasEntity(hiddenFrontWall)) {
-                throw new IllegalStateException("S25 front-wall detach invalid or floor removed");
+            // The floor anchor's name alone does not prove the native GLB floor
+            // mesh survived scene attachment. The original floor texture binder
+            // also requires this exact named entity to be a renderable. Fail closed
+            // instead of emitting floorRenderable=false as a successful Room check.
+            if (floorEntity == 0 || floorEntity == hiddenFrontWall
+                    || !renderables.hasComponent(floorEntity)
+                    || !scene.hasEntity(floorEntity)) {
+                throw new IllegalStateException("S25 source floor renderable missing from Scene");
+            }
+            if (scene.hasEntity(hiddenFrontWall)) {
+                throw new IllegalStateException("S25 front wall not detached");
             }
             for (int entity : shell.getEntities()) {
                 if (entity == hiddenFrontWall) continue;
@@ -994,14 +1003,17 @@ final class CelineRoomEnvironmentV80 {
                 }
                 attachedMeshes++;
             }
-            if (attachedMeshes == 0) {
-                throw new IllegalStateException("Attached S25 shell contains no renderables");
+            if (attachedMeshes == 0 || !Float.isFinite(floorBounds[0])
+                    || !Float.isFinite(floorBounds[1]) || !Float.isFinite(floorBounds[2])
+                    || !Float.isFinite(floorBounds[3]) || !Float.isFinite(floorBounds[4])
+                    || !Float.isFinite(floorBounds[5])) {
+                throw new IllegalStateException("Attached S25 shell or floor bounds missing");
             }
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-BOUNDS",
                     "Final attached visible-shell and floor AABBs (NOT raster acceptance)",
                     "shellWorldMinXYZ=" + shellBounds[0] + "," + shellBounds[1] + "," + shellBounds[2]
                             + " shellWorldMaxXYZ=" + shellBounds[3] + "," + shellBounds[4] + "," + shellBounds[5]
-                            + " floorRenderable=" + Float.isFinite(floorBounds[0])
+                            + " floorRenderable=true"
                             + " floorWorldMinXYZ=" + floorBounds[0] + "," + floorBounds[1] + "," + floorBounds[2]
                             + " floorWorldMaxXYZ=" + floorBounds[3] + "," + floorBounds[4] + "," + floorBounds[5]
                             + " frontWallDetached=true interiorTarget_m=4.4,4.2,2.65"
