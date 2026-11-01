@@ -604,6 +604,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Audit actual GLB primitive, UV, base-color JPEG and sampler versus owner S25 offline (read-only)
+        run: |
+          node --check tools/room-layout-editor/curtain-source-parity-audit.cjs
+          node tools/room-layout-editor/curtain-source-parity-audit.cjs
       - name: Install pinned Chromium and Three.js
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.57.0 three@0.164.1
