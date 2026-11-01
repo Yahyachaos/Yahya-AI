@@ -1229,6 +1229,51 @@ $('chair-tint-preview').onchange=()=>{
 if (E2E_PROOF) {
   // Material diagnostics share the true originals cached before the V22 preview.
   window.__celineRoomEditorE2E = Object.freeze({
+
+    // Original 13 GLBs, read-only MSAA diagnostic behind localhost E2E only.
+    proofRoomMSAAReadback(){
+      if(!s25RawPreview||[...entries.values()].filter(e=>e.loaded).length!==13)
+        throw new Error('Original S25 display with 13 GLBs required');
+      const gl=renderer.getContext();
+      const width=renderer.domElement.width,height=renderer.domElement.height;
+      if(width!==618||height!==768)throw new Error('Expected 618x768 WebGL');
+      const maxSamples=gl.getParameter(gl.MAX_SAMPLES);
+      const originalTarget=renderer.getRenderTarget();
+      const originalJSON=snapshot(),originalCamera=camera.position.toArray();
+      const captures=[];
+      try{
+        for(const count of [0,4]){
+          if(count>maxSamples)throw new Error('Four MSAA samples unsupported');
+          const rt=new THREE.WebGLRenderTarget(width,height,{
+            samples:count,depthBuffer:true,stencilBuffer:false});
+          rt.texture.colorSpace=renderer.outputColorSpace;
+          try{
+            renderer.setRenderTarget(rt);
+            renderer.clear();renderer.render(scene,camera);
+            const actual=gl.getParameter(gl.SAMPLES);
+            const pixel=new Uint8Array(width*height*4);
+            renderer.readRenderTargetPixels(rt,0,0,width,height,pixel);
+            if(gl.getError()!==gl.NO_ERROR)throw new Error('GPU readPixels error');
+            const canvas=document.createElement('canvas');
+            canvas.width=width;canvas.height=height;
+            const ctx=canvas.getContext('2d');
+            if(!ctx)throw new Error('2D PNG encoder unavailable');
+            const image=ctx.createImageData(width,height),stride=width*4;
+            for(let y=0;y<height;y++)
+              image.data.set(pixel.subarray((height-y-1)*stride,(height-y)*stride),y*stride);
+            ctx.putImageData(image,0,0);
+            captures.push({requested_samples:count,actual_samples:actual,
+              png_data_url:canvas.toDataURL('image/png'),width,height});
+          }finally{renderer.setRenderTarget(originalTarget);rt.dispose();}
+        }
+      }finally{renderer.setRenderTarget(originalTarget);renderer.render(scene,camera);}
+      if(snapshot()!==originalJSON)throw new Error('AA proof mutated original layout');
+      if(camera.position.toArray().some((v,i)=>v!==originalCamera[i]))
+        throw new Error('AA proof moved camera');
+      return {max_samples:maxSamples,original_s25_unlit_display:s25RawPreview,
+        model_count:13,room_m:{...room},original_physical_s25_aa:'NOT_MEASURED',
+        camera_position_m:originalCamera,captures};
+    },
     mobileRenderStats() {
       return {...mobileRenderStats,pending:mobileFramePending,touch_device:TOUCH_DEVICE};
     },

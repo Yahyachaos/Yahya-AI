@@ -851,6 +851,48 @@ async function main(){
       record.push({name:'S25_MSAA_DIAGNOSTIC_UNAVAILABLE',
         error:String(msaaError.stack||msaaError),visual_acceptance:'NOT_GRANTED'});
     }
+
+    // Optional genuine original-GLB AA comparison AFTER all strict touch/JSON/screen gates.
+    const layoutBeforeAA=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.serializedLayout());
+    let switched=false;
+    try{
+      const active=await page.evaluate(()=>
+        window.__celineRoomEditorE2E.s25RawDisplayAudit().active);
+      if(!active){
+        await page.locator('[data-mobile-action="s25-display"]').tap();
+        switched=true;
+      }
+      const aa=await page.evaluate(()=>
+        window.__celineRoomEditorE2E.proofRoomMSAAReadback());
+      assert.equal(aa.model_count,13);
+      assert.deepEqual(aa.room_m,{width:4.4,depth:4.2,height:2.65});
+      const captures=[];
+      for(const result of aa.captures){
+        const png=Buffer.from(result.png_data_url.split(',')[1],'base64');
+        assert.equal(png.subarray(1,4).toString('ascii'),'PNG');
+        const filename='owner-13glb-s25-msaa'+result.requested_samples+'-618x768.png';
+        fs.writeFileSync(path.join(out,filename),png);
+        captures.push({filename,requested_samples:result.requested_samples,
+          actual_samples:result.actual_samples,pixels:[result.width,result.height],
+          sha256:crypto.createHash('sha256').update(png).digest('hex')});
+      }
+      fs.writeFileSync(path.join(out,'owner-13glb-msaa0-msaa4.json'),
+        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+          owner_layout_sha256:approvedSha,captures,max_samples:aa.max_samples,
+          physical_s25_aa:'NOT_MEASURED',visual_acceptance:'NOT_GRANTED'},null,2));
+      record.push({name:'REAL_OWNER_13GLB_MSAA0_MSAA4_DIAGNOSTIC',
+        file:'owner-13glb-msaa0-msaa4.json',captures,visual_acceptance:'NOT_GRANTED'});
+    }catch(error){
+      record.push({name:'REAL_OWNER_13GLB_MSAA_DIAGNOSTIC_UNAVAILABLE',
+        error:String(error.stack||error),visual_acceptance:'NOT_GRANTED'});
+    }finally{
+      if(switched)await page.locator('[data-mobile-action="s25-display"]').tap();
+      assert.deepEqual(await page.evaluate(()=>
+        window.__celineRoomEditorE2E.serializedLayout()),layoutBeforeAA,
+        'Real GLB AA proof must preserve exact original fields');
+    }
+
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');
