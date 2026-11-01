@@ -10386,6 +10386,7 @@ public final class FutureIndependentClaimFloorProcess {
   static Path floorRecord(Path floor,String claim){return floor.resolve(claim+".floor");}
   static void attest(Path owner,Path root,Path operator,Path custodian,Path floor,
        String claim,String nonce,String mode,long trustedMinimum)throws Exception{
+    String witnessMode=mode.startsWith("LIVE_")?mode.substring(5):mode;
     byte[] ownerPin=pin(owner),rootPin=pin(root),operatorPin=pin(operator);
     byte[] custodianPin=pin(custodian),floorPin=pin(floor),ownerSignature=original(owner,claim);
     byte[] correctOwner=ownerSignature.clone();
@@ -10393,38 +10394,55 @@ public final class FutureIndependentClaimFloorProcess {
     if(present)present=FutureAtomicCustodianProcess.authenticatedExisting(
       FutureAtomicCustodianProcess.recordPath(custodian,claim),custodian,
       FutureAtomicCustodianProcess.durablePayload(owner,root,operator,claim,ID));
-    String ackState=mode.equals("COMMITTED_INITIAL")||mode.equals("REPLAY_COMMITTED")
+    String ackState=witnessMode.equals("COMMITTED_INITIAL")||witnessMode.equals("REPLAY_COMMITTED")
       ?"COMMITTED":"ALREADY_CONSUMED";
     byte[] ackSignature=present?sign(custodian,
       CelineFutureMemoryRecall.atomicCustodianAckPayload(claim,ID,REV,correctOwner,
         nonce,ownerPin,rootPin,operatorPin,2,1,ackState)):null;
-    if(mode.equals("ACK_BAD_SIG")&&ackSignature!=null)ackSignature[0]^=1;
-    var ack=!present||mode.equals("MISSING_ACK")?null:
+    if(witnessMode.equals("ACK_BAD_SIG")&&ackSignature!=null)ackSignature[0]^=1;
+    var ack=!present||witnessMode.equals("MISSING_ACK")?null:
       new CelineFutureMemoryRecall.SignedAtomicCustodianAck(claim,ID,REV,nonce,2,
-        mode.equals("ACK_WRONG_SEQ")?2:1,ackState,ackSignature);
+        witnessMode.equals("ACK_WRONG_SEQ")?2:1,ackState,ackSignature);
     Path floorFile=floorRecord(floor,claim);
-    boolean hasFloor=Files.exists(floorFile)&&!mode.equals("FLOOR_MISSING");
+    boolean hasFloor=Files.exists(floorFile)&&!witnessMode.equals("FLOOR_MISSING");
     long seq=hasFloor?Long.parseLong(Files.readString(floorFile).trim()):0;
     String state=seq>0?"CONSUMED":"ABSENT";
-    long epoch=mode.equals("FLOOR_EPOCH_ROLLBACK")?1:2;
-    byte[] signedFloorPin=mode.equals("FLOOR_CUSTODIAN_PIN_MISMATCH")?rootPin:custodianPin;
+    long epoch=witnessMode.equals("FLOOR_EPOCH_ROLLBACK")?1:2;
+    byte[] signedFloorPin=witnessMode.equals("FLOOR_CUSTODIAN_PIN_MISMATCH")?rootPin:custodianPin;
     byte[] floorPayload=CelineFutureMemoryRecall.externalClaimFloorPayload(
       claim,ID,REV,correctOwner,nonce,ownerPin,rootPin,operatorPin,
       signedFloorPin,epoch,seq,state);
-    byte[] signature=hasFloor?sign(mode.equals("FLOOR_WRONG_KEY")?custodian:floor,floorPayload):null;
-    if(mode.equals("FLOOR_BAD_SIG")&&signature!=null)signature[0]^=1;
-    byte[] suppliedFloorPin=mode.equals("FLOOR_PIN_COLLISION")?ownerPin:floorPin;
-    if(mode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
+    byte[] signature=hasFloor?sign(witnessMode.equals("FLOOR_WRONG_KEY")?custodian:floor,floorPayload):null;
+    if(witnessMode.equals("FLOOR_BAD_SIG")&&signature!=null)signature[0]^=1;
+    byte[] suppliedFloorPin=witnessMode.equals("FLOOR_PIN_COLLISION")?ownerPin:floorPin;
+    if(witnessMode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
     var attestation=!hasFloor?null:new CelineFutureMemoryRecall.SignedExternalClaimFloor(
-      claim,mode.equals("FLOOR_WRONG_ID")?"other-id":ID,
-      mode.equals("FLOOR_WRONG_REV")?3:REV,
-      mode.equals("FLOOR_WRONG_NONCE")?"not-the-fresh-nonce":nonce,
+      claim,witnessMode.equals("FLOOR_WRONG_ID")?"other-id":ID,
+      witnessMode.equals("FLOOR_WRONG_REV")?3:REV,
+      witnessMode.equals("FLOOR_WRONG_NONCE")?"not-the-fresh-nonce":nonce,
       epoch,seq,state,signedFloorPin,signature);
-    var result=CelineFutureMemoryRecall.verifyAtomicAckWithIndependentClaimFloor(
-      claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
-      custodianPin,suppliedFloorPin,2,trustedMinimum,attestation,ack);
+    // LIVE_* exercises the separately provisioned, read-only authority
+    // boundary without giving the app access to reserve/consume/retry.
+    CelineFutureMemoryRecall.ReceiptStatusOutcome result;
+    int[] queries=new int[1];
+    if(mode.startsWith("LIVE_")) {
+      CelineFutureMemoryRecall.IndependentClaimFloorReadOnlyAuthority reader =
+        witnessMode.equals("OFFLINE")?null:(c,i,r,s,n)->{
+          queries[0]++;
+          if(witnessMode.equals("THROW"))throw new IllegalStateException("provider unavailable");
+          if(witnessMode.equals("NULL"))return null;
+          return attestation;
+        };
+      result=CelineFutureMemoryRecall.reconcileAtomicAckWithLiveClaimFloor(
+        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+        custodianPin,suppliedFloorPin,2,trustedMinimum,reader,ack);
+    } else {
+      result=CelineFutureMemoryRecall.verifyAtomicAckWithIndependentClaimFloor(
+        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+        custodianPin,suppliedFloorPin,2,trustedMinimum,attestation,ack);
+    }
     System.out.println("RESULT="+result+" CUSTODIAN="+present+" FLOOR="+seq
-      +" ACK="+ackState+" MIN="+trustedMinimum);
+      +" ACK="+ackState+" MIN="+trustedMinimum+" READS="+queries[0]);
   }
   public static void main(String[] args)throws Exception{
     if(args.length!=10)throw new IllegalArgumentException("expected check 5 dirs claim nonce mode trustedMin");
@@ -10436,7 +10454,7 @@ public final class FutureIndependentClaimFloorProcess {
 '''
 
 
-def process_independent_claim_floor_proof(compiled, strict=False):
+def process_independent_claim_floor_proof(compiled, strict=False, strict_live=False):
     import hashlib
     with tempfile.TemporaryDirectory(prefix='future_monotonic_claim_floor_') as tmp:
         top=Path(tmp)
@@ -10478,6 +10496,27 @@ def process_independent_claim_floor_proof(compiled, strict=False):
         verify(mode='COMMITTED_INITIAL',minimum=0)
         verify()
         for _ in range(2):verify()
+        # An app-visible caller receives only a scoped READ-ONLY capability.
+        # Independent floor file is outside the restored custodian snapshot.
+        prior_floor=(floor_record.read_bytes(),floor_record.stat().st_mtime_ns)
+        prior_custodian=(record.read_bytes(),record.stat().st_mtime_ns)
+        live=verify(mode='LIVE_NORMAL')
+        assert 'READS=1' in live,live;count+=1
+        assert (floor_record.read_bytes(),floor_record.stat().st_mtime_ns)==prior_floor;count+=1
+        assert (record.read_bytes(),record.stat().st_mtime_ns)==prior_custodian;count+=1
+        for mode,result,read_count in (
+            ('LIVE_OFFLINE','NO_AUTHORITY',0),
+            ('LIVE_THROW','REMAIN_INDETERMINATE',1),
+            ('LIVE_NULL','NO_AUTHORITY',1),
+            ('LIVE_FLOOR_BAD_SIG','UNVERIFIABLE',1),
+            ('LIVE_FLOOR_WRONG_NONCE','UNVERIFIABLE',1),
+            ('LIVE_FLOOR_PIN_COLLISION','NO_AUTHORITY',1),
+            ('LIVE_FORGED_OWNER','UNVERIFIABLE',1),
+            ('LIVE_MISSING_ACK','REMAIN_INDETERMINATE',1),
+            ('LIVE_REPLAY_COMMITTED','UNVERIFIABLE',1)):
+            output=verify(mode=mode,expected=result)
+            assert 'READS='+str(read_count) in output,(mode,output)
+            count+=1
         for mode,result,minimum in (
             ('FLOOR_MISSING','NO_AUTHORITY',1),
             ('FLOOR_BAD_SIG','UNVERIFIABLE',1),
@@ -10499,6 +10538,9 @@ def process_independent_claim_floor_proof(compiled, strict=False):
         # The floor alone cannot confer action/retry authority.
         record.unlink()
         verify(expected='REMAIN_INDETERMINATE')
+        # With the fifth authority intact, rollback of only the custodian
+        # cannot magically produce a verified consumption nor retry grant.
+        verify(mode='LIVE_NORMAL',expected='REMAIN_INDETERMINATE')
         for path,key in zip((owner,root,operator,custodian,floor),keys):
             assert (path/'identity.priv').read_bytes()==key;count+=1
         # Simultaneously reset the *fifth* authority's own ordinary file.
@@ -10507,13 +10549,17 @@ def process_independent_claim_floor_proof(compiled, strict=False):
         floor_record.write_text('0',encoding='ascii')
         verify(expected='UNVERIFIABLE')
         verify(minimum=0,expected='NO_AUTHORITY')
-        if strict:
-            # Known RED: no hardware/remote nonrollbackable floor; both files
-            # reset under original keys, then reconsume can appear first-time.
+        verify(mode='LIVE_NORMAL',minimum=0,expected='NO_AUTHORITY')
+        verify(mode='LIVE_NORMAL',minimum=1,expected='UNVERIFIABLE')
+        if strict or strict_live:
+            # Known RED: the independent mock authority itself was rolled
+            # back. A new live query is not a hardware monotonic witness.
+            # The same five ORIGINAL keys can sign a false new claim.
             again=consume()
             assert 'ACK=COMMITTED' in again.stdout,(again.stdout,again.stderr)
             floor_record.write_text('1',encoding='ascii')
-            wrong=verify(mode='COMMITTED_INITIAL',minimum=0)
+            mode='LIVE_COMMITTED_INITIAL' if strict_live else 'COMMITTED_INITIAL'
+            wrong=verify(mode=mode,minimum=0)
             assert 'RESULT=UNVERIFIABLE' in wrong,(
                 'KNOWN SECURITY FAIL: all original keys reused after total '
                 'snapshot rollback, trust minimum reset and same claim '
@@ -10909,6 +10955,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
         sys.exit(0)
     if '--strict-independent-claim-floor' in sys.argv:
         process_independent_claim_floor_proof(temp,strict=True)
+        sys.exit(0)
+    if '--strict-live-claim-floor' in sys.argv:
+        process_independent_claim_floor_proof(temp,strict_live=True)
         sys.exit(0)
     if '--focused-atomic-custodian' in sys.argv:
         process_atomic_custodian_proof(temp)
