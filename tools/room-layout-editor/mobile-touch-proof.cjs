@@ -797,9 +797,9 @@ async function main(){
             return sh;
           };
           const v=compile(g.VERTEX_SHADER,
-            '#version 300 es\\nlayout(location=0) in vec2 p; void main(){gl_Position=vec4(p,0.,1.);}');
+            '#version 300 es\nlayout(location=0) in vec2 p; void main(){gl_Position=vec4(p,0.,1.);}');
           const f=compile(g.FRAGMENT_SHADER,
-            '#version 300 es\\nprecision highp float;out vec4 o;void main(){o=vec4(1.);}');
+            '#version 300 es\nprecision highp float;out vec4 o;void main(){o=vec4(1.);}');
           const prog=g.createProgram();g.attachShader(prog,v);g.attachShader(prog,f);
           g.linkProgram(prog);
           if(!g.getProgramParameter(prog,g.LINK_STATUS))
