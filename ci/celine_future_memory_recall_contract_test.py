@@ -8877,8 +8877,10 @@ public final class FutureProtectedAnchorProcess {
           if(cmd==null){continue;}
           if(cmd.equals("FLOOR")){out.println("FLOOR "+readFloor(custody));continue;}
           String[] a=cmd.split(" ");
-          if(a.length!=4 || !a[0].equals("CONSUME")){out.println("ERROR");continue;}
-          out.println(consume(shared,custody,a[1],a[2],a[3]));
+          if(a.length!=4 || !(a[0].equals("CONSUME") || a[0].equals("CONSUME_EXIT"))){out.println("ERROR");continue;}
+          String disposition=consume(shared,custody,a[1],a[2],a[3]);
+          if(a[0].equals("CONSUME_EXIT") && disposition.equals("COMMITTED"))System.exit(74);
+          out.println(disposition);
         }catch(SocketTimeoutException e){continue;}
         catch(Exception e){System.err.println("ANCHOR_CONNECTION_FAIL "+e.getClass().getSimpleName());}
       }
@@ -8933,7 +8935,8 @@ public final class FutureProtectedAnchorProcess {
             byte[] exactPayload,byte[] receiptSignature,byte[] originalSignature) {
           dispatch[0]++;
           try {
-            String answer=connect(port,root,"CONSUME "+ENC.encodeToString(exactPayload)
+            String verb=mode.equals("ack-lost")?"CONSUME_EXIT":"CONSUME";
+            String answer=connect(port,root,verb+" "+ENC.encodeToString(exactPayload)
                 +" "+ENC.encodeToString(receiptSignature)+" "+ENC.encodeToString(originalSignature));
             if(answer.equals("COMMITTED"))return CelineFutureMemoryRecall.AtomicReceiptOutcome.COMMITTED;
             if(answer.equals("REJECTED"))return CelineFutureMemoryRecall.AtomicReceiptOutcome.REJECTED_BEFORE_START;
@@ -8966,8 +8969,8 @@ def process_protected_anchor_journal_proof(compiled, strict=False):
         subprocess.run(java+['init',str(shared),str(custody)],check=True,capture_output=True,text=True)
         original_pin = __import__('base64').b64encode((custody/'anchor.pub').read_bytes()).decode('ascii')
         passed = 0
-        def server(custody_dir):
-            proc = subprocess.Popen(java+['serve',str(shared),str(custody_dir)],
+        def server(custody_dir, shared_dir=shared):
+            proc = subprocess.Popen(java+['serve',str(shared_dir),str(custody_dir)],
                                     stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
             ready = proc.stdout.readline().strip()
             assert ready.startswith('READY '), (ready, proc.poll())
@@ -9031,6 +9034,26 @@ def process_protected_anchor_journal_proof(compiled, strict=False):
         try:
             expect(ask(port),'NO_AUTHORITY',0)
         finally:stop(honest)
+        # True post-CAS ACK-loss: the separate JVM force-writes its floor and
+        # exits before acknowledging. The caller must keep an indeterminate
+        # result; a rebooted original custodian cannot grant the same claim.
+        ack_shared, ack_custody = root/'ack_loss_shared', root/'ack_loss_custody'
+        subprocess.run(java+['init',str(ack_shared),str(ack_custody)],check=True,capture_output=True,text=True)
+        ack_pin=__import__('base64').b64encode((ack_custody/'anchor.pub').read_bytes()).decode('ascii')
+        def ack_attempt(port,mode):
+            r=subprocess.run(java+['attempt',str(ack_shared),str(port),ack_pin,mode],
+                             capture_output=True,text=True,check=True,timeout=12)
+            return r.stdout.strip()
+        ack_server,ack_port=server(ack_custody,ack_shared)
+        try:
+            expect(ack_attempt(ack_port,'ack-lost'),'STARTED_INDETERMINATE',1)
+            assert ack_server.wait(timeout=5)==74, 'custodian did not actually die after commit'
+            passed+=1
+        finally:stop(ack_server)
+        ack_server,ack_port=server(ack_custody,ack_shared)
+        try:
+            expect(ack_attempt(ack_port,'normal'),'REJECTED_BEFORE_START',0)
+        finally:stop(ack_server)
         # Strict owner-of-root rollback: even original key/pin is insufficient;
         # ordinary disk custody permits replay. Assert MUST-BLOCK to produce RED.
         if strict:
