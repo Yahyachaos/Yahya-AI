@@ -10903,11 +10903,36 @@ public final class FutureOneShotEnrollmentContract {
     final AtomicBoolean reserved=new AtomicBoolean();
     final AtomicInteger reserveCalls=new AtomicInteger();
     final AtomicInteger queryCalls=new AtomicInteger();
-    boolean lostAck, forge, throwQuery;
+    final AtomicInteger attestationCalls=new AtomicInteger();
+    final Set<String> observedChallenges=new HashSet<>();
+    String administeredAuthorityId="out-of-band-issuer-1";
+    boolean lostAck, forge, throwQuery, forgeAttestation, refuseAttestation;
+    CelineFutureMemoryRecall.SignedOneShotProviderAttestation lastAttestation, replayAttestation;
+    CelineFutureMemoryRecall.SignedMonotonicReservation replayReserve;
+    CelineFutureMemoryRecall.SignedMonotonicReservationStatus replayQuery;
     BoundBackend(KeyPair[] keys,byte[][] pins){this.keys=keys;this.pins=pins;}
+    public CelineFutureMemoryRecall.SignedOneShotProviderAttestation attestEnrollment(
+        CelineFutureMemoryRecall.SignedOneShotEnrollment enrollment,
+        String freshChallenge)throws Exception {
+      attestationCalls.incrementAndGet();
+      if(refuseAttestation)return null;
+      if(replayAttestation!=null)return replayAttestation;
+      if(!observedChallenges.add(freshChallenge))throw new IllegalStateException("reused challenge");
+      byte[] enrollmentPayload=CelineFutureMemoryRecall.oneShotEnrollmentPayload(
+        enrollment.authorityId,enrollment.epoch,pins[0],pins[1],pins[2],pins[3],pins[4]);
+      byte[] payload=CelineFutureMemoryRecall.oneShotProviderAttestationPayload(
+        administeredAuthorityId,enrollment.epoch,enrollmentPayload,
+        enrollment.signature(),freshChallenge);
+      byte[] responseSignature=sign(keys[4].getPrivate(),payload);
+      if(forgeAttestation)responseSignature[0]^=1;
+      lastAttestation=new CelineFutureMemoryRecall.SignedOneShotProviderAttestation(
+        administeredAuthorityId,enrollment.epoch,freshChallenge,pins[4],responseSignature);
+      return lastAttestation;
+    }
     public CelineFutureMemoryRecall.SignedMonotonicReservation reserveOnce(
         String claim,String id,long revision,byte[] ownerSig,String nonce)throws Exception {
       reserveCalls.incrementAndGet();
+      if(replayReserve!=null)return replayReserve;
       boolean first=reserved.compareAndSet(false,true);
       if(lostAck)throw new IllegalStateException("ack lost AFTER CAS commit");
       String decision=first?"FIRST_RESERVED":"ALREADY_RESERVED";
@@ -10921,6 +10946,7 @@ public final class FutureOneShotEnrollmentContract {
     public CelineFutureMemoryRecall.SignedMonotonicReservationStatus queryExisting(
         String claim,String id,long revision,byte[] ownerSig,String nonce)throws Exception {
       queryCalls.incrementAndGet();
+      if(replayQuery!=null)return replayQuery;
       if(throwQuery)throw new IllegalStateException("network lost");
       boolean exists=reserved.get(); String status=exists?"RESERVED":"ABSENT";
       long seq=exists?1:0;
@@ -10946,6 +10972,36 @@ public final class FutureOneShotEnrollmentContract {
     var gateway=CelineFutureMemoryRecall.ProvisionedOneShotGateway
       .bindFromIndependentBootstrap(pins,enrollment,2,backend);
     ok(gateway!=null,"valid root-signed five-pin enrollment");
+    ok(backend.attestationCalls.get()==1,"bootstrap authenticates live provider before granting capability");
+    ok(backend.observedChallenges.size()==1,"fresh bootstrap challenge observed");
+    backend.forgeAttestation=true;
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,2,backend)==null,"forged provider-side attestation rejected");
+    backend.forgeAttestation=false;
+    backend.refuseAttestation=true;
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,2,backend)==null,"missing provider challenge fails closed");
+    backend.refuseAttestation=false;
+    String originalAuthority=backend.administeredAuthorityId;
+    backend.administeredAuthorityId="other-administered-authority";
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,2,backend)==null,"provider attesting wrong authority ID rejected");
+    backend.administeredAuthorityId=originalAuthority;
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,2,backend)!=null,"repeat bootstrap gets an independent challenge");
+    ok(backend.observedChallenges.size()==4,"no reused random challenge across bootstrap attempts");
+    backend.replayAttestation=backend.lastAttestation;
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,enrollment,2,backend)==null,"old correctly signed bootstrap response fails NEW challenge");
+    backend.replayAttestation=null;
+    ok(CelineFutureMemoryRecall.oneShotBoundNonce(
+      "out-of-band-issuer-1",2,"invalid\nnonce-123456789") .isEmpty(),
+      "control-character nonce cannot bypass authority binding");
+    ok(!CelineFutureMemoryRecall.oneShotBoundNonce(
+      "out-of-band-issuer-1",2,"nonce-epoch-isolation-0001").equals(
+      CelineFutureMemoryRecall.oneShotBoundNonce(
+      "out-of-band-issuer-1",3,"nonce-epoch-isolation-0001")),
+      "same authority but NEW epoch uses different signed nonce domain");
     byte[] wrongSig=signed.clone();wrongSig[0]^=1;
     ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
       pins,new CelineFutureMemoryRecall.SignedOneShotEnrollment(
@@ -11014,6 +11070,54 @@ public final class FutureOneShotEnrollmentContract {
       "unavailable query never grants retry");
     backend.throwQuery=false;
     ok(backend.reserved.get(),"query failure did not reset consumed CAS");
+
+    // Same FIVE signing keys and same epoch, but different legitimate authority IDs.
+    // Old v1 replies do not carry the authority identity; only a gateway-bound
+    // nonce lets us detect cross-enrollment replay without changing legacy APIs.
+    String otherId="independent-authority-B";
+    byte[] otherRootSig=sign(keys[1].getPrivate(),
+      CelineFutureMemoryRecall.oneShotEnrollmentPayload(otherId,2,
+        pins[0],pins[1],pins[2],pins[3],pins[4]));
+    var otherEnrollment=new CelineFutureMemoryRecall.SignedOneShotEnrollment(
+      otherId,2,pins,otherRootSig);
+    ok(CelineFutureMemoryRecall.ProvisionedOneShotGateway.bindFromIndependentBootstrap(
+      pins,otherEnrollment,2,backend)==null,
+      "authority A must not accept root-signed authority B enrollment");
+    BoundBackend backendB=new BoundBackend(keys,pins);
+    backendB.administeredAuthorityId=otherId;
+    var gatewayB=CelineFutureMemoryRecall.ProvisionedOneShotGateway
+      .bindFromIndependentBootstrap(pins,otherEnrollment,2,backendB);
+    ok(gatewayB!=null,"authority B independently attested with same legitimate five keys");
+    String sharedRequest="same-user-request-nonce-0000001";
+    String aBound=CelineFutureMemoryRecall.oneShotBoundNonce(
+      originalAuthority,2,sharedRequest);
+    String bBound=CelineFutureMemoryRecall.oneShotBoundNonce(otherId,2,sharedRequest);
+    ok(!aBound.equals(bBound),"authority-scoped challenge nonce differs across enrollments");
+    byte[] payloadA=CelineFutureMemoryRecall.monotonicReservationPayload(
+      claim,id,revision,ownerSig,aBound,pins[0],pins[1],pins[2],pins[3],2,1,"FIRST_RESERVED");
+    backendB.replayReserve=new CelineFutureMemoryRecall.SignedMonotonicReservation(
+      claim,id,revision,aBound,2,1,"FIRST_RESERVED",pins[3],sign(keys[4].getPrivate(),payloadA));
+    ok(gatewayB.reserveOnce(claim,id,revision,ownerSig,sharedRequest,0)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.UNVERIFIABLE,
+      "valid authority A reservation is NOT acceptable as authority B reservation");
+    ok(!backendB.reserved.get(),"replayed cross-authority receipt performed no B-side CAS");
+    backendB.replayReserve=null;
+    String q="same-user-query-nonce-0000001";
+    String aQuery=CelineFutureMemoryRecall.oneShotBoundNonce(originalAuthority,2,q);
+    byte[] qPayloadA=CelineFutureMemoryRecall.monotonicQueryExistingPayload(
+      claim,id,revision,ownerSig,aQuery,pins[0],pins[1],pins[2],pins[3],2,1,"RESERVED");
+    backendB.replayQuery=new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(
+      claim,id,revision,aQuery,2,1,"RESERVED",pins[3],sign(keys[4].getPrivate(),qPayloadA));
+    ok(gatewayB.queryExisting(claim,id,revision,ownerSig,q,0)==
+      CelineFutureMemoryRecall.MonotonicQueryOutcome.UNVERIFIABLE,
+      "valid authority A read-only status must not authenticate authority B");
+    backendB.replayQuery=null;
+    ok(gatewayB.reserveOnce(claim,id,revision,ownerSig,sharedRequest,0)==
+      CelineFutureMemoryRecall.MonotonicReservationOutcome.FIRST_RESERVED_PENDING_ACK,
+      "legitimate authority B source-signed reservation remains usable");
+    ok(gatewayB.queryExisting(claim,id,revision,ownerSig,q,1)==
+      CelineFutureMemoryRecall.MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY,
+      "legitimate authority B read-only status remains usable");
     if(strict){
       // Explicit expected SECURITY RED: total rollback of provider's *own*
       // mocked state plus trusted minimum with ALL FIVE keys unchanged.
