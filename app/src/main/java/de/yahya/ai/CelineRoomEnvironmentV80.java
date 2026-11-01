@@ -1031,12 +1031,42 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            CelineRoomForegroundPlantV80.releaseCandleOnly(view);
-            CelineRoomForegroundLaptopV80.release(view);
-            CelineRoomReferenceLeftArtworkV80.release(view, engine);
-            CelineRoomReferenceArtworkV80.release(view, engine);
-            CelineRoomWindowTextureV80.release(view, engine);
-            CelineRoomSurfaceTextureV80.release(view, engine);
+            // A failing optional room overlay/texture release must never prevent
+            // the real S25 shell and thirteen furniture GLBs from being detached.
+            Throwable firstAuxiliaryCleanupFailure = null;
+            try { CelineRoomForegroundPlantV80.releaseCandleOnly(view); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomForegroundLaptopV80.release(view); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomReferenceLeftArtworkV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomReferenceArtworkV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomWindowTextureV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomSurfaceTextureV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            if (firstAuxiliaryCleanupFailure != null) {
+                try {
+                    Celine3DDiagnostics.error(context, "ROOM-198",
+                            "Auxiliary Room cleanup failed; GLB cleanup continues",
+                            firstAuxiliaryCleanupFailure);
+                } catch (Throwable ignored) {
+                    // Diagnostic failure must not strand the imported GLB assets.
+                }
+            }
             if (current.isEmpty() && roomKeyLight == 0 && floorFillLight == 0 && lampLight == 0) return;
             try {
                 if (roomKeyLight != 0) {
