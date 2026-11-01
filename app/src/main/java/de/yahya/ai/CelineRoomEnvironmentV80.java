@@ -312,6 +312,7 @@ final class CelineRoomEnvironmentV80 {
                 // Expected GLB world matrices captured from actual Filament nodes, not JSON guesses.
                 Map<Integer, float[]> expectedS25Roots = new LinkedHashMap<>();
                 Map<Integer, float[]> expectedS25Meshes = new LinkedHashMap<>();
+                Map<Integer, String> expectedS25RootIds = new LinkedHashMap<>();
                 FilamentAsset shell = null;
                 int renderables = 0;
                 for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
@@ -337,7 +338,7 @@ final class CelineRoomEnvironmentV80 {
                             String authoredId = S25_IDS[partitionIndex - 1];
                             verifiedFurnitureMeshNodes += applyExactS25Furniture(
                                     part, authoredId, exactLayout.get(authoredId),
-                                    expectedS25Roots, expectedS25Meshes);
+                                    expectedS25Roots, expectedS25Meshes, expectedS25RootIds);
                             exactApplied++;
                         }
                         // Preserve original S25 GLB material/UV/texture without image-derived tint.
@@ -414,6 +415,11 @@ final class CelineRoomEnvironmentV80 {
                                 + FLOOR_LAMP_LIGHT_DIR_Z + " coneRad="
                                 + FLOOR_LAMP_SPOT_INNER_RAD + "/" + FLOOR_LAMP_SPOT_OUTER_RAD
                                 + " materialEmission=false");
+                // Capture machine-readable per-furniture *live* Filament world matrices
+                // after resources, light channels and optional floor setup have settled.
+                // This checks numerical runtime state, never Android raster appearance.
+                recordReadyS25WorldMatrices(expectedS25RootIds,
+                        expectedS25Roots, expectedS25Meshes);
                 failureLogged = false;
                 roomBuilt = true;
                 // Emit whole-scene 13/13 evidence only after scene attachment and
@@ -549,7 +555,8 @@ final class CelineRoomEnvironmentV80 {
          */
         private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item,
                 Map<Integer, float[]> expectedS25Roots,
-                Map<Integer, float[]> expectedS25Meshes) throws Exception {
+                Map<Integer, float[]> expectedS25Meshes,
+                Map<Integer, String> expectedS25RootIds) throws Exception {
             if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
             // Verify that the *loaded partition* owns this furniture anchor, not
             // merely that the combined scene contains an anchor with this name.
@@ -613,6 +620,9 @@ final class CelineRoomEnvironmentV80 {
             if (expectedS25Roots.put(part.getRoot(),
                     transforms.getWorldTransform(root, new float[16])) != null) {
                 throw new IllegalStateException("Duplicate Filament furniture root entity: " + id);
+            }
+            if (expectedS25RootIds.put(part.getRoot(), id) != null) {
+                throw new IllegalStateException("Duplicate authored S25 root identity: " + id);
             }
             // With the unmodified GLB hierarchy, each descendant must move as
             // authoredWrapper * originalWorld. Detect lost/doubled node transforms,
@@ -707,6 +717,84 @@ final class CelineRoomEnvironmentV80 {
                     "rootNodes=" + rootWorlds.size() + " meshNodes=" + meshWorlds.size()
                             + " maxMatrixError=" + worst
                             + " AndroidVisibleFrame=UNVERIFIED shell=UNVERIFIED");
+        }
+
+        /**
+         * Last-stage numerical proof source: actual Filament matrices when the whole
+         * 13-furniture Room is ready, not just authored JSON or pre-attach nodes.
+         * All descendants must still be live Scene renderables. This intentionally
+         * does NOT classify a visible Android frame as PASS.
+         */
+        private void recordReadyS25WorldMatrices(
+                Map<Integer, String> rootIds, Map<Integer, float[]> originalRoots,
+                Map<Integer, float[]> originalMeshes) {
+            if (rootIds.size() != S25_IDS.length || originalRoots.size() != S25_IDS.length
+                    || originalMeshes.size() < S25_IDS.length) {
+                throw new IllegalStateException("S25 ready-scene numeric proof incomplete");
+            }
+            float rootWorst = 0f;
+            float meshWorst = 0f;
+            Map<String, float[]> liveRoots = new LinkedHashMap<>();
+            for (Map.Entry<Integer, String> entry : rootIds.entrySet()) {
+                int instance = transforms.getInstance(entry.getKey());
+                float[] expected = originalRoots.get(entry.getKey());
+                if (instance == 0 || expected == null) {
+                    throw new IllegalStateException("Missing ready S25 root " + entry.getValue());
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                for (int axis = 0; axis < 16; axis++) {
+                    if (!Float.isFinite(actual[axis]) || !Float.isFinite(expected[axis])) {
+                        throw new IllegalStateException("Nonfinite ready S25 root " + entry.getValue());
+                    }
+                    rootWorst = Math.max(rootWorst, Math.abs(actual[axis] - expected[axis]));
+                }
+                if (liveRoots.put(entry.getValue(), actual) != null) {
+                    throw new IllegalStateException("Duplicate ready S25 ID " + entry.getValue());
+                }
+            }
+            RenderableManager renderables = engine.getRenderableManager();
+            for (Map.Entry<Integer, float[]> entry : originalMeshes.entrySet()) {
+                int entity = entry.getKey();
+                int instance = transforms.getInstance(entity);
+                if (instance == 0 || !scene.hasEntity(entity)
+                        || !renderables.hasComponent(entity)) {
+                    throw new IllegalStateException("Missing ready S25 renderable " + entity);
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                float[] expected = entry.getValue();
+                for (int axis = 0; axis < 16; axis++) {
+                    if (!Float.isFinite(actual[axis]) || !Float.isFinite(expected[axis])) {
+                        throw new IllegalStateException("Nonfinite ready S25 mesh " + entity);
+                    }
+                    meshWorst = Math.max(meshWorst, Math.abs(actual[axis] - expected[axis]));
+                }
+            }
+            if (rootWorst > 0.0001f || meshWorst > 0.0001f) {
+                throw new IllegalStateException("S25 ready-scene transform drift roots="
+                        + rootWorst + " meshes=" + meshWorst);
+            }
+            // Emit a separately keyed 16-float row for every real attached GLB root.
+            // Build/Proof owner can compare these with the canonical authored XYZ,
+            // Euler and scale while capturing actual Android/emulator frames.
+            for (Map.Entry<String, float[]> entry : liveRoots.entrySet()) {
+                StringBuilder csv = new StringBuilder(240);
+                for (float value : entry.getValue()) {
+                    if (csv.length() != 0) csv.append(',');
+                    csv.append(value);
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-READY-MATRIX",
+                        "Ready Filament root readback " + entry.getKey(),
+                        "id=" + entry.getKey() + " matrix16=" + csv
+                                + " runtimeScene=true AndroidFrame=UNVERIFIED");
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-READY-13",
+                    "Thirteen authored GLB roots and all meshes remain live after full Room setup",
+                    "rootCount=" + liveRoots.size()
+                            + " descendantMeshCount=" + originalMeshes.size()
+                            + " maxRootDelta=" + rootWorst
+                            + " maxMeshDelta=" + meshWorst
+                            + " sourceSHA256=" + S25_LAYOUT_SHA256
+                            + " AndroidFrame=UNVERIFIED G2.3=PAUSED");
         }
 
         /**
