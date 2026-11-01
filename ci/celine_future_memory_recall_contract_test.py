@@ -8876,6 +8876,27 @@ public final class FutureProtectedAnchorProcess {
           String cmd=in.readLine();
           if(cmd==null){continue;}
           if(cmd.equals("FLOOR")){out.println("FLOOR "+readFloor(custody));continue;}
+          if(cmd.startsWith("STATUS ")) {
+            // Authenticated, read-only status. Never advances floor or
+            // consumes/retries a claim, including on malformed requests.
+            String[] q=cmd.split(" ");
+            if(q.length!=4){out.println("ERROR");continue;}
+            long floor=readFloor(custody);
+            if(floor<0){out.println("NO_AUTHORITY");continue;}
+            String status=floor>0?"CONSUMED":"ABSENT";
+            byte[] ownerSig=sign(priv(shared,"owner"),
+              CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE));
+            String signedClaim=q[3].equals("CROSS_CLAIM")?"other-claim-0001":q[1];
+            String signedNonce=q[3].equals("STALE_NONCE")?q[2]+"_stale":q[2];
+            byte[] payload=CelineFutureMemoryRecall.signedReceiptStatusPayload(
+              signedClaim,ID,2L,ownerSig,signedNonce,floor,status);
+            if(payload.length==0){out.println("ERROR");continue;}
+            byte[] proof=sign(priv(custody,"anchor"),payload);
+            if(q[3].equals("FORGED_SIGNATURE"))proof[0]^=1;
+            if(q[3].equals("DROP_REPLY"))continue;
+            out.println("STATUS "+status+" "+floor+" "+ENC.encodeToString(proof));
+            continue;
+          }
           String[] a=cmd.split(" ");
           if(a.length!=4 || !(a[0].equals("CONSUME") || a[0].equals("CONSUME_EXIT"))){out.println("ERROR");continue;}
           String disposition=consume(shared,custody,a[1],a[2],a[3]);
@@ -8948,11 +8969,42 @@ public final class FutureProtectedAnchorProcess {
         CLAIM,ID,2L,"REVOKED",HASH,NONCE,ownerSig,4L,1L,finalJournalSig,journal);
     System.out.println("RESULT="+result+" DISPATCH="+dispatch[0]);
   }
+  static void query(Path shared,int port,String pinnedKey,String mode)throws Exception {
+    byte[] independentPin=DEC.decode(pinnedKey);
+    PublicKey key;
+    try {key=rawPub(pinnedKey);}catch(Exception e){System.out.println("RESULT=NO_AUTHORITY QUERY=0");return;}
+    byte[] ownerSig=sign(priv(shared,"owner"),
+        CelineFutureMemoryRecall.revokedRecoveryPayload(ID,2L,HASH,NONCE));
+    String nonce=ENC.withoutPadding().encodeToString(new SecureRandom().generateSeed(24))
+        .replace('+','_').replace('/','-');
+    final int[] queries={0};
+    CelineFutureMemoryRecall.ReadOnlyReceiptStatusAuthority provider=
+        new CelineFutureMemoryRecall.ReadOnlyReceiptStatusAuthority() {
+          public PublicKey originalPinnedIdentity(){return key;}
+          public CelineFutureMemoryRecall.SignedReceiptStatus queryExistingClaim(
+              String id,String challenge) {
+            queries[0]++;
+            try {
+              String reply=connect(port,key,"STATUS "+id+" "+challenge+" "+mode);
+              String[] response=reply.split(" ");
+              if(response.length!=4 || !response[0].equals("STATUS"))return null;
+              return new CelineFutureMemoryRecall.SignedReceiptStatus(id,
+                  Long.parseLong(response[2]),response[1],DEC.decode(response[3]));
+            }catch(Exception e){return null;}
+          }
+        };
+    if(mode.equals("WRONG_PIN"))independentPin=pub(shared,"journal").getEncoded();
+    String claim=mode.equals("BAD_CLAIM")?"unsafe claim":CLAIM;
+    var outcome=CelineFutureMemoryRecall.reconcileIndeterminateReceiptReadOnly(
+        claim,ID,2L,ownerSig,nonce,independentPin,provider);
+    System.out.println("RESULT="+outcome+" QUERY="+queries[0]);
+  }
   public static void main(String[] a)throws Exception {
     if(a.length==3 && a[0].equals("init"))init(Path.of(a[1]),Path.of(a[2]));
     else if(a.length==2 && a[0].equals("init-replacement"))initReplacement(Path.of(a[1]));
     else if(a.length==3 && a[0].equals("serve"))serve(Path.of(a[1]),Path.of(a[2]));
     else if(a.length==5 && a[0].equals("attempt"))attempt(Path.of(a[1]),Integer.parseInt(a[2]),a[3],a[4]);
+    else if(a.length==5 && a[0].equals("query"))query(Path.of(a[1]),Integer.parseInt(a[2]),a[3],a[4]);
     else throw new IllegalArgumentException("init|init-replacement|serve|attempt");
   }
 }
@@ -9066,6 +9118,89 @@ def process_protected_anchor_journal_proof(compiled, strict=False):
             finally:stop(honest)
         print('FUTURE_INDEPENDENT_ANCHOR_JVM_PASS cases='+str(passed))
         print('FUTURE_INDEPENDENT_ANCHOR_OWN_ROLLBACK=UNSAFE_AND_UNFIXED')
+
+def process_read_only_receipt_status_proof(compiled, strict=False):
+    # FUTURE ONLY. In an unrelated JVM and directory, ask the original pinned
+    # custodian for a signed status after commit/ACK-loss. Query MUST NOT consume.
+    with tempfile.TemporaryDirectory(prefix='future_receipt_query_') as directory:
+        root=Path(directory)
+        shared,custody,rogue=root/'owner',root/'original_authority',root/'replacement'
+        java=['java','-cp',compiled,'de.yahya.ai.FutureProtectedAnchorProcess']
+        subprocess.run(java+['init',str(shared),str(custody)],check=True,capture_output=True,text=True)
+        b64=__import__('base64').b64encode
+        original_pin=b64((custody/'anchor.pub').read_bytes()).decode('ascii')
+        original_priv=(custody/'anchor.priv').read_bytes()
+        passed=0
+        def serve(d):
+            p=subprocess.Popen(java+['serve',str(shared),str(d)],stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE,text=True,bufsize=1)
+            ready=p.stdout.readline().strip()
+            assert ready.startswith('READY '),(ready,p.poll())
+            return p,int(ready.split()[1])
+        def stop(p):
+            p.terminate()
+            try:p.wait(timeout=4)
+            except subprocess.TimeoutExpired:p.kill();p.wait(timeout=4)
+            p.stdout.close();p.stderr.close()
+        def child(port,action,mode,pin=original_pin):
+            r=subprocess.run(java+[action,str(shared),str(port),pin,mode],
+                             check=True,capture_output=True,text=True,timeout=15)
+            return r.stdout.strip()
+        def expect(port,mode,outcome,queries=1,pin=original_pin):
+            nonlocal passed
+            got=child(port,'query',mode,pin)
+            assert ('RESULT='+outcome+' QUERY='+str(queries)) in got,got
+            passed+=1
+        service,port=serve(custody)
+        try:
+            for _ in range(2):expect(port,'NORMAL','ABSENT_UNSAFE_TO_RETRY')
+            assert (custody/'anchor.floor').read_text().strip()=='0'
+            passed+=1
+            for mode in ('FORGED_SIGNATURE','STALE_NONCE','CROSS_CLAIM'):
+                expect(port,mode,'UNVERIFIABLE')
+            expect(port,'DROP_REPLY','REMAIN_INDETERMINATE')
+            expect(port,'WRONG_PIN','NO_AUTHORITY',0)
+            expect(port,'BAD_CLAIM','UNVERIFIABLE',0)
+            assert (custody/'anchor.floor').read_text().strip()=='0'
+            passed+=1
+            got=child(port,'attempt','ack-lost')
+            assert 'RESULT=STARTED_INDETERMINATE' in got,got
+            assert service.wait(timeout=5)==74
+            passed+=1
+        finally:stop(service)
+        service,port=serve(custody)
+        try:
+            for _ in range(3):expect(port,'NORMAL','CONSUMED_VERIFIED')
+            for mode in ('FORGED_SIGNATURE','STALE_NONCE','CROSS_CLAIM'):
+                expect(port,mode,'UNVERIFIABLE')
+            assert (custody/'anchor.floor').read_text().strip()=='1'
+            passed+=1
+        finally:stop(service)
+        # An unrelated authority with a freshly self-appointed key must NOT be
+        # allowed to answer despite possessing a correctly formed signature.
+        subprocess.run(java+['init-replacement',str(rogue)],check=True,capture_output=True,text=True)
+        replacement,port=serve(rogue)
+        try:expect(port,'NORMAL','REMAIN_INDETERMINATE')
+        finally:stop(replacement)
+        # After original-root rollback, same original Ed25519 key can sign
+        # FALSE ABSENCE. Never authorize retry; strict security requirement
+        # demands the original consumed history, so it MUST fail RED here.
+        (custody/'anchor.floor').write_text('0',encoding='utf-8')
+        assert (custody/'anchor.priv').read_bytes()==original_priv
+        passed+=1
+        service,port=serve(custody)
+        try:
+            if strict:
+                got=child(port,'query','NORMAL')
+                assert 'RESULT=CONSUMED_VERIFIED' in got,(
+                    'KNOWN SAME-ORIGINAL-KEY CUSTODY ROLLBACK: '+got)
+            else:
+                expect(port,'NORMAL','ABSENT_UNSAFE_TO_RETRY')
+                assert (custody/'anchor.floor').read_text().strip()=='0'
+                passed+=1
+        finally:stop(service)
+        print('FUTURE_READ_ONLY_RECEIPT_QUERY_PASS cases='+str(passed))
+        print('FUTURE_AUTHORITY_SELF_ROLLBACK=UNFIXED_SECURITY_FAIL')
 
 pinned_journal_process_harness = r'''
 package de.yahya.ai;
@@ -9249,6 +9384,12 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     protected_child.write_text(protected_anchor_process_harness,encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child)], check=True)
     import sys
+    if '--strict-read-only-receipt' in sys.argv:
+        process_read_only_receipt_status_proof(temp,strict=True)
+        sys.exit(0)
+    if '--focused-read-only-receipt' in sys.argv:
+        process_read_only_receipt_status_proof(temp)
+        sys.exit(0)
     if '--strict-protected-anchor' in sys.argv:
         process_protected_anchor_journal_proof(temp,strict=True)
         sys.exit(0)
@@ -9362,3 +9503,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_atomic_owner_restart_proof(temp)
     process_pinned_journal_attestation_proof(temp)
     process_protected_anchor_journal_proof(temp)
+    process_read_only_receipt_status_proof(temp)

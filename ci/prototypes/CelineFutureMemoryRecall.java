@@ -523,6 +523,114 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY reconciliation of an acknowledgement lost AFTER a one-shot
+     * receipt may have been committed. No consume/retry is allowed here.
+     * A NOT_FOUND proof is NOT a safe-to-retry authorization: a rolled-back
+     * authority can sign false absence with its unchanged original key.
+     * The original expected authority key must have been independently
+     * provisioned before the first commit; a query response cannot enroll it.
+     */
+    public enum ReceiptStatusOutcome {
+        CONSUMED_VERIFIED, ABSENT_UNSAFE_TO_RETRY, NO_AUTHORITY, UNVERIFIABLE, REMAIN_INDETERMINATE
+    }
+
+    public static final class SignedReceiptStatus {
+        public final String claimId;
+        public final long sequence;
+        public final String status;
+        private final byte[] signature;
+
+        public SignedReceiptStatus(String claimId, long sequence,
+                String status, byte[] signature) {
+            this.claimId = claimId;
+            this.sequence = sequence;
+            this.status = status;
+            this.signature = signature == null ? null : signature.clone();
+        }
+
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public interface ReadOnlyReceiptStatusAuthority {
+        java.security.PublicKey originalPinnedIdentity();
+        // This method MUST only read original independent custody. It must
+        // never call consumeOnce, retry the claim, or alter a ledger/floor.
+        SignedReceiptStatus queryExistingClaim(String ownerIssuedClaim,
+                String challengeNonce);
+    }
+
+    public static byte[] signedReceiptStatusPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            String queryNonce, long consumedSequence, String status) {
+        if (claimId == null || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || !exactId.matches("[A-Za-z0-9_-]{1,128}")
+                || sourceRevision < 2 || originalOwnerSignature == null
+                || originalOwnerSignature.length != 64 || queryNonce == null
+                || !queryNonce.matches("[A-Za-z0-9_-]{16,128}")
+                || consumedSequence < 0
+                || !("CONSUMED".equals(status) || "ABSENT".equals(status))
+                || ("CONSUMED".equals(status) && consumedSequence == 0))
+            return new byte[0];
+        return ("future-g1/read-only-receipt-status/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\n"
+                + java.util.Base64.getEncoder().encodeToString(originalOwnerSignature)
+                + "\n" + queryNonce + "\n" + consumedSequence + "\n"
+                + status + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static ReceiptStatusOutcome reconcileIndeterminateReceiptReadOnly(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] independentlyEnrolledAuthorityKey,
+            ReadOnlyReceiptStatusAuthority authority) {
+        if (authority == null || independentlyEnrolledAuthorityKey == null
+                || independentlyEnrolledAuthorityKey.length == 0)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, freshQueryNonce, 0, "ABSENT").length == 0)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        final java.security.PublicKey expected;
+        try {
+            java.security.PublicKey claimed = authority.originalPinnedIdentity();
+            expected = java.security.KeyFactory.getInstance("Ed25519")
+                    .generatePublic(new java.security.spec.X509EncodedKeySpec(
+                            independentlyEnrolledAuthorityKey.clone()));
+            if (claimed == null || claimed.getEncoded() == null
+                    || !java.util.Arrays.equals(expected.getEncoded(), claimed.getEncoded()))
+                return ReceiptStatusOutcome.NO_AUTHORITY;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        }
+        final SignedReceiptStatus response;
+        try {
+            response = authority.queryExistingClaim(claimId, freshQueryNonce);
+        } catch (RuntimeException error) {
+            return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        }
+        if (response == null) return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        if (!claimId.equals(response.claimId)) return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] payload = signedReceiptStatusPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, freshQueryNonce,
+                response.sequence, response.status);
+        byte[] signature = response.signature();
+        if (payload.length == 0 || signature == null || signature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        try {
+            java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+            verify.initVerify(expected);
+            verify.update(payload);
+            if (!verify.verify(signature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+            return "CONSUMED".equals(response.status)
+                    ? ReceiptStatusOutcome.CONSUMED_VERIFIED
+                    : ReceiptStatusOutcome.ABSENT_UNSAFE_TO_RETRY;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
