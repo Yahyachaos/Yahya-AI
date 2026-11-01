@@ -17,7 +17,9 @@ if ('--focused-global-claim-set' in sys.argv
         or '--focused-live-floor-witness' in sys.argv
         or '--strict-live-floor-witness' in sys.argv
         or '--strict-global-claim-set-rollback' in sys.argv
-        or '--strict-selective-claim-rollback' in sys.argv):
+        or '--strict-selective-claim-rollback' in sys.argv
+        or '--focused-per-claim-spent' in sys.argv
+        or '--strict-per-claim-total-rollback' in sys.argv):
     global_claim_guard_harness = r'''package de.yahya.ai;
 import java.security.*;
 import java.security.spec.*;
@@ -46,7 +48,7 @@ public final class FutureGlobalClaimSetProcess {
   static void init()throws Exception {
     Files.createDirectories(root.resolve("keys"));
     var gen=KeyPairGenerator.getInstance("Ed25519");
-    for(int i=0;i<6;i++){
+    for(int i=0;i<7;i++){
       var k=gen.generateKeyPair();
       Files.write(root.resolve("keys/"+i+".pub"),k.getPublic().getEncoded());
       Files.write(root.resolve("keys/"+i+".priv"),k.getPrivate().getEncoded());
@@ -54,8 +56,8 @@ public final class FutureGlobalClaimSetProcess {
     System.out.println("INIT_OK");
   }
   static void load()throws Exception {
-    keys=new KeyPair[6];pins=new byte[5][];
-    for(int i=0;i<6;i++){keys[i]=pair(i);if(i<5)pins[i]=keys[i].getPublic().getEncoded();}
+    keys=new KeyPair[7];pins=new byte[5][];
+    for(int i=0;i<7;i++){keys[i]=pair(i);if(i<5)pins[i]=keys[i].getPublic().getEncoded();}
   }
   static void atomicFile(Path file,String data)throws Exception {
     Files.createDirectories(file.getParent());
@@ -142,6 +144,54 @@ public final class FutureGlobalClaimSetProcess {
         new LiveFloorWitness(down,replay,forge),keys[5].getPublic().getEncoded());
     ok(bound!=null,"live witness bound under sixth pinned identity");
     return bound;
+  }
+  /** Separate operator-owned seventh-key spent ledger; ordinary disk mock only. */
+  static final class PerClaimRegister implements CelineFutureMemoryRecall.IndependentPerClaimSpentAuthority {
+    final boolean down,forge,replay;
+    PerClaimRegister(boolean d,boolean f,boolean r){down=d;forge=f;replay=r;}
+    CelineFutureMemoryRecall.SignedPerClaimSpentReceipt answer(String operation,
+        String authority,long epoch,String claim,String exact,long revision,
+        byte[] owner,String nonce)throws Exception {
+      if(down)throw new java.io.IOException("seventh spent authority unavailable");
+      Path dir=externalDir.resolve("seventh-claim-register");
+      Path ledger=dir.resolve("spent.txt"), lock=dir.resolve("claim.lock");
+      Files.createDirectories(dir);
+      try(var channel=FileChannel.open(lock,StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+          var guard=channel.lock()){
+        TreeSet<String> spent=new TreeSet<>();
+        if(Files.exists(ledger))spent.addAll(Files.readAllLines(ledger));
+        boolean previouslySpent=spent.contains(claim);
+        String state;
+        if(operation.equals("SPEND")){
+          if(!previouslySpent){spent.add(claim);atomicFile(ledger,String.join("\n",spent)+"\n");}
+          state=previouslySpent?"ALREADY_SPENT":"FIRST_SPENT";
+        }else state=previouslySpent?"SPENT":"ABSENT";
+        String actualNonce=replay?"stale-independent-spent-nonce-2026":nonce;
+        long sequence=spent.size();
+        byte[] payload=CelineFutureMemoryRecall.perClaimSpentReceiptPayload(authority,
+          epoch,claim,exact,revision,owner,actualNonce,operation,state,sequence);
+        byte[] signature=sign(6,payload);
+        if(forge)signature[0]^=0x01;
+        return new CelineFutureMemoryRecall.SignedPerClaimSpentReceipt(authority,
+          epoch,claim,exact,revision,actualNonce,operation,state,sequence,signature);
+      }
+    }
+    public CelineFutureMemoryRecall.SignedPerClaimSpentReceipt spendOnce(
+      String a,long e,String c,String id,long r,byte[] o,String nonce)throws Exception {
+      return answer("SPEND",a,e,c,id,r,o,nonce);
+    }
+    public CelineFutureMemoryRecall.SignedPerClaimSpentReceipt queryExisting(
+      String a,long e,String c,String id,long r,byte[] o,String nonce)throws Exception {
+      return answer("QUERY",a,e,c,id,r,o,nonce);
+    }
+  }
+  static CelineFutureMemoryRecall.PerClaimSpentWitnessGate scopedGate(
+      boolean down,boolean forge,boolean replay)throws Exception {
+    var global=liveGate(3,false,false,false);
+    var result=CelineFutureMemoryRecall.PerClaimSpentWitnessGate.bind(global,
+      new PerClaimRegister(down,forge,replay),keys[6].getPublic().getEncoded());
+    ok(result!=null,"seventh identity separately pinned from original six");
+    return result;
   }
   static final class Provider implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
     final long epoch;
@@ -386,6 +436,81 @@ public final class FutureGlobalClaimSetProcess {
       var result=l.reserveOnce(claim,ID,REV,owner(claim),nonce("live-witness-complete-rollback"));
       ok(result==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
         "KNOWN SECURITY FAIL: whole protected-floor rollback permitted second FIRST: "+result);
+    }else if(action.equals("SCOPED_FIRST")){
+      String c="global-claim-0015";
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-first"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+        "independent per-claim spent commit precedes global and epoch providers");
+      ok(Files.readString(externalDir.resolve("seventh-claim-register/spent.txt")).contains(c),
+        "independent spent ledger persisted claim across actual JVM restart");
+    }else if(action.equals("SCOPED_SELECTIVE")){
+      String c="global-claim-0015";
+      Path ledger=externalDir.resolve("spent.txt");
+      var ids=new ArrayList<>(Files.readAllLines(ledger));
+      ok(ids.remove(c) && ids.contains(claim),
+        "selectively restore global ledger while preserving unrelated claim and floor");
+      atomicFile(ledger,String.join("\n",ids)+"\n");
+      Files.deleteIfExists(providerDir.resolve(c+".txt"));
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-selective-reset"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "independent per-claim witness denies selectively erased global reservation");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),
+        "no provider side effect after selectively reset upstream ledger");
+    }else if(action.equals("SCOPED_QUERY")){
+      String c="global-claim-0015";
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.queryExisting(c,ID,REV,owner(c),nonce("scoped-read-only"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "read-only seventh register detects spent claim after selective rollback");
+      String unknown="global-claim-0020";
+      ok(scoped.queryExisting(unknown,ID,REV,owner(unknown),nonce("scoped-never-seen"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "absent read-only membership never authorizes FIRST");
+    }else if(action.equals("SCOPED_OUTAGE")){
+      String c="global-claim-0016";
+      var scoped=scopedGate(true,false,false);
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-authority-down"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+        "disconnected independent register cannot authorize global/provider work");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"no provider write on seventh outage");
+    }else if(action.equals("SCOPED_FORGED")){
+      String c="global-claim-0017";
+      var scoped=scopedGate(false,true,false);
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-forged-ack"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+        "signed seventh reply corruption never permits global/provider mutation");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"forged proof cannot reach provider");
+      var clean=scopedGate(false,false,false);
+      ok(clean.queryExisting(c,ID,REV,owner(c),nonce("scoped-after-forged"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "lost or tampered spend ACK recovered only by read-only query");
+    }else if(action.equals("SCOPED_REPLAY")){
+      String c="global-claim-0018";
+      var scoped=scopedGate(false,false,true);
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-replayed-ack"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+        "wrong nonce with valid original seventh key fails closed");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"replayed ack never reaches provider");
+    }else if(action.equals("SCOPED_WRONG_PIN")){
+      var live=liveGate(3,false,false,false);
+      ok(CelineFutureMemoryRecall.PerClaimSpentWitnessGate.bind(live,
+        new PerClaimRegister(false,false,false),keys[5].getPublic().getEncoded())==null,
+        "seventh pin cannot be identical to original sixth signer");
+    }else if(action.equals("SCOPED_TOTAL_ROLLBACK")){
+      String c="global-claim-0015";
+      Path ledger=externalDir.resolve("spent.txt");
+      var ids=new ArrayList<>(Files.readAllLines(ledger));
+      ok(ids.remove(c) && ids.contains(claim),"original global floor remains numerically valid");
+      atomicFile(ledger,String.join("\n",ids)+"\n");
+      // Simulates administrative rollback of ALSO the seventh operator store.
+      Files.delete(externalDir.resolve("seventh-claim-register/spent.txt"));
+      Files.deleteIfExists(providerDir.resolve(c+".txt"));
+      var scoped=scopedGate(false,false,false);
+      var outcome=scoped.reserveOnce(c,ID,REV,owner(c),nonce("seven-key-all-store-rollback"));
+      ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "KNOWN SECURITY FAIL: both external spent stores reset with all seven original keys: "+outcome);
     }else if(action.equals("QUERY_DOWN")){
       ok(g.queryExisting(claim,ID,REV,owner(claim),nonce("query-missing"))==
         CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
@@ -425,6 +550,25 @@ public final class FutureGlobalClaimSetProcess {
                       for i in range(6)]
             run_guard('E2_FIRST', 'E2_FIRST_PASS')
             run_guard('SET_LIVE_FLOOR', 'SET_LIVE_FLOOR_PASS')
+            original_seven = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest() for i in range(7)]
+            if '--focused-per-claim-spent' in sys.argv or '--strict-per-claim-total-rollback' in sys.argv:
+                run_guard('SCOPED_FIRST', 'SCOPED_FIRST_PASS')
+                if '--strict-per-claim-total-rollback' in sys.argv:
+                    attacked = subprocess.run(runner+['SCOPED_TOTAL_ROLLBACK',state],
+                                             capture_output=True, text=True, timeout=20)
+                    after_seven = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                                   for i in range(7)]
+                    assert after_seven == original_seven, 'original seven private keys changed'
+                    print('PER_CLAIM_TOTAL_ROLLBACK_STRICT_EXPECTED_SECURITY_FAIL exit='+str(attacked.returncode))
+                    print(attacked.stderr.strip() or attacked.stdout.strip())
+                    assert attacked.returncode == 0, ('KNOWN SECURITY FAIL: all independent '
+                        'spent records rolled back with original signer keys')
+                    sys.exit(0)
+                for op in ('SCOPED_SELECTIVE','SCOPED_QUERY','SCOPED_OUTAGE',
+                           'SCOPED_FORGED','SCOPED_REPLAY','SCOPED_WRONG_PIN'):
+                    run_guard(op,op+'_PASS')
+                print('PER_CLAIM_SPENT_WITNESS_PASS process_runs='+str(proof_count))
+                sys.exit(0)
             if '--strict-selective-claim-rollback' in sys.argv:
                 run_guard('LIVE_NEW', 'LIVE_NEW_PASS')
                 attack = subprocess.run(runner+['STRICT_SELECTIVE_CLAIM_ROLLBACK',state],
