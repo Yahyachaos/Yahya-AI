@@ -359,8 +359,14 @@ final class CelineRoomEnvironmentV80 {
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
                 int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
-                if (frontWallEntity == 0 || !scene.hasEntity(frontWallEntity)) {
-                    throw new IllegalStateException("Recovery shell front not attached");
+                // Removing an empty GLB anchor is not equivalent to hiding a
+                // wall renderable: its mesh children could remain in the Scene.
+                // The original source uses a directly renderable front-wall node.
+                // Fail closed if that invariant is no longer true; never hide
+                // arbitrary descendants or alter the authored shell geometry.
+                if (frontWallEntity == 0 || !scene.hasEntity(frontWallEntity)
+                        || !engine.getRenderableManager().hasComponent(frontWallEntity)) {
+                    throw new IllegalStateException("S25 front-wall renderable not attached");
                 }
                 // The final CALL scene explicitly hides its front wall. Measure
                 // the scene *after* that removal, not a pre-removal shell that
