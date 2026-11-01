@@ -10202,9 +10202,18 @@ def process_independent_reservation_provider_proof(compiled, strict=False):
         crash=request('crash-claim','provider-crash-nonce','CRASH_AFTER_SYNC',check=False)
         assert crash.returncode==74,(crash.returncode,crash.stdout,crash.stderr);count+=1
         expect('ALREADY_RESERVED_NO_RETRY',c='crash-claim',nonce='provider-crash-retry',minimum=0)
-        # Independently provisioned provider directory is outside the caller
-        # snapshot, so resetting caller-side records does not enable replay.
-        for file in custodian.glob('*.claim'): file.unlink()
+        # Actually commit a caller-side custodian record, then delete that
+        # durable record to model a stale caller snapshot. The independent
+        # provider reservation must continue rejecting a fresh first claim.
+        atomic=['java','-cp',compiled,'de.yahya.ai.FutureAtomicCustodianProcess']
+        consume=subprocess.run(atomic+['consume',str(owner),str(root),str(operator),
+            str(custodian),claim,'provider-custodian-nonce-0001','NORMAL'],
+            capture_output=True,text=True,check=True,timeout=16)
+        assert 'ACK=COMMITTED' in consume.stdout,(consume.stdout,consume.stderr);count+=1
+        custodian_record=custodian/(hashlib.sha256(claim.encode()).hexdigest()+'.claim')
+        assert custodian_record.exists();count+=1
+        custodian_record.unlink()
+        assert not custodian_record.exists();count+=1
         expect('ALREADY_RESERVED_NO_RETRY')
         # Four separate real JVM processes with OS FileLock for the same claim.
         race='race-claim'
