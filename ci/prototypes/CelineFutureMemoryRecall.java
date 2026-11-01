@@ -631,6 +631,76 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY, READ-ONLY external high-water receipt reconciliation.
+     * The independent authority must be enrolled BEFORE the original claim,
+     * with a separately provisioned Ed25519 identity and a NONROLLBACKABLE,
+     * atomically consumed claim-specific record. This code does NOT create or
+     * prove such custody. An ordinary filesystem ledger, caller-supplied pin,
+     * or resettable external authority is UNSAFE even with correct signatures.
+     *
+     * A positive result is CONDITIONAL on the externally provisioned custodian
+     * actually preserving claim state across rollback, not a production claim.
+     * The local minimum is only an optional previously trusted floor and is
+     * NOT a replacement for external nonrollbackable custody. This method
+     * never starts, retries or commits any operation.
+     */
+    public static ReceiptStatusOutcome reconcileReceiptWithIndependentHighWater(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] previouslyEnrolledOwnerKey, byte[] independentlyEnrolledRootKey,
+            long previouslyTrustedMinimumSequence,
+            ReadOnlyReceiptStatusAuthority independentlyProvisionedRoot) {
+        if (independentlyProvisionedRoot == null || previouslyEnrolledOwnerKey == null
+                || independentlyEnrolledRootKey == null)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (previouslyTrustedMinimumSequence < 0
+                || signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                        originalOwnerSignature, freshQueryNonce, 0, "ABSENT").length == 0)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        final java.security.PublicKey root;
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            java.security.PublicKey owner = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyEnrolledOwnerKey.clone()));
+            root = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(independentlyEnrolledRootKey.clone()));
+            java.security.PublicKey claimed = independentlyProvisionedRoot.originalPinnedIdentity();
+            if (java.util.Arrays.equals(owner.getEncoded(), root.getEncoded())
+                    || claimed == null || claimed.getEncoded() == null
+                    || !java.util.Arrays.equals(root.getEncoded(), claimed.getEncoded()))
+                return ReceiptStatusOutcome.NO_AUTHORITY;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        }
+        final SignedReceiptStatus reply;
+        try {
+            reply = independentlyProvisionedRoot.queryExistingClaim(claimId, freshQueryNonce);
+        } catch (RuntimeException error) {
+            return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        }
+        if (reply == null) return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        if (!claimId.equals(reply.claimId)
+                || reply.sequence < previouslyTrustedMinimumSequence)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] signed = signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, freshQueryNonce, reply.sequence, reply.status);
+        byte[] signature = reply.signature();
+        if (signed.length == 0 || signature == null || signature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        try {
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(root);
+            verifier.update(signed);
+            if (!verifier.verify(signature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+            return "CONSUMED".equals(reply.status)
+                    ? ReceiptStatusOutcome.CONSUMED_VERIFIED
+                    : ReceiptStatusOutcome.ABSENT_UNSAFE_TO_RETRY;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        }
+    }
+
     private static final int MAX_ID_CHARS = 256;
     private static final int MAX_INPUT = 512;
     private static final int MAX_QUERY_TOKENS = 32;
