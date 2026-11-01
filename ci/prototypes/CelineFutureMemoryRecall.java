@@ -562,6 +562,22 @@ public final class CelineFutureMemoryRecall {
                 String challengeNonce);
     }
 
+    /**
+     * FUTURE-ONLY source-owner consent for ONE exact revoked claim. It must
+     * be signed by the independently enrolled original G1 owner key BEFORE
+     * root/operator attestations. A caller-supplied 64-byte value is not proof.
+     * The later query challenge belongs to the separate read-only receipts.
+     */
+    public static byte[] originalOwnerClaimPayload(String claimId,
+            String exactId, long sourceRevision) {
+        if (claimId == null || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || !exactId.matches("[A-Za-z0-9_-]{1,128}")
+                || sourceRevision < 2) return new byte[0];
+        return ("future-g1/source-owner-claim/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\nREVOKED\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
     public static byte[] signedReceiptStatusPayload(String claimId,
             String exactId, long sourceRevision, byte[] originalOwnerSignature,
             String queryNonce, long consumedSequence, String status) {
@@ -810,7 +826,19 @@ public final class CelineFutureMemoryRecall {
                     || java.util.Arrays.equals(o, p)
                     || java.util.Arrays.equals(r, p))
                 return ReceiptStatusOutcome.NO_AUTHORITY;
+            // The independently pinned source owner must itself authenticate
+            // the ORIGINAL claim, exact memory, revision and revocation.
+            // Both other signers could otherwise endorse forged owner bytes.
+            byte[] ownerBytes = originalOwnerClaimPayload(claimId, exactId,
+                    sourceRevision);
+            if (ownerBytes.length == 0 || originalOwnerSignature == null
+                    || originalOwnerSignature.length != 64)
+                return ReceiptStatusOutcome.UNVERIFIABLE;
             java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+            verify.initVerify(owner);
+            verify.update(ownerBytes);
+            if (!verify.verify(originalOwnerSignature))
+                return ReceiptStatusOutcome.UNVERIFIABLE;
             verify.initVerify(root);
             verify.update(rootBytes);
             if (!verify.verify(rootSignature)) return ReceiptStatusOutcome.UNVERIFIABLE;
