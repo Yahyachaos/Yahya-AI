@@ -1303,6 +1303,66 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY, READ-ONLY live claim-floor capability. The eventual G1
+     * integrator must provision this from a separate administrative trust
+     * domain, NOT from a file, mock, or service selected by the app/caller.
+     * Its backing record must be nonrollbackable and must survive application,
+     * provider and custodian snapshot restoration. This interface cannot
+     * authenticate the provisioning or implement such storage by itself.
+     *
+     * Contract: the implementation MUST NOT reserve, consume, retry, alter a
+     * watermark or write a file while servicing queryExisting. It must return
+     * a separately signed fifth-party claim floor for the fresh nonce.
+     */
+    public interface IndependentClaimFloorReadOnlyAuthority {
+        SignedExternalClaimFloor queryExisting(String claimId, String exactId,
+                long sourceRevision, byte[] ownerSignature,
+                String freshQueryNonce) throws Exception;
+    }
+
+    /**
+     * Performs exactly one read-only independent floor query and then invokes
+     * the existing five-pin Ed25519 verifier. The caller cannot supply the
+     * floor result directly. This is a conditional CHECK, not proof that the
+     * source is nonrollbackable, and never authorizes any first reservation.
+     * Any missing, stale, forged or unavailable authority fails closed.
+     * A crash/timeout is indeterminate and MUST NOT be followed by reserveOnce.
+     */
+    public static ReceiptStatusOutcome reconcileAtomicAckWithLiveClaimFloor(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] pinnedOwner, byte[] pinnedRoot, byte[] pinnedOperator,
+            byte[] pinnedCustodian, byte[] pinnedIndependentFloor,
+            long previouslyTrustedFloorEpoch, long previouslyTrustedClaimSequence,
+            IndependentClaimFloorReadOnlyAuthority readOnlyFloor,
+            SignedAtomicCustodianAck custodianAck) {
+        if (readOnlyFloor == null || pinnedIndependentFloor == null
+                || pinnedOwner == null || pinnedRoot == null
+                || pinnedOperator == null || pinnedCustodian == null)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (originalOwnerSignature == null
+                || originalOwnerClaimPayload(claimId, exactId, sourceRevision).length == 0
+                || freshQueryNonce == null
+                || !freshQueryNonce.matches("[A-Za-z0-9_-]{16,128}")
+                || previouslyTrustedFloorEpoch <= 0
+                || previouslyTrustedClaimSequence < 0)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        final SignedExternalClaimFloor authoritativeResponse;
+        try {
+            authoritativeResponse = readOnlyFloor.queryExisting(claimId, exactId,
+                    sourceRevision, originalOwnerSignature.clone(), freshQueryNonce);
+        } catch (Exception unavailable) {
+            return ReceiptStatusOutcome.REMAIN_INDETERMINATE;
+        }
+        if (authoritativeResponse == null) return ReceiptStatusOutcome.NO_AUTHORITY;
+        return verifyAtomicAckWithIndependentClaimFloor(claimId, exactId,
+                sourceRevision, originalOwnerSignature, freshQueryNonce,
+                pinnedOwner, pinnedRoot, pinnedOperator, pinnedCustodian,
+                pinnedIndependentFloor, previouslyTrustedFloorEpoch,
+                previouslyTrustedClaimSequence, authoritativeResponse, custodianAck);
+    }
+
+    /**
      * FUTURE-ONLY external provider boundary, not a local trust implementation.
      * The separately administered provider MUST first authenticate the owner,
      * then atomically record a claim reservation in non-caller-replaceable,
