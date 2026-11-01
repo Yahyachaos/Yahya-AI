@@ -1054,11 +1054,23 @@ final class CelineRoomEnvironmentV80 {
                     try { engine.getLightManager().destroy(lampLight); } catch (Throwable ignored) {}
                     try { EntityManager.get().destroy(lampLight); } catch (Throwable ignored) {}
                 }
+                // A faulty GLB teardown must not strand later room partitions.
+                // Scene membership is removed first for every furniture/shell entity.
+                Throwable firstAssetCleanupFailure = null;
                 for (FilamentAsset asset : current) {
                     for (int entity : asset.getEntities()) {
                         try { scene.removeEntity(entity); } catch (Throwable ignored) {}
                     }
-                    assetLoader.destroyAsset(asset);
+                    try {
+                        assetLoader.destroyAsset(asset);
+                    } catch (Throwable assetError) {
+                        if (firstAssetCleanupFailure == null) firstAssetCleanupFailure = assetError;
+                    }
+                }
+                if (firstAssetCleanupFailure != null) {
+                    Celine3DDiagnostics.error(context, "ROOM-198",
+                            "GLB teardown partial failure; all partitions attempted",
+                            firstAssetCleanupFailure);
                 }
                 Celine3DDiagnostics.record(context, "ROOM-130",
                         "Filament-Raum freigegeben", "detach lifecycle cleanup partitions=" + current.size());
