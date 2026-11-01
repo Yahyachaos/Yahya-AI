@@ -558,16 +558,25 @@ function refreshS25SelectedTint(){
 // Use the original wall plane only while the opt-in S25 shader preview is ON;
 // the canonical room measurements, normal shell and user GLB/TRS stay intact.
 function restoreS25LeftWallPreview(saved){
-  const prior=saved?.s25LeftWall;
-  if(!prior)return;
-  prior.mesh.geometry=prior.geometry;
-  prior.mesh.position.copy(prior.position);
-  prior.mesh.quaternion.copy(prior.quaternion);
-  prior.mesh.scale.copy(prior.scale);
-  prior.mesh.updateMatrix();
-  saved.s25LeftWallPlane?.dispose();
-  saved.s25LeftWall=null;
-  saved.s25LeftWallPlane=null;
+  // The original owner-S25 WebGL uses FOUR infinitely thin quads. Restore
+  // every editor-owned mesh and its transforms after the opt-in preview.
+  for (const key of ['s25BackWall','s25LeftWall','s25RightWall']) {
+    const prior=saved?.[key];
+    if (!prior) continue;
+    prior.mesh.geometry=prior.geometry;
+    prior.mesh.position.copy(prior.position);
+    prior.mesh.quaternion.copy(prior.quaternion);
+    prior.mesh.scale.copy(prior.scale);
+    prior.mesh.updateMatrix();
+    prior.plane.dispose();
+    saved[key]=null;
+  }
+  if (saved?.s25GroundMesh && saved.s25GroundPosition) {
+    saved.s25GroundMesh.position.copy(saved.s25GroundPosition);
+    saved.s25GroundMesh.updateMatrix();
+    saved.s25GroundMesh=null;
+    saved.s25GroundPosition=null;
+  }
 }
 
 function setS25RawPreview(enabled){
@@ -626,18 +635,32 @@ function setS25RawPreview(enabled){
       // for the fixed 4.40m room, rather than the editor's inward box face
       // at -2.1775m. Without this opt-in-only swap the original mirror is
       // wrongly depth-occluded, although its approved TRS is unchanged.
-      const left=wallMeshes[1];
-      saved.s25LeftWall={
-        mesh:left,geometry:left.geometry,
-        position:left.position.clone(),quaternion:left.quaternion.clone(),
-        scale:left.scale.clone()
+      // Reproduce the ORIGINAL standalone S25 raw WebGL createRoom() quad
+      // geometry, not the normal editor's 0.045m-thick box walls.
+      // Original planes: back z=-2.105; left x=-2.205; right x=+2.205.
+      // All changes are DISPLAY-ONLY and are fully restored on exit/error.
+      const displayPlane=(key,index,width,height,x,y,z,yaw)=>{
+        const mesh=wallMeshes[index],plane=new THREE.PlaneGeometry(width,height);
+        saved[key]={mesh,geometry:mesh.geometry,
+          position:mesh.position.clone(),quaternion:mesh.quaternion.clone(),
+          scale:mesh.scale.clone(),plane};
+        mesh.geometry=plane;
+        mesh.position.set(x,y,z);
+        mesh.rotation.set(0,yaw,0);
+        mesh.scale.set(1,1,1);
+        mesh.updateMatrix();
       };
-      saved.s25LeftWallPlane=new THREE.PlaneGeometry(room.depth,room.height);
-      left.geometry=saved.s25LeftWallPlane;
-      left.position.set(-room.width/2-0.005,room.height/2,0);
-      left.rotation.set(0,Math.PI/2,0);
-      left.scale.set(1,1,1);
-      left.updateMatrix();
+      displayPlane('s25BackWall',0,room.width,room.height,
+        0,room.height/2,-room.depth/2-0.005,0);
+      displayPlane('s25LeftWall',1,room.depth,room.height,
+        -room.width/2-0.005,room.height/2,0,Math.PI/2);
+      displayPlane('s25RightWall',2,room.depth,room.height,
+        room.width/2+0.005,room.height/2,0,Math.PI/2);
+      // The original owner's floor quad was y=-0.025, not editor y=-0.014.
+      saved.s25GroundMesh=ground;
+      saved.s25GroundPosition=ground.position.clone();
+      ground.position.y=-0.025;
+      ground.updateMatrix();
       function displaySurface(mesh,hex){
         const m=new THREE.MeshBasicMaterial({
           color:hex,side:THREE.DoubleSide,transparent:false,
