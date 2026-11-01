@@ -1240,6 +1240,148 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY external provider boundary, not a local trust implementation.
+     * The separately administered provider MUST first authenticate the owner,
+     * then atomically record a claim reservation in non-caller-replaceable,
+     * nonrollbackable storage BEFORE returning its signed decision. The client
+     * MUST NOT treat silence, ABSENT, or a lost response as permission to retry.
+     * Signing a rollbackable file with the original private key is insufficient.
+     */
+    public interface IndependentMonotonicClaimFloorProvider {
+        SignedMonotonicReservation reserveOnce(String claimId, String exactId,
+                long sourceRevision, byte[] ownerSignature,
+                String requestNonce) throws Exception;
+    }
+
+    public enum MonotonicReservationOutcome {
+        NO_AUTHORITY, UNVERIFIABLE, FIRST_RESERVED_PENDING_ACK,
+        ALREADY_RESERVED_NO_RETRY
+    }
+
+    public static final class SignedMonotonicReservation {
+        public final String claimId, exactId, requestNonce, decision;
+        public final long sourceRevision, epoch, sequence;
+        private final byte[] custodianPin, signature;
+        public SignedMonotonicReservation(String claimId, String exactId,
+                long sourceRevision, String requestNonce, long epoch,
+                long sequence, String decision, byte[] custodianPin,
+                byte[] signature) {
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.requestNonce = requestNonce;
+            this.epoch = epoch;
+            this.sequence = sequence;
+            this.decision = decision;
+            this.custodianPin = custodianPin == null ? null : custodianPin.clone();
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] custodianPin() {
+            return custodianPin == null ? null : custodianPin.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] monotonicReservationPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            String requestNonce, byte[] ownerPin, byte[] rootPin,
+            byte[] operatorPin, byte[] custodianPin, long epoch,
+            long sequence, String decision) {
+        if (signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, requestNonce, sequence, "CONSUMED").length == 0
+                || ownerPin == null || rootPin == null || operatorPin == null
+                || custodianPin == null || ownerPin.length == 0
+                || rootPin.length == 0 || operatorPin.length == 0
+                || custodianPin.length == 0 || epoch <= 0 || sequence <= 0
+                || !("FIRST_RESERVED".equals(decision)
+                    || "ALREADY_RESERVED".equals(decision)))
+            return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/independent-monotonic-reservation/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\n"
+                + b64.encodeToString(originalOwnerSignature) + "\n"
+                + requestNonce + "\n" + b64.encodeToString(ownerPin) + "\n"
+                + b64.encodeToString(rootPin) + "\n"
+                + b64.encodeToString(operatorPin) + "\n"
+                + b64.encodeToString(custodianPin) + "\n"
+                + epoch + "\n" + sequence + "\n" + decision + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Verifies a pre-consumption provider decision, not a memory commit.
+     * FIRST_RESERVED_PENDING_ACK is NOT a success receipt and never triggers
+     * an automatic custodian retry. ALREADY_RESERVED means no new attempt;
+     * the caller must only perform independent read-only recovery. A previous
+     * protected minimum from outside the caller is REQUIRED to detect rollback.
+     * Complete external-provider rollback remains unprovable with local files.
+     */
+    public static MonotonicReservationOutcome verifyMonotonicReservation(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String requestNonce,
+            byte[] pinnedOwner, byte[] pinnedRoot, byte[] pinnedOperator,
+            byte[] pinnedCustodian, byte[] pinnedIndependentProvider,
+            long previouslyTrustedEpoch, long previouslyTrustedClaimSequence,
+            SignedMonotonicReservation receipt) {
+        if (receipt == null || pinnedIndependentProvider == null
+                || pinnedOwner == null || pinnedRoot == null
+                || pinnedOperator == null || pinnedCustodian == null)
+            return MonotonicReservationOutcome.NO_AUTHORITY;
+        if (!java.util.Objects.equals(claimId, receipt.claimId)
+                || !java.util.Objects.equals(exactId, receipt.exactId)
+                || sourceRevision != receipt.sourceRevision
+                || !java.util.Objects.equals(requestNonce, receipt.requestNonce)
+                || previouslyTrustedEpoch <= 0 || previouslyTrustedClaimSequence < 0
+                || receipt.epoch < previouslyTrustedEpoch
+                || receipt.sequence < previouslyTrustedClaimSequence)
+            return MonotonicReservationOutcome.UNVERIFIABLE;
+        if (!java.util.Arrays.equals(receipt.custodianPin(), pinnedCustodian))
+            return MonotonicReservationOutcome.NO_AUTHORITY;
+        byte[] payload = monotonicReservationPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, requestNonce,
+                pinnedOwner, pinnedRoot, pinnedOperator, pinnedCustodian,
+                receipt.epoch, receipt.sequence, receipt.decision);
+        byte[] signature = receipt.signature();
+        if (payload.length == 0 || signature == null || signature.length != 64)
+            return MonotonicReservationOutcome.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            byte[][] pins = {pinnedOwner, pinnedRoot, pinnedOperator,
+                    pinnedCustodian, pinnedIndependentProvider};
+            java.security.PublicKey[] keys = new java.security.PublicKey[pins.length];
+            for (int i = 0; i < pins.length; i++) {
+                keys[i] = factory.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[i].clone()));
+                if (!java.util.Arrays.equals(keys[i].getEncoded(), pins[i]))
+                    return MonotonicReservationOutcome.NO_AUTHORITY;
+                for (int j = 0; j < i; j++)
+                    if (java.util.Arrays.equals(pins[i], pins[j]))
+                        return MonotonicReservationOutcome.NO_AUTHORITY;
+            }
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(keys[0]);
+            verifier.update(originalOwnerClaimPayload(claimId, exactId, sourceRevision));
+            if (!verifier.verify(originalOwnerSignature))
+                return MonotonicReservationOutcome.UNVERIFIABLE;
+            verifier.initVerify(keys[4]);
+            verifier.update(payload);
+            if (!verifier.verify(signature))
+                return MonotonicReservationOutcome.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException badProof) {
+            return MonotonicReservationOutcome.UNVERIFIABLE;
+        }
+        if ("FIRST_RESERVED".equals(receipt.decision)) {
+            // An already-spent claim cannot be reclassified as a first grant.
+            return previouslyTrustedClaimSequence == 0
+                    ? MonotonicReservationOutcome.FIRST_RESERVED_PENDING_ACK
+                    : MonotonicReservationOutcome.UNVERIFIABLE;
+        }
+        return MonotonicReservationOutcome.ALREADY_RESERVED_NO_RETRY;
+    }
+
+    /**
      * FUTURE-ONLY contract for a separately enrolled anti-reset custodian.
      * The operator key, owner/root pins, and trusted epoch/floor MUST be held
      * outside this process in genuinely rollback-resistant custody. Supplying
