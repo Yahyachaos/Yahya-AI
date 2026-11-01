@@ -11365,6 +11365,17 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     if '--strict-one-shot-epoch-migration' in sys.argv:
         process_one_shot_epoch_migration_proof(temp,strict=True)
         sys.exit(0)
+    if '--strict-one-shot-epoch-floor-reset' in sys.argv:
+        # Separate process-level attack: corrupt both provider ledger and
+        # rollbackable minimum, retaining every original Ed25519 identity.
+        with tempfile.TemporaryDirectory(prefix='future_one_shot_epoch_rollback_') as d:
+            runner=['java','-cp',temp,'de.yahya.ai.FutureOneShotEnrollmentContract']
+            for mode in ('MIGRATION_INIT','MIGRATION_E2','MIGRATION_ADVANCE','MIGRATION_E3'):
+                subprocess.run(runner+[mode,d],capture_output=True,text=True,check=True,timeout=15)
+            strict=subprocess.run(runner+['MIGRATION_STRICT_RESET',d],
+                capture_output=True,text=True,timeout=15)
+            assert strict.returncode==0,('EXPECTED SECURITY FAIL: full snapshot rollback reactivated retired epoch2 with all five original keys',strict.stdout,strict.stderr)
+        sys.exit(0)
     if '--focused-provisioned-one-shot' in sys.argv:
         subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureOneShotEnrollmentContract'],check=True)
         process_independent_reservation_provider_proof(temp)
