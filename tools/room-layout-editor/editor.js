@@ -128,6 +128,9 @@ let wallVisible = true;
 let guideGridVisible = false; // Keep a usable editor grid on demand, not in reference views.
 let referenceShellPreview = false; // V23 opt-in architecture color test; not a saved GLB change.
 let neutralShellPreview = false; // Reversible editor-only cutaway skin; never serialized.
+let s25RawPreview=false; // Display-only reproduction of the owner's real offline shader.
+let s25RawViewBackup=null;
+let s25RawLastRestoreOk=true;
 // V22 editor-only source-fidelity preview. Cache original immutable GLB material objects.
 const sourceDrapeMaterials = new WeakMap();
 const SHEER_SOURCE_MATERIAL = 'material.010'; // original map-bearing white drape slot
@@ -368,6 +371,8 @@ function applyState(state) {
         typeof locked!=='boolean') throw new Error('Ungültiger Objektzustand: '+item.id);
     candidate.push({entry,pos,angles,scales,locked,sourceItem:item});
   }
+  const priorS25=s25RawPreview;
+  if(priorS25)setS25RawPreview(false);
   room = {width,depth,height};
   buildRoom();
   for (const {entry,pos,angles,scales,locked,sourceItem} of candidate) {
@@ -386,6 +391,7 @@ function applyState(state) {
   }
   setSelected(selected?.id||'room_bed');
   refreshWarnings();
+  if(priorS25)setS25RawPreview(true);
 }
 function undo() {
   if (!history.length) return;
@@ -504,6 +510,118 @@ function setSourceSheerPreview(enabled) {
   return {ready:true,enabled,meshCount,affectedMaterialSlots,affectedBackdropSlots};
 }
 
+
+// Original owner's S25 shader samples raw texture RGB or uses (0.85,0.79,0.70).
+// It has no glTF PBR/ACES lighting and draws an opaque floor plus three walls,
+// with open front and ceiling. Recreate ONLY these display semantics. Never
+// change any owner JSON/GLB/mesh geometry, wall dimensions, camera or locks.
+function setS25RawPreview(enabled){
+  enabled=!!enabled;
+  if(s25RawPreview===enabled)return;
+  if(enabled){
+    if(loadCount!==13||failCount||[...entries.values()].some(e=>!e.loaded))
+      throw new Error('13 echte S25-Originalmodelle erforderlich');
+    const meshes=[];
+    for(const entry of entries.values())entry.group.traverse(n=>{
+      if(n.isMesh)meshes.push(n);
+    });
+    if(!meshes.length)throw new Error('Keine originalen S25-Meshes gefunden');
+    const saved={
+      sources:meshes.map(mesh=>({mesh,material:mesh.material})),
+      surfaces:walls.children.map(mesh=>({mesh,material:mesh.material,visible:mesh.visible})),
+      floorSurfaces:floor.children.map(mesh=>({mesh,material:mesh.material,visible:mesh.visible})),
+      background:scene.background.clone(),wallsVisible:walls.visible,
+      created:new Set(),
+      disabled:[...document.querySelectorAll(
+        '#neutral-shell,#mobile-neutral-shortcut,#toggle-walls,'+
+        '[data-mobile-action="toggle-walls"],#reference-shell-preview,'+
+        '#sheer-preview,#chair-tint-preview,#show-grid,#edit-room,'+
+        '#reset-room,#room-width,#room-depth,#room-height'
+      )].map(control=>({control,disabled:control.disabled}))
+    };
+    try{
+      const materials=new Map();
+      for(const {mesh} of saved.sources){
+        const source=sourceDrapeMaterials.get(mesh)||
+          sourceChairMaterials.get(mesh)||mesh.material;
+        const arr=Array.isArray(source)?source:[source];
+        const next=arr.map(original=>{
+          if(!original)throw new Error('Quellmaterial fehlt');
+          if(!materials.has(original)){
+            const basic=new THREE.MeshBasicMaterial({
+              map:original.map||null,
+              color:original.map?0xffffff:0xd9c9b3,
+              side:THREE.DoubleSide,transparent:false,opacity:1,
+              depthWrite:true,toneMapped:false
+            });
+            basic.name='S25_UNLIT_DISPLAY_'+(original.name||'source');
+            materials.set(original,basic);saved.created.add(basic);
+          }
+          return materials.get(original);
+        });
+        mesh.material=Array.isArray(mesh.material)?next:next[0];
+      }
+      const ground=floor.children.find(mesh=>mesh.isMesh);
+      const wallMeshes=walls.children.filter(mesh=>mesh.isMesh);
+      if(!ground||wallMeshes.length!==4)
+        throw new Error('Vorhandene 4 Raumwandmeshes/Boden erforderlich');
+      function displaySurface(mesh,hex){
+        const m=new THREE.MeshBasicMaterial({
+          color:hex,side:THREE.DoubleSide,transparent:false,
+          opacity:1,depthWrite:true,toneMapped:false
+        });
+        saved.created.add(m);mesh.material=m;mesh.visible=true;
+      }
+      displaySurface(ground,0x59504d);
+      [0x825e4d,0x8c6957,0x7a594a].forEach((hex,i)=>
+        displaySurface(wallMeshes[i],hex));
+      wallMeshes[3].visible=false; // ceiling only hidden, never deleted
+      for(const child of walls.children)if(child.isLineSegments)child.visible=false;
+      const grid=floor.children.find(x=>x.userData.roomEditorGuideGrid);
+      if(grid)grid.visible=false;
+      walls.visible=true;
+      scene.background.setHex(0x131b21);
+      for(const {control} of saved.disabled)control.disabled=true;
+      s25RawViewBackup=saved;s25RawPreview=true;
+    }catch(e){
+      for(const {mesh,material} of saved.sources)mesh.material=material;
+      for(const {mesh,material,visible} of [...saved.surfaces,...saved.floorSurfaces]){
+        mesh.material=material;mesh.visible=visible;
+      }
+      scene.background.copy(saved.background);walls.visible=saved.wallsVisible;
+      for(const mat of saved.created)mat.dispose();
+      throw e;
+    }
+  }else{
+    const saved=s25RawViewBackup;
+    if(!saved)throw new Error('S25-Anzeige ohne vorherige Materialkopie');
+    for(const {mesh,material} of saved.sources)mesh.material=material;
+    for(const {mesh,material,visible} of [...saved.surfaces,...saved.floorSurfaces]){
+      mesh.material=material;mesh.visible=visible;
+    }
+    scene.background.copy(saved.background);walls.visible=saved.wallsVisible;
+    for(const {control,disabled} of saved.disabled)control.disabled=disabled;
+    s25RawLastRestoreOk=saved.sources.every(x=>x.mesh.material===x.material)&&
+      [...saved.surfaces,...saved.floorSurfaces].every(x=>
+        x.mesh.material===x.material&&x.mesh.visible===x.visible)&&
+      scene.background.equals(saved.background)&&walls.visible===saved.wallsVisible;
+    for(const mat of saved.created)mat.dispose(); // GLB textures never disposed
+    s25RawViewBackup=null;s25RawPreview=false;
+  }
+  const mobile=document.querySelector('[data-mobile-action="s25-display"]');
+  if(mobile){
+    mobile.setAttribute('aria-pressed',String(s25RawPreview));
+    mobile.textContent=s25RawPreview?'S25 Ansicht aus':'S25 Ansicht';
+  }
+  const desktop=$('s25-display');
+  if(desktop){
+    desktop.setAttribute('aria-pressed',String(s25RawPreview));
+    desktop.textContent=s25RawPreview?'Originale S25-Ansicht beenden':
+      'Originale S25-Ansicht (ohne PBR)';
+  }
+  invalidateMobileFrame();
+}
+
 // Reproduce the ORIGINAL offline owner-S25 raw GLB primitive frame:
 // world(owner) * T(doc.nodes.find(name===instance_id+'__geometry')?.translation||[0,0,0]).
 // The owner's viewer ignored embedded glTF __anchor transforms and did NOT
@@ -580,6 +698,12 @@ async function loadModel(entry) {
     console.warn('GLB-Ladefehler',entry.id,err);
   }
   loadCount++;
+  if(loadCount===13){
+    const ready=failCount===0;
+    $('s25-display').disabled=!ready;
+    const mobileS25=document.querySelector('[data-mobile-action="s25-display"]');
+    if(mobileS25)mobileS25.disabled=!ready;
+  }
   $('loaded').textContent = loadCount + '/13 Objekte';
   status(loadCount + '/13 Modelle versucht, ' + failCount +
     ' Fehler. ' + (loadCount===13 ? 'Editor bereit (Modellqualität siehe Warnungen).' : 'Ladevorgang…'),
@@ -905,6 +1029,10 @@ $('neutral-shell').onclick=()=>{
   neutralShellPreview=!neutralShellPreview;
   applyNeutralShellPreview();
 };
+$('s25-display').onclick=()=>{
+  try{setS25RawPreview(!s25RawPreview);}
+  catch(err){status('S25-Anzeige nicht aktiviert: '+err.message,'warn');}
+};
 $('sheer-preview').onchange=()=>{
   const preview=setSourceSheerPreview($('sheer-preview').checked);
   if (preview.ready && preview.enabled && preview.affectedMaterialSlots!==1)
@@ -1004,6 +1132,29 @@ if (E2E_PROOF) {
       return {...mobileRenderStats,pending:mobileFramePending,touch_device:TOUCH_DEVICE};
     },
     serializedLayout() { return JSON.parse(snapshot()); },
+    s25RawDisplayAudit(){
+      const meshes=[];
+      for(const entry of entries.values())entry.group.traverse(n=>{
+        if(n.isMesh)meshes.push(n);
+      });
+      const slots=meshes.flatMap(m=>Array.isArray(m.material)?m.material:[m.material]);
+      const wallMeshes=walls.children.filter(m=>m.isMesh);
+      return {
+        active:s25RawPreview,
+        original_glbs_loaded:[...entries.values()].filter(e=>e.loaded).length,
+        source_meshes:meshes.length,
+        unlit_slots:slots.filter(m=>m?.isMeshBasicMaterial&&
+          m.name?.startsWith('S25_UNLIT_DISPLAY_')).length,
+        unlit_textured_slots:slots.filter(m=>m?.isMeshBasicMaterial&&
+          m.name?.startsWith('S25_UNLIT_DISPLAY_')&&!!m.map).length,
+        source_material_identity_restored:s25RawLastRestoreOk,
+        room_m:{...room},wall_count:wallMeshes.length,
+        visible_wall_count:wallMeshes.filter(m=>m.visible).length,
+        ceiling_visible:wallMeshes[3]?.visible??null,
+        background_hex:scene.background.getHexString(),
+        camera_position_m:camera.position.toArray(),camera_fov:camera.fov
+      };
+    },
     ownerSourceFrameAudit(){
       const objects=[...entries.values()].map(entry=>{
         const f=entry.ownerSourceFrame,model=entry.group.children[0];

@@ -68,6 +68,7 @@
     <img id="reference-overlay" alt="Originalreferenz" hidden>
     <div class="hint">Möbel anklicken · Gizmo ziehen · Verschieben / Drehen / Skalieren · Maus rechts: Kamera · Rad: Zoom</div>
     <button type="button" id="mobile-neutral-shortcut" class="mobile-view-shortcut" data-mobile-action="neutral-shell" aria-pressed="false" aria-label="Helle neutrale Ansicht umschalten, ohne Möbelpositionen oder Raumlayout zu ändern">☀ Helle Ansicht</button>
+    <button type="button" id="mobile-s25-shortcut" class="mobile-view-shortcut" style="top:60px" data-mobile-action="s25-display" aria-pressed="false" aria-label="Unbeleuchtete originale S25-Möbeltexturen und offene Raumhülle nur als Ansicht" disabled>S25 Ansicht</button>
     <div id="mobile-controls" aria-label="Raumeditor Touch-Steuerung">
       <div class="mobile-toolbar">
         <select id="mobile-object" aria-label="Möbel auf dem Handy wählen"></select>
@@ -116,6 +117,8 @@
       <label>Raumdarstellung (nur Editor)</label>
       <div class="button-row"><button id="toggle-walls">Wände ein-/ausblenden</button><button id="reset-room">Referenzmaße wiederherstellen</button></div>
       <div class="button-row"><button id="neutral-shell">Neutrale Schnittansicht</button></div>
+      <div class="button-row"><button id="s25-display" aria-pressed="false" disabled>Originale S25-Ansicht (ohne PBR)</button></div>
+      <p class="small">Umschaltbare Anzeige nach dem echten ursprünglichen S25-Raster: unbeleuchtete Original-GLB-Texturen, undurchsichtige Rück-/Seitenwände, Decke optisch ausgeblendet. Keine Änderung der Möbel, JSON-Daten, GLBs, Kamera oder Raumgeometrie. Kein visueller PASS.</p>
       <p class="small">Nur eine reversible, nicht gespeicherte Schnitt-/Materialansicht für freie Möbelkontrolle. Weder deine 13 Möbel noch Raumhülle/Kamera/JSON werden neu positioniert.</p>
       <label><input type="checkbox" id="show-grid"> Blaues Editor-Hilfsraster einblenden</label>
       <label><input type="checkbox" id="reference-shell-preview"> V23-Versuch: Referenznahe dunklere Wände und warmere Decke</label>

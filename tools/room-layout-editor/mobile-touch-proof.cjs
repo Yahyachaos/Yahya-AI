@@ -352,6 +352,47 @@ async function main(){
       source_window_material_identity_restored:true,
       window_backdrop_before:nightBefore,window_backdrop_neutral:nightDuring,
       visual_acceptance:'NOT_GRANTED'});
+    const s25Button=page.locator('[data-mobile-action="s25-display"]');
+    const beforeS25=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.s25RawDisplayAudit());
+    assert.equal(beforeS25.active,false);
+    const s25Started=Date.now();
+    await s25Button.tap();
+    const s25TouchMs=Date.now()-s25Started;
+    assert(s25TouchMs<5000,'Genuine S25 display toggle must remain below 5000ms');
+    assert.equal(await s25Button.getAttribute('aria-pressed'),'true');
+    const duringS25=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.s25RawDisplayAudit());
+    assert.equal(duringS25.active,true);
+    assert.equal(duringS25.original_glbs_loaded,13);
+    assert.equal(duringS25.wall_count,4);
+    assert.equal(duringS25.visible_wall_count,3);
+    assert.equal(duringS25.ceiling_visible,false);
+    assert.equal(duringS25.background_hex,'131b21');
+    assert(duringS25.unlit_slots>=13,'13 real GLBs must have genuine unlit source slots');
+    assert(duringS25.unlit_textured_slots>0,'Must preserve real source GLB color texture');
+    assert.deepEqual(duringS25.room_m,beforeS25.room_m);
+    assert.deepEqual(duringS25.camera_position_m,beforeS25.camera_position_m);
+    assert.equal(duringS25.camera_fov,beforeS25.camera_fov);
+    const s25RawFrame=await captureRealWebGL(page,
+      'mobile-owner-original-s25-unlit-preview-webgl.png');
+    assert.notEqual(s25RawFrame.sha256,nativeFirst.sha256,
+      'S25 source-raster view must generate genuinely changed WebGL pixels');
+    assert.deepEqual(await page.evaluate(()=>
+      window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
+      'S25 view must not alter any saved owner field');
+    await s25Button.tap();
+    assert.equal(await s25Button.getAttribute('aria-pressed'),'false');
+    assert.deepEqual(await page.evaluate(()=>
+      window.__celineRoomEditorE2E.s25RawDisplayAudit()),beforeS25,
+      'Must restore exact original PBR material and shell display state');
+    assert.deepEqual(await page.evaluate(()=>
+      window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
+      'S25 preview must preserve all 13 object fields and six locks');
+    record.push({name:'MOBILE_GENUINE_S25_UNLIT_SOURCE_VIEW_TECHNICAL_PROOF',
+      s25TouchMs,s25RawFrame,duringS25,
+      source_json_unchanged:true,source_materials_restored:true,
+      visual_acceptance:'NOT_GRANTED'});
     await page.locator('.mobile-extra > summary').tap();
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle);
     record.push({name:'MOBILE_VIEW_ONLY_WALL_VISIBILITY_TOUCH_PASS',
