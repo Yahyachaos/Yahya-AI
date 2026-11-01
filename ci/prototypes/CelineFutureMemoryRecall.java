@@ -702,6 +702,130 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE ONLY / RELEASE-INDEPENDENT: a separate operator signs the exact
+     * consumed claim, not just an aggregate high-water sequence. The caller
+     * must have independently enrolled all THREE original Ed25519 identities
+     * before the transaction, and the operator must keep the per-claim state
+     * outside any rollbackable app/backup. Neither property is established by
+     * this pure-Java verifier or its deliberately rollbackable JVM fixture.
+     * A signed ABSENT is NEVER permission to retry an indeterminate claim.
+     */
+    public static final class SignedOperatorClaimCommitment {
+        public final String claimId, exactId, queryNonce, status;
+        public final long sourceRevision, epoch, consumedSequence;
+        private final byte[] signature;
+
+        public SignedOperatorClaimCommitment(String claimId, String exactId,
+                long sourceRevision, String queryNonce, long epoch,
+                long consumedSequence, String status, byte[] signature) {
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.queryNonce = queryNonce;
+            this.epoch = epoch;
+            this.consumedSequence = consumedSequence;
+            this.status = status;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] operatorClaimCommitmentPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            byte[] originalOwnerPin, byte[] originalRootPin, String queryNonce,
+            long operatorEpoch, long claimSequence, String status) {
+        if (signedReceiptStatusPayload(claimId, exactId, sourceRevision,
+                originalOwnerSignature, queryNonce, claimSequence, status).length == 0
+                || originalOwnerPin == null || originalOwnerPin.length == 0
+                || originalRootPin == null || originalRootPin.length == 0
+                || operatorEpoch <= 0)
+            return new byte[0];
+        return ("future-g1/operator-claim-commitment/v1\n" + claimId + "\n"
+                + exactId + "\n" + sourceRevision + "\n"
+                + java.util.Base64.getEncoder().encodeToString(originalOwnerSignature)
+                + "\n" + java.util.Base64.getEncoder().encodeToString(originalOwnerPin)
+                + "\n" + java.util.Base64.getEncoder().encodeToString(originalRootPin)
+                + "\n" + queryNonce + "\n" + operatorEpoch + "\n"
+                + claimSequence + "\n" + status + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Pure verifier only. Independently trusted epoch and claim-specific
+     * minimum MUST NOT be reconstructed from the queried operator's reply.
+     * This API intentionally has no consumption, acknowledgement or retry.
+     */
+    public static ReceiptStatusOutcome verifyOperatorClaimCommitment(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] previouslyPinnedOwner, byte[] previouslyPinnedRoot,
+            byte[] previouslyPinnedOperator, long trustedEpoch,
+            long trustedClaimMinimumSequence,
+            SignedOperatorClaimCommitment commitment,
+            SignedReceiptStatus independentRootReceipt) {
+        if (previouslyPinnedOwner == null || previouslyPinnedRoot == null
+                || previouslyPinnedOperator == null || commitment == null
+                || independentRootReceipt == null)
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        if (trustedEpoch <= 0 || trustedClaimMinimumSequence < 0
+                || !java.util.Objects.equals(claimId, commitment.claimId)
+                || !java.util.Objects.equals(exactId, commitment.exactId)
+                || sourceRevision != commitment.sourceRevision
+                || !java.util.Objects.equals(freshQueryNonce, commitment.queryNonce)
+                || commitment.epoch < trustedEpoch
+                || commitment.consumedSequence < trustedClaimMinimumSequence
+                || !java.util.Objects.equals(claimId, independentRootReceipt.claimId)
+                || independentRootReceipt.sequence != commitment.consumedSequence
+                || !java.util.Objects.equals(commitment.status, independentRootReceipt.status))
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] rootBytes = signedReceiptStatusPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, freshQueryNonce,
+                independentRootReceipt.sequence, independentRootReceipt.status);
+        byte[] rootSignature = independentRootReceipt.signature();
+        if (rootBytes.length == 0 || rootSignature == null || rootSignature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        byte[] bytes = operatorClaimCommitmentPayload(commitment.claimId,
+                commitment.exactId, commitment.sourceRevision,
+                originalOwnerSignature, previouslyPinnedOwner, previouslyPinnedRoot,
+                commitment.queryNonce, commitment.epoch,
+                commitment.consumedSequence, commitment.status);
+        byte[] signature = commitment.signature();
+        if (bytes.length == 0 || signature == null || signature.length != 64)
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory keys = java.security.KeyFactory.getInstance("Ed25519");
+            java.security.PublicKey owner = keys.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyPinnedOwner.clone()));
+            java.security.PublicKey root = keys.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyPinnedRoot.clone()));
+            java.security.PublicKey operator = keys.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(previouslyPinnedOperator.clone()));
+            byte[] o = owner.getEncoded(), r = root.getEncoded(), p = operator.getEncoded();
+            if (!java.util.Arrays.equals(o, previouslyPinnedOwner)
+                    || !java.util.Arrays.equals(r, previouslyPinnedRoot)
+                    || !java.util.Arrays.equals(p, previouslyPinnedOperator)
+                    || java.util.Arrays.equals(o, r)
+                    || java.util.Arrays.equals(o, p)
+                    || java.util.Arrays.equals(r, p))
+                return ReceiptStatusOutcome.NO_AUTHORITY;
+            java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+            verify.initVerify(root);
+            verify.update(rootBytes);
+            if (!verify.verify(rootSignature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+            verify.initVerify(operator);
+            verify.update(bytes);
+            if (!verify.verify(signature)) return ReceiptStatusOutcome.UNVERIFIABLE;
+            return "CONSUMED".equals(commitment.status)
+                    ? ReceiptStatusOutcome.CONSUMED_VERIFIED
+                    : ReceiptStatusOutcome.ABSENT_UNSAFE_TO_RETRY;
+        } catch (GeneralSecurityException | RuntimeException error) {
+            return ReceiptStatusOutcome.UNVERIFIABLE;
+        }
+    }
+
+    /**
      * FUTURE-ONLY contract for a separately enrolled anti-reset custodian.
      * The operator key, owner/root pins, and trusted epoch/floor MUST be held
      * outside this process in genuinely rollback-resistant custody. Supplying
