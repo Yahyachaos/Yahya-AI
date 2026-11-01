@@ -164,6 +164,7 @@ public final class FutureGlobalClaimSetProcess {
         String state;
         if(operation.equals("SPEND")){
           if(!previouslySpent){spent.add(claim);atomicFile(ledger,String.join("\n",spent)+"\n");}
+          if(!previouslySpent && claim.equals("global-claim-0023")) Runtime.getRuntime().halt(79);
           state=previouslySpent?"ALREADY_SPENT":"FIRST_SPENT";
         }else state=previouslySpent?"SPENT":"ABSENT";
         String actualNonce=replay?"stale-independent-spent-nonce-2026":nonce;
@@ -444,6 +445,38 @@ public final class FutureGlobalClaimSetProcess {
         "independent per-claim spent commit precedes global and epoch providers");
       ok(Files.readString(externalDir.resolve("seventh-claim-register/spent.txt")).contains(c),
         "independent spent ledger persisted claim across actual JVM restart");
+    }else if(action.equals("SCOPED_CONCURRENT")){
+      String c="global-claim-0021";
+      var scoped=scopedGate(false,false,false);
+      var outcome=scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-concurrent"));
+      ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+          || outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+          "one independently guarded first, all others already spent");
+      System.out.println("SCOPED_CONCURRENT_RESULT="+outcome);
+    }else if(action.equals("SCOPED_INVALID")){
+      String c="global-claim-0022";
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.reserveOnce(c,ID,REV,owner(claim),nonce("scoped-forged-owner"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,
+        "invalid original owner signature stops BEFORE independent spent authority");
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),"invalid")==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.UNVERIFIABLE,
+        "invalid nonce stops BEFORE independent spent authority");
+      ok(!Files.readAllLines(externalDir.resolve("seventh-claim-register/spent.txt")).contains(c),
+        "invalid request cannot poison independent spent history");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),"invalid input cannot write provider");
+    }else if(action.equals("SCOPED_CRASH")){
+      String c="global-claim-0023";
+      scopedGate(false,false,false).reserveOnce(c,ID,REV,owner(c),nonce("scoped-crash-before-signed-ack"));
+      throw new AssertionError("forced post-durable-commit crash did not happen");
+    }else if(action.equals("SCOPED_CRASH_QUERY")){
+      String c="global-claim-0023";
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.queryExisting(c,ID,REV,owner(c),nonce("scoped-crash-read-only-recovery"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "lost signed ACK after seventh-ledger fsync recovered read-only across JVM restart");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),
+        "read-only crash recovery never guesses at missing global/provider commit");
     }else if(action.equals("SCOPED_SELECTIVE")){
       String c="global-claim-0015";
       Path ledger=externalDir.resolve("spent.txt");
@@ -567,7 +600,23 @@ public final class FutureGlobalClaimSetProcess {
                 for op in ('SCOPED_SELECTIVE','SCOPED_QUERY','SCOPED_OUTAGE',
                            'SCOPED_FORGED','SCOPED_REPLAY','SCOPED_WRONG_PIN'):
                     run_guard(op,op+'_PASS')
-                print('PER_CLAIM_SPENT_WITNESS_PASS process_runs='+str(proof_count))
+                run_guard('SCOPED_INVALID','SCOPED_INVALID_PASS')
+                races=[subprocess.Popen(runner+['SCOPED_CONCURRENT',state],
+                         stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True) for _ in range(4)]
+                results=[p.communicate(timeout=25) for p in races]
+                assert all(p.returncode == 0 and 'SCOPED_CONCURRENT_RESULT=' in out
+                           for p,(out,err) in zip(races,results)),results
+                first=sum('SCOPED_CONCURRENT_RESULT=FIRST_RESERVED_PENDING_ACK' in out
+                          for out,err in results)
+                assert first == 1, ('independent per-claim CAS race',first,results)
+                proof_count+=len(races)
+                run_guard('SCOPED_CRASH','',expected_exit=79)
+                run_guard('SCOPED_CRASH_QUERY','SCOPED_CRASH_QUERY_PASS')
+                after_seven = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                               for i in range(7)]
+                assert after_seven == original_seven, 'original seven private keys changed'
+                print('PER_CLAIM_SPENT_WITNESS_PASS process_runs='+str(proof_count)
+                      +' races=4 first='+str(first)+' crash_exit=79')
                 sys.exit(0)
             if '--strict-selective-claim-rollback' in sys.argv:
                 run_guard('LIVE_NEW', 'LIVE_NEW_PASS')
