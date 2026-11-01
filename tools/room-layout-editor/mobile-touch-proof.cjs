@@ -369,6 +369,10 @@ async function main(){
     assert.equal(duringS25.visible_wall_count,3);
     assert.equal(duringS25.ceiling_visible,false);
     assert.equal(duringS25.background_hex,'131b21');
+    const originalS25FloorHex=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.architectureSurfaceAudit().ground_hex);
+    assert.equal(originalS25FloorHex,'594f45',
+      'Original S25 offline floor tint (.35,.31,.27) must round to RGB(89,79,69)');
     assert(duringS25.unlit_slots>=13,'13 real GLBs must have genuine unlit source slots');
     assert(duringS25.unlit_textured_slots>0,'Must preserve real source GLB color texture');
     assert.deepEqual(duringS25.room_m,beforeS25.room_m);
@@ -390,7 +394,7 @@ async function main(){
       window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
       'S25 preview must preserve all 13 object fields and six locks');
     record.push({name:'MOBILE_GENUINE_S25_UNLIT_SOURCE_VIEW_TECHNICAL_PROOF',
-      s25TouchMs,s25RawFrame,duringS25,
+      s25TouchMs,s25RawFrame,duringS25,originalS25FloorHex,
       source_json_unchanged:true,source_materials_restored:true,
       visual_acceptance:'NOT_GRANTED'});
     await page.locator('.mobile-extra > summary').tap();

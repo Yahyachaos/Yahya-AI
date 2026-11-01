@@ -611,7 +611,9 @@ function setS25RawPreview(enabled){
         });
         saved.created.add(m);mesh.material=m;mesh.visible=true;
       }
-      displaySurface(ground,0x59504d);
+      // Original owner S25 raw WebGL floor uTint=(.35,.31,.27) => RGB(89,79,69).
+      // View-only color; preserve the 3D floor mesh and all owner JSON fields.
+      displaySurface(ground,0x594f45);
       [0x825e4d,0x8c6957,0x7a594a].forEach((hex,i)=>
         displaySurface(wallMeshes[i],hex));
       wallMeshes[3].visible=false; // ceiling only hidden, never deleted
