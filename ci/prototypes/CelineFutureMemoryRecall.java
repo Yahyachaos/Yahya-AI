@@ -3642,6 +3642,186 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE ONLY: an independently custodied *per-claim* spent register. The
+     * register must atomically retain each claim ID before any global or epoch
+     * provider is allowed to act. A numeric global high-water mark is not
+     * sufficient: selective deletion can preserve the same numeric minimum.
+     *
+     * The caller cannot supply a ledger image, reset command or replacement
+     * signing key through this interface. Java callbacks and a test fixture do
+     * NOT prove independent, rollback-resistant production custody.
+     */
+    public interface IndependentPerClaimSpentAuthority {
+        SignedPerClaimSpentReceipt spendOnce(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                byte[] ownerSignature, String freshNonce) throws Exception;
+        /** Read-only: after a lost spend acknowledgement NEVER call spend again. */
+        SignedPerClaimSpentReceipt queryExisting(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                byte[] ownerSignature, String freshNonce) throws Exception;
+    }
+
+    public static final class SignedPerClaimSpentReceipt {
+        public final String authorityId, claimId, exactId, freshNonce, operation, state;
+        public final long providerEpoch, sourceRevision, sequence;
+        private final byte[] signature;
+        public SignedPerClaimSpentReceipt(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                String freshNonce, String operation, String state,
+                long sequence, byte[] signature) {
+            this.authorityId = authorityId; this.providerEpoch = providerEpoch;
+            this.claimId = claimId; this.exactId = exactId;
+            this.sourceRevision = sourceRevision; this.freshNonce = freshNonce;
+            this.operation = operation; this.state = state;
+            this.sequence = sequence;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    /** Domain separated from all existing global, floor and provider proofs. */
+    public static byte[] perClaimSpentReceiptPayload(String authorityId,
+            long providerEpoch, String claimId, String exactId, long revision,
+            byte[] ownerSignature, String nonce, String operation,
+            String state, long sequence) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || providerEpoch <= 0 || claimId == null
+                || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || exactId.isBlank() || exactId.length() > 256
+                || revision <= 0 || ownerSignature == null || ownerSignature.length != 64
+                || nonce == null || !nonce.matches("[A-Za-z0-9_-]{24,128}")
+                || !("SPEND".equals(operation) || "QUERY".equals(operation))
+                || !("FIRST_SPENT".equals(state) || "ALREADY_SPENT".equals(state)
+                    || "SPENT".equals(state) || "ABSENT".equals(state))
+                || sequence < 0 || (sequence == 0 && !"ABSENT".equals(state)))
+            return new byte[0];
+        return ("future-g1/independent-per-claim-spent/v1\n" + authorityId
+                + "\n" + providerEpoch + "\n" + claimId + "\n"
+                + java.util.Base64.getEncoder().encodeToString(exactId.getBytes(StandardCharsets.UTF_8))
+                + "\n" + revision + "\n"
+                + java.util.Base64.getEncoder().encodeToString(ownerSignature)
+                + "\n" + nonce + "\n" + operation + "\n" + state
+                + "\n" + sequence + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Conditional defense for the known selective global-ledger rollback.
+     * The seventh identity and spent register MUST be provisioned independently
+     * of the provider, sixth-key global ledger, app and restored snapshots.
+     * A first spent receipt is recorded BEFORE calling the older global gate.
+     * If any later operation fails, the claim stays indeterminate and cannot
+     * be retried automatically. A reset of ALL independent authorities still
+     * defeats this prototype; no production guarantee is implied.
+     */
+    public static final class PerClaimSpentWitnessGate {
+        private final ExternallyWitnessedGlobalClaimGate global;
+        private final IndependentPerClaimSpentAuthority spent;
+        private final byte[] pin;
+        private PerClaimSpentWitnessGate(ExternallyWitnessedGlobalClaimGate global,
+                IndependentPerClaimSpentAuthority spent, byte[] pin) {
+            this.global = global; this.spent = spent; this.pin = pin.clone();
+        }
+        public static PerClaimSpentWitnessGate bind(
+                ExternallyWitnessedGlobalClaimGate global,
+                IndependentPerClaimSpentAuthority externallyProvisionedSpent,
+                byte[] externallyPinnedSeventhIdentity) {
+            if (global == null || externallyProvisionedSpent == null
+                    || externallyPinnedSeventhIdentity == null) return null;
+            try {
+                byte[] pin = externallyPinnedSeventhIdentity.clone();
+                java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+                if (!java.util.Arrays.equals(pin, key.getEncoded())
+                        || java.util.Arrays.equals(pin, global.pin)) return null;
+                for (byte[] existing : global.provider.pins)
+                    if (java.util.Arrays.equals(pin, existing)) return null;
+                return new PerClaimSpentWitnessGate(global, externallyProvisionedSpent, pin);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+        private boolean validInput(String claim, String id, long revision,
+                byte[] ownerSignature, String nonce) {
+            return global.provider.validOwnerClaim(claim, id, revision, ownerSignature)
+                    && nonce != null && nonce.matches("[A-Za-z0-9_-]{24,128}");
+        }
+        private String checkedState(SignedPerClaimSpentReceipt reply,
+                String operation, String claim, String id, long revision,
+                byte[] ownerSignature, String nonce) {
+            if (reply == null || !java.util.Objects.equals(reply.authorityId,
+                        global.provider.authorityId)
+                    || reply.providerEpoch != global.provider.epoch
+                    || !java.util.Objects.equals(reply.claimId, claim)
+                    || !java.util.Objects.equals(reply.exactId, id)
+                    || reply.sourceRevision != revision
+                    || !java.util.Objects.equals(reply.freshNonce, nonce)
+                    || !java.util.Objects.equals(reply.operation, operation)
+                    || reply.signature() == null || reply.signature().length != 64
+                    || ("SPEND".equals(operation)
+                        && !("FIRST_SPENT".equals(reply.state)
+                            || "ALREADY_SPENT".equals(reply.state)))
+                    || ("QUERY".equals(operation)
+                        && !("SPENT".equals(reply.state)
+                            || "ABSENT".equals(reply.state)))) return null;
+            byte[] payload = perClaimSpentReceiptPayload(reply.authorityId,
+                    reply.providerEpoch, claim, id, revision, ownerSignature,
+                    nonce, operation, reply.state, reply.sequence);
+            if (payload.length == 0) return null;
+            try {
+                java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+                verifier.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
+                verifier.update(payload);
+                return verifier.verify(reply.signature()) ? reply.state : null;
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+        public GlobalClaimGateOutcome reserveOnce(String claim, String id, long revision,
+                byte[] ownerSignature, String freshNonce) {
+            if (!validInput(claim, id, revision, ownerSignature, freshNonce))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            final SignedPerClaimSpentReceipt receipt;
+            try {
+                receipt = spent.spendOnce(global.provider.authorityId,
+                        global.provider.epoch, claim, id, revision,
+                        ownerSignature.clone(), freshNonce);
+            } catch (Exception uncertain) {
+                // The independent atomic write might already have happened.
+                return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            }
+            String state = checkedState(receipt, "SPEND", claim, id, revision,
+                    ownerSignature, freshNonce);
+            if (state == null) return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            if ("ALREADY_SPENT".equals(state))
+                return GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY;
+            GlobalClaimGateOutcome outcome = global.reserveOnce(claim, id, revision,
+                    ownerSignature, freshNonce);
+            return outcome == GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+                    || outcome == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                    ? outcome : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+        }
+        /** Read-only; an ABSENT reply never authorizes a new reservation. */
+        public GlobalClaimGateOutcome queryExisting(String claim, String id, long revision,
+                byte[] ownerSignature, String freshNonce) {
+            if (!validInput(claim, id, revision, ownerSignature, freshNonce))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            final SignedPerClaimSpentReceipt receipt;
+            try {
+                receipt = spent.queryExisting(global.provider.authorityId,
+                        global.provider.epoch, claim, id, revision,
+                        ownerSignature.clone(), freshNonce);
+            } catch (Exception unavailable) {
+                return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+            }
+            String state = checkedState(receipt, "QUERY", claim, id, revision,
+                    ownerSignature, freshNonce);
+            return "SPENT".equals(state) ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                    : GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+        }
+    }
+
+    /**
      * Independent administrator is responsible for provisioning this already
      * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
      * sequence minimum. The constructor cannot attest real-world independence
