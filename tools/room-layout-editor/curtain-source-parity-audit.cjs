@@ -67,6 +67,40 @@ function auditPrimitive(name,expected){
   }
   return {found:true,meshName:p.meshName,materialName:p.materialName,checks,match:checks.every(x=>x.match)};
 }
+// Source-semantic diagnostic: the user's standalone S25 exporter stores drape
+// POSITION at millimetre precision, NORMAL at 0.01, UV at 0.0001.
+// Preserve the original byte-level mismatch evidence and separately test whether
+// rounding the authorized LFS source accessor recovers the embedded S25 digest.
+// A rounded digest match means sampled float32 stream equivalence at the
+// supplied precision, NOT original GLB identity or visual/Android acceptance.
+function quantizedAccessorDigest(semantic,decimals){
+  const p=primitives.find(p=>p.materialName==='material.010');
+  assert.ok(p&&p.attributes[semantic]!==undefined,'source drape semantic required');
+  const a=json.accessors[p.attributes[semantic]],v=json.bufferViews[a.bufferView];
+  assert.ok(a.componentType===5126&&!a.sparse,'float32 drape accessor required');
+  const components={VEC2:2,VEC3:3}[a.type];
+  assert.ok(components>0,'drape accessor VEC2/VEC3 required');
+  const stride=v.byteStride||4*components,start=(v.byteOffset||0)+(a.byteOffset||0);
+  assert.ok(start+(a.count-1)*stride+4*components<=bin.length,'source drape bounds required');
+  const factor=10**decimals,normalized=Buffer.allocUnsafe(a.count*components*4);
+  let changed=0,maxAbsQuantizationDelta=0;const firstSource=[],firstRounded=[];
+  for(let i=0;i<a.count;i++){
+    for(let j=0;j<components;j++){
+      const actual=bin.readFloatLE(start+i*stride+j*4);
+      assert.ok(Number.isFinite(actual),'nonfinite source accessor component');
+      const rounded=Math.round(actual*factor)/factor;
+      normalized.writeFloatLE(rounded,(i*components+j)*4);
+      if(Object.is(actual,rounded)===false)changed++;
+      maxAbsQuantizationDelta=Math.max(maxAbsQuantizationDelta,Math.abs(rounded-actual));
+      if(i<3){firstSource.push(actual);firstRounded.push(rounded);}
+    }
+  }
+  const sha256=hash(normalized),want=original.mesh[semantic][3];
+  return {semantic,decimals,count:a.count,components,sha256,
+    expectedOfflineSha256:want,match:sha256===want,
+    componentsChangedByRounding:changed,maxAbsQuantizationDelta,
+    firstSource,firstRounded};
+}
 const drape=auditPrimitive('material.010',original.mesh);
 const backdrop=auditPrimitive('CELINE_WindowNightDepth_Background',original.backdrop);
 const mat=json.materials?.find(m=>m.name==='material.010');
@@ -84,18 +118,28 @@ const sampler=tex?json.samplers?.[tex.sampler]||{}:{};
 const samplerActual={magFilter:sampler.magFilter||9729,minFilter:sampler.minFilter||9986,wrapS:sampler.wrapS||10497,wrapT:sampler.wrapT||10497};
 const samplerMatch=Object.entries(original.baseColorSampler).every(([k,v])=>samplerActual[k]===v);
 const parity={drapeAccessorExactBytes:drape.match,backdropAccessorExactBytes:backdrop.match,baseColorJpegExactBytes:imageMatch,sampler:samplerMatch,materialAssignments:drape.found&&backdrop.found};
-const verdict=Object.values(parity).every(Boolean)?'DIRECT_MESH_UV_JPEG_PARITY':'SOURCE_DIFFERENCES_REQUIRE_NONDESTRUCTIVE_FOLLOWUP';
+const quantizedDrape=[
+  quantizedAccessorDigest('POSITION',3),
+  quantizedAccessorDigest('NORMAL',2),
+  quantizedAccessorDigest('TEXCOORD_0',4)
+];
+const quantizedDrapeMatch=quantizedDrape.every(item=>item.match)
+  &&drape.checks.find(x=>x.semantic==='indices')?.match===true
+  &&backdrop.match&&imageMatch&&samplerMatch;
+const verdict=Object.values(parity).every(Boolean)?'DIRECT_MESH_UV_JPEG_PARITY'
+  :quantizedDrapeMatch?'OFFLINE_DRAPE_IS_PRECISION_QUANTIZED_SOURCE_MATCH'
+  :'SOURCE_DIFFERENCES_REQUIRE_NONDESTRUCTIVE_FOLLOWUP';
 const report={
   kind:'READ_ONLY_DIAGNOSTIC_NOT_VISUAL_PASS',sourcePath:glbPath,sourceBytes:bytes.length,
   sourceGlbSha256:hash(bytes),original,sourceMeshes:primitives,
   sourceMaterials:(json.materials||[]).map(m=>({name:m.name,alphaMode:m.alphaMode||'OPAQUE',doubleSided:!!m.doubleSided,baseColorFactor:m.pbrMetallicRoughness?.baseColorFactor||[1,1,1,1],textured:m.pbrMetallicRoughness?.baseColorTexture!==undefined})),
-  drape,backdrop,baseColorJpeg:{...jpeg,expectedSha256:original.baseColorJpegSha256,byteMatch:imageMatch},
+  drape,backdrop,quantizedDrape,quantizedDrapeMatch,baseColorJpeg:{...jpeg,expectedSha256:original.baseColorJpegSha256,byteMatch:imageMatch},
   baseColorSampler:{actual:samplerActual,expected:original.baseColorSampler,match:samplerMatch},parity,verdict,
-  caveats:['GLB file SHA difference does not prove geometry/pixel difference','Accessor hashes compare exact ordered component bytes; reordered or quantized vertices need decoded semantic check','JPEG file SHA difference alone does not prove decoded image pixels differ','No owner layout/camera/GLB was modified; no physical S25 or visual acceptance follows']
+  caveats:['GLB file SHA difference does not prove geometry/pixel difference','Accessor hashes compare exact ordered component bytes; reordered or quantized vertices need decoded semantic check','JPEG file SHA difference alone does not prove decoded image pixels differ','No owner layout/camera/GLB was modified; no physical S25 or visual acceptance follows','Precision-quantized match proves only source accessor stream equivalence under the reported rounding precision']
 };
 fs.mkdirSync(outDir,{recursive:true});
 const output=path.join(outDir,'owner-offline-vs-source-drapes-parity.json');
 fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n');
-console.log(JSON.stringify({verdict,sourceGlbSha256:report.sourceGlbSha256,parity,output}));
+console.log(JSON.stringify({verdict,sourceGlbSha256:report.sourceGlbSha256,parity,quantizedDrapeMatch,quantizedDrape,output}));
 // A meaningful mismatch is data for further investigation, not an excuse to
 // silently alter user GLBs or pass/disable previous rendering and mobile gates.
