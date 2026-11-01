@@ -1251,11 +1251,48 @@ public final class CelineFutureMemoryRecall {
         SignedMonotonicReservation reserveOnce(String claimId, String exactId,
                 long sourceRevision, byte[] ownerSignature,
                 String requestNonce) throws Exception;
+
+        /** READ ONLY. Never call reserveOnce to recover a lost acknowledgement. */
+        SignedMonotonicReservationStatus queryExisting(String claimId, String exactId,
+                long sourceRevision, byte[] ownerSignature,
+                String freshQueryNonce) throws Exception;
     }
 
     public enum MonotonicReservationOutcome {
         NO_AUTHORITY, UNVERIFIABLE, FIRST_RESERVED_PENDING_ACK,
         ALREADY_RESERVED_NO_RETRY
+    }
+
+    /** Query results never mean a caller may reserve/consume/retry a claim. */
+    public enum MonotonicQueryOutcome {
+        NO_AUTHORITY, UNVERIFIABLE, REMAIN_INDETERMINATE,
+        ALREADY_RESERVED_NO_RETRY
+    }
+
+    public static final class SignedMonotonicReservationStatus {
+        public final String claimId, exactId, requestNonce, status;
+        public final long sourceRevision, epoch, sequence;
+        private final byte[] custodianPin, signature;
+        public SignedMonotonicReservationStatus(String claimId, String exactId,
+                long sourceRevision, String requestNonce, long epoch,
+                long sequence, String status, byte[] custodianPin,
+                byte[] signature) {
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.requestNonce = requestNonce;
+            this.epoch = epoch;
+            this.sequence = sequence;
+            this.status = status;
+            this.custodianPin = custodianPin == null ? null : custodianPin.clone();
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] custodianPin() {
+            return custodianPin == null ? null : custodianPin.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
     }
 
     public static final class SignedMonotonicReservation {
@@ -1308,6 +1345,106 @@ public final class CelineFutureMemoryRecall {
                 + b64.encodeToString(custodianPin) + "\n"
                 + epoch + "\n" + sequence + "\n" + decision + "\n")
                 .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * A distinct domain from reserveOnce: a signed status may be queried
+     * repeatedly but NEVER authorizes a new reservation. "ABSENT" is only
+     * insufficient evidence; even an authentic ABSENT cannot imply retry.
+     */
+    public static byte[] monotonicQueryExistingPayload(String claimId,
+            String exactId, long sourceRevision, byte[] originalOwnerSignature,
+            String freshQueryNonce, byte[] ownerPin, byte[] rootPin,
+            byte[] operatorPin, byte[] custodianPin, long epoch,
+            long sequence, String status) {
+        if (originalOwnerClaimPayload(claimId, exactId, sourceRevision).length == 0
+                || originalOwnerSignature == null || originalOwnerSignature.length != 64
+                || freshQueryNonce == null
+                || !freshQueryNonce.matches("[A-Za-z0-9_-]{16,128}")
+                || ownerPin == null || rootPin == null || operatorPin == null
+                || custodianPin == null || ownerPin.length == 0
+                || rootPin.length == 0 || operatorPin.length == 0
+                || custodianPin.length == 0 || epoch <= 0 || sequence < 0
+                || !("RESERVED".equals(status) && sequence > 0
+                    || "ABSENT".equals(status) && sequence == 0))
+            return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/independent-monotonic-query-existing/v1\n"
+                + claimId + "\n" + exactId + "\n" + sourceRevision + "\n"
+                + b64.encodeToString(originalOwnerSignature) + "\n"
+                + freshQueryNonce + "\n" + b64.encodeToString(ownerPin) + "\n"
+                + b64.encodeToString(rootPin) + "\n"
+                + b64.encodeToString(operatorPin) + "\n"
+                + b64.encodeToString(custodianPin) + "\n"
+                + epoch + "\n" + sequence + "\n" + status + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Verifies an authenticated read-only provider status with five pre-pinned
+     * distinct Ed25519 keys. This method is side-effect-free and cannot call
+     * reserveOnce. Provider identity and previous minimum MUST be provisioned
+     * outside the caller's rollbackable storage; this prototype cannot prove
+     * such custody. Missing or signed ABSENT is NOT retry authorization.
+     */
+    public static MonotonicQueryOutcome verifyMonotonicQueryExisting(
+            String claimId, String exactId, long sourceRevision,
+            byte[] originalOwnerSignature, String freshQueryNonce,
+            byte[] pinnedOwner, byte[] pinnedRoot, byte[] pinnedOperator,
+            byte[] pinnedCustodian, byte[] pinnedIndependentProvider,
+            long previouslyTrustedEpoch, long previouslyTrustedClaimSequence,
+            SignedMonotonicReservationStatus receipt) {
+        if (receipt == null || pinnedIndependentProvider == null
+                || pinnedOwner == null || pinnedRoot == null
+                || pinnedOperator == null || pinnedCustodian == null)
+            return MonotonicQueryOutcome.NO_AUTHORITY;
+        if (!java.util.Objects.equals(claimId, receipt.claimId)
+                || !java.util.Objects.equals(exactId, receipt.exactId)
+                || sourceRevision != receipt.sourceRevision
+                || !java.util.Objects.equals(freshQueryNonce, receipt.requestNonce)
+                || previouslyTrustedEpoch <= 0 || previouslyTrustedClaimSequence < 0
+                || receipt.epoch < previouslyTrustedEpoch
+                || receipt.sequence < previouslyTrustedClaimSequence)
+            return MonotonicQueryOutcome.UNVERIFIABLE;
+        if (!java.util.Arrays.equals(receipt.custodianPin(), pinnedCustodian))
+            return MonotonicQueryOutcome.NO_AUTHORITY;
+        byte[] payload = monotonicQueryExistingPayload(claimId, exactId,
+                sourceRevision, originalOwnerSignature, freshQueryNonce,
+                pinnedOwner, pinnedRoot, pinnedOperator, pinnedCustodian,
+                receipt.epoch, receipt.sequence, receipt.status);
+        byte[] signature = receipt.signature();
+        if (payload.length == 0 || signature == null || signature.length != 64)
+            return MonotonicQueryOutcome.UNVERIFIABLE;
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            byte[][] pins = {pinnedOwner, pinnedRoot, pinnedOperator,
+                    pinnedCustodian, pinnedIndependentProvider};
+            java.security.PublicKey[] keys = new java.security.PublicKey[pins.length];
+            for (int i = 0; i < pins.length; i++) {
+                keys[i] = factory.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[i].clone()));
+                if (!java.util.Arrays.equals(keys[i].getEncoded(), pins[i]))
+                    return MonotonicQueryOutcome.NO_AUTHORITY;
+                for (int j = 0; j < i; j++)
+                    if (java.util.Arrays.equals(pins[i], pins[j]))
+                        return MonotonicQueryOutcome.NO_AUTHORITY;
+            }
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(keys[0]);
+            verifier.update(originalOwnerClaimPayload(claimId, exactId, sourceRevision));
+            if (!verifier.verify(originalOwnerSignature))
+                return MonotonicQueryOutcome.UNVERIFIABLE;
+            verifier.initVerify(keys[4]);
+            verifier.update(payload);
+            if (!verifier.verify(signature))
+                return MonotonicQueryOutcome.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException badProof) {
+            return MonotonicQueryOutcome.UNVERIFIABLE;
+        }
+        if ("RESERVED".equals(receipt.status))
+            return MonotonicQueryOutcome.ALREADY_RESERVED_NO_RETRY;
+        // Even a verified "ABSENT" is never authority to issue reserveOnce.
+        return MonotonicQueryOutcome.REMAIN_INDETERMINATE;
     }
 
     /**
