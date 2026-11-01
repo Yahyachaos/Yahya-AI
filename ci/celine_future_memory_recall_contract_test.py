@@ -9357,6 +9357,148 @@ def process_pinned_journal_attestation_proof(compiled,strict=False):
         print('FUTURE_PINNED_MONOTONIC_JOURNAL_PASS cases='+str(passed))
         print('FUTURE_PINNED_MONOTONIC_JOURNAL_DURABLE_CUSTODY=UNIMPLEMENTED')
 
+# Independent original-key authority is deliberately separate from the owner.
+# Both use ORDINARY FILES here. A root reset remains an expected security RED.
+independent_floor_process_harness = r''' 
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+public final class FutureIndependentHighWaterProcess {
+    static final String CLAIM="highwater-claim-0001", ID="source-memory-1";
+    static final String NONCE="external-query-nonce-0001";
+    static final byte[] ORIGINAL_SIG=new byte[64];
+    static {
+      Arrays.fill(ORIGINAL_SIG,(byte)31);
+    }
+    static PublicKey pub(Path d) throws Exception {
+      return KeyFactory.getInstance("Ed25519").generatePublic(
+        new X509EncodedKeySpec(Files.readAllBytes(d.resolve("identity.pub"))));
+    }
+    static PrivateKey priv(Path d) throws Exception {
+      return KeyFactory.getInstance("Ed25519").generatePrivate(
+        new PKCS8EncodedKeySpec(Files.readAllBytes(d.resolve("identity.priv"))));
+    }
+    static void init(Path d) throws Exception {
+      Files.createDirectories(d);
+      KeyPair pair=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+      Files.write(d.resolve("identity.pub"),pair.getPublic().getEncoded(),StandardOpenOption.CREATE_NEW);
+      Files.write(d.resolve("identity.priv"),pair.getPrivate().getEncoded(),StandardOpenOption.CREATE_NEW);
+      Files.writeString(d.resolve("floor"),"0",StandardOpenOption.CREATE_NEW);
+      System.out.println("INIT "+HexFormat.of().formatHex(
+        MessageDigest.getInstance("SHA-256").digest(pair.getPublic().getEncoded())));
+    }
+    static void check(Path owner,Path external,String mode) throws Exception {
+      int[] calls={0};
+      final int current;
+      try{current=Integer.parseInt(Files.readString(external.resolve("floor")).trim());}
+      catch(Exception e){System.out.println("RESULT=REMAIN_INDETERMINATE QUERIES=0");return;}
+      byte[] ownerPin=Files.readAllBytes(owner.resolve("identity.pub"));
+      byte[] externalPin=Files.readAllBytes(external.resolve("identity.pub"));
+      if(mode.equals("SELF_PIN"))ownerPin=externalPin.clone();
+      if(mode.equals("SWAPPED_ROOT"))externalPin=ownerPin.clone();
+      String expectedNonce=NONCE;
+      String suppliedNonce=mode.equals("STALE_NONCE")?"another-query-nonce-0099":expectedNonce;
+      String status=current==0?"ABSENT":"CONSUMED";
+      long seq=current;
+      if(mode.equals("STALE_FLOOR")){seq=0;status="ABSENT";}
+      final String signedStatus=status;
+      final long signedSequence=seq;
+      final String boundClaim=mode.equals("CROSS_CLAIM")?"wrong-claim-0001":CLAIM;
+      final String signedNonce=expectedNonce;
+      final byte[] originalSignature=ORIGINAL_SIG.clone();
+      CelineFutureMemoryRecall.ReadOnlyReceiptStatusAuthority authority=new
+          CelineFutureMemoryRecall.ReadOnlyReceiptStatusAuthority(){
+        public PublicKey originalPinnedIdentity(){
+          try{return pub(external);}catch(Exception e){return null;}
+        }
+        public CelineFutureMemoryRecall.SignedReceiptStatus queryExistingClaim(String claim,String nonce){
+          calls[0]++;
+          if(mode.equals("NO_REPLY"))return null;
+          if(mode.equals("THROW"))throw new IllegalStateException("lost transport");
+          try{
+            byte[] data=CelineFutureMemoryRecall.signedReceiptStatusPayload(
+              boundClaim,ID,2L,originalSignature,signedNonce,signedSequence,signedStatus);
+            Signature signer=Signature.getInstance("Ed25519");
+            signer.initSign(priv(external));signer.update(data);
+            byte[] signature=signer.sign();
+            if(mode.equals("FORGED_SIGNATURE"))signature[0]^=1;
+            return new CelineFutureMemoryRecall.SignedReceiptStatus(
+                boundClaim,signedSequence,signedStatus,signature);
+          }catch(Exception e){return null;}
+        }
+      };
+      if(mode.equals("NO_ROOT"))authority=null;
+      long min=mode.equals("STALE_FLOOR")?1L:0L;
+      byte[] signature=mode.equals("WRONG_OWNER_SIG")?new byte[64]:ORIGINAL_SIG.clone();
+      var result=CelineFutureMemoryRecall.reconcileReceiptWithIndependentHighWater(
+        CLAIM,ID,2L,signature,suppliedNonce,ownerPin,externalPin,min,authority);
+      System.out.println("RESULT="+result+" QUERIES="+calls[0]
+        +" ROOT_FLOOR="+Files.readString(external.resolve("floor")).trim());
+    }
+    public static void main(String[] a)throws Exception {
+      if(a.length<2)throw new IllegalArgumentException("init <dir> | check <owner> <root> <mode>");
+      if(a[0].equals("init"))init(Path.of(a[1]));
+      else if(a[0].equals("check")&&a.length==4)check(Path.of(a[1]),Path.of(a[2]),a[3]);
+      else throw new IllegalArgumentException("bad args");
+    }
+}
+'''
+
+def process_independent_high_water_floor_proof(compiled,strict=False):
+    # Separate Java processes and independently enrolled original key pair.
+    # Owner rollback does not matter if a SEPARATE authority preserved its floor.
+    with tempfile.TemporaryDirectory(prefix='future_claim_floor_') as tmp:
+        root=Path(tmp)
+        owner,external=root/'owner',root/'external'
+        argv=['java','-cp',compiled,'de.yahya.ai.FutureIndependentHighWaterProcess']
+        def run(*a):
+            r=subprocess.run(argv+list(a),check=True,capture_output=True,text=True,timeout=12)
+            return r.stdout.strip()
+        assert run('init',str(owner)).startswith('INIT ')
+        assert run('init',str(external)).startswith('INIT ')
+        assert (owner/'identity.pub').read_bytes()!=(external/'identity.pub').read_bytes()
+        count=1
+        def check(mode,expected,queries=1):
+            nonlocal count
+            got=run('check',str(owner),str(external),mode)
+            assert 'RESULT='+expected+' QUERIES='+str(queries) in got,(mode,got)
+            count+=1
+        check('NORMAL','ABSENT_UNSAFE_TO_RETRY')
+        for bad in ('NO_ROOT','SELF_PIN','SWAPPED_ROOT'):
+            check(bad,'NO_AUTHORITY',0)
+        for bad in ('FORGED_SIGNATURE','STALE_NONCE','CROSS_CLAIM','WRONG_OWNER_SIG'):
+            check(bad,'UNVERIFIABLE')
+        check('NO_REPLY','REMAIN_INDETERMINATE')
+        check('THROW','REMAIN_INDETERMINATE')
+        # Simulate the external high-water authority's one-shot committed record,
+        # followed by owner rollback in unrelated storage and a fresh JVM query.
+        (external/'floor').write_text('1',encoding='utf-8')
+        (owner/'floor').write_text('0',encoding='utf-8')
+        owner_key=(owner/'identity.priv').read_bytes()
+        external_key=(external/'identity.priv').read_bytes()
+        for _ in range(3):check('NORMAL','CONSUMED_VERIFIED')
+        assert (owner/'identity.priv').read_bytes()==owner_key
+        assert (external/'identity.priv').read_bytes()==external_key
+        count+=1
+        check('STALE_FLOOR','UNVERIFIABLE')
+        # Root itself is ordinary rollbackable storage in this fixture. A
+        # reset with its ORIGINAL key can sign false ABSENCE. This is open RED.
+        (external/'floor').write_text('0',encoding='utf-8')
+        got=run('check',str(owner),str(external),'NORMAL')
+        if strict:
+            assert 'RESULT=CONSUMED_VERIFIED' in got,(
+                'KNOWN ORIGINAL-KEY EXTERNAL HIGH-WATER ROLLBACK: '+got)
+        else:
+            assert 'RESULT=ABSENT_UNSAFE_TO_RETRY' in got,got
+            count+=1
+        assert (external/'identity.priv').read_bytes()==external_key
+        count+=1
+        print('FUTURE_INDEPENDENT_HIGH_WATER_FLOOR_JVM_PASS cases='+str(count))
+        print('FUTURE_EXTERNAL_CUSTODY_ROLLBACK_STILL_SECURITY_FAIL')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -9394,8 +9536,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     pinned_child.write_text(pinned_journal_process_harness,encoding='utf-8')
     protected_child=Path(temp)/'FutureProtectedAnchorProcess.java'
     protected_child.write_text(protected_anchor_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child)], check=True)
+    independent_floor_child=Path(temp)/'FutureIndependentHighWaterProcess.java'
+    independent_floor_child.write_text(independent_floor_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child)], check=True)
     import sys
+    if '--strict-independent-highwater' in sys.argv:
+        process_independent_high_water_floor_proof(temp,strict=True)
+        sys.exit(0)
+    if '--focused-independent-highwater' in sys.argv:
+        process_independent_high_water_floor_proof(temp)
+        sys.exit(0)
     if '--strict-read-only-receipt' in sys.argv:
         process_read_only_receipt_status_proof(temp,strict=True)
         sys.exit(0)
@@ -9516,3 +9666,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_pinned_journal_attestation_proof(temp)
     process_protected_anchor_journal_proof(temp)
     process_read_only_receipt_status_proof(temp)
+    process_independent_high_water_floor_proof(temp)
