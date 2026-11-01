@@ -445,13 +445,22 @@ public final class FutureGlobalClaimSetProcess {
         "independent per-claim spent commit precedes global and epoch providers");
       ok(Files.readString(externalDir.resolve("seventh-claim-register/spent.txt")).contains(c),
         "independent spent ledger persisted claim across actual JVM restart");
+    }else if(action.equals("SCOPED_COMPLETE_QUERY")){
+      String c="global-claim-0015";
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.queryExisting(c,ID,REV,owner(c),nonce("scoped-confirmed-read-only"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+        "only a signed seventh spent record PLUS sixth global and provider confirmation means reserved");
+      ok(Files.exists(providerDir.resolve(c+".txt")),
+        "confirmed read-only recovery preserves completed provider reservation");
     }else if(action.equals("SCOPED_CONCURRENT")){
       String c="global-claim-0021";
       var scoped=scopedGate(false,false,false);
       var outcome=scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-concurrent"));
       ok(outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
-          || outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
-          "one independently guarded first, all others already spent");
+          || outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+          || outcome==CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+          "one guarded first; contenders may be indeterminate until global and provider commit");
       System.out.println("SCOPED_CONCURRENT_RESULT="+outcome);
     }else if(action.equals("SCOPED_INVALID")){
       String c="global-claim-0022";
@@ -473,10 +482,25 @@ public final class FutureGlobalClaimSetProcess {
       String c="global-claim-0023";
       var scoped=scopedGate(false,false,false);
       ok(scoped.queryExisting(c,ID,REV,owner(c),nonce("scoped-crash-read-only-recovery"))==
-        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
-        "lost signed ACK after seventh-ledger fsync recovered read-only across JVM restart");
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "seventh-only fsync/crash is SPENT but NOT proof of global/provider reservation");
       ok(!Files.exists(providerDir.resolve(c+".txt")),
         "read-only crash recovery never guesses at missing global/provider commit");
+    }else if(action.equals("SCOPED_PROVIDER_ONLY_ROLLBACK")){
+      String c="global-claim-0015";
+      // The seventh spent ledger AND the sixth global set still say SPENT,
+      // but the original provider never shows a completed reservation.
+      // Do not claim ALREADY_RESERVED based only on upstream write intent.
+      Files.deleteIfExists(providerDir.resolve(c+".txt"));
+      var scoped=scopedGate(false,false,false);
+      ok(scoped.queryExisting(c,ID,REV,owner(c),nonce("scoped-provider-absent-query"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "global+seventh SPENT must not imply provider completed");
+      ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-provider-absent-retry"))==
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+        "confirmed upstream spent denies retry but cannot assert provider completion");
+      ok(!Files.exists(providerDir.resolve(c+".txt")),
+        "read-only recovery cannot create a missing provider commit");
     }else if(action.equals("SCOPED_SELECTIVE")){
       String c="global-claim-0015";
       Path ledger=externalDir.resolve("spent.txt");
@@ -487,16 +511,16 @@ public final class FutureGlobalClaimSetProcess {
       Files.deleteIfExists(providerDir.resolve(c+".txt"));
       var scoped=scopedGate(false,false,false);
       ok(scoped.reserveOnce(c,ID,REV,owner(c),nonce("scoped-selective-reset"))==
-        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
-        "independent per-claim witness denies selectively erased global reservation");
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+        "seventh witness DENIES retry but cannot claim provider success after selective rollback");
       ok(!Files.exists(providerDir.resolve(c+".txt")),
         "no provider side effect after selectively reset upstream ledger");
     }else if(action.equals("SCOPED_QUERY")){
       String c="global-claim-0015";
       var scoped=scopedGate(false,false,false);
       ok(scoped.queryExisting(c,ID,REV,owner(c),nonce("scoped-read-only"))==
-        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
-        "read-only seventh register detects spent claim after selective rollback");
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "seventh register alone cannot assert completed reservation after global ledger rollback");
       String unknown="global-claim-0020";
       ok(scoped.queryExisting(unknown,ID,REV,owner(unknown),nonce("scoped-never-seen"))==
         CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
@@ -517,8 +541,8 @@ public final class FutureGlobalClaimSetProcess {
       ok(!Files.exists(providerDir.resolve(c+".txt")),"forged proof cannot reach provider");
       var clean=scopedGate(false,false,false);
       ok(clean.queryExisting(c,ID,REV,owner(c),nonce("scoped-after-forged"))==
-        CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
-        "lost or tampered spend ACK recovered only by read-only query");
+        CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+        "signed seventh spent record alone never upgrades lost global/provider ACK to completed");
     }else if(action.equals("SCOPED_REPLAY")){
       String c="global-claim-0018";
       var scoped=scopedGate(false,false,true);
@@ -597,7 +621,8 @@ public final class FutureGlobalClaimSetProcess {
                     assert attacked.returncode == 0, ('KNOWN SECURITY FAIL: all independent '
                         'spent records rolled back with original signer keys')
                     sys.exit(0)
-                for op in ('SCOPED_SELECTIVE','SCOPED_QUERY','SCOPED_OUTAGE',
+                for op in ('SCOPED_COMPLETE_QUERY','SCOPED_PROVIDER_ONLY_ROLLBACK',
+                           'SCOPED_SELECTIVE','SCOPED_QUERY','SCOPED_OUTAGE',
                            'SCOPED_FORGED','SCOPED_REPLAY','SCOPED_WRONG_PIN'):
                     run_guard(op,op+'_PASS')
                 run_guard('SCOPED_INVALID','SCOPED_INVALID_PASS')
