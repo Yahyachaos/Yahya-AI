@@ -125,6 +125,14 @@ async function main(){
       if(!fs.existsSync(file))return route.abort();
       return route.fulfill({path:file,contentType:'text/javascript'});
     });
+    // Read-only localhost-E2E texture inspection; original editor.js is NOT changed.
+    const s25TextureAuditInjection="    s25CurtainTextureRuntimeAudit(){\n      if(!s25RawPreview)throw new Error('S25 raw preview not enabled');\n      const entry=entries.get('room_window_drapes');\n      if(!entry?.loaded)throw new Error('Original curtain not loaded');\n      const candidates=[];\n      entry.group.traverse(mesh=>{\n        if(!mesh.isMesh)return;\n        const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];\n        for(const material of mats)\n          if(material?.map&&material.name==='S25_UNLIT_DISPLAY_material.010')\n            candidates.push(material);\n      });\n      if(candidates.length!==1)throw new Error('Expected one source curtain texture; actual '+candidates.length);\n      const material=candidates[0],map=material.map;\n      const img=map.image||map.source?.data;\n      if(!img||img.width!==1024||img.height!==1024)\n        throw new Error('Original curtain JPEG must decode 1024x1024');\n      const decoded=document.createElement('canvas');\n      decoded.width=img.width;decoded.height=img.height;\n      const ctx=decoded.getContext('2d',{willReadFrequently:true});\n      if(!ctx)throw new Error('Original ImageBitmap 2D decoding unavailable');\n      ctx.drawImage(img,0,0);\n      const rgb=(x,y)=>Array.from(ctx.getImageData(x,y,1,1).data).slice(0,3);\n      const texture={\n        image_type:img.constructor?.name||null,\n        image_size_px:[img.width,img.height],\n        flipY:map.flipY,colorSpace:map.colorSpace,\n        magFilter:map.magFilter,minFilter:map.minFilter,\n        wrapS:map.wrapS,wrapT:map.wrapT,generateMipmaps:map.generateMipmaps,\n        premultiplyAlpha:map.premultiplyAlpha,unpackAlignment:map.unpackAlignment,\n        mapping:map.mapping,offset:map.offset.toArray(),repeat:map.repeat.toArray(),\n        center:map.center.toArray(),rotation:map.rotation,\n        uv_transform:map.matrix.elements.slice(),\n        outputColorSpace:renderer.outputColorSpace,toneMapping:renderer.toneMapping\n      };\n      const target=new THREE.WebGLRenderTarget(1,1,{depthBuffer:false,stencilBuffer:false});\n      target.texture.colorSpace=THREE.SRGBColorSpace;\n      const mat=new THREE.MeshBasicMaterial({\n        map,color:0xffffff,toneMapped:false,depthWrite:false,depthTest:false\n      });\n      const quad=new THREE.PlaneGeometry(2,2);\n      const plane=new THREE.Mesh(quad,mat);plane.frustumCulled=false;\n      const probeScene=new THREE.Scene();probeScene.add(plane);\n      const probeCamera=new THREE.OrthographicCamera(-1,1,1,-1,0.1,10);\n      probeCamera.position.z=2;\n      const oldTarget=renderer.getRenderTarget();\n      const oldViewport=renderer.getViewport(new THREE.Vector4());\n      const oldScissor=renderer.getScissor(new THREE.Vector4());\n      const oldScissorTest=renderer.getScissorTest();\n      const sampleCoordinates=[[103,213],[717,859],[421,501],[902,102]];\n      const samples=[];\n      try{\n        for(const [x,y] of sampleCoordinates){\n          const u=(x+0.5)/img.width,v=1-(y+0.5)/img.height;\n          const uv=quad.getAttribute('uv');\n          for(let i=0;i<uv.count;i++)uv.setXY(i,u,v);\n          uv.needsUpdate=true;\n          renderer.setRenderTarget(target);\n          renderer.setViewport(0,0,1,1);\n          renderer.setScissorTest(false);\n          renderer.render(probeScene,probeCamera);\n          const bytes=new Uint8Array(4);\n          renderer.readRenderTargetPixels(target,0,0,1,1,bytes);\n          const gpu=Array.from(bytes).slice(0,3);\n          const top=rgb(x,y),mirror=rgb(x,img.height-1-y);\n          const mae=(a,b)=>a.reduce((sum,c,i)=>sum+Math.abs(c-b[i]),0)/3;\n          samples.push({source_xy:[x,y],sample_uv:[u,v],gpu_rgb:gpu,\n            decoded_top_rgb:top,decoded_mirrored_rgb:mirror,\n            error_top_rgb_mae:mae(gpu,top),error_mirror_rgb_mae:mae(gpu,mirror),\n            gpu_alpha:bytes[3]});\n        }\n      }finally{\n        renderer.setRenderTarget(oldTarget);\n        renderer.setViewport(oldViewport);\n        renderer.setScissor(oldScissor);\n        renderer.setScissorTest(oldScissorTest);\n        quad.dispose();mat.dispose();target.dispose();\n      }\n      return {read_only:true,source_material:'material.010',\n        image_source:'existing immutable GLTFLoader decoded original JPEG',\n        pixel_probe:'real 1x1 offscreen Three.js renderer; fixed UV and decoded JPEG comparison',\n        texture,samples};\n    },\n";
+    await page.route('**/tools/room-layout-editor/editor.js',async route=>{
+      const source=fs.readFileSync(path.join(__dirname,'editor.js'),'utf8');
+      const anchor='    mobileRenderStats() {';
+      assert.equal(source.split(anchor).length,2,'Single E2E readback injection point required');
+      return route.fulfill({body:source.replace(anchor,s25TextureAuditInjection+anchor),contentType:'text/javascript'});
+    });
     await page.goto('http://127.0.0.1:8765/tools/room-layout-editor/?e2e=1',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),null,{timeout:240000});
     const status=await page.locator('#status').innerText();
@@ -385,6 +393,19 @@ async function main(){
     assert.deepEqual(await page.evaluate(()=>
       window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
       'S25 view must not alter any saved owner field');
+    // Original map state plus four REAL GPU pixels, independent of visual acceptance.
+    const s25TextureGpu=await page.evaluate(()=>window.__celineRoomEditorE2E.s25CurtainTextureRuntimeAudit());
+    assert.equal(s25TextureGpu.read_only,true);
+    assert.equal(s25TextureGpu.samples.length,4);
+    assert.deepEqual(s25TextureGpu.texture.image_size_px,[1024,1024]);
+    fs.writeFileSync(path.join(out,'mobile-owner-s25-curtain-texture-runtime.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+        e2e_response_instrumentation_only:true,original_editor_blob_sha:'aeb8656925bf272a5d0a38abbc627a79ea168066',
+        visual_acceptance:'NOT_GRANTED',s25TextureGpu},null,2));
+    record.push({name:'S25_CURTAIN_RUNTIME_GPU_TEXTURE_UV_READ_ONLY',
+      file:'mobile-owner-s25-curtain-texture-runtime.json',
+      texture:s25TextureGpu.texture,samples:s25TextureGpu.samples,
+      visual_acceptance:'NOT_GRANTED'});
     await s25Button.tap();
     assert.equal(await s25Button.getAttribute('aria-pressed'),'false');
     assert.deepEqual(await page.evaluate(()=>
