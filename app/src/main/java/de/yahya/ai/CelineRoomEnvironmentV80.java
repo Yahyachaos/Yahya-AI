@@ -371,13 +371,10 @@ final class CelineRoomEnvironmentV80 {
                 candidates.clear();
                 roomShellAsset = shell;
                 worldContract = contract;
-                seatAnchor = new SeatAnchor(
-                        0.0f, -0.72f, -4.12f,
-                        0.0f, 1.0f, 0.0f,
-                        0.0f, 0.0f, 1.0f,
-                        1.15f, 0.95f, -1.55f,
-                        0.0f, 0.05f, -4.53f,
-                        roomShellAsset.getRoot());
+                // Historical seat geometry lies outside the authored S25 room bounds.
+                // Fail closed until S25 GLB chair/bed contact is calibrated and proved.
+                // Do not derive a seat position from the reference photo or legacy offsets.
+                seatAnchor = null;
                 configureRoomLightChannels();
                 createRecoveryRoomKeyLight();
                 createWarmFloorFillLight();
@@ -399,10 +396,11 @@ final class CelineRoomEnvironmentV80 {
                 Celine3DDiagnostics.record(context, "ROOM-105",
                         "4R Weltvertrag aktiv", contract.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-110",
-                        "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
+                        "S25 Sitzkontakt nicht freigegeben",
+                        "seatAnchor=null legacySeatOutsideS25=true contactGeometry=UNVERIFIED");
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "sourceGlbsImmutable=true roomPartitions14=true authoredFurnitureInstances13=true extraReferenceGeometry=false furnitureOrientationOverride=false furnitureSharedRootYawDeg=0 shellNativeS25Frame=true sharedWorldContractPendingBuild=true frontWallHidden=true originalDrapeMaterial=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
+                        "sourceGlbsImmutable=true roomPartitions14=true authoredFurnitureInstances13=true extraReferenceGeometry=false furnitureOrientationOverride=false furnitureSharedRootYawDeg=0 shellNativeS25Frame=true sharedWorldContractS25Dimensions=true contactCalibrated=false frontWallHidden=true originalDrapeMaterial=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
                                 + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
