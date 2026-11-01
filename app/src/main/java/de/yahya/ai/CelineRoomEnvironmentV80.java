@@ -577,6 +577,7 @@ final class CelineRoomEnvironmentV80 {
             int root = transforms.getInstance(part.getRoot());
             if (root == 0) throw new IllegalStateException("Missing GLB root: " + id);
             float[] originalRoot = transforms.getTransform(root, new float[16]);
+            float[] originalRootWorld = transforms.getWorldTransform(root, new float[16]);
             float[] center = originalGeometryCenter(part);
             // Snapshot the REAL loaded GLB renderable nodes before changing their
             // common gltfio root. Root readback alone cannot prove descendant motion.
@@ -619,6 +620,35 @@ final class CelineRoomEnvironmentV80 {
             if (worst > 0.00002f) {
                 throw new IllegalStateException("Filament S25 root readback mismatch " + id
                         + " worst=" + worst);
+            }
+            // Independent center-to-authored-XYZ assertion on the REAL imported root:
+            // observedWorld * inverse(sourceWorld) must carry the pre-imported GLB
+            // geometry center to translation_m, including the exact user Y height.
+            // Root-vs-expected matrix equality alone cannot prove this semantics.
+            float[] inverseSourceWorld = new float[16];
+            if (!Matrix.invertM(inverseSourceWorld, 0, originalRootWorld, 0)) {
+                throw new IllegalStateException("Noninvertible source GLB root: " + id);
+            }
+            float[] observedWorld = transforms.getWorldTransform(root, new float[16]);
+            float[] effectiveWorldWrapper = new float[16];
+            Matrix.multiplyMM(effectiveWorldWrapper, 0, observedWorld, 0,
+                    inverseSourceWorld, 0);
+            float[] centeredWorld = new float[4];
+            Matrix.multiplyMV(centeredWorld, 0, effectiveWorldWrapper, 0,
+                    new float[] { center[0], center[1], center[2], 1f }, 0);
+            float authoredXYZError = 0f;
+            for (int axis = 0; axis < 3; axis++) {
+                if (!Float.isFinite(centeredWorld[axis])) {
+                    throw new IllegalStateException("Nonfinite GLB center readback " + id);
+                }
+                authoredXYZError = Math.max(authoredXYZError,
+                        Math.abs(centeredWorld[axis] - (float) pos[axis]));
+            }
+            if (!Float.isFinite(centeredWorld[3])
+                    || Math.abs(centeredWorld[3] - 1f) > 0.0002f
+                    || authoredXYZError > 0.0002f) {
+                throw new IllegalStateException("S25 real GLB center XYZ/height mismatch "
+                        + id + " deltaMeters=" + authoredXYZError);
             }
             if (expectedS25Roots.put(part.getRoot(),
                     transforms.getWorldTransform(root, new float[16])) != null) {
@@ -665,6 +695,7 @@ final class CelineRoomEnvironmentV80 {
                             + " locked=" + item.getBoolean("locked")
                             + " originalCenter=" + center[0] + "," + center[1] + "," + center[2]
                             + " rootMatrixMaxError=" + worst
+                            + " authoredXYZCenterErrorMeters=" + authoredXYZError
                             + " meshWorldMatrixMaxError=" + meshWorst
                             + " meshNodesChecked=" + originalMeshWorlds.size());
             return originalMeshWorlds.size();
