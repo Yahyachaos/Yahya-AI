@@ -3416,4 +3416,232 @@ public final class CelineFutureMemoryRecall {
         for (String w : Arrays.asList("bevorzuge","bevorzugen","lieber","mag"))
             ALIASES.put(w,"praeferenz");
     }
+    /**
+     * POST-v83 ONLY. A separately administered append-only claim set must make
+     * a durable global reservation BEFORE the epoch-specific provider acts.
+     * This interface deliberately does not accept a caller-supplied ledger
+     * snapshot, reset flag, or epoch rotation command. It is NOT an implementation
+     * of external custody: a local mock and a caller-chosen sixth key remain
+     * rollbackable and cannot be used for production security approval.
+     */
+    public interface IndependentGlobalClaimSetAuthority {
+        SignedGlobalClaimDecision reserveOnce(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                byte[] ownerSignature, String freshNonce) throws Exception;
+        /** Absolutely read-only; a lost reserve ACK never permits a retry. */
+        SignedGlobalClaimDecision queryExisting(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                byte[] ownerSignature, String freshNonce) throws Exception;
+    }
+
+    public enum GlobalClaimGateOutcome {
+        NO_AUTHORITY, UNVERIFIABLE, STARTED_INDETERMINATE,
+        FIRST_RESERVED_PENDING_ACK, ALREADY_RESERVED_NO_RETRY,
+        REMAIN_INDETERMINATE
+    }
+
+    public static final class SignedGlobalClaimDecision {
+        public final String authorityId, claimId, exactId, freshNonce, operation, state;
+        public final long providerEpoch, sourceRevision, sequence;
+        private final byte[] signature;
+        public SignedGlobalClaimDecision(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                String freshNonce, String operation, String state,
+                long sequence, byte[] signature) {
+            this.authorityId = authorityId;
+            this.providerEpoch = providerEpoch;
+            this.claimId = claimId;
+            this.exactId = exactId;
+            this.sourceRevision = sourceRevision;
+            this.freshNonce = freshNonce;
+            this.operation = operation;
+            this.state = state;
+            this.sequence = sequence;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    /**
+     * Domain-separated sixth-party proof. The claim key intentionally omits
+     * providerEpoch in the EXTERNAL authority's durable index: the same claim
+     * must stay reserved across provider rotations. Epoch is included in each
+     * reply signature so old replies cannot be replayed at a new gateway.
+     */
+    public static byte[] globalClaimDecisionPayload(String authorityId,
+            long providerEpoch, String claimId, String exactId, long revision,
+            byte[] ownerSignature, String nonce, String operation,
+            String state, long sequence) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || providerEpoch <= 0 || claimId == null
+                || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || exactId.isBlank() || exactId.length() > 256
+                || revision <= 0 || ownerSignature == null || ownerSignature.length != 64
+                || nonce == null || !nonce.matches("[A-Za-z0-9_-]{24,128}")
+                || !("RESERVE".equals(operation) || "QUERY".equals(operation))
+                || !("FIRST_COMMITTED".equals(state)
+                    || "ALREADY_COMMITTED".equals(state)
+                    || "COMMITTED".equals(state) || "ABSENT".equals(state))
+                || sequence < 0 || (sequence == 0 && !"ABSENT".equals(state)))
+            return new byte[0];
+        return ("future-g1/global-monotonic-claim-set/v1\n" + authorityId
+                + "\n" + providerEpoch + "\n" + claimId + "\n"
+                + java.util.Base64.getEncoder().encodeToString(exactId.getBytes(StandardCharsets.UTF_8))
+                + "\n" + revision + "\n"
+                + java.util.Base64.getEncoder().encodeToString(ownerSignature)
+                + "\n" + nonce + "\n" + operation + "\n" + state
+                + "\n" + sequence + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Independent administrator is responsible for provisioning this already
+     * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
+     * sequence minimum. The constructor cannot attest real-world independence
+     * of the backing service or that the admin retained the minimum safely.
+     * No application/provider/epoch snapshot may replace that authority.
+     */
+    public static final class ProvisionedGlobalClaimGate {
+        private final ProvisionedOneShotGateway provider;
+        private final IndependentGlobalClaimSetAuthority claimSet;
+        private final byte[] independentPin;
+        private final long trustedMinimumSequence;
+
+        private ProvisionedGlobalClaimGate(ProvisionedOneShotGateway provider,
+                IndependentGlobalClaimSetAuthority claimSet, byte[] pin,
+                long minimum) {
+            this.provider = provider;
+            this.claimSet = claimSet;
+            this.independentPin = pin.clone();
+            this.trustedMinimumSequence = minimum;
+        }
+
+        public static ProvisionedGlobalClaimGate bindFromExternalAdministrator(
+                ProvisionedOneShotGateway provider,
+                IndependentGlobalClaimSetAuthority preprovisionedClaimSet,
+                byte[] externallyPinnedSixthIdentity,
+                long externallyRetainedMinimumSequence) {
+            if (provider == null || preprovisionedClaimSet == null
+                    || externallyPinnedSixthIdentity == null
+                    || externallyRetainedMinimumSequence < 0) return null;
+            try {
+                byte[] pin = externallyPinnedSixthIdentity.clone();
+                java.security.PublicKey key = java.security.KeyFactory
+                        .getInstance("Ed25519").generatePublic(
+                                new java.security.spec.X509EncodedKeySpec(pin));
+                if (!java.util.Arrays.equals(pin, key.getEncoded())) return null;
+                for (byte[] existing : provider.pins)
+                    if (java.util.Arrays.equals(pin, existing)) return null;
+                return new ProvisionedGlobalClaimGate(provider,
+                        preprovisionedClaimSet, pin,
+                        externallyRetainedMinimumSequence);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+
+        private GlobalClaimGateOutcome check(SignedGlobalClaimDecision reply,
+                String operation, String claim, String id, long revision,
+                byte[] ownerSignature, String nonce) {
+            if (reply == null) return GlobalClaimGateOutcome.NO_AUTHORITY;
+            if (!java.util.Objects.equals(provider.authorityId, reply.authorityId)
+                    || reply.providerEpoch != provider.epoch
+                    || !java.util.Objects.equals(claim, reply.claimId)
+                    || !java.util.Objects.equals(id, reply.exactId)
+                    || reply.sourceRevision != revision
+                    || !java.util.Objects.equals(nonce, reply.freshNonce)
+                    || !java.util.Objects.equals(operation, reply.operation)
+                    || reply.signature() == null || reply.signature().length != 64)
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            if ("RESERVE".equals(operation)
+                    && !("FIRST_COMMITTED".equals(reply.state)
+                        || "ALREADY_COMMITTED".equals(reply.state)))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            if ("QUERY".equals(operation)
+                    && !("COMMITTED".equals(reply.state)
+                        || "ABSENT".equals(reply.state)))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            byte[] payload = globalClaimDecisionPayload(provider.authorityId,
+                    provider.epoch, claim, id, revision, ownerSignature,
+                    nonce, operation, reply.state, reply.sequence);
+            if (payload.length == 0) return GlobalClaimGateOutcome.UNVERIFIABLE;
+            try {
+                java.security.Signature signature = java.security.Signature.getInstance("Ed25519");
+                signature.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(independentPin)));
+                signature.update(payload);
+                if (!signature.verify(reply.signature()))
+                    return GlobalClaimGateOutcome.UNVERIFIABLE;
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            }
+            // A restored floor may reuse an old sequence. A NEW reservation
+            // must strictly advance the separately retained high-water mark.
+            if (reply.sequence < trustedMinimumSequence
+                    || ("FIRST_COMMITTED".equals(reply.state)
+                        && reply.sequence <= trustedMinimumSequence))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            if ("ABSENT".equals(reply.state))
+                return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+            return "FIRST_COMMITTED".equals(reply.state)
+                    ? GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+                    : GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY;
+        }
+
+        /**
+         * Exactly one global CAS BEFORE the original provider transaction.
+         * After the global CAS begins, a timeout is INDETERMINATE; NEVER retry.
+         * An already committed global claim never invokes the provider.
+         * Only the separate administrator may advance the trusted minimum.
+         */
+        public GlobalClaimGateOutcome reserveOnce(String claim, String id,
+                long revision, byte[] ownerSignature, String freshNonce) {
+            if (!provider.validOwnerClaim(claim, id, revision, ownerSignature)
+                    || freshNonce == null
+                    || !freshNonce.matches("[A-Za-z0-9_-]{24,128}"))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            final SignedGlobalClaimDecision reply;
+            try {
+                reply = claimSet.reserveOnce(provider.authorityId,
+                        provider.epoch, claim, id, revision,
+                        ownerSignature.clone(), freshNonce);
+            } catch (Exception uncertain) {
+                return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            }
+            GlobalClaimGateOutcome decision = check(reply, "RESERVE", claim, id,
+                    revision, ownerSignature, freshNonce);
+            if (decision != GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK)
+                return decision;
+            // Do not mutate the provider if the global side is unverifiable.
+            // Its one-shot write starts only AFTER a validated global first.
+            MonotonicReservationOutcome providerOutcome = provider.reserveOnce(
+                    claim, id, revision, ownerSignature, freshNonce,
+                    0);
+            if (providerOutcome == MonotonicReservationOutcome.FIRST_RESERVED_PENDING_ACK)
+                return GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK;
+            if (providerOutcome == MonotonicReservationOutcome.ALREADY_RESERVED_NO_RETRY)
+                return GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY;
+            return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+        }
+
+        /** Does not write to either side; never authorizes a new reservation. */
+        public GlobalClaimGateOutcome queryExisting(String claim, String id,
+                long revision, byte[] ownerSignature, String freshNonce) {
+            if (!provider.validOwnerClaim(claim, id, revision, ownerSignature)
+                    || freshNonce == null
+                    || !freshNonce.matches("[A-Za-z0-9_-]{24,128}"))
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            final SignedGlobalClaimDecision reply;
+            try {
+                reply = claimSet.queryExisting(provider.authorityId,
+                        provider.epoch, claim, id, revision,
+                        ownerSignature.clone(), freshNonce);
+            } catch (Exception unavailable) {
+                return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+            }
+            return check(reply, "QUERY", claim, id, revision,
+                    ownerSignature, freshNonce);
+        }
+    }
 }
