@@ -1133,6 +1133,18 @@ final class CelineRoomEnvironmentV80 {
                 throw new IllegalStateException(
                         "Native attached S25 enclosing-wall interior geometry mismatch");
             }
+            // In the original room_shell.glb the hidden front wall spans
+            // Z=-2.20..-2.10m, while the surviving floor/side walls start
+            // exactly at Z=-2.10m. A child or duplicate renderable can remain
+            // after removeEntity(frontWallEntity); checking only the named
+            // node's Scene membership would then falsely accept a closed front.
+            // Check the FINAL, actually attached renderable geometry without
+            // touching any authored furniture or shell transform.
+            if (!Float.isFinite(shellBounds[2])
+                    || Math.abs(shellBounds[2] + 2.10f) > dimensionToleranceM) {
+                throw new IllegalStateException(
+                        "S25 front-wall geometry remains after Scene detachment");
+            }
             Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-BOUNDS",
                     "Final attached visible-shell and floor AABBs (NOT raster acceptance)",
                     "shellWorldMinXYZ=" + shellBounds[0] + "," + shellBounds[1] + "," + shellBounds[2]
