@@ -3496,13 +3496,6 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
-     * Independent administrator is responsible for provisioning this already
-     * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
-     * sequence minimum. The constructor cannot attest real-world independence
-     * of the backing service or that the admin retained the minimum safely.
-     * No application/provider/epoch snapshot may replace that authority.
-     */
-    /**
      * FUTURE-ONLY read-only live high-water authority. The implementation must
      * live outside the app/provider snapshot, and must NOT be supplied by the
      * caller as a resettable local preference. This is a testable protocol,
@@ -3608,7 +3601,9 @@ public final class CelineFutureMemoryRecall {
         public GlobalClaimGateOutcome reserveOnce(String claim, String exactId,
                 long revision, byte[] ownerSignature, String freshNonce) {
             // An invalid owner claim must never trigger a witness/provider call.
-            if (!provider.validOwnerClaim(claim, exactId, revision, ownerSignature))
+            if (!provider.validOwnerClaim(claim, exactId, revision, ownerSignature)
+                    || freshNonce == null
+                    || !freshNonce.matches("[A-Za-z0-9_-]{24,128}"))
                 return GlobalClaimGateOutcome.UNVERIFIABLE;
             ProvisionedGlobalClaimGate live = verifyLiveFloor();
             return live == null ? GlobalClaimGateOutcome.NO_AUTHORITY
@@ -3618,7 +3613,9 @@ public final class CelineFutureMemoryRecall {
 
         public GlobalClaimGateOutcome queryExisting(String claim, String exactId,
                 long revision, byte[] ownerSignature, String freshNonce) {
-            if (!provider.validOwnerClaim(claim, exactId, revision, ownerSignature))
+            if (!provider.validOwnerClaim(claim, exactId, revision, ownerSignature)
+                    || freshNonce == null
+                    || !freshNonce.matches("[A-Za-z0-9_-]{24,128}"))
                 return GlobalClaimGateOutcome.UNVERIFIABLE;
             ProvisionedGlobalClaimGate live = verifyLiveFloor();
             return live == null ? GlobalClaimGateOutcome.NO_AUTHORITY
@@ -3627,6 +3624,13 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * Independent administrator is responsible for provisioning this already
+     * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
+     * sequence minimum. The constructor cannot attest real-world independence
+     * of the backing service or that the admin retained the minimum safely.
+     * No application/provider/epoch snapshot may replace that authority.
+     */
     public static final class ProvisionedGlobalClaimGate {
         private final ProvisionedOneShotGateway provider;
         private final IndependentGlobalClaimSetAuthority claimSet;
