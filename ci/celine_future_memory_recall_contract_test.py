@@ -9936,6 +9936,225 @@ def process_external_consumed_checkpoint_proof(compiled):
         print('FUTURE_EXTERNAL_CONSUMED_CHECKPOINT_JVM_PASS cases='+str(count))
         print('FUTURE_EXTERNAL_NONROLLBACKABLE_CUSTODY_NOT_IMPLEMENTED')
 
+
+# FUTURE ONLY: actual independent JVMs and filesystem lock/fsync fixture.
+# An ordinary separately stored directory can be snapshotted and rolled back;
+# its success is NOT evidence for nonrollbackable custody or Android runtime.
+atomic_custodian_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.channels.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+
+/** An intentionally rollbackable REAL-JVM fixture, NEVER a production custody provider. */
+public final class FutureAtomicCustodianProcess {
+  static final String ID = "source-memory-1";
+  static final long REVISION = 2;
+  static PublicKey pub(Path p)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePublic(
+        new X509EncodedKeySpec(Files.readAllBytes(p.resolve("identity.pub"))));
+  }
+  static PrivateKey priv(Path p)throws Exception {
+    return KeyFactory.getInstance("Ed25519").generatePrivate(
+        new PKCS8EncodedKeySpec(Files.readAllBytes(p.resolve("identity.priv"))));
+  }
+  static byte[] sign(Path p, byte[] payload)throws Exception {
+    Signature s=Signature.getInstance("Ed25519");s.initSign(priv(p));s.update(payload);return s.sign();
+  }
+  static byte[] ownerSig(Path owner,String claim,String id)throws Exception {
+    return sign(owner,CelineFutureMemoryRecall.originalOwnerClaimPayload(claim,id,REVISION));
+  }
+  static byte[] durablePayload(Path owner,Path root,Path operator,String claim,String id)
+      throws Exception {
+    return CelineFutureMemoryRecall.externalConsumedCheckpointPayload(claim,id,REVISION,
+        ownerSig(owner,claim,id),pub(owner).getEncoded(),pub(root).getEncoded(),
+        pub(operator).getEncoded(),2,1);
+  }
+  static String recordName(String claim)throws Exception {
+    if(!claim.matches("[a-z0-9-]{3,80}"))throw new IllegalArgumentException("bad claim");
+    MessageDigest sha=MessageDigest.getInstance("SHA-256");
+    return HexFormat.of().formatHex(sha.digest(claim.getBytes(StandardCharsets.UTF_8)))+".claim";
+  }
+  static Path recordPath(Path anchor,String claim)throws Exception {
+    return anchor.resolve(recordName(claim));
+  }
+  static byte[] encodeRecord(byte[] payload,byte[] signature) {
+    return (Base64.getEncoder().encodeToString(payload)+"\n"+
+        Base64.getEncoder().encodeToString(signature)+"\n").getBytes(StandardCharsets.US_ASCII);
+  }
+  static boolean authenticatedExisting(Path file,Path anchor,byte[] expected)throws Exception {
+    if(!Files.exists(file))return false;
+    String[] lines=Files.readString(file,StandardCharsets.US_ASCII).split("\n",-1);
+    if(lines.length!=3 || !lines[2].isEmpty())throw new SecurityException("corrupt record format");
+    byte[] payload=Base64.getDecoder().decode(lines[0]);
+    byte[] sig=Base64.getDecoder().decode(lines[1]);
+    if(!Arrays.equals(expected,payload) || sig.length!=64)
+      throw new SecurityException("conflicting or malformed consumed record");
+    Signature verify=Signature.getInstance("Ed25519");
+    verify.initVerify(pub(anchor));verify.update(payload);
+    if(!verify.verify(sig))throw new SecurityException("forged consumed record");
+    return true;
+  }
+  static void durableWrite(Path anchor,Path destination,byte[] record)throws Exception {
+    Path tmp=Files.createTempFile(anchor,"atomic-claim-", ".tmp");
+    try {
+      try(FileChannel ch=FileChannel.open(tmp,StandardOpenOption.WRITE,StandardOpenOption.TRUNCATE_EXISTING)) {
+        java.nio.ByteBuffer b=java.nio.ByteBuffer.wrap(record);
+        while(b.hasRemaining())ch.write(b);
+        ch.force(true);
+      }
+      Files.move(tmp,destination,StandardCopyOption.ATOMIC_MOVE);
+      // On this Linux fixture, sync the containing directory before ACK.
+      try(FileChannel dir=FileChannel.open(anchor,StandardOpenOption.READ)){dir.force(true);}
+    } finally {Files.deleteIfExists(tmp);}
+  }
+  static void run(String operation,Path owner,Path root,Path operator,Path anchor,
+                  String claim,String nonce,String mode)throws Exception {
+    byte[] originalOwnerPin=pub(owner).getEncoded();
+    byte[] originalRootPin=pub(root).getEncoded();
+    byte[] originalOperatorPin=pub(operator).getEncoded();
+    byte[] custodianPin=pub(anchor).getEncoded();
+    byte[] originalSignature=ownerSig(owner,claim,ID);
+    byte[] expected=durablePayload(owner,root,operator,claim,ID);
+    Path record=recordPath(anchor,claim);
+    String response=null;
+    try(FileChannel lockChannel=FileChannel.open(anchor.resolve("custodian.claim.lock"),
+            StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+        FileLock exclusive=lockChannel.lock()) {
+      if(Files.exists(record)) {
+        if(!authenticatedExisting(record,anchor,expected))throw new SecurityException("unreadable record");
+        response="ALREADY_CONSUMED";
+      } else if(operation.equals("status")) {
+        System.out.println("RESULT=REMAIN_INDETERMINATE STORED=0"); return;
+      } else if(operation.equals("consume")) {
+        byte[] signature=sign(anchor,expected);
+        durableWrite(anchor,record,encodeRecord(expected,signature));
+        if(mode.equals("CRASH_AFTER_SYNC"))Runtime.getRuntime().halt(73);
+        response="COMMITTED";
+      } else throw new IllegalArgumentException("operation");
+    } catch(SecurityException ex) {
+      System.out.println("RESULT=UNVERIFIABLE RECORD_CONFLICT=1");return;
+    }
+    byte[] responseSignature=sign(anchor,CelineFutureMemoryRecall.atomicCustodianAckPayload(
+        claim,ID,REVISION,originalSignature,nonce,originalOwnerPin,originalRootPin,
+        originalOperatorPin,2,1,response));
+    String responseNonce=nonce, responseId=ID;
+    long responseRevision=REVISION, responseEpoch=2, responseSequence=1;
+    if(mode.equals("STALE_NONCE"))responseNonce="stale-claim-query-nonce";
+    if(mode.equals("WRONG_ID"))responseId="different-id";
+    if(mode.equals("WRONG_REV"))responseRevision=3;
+    if(mode.equals("STALE_EPOCH"))responseEpoch=1;
+    if(mode.equals("WRONG_SEQ"))responseSequence=0;
+    if(mode.equals("FORGED_ACK"))responseSignature[0]^=1;
+    if(mode.equals("WRONG_CUSTODIAN_PIN"))custodianPin=originalOwnerPin;
+    if(mode.equals("FORGED_OWNER"))originalSignature[0]^=1;
+    if(mode.equals("WRONG_STATUS"))response="ABSENT";
+    byte[] maybeSignature=mode.equals("MISSING_ACK")?null:responseSignature;
+    CelineFutureMemoryRecall.SignedAtomicCustodianAck ack =
+        mode.equals("MISSING_ACK")?null:new CelineFutureMemoryRecall.SignedAtomicCustodianAck(
+          claim,responseId,responseRevision,responseNonce,responseEpoch,
+          responseSequence,response,maybeSignature);
+    var status=CelineFutureMemoryRecall.verifyAtomicCustodianAck(
+        claim,ID,REVISION,originalSignature,nonce,originalOwnerPin,originalRootPin,
+        originalOperatorPin,custodianPin,2,1,ack);
+    System.out.println("RESULT="+status+" STORED=1 ACK="+response);
+  }
+  public static void main(String[] a)throws Exception{
+    if(a.length!=8)throw new IllegalArgumentException("operation owner root operator anchor claim nonce mode");
+    run(a[0],Path.of(a[1]),Path.of(a[2]),Path.of(a[3]),Path.of(a[4]),a[5],a[6],a[7]);
+  }
+}
+'''
+
+def process_atomic_custodian_proof(compiled, strict=False):
+    import concurrent.futures
+    import hashlib
+    with tempfile.TemporaryDirectory(prefix='future_atomic_custodian_') as tmp:
+        root=Path(tmp)
+        owner,source,operator,anchor=[root/x for x in ('owner','root','operator','anchor')]
+        original_keys=[]
+        for path in (owner,source,operator,anchor):
+            p=subprocess.run(['java','-cp',compiled,'de.yahya.ai.FutureIndependentHighWaterProcess',
+                'init',str(path)],capture_output=True,text=True,check=True,timeout=12)
+            assert 'INIT ' in p.stdout,(p.stdout,p.stderr)
+            original_keys.append((path/'identity.priv').read_bytes())
+        java=['java','-cp',compiled,'de.yahya.ai.FutureAtomicCustodianProcess']
+        claim='memory-claim-0001'; count=0
+        def record(x):
+            return anchor/(hashlib.sha256(x.encode('utf-8')).hexdigest()+'.claim')
+        def launch(operation='status', claim=claim, mode='NORMAL', nonce='atomic-custodian-nonce-0001',
+                   check=True):
+            return subprocess.run(java+[operation,str(owner),str(source),str(operator),str(anchor),
+                claim,nonce,mode],capture_output=True,text=True,check=check,timeout=14)
+        def expect(operation, outcome, mode='NORMAL', claim=claim, nonce='atomic-custodian-nonce-0001'):
+            nonlocal count
+            p=launch(operation,claim,mode,nonce)
+            assert 'RESULT='+outcome in p.stdout,(operation,mode,claim,p.stdout,p.stderr)
+            count+=1
+            return p.stdout
+        expect('status','REMAIN_INDETERMINATE')
+        expect('consume','CONSUMED_VERIFIED')
+        assert record(claim).exists();count+=1
+        expect('status','CONSUMED_VERIFIED')
+        expect('consume','CONSUMED_VERIFIED') # no second write; ALREADY_CONSUMED
+        for mode, expected in (
+            ('FORGED_ACK','UNVERIFIABLE'),
+            ('WRONG_ID','UNVERIFIABLE'),
+            ('WRONG_REV','UNVERIFIABLE'),
+            ('STALE_NONCE','UNVERIFIABLE'),
+            ('STALE_EPOCH','UNVERIFIABLE'),
+            ('WRONG_SEQ','UNVERIFIABLE'),
+            ('WRONG_CUSTODIAN_PIN','NO_AUTHORITY'),
+            ('FORGED_OWNER','UNVERIFIABLE'),
+            ('WRONG_STATUS','UNVERIFIABLE'),
+            ('MISSING_ACK','REMAIN_INDETERMINATE')):
+            expect('status',expected,mode)
+        # Exact-key preservation across independent JVMs is witnessed.
+        for path,original in zip((owner,source,operator,anchor),original_keys):
+            assert (path/'identity.priv').read_bytes()==original;count+=1
+        # Six concurrent JVMs contend for an entirely NEW exact claim. A
+        # single durable initial CAS wins; other workers read the same claim.
+        raced='memory-claim-0003'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            futures=[pool.submit(launch,'consume',raced,'NORMAL',
+                'atomic-custodian-nonce-'+str(i)) for i in range(6)]
+            responses=[f.result() for f in futures]
+        assert sum('ACK=COMMITTED' in p.stdout for p in responses)==1,[p.stdout for p in responses]
+        assert sum('ACK=ALREADY_CONSUMED' in p.stdout for p in responses)==5,[p.stdout for p in responses]
+        assert all('RESULT=CONSUMED_VERIFIED' in p.stdout for p in responses),[
+            (p.stdout,p.stderr) for p in responses]
+        count+=6
+        # Crash the JVM strictly AFTER durable atomic move + directory force,
+        # BEFORE it returns a signed acknowledgement to the calling process.
+        crashed='memory-claim-0002'
+        dead=launch('consume',crashed,'CRASH_AFTER_SYNC',check=False)
+        assert dead.returncode==73,(dead.returncode,dead.stdout,dead.stderr);count+=1
+        assert record(crashed).exists();count+=1
+        expect('status','CONSUMED_VERIFIED',claim=crashed)
+        assert 'ACK=ALREADY_CONSUMED' in expect('consume','CONSUMED_VERIFIED',claim=crashed)
+        # A corrupted, user-editable directory can never become positive proof.
+        safe=record(claim).read_bytes()
+        record(claim).write_bytes(b'corrupt claim file\n')
+        expect('status','UNVERIFIABLE')
+        record(claim).write_bytes(safe)
+        expect('status','CONSUMED_VERIFIED')
+        # Signature+identity survive a restart, but restoring the original
+        # custodian snapshot is not detectable without EXTERNAL custody.
+        for path,original in zip((owner,source,operator,anchor),original_keys):
+            assert (path/'identity.priv').read_bytes()==original;count+=1
+        if strict:
+            record(claim).unlink()
+            duplicate=launch('consume')
+            assert 'ACK=ALREADY_CONSUMED' in duplicate.stdout,(
+                'KNOWN NONROLLBACKABLE CUSTODY MISSING: rollback with original '
+                'Ed25519 keys committed the same claim twice: '+duplicate.stdout)
+        print('FUTURE_ATOMIC_CUSTODIAN_REAL_JVM_PASS cases='+str(count))
+        print('FUTURE_FILESYSTEM_ROLLBACK_IS_STILL_SECURITY_FAIL')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -9981,8 +10200,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     claim_child.write_text(operator_claim_process_harness,encoding='utf-8')
     anchor_child=Path(temp)/'FutureExternalConsumedCheckpointProcess.java'
     anchor_child.write_text(external_checkpoint_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child)], check=True)
+    custodian_child=Path(temp)/'FutureAtomicCustodianProcess.java'
+    custodian_child.write_text(atomic_custodian_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child)], check=True)
     import sys
+    if '--focused-atomic-custodian' in sys.argv:
+        process_atomic_custodian_proof(temp)
+        sys.exit(0)
+    if '--strict-atomic-custodian' in sys.argv:
+        process_atomic_custodian_proof(temp,strict=True)
+        sys.exit(0)
     if '--focused-external-claim-anchor' in sys.argv:
         process_external_consumed_checkpoint_proof(temp)
         sys.exit(0)
