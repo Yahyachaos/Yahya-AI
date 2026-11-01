@@ -9629,6 +9629,143 @@ def process_operator_enrollment_proof(compiled, strict=False):
         print('FUTURE_OPERATOR_ENROLLMENT_JVM_PASS cases='+str(count))
         print('FUTURE_ROOT_AND_TRUSTED_FLOOR_ROLLBACK_STILL_SECURITY_FAIL')
 
+# FUTURE-ONLY claim-specific Ed25519 receipt: each check is a distinct JVM.
+# These ordinary files are explicitly NOT a nonrollbackable operator authority.
+operator_claim_process_harness = r'''
+package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+public final class FutureOperatorClaimProcess {
+  static final String CLAIM="memory-claim-0001", OTHER="memory-claim-0002";
+  static final String ID="source-memory-1", NONCE="fresh-claim-specific-nonce-1";
+  static final byte[] OWNER_SIG=new byte[64];
+  static PublicKey pub(Path p)throws Exception{
+    return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(
+      Files.readAllBytes(p.resolve("identity.pub"))));
+  }
+  static PrivateKey priv(Path p)throws Exception{
+    return KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(
+      Files.readAllBytes(p.resolve("identity.priv"))));
+  }
+  static byte[] sign(Path p,byte[] bytes)throws Exception{
+    Signature s=Signature.getInstance("Ed25519");s.initSign(priv(p));s.update(bytes);return s.sign();
+  }
+  static long floor(Path p,String claim)throws Exception{
+    return Long.parseLong(Files.readString(p.resolve(claim+".floor")).trim());
+  }
+  static void check(Path owner,Path root,Path operator,String mode,long minClaim)throws Exception{
+    final long spent=floor(operator,CLAIM);
+    final String receiptClaim=mode.equals("CROSS_CLAIM")?OTHER:CLAIM;
+    final String receiptId=mode.equals("WRONG_MEMORY")?"other-memory":ID;
+    final String nonce=mode.equals("STALE_NONCE")?"other-fresh-claim-nonce-1":NONCE;
+    final long revision=mode.equals("WRONG_REVISION")?3:2;
+    final long epoch=mode.equals("OLD_EPOCH")?1:2;
+    final byte[] ownerPin=pub(owner).getEncoded(),rootPin=pub(root).getEncoded();
+    final byte[] operatorPin=pub(operator).getEncoded();
+    final long sequence=mode.equals("CROSS_CLAIM_STATE")?floor(operator,OTHER):spent;
+    final String state=sequence>0?"CONSUMED":"ABSENT";
+    byte[] encoded=CelineFutureMemoryRecall.operatorClaimCommitmentPayload(receiptClaim,
+      receiptId,revision,OWNER_SIG,ownerPin,rootPin,nonce,epoch,sequence,state);
+    byte[] signature=sign(operator,encoded);
+    if(mode.equals("FORGED_SIGNATURE"))signature[1]^=1;
+    if(mode.equals("SIGNED_BY_ROOT"))signature=sign(root,encoded);
+    byte[] expectedOwner=ownerPin,expectedRoot=rootPin,expectedOperator=operatorPin;
+    if(mode.equals("MISMATCH_OWNER"))expectedOwner=rootPin;
+    if(mode.equals("MISMATCH_OPERATOR"))expectedOperator=rootPin;
+    if(mode.equals("MISMATCH_ROOT"))expectedRoot=operatorPin;
+    if(mode.equals("MISSING_OPERATOR"))expectedOperator=null;
+    var receipt=new CelineFutureMemoryRecall.SignedOperatorClaimCommitment(
+      receiptClaim,receiptId,revision,nonce,epoch,sequence,state,signature);
+    long rootSpent=floor(root,CLAIM);
+    String rootState=rootSpent>0?"CONSUMED":"ABSENT";
+    String rootClaim=mode.equals("ROOT_CROSS_CLAIM")?OTHER:CLAIM;
+    byte[] rootBytes=CelineFutureMemoryRecall.signedReceiptStatusPayload(rootClaim,ID,
+      2L,OWNER_SIG,NONCE,rootSpent,rootState);
+    byte[] rootSignature=sign(root,rootBytes);
+    if(mode.equals("ROOT_FORGED"))rootSignature[0]^=1;
+    var rootReceipt=new CelineFutureMemoryRecall.SignedReceiptStatus(
+      rootClaim,rootSpent,rootState,rootSignature);
+    var result=CelineFutureMemoryRecall.verifyOperatorClaimCommitment(CLAIM,ID,2L,
+      OWNER_SIG,NONCE,expectedOwner,expectedRoot,expectedOperator,2L,minClaim,
+      receipt,rootReceipt);
+    System.out.println("RESULT="+result+" OPERATOR_SPENT="+spent+" ROOT_FLOOR="+
+      floor(root,CLAIM)+" OTHER_SPENT="+floor(operator,OTHER));
+  }
+  public static void main(String[] args)throws Exception{
+    if(args.length!=6 || !args[0].equals("check"))throw new IllegalArgumentException();
+    check(Path.of(args[1]),Path.of(args[2]),Path.of(args[3]),args[4],Long.parseLong(args[5]));
+  }
+}
+'''
+
+def process_operator_claim_commitment_proof(compiled, strict=False):
+    with tempfile.TemporaryDirectory(prefix='future_operator_claim_') as tmp:
+        root=Path(tmp); owner=root/'owner'; source=root/'root'; operator=root/'operator'
+        init=['java','-cp',compiled,'de.yahya.ai.FutureIndependentHighWaterProcess']
+        for path in (owner,source,operator):
+            p=subprocess.run(init+['init',str(path)],capture_output=True,text=True,check=True,timeout=12)
+            assert 'INIT ' in p.stdout,p.stdout
+            for claim in ('memory-claim-0001','memory-claim-0002'):
+                (path/(claim+'.floor')).write_text('0',encoding='utf-8')
+        child=['java','-cp',compiled,'de.yahya.ai.FutureOperatorClaimProcess']
+        keys=[(p/'identity.priv').read_bytes() for p in (owner,source,operator)]
+        count=0
+        def check(mode, trusted, expected):
+            nonlocal count
+            p=subprocess.run(child+['check',str(owner),str(source),str(operator),
+                mode,str(trusted)],capture_output=True,text=True,check=True,timeout=12)
+            got=p.stdout.strip()
+            assert 'RESULT='+expected+' ' in got,(mode,got,p.stderr)
+            count+=1
+            return got
+        # Claim B's real consumption cannot supply a receipt for claim A.
+        (operator/'memory-claim-0002.floor').write_text('1',encoding='utf-8')
+        check('NORMAL',0,'ABSENT_UNSAFE_TO_RETRY')
+        # A dishonest operator cannot turn B's spent state into proof for A
+        # without the separate original-root signed A status matching it.
+        got_cross=check('CROSS_CLAIM_STATE',0,'UNVERIFIABLE')
+        # The operator now records A as consumed; root may be rolled back.
+        (operator/'memory-claim-0001.floor').write_text('1',encoding='utf-8')
+        (source/'memory-claim-0001.floor').write_text('1',encoding='utf-8')
+        check('NORMAL',1,'CONSUMED_VERIFIED')
+        for mode,expected in (
+            ('FORGED_SIGNATURE','UNVERIFIABLE'),
+            ('SIGNED_BY_ROOT','UNVERIFIABLE'),
+            ('ROOT_FORGED','UNVERIFIABLE'),
+            ('ROOT_CROSS_CLAIM','UNVERIFIABLE'),
+            ('CROSS_CLAIM','UNVERIFIABLE'),
+            ('WRONG_MEMORY','UNVERIFIABLE'),
+            ('WRONG_REVISION','UNVERIFIABLE'),
+            ('STALE_NONCE','UNVERIFIABLE'),
+            ('OLD_EPOCH','UNVERIFIABLE'),
+            ('MISMATCH_OWNER','NO_AUTHORITY'),
+            ('MISMATCH_OPERATOR','NO_AUTHORITY'),
+            ('MISMATCH_ROOT','NO_AUTHORITY'),
+            ('MISSING_OPERATOR','NO_AUTHORITY')):
+            check(mode,1,expected)
+        check('NORMAL',2,'UNVERIFIABLE')
+        # Separate new JVM with SAME keys and unchanged operator record:
+        # root rollback disagrees with operator and MUST fail closed.
+        (source/'memory-claim-0001.floor').write_text('0',encoding='utf-8')
+        got=check('NORMAL',1,'UNVERIFIABLE')
+        assert 'ROOT_FLOOR=0' in got,got
+        count+=1
+        # Rolled-back operator store fails when original claim-specific floor survives.
+        (operator/'memory-claim-0001.floor').write_text('0',encoding='utf-8')
+        check('NORMAL',1,'UNVERIFIABLE')
+        for path,original in zip((owner,source,operator),keys):
+            assert (path/'identity.priv').read_bytes()==original
+            count+=1
+        # If even the verifier's trusted floor is rolled back, the original
+        # signer can sign a false ABSENT. This MUST remain an explicit RED.
+        got=check('NORMAL',0,'ABSENT_UNSAFE_TO_RETRY')
+        if strict:
+            assert 'RESULT=CONSUMED_VERIFIED ' in got,(
+                'KNOWN SIMULTANEOUS ORIGINAL-KEY CLAIM/FLOOR ROLLBACK: '+got)
+        print('FUTURE_OPERATOR_CLAIM_JVM_PASS cases='+str(count))
+        print('FUTURE_BOTH_SIGNERS_AND_TRUSTED_CLAIM_FLOOR_ROLLBACK_STILL_SECURITY_FAIL')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     p = Path(temp) / 'FutureMemoryRecallContract.java'
     p.write_text(harness, encoding='utf-8')
@@ -9670,8 +9807,16 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     independent_floor_child.write_text(independent_floor_process_harness,encoding='utf-8')
     enrollment_child=Path(temp)/'FutureOperatorEnrollmentProcess.java'
     enrollment_child.write_text(operator_enrollment_process_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child)], check=True)
+    claim_child=Path(temp)/'FutureOperatorClaimProcess.java'
+    claim_child.write_text(operator_claim_process_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child)], check=True)
     import sys
+    if '--strict-operator-claim' in sys.argv:
+        process_operator_claim_commitment_proof(temp,strict=True)
+        sys.exit(0)
+    if '--focused-operator-claim' in sys.argv:
+        process_operator_claim_commitment_proof(temp)
+        sys.exit(0)
     if '--strict-operator-enrollment' in sys.argv:
         process_operator_enrollment_proof(temp,strict=True)
         sys.exit(0)
@@ -9806,3 +9951,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_read_only_receipt_status_proof(temp)
     process_independent_high_water_floor_proof(temp)
     process_operator_enrollment_proof(temp)
+    process_operator_claim_commitment_proof(temp)
