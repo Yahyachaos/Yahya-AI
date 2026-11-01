@@ -9639,7 +9639,11 @@ import java.security.spec.*;
 public final class FutureOperatorClaimProcess {
   static final String CLAIM="memory-claim-0001", OTHER="memory-claim-0002";
   static final String ID="source-memory-1", NONCE="fresh-claim-specific-nonce-1";
-  static final byte[] OWNER_SIG=new byte[64];
+  static byte[] ownerPayload(String claim, String id, long revision) {
+    return ("future-g1/source-owner-claim/v1\n" + claim + "\n" + id
+        + "\n" + revision + "\nREVOKED\n")
+        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
   static PublicKey pub(Path p)throws Exception{
     return KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(
       Files.readAllBytes(p.resolve("identity.pub"))));
@@ -9665,8 +9669,15 @@ public final class FutureOperatorClaimProcess {
     final byte[] operatorPin=pub(operator).getEncoded();
     final long sequence=mode.equals("CROSS_CLAIM_STATE")?floor(operator,OTHER):spent;
     final String state=sequence>0?"CONSUMED":"ABSENT";
+    byte[] ownerSignature=sign(owner,ownerPayload(CLAIM,ID,2L));
+    if(mode.equals("FORGED_OWNER_SIGNATURE"))ownerSignature[0]^=1;
+    if(mode.equals("OWNER_SIGNED_BY_ROOT"))ownerSignature=sign(root,ownerPayload(CLAIM,ID,2L));
+    if(mode.equals("OWNER_SIGNED_BY_OPERATOR"))ownerSignature=sign(operator,ownerPayload(CLAIM,ID,2L));
+    if(mode.equals("OWNER_WRONG_CLAIM"))ownerSignature=sign(owner,ownerPayload(OTHER,ID,2L));
+    if(mode.equals("OWNER_WRONG_MEMORY"))ownerSignature=sign(owner,ownerPayload(CLAIM,"other-memory",2L));
+    if(mode.equals("OWNER_WRONG_REVISION"))ownerSignature=sign(owner,ownerPayload(CLAIM,ID,3L));
     byte[] encoded=CelineFutureMemoryRecall.operatorClaimCommitmentPayload(receiptClaim,
-      receiptId,revision,OWNER_SIG,ownerPin,rootPin,nonce,epoch,sequence,state);
+      receiptId,revision,ownerSignature,ownerPin,rootPin,nonce,epoch,sequence,state);
     byte[] signature=sign(operator,encoded);
     if(mode.equals("FORGED_SIGNATURE"))signature[1]^=1;
     if(mode.equals("SIGNED_BY_ROOT"))signature=sign(root,encoded);
@@ -9681,13 +9692,13 @@ public final class FutureOperatorClaimProcess {
     String rootState=rootSpent>0?"CONSUMED":"ABSENT";
     String rootClaim=mode.equals("ROOT_CROSS_CLAIM")?OTHER:CLAIM;
     byte[] rootBytes=CelineFutureMemoryRecall.signedReceiptStatusPayload(rootClaim,ID,
-      2L,OWNER_SIG,NONCE,rootSpent,rootState);
+      2L,ownerSignature,NONCE,rootSpent,rootState);
     byte[] rootSignature=sign(root,rootBytes);
     if(mode.equals("ROOT_FORGED"))rootSignature[0]^=1;
     var rootReceipt=new CelineFutureMemoryRecall.SignedReceiptStatus(
       rootClaim,rootSpent,rootState,rootSignature);
     var result=CelineFutureMemoryRecall.verifyOperatorClaimCommitment(CLAIM,ID,2L,
-      OWNER_SIG,NONCE,expectedOwner,expectedRoot,expectedOperator,2L,minClaim,
+      ownerSignature,NONCE,expectedOwner,expectedRoot,expectedOperator,2L,minClaim,
       receipt,rootReceipt);
     System.out.println("RESULT="+result+" OPERATOR_SPENT="+spent+" ROOT_FLOOR="+
       floor(root,CLAIM)+" OTHER_SPENT="+floor(operator,OTHER));
@@ -9731,6 +9742,12 @@ def process_operator_claim_commitment_proof(compiled, strict=False):
         check('NORMAL',1,'CONSUMED_VERIFIED')
         for mode,expected in (
             ('FORGED_SIGNATURE','UNVERIFIABLE'),
+            ('FORGED_OWNER_SIGNATURE','UNVERIFIABLE'),
+            ('OWNER_SIGNED_BY_ROOT','UNVERIFIABLE'),
+            ('OWNER_SIGNED_BY_OPERATOR','UNVERIFIABLE'),
+            ('OWNER_WRONG_CLAIM','UNVERIFIABLE'),
+            ('OWNER_WRONG_MEMORY','UNVERIFIABLE'),
+            ('OWNER_WRONG_REVISION','UNVERIFIABLE'),
             ('SIGNED_BY_ROOT','UNVERIFIABLE'),
             ('ROOT_FORGED','UNVERIFIABLE'),
             ('ROOT_CROSS_CLAIM','UNVERIFIABLE'),
