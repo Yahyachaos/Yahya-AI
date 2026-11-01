@@ -10103,7 +10103,7 @@ public final class FutureIndependentReservationProviderProcess {
       try(FileChannel dir=FileChannel.open(provider,StandardOpenOption.READ)){dir.force(true);}
     } finally {Files.deleteIfExists(tmp);}
   }
-  static void reserve(Path owner,Path root,Path operator,Path custodian,
+  static void operate(String operation,Path owner,Path root,Path operator,Path custodian,
        Path provider,String claim,String nonce,String mode,long minimum)throws Exception {
     byte[] ownerPin=pin(owner),rootPin=pin(root),operatorPin=pin(operator);
     byte[] custodianPin=pin(custodian),providerPin=pin(provider);
@@ -10111,6 +10111,50 @@ public final class FutureIndependentReservationProviderProcess {
     Path ledger=record(provider,claim);
     byte[] canonical=(claim+"\n"+ID+"\n"+REV+"\n"
       +Base64.getEncoder().encodeToString(ownerSignature)+"\n").getBytes(StandardCharsets.UTF_8);
+    // A read-only status operation is a different authenticated protocol. It
+    // neither reserves a claim nor creates even a provider lock file.
+    if(operation.equals("query")) {
+      String state="ABSENT";long sequence=0;
+      try {
+        if(Files.exists(ledger)) {
+          if(!Arrays.equals(Files.readAllBytes(ledger),canonical))
+            throw new SecurityException("record mismatch");
+          state="RESERVED";sequence=1;
+        }
+      } catch(SecurityException conflict) {
+        System.out.println("QUERY=UNVERIFIABLE RECORD_CONFLICT=1");return;
+      }
+      byte[] querySignature=sign(provider,CelineFutureMemoryRecall.monotonicQueryExistingPayload(
+        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+        custodianPin,2,sequence,state));
+      String id=ID,queryClaim=claim,queryNonce=nonce,queryState=state;
+      long queryRevision=REV,queryEpoch=2,querySequence=sequence;
+      if(mode.equals("BAD_SIG"))querySignature[0]^=1;
+      if(mode.equals("WRONG_KEY"))querySignature=sign(custodian,
+        CelineFutureMemoryRecall.monotonicQueryExistingPayload(claim,ID,REV,
+          ownerSignature,nonce,ownerPin,rootPin,operatorPin,custodianPin,
+          2,sequence,state));
+      if(mode.equals("WRONG_ID"))id="different-id";
+      if(mode.equals("WRONG_CLAIM"))queryClaim="other-claim";
+      if(mode.equals("WRONG_NONCE"))queryNonce="stale-query-nonce";
+      if(mode.equals("WRONG_REV"))queryRevision=REV+1;
+      if(mode.equals("WRONG_EPOCH"))queryEpoch=1;
+      if(mode.equals("WRONG_SEQ"))querySequence=sequence+1;
+      if(mode.equals("BAD_STATE"))queryState="FIRST_RESERVED";
+      if(mode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
+      if(mode.equals("WRONG_CUSTODIAN"))custodianPin=rootPin;
+      if(mode.equals("COLLIDED_PROVIDER"))providerPin=ownerPin;
+      var queryReceipt=mode.equals("LOST_ACK")?null:
+        new CelineFutureMemoryRecall.SignedMonotonicReservationStatus(
+          queryClaim,id,queryRevision,queryNonce,queryEpoch,querySequence,
+          queryState,custodianPin,querySignature);
+      var queryVerdict=CelineFutureMemoryRecall.verifyMonotonicQueryExisting(
+        claim,ID,REV,ownerSignature,nonce,ownerPin,rootPin,operatorPin,
+        pin(custodian),providerPin,2,minimum,queryReceipt);
+      System.out.println("QUERY="+queryVerdict+" STORED="+state+" MIN="+minimum);
+      return;
+    }
+    if(!operation.equals("reserve"))throw new IllegalArgumentException("operation");
     String state;
     try(FileChannel ch=FileChannel.open(provider.resolve("provider.lock"),
          StandardOpenOption.CREATE,StandardOpenOption.WRITE);FileLock lock=ch.lock()) {
@@ -10151,9 +10195,9 @@ public final class FutureIndependentReservationProviderProcess {
     System.out.println("RESULT="+status+" DECISION="+state+" MIN="+minimum);
   }
   public static void main(String[] a)throws Exception {
-    if(a.length!=9)throw new IllegalArgumentException("5 directories claim nonce mode min");
-    reserve(Path.of(a[0]),Path.of(a[1]),Path.of(a[2]),Path.of(a[3]),Path.of(a[4]),
-      a[5],a[6],a[7],Long.parseLong(a[8]));
+    if(a.length!=10)throw new IllegalArgumentException("operation 5 directories claim nonce mode min");
+    operate(a[0],Path.of(a[1]),Path.of(a[2]),Path.of(a[3]),Path.of(a[4]),Path.of(a[5]),
+      a[6],a[7],a[8],Long.parseLong(a[9]));
   }
 }
 '''
@@ -10175,7 +10219,7 @@ def process_independent_reservation_provider_proof(compiled, strict=False):
         cmd=['java','-cp',compiled,'de.yahya.ai.FutureIndependentReservationProviderProcess']
         claim='memory-claim-0001'; count=0
         def request(c=claim,nonce='provider-nonce-0001',mode='NORMAL',minimum=0,check=True):
-            return subprocess.run(cmd+list(map(str,(owner,root,operator,custodian,provider)))+
+            return subprocess.run(cmd+['reserve']+list(map(str,(owner,root,operator,custodian,provider)))+
                 [c,nonce,mode,str(minimum)],capture_output=True,text=True,
                 timeout=16,check=check)
         def expect(expected,c=claim,nonce='provider-nonce-0001',mode='NORMAL',minimum=0):
@@ -10236,6 +10280,92 @@ def process_independent_reservation_provider_proof(compiled, strict=False):
                 'back under original keys: '+again.stdout)
         print('FUTURE_INDEPENDENT_PROVIDER_RESERVATION_JVM_PASS cases='+str(count))
         print('PROVIDER_CUSTODY_SIMULATED_NONROLLBACKABILITY_NOT_PROVEN')
+
+
+def process_independent_reservation_status_proof(compiled,strict=False):
+    import hashlib
+    with tempfile.TemporaryDirectory(prefix='future_provider_readonly_query_') as tmp:
+        top=Path(tmp)
+        owner,root,operator,custodian,provider=[top/x for x in
+            ('owner','root','operator','custodian','external_provider')]
+        for path in (owner,root,operator,custodian,provider):
+            init=subprocess.run(['java','-cp',compiled,
+                'de.yahya.ai.FutureIndependentHighWaterProcess','init',str(path)],
+                capture_output=True,text=True,check=True,timeout=12)
+            assert 'INIT ' in init.stdout,(init.stdout,init.stderr)
+        original_keys=[(p/'identity.priv').read_bytes() for p in
+            (owner,root,operator,custodian,provider)]
+        cmd=['java','-cp',compiled,'de.yahya.ai.FutureIndependentReservationProviderProcess']
+        claim='memory-claim-0001';nonce='provider-readonly-nonce-0001';count=0
+        def call(operation,c=claim,n=nonce,mode='NORMAL',floor=0,check=True):
+            return subprocess.run(cmd+[operation]+list(map(str,
+                (owner,root,operator,custodian,provider)))+
+                [c,n,mode,str(floor)],capture_output=True,text=True,
+                timeout=16,check=check)
+        def query(expected,c=claim,n=nonce,mode='NORMAL',floor=0):
+            nonlocal count
+            before={p.name:(p.stat().st_size,p.stat().st_mtime_ns,p.read_bytes())
+                for p in provider.iterdir() if p.is_file()}
+            response=call('query',c,n,mode,floor)
+            assert 'QUERY='+expected+' ' in response.stdout,(
+                expected,mode,response.stdout,response.stderr)
+            after={p.name:(p.stat().st_size,p.stat().st_mtime_ns,p.read_bytes())
+                for p in provider.iterdir() if p.is_file()}
+            assert before==after,('read-only query mutated provider disk',before,after)
+            count+=1
+            return response.stdout
+        ledger=provider/(hashlib.sha256(claim.encode()).hexdigest()+'.reserve')
+        # An unsigned or signed ABSENT can never be promoted to retry permission.
+        query('REMAIN_INDETERMINATE')
+        assert not ledger.exists();count+=1
+        for mode,want in [('BAD_SIG','UNVERIFIABLE'),('WRONG_KEY','UNVERIFIABLE'),
+                ('BAD_STATE','UNVERIFIABLE'),('LOST_ACK','NO_AUTHORITY'),
+                ('COLLIDED_PROVIDER','NO_AUTHORITY')]:query(want,mode=mode)
+        first=call('reserve')
+        assert 'RESULT=FIRST_RESERVED_PENDING_ACK' in first.stdout,first.stdout;count+=1
+        assert ledger.exists();count+=1
+        query('ALREADY_RESERVED_NO_RETRY')
+        for i in range(3):query('ALREADY_RESERVED_NO_RETRY',n='query-fresh-nonce-000'+str(i))
+        query('ALREADY_RESERVED_NO_RETRY',floor=1)
+        for mode,want in [
+                ('BAD_SIG','UNVERIFIABLE'),('WRONG_KEY','UNVERIFIABLE'),
+                ('WRONG_ID','UNVERIFIABLE'),('WRONG_CLAIM','UNVERIFIABLE'),
+                ('WRONG_NONCE','UNVERIFIABLE'),('WRONG_REV','UNVERIFIABLE'),
+                ('WRONG_EPOCH','UNVERIFIABLE'),('WRONG_SEQ','UNVERIFIABLE'),
+                ('BAD_STATE','UNVERIFIABLE'),('FORGED_OWNER','UNVERIFIABLE'),
+                ('WRONG_CUSTODIAN','NO_AUTHORITY'),
+                ('COLLIDED_PROVIDER','NO_AUTHORITY'),('LOST_ACK','NO_AUTHORITY')]:
+            query(want,mode=mode,floor=1)
+        # Force crash after provider's durable reservation, before ACK. Only
+        # query, never a second reserveOnce, is used to recover on JVM restart.
+        crashed='provider-crashed-query-claim';crash_nonce='crash-query-nonce-0001'
+        crash=call('reserve',c=crashed,n=crash_nonce,mode='CRASH_AFTER_SYNC',check=False)
+        assert crash.returncode==74,(crash.returncode,crash.stdout,crash.stderr);count+=1
+        query('ALREADY_RESERVED_NO_RETRY',c=crashed,n='crash-status-nonce-0001')
+        crashed_ledger=provider/(hashlib.sha256(crashed.encode()).hexdigest()+'.reserve')
+        assert crashed_ledger.exists();count+=1
+        for p,key in zip((owner,root,operator,custodian,provider),original_keys):
+            assert (p/'identity.priv').read_bytes()==key;count+=1
+        # A damaged snapshot is not a clean "not found". It MUST fail closed.
+        saved=ledger.read_bytes();ledger.write_bytes(b'damaged rollback ledger')
+        response=call('query')
+        assert 'QUERY=UNVERIFIABLE RECORD_CONFLICT=1' in response.stdout,response.stdout
+        count+=1;ledger.write_bytes(saved)
+        query('ALREADY_RESERVED_NO_RETRY')
+        # Rollback with unchanged keys and trusted external floor still present:
+        # the negative signed status conflicts with protected minimum=1.
+        ledger.unlink()
+        query('UNVERIFIABLE',floor=1)
+        query('REMAIN_INDETERMINATE',floor=0)
+        if strict:
+            # Known security RED: full mock-provider rollback, forgotten minimum
+            # and same original keys permit a second FIRST on reserveOnce.
+            duplicate=call('reserve')
+            assert 'RESULT=ALREADY_RESERVED_NO_RETRY' in duplicate.stdout,(
+                'KNOWN SECURITY FAIL: reset original five keys and consumption '
+                'history allowed second FIRST: '+duplicate.stdout)
+        print('FUTURE_PROVIDER_READONLY_QUERY_JVM_PASS cases='+str(count))
+        print('EXTERNAL_NONROLLBACKABLE_PROVIDER_NOT_IMPLEMENTED')
 
 monotonic_claim_floor_harness = r'''
 package de.yahya.ai;
@@ -10529,6 +10659,12 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     floor_child.write_text(monotonic_claim_floor_harness,encoding='utf-8')
     subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child)], check=True)
     import sys
+    if '--focused-provider-query' in sys.argv:
+        process_independent_reservation_status_proof(temp)
+        sys.exit(0)
+    if '--strict-provider-query' in sys.argv:
+        process_independent_reservation_status_proof(temp,strict=True)
+        sys.exit(0)
     if '--focused-provider-reservation' in sys.argv:
         process_independent_reservation_provider_proof(temp)
         sys.exit(0)
@@ -10695,3 +10831,4 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     process_atomic_custodian_proof(temp)
     process_independent_claim_floor_proof(temp)
     process_independent_reservation_provider_proof(temp)
+    process_independent_reservation_status_proof(temp)
