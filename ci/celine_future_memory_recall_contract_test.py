@@ -5829,6 +5829,59 @@ public final class FutureMemoryRecallContract {
         eq(closeFailureSurfaced,true,"post-callback lease-close failure must not return retryable false");
         eq(closeSinkCalls.get(),1,"close failure may follow an already delivered context");
         eq(failingCloseCalls.get(),1,"failing close attempted exactly once");
+        // A broken owner read lease can allow revision changes *inside* the
+        // synchronous callback. Even when the callback returns normally, a
+        // post-publish revision mismatch cannot be called a clean success.
+        // This extra guard cannot retract data already seen by a publisher;
+        // it must surface an INDETERMINATE/NO-AUTOMATIC-RETRY result.
+        final java.util.concurrent.atomic.AtomicReference<String> duringCallbackRevision =
+            new java.util.concurrent.atomic.AtomicReference<>(revisionNew);
+        final java.util.concurrent.atomic.AtomicInteger duringCallbackCloses =
+            new java.util.concurrent.atomic.AtomicInteger();
+        CelineFutureMemoryRecall.OwnerLineageVerifier driftingOwner =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                duringCallbackRevision::get,
+                () -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                    public String generation() { return duringCallbackRevision.get(); }
+                    public void close() { duringCallbackCloses.incrementAndGet(); }
+                });
+        final java.util.concurrent.atomic.AtomicInteger duringCallbackDeliveries =
+            new java.util.concurrent.atomic.AtomicInteger();
+        boolean callbackRevisionDriftCaught = false;
+        try {
+            CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,driftingOwner,8,NOW,
+                approved -> {
+                    duringCallbackDeliveries.incrementAndGet();
+                    duringCallbackRevision.set("g1-revision-0000000011");
+                });
+        } catch (IllegalStateException expected) { callbackRevisionDriftCaught = true; }
+        eq(callbackRevisionDriftCaught,true,
+            "revoked owner generation during callback must be indeterminate, not true");
+        eq(duringCallbackDeliveries.get(),1,
+            "post-callback revision drift must never retry an already-started delivery");
+        eq(duringCallbackCloses.get(),1,
+            "post-callback drift still closes the owner read lease");
+        // A dishonest lease can report an old generation even when the source
+        // reader advanced; checking BOTH owner witnesses is necessary.
+        duringCallbackRevision.set(revisionNew);
+        CelineFutureMemoryRecall.OwnerLineageVerifier staleLeaseWitness =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(replayKey,
+                duringCallbackRevision::get,
+                () -> new CelineFutureMemoryRecall.OwnerSnapshotReadLease() {
+                    public String generation() { return revisionNew; }
+                    public void close() { duringCallbackCloses.incrementAndGet(); }
+                });
+        boolean postCallbackOwnerChangeCaught = false;
+        try {
+            CelineFutureMemoryRecall.consumeCertifiedProviderContext(
+                "Meine Katze heisst Momo",newProjection,newRevisionProof,staleLeaseWitness,8,NOW,
+                approved -> duringCallbackRevision.set("g1-revision-0000000012"));
+        } catch (IllegalStateException expected) { postCallbackOwnerChangeCaught = true; }
+        eq(postCallbackOwnerChangeCaught,true,
+            "post-callback generation reader drift cannot report completion");
+        eq(duringCallbackCloses.get(),2,
+            "both post-callback drift scenarios release the lease");
 
         // KNOWN UNSAFE: an untrusted callback can retain Match objects after
         // the read lease. Only a trusted provider-context sink can rule this out.
