@@ -3851,6 +3851,300 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * POST-v83 ONLY — external per-claim atomic-CAS service boundary.
+     * The private identity and per-claim history MUST be controlled by a
+     * separate administrator outside the seven earlier signers, caller,
+     * application backups, and disaster-recovery images. No implementation
+     * of this service, hardware trust, or remote transport is supplied here.
+     * Merely implementing this Java interface with another filesystem mock
+     * does NOT make state nonrollbackable or establish production readiness.
+     *
+     * A real operator must atomically and durably commit a claim BEFORE it
+     * signs FIRST_SPENT; restoration must preserve that claim or stay in
+     * RECOVERY_REQUIRED until independent continuity is established. It must
+     * never issue a fresh READY attestation after restoring an older image.
+     */
+    public interface IndependentExternalClaimCAS {
+        SignedExternalCASAttestation attest(String authorityId,
+                long providerEpoch, String freshChallenge) throws Exception;
+        SignedExternalCASReceipt spendOnce(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                byte[] ownerSignature, String freshNonce) throws Exception;
+        /** Read-only; ABSENT is never a grant to retry a failed spend. */
+        SignedExternalCASReceipt queryExisting(String authorityId, long providerEpoch,
+                String claimId, String exactId, long sourceRevision,
+                byte[] ownerSignature, String freshNonce) throws Exception;
+    }
+
+    public static final class SignedExternalCASAttestation {
+        public final String authorityId, challenge, state;
+        public final long providerEpoch, recoveryGeneration, retainedMinimumSequence;
+        private final byte[] signature;
+        public SignedExternalCASAttestation(String authorityId, long providerEpoch,
+                long recoveryGeneration, String challenge, long retainedMinimumSequence,
+                String state, byte[] signature) {
+            this.authorityId = authorityId; this.providerEpoch = providerEpoch;
+            this.recoveryGeneration = recoveryGeneration;
+            this.challenge = challenge; this.retainedMinimumSequence = retainedMinimumSequence;
+            this.state = state;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    public static final class SignedExternalCASReceipt {
+        public final String authorityId, claimId, exactId, freshNonce, operation, state;
+        public final long providerEpoch, recoveryGeneration, sourceRevision, sequence;
+        private final byte[] signature;
+        public SignedExternalCASReceipt(String authorityId, long providerEpoch,
+                long recoveryGeneration, String claimId, String exactId,
+                long sourceRevision, String freshNonce, String operation,
+                String state, long sequence, byte[] signature) {
+            this.authorityId = authorityId; this.providerEpoch = providerEpoch;
+            this.recoveryGeneration = recoveryGeneration;
+            this.claimId = claimId; this.exactId = exactId;
+            this.sourceRevision = sourceRevision; this.freshNonce = freshNonce;
+            this.operation = operation; this.state = state; this.sequence = sequence;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    public static byte[] externalCASAttestationPayload(String authorityId,
+            long providerEpoch, long recoveryGeneration, String challenge,
+            long retainedMinimumSequence, String state) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || providerEpoch <= 0 || recoveryGeneration <= 0
+                || challenge == null || !challenge.matches("[A-Za-z0-9_-]{24,128}")
+                || retainedMinimumSequence < 0
+                || !("READY".equals(state) || "RECOVERY_REQUIRED".equals(state)))
+            return new byte[0];
+        return ("future-g1/administered-external-claim-cas/attest-v1\n"
+                + authorityId + "\n" + providerEpoch + "\n" + recoveryGeneration
+                + "\n" + challenge + "\n" + retainedMinimumSequence + "\n"
+                + state + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static byte[] externalCASReceiptPayload(String authorityId,
+            long providerEpoch, long recoveryGeneration, String claimId,
+            String exactId, long revision, byte[] ownerSignature,
+            String nonce, String operation, String state, long sequence) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || providerEpoch <= 0 || recoveryGeneration <= 0
+                || claimId == null || !claimId.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || exactId.isBlank() || exactId.length() > 256
+                || revision <= 0 || ownerSignature == null || ownerSignature.length != 64
+                || nonce == null || !nonce.matches("[A-Za-z0-9_-]{24,128}")
+                || !("SPEND".equals(operation) || "QUERY".equals(operation))
+                || !("SPEND".equals(operation)
+                       ? ("FIRST_SPENT".equals(state) || "ALREADY_SPENT".equals(state))
+                       : ("SPENT".equals(state) || "ABSENT".equals(state)))
+                || sequence < 0 || (sequence == 0 && !"ABSENT".equals(state)))
+            return new byte[0];
+        return ("future-g1/administered-external-claim-cas/receipt-v1\n"
+                + authorityId + "\n" + providerEpoch + "\n" + recoveryGeneration
+                + "\n" + claimId + "\n"
+                + java.util.Base64.getEncoder().encodeToString(
+                        exactId.getBytes(StandardCharsets.UTF_8))
+                + "\n" + revision + "\n"
+                + java.util.Base64.getEncoder().encodeToString(ownerSignature)
+                + "\n" + nonce + "\n" + operation + "\n" + state
+                + "\n" + sequence + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Strict client-side contract for an independently administered CAS.
+     * This wraps the existing seventh-key no-retry gate: the remote operator
+     * must commit FIRST before ANY prior mock/epoch provider writes. A remote
+     * ALREADY_SPENT is checked only with downstream read-only queries and
+     * cannot be confused with completed multi-stage reservation.
+     *
+     * Pins, generation and minimum are an OUT-OF-BAND admin provision, not a
+     * runtime argument chosen by an end user or restored from an app snapshot.
+     * A changed generation/disaster incident REQUIRES manual re-provisioning.
+     * The Java contract cannot independently prove deployment/custody.
+     */
+    public static final class ExternallyAnchoredClaimGate {
+        private final PerClaimSpentWitnessGate downstream;
+        private final IndependentExternalClaimCAS external;
+        private final byte[] pin;
+        private final String authorityId;
+        private final long providerEpoch, recoveryGeneration, pinnedMinimumSequence;
+        private final java.util.concurrent.atomic.AtomicLong observedMinimum;
+        private final java.util.Set<String> spentAttempts =
+                java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private final java.util.concurrent.atomic.AtomicBoolean quarantined =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        private ExternallyAnchoredClaimGate(PerClaimSpentWitnessGate downstream,
+                IndependentExternalClaimCAS external, byte[] pin, String authorityId,
+                long providerEpoch, long recoveryGeneration, long pinnedMinimumSequence) {
+            this.downstream = downstream; this.external = external; this.pin = pin.clone();
+            this.authorityId = authorityId; this.providerEpoch = providerEpoch;
+            this.recoveryGeneration = recoveryGeneration;
+            this.pinnedMinimumSequence = pinnedMinimumSequence;
+            this.observedMinimum = new java.util.concurrent.atomic.AtomicLong(pinnedMinimumSequence);
+        }
+        public static ExternallyAnchoredClaimGate bind(
+                PerClaimSpentWitnessGate downstream,
+                IndependentExternalClaimCAS separatelyAdministeredRemote,
+                byte[] externallyPinnedOperatorIdentity,
+                String expectedAuthorityId, long providerEpoch,
+                long outOfBandRecoveryGeneration, long outOfBandMinimum) {
+            if (downstream == null || separatelyAdministeredRemote == null
+                    || externallyPinnedOperatorIdentity == null
+                    || expectedAuthorityId == null
+                    || !expectedAuthorityId.equals(downstream.global.provider.authorityId)
+                    || providerEpoch != downstream.global.provider.epoch
+                    || outOfBandRecoveryGeneration <= 0 || outOfBandMinimum < 0)
+                return null;
+            try {
+                byte[] pin = externallyPinnedOperatorIdentity.clone();
+                java.security.PublicKey k = java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+                if (!java.util.Arrays.equals(pin, k.getEncoded())
+                        || java.util.Arrays.equals(pin, downstream.pin)
+                        || java.util.Arrays.equals(pin, downstream.global.pin)) return null;
+                for (byte[] old : downstream.global.provider.pins)
+                    if (java.util.Arrays.equals(pin, old)) return null;
+                return new ExternallyAnchoredClaimGate(downstream,
+                        separatelyAdministeredRemote, pin, expectedAuthorityId,
+                        providerEpoch, outOfBandRecoveryGeneration, outOfBandMinimum);
+            } catch (GeneralSecurityException | RuntimeException malformedPin) {
+                return null;
+            }
+        }
+        private boolean signed(byte[] payload, byte[] signature) {
+            if (payload.length == 0 || signature == null || signature.length != 64) return false;
+            try {
+                java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+                verifier.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
+                verifier.update(payload);
+                return verifier.verify(signature);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return false;
+            }
+        }
+        private boolean liveAttested() {
+            if (quarantined.get()) return false;
+            byte[] nonce = new byte[24];
+            new java.security.SecureRandom().nextBytes(nonce);
+            String challenge = java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(nonce);
+            try {
+                SignedExternalCASAttestation proof = external.attest(
+                        authorityId, providerEpoch, challenge);
+                if (proof == null || !authorityId.equals(proof.authorityId)
+                        || proof.providerEpoch != providerEpoch
+                        || proof.recoveryGeneration != recoveryGeneration
+                        || !challenge.equals(proof.challenge)
+                        || !"READY".equals(proof.state)
+                        || !signed(externalCASAttestationPayload(authorityId,
+                                providerEpoch, recoveryGeneration, challenge,
+                                proof.retainedMinimumSequence, proof.state), proof.signature()))
+                    return false;
+                while (true) {
+                    long old = observedMinimum.get();
+                    if (proof.retainedMinimumSequence < old
+                            || proof.retainedMinimumSequence < pinnedMinimumSequence) {
+                        quarantined.set(true); // NO silent recovery after rollback.
+                        return false;
+                    }
+                    if (observedMinimum.compareAndSet(old,
+                            proof.retainedMinimumSequence)) return !quarantined.get();
+                }
+            } catch (Exception disconnected) {
+                return false;
+            }
+        }
+        private String checked(String operation, String claim, String exactId,
+                long revision, byte[] owner, String nonce, SignedExternalCASReceipt receipt) {
+            if (receipt == null || !authorityId.equals(receipt.authorityId)
+                    || receipt.providerEpoch != providerEpoch
+                    || receipt.recoveryGeneration != recoveryGeneration
+                    || !claim.equals(receipt.claimId) || !exactId.equals(receipt.exactId)
+                    || revision != receipt.sourceRevision
+                    || !nonce.equals(receipt.freshNonce)
+                    || !operation.equals(receipt.operation)) return null;
+            return signed(externalCASReceiptPayload(authorityId, providerEpoch,
+                    recoveryGeneration, claim, exactId, revision, owner, nonce,
+                    operation, receipt.state, receipt.sequence), receipt.signature())
+                    ? receipt.state : null;
+        }
+        public GlobalClaimGateOutcome reserveOnce(String claim, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce) {
+            if (!downstream.validInput(claim, exactId, revision,
+                    ownerSignature, freshNonce)) return GlobalClaimGateOutcome.UNVERIFIABLE;
+            if (!liveAttested()) return GlobalClaimGateOutcome.NO_AUTHORITY;
+            try {
+                // A lost or forged spend ACK is NOT permission to send SPEND
+                // again. First do an authenticated READ-ONLY membership check.
+                // This query must not create or resurrect an external record.
+                SignedExternalCASReceipt before = external.queryExisting(authorityId,
+                        providerEpoch, claim, exactId, revision,
+                        ownerSignature.clone(), freshNonce);
+                String prior = checked("QUERY", claim, exactId, revision,
+                        ownerSignature, freshNonce, before);
+                if ("SPENT".equals(prior)) {
+                    return downstream.queryExisting(claim, exactId, revision,
+                            ownerSignature, freshNonce)
+                            == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                            ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                            : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                }
+                if (!"ABSENT".equals(prior) || !spentAttempts.add(claim))
+                    return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                SignedExternalCASReceipt receipt = external.spendOnce(authorityId,
+                        providerEpoch, claim, exactId, revision,
+                        ownerSignature.clone(), freshNonce);
+                String result = checked("SPEND", claim, exactId, revision,
+                        ownerSignature, freshNonce, receipt);
+                if ("FIRST_SPENT".equals(result)) {
+                    GlobalClaimGateOutcome downstreamStatus = downstream.reserveOnce(
+                            claim, exactId, revision, ownerSignature, freshNonce);
+                    if (downstreamStatus == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY)
+                        return downstream.queryExisting(claim, exactId, revision,
+                                ownerSignature, freshNonce)
+                                == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                                ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                                : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                    return downstreamStatus == GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+                            ? downstreamStatus : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                }
+                if ("ALREADY_SPENT".equals(result)) {
+                    return downstream.queryExisting(claim, exactId, revision,
+                            ownerSignature, freshNonce)
+                            == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                            ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
+                            : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                }
+                return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            } catch (Exception maybeCommitted) {
+                return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            }
+        }
+        public GlobalClaimGateOutcome queryExisting(String claim, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce) {
+            if (!downstream.validInput(claim, exactId, revision,
+                    ownerSignature, freshNonce)) return GlobalClaimGateOutcome.UNVERIFIABLE;
+            if (!liveAttested()) return GlobalClaimGateOutcome.NO_AUTHORITY;
+            try {
+                SignedExternalCASReceipt receipt = external.queryExisting(authorityId,
+                        providerEpoch, claim, exactId, revision,
+                        ownerSignature.clone(), freshNonce);
+                return "SPENT".equals(checked("QUERY", claim, exactId, revision,
+                        ownerSignature, freshNonce, receipt))
+                        ? downstream.queryExisting(claim, exactId, revision,
+                                ownerSignature, freshNonce)
+                        : GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+            } catch (Exception disconnected) {
+                return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+            }
+        }
+    }
+
+    /**
      * Independent administrator is responsible for provisioning this already
      * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
      * sequence minimum. The constructor cannot attest real-world independence

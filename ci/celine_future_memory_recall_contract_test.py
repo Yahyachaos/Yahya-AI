@@ -18,6 +18,8 @@ if ('--focused-global-claim-set' in sys.argv
         or '--strict-live-floor-witness' in sys.argv
         or '--strict-global-claim-set-rollback' in sys.argv
         or '--strict-selective-claim-rollback' in sys.argv
+        or '--strict-external-cas-total-reset' in sys.argv
+        or '--focused-external-cas-boundary' in sys.argv
         or '--focused-per-claim-spent' in sys.argv
         or '--strict-per-claim-total-rollback' in sys.argv):
     global_claim_guard_harness = r'''package de.yahya.ai;
@@ -193,6 +195,199 @@ public final class FutureGlobalClaimSetProcess {
       new PerClaimRegister(down,forge,replay),keys[6].getPublic().getEncoded());
     ok(result!=null,"seventh identity separately pinned from original six");
     return result;
+  }
+  /** Pure in-process fake external operator, not a real service or durable custody. */
+  static final class EphemeralExternalCAS implements CelineFutureMemoryRecall.IndependentExternalClaimCAS {
+    final KeyPair signing;
+    final HashSet<String> spent = new HashSet<>();
+    long sequence=0, generation=42;
+    int spendCalls=0, readCalls=0;
+    boolean down=false, replay=false, forge=false, forgeReceipt=false, lostAck=false, recovery=false;
+    EphemeralExternalCAS()throws Exception {
+      signing=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    }
+    byte[] key(){return signing.getPublic().getEncoded();}
+    byte[] remoteSign(byte[] data)throws Exception {
+      Signature signature=Signature.getInstance("Ed25519");
+      signature.initSign(signing.getPrivate());signature.update(data);return signature.sign();
+    }
+    public CelineFutureMemoryRecall.SignedExternalCASAttestation attest(
+      String id,long epoch,String challenge)throws Exception {
+      if(down)throw new java.io.IOException("independent service offline");
+      String actual=replay?"stale-remote-attestation-challenge-2026":challenge;
+      String state=recovery?"RECOVERY_REQUIRED":"READY";
+      byte[] proof=remoteSign(CelineFutureMemoryRecall.externalCASAttestationPayload(
+          id,epoch,generation,actual,sequence,state));
+      if(forge)proof[0]^=1;
+      return new CelineFutureMemoryRecall.SignedExternalCASAttestation(id,epoch,
+        generation,actual,sequence,state,proof);
+    }
+    CelineFutureMemoryRecall.SignedExternalCASReceipt reply(String op,String authority,
+        long epoch,String claim,String exact,long revision,byte[] owner,String nonce)throws Exception {
+      if(down)throw new java.io.IOException("external CAS failed");
+      if("SPEND".equals(op))spendCalls++;else readCalls++;
+      boolean old=spent.contains(claim);
+      if("SPEND".equals(op) && !old){spent.add(claim);sequence++;}
+      if(lostAck && "SPEND".equals(op))throw new java.io.IOException("lost ACK after durable external CAS");
+      String state="SPEND".equals(op)?(old?"ALREADY_SPENT":"FIRST_SPENT"):
+           (old?"SPENT":"ABSENT");
+      long serial=old || "SPEND".equals(op)?Math.max(1,sequence):0;
+      byte[] proof=remoteSign(CelineFutureMemoryRecall.externalCASReceiptPayload(
+          authority,epoch,generation,claim,exact,revision,owner,nonce,op,state,serial));
+      if(forgeReceipt && "SPEND".equals(op))proof[0]^=1;
+      return new CelineFutureMemoryRecall.SignedExternalCASReceipt(authority,epoch,
+          generation,claim,exact,revision,nonce,op,state,serial,proof);
+    }
+    public CelineFutureMemoryRecall.SignedExternalCASReceipt spendOnce(String a,
+      long e,String c,String id,long r,byte[] o,String nonce)throws Exception {
+      return reply("SPEND",a,e,c,id,r,o,nonce);
+    }
+    public CelineFutureMemoryRecall.SignedExternalCASReceipt queryExisting(String a,
+      long e,String c,String id,long r,byte[] o,String nonce)throws Exception {
+      return reply("QUERY",a,e,c,id,r,o,nonce);
+    }
+  }
+  static void externalBoundaryChecks()throws Exception {
+    var scoped=scopedGate(false,false,false);
+    var external=new EphemeralExternalCAS();
+    var gate=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+        scoped,external,external.key(),AUTH,3,42,0);
+    ok(gate!=null,"new externally pinned key binds a FUTURE-only guard");
+    ok(CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+        scoped,external,keys[6].getPublic().getEncoded(),AUTH,3,42,0)==null,
+        "external key cannot reuse any of seven original identities");
+    var c="global-claim-0024";
+    ok(gate.reserveOnce(c,ID,REV,owner(c),nonce("external-anchored-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "remote spend precedes seven-stage downstream reserve");
+    ok(gate.reserveOnce(c,ID,REV,owner(c),nonce("external-anchored-already"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+      "remote spent reply permits only downstream read-only completion check");
+    ok(gate.queryExisting(c,ID,REV,owner(c),nonce("external-anchored-query"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+      "read-only matching remote and downstream spent confirms completion");
+    var forgedClaim="global-claim-0026";
+    external.forgeReceipt=true;
+    ok(gate.reserveOnce(forgedClaim,ID,REV,owner(forgedClaim),nonce("external-receipt-corrupt"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "remote spent may have committed but invalid signed receipt cannot trigger downstream");
+    external.forgeReceipt=false;
+    int originalSpendCalls=external.spendCalls;
+    var retryResult=gate.reserveOnce(forgedClaim,ID,REV,owner(forgedClaim),nonce("external-receipt-recovery"));
+    ok(retryResult==CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "remote spent-only crash does not falsely claim a completed downstream reservation: "+retryResult);
+    ok(external.spendCalls==originalSpendCalls,
+      "after invalid ACK, repeated reserve must use read-only external lookup, never new SPEND");
+    var lostClaim="global-claim-0028";
+    external.lostAck=true;
+    ok(gate.reserveOnce(lostClaim,ID,REV,owner(lostClaim),nonce("external-lost-ack-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "lost ACK after external CAS cannot authorize downstream");
+    external.lostAck=false;
+    int afterLost=external.spendCalls;
+    ok(gate.reserveOnce(lostClaim,ID,REV,owner(lostClaim),nonce("external-lost-ack-retry"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "lost external ACK must recover by query only and remain unconfirmed downstream");
+    ok(external.spendCalls==afterLost,
+      "lost external ACK must never trigger a new external SPEND");
+    ok(!Files.exists(providerDir.resolve(lostClaim+".txt")),
+      "read-only recovery does not invent provider completion");
+    ok(!Files.exists(providerDir.resolve(forgedClaim+".txt")),
+      "forged remote receipt must not reach epoch provider");
+    // Reset ALL seven original authority files for a completed claim while
+    // preserving only the separate externally pinned in-memory CAS record.
+    // The fake is still NOT a production trust boundary.
+    Path globalLedger=externalDir.resolve("spent.txt");
+    var original=new ArrayList<>(Files.readAllLines(globalLedger));
+    ok(original.remove(c),"seven-key rollback test has a committed claim");
+    atomicFile(globalLedger,String.join("\n",original)+"\n");
+    Files.deleteIfExists(externalDir.resolve("seventh-claim-register/spent.txt"));
+    Files.deleteIfExists(providerDir.resolve(c+".txt"));
+    ok(gate.reserveOnce(c,ID,REV,owner(c),nonce("external-original-seven-rollback"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "retained separately provisioned CAS prevents reauthorization when old seven stores reset");
+    ok(!Files.exists(providerDir.resolve(c+".txt")),
+      "original downstream records remain absent; read-only recovery cannot synthesize completion");
+    var downClaim="global-claim-0025";
+    external.down=true;
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-down"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "remote offline blocks before any downstream writes");
+    external.down=false;
+    external.forge=true;
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-forged"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "forged live attestation blocks before downstream CAS");
+    external.forge=false;
+    external.replay=true;
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-replay"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "fresh challenge must reject valid but replayed signature");
+    external.replay=false;
+    external.recovery=true;
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-recovery"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "operator-declared disaster recovery requires manual re-provisioning");
+    external.recovery=false;
+    ok(!Files.exists(providerDir.resolve(downClaim+".txt")),
+      "failed external attestation never writes to original epoch provider");
+    external.generation=43;
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-epoch-changed"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "new recovery generation requires separately authorized binding");
+    external.generation=42;
+    long originalExternalFloor=external.sequence;
+    external.sequence=0; // Correctly signed monotonic rollback in same bound session.
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-floor-decrease"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "external minimum regression must close session");
+    ok(!Files.exists(providerDir.resolve(downClaim+".txt")),
+      "independent authority failure cannot mutate provider");
+    external.sequence=originalExternalFloor;
+    ok(gate.reserveOnce(downClaim,ID,REV,owner(downClaim),nonce("external-poisoned-session"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "a regressed session stays quarantined after its mocked floor recovers");
+    var newBind=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+        scopedGate(false,false,false),external,external.key(),AUTH,3,42,originalExternalFloor);
+    ok(newBind!=null,"operator-pinned higher floor permits only a fresh separate binding");
+    ok(newBind.queryExisting(c,ID,REV,owner(c),nonce("external-read-after-seven-reset"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+      "externally spent claim with erased seven-stage provider stays indeterminate");
+    external.spent.clear();external.sequence=0;
+    var pinned=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+        scopedGate(false,false,false),external,external.key(),AUTH,3,42,originalExternalFloor);
+    ok(pinned.reserveOnce(c,ID,REV,owner(c),nonce("external-anchor-disaster-check"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "external full rollback conflicts with independently retained minimum checkpoint");
+    ok(!Files.exists(providerDir.resolve(c+".txt")),
+      "missing external continuity never authorizes a new downstream operation");
+    System.out.println("EXTERNAL_CAS_BOUNDARY_CONTRACT_PASS checks="+checks
+      +" status=MOCK_ONLY_NOT_PRODUCTION");
+  }
+  static void strictExternalCasTotalRollback()throws Exception {
+    // INTENTIONALLY FAILING witness. Only a real, independently retained
+    // administrator checkpoint/service can rule out this full same-key reset.
+    var external=new EphemeralExternalCAS();
+    String claim="global-claim-0027";
+    var original=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),external,external.key(),AUTH,3,42,0);
+    ok(original.reserveOnce(claim,ID,REV,owner(claim),nonce("external-original-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "first reservation reached all eight mock stages");
+    var ledger=externalDir.resolve("spent.txt");
+    var records=new ArrayList<>(Files.readAllLines(ledger));
+    ok(records.remove(claim),"original global record existed");
+    atomicFile(ledger,String.join("\n",records)+"\n");
+    Files.deleteIfExists(externalDir.resolve("seventh-claim-register/spent.txt"));
+    Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+    external.spent.clear();external.sequence=0; // same ephemeral private key, no independent continuity
+    var restarted=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),external,external.key(),AUTH,3,42,0);
+    var result=restarted.reserveOnce(claim,ID,REV,owner(claim),
+        nonce("external-reset-after-process-restart"));
+    ok(result==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+      "KNOWN SECURITY FAIL: fake external CAS reset with stale out-of-band floor=0 "
+        +"and original seven signers still reissues FIRST: "+result);
   }
   static final class Provider implements CelineFutureMemoryRecall.IndependentMonotonicClaimFloorProvider {
     final long epoch;
@@ -555,6 +750,10 @@ public final class FutureGlobalClaimSetProcess {
       ok(CelineFutureMemoryRecall.PerClaimSpentWitnessGate.bind(live,
         new PerClaimRegister(false,false,false),keys[5].getPublic().getEncoded())==null,
         "seventh pin cannot be identical to original sixth signer");
+    }else if(action.equals("SCOPED_EXTERNAL_TOTAL_ROLLBACK")){
+      strictExternalCasTotalRollback();
+    }else if(action.equals("SCOPED_EXTERNAL_BOUNDARY")){
+      externalBoundaryChecks();
     }else if(action.equals("SCOPED_TOTAL_ROLLBACK")){
       String c="global-claim-0015";
       Path ledger=externalDir.resolve("spent.txt");
@@ -608,6 +807,21 @@ public final class FutureGlobalClaimSetProcess {
             run_guard('E2_FIRST', 'E2_FIRST_PASS')
             run_guard('SET_LIVE_FLOOR', 'SET_LIVE_FLOOR_PASS')
             original_seven = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest() for i in range(7)]
+            if '--strict-external-cas-total-reset' in sys.argv:
+                fail = subprocess.run(runner+['SCOPED_EXTERNAL_TOTAL_ROLLBACK', state],
+                    capture_output=True, text=True, timeout=25)
+                intact = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                          for i in range(7)]
+                assert intact == original_seven, 'original seven signer keys were modified'
+                print('EXTERNAL_CAS_FULL_RESET_STRICT_EXPECTED_SECURITY_FAIL exit='+str(fail.returncode))
+                print(fail.stderr.strip() or fail.stdout.strip())
+                assert fail.returncode == 0, ('KNOWN SECURITY FAIL: a local/mock'
+                    ' external CAS and resettable out-of-band minimum cannot prove durability')
+                sys.exit(0)
+            if '--focused-external-cas-boundary' in sys.argv:
+                run_guard('SCOPED_EXTERNAL_BOUNDARY', 'EXTERNAL_CAS_BOUNDARY_CONTRACT_PASS')
+                print('EXTERNAL_CAS_BOUNDARY_MOCK_PASS process_runs='+str(proof_count))
+                sys.exit(0)
             if '--focused-per-claim-spent' in sys.argv or '--strict-per-claim-total-rollback' in sys.argv:
                 run_guard('SCOPED_FIRST', 'SCOPED_FIRST_PASS')
                 if '--strict-per-claim-total-rollback' in sys.argv:
