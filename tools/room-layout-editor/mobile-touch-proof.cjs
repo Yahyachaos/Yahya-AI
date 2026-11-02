@@ -98,6 +98,25 @@ async function controlledRenderPauseNativeTouchProbe(page,context) {
     camera:window.__celineRoomEditorE2E.cameraProjection(),
     room:window.__celineRoomEditorE2E.auditScene().room_m
   }));
+  // OrbitControls damping can outlive the earlier mandatory one-finger
+  // orbit gesture. Stationary CDP timing is valid only after natural camera
+  // stabilization; never reset, clamp, or modify camera state for this proof.
+  const cameraSettle=await page.evaluate(async()=>{
+    const began=performance.now();
+    let previous=null,identicalFrames=0,frames=0;
+    while(performance.now()-began<35000){
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      const position=window.__celineRoomEditorE2E.cameraProjection().camera_position_m;
+      frames++;
+      identicalFrames=previous&&position.every((v,i)=>Object.is(v,previous[i]))
+        ?identicalFrames+1:0;
+      previous=position;
+      if(identicalFrames>=4)return {settled:true,frames,elapsed_ms:performance.now()-began};
+    }
+    return {settled:false,frames,elapsed_ms:performance.now()-began};
+  });
+  assert(cameraSettle.settled,
+    'Native CDP causal trial requires naturally settled orbit; never reset owner camera');
   const before=await readState(),cdp=await context.newCDPSession(page),trials=[];
   let restoreError=null;
   try {
@@ -176,6 +195,17 @@ async function controlledRenderPauseNativeTouchProbe(page,context) {
     await cdp.detach();
   }
   const after=await readState();
+  // Preserve genuine per-phase measurements even on failure of any strict
+  // invariant. A diagnostic FAIL is never an app PASS or visual approval.
+  fs.writeFileSync(path.join(out,'mobile-render-pause-cdp-preassert.json'),
+    JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+      mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+      camera_settle:cameraSettle,
+      owner_layout_unchanged:JSON.stringify(after.layout)===JSON.stringify(before.layout),
+      camera_unchanged:JSON.stringify(after.camera)===JSON.stringify(before.camera),
+      room_unchanged:JSON.stringify(after.room)===JSON.stringify(before.room),
+      camera_before:before.camera,camera_after:after.camera,
+      trials,restoreError,product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'},null,2));
   assert.deepEqual(after.layout,before.layout,'CDP causal test changed owner JSON/legacy fields');
   assert.deepEqual(after.camera,before.camera,'CDP causal test changed owner camera');
   assert.deepEqual(after.room,before.room,'CDP causal test changed room dimensions');
