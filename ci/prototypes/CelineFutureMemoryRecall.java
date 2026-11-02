@@ -4748,6 +4748,189 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY read-only lost-ACK recovery contract. The caller MUST supply
+     * an externally retained checkpoint root and sequence from BEFORE the
+     * interrupted advance. Neither caller snapshots nor signed replies alone
+     * establish actual immutable or nonrollbackable external custody.
+     * A verified NOT_YET_ANCHORED result NEVER authorizes SEAL/FIRST retry.
+     */
+    public interface IndependentImmutableAuditRootRecoveryView {
+        SignedImmutableAuditRootRecovery readRecovery(String authorityId,
+                long epoch, long generation, String claim, String exactId,
+                long revision, byte[] owner, long sealedSequence,
+                long trustedSequence, byte[] trustedRoot, String freshChallenge)
+                throws Exception;
+    }
+
+    public enum ImmutableAuditRecoveryState {
+        CLAIM_PRESENT_ANCHORED_NO_RETRY,
+        NOT_YET_ANCHORED_NO_RETRY,
+        UNVERIFIABLE_NO_RETRY
+    }
+
+    public static final class SignedImmutableAuditRootRecovery {
+        public final String authorityId, claim, exactId, challenge;
+        public final long epoch, generation, revision, sealedSequence;
+        public final long previousSequence, currentSequence;
+        private final byte[] previousRoot, currentRoot, signature;
+        public final List<AuditRootRecord> records;
+        public SignedImmutableAuditRootRecovery(String authorityId, long epoch,
+                long generation, String claim, String exactId, long revision,
+                long sealedSequence, long previousSequence, long currentSequence,
+                String challenge, byte[] previousRoot, byte[] currentRoot,
+                List<AuditRootRecord> records, byte[] signature) {
+            this.authorityId = authorityId; this.epoch = epoch;
+            this.generation = generation; this.claim = claim;
+            this.exactId = exactId; this.revision = revision;
+            this.sealedSequence = sealedSequence;
+            this.previousSequence = previousSequence;
+            this.currentSequence = currentSequence;
+            this.challenge = challenge;
+            this.previousRoot = previousRoot == null ? null : previousRoot.clone();
+            this.currentRoot = currentRoot == null ? null : currentRoot.clone();
+            this.signature = signature == null ? null : signature.clone();
+            this.records = records == null ? null : List.copyOf(records);
+        }
+        public byte[] previousRoot() { return previousRoot == null ? null : previousRoot.clone(); }
+        public byte[] currentRoot() { return currentRoot == null ? null : currentRoot.clone(); }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    public static byte[] immutableAuditRecoveryPayload(String authorityId,
+            long epoch, long generation, String claim, String exactId,
+            long revision, byte[] owner, long sealedSequence,
+            long previousSequence, byte[] previousRoot, long currentSequence,
+            byte[] currentRoot, String challenge) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || generation <= 0 || claim == null
+                || !claim.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || exactId.isBlank() || exactId.length() > 256
+                || revision <= 0 || owner == null || owner.length != 64
+                || previousSequence <= 0 || sealedSequence <= previousSequence
+                || currentSequence < previousSequence
+                || previousRoot == null || previousRoot.length != 32
+                || currentRoot == null || currentRoot.length != 32
+                || challenge == null || !challenge.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        return ("future-g1/immutable-audit-root-recovery-readonly/v1\n"
+                + authorityId + "\n" + epoch + "\n" + generation + "\n"
+                + claim + "\n" + java.util.Base64.getEncoder().encodeToString(
+                        exactId.getBytes(StandardCharsets.UTF_8)) + "\n"
+                + revision + "\n" + java.util.Base64.getEncoder().encodeToString(owner)
+                + "\n" + sealedSequence + "\n" + previousSequence + "\n"
+                + java.util.Base64.getEncoder().encodeToString(previousRoot) + "\n"
+                + currentSequence + "\n"
+                + java.util.Base64.getEncoder().encodeToString(currentRoot)
+                + "\n" + challenge + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static final class ImmutableAuditCheckpointRecoveryGate {
+        private final IndependentImmutableAuditRootRecoveryView authority;
+        private final byte[] pin, trustedRoot;
+        private final String authorityId;
+        private final long epoch, generation, trustedSequence;
+        private ImmutableAuditCheckpointRecoveryGate(
+                IndependentImmutableAuditRootRecoveryView authority, byte[] pin,
+                byte[] root, String authorityId, long epoch, long generation,
+                long sequence) {
+            this.authority = authority; this.pin = pin.clone();
+            this.trustedRoot = root.clone(); this.authorityId = authorityId;
+            this.epoch = epoch; this.generation = generation;
+            this.trustedSequence = sequence;
+        }
+        public static ImmutableAuditCheckpointRecoveryGate bind(
+                IndependentImmutableAuditRootRecoveryView independentReadOnlyAuthority,
+                byte[] pinnedRootSigner, byte[] auditSigner, byte[] casSigner,
+                byte[] externallyTrustedRoot, String authorityId,
+                long epoch, long generation, long externallyTrustedSequence) {
+            if (independentReadOnlyAuthority == null || pinnedRootSigner == null
+                    || auditSigner == null || casSigner == null
+                    || Arrays.equals(pinnedRootSigner, auditSigner)
+                    || Arrays.equals(pinnedRootSigner, casSigner)
+                    || externallyTrustedRoot == null || externallyTrustedRoot.length != 32
+                    || immutableAuditRootSnapshotPayload(authorityId, epoch, generation,
+                            externallyTrustedSequence, externallyTrustedRoot,
+                            "synthetic-nonce-at-least-24").length == 0)
+                return null;
+            try {
+                byte[] pin = pinnedRootSigner.clone();
+                java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+                if (!Arrays.equals(key.getEncoded(), pin)) return null;
+                return new ImmutableAuditCheckpointRecoveryGate(independentReadOnlyAuthority,
+                        pin, externallyTrustedRoot, authorityId, epoch, generation,
+                        externallyTrustedSequence);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+        public ImmutableAuditRecoveryState recoverReadOnly(String claim,
+                String exactId, long revision, byte[] owner, long sealedSequence) {
+            final ImmutableAuditRecoveryState UNKNOWN =
+                    ImmutableAuditRecoveryState.UNVERIFIABLE_NO_RETRY;
+            if (immutableAuditRecoveryPayload(authorityId, epoch, generation,
+                    claim, exactId, revision, owner, sealedSequence,
+                    trustedSequence, trustedRoot, trustedSequence, trustedRoot,
+                    "synthetic-nonce-at-least-24").length == 0)
+                return UNKNOWN;
+            try {
+                byte[] random = new byte[24];
+                new java.security.SecureRandom().nextBytes(random);
+                String nonce = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(random);
+                SignedImmutableAuditRootRecovery response = authority.readRecovery(
+                        authorityId, epoch, generation, claim, exactId, revision,
+                        owner.clone(), sealedSequence, trustedSequence,
+                        trustedRoot.clone(), nonce);
+                if (response == null || !authorityId.equals(response.authorityId)
+                        || epoch != response.epoch || generation != response.generation
+                        || !claim.equals(response.claim) || !exactId.equals(response.exactId)
+                        || revision != response.revision
+                        || sealedSequence != response.sealedSequence
+                        || trustedSequence != response.previousSequence
+                        || response.currentSequence < trustedSequence
+                        || !nonce.equals(response.challenge)
+                        || !MessageDigest.isEqual(trustedRoot, response.previousRoot()))
+                    return UNKNOWN;
+                byte[] currentRoot = response.currentRoot();
+                byte[] hash = immutableAuditRootHash(response.records);
+                if (hash.length != 32 || !MessageDigest.isEqual(hash, currentRoot))
+                    return UNKNOWN;
+                byte[] payload = immutableAuditRecoveryPayload(authorityId,
+                        epoch, generation, claim, exactId, revision, owner,
+                        sealedSequence, trustedSequence, trustedRoot,
+                        response.currentSequence, currentRoot, nonce);
+                if (payload.length == 0) return UNKNOWN;
+                java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+                verify.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
+                verify.update(payload);
+                if (!verify.verify(response.signature())) return UNKNOWN;
+                boolean member = false;
+                for (AuditRootRecord record : response.records) {
+                    if (!record.claim.equals(claim)) continue;
+                    if (member || !record.exactId.equals(exactId)
+                            || record.revision != revision
+                            || record.sequence != sealedSequence
+                            || !MessageDigest.isEqual(owner, record.owner()))
+                        return UNKNOWN;
+                    member = true;
+                }
+                if (response.currentSequence == trustedSequence) {
+                    return !member && MessageDigest.isEqual(trustedRoot, currentRoot)
+                            ? ImmutableAuditRecoveryState.NOT_YET_ANCHORED_NO_RETRY
+                            : UNKNOWN;
+                }
+                return member && response.currentSequence >= sealedSequence
+                        ? ImmutableAuditRecoveryState.CLAIM_PRESENT_ANCHORED_NO_RETRY
+                        : UNKNOWN;
+            } catch (Exception offlineOrMalformed) {
+                return UNKNOWN;
+            }
+        }
+    }
+
+    /**
      * Independent administrator is responsible for provisioning this already
      * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
      * sequence minimum. The constructor cannot attest real-world independence

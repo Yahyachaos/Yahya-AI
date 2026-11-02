@@ -9,6 +9,162 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: source-exact cross-JVM signed READ-ONLY checkpoint recovery.
+# The signer and its root are mock files; a test harness cannot establish real
+# independently operated or rollback-resistant root custody.
+if '--focused-checkpoint-recovery' in sys.argv:
+    harness = r''' package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureAuditCheckpointRecoveryProcess {
+  static final String AUTH="independent-audit-operator", CLAIM="memory-claim-00000001";
+  static final String BOOT="memory-boot-00000001", ID="original-memory-000001";
+  static final byte[] OWNER=new byte[64];
+  static final String CHALLENGE="synthetic-nonce-at-least-24";
+  static Path base,seqFile,sealFile,rootFile,downstream;
+  static KeyPair rootKey,auditKey,casKey,forgedKey;
+  static int checks=0,reads=0;
+  static void ok(boolean b,String detail){if(!b)throw new AssertionError(detail);checks++;}
+  static KeyPair load(String prefix)throws Exception {
+    var k=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(k.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(base.resolve(prefix+".pub")))),
+      k.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(base.resolve(prefix+".priv")))));
+  }
+  static byte[] sign(KeyPair pair,byte[] data)throws Exception {
+    if(data.length==0)return new byte[0];
+    var s=Signature.getInstance("Ed25519");s.initSign(pair.getPrivate());s.update(data);return s.sign();
+  }
+  static byte[] wrongOwner(){byte[] bad=OWNER.clone();bad[0]=1;return bad;}
+  static List<AuditRootRecord> records(boolean target,String mode){
+    List<AuditRootRecord> all=new ArrayList<>();
+    all.add(new AuditRootRecord(BOOT,ID,4,OWNER,1));
+    if(target)all.add(new AuditRootRecord(CLAIM,
+      mode.equals("WRONG_ID")?"unauthorized-memory":ID,4,
+      mode.equals("WRONG_OWNER")?wrongOwner():OWNER,2));
+    all.sort(Comparator.comparing(r->r.claim));return all;
+  }
+  static void init()throws Exception {
+    Files.createDirectories(base);
+    KeyPairGenerator g=KeyPairGenerator.getInstance("Ed25519");
+    for(String k:List.of("root","audit","cas")){
+      KeyPair pair=g.generateKeyPair();
+      Files.write(base.resolve(k+".pub"),pair.getPublic().getEncoded());
+      Files.write(base.resolve(k+".priv"),pair.getPrivate().getEncoded());
+    }
+    Files.write(seqFile,"1".getBytes());
+    Files.write(rootFile,immutableAuditRootHash(records(false,"NORMAL")));
+  }
+  static class ReadOnlyView implements IndependentImmutableAuditRootRecoveryView {
+    final String mode;
+    ReadOnlyView(String mode){this.mode=mode;}
+    public SignedImmutableAuditRootRecovery readRecovery(String auth,long epoch,long generation,
+      String claim,String id,long revision,byte[] owner,long sealedSeq,long oldSeq,
+      byte[] oldRoot,String nonce)throws Exception {
+      reads++;
+      if(mode.equals("OFFLINE"))throw new IllegalStateException("independent root offline");
+      long currentSeq=Long.parseLong(Files.readString(seqFile).trim());
+      if(mode.equals("BAD_SEQUENCE"))currentSeq=0;
+      if(mode.equals("HIGH_WITHOUT_MEMBER"))currentSeq=2;
+      boolean include=currentSeq>=2&&!mode.equals("HIGH_WITHOUT_MEMBER");
+      List<AuditRootRecord> list=records(include,mode);
+      byte[] currentRoot=immutableAuditRootHash(list);
+      if(mode.equals("BAD_ROOT"))currentRoot=new byte[32];
+      byte[] prior=mode.equals("BAD_PREVIOUS")?new byte[32]:oldRoot;
+      String signedNonce=mode.equals("REPLAY_NONCE")?"replayed-signed-nonce-000000001":nonce;
+      byte[] message=immutableAuditRecoveryPayload(AUTH,8,2,claim,id,revision,owner,
+        sealedSeq,oldSeq,prior,currentSeq,currentRoot,signedNonce);
+      byte[] sig=sign(mode.equals("FORGED_SIGNER")?forgedKey:rootKey,message);
+      return new SignedImmutableAuditRootRecovery(AUTH,8,2,claim,id,revision,
+        sealedSeq,oldSeq,currentSeq,signedNonce,prior,currentRoot,list,sig);
+    }
+  }
+  static void run(String mode,boolean wasAdvanced)throws Exception {
+    rootKey=load("root");auditKey=load("audit");casKey=load("cas");
+    forgedKey=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    byte[] oldRoot=immutableAuditRootHash(records(false,"NORMAL"));
+    byte[] rootBefore=Files.readAllBytes(rootFile), seqBefore=Files.readAllBytes(seqFile);
+    byte[] sealBefore=Files.readAllBytes(sealFile);
+    if(mode.equals("SAME_PIN")){
+      var bad=ImmutableAuditCheckpointRecoveryGate.bind(new ReadOnlyView("NORMAL"),
+        auditKey.getPublic().getEncoded(),auditKey.getPublic().getEncoded(),
+        casKey.getPublic().getEncoded(),oldRoot,AUTH,8,2,1);
+      ok(bad==null,"recovery rejects signer reuse");
+    } else {
+      var gate=ImmutableAuditCheckpointRecoveryGate.bind(new ReadOnlyView(mode),
+        rootKey.getPublic().getEncoded(),auditKey.getPublic().getEncoded(),
+        casKey.getPublic().getEncoded(),oldRoot,AUTH,8,2,1);
+      ok(gate!=null,"recovery gate binds independently pinned root");
+      ImmutableAuditRecoveryState outcome=gate.recoverReadOnly(CLAIM,ID,4,OWNER,2);
+      var expected=(mode.equals("NORMAL") || (!wasAdvanced &&
+        (mode.equals("WRONG_ID") || mode.equals("WRONG_OWNER"))))?
+        (wasAdvanced?ImmutableAuditRecoveryState.CLAIM_PRESENT_ANCHORED_NO_RETRY:
+         ImmutableAuditRecoveryState.NOT_YET_ANCHORED_NO_RETRY):
+        ImmutableAuditRecoveryState.UNVERIFIABLE_NO_RETRY;
+      ok(outcome==expected,"read-only recovery "+mode+" advanced="+wasAdvanced+" got "+outcome);
+      ok(reads==1,"exactly one read-only query, no advance/seal/first retry");
+      ok(gate.recoverReadOnly(CLAIM,ID,4,OWNER,1)==
+        ImmutableAuditRecoveryState.UNVERIFIABLE_NO_RETRY,
+        "untrusted seal floor must be rejected without query");
+      ok(reads==1,"invalid request does not reach mock authority");
+    }
+    ok(Arrays.equals(rootBefore,Files.readAllBytes(rootFile))
+      &&Arrays.equals(seqBefore,Files.readAllBytes(seqFile))
+      &&Arrays.equals(sealBefore,Files.readAllBytes(sealFile)),
+      "recovery must never mutate audit, root, checkpoint");
+    ok(!Files.exists(downstream),"recovery never invokes downstream provider");
+    System.out.println("RECOVERY_"+mode+"_PASS checks="+checks+" reads="+reads);
+  }
+  public static void main(String[] args)throws Exception {
+    base=Path.of(args[1]);seqFile=base.resolve("seq.txt");
+    rootFile=base.resolve("root.bin");sealFile=base.resolve("seal.txt");
+    downstream=base.resolve("downstream.txt");
+    String mode=args[0];
+    if(mode.equals("INIT")){init();return;}
+    if(mode.equals("CRASH_PRE")||mode.equals("CRASH_POST")){
+      Files.writeString(sealFile,"FIRST_SEALED_2");
+      if(mode.equals("CRASH_POST")){
+        Files.write(seqFile,"2".getBytes());
+        Files.write(rootFile,immutableAuditRootHash(records(true,"NORMAL")));
+      }
+      Runtime.getRuntime().halt(79);
+    }
+    ok(Files.exists(sealFile),"recovery only after previously durable seal");
+    run(mode,Long.parseLong(Files.readString(seqFile))==2);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_checkpoint_recovery_java_') as compiled:
+        harness_path = Path(compiled) / 'FutureAuditCheckpointRecoveryProcess.java'
+        harness_path.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(harness_path)], capture_output=True,
+                               text=True, timeout=80)
+        assert build.returncode == 0, build.stderr
+        command = ['java', '-cp', compiled, 'de.yahya.ai.FutureAuditCheckpointRecoveryProcess']
+        count = 0
+        def check(action, directory, expected=0):
+            result = subprocess.run(command + [action, directory], capture_output=True,
+                                    text=True, timeout=25)
+            assert result.returncode == expected, (action, result.returncode,
+                                                    result.stdout, result.stderr)
+            return result
+        for crash in ('CRASH_PRE', 'CRASH_POST'):
+            for mode in ('NORMAL', 'FORGED_SIGNER', 'REPLAY_NONCE', 'BAD_PREVIOUS',
+                         'BAD_SEQUENCE', 'BAD_ROOT', 'HIGH_WITHOUT_MEMBER',
+                         'WRONG_ID', 'WRONG_OWNER', 'OFFLINE', 'SAME_PIN'):
+                with tempfile.TemporaryDirectory(prefix='future_recovery_restart_') as state:
+                    check('INIT', state)
+                    check(crash, state, 79)
+                    checked = check(mode, state)
+                    assert 'RECOVERY_' + mode + '_PASS' in checked.stdout, checked.stdout
+                    count += 3
+        print(f'IMMUTABLE_AUDIT_READONLY_RECOVERY_JVM_PASS processes={count}'
+              ' crashes=2 replay=0 mutation=0 automatic_retry=0')
+    sys.exit(0)
+
 # FUTURE-ONLY opt-in signed root checkpoint-ADVANCE barrier. The root signer,
 # checkpoint and audit are MOCK fixtures; they do not establish nonrollbackable
 # independent custody. Crash is forced after audit seal before root commit.
