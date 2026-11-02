@@ -201,6 +201,7 @@ public final class FutureGlobalClaimSetProcess {
     final KeyPair signing;
     final HashSet<String> spent = new HashSet<>();
     long sequence=0, generation=42;
+    long forcedFirstSequence=-1; // fault injection: signature-valid rollback receipt
     int spendCalls=0, readCalls=0;
     boolean down=false, replay=false, forge=false, forgeReceipt=false, lostAck=false, recovery=false;
     EphemeralExternalCAS()throws Exception {
@@ -232,6 +233,8 @@ public final class FutureGlobalClaimSetProcess {
       String state="SPEND".equals(op)?(old?"ALREADY_SPENT":"FIRST_SPENT"):
            (old?"SPENT":"ABSENT");
       long serial=old || "SPEND".equals(op)?Math.max(1,sequence):0;
+      if("FIRST_SPENT".equals(state) && forcedFirstSequence>=0)
+        serial=forcedFirstSequence;
       byte[] proof=remoteSign(CelineFutureMemoryRecall.externalCASReceiptPayload(
           authority,epoch,generation,claim,exact,revision,owner,nonce,op,state,serial));
       if(forgeReceipt && "SPEND".equals(op))proof[0]^=1;
@@ -248,6 +251,40 @@ public final class FutureGlobalClaimSetProcess {
     }
   }
   static void externalBoundaryChecks()throws Exception {
+    // Exact-source regression: the operator presents floor=5, then signs an
+    // impossible FIRST_SPENT sequence=1 with its own original Ed25519 key.
+    // A signature alone must not authorize a downstream reservation.
+    var staleRemote=new EphemeralExternalCAS();
+    staleRemote.sequence=5;
+    staleRemote.forcedFirstSequence=1;
+    var staleGate=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),staleRemote,staleRemote.key(),AUTH,3,42,5);
+    ok(staleGate!=null,"stale receipt signed by separately pinned eighth operator");
+    var staleClaim="global-claim-0094";
+    ok(staleGate.reserveOnce(staleClaim,ID,REV,owner(staleClaim),nonce("external-signed-low-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "FIRST seq1 below signed attested floor5 must fail closed");
+    ok(!Files.exists(providerDir.resolve(staleClaim+".txt")),
+      "stale signed FIRST must not reach fifth-key provider");
+    ok(staleRemote.spendCalls==1,"no automatic re-SPEND after contradictory signed receipt");
+    staleRemote.forcedFirstSequence=6;
+    var blocked="global-claim-0095";
+    ok(staleGate.reserveOnce(blocked,ID,REV,owner(blocked),nonce("external-poisoned-low-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "signed floor/receipt contradiction must quarantine this bound session");
+    ok(!Files.exists(providerDir.resolve(blocked+".txt")),
+      "quarantined gate cannot mutate provider");
+    var forwardRemote=new EphemeralExternalCAS();
+    forwardRemote.sequence=5;
+    var forwardGate=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),forwardRemote,forwardRemote.key(),AUTH,3,42,5);
+    ok(forwardGate!=null,"separate fresh eighth-operator binding permits positive case");
+    var forwardClaim="global-claim-0096";
+    ok(forwardGate.reserveOnce(forwardClaim,ID,REV,owner(forwardClaim),nonce("external-valid-forward-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "signed FIRST seq6 after attested floor5 must still work");
+    ok(Files.exists(providerDir.resolve(forwardClaim+".txt")),
+      "fresh advancing signed FIRST may reach provider");
     var scoped=scopedGate(false,false,false);
     var external=new EphemeralExternalCAS();
     var gate=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
