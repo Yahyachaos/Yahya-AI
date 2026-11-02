@@ -5149,6 +5149,157 @@ public final class CelineFutureMemoryRecall {
      * simultaneous rollback of the externally trusted root/members and keys.
      * A positive verdict grants NO permission to reserve, retry or publish.
      */
+    /**
+     * FUTURE ONLY — a cryptographic handoff proof, NOT an enrollment service.
+     * Old and new registrar keys both consent to exactly the same transition;
+     * the old immutable digest, signer and floor must come from an independently
+     * custodied trust domain. An app backup, same-key file store, or caller can
+     * NOT establish those prerequisites. No method persists or rotates trust.
+     */
+    public enum ExternalRegistrarRotationVerdict {
+        VERIFIED_ROTATION_NO_RETRY, UNVERIFIABLE_NO_RETRY
+    }
+
+    public static final class SignedExternalRegistrarRotation {
+        public final String authorityId, fromEnrollmentId, toEnrollmentId, challenge;
+        public final long fromSequence, toSequence;
+        public final boolean revoked;
+        private final byte[] fromDigest, toDigest, nextSigner, oldSignature, newSignature;
+
+        public SignedExternalRegistrarRotation(String authorityId,
+                String fromEnrollmentId, String toEnrollmentId,
+                long fromSequence, long toSequence, boolean revoked,
+                byte[] fromDigest, byte[] toDigest, byte[] nextSigner,
+                String challenge, byte[] oldSignature, byte[] newSignature) {
+            this.authorityId = authorityId;
+            this.fromEnrollmentId = fromEnrollmentId;
+            this.toEnrollmentId = toEnrollmentId;
+            this.fromSequence = fromSequence;
+            this.toSequence = toSequence;
+            this.revoked = revoked;
+            this.fromDigest = fromDigest == null ? null : fromDigest.clone();
+            this.toDigest = toDigest == null ? null : toDigest.clone();
+            this.nextSigner = nextSigner == null ? null : nextSigner.clone();
+            this.challenge = challenge;
+            this.oldSignature = oldSignature == null ? null : oldSignature.clone();
+            this.newSignature = newSignature == null ? null : newSignature.clone();
+        }
+        public byte[] fromDigest() { return fromDigest == null ? null : fromDigest.clone(); }
+        public byte[] toDigest() { return toDigest == null ? null : toDigest.clone(); }
+        public byte[] nextSigner() { return nextSigner == null ? null : nextSigner.clone(); }
+        public byte[] oldSignature() { return oldSignature == null ? null : oldSignature.clone(); }
+        public byte[] newSignature() { return newSignature == null ? null : newSignature.clone(); }
+    }
+
+    /** Canonical, domain-separated, deliberately NON-self-enrolling payload. */
+    public static byte[] externalRegistrarRotationPayload(
+            SignedExternalRegistrarRotation r) {
+        if (r == null || r.revoked
+                || r.authorityId == null || !r.authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || r.fromEnrollmentId == null
+                || !r.fromEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.toEnrollmentId == null
+                || !r.toEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.fromEnrollmentId.equals(r.toEnrollmentId)
+                || r.fromSequence <= 0 || r.toSequence <= r.fromSequence
+                || r.fromDigest == null || r.fromDigest.length != 32
+                || r.toDigest == null || r.toDigest.length != 32
+                || r.nextSigner == null || r.nextSigner.length == 0
+                || r.challenge == null
+                || !r.challenge.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
+        return ("future-g1/external-registrar-rotation/v1\n"
+                + r.authorityId + "\n" + r.fromEnrollmentId + "\n"
+                + r.toEnrollmentId + "\n" + r.fromSequence + "\n"
+                + r.toSequence + "\n"
+                + b64.encodeToString(r.fromDigest) + "\n"
+                + b64.encodeToString(r.toDigest) + "\n"
+                + b64.encodeToString(r.nextSigner) + "\n"
+                + r.challenge + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Read-only two-registrar consent check. Revocation, an unknown successor,
+     * missing external anchor, absent signatures and all malformed recovery
+     * states fail closed without automatic retry, re-enrollment or publication.
+     * A positive result is conditional on the protected old pin/digest/floor:
+     * rotating a backup-controlled pin is NEVER a security proof.
+     */
+    public static ExternalRegistrarRotationVerdict verifyExternalRegistrarRotation(
+            byte[] externallyPinnedOldRegistrar, byte[] externallyPinnedOldDigest,
+            long externallyPinnedMinSequence, SignedExternalGenesis previous,
+            SignedExternalGenesis successor, SignedExternalRegistrarRotation transition,
+            String freshChallenge) {
+        final ExternalRegistrarRotationVerdict FAIL =
+                ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
+        if (externallyPinnedOldRegistrar == null || externallyPinnedOldDigest == null
+                || externallyPinnedOldDigest.length != 32
+                || externallyPinnedMinSequence <= 0 || previous == null
+                || successor == null || transition == null || freshChallenge == null
+                || transition.revoked || !freshChallenge.equals(transition.challenge)
+                || !freshChallenge.equals(previous.challenge)
+                || !freshChallenge.equals(successor.challenge)
+                || !java.util.Objects.equals(previous.authorityId, successor.authorityId)
+                || !java.util.Objects.equals(previous.authorityId, transition.authorityId)
+                || !java.util.Objects.equals(previous.enrollmentId, transition.fromEnrollmentId)
+                || !java.util.Objects.equals(successor.enrollmentId, transition.toEnrollmentId)
+                || previous.epoch != successor.epoch
+                || previous.generation != successor.generation
+                || previous.registrySequence != transition.fromSequence
+                || successor.registrySequence != transition.toSequence
+                || previous.registrySequence < externallyPinnedMinSequence
+                || successor.genesisSequence < previous.genesisSequence
+                || !MessageDigest.isEqual(externallyPinnedOldDigest,
+                        externalGenesisIdentityDigest(previous))
+                || !MessageDigest.isEqual(transition.fromDigest,
+                        externallyPinnedOldDigest)
+                || !MessageDigest.isEqual(transition.toDigest,
+                        externalGenesisIdentityDigest(successor))
+                || !retainsAuditMembers(previous.genesisMembers, successor.genesisMembers))
+            return FAIL;
+        try {
+            byte[] oldPin = externallyPinnedOldRegistrar.clone();
+            byte[] newPin = transition.nextSigner();
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            java.security.PublicKey oldKey = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(oldPin));
+            java.security.PublicKey newKey = factory.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(newPin));
+            if (!Arrays.equals(oldKey.getEncoded(), oldPin)
+                    || !Arrays.equals(newKey.getEncoded(), newPin)
+                    || Arrays.equals(oldPin, newPin)
+                    || Arrays.equals(oldPin, previous.rootSigner())
+                    || Arrays.equals(oldPin, previous.auditSigner())
+                    || Arrays.equals(oldPin, previous.casSigner())
+                    || Arrays.equals(newPin, successor.rootSigner())
+                    || Arrays.equals(newPin, successor.auditSigner())
+                    || Arrays.equals(newPin, successor.casSigner()))
+                return FAIL;
+            byte[] oldPayload = externalGenesisSignedPayload(previous);
+            byte[] newPayload = externalGenesisSignedPayload(successor);
+            byte[] transitionPayload = externalRegistrarRotationPayload(transition);
+            if (oldPayload.length == 0 || newPayload.length == 0
+                    || transitionPayload.length == 0) return FAIL;
+            java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+            verify.initVerify(oldKey);
+            verify.update(oldPayload);
+            if (!verify.verify(previous.signature())) return FAIL;
+            verify.initVerify(newKey);
+            verify.update(newPayload);
+            if (!verify.verify(successor.signature())) return FAIL;
+            verify.initVerify(oldKey);
+            verify.update(transitionPayload);
+            if (!verify.verify(transition.oldSignature())) return FAIL;
+            verify.initVerify(newKey);
+            verify.update(transitionPayload);
+            return verify.verify(transition.newSignature())
+                    ? ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY : FAIL;
+        } catch (Exception unverifiedOrUnavailable) {
+            return FAIL;
+        }
+    }
+
     public enum TwoRotationContinuity {
         VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
     }

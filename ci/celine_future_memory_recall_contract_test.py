@@ -9,6 +9,141 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — counter-signed registrar transition. Local signer files are a
+# deliberately rollbackable simulation, NOT independent out-of-band custody.
+if ('--focused-registrar-rotation' in sys.argv
+        or '--strict-registrar-total-reset' in sys.argv):
+    harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureRegistrarRotationProcess {
+  static final String AUTH="independent-audit-operator";
+  static final String OLD="enroll-original-000000001", NEXT="enroll-successor-000000001";
+  static final String NONCE="externally-challenged-nonce-000001";
+  static final byte[] OWNER=new byte[64];
+  static Path external;
+  static KeyPair load(String n)throws Exception{
+    var k=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(k.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(external.resolve(n+".pub")))),
+      k.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(external.resolve(n+".priv")))));
+  }
+  static byte[] sign(KeyPair k,byte[] p)throws Exception{
+    var s=Signature.getInstance("Ed25519");s.initSign(k.getPrivate());s.update(p);return s.sign();
+  }
+  static List<AuditRootRecord> initial(boolean forged){return List.of(new AuditRootRecord(
+    "memory-bootstrap-claim-1",forged?"attacker-rewrite":"original-memory",3,OWNER,1));}
+  static List<AuditRootRecord> extended(boolean forged,boolean erasure){
+    var a=new ArrayList<>(erasure?List.<AuditRootRecord>of():initial(forged));
+    a.add(new AuditRootRecord("memory-second-claim-2","second-memory",4,OWNER,2));
+    a.sort(Comparator.comparing(x->x.claim));return a;
+  }
+  static SignedExternalGenesis gen(String enrollment,long sequence,long last,
+      List<AuditRootRecord> records, String nonce,KeyPair reg)throws Exception{
+    var u=new SignedExternalGenesis(AUTH,enrollment,8,2,sequence,last,records,
+      load("root").getPublic().getEncoded(),load("audit").getPublic().getEncoded(),
+      load("cas").getPublic().getEncoded(),immutableAuditRootHash(records),nonce,null);
+    return new SignedExternalGenesis(u.authorityId,u.enrollmentId,u.epoch,u.generation,
+      u.registrySequence,u.genesisSequence,u.genesisMembers,u.rootSigner(),u.auditSigner(),
+      u.casSigner(),u.genesisRoot(),u.challenge,sign(reg,externalGenesisSignedPayload(u)));
+  }
+  static SignedExternalRegistrarRotation rotation(SignedExternalGenesis old,SignedExternalGenesis next,
+      KeyPair oldReg,KeyPair newReg,boolean revoked,boolean tamperOld,boolean tamperNew)throws Exception{
+    var u=new SignedExternalRegistrarRotation(AUTH,old.enrollmentId,next.enrollmentId,
+      old.registrySequence,next.registrySequence,revoked,
+      externalGenesisIdentityDigest(old),externalGenesisIdentityDigest(next),
+      newReg.getPublic().getEncoded(),NONCE,null,null);
+    byte[] signed=externalRegistrarRotationPayload(u);
+    byte[] a=sign(oldReg,signed),b=sign(newReg,signed);
+    if(tamperOld)a[0]^=1;
+    if(tamperNew)b[0]^=1;
+    return new SignedExternalRegistrarRotation(u.authorityId,u.fromEnrollmentId,
+      u.toEnrollmentId,u.fromSequence,u.toSequence,revoked,u.fromDigest(),u.toDigest(),
+      u.nextSigner(),u.challenge,a,b);
+  }
+  static void test(String mode)throws Exception{
+    boolean forged=mode.equals("FULL_RESET_TRUST_ROOT");
+    KeyPair old=load("oldReg"), newer=load("newReg");
+    List<AuditRootRecord> b=initial(forged);
+    boolean erasure=mode.equals("ERASE_OLD_MEMBER");
+    long nextSequence=mode.equals("SEQUENCE_ROLLBACK")?7:8;
+    String enrollment=mode.equals("ENROLLMENT_REUSE")?OLD:NEXT;
+    SignedExternalGenesis first=gen(OLD,7,1,b,NONCE,old);
+    SignedExternalGenesis second=gen(enrollment,nextSequence,2,extended(forged,erasure),NONCE,newer);
+    boolean revoked=mode.equals("REVOKED_TRANSITION");
+    SignedExternalRegistrarRotation t=rotation(first,second,old,newer,revoked,
+        mode.equals("BAD_OLD_SIGNATURE"),mode.equals("BAD_NEW_SIGNATURE"));
+    byte[] pin=mode.equals("WRONG_OLD_PIN")?newer.getPublic().getEncoded():old.getPublic().getEncoded();
+    byte[] digest=externalGenesisIdentityDigest(first);
+    if(mode.equals("WRONG_OLD_DIGEST"))digest=new byte[32];
+    if(mode.equals("MISSING_OLD_DIGEST"))digest=null;
+    if(mode.equals("TAMPER_NEXT_SIGNATURE")){
+      byte[] broken=second.signature();broken[0]^=1;
+      second=new SignedExternalGenesis(second.authorityId,second.enrollmentId,second.epoch,
+        second.generation,second.registrySequence,second.genesisSequence,second.genesisMembers,
+        second.rootSigner(),second.auditSigner(),second.casSigner(),second.genesisRoot(),
+        second.challenge,broken);
+    }
+    if(mode.equals("MISSING_SUCCESSOR"))second=null;
+    if(mode.equals("MISSING_ROTATION"))t=null;
+    String challenge=mode.equals("STALE_CHALLENGE")?"old-challenge-not-allowed-0001":NONCE;
+    var verdict=verifyExternalRegistrarRotation(pin,digest,7,first,second,t,challenge);
+    boolean got=verdict==ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY;
+    if(forged){
+      if(got)throw new AssertionError("SECURITY_FAIL: full rollback of external enrollment digest and audit records accepted");
+      throw new AssertionError("unexpected rejection of forged fully reset history");
+    }
+    boolean expected=mode.equals("NORMAL") || mode.equals("CALLER_RESTART");
+    if(got!=expected)throw new AssertionError(mode+" got="+verdict+" expected="+expected);
+    System.out.println("REGISTRAR_ROTATION_"+mode+"_PASS " +verdict);
+  }
+  public static void main(String[] args)throws Exception{
+    external=Path.of(args[1]);String mode=args[0];
+    if(mode.equals("INIT")){
+      Files.createDirectories(external);var gen=KeyPairGenerator.getInstance("Ed25519");
+      for(String n:List.of("root","audit","cas","oldReg","newReg")){
+        var k=gen.generateKeyPair();Files.write(external.resolve(n+".pub"),k.getPublic().getEncoded());
+        Files.write(external.resolve(n+".priv"),k.getPrivate().getEncoded());
+      }
+      return;
+    }
+    test(mode);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_registrar_jvm_') as compiled:
+        harness_path = Path(compiled) / 'FutureRegistrarRotationProcess.java'
+        harness_path.write_text(harness, encoding='utf-8')
+        compile_result = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                         str(source), str(harness_path)],
+                                         capture_output=True, text=True, timeout=90)
+        assert compile_result.returncode == 0, compile_result.stderr
+        command = ['java', '-cp', compiled, 'de.yahya.ai.FutureRegistrarRotationProcess']
+        with tempfile.TemporaryDirectory(prefix='future_registrar_external_mock_') as external:
+            def invoke(mode, expected=0):
+                result = subprocess.run(command + [mode, external], capture_output=True,
+                                        text=True, timeout=25)
+                assert result.returncode == expected, (mode, result.stdout, result.stderr)
+                return result
+            invoke('INIT')
+            if '--strict-registrar-total-reset' in sys.argv:
+                strict = invoke('FULL_RESET_TRUST_ROOT', expected=1)
+                assert 'SECURITY_FAIL: full rollback of external enrollment digest' in strict.stderr
+                print('STRICT_REGISTRAR_SECURITY_FAIL: local mock admits complete trust reset')
+                sys.exit(1)
+            modes = ('NORMAL', 'CALLER_RESTART', 'ERASE_OLD_MEMBER',
+                     'BAD_OLD_SIGNATURE', 'BAD_NEW_SIGNATURE', 'TAMPER_NEXT_SIGNATURE',
+                     'WRONG_OLD_PIN', 'WRONG_OLD_DIGEST', 'MISSING_OLD_DIGEST',
+                     'SEQUENCE_ROLLBACK', 'ENROLLMENT_REUSE', 'REVOKED_TRANSITION',
+                     'MISSING_SUCCESSOR', 'MISSING_ROTATION', 'STALE_CHALLENGE')
+            for mode in modes:
+                print(invoke(mode).stdout.strip())
+            print('FUTURE_REGISTRAR_ROTATION_JVM_PASS cases=15 separate_processes=16'
+                  ' external_nonrollbackable_service=NOT_PROVIDED')
+    sys.exit(0)
+
 # FUTURE ONLY — externally pinned genesis enrollment contract; isolated cross-JVM fixture.
 # All authority files are a ROLLBACKABLE test mock in a separate directory.
 if ('--focused-external-genesis' in sys.argv
