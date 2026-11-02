@@ -9,6 +9,198 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — externally pinned genesis enrollment contract; isolated cross-JVM fixture.
+# All authority files are a ROLLBACKABLE test mock in a separate directory.
+if ('--focused-external-genesis' in sys.argv
+        or '--strict-external-genesis-total-reset' in sys.argv):
+    harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureExternalGenesisProcess {
+  static final String AUTH="independent-audit-operator";
+  static final String ENROLL="enroll-externally-000001";
+  static final String FIRST="memory-claim-00000001", SECOND="memory-claim-00000002";
+  static final String ID="memory-id-000001";
+  static final String N1="rotation-one-fresh-challenge-000001";
+  static final String N2="rotation-two-fresh-challenge-000002";
+  static final byte[] OWNER=new byte[64];
+  static Path caller,authority;
+  static KeyPair load(String name)throws Exception{
+    var f=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(f.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(authority.resolve(name+".pub")))),
+      f.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(authority.resolve(name+".priv")))));
+  }
+  static byte[] sign(KeyPair p,byte[] payload)throws Exception{
+    var signer=Signature.getInstance("Ed25519");signer.initSign(p.getPrivate());signer.update(payload);return signer.sign();
+  }
+  static List<AuditRootRecord> base(boolean forged){
+    return List.of(new AuditRootRecord("memory-boot-00000001",forged?"attacker-replaced-id":ID,4,OWNER,1));
+  }
+  static List<AuditRootRecord> add(List<AuditRootRecord> before, String claim,long seq){
+    var members=new ArrayList<>(before);members.add(new AuditRootRecord(claim,ID,4,OWNER,seq));
+    members.sort(Comparator.comparing(a->a.claim));return members;
+  }
+  static SignedImmutableAuditRootRecovery rotation(KeyPair root,String claim,long sealed,
+      long prev,long next,List<AuditRootRecord> previous,List<AuditRootRecord> members,
+      String nonce)throws Exception{
+    byte[] prevRoot=immutableAuditRootHash(previous);
+    byte[] nextRoot=immutableAuditRootHash(members);
+    var payload=immutableAuditRecoveryPayload(AUTH,8,2,claim,ID,4,OWNER,sealed,
+        prev,prevRoot,next,nextRoot,nonce);
+    return new SignedImmutableAuditRootRecovery(AUTH,8,2,claim,ID,4,sealed,
+        prev,next,nonce,prevRoot,nextRoot,members,sign(root,payload));
+  }
+  static SignedImmutableAuditRootRecovery signatureFromDisk(SignedImmutableAuditRootRecovery r,Path p)throws Exception{
+    return new SignedImmutableAuditRootRecovery(r.authorityId,r.epoch,r.generation,
+        r.claim,r.exactId,r.revision,r.sealedSequence,r.previousSequence,
+        r.currentSequence,r.challenge,r.previousRoot(),r.currentRoot(),r.records,
+        Files.readAllBytes(p));
+  }
+  static SignedExternalGenesis unsigned(String enrollment, long registrySeq,
+      List<AuditRootRecord> starting, String nonce,byte[] rootPin,byte[] auditPin,byte[] casPin){
+    return new SignedExternalGenesis(AUTH,enrollment,8,2,registrySeq,1,starting,
+      rootPin,auditPin,casPin,immutableAuditRootHash(starting),nonce,null);
+  }
+  static SignedExternalGenesis signed(SignedExternalGenesis r,KeyPair key)throws Exception{
+    return new SignedExternalGenesis(r.authorityId,r.enrollmentId,r.epoch,r.generation,
+      r.registrySequence,r.genesisSequence,r.genesisMembers,r.rootSigner(),r.auditSigner(),
+      r.casSigner(),r.genesisRoot(),r.challenge,sign(key,externalGenesisSignedPayload(r)));
+  }
+  static void verify(String mode)throws Exception{
+    var root=load("root");var audit=load("audit");var cas=load("cas");var registry=load("registry");
+    boolean forged=mode.equals("CALLER_BACKUP_RESET") || mode.equals("STRICT_REGISTRY_AND_PIN_RESET");
+    List<AuditRootRecord> b=base(forged),m1=add(b,FIRST,2),m2=add(m1,SECOND,3);
+    var r1=rotation(root,FIRST,2,1,2,b,m1,N1);
+    var r2=rotation(root,SECOND,3,2,3,m1,m2,N2);
+    if(!forged){
+      // Proofs were originally signed in two independent earlier JVM processes.
+      r1=signatureFromDisk(r1,authority.resolve("first.sig"));
+      r2=signatureFromDisk(r2,authority.resolve("second.sig"));
+    }
+    byte[] pin=Files.readAllBytes(authority.resolve("registry.pub"));
+    byte[] pinnedDigest=Files.readAllBytes(authority.resolve("externally-pinned-enrollment.sha256"));
+    if(mode.equals("BAD_EXTERNAL_DIGEST")) pinnedDigest=new byte[32];
+    if(mode.equals("NO_EXTERNAL_DIGEST")) pinnedDigest=null;
+    if(mode.equals("WRONG_REGISTRY_PIN")) pin=audit.getPublic().getEncoded();
+    if(mode.equals("ROOT_AS_REGISTRY_PIN")) pin=root.getPublic().getEncoded();
+    if(mode.equals("STRICT_REGISTRY_AND_PIN_RESET")){
+      // Demonstrates the LIMIT: if attacker controls the supposed immutable
+      // enrollment digest AND signer, the original keys can endorse a rewrite.
+      pinnedDigest=externalGenesisIdentityDigest(unsigned(ENROLL,7,base(true),"_",
+        root.getPublic().getEncoded(),audit.getPublic().getEncoded(),cas.getPublic().getEncoded()));
+    }
+    final byte[] originalPin=pin;
+    final byte[] originalDigest=pinnedDigest;
+    ExternalGenesisRegistry read=(id,e,g,nonce)->{
+      if(mode.equals("REGISTRY_UNREACHABLE")) throw new java.io.IOException("registry down");
+      if(mode.equals("ENROLLMENT_ABSENT")) return null;
+      boolean reprovision=mode.equals("REPROVISION_ORIGINAL_KEYS")
+          || mode.equals("STRICT_REGISTRY_AND_PIN_RESET");
+      var genesis=base(reprovision);
+      String enrollment=mode.equals("DIFFERENT_ENROLLMENT_ID")?"attacker-enrollment-000001":ENROLL;
+      long seq=mode.equals("COUNTER_ROLLBACK")?6:7;
+      String responseNonce=mode.equals("REPLAY_CHALLENGE")?"old-replayed-challenge-000001":nonce;
+      byte[] rootPin=root.getPublic().getEncoded();
+      byte[] auditPin=audit.getPublic().getEncoded();
+      byte[] casPin=cas.getPublic().getEncoded();
+      if(mode.equals("MALFORMED_DIFFERENT_ROOT_PIN"))rootPin=casPin;
+      var u=unsigned(enrollment,seq,genesis,responseNonce,rootPin,auditPin,casPin);
+      var s=signed(u,mode.equals("SIGN_WITH_ORIGINAL_ROOT")?root:registry);
+      if(mode.equals("TAMPER_SIGNATURE")){
+        byte[] corrupted=s.signature();corrupted[0]^=1;
+        return new SignedExternalGenesis(s.authorityId,s.enrollmentId,s.epoch,
+          s.generation,s.registrySequence,s.genesisSequence,s.genesisMembers,
+          s.rootSigner(),s.auditSigner(),s.casSigner(),s.genesisRoot(),s.challenge,corrupted);
+      }
+      return s;
+    };
+    var got=verifyTwoRotationsWithExternalGenesis(read,originalPin,originalDigest,
+        7,AUTH,8,2,r1,OWNER,N1,r2,OWNER,N2);
+    boolean ok=got==TwoRotationContinuity.VERIFIED_TWO_ROTATIONS_NO_RETRY;
+    if(mode.equals("STRICT_REGISTRY_AND_PIN_RESET")){
+      if(ok)throw new AssertionError("SECURITY_FAIL: externally pinned digest ALSO reset permits counterfeit genesis");
+      throw new AssertionError("unexpected rejection after all independent trust reset");
+    }
+    boolean expect=mode.equals("NORMAL") || mode.equals("VALID_AFTER_CALLER_WIPE");
+    if(ok!=expect)throw new AssertionError(mode+" got "+got+" expected="+expect);
+    System.out.println("EXTERNAL_GENESIS_"+mode+"_PASS "+got);
+  }
+  public static void main(String[] args)throws Exception{
+    String mode=args[0];caller=Path.of(args[1]);authority=Path.of(args[2]);
+    if(mode.equals("INIT")){
+      Files.createDirectories(caller);Files.createDirectories(authority);
+      var generator=KeyPairGenerator.getInstance("Ed25519");
+      for(String name:List.of("root","audit","cas","registry")){
+        var pair=generator.generateKeyPair();
+        Files.write(authority.resolve(name+".pub"),pair.getPublic().getEncoded());
+        Files.write(authority.resolve(name+".priv"),pair.getPrivate().getEncoded());
+      }
+      var r=unsigned(ENROLL,7,base(false),"_",Files.readAllBytes(authority.resolve("root.pub")),
+        Files.readAllBytes(authority.resolve("audit.pub")),Files.readAllBytes(authority.resolve("cas.pub")));
+      Files.write(authority.resolve("externally-pinned-enrollment.sha256"),externalGenesisIdentityDigest(r));
+      Files.write(caller.resolve("rebuildable-cache.txt"),"not trusted".getBytes());
+      return;
+    }
+    if(mode.equals("FIRST_SIGN")){
+      Files.write(authority.resolve("first.sig"),rotation(load("root"),FIRST,2,1,2,
+        base(false),add(base(false),FIRST,2),N1).signature());return;
+    }
+    if(mode.equals("SECOND_SIGN")){
+      var first=add(base(false),FIRST,2);
+      Files.write(authority.resolve("second.sig"),rotation(load("root"),SECOND,3,2,3,
+        first,add(first,SECOND,3),N2).signature());return;
+    }
+    if(mode.equals("WIPE_CALLER")){
+      Files.delete(caller.resolve("rebuildable-cache.txt"));return;
+    }
+    verify(mode);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_external_genesis_compiled_') as compiled:
+        harness_path = Path(compiled) / 'FutureExternalGenesisProcess.java'
+        harness_path.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(harness_path)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        command = ['java', '-cp', compiled, 'de.yahya.ai.FutureExternalGenesisProcess']
+        with (tempfile.TemporaryDirectory(prefix='future_genesis_caller_') as caller,
+              tempfile.TemporaryDirectory(prefix='future_genesis_external_mock_') as external):
+            calls = 0
+            def invoke(mode, expected=0):
+                nonlocal_arg = mode
+                result = subprocess.run(command + [nonlocal_arg, caller, external],
+                                        capture_output=True, text=True, timeout=20)
+                assert result.returncode == expected, (mode, result.returncode,
+                                                        result.stdout, result.stderr)
+                return result
+            invoke('INIT')
+            invoke('FIRST_SIGN')
+            invoke('SECOND_SIGN')
+            if '--strict-external-genesis-total-reset' in sys.argv:
+                strict = invoke('STRICT_REGISTRY_AND_PIN_RESET', expected=1)
+                assert 'SECURITY_FAIL: externally pinned digest ALSO reset' in strict.stderr
+                print('STRICT_EXTERNAL_GENESIS_SECURITY_FAIL: mock registry and external pin'
+                      ' both rolled back using original signing keys')
+                sys.exit(1)
+            modes = ('NORMAL','CALLER_BACKUP_RESET','REPROVISION_ORIGINAL_KEYS',
+                     'BAD_EXTERNAL_DIGEST','NO_EXTERNAL_DIGEST','WRONG_REGISTRY_PIN',
+                     'ROOT_AS_REGISTRY_PIN','REGISTRY_UNREACHABLE','ENROLLMENT_ABSENT',
+                     'DIFFERENT_ENROLLMENT_ID','COUNTER_ROLLBACK','REPLAY_CHALLENGE',
+                     'MALFORMED_DIFFERENT_ROOT_PIN','SIGN_WITH_ORIGINAL_ROOT',
+                     'TAMPER_SIGNATURE')
+            for mode in modes:
+                print(invoke(mode).stdout.strip())
+            invoke('WIPE_CALLER')
+            print(invoke('VALID_AFTER_CALLER_WIPE').stdout.strip())
+            print('FUTURE_EXTERNAL_GENESIS_JVM_PASS modes=16 separate_processes=20'
+                  ' external_nonrollbackable_service=NOT_PROVIDED')
+    sys.exit(0)
+
 # FUTURE ONLY — signed TWO-checkpoint continuity over separate JVM restarts.
 # This is a deterministic simulated operator, never independent durable custody.
 if ('--focused-two-rotation' in sys.argv

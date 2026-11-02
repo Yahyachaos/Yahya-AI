@@ -5000,6 +5000,145 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE ONLY — read-only, administrator-pinned enrollment verifier.
+     * The registry signing key, enrollment digest and lower bound on its
+     * monotonic counter MUST be supplied from a separate nonrollbackable
+     * administration domain, never from the app, the operator's backup, or
+     * the registry reply itself.  This class is NOT such a service.
+     * No method on this interface provisions/enrolls/rotates a root.
+     */
+    public interface ExternalGenesisRegistry {
+        SignedExternalGenesis readEnrollment(String authorityId, long epoch,
+                long generation, String freshChallenge) throws Exception;
+    }
+
+    public static final class SignedExternalGenesis {
+        public final String authorityId, enrollmentId, challenge;
+        public final long epoch, generation, registrySequence, genesisSequence;
+        public final List<AuditRootRecord> genesisMembers;
+        private final byte[] rootSigner, auditSigner, casSigner, genesisRoot, signature;
+        public SignedExternalGenesis(String authorityId, String enrollmentId,
+                long epoch, long generation, long registrySequence,
+                long genesisSequence, List<AuditRootRecord> genesisMembers,
+                byte[] rootSigner, byte[] auditSigner, byte[] casSigner,
+                byte[] genesisRoot, String challenge, byte[] signature) {
+            this.authorityId = authorityId; this.enrollmentId = enrollmentId;
+            this.epoch = epoch; this.generation = generation;
+            this.registrySequence = registrySequence;
+            this.genesisSequence = genesisSequence;
+            this.genesisMembers = genesisMembers == null ? null : List.copyOf(genesisMembers);
+            this.rootSigner = rootSigner == null ? null : rootSigner.clone();
+            this.auditSigner = auditSigner == null ? null : auditSigner.clone();
+            this.casSigner = casSigner == null ? null : casSigner.clone();
+            this.genesisRoot = genesisRoot == null ? null : genesisRoot.clone();
+            this.challenge = challenge;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] rootSigner() { return rootSigner == null ? null : rootSigner.clone(); }
+        public byte[] auditSigner() { return auditSigner == null ? null : auditSigner.clone(); }
+        public byte[] casSigner() { return casSigner == null ? null : casSigner.clone(); }
+        public byte[] genesisRoot() { return genesisRoot == null ? null : genesisRoot.clone(); }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    /** Stable digest to be physically pinned by an external registrar. */
+    public static byte[] externalGenesisIdentityDigest(SignedExternalGenesis receipt) {
+        byte[] bytes = externalGenesisPayload(receipt, false);
+        if (bytes.length == 0) return new byte[0];
+        try { return MessageDigest.getInstance("SHA-256").digest(bytes); }
+        catch (GeneralSecurityException impossible) { return new byte[0]; }
+    }
+
+    /** Signed challenge response; receipt construction is not enrollment. */
+    public static byte[] externalGenesisSignedPayload(SignedExternalGenesis receipt) {
+        return externalGenesisPayload(receipt, true);
+    }
+
+    private static byte[] externalGenesisPayload(SignedExternalGenesis r,
+            boolean includeChallenge) {
+        if (r == null || r.authorityId == null
+                || !r.authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || r.enrollmentId == null
+                || !r.enrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.epoch <= 0 || r.generation <= 0
+                || r.registrySequence <= 0 || r.genesisSequence <= 0
+                || r.genesisMembers == null || r.genesisMembers.isEmpty()
+                || r.genesisRoot == null || r.genesisRoot.length != 32
+                || !MessageDigest.isEqual(r.genesisRoot,
+                        immutableAuditRootHash(r.genesisMembers))
+                || r.rootSigner == null || r.auditSigner == null || r.casSigner == null
+                || Arrays.equals(r.rootSigner, r.auditSigner)
+                || Arrays.equals(r.rootSigner, r.casSigner)
+                || Arrays.equals(r.auditSigner, r.casSigner)
+                || (includeChallenge && (r.challenge == null
+                        || !r.challenge.matches("[A-Za-z0-9_-]{24,128}"))))
+            return new byte[0];
+        String base = "future-g1/external-enrollment-identity/v1\n"
+                + r.authorityId + "\n" + r.enrollmentId + "\n"
+                + r.epoch + "\n" + r.generation + "\n"
+                + r.registrySequence + "\n" + r.genesisSequence + "\n"
+                + java.util.Base64.getEncoder().encodeToString(r.genesisRoot) + "\n"
+                + java.util.Base64.getEncoder().encodeToString(r.rootSigner) + "\n"
+                + java.util.Base64.getEncoder().encodeToString(r.auditSigner) + "\n"
+                + java.util.Base64.getEncoder().encodeToString(r.casSigner) + "\n";
+        return (includeChallenge
+                ? "future-g1/external-enrollment-proof/v1\n" + base + r.challenge + "\n"
+                : base).getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static TwoRotationContinuity verifyTwoRotationsWithExternalGenesis(
+            ExternalGenesisRegistry registry,
+            byte[] externallyPinnedRegistrySigner,
+            byte[] externallyPinnedEnrollmentDigest,
+            long externallyPinnedMinRegistrySequence,
+            String authorityId, long epoch, long generation,
+            SignedImmutableAuditRootRecovery first, byte[] firstOwner,
+            String firstChallenge, SignedImmutableAuditRootRecovery second,
+            byte[] secondOwner, String secondChallenge) {
+        final TwoRotationContinuity FAIL = TwoRotationContinuity.UNVERIFIABLE_NO_RETRY;
+        if (registry == null || externallyPinnedRegistrySigner == null
+                || externallyPinnedEnrollmentDigest == null
+                || externallyPinnedEnrollmentDigest.length != 32
+                || externallyPinnedMinRegistrySequence <= 0)
+            return FAIL;
+        try {
+            byte[] pin = externallyPinnedRegistrySigner.clone();
+            java.security.PublicKey registryKey = java.security.KeyFactory.getInstance("Ed25519")
+                    .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+            if (!Arrays.equals(pin, registryKey.getEncoded())) return FAIL;
+            byte[] random = new byte[24];
+            new java.security.SecureRandom().nextBytes(random);
+            String nonce = java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(random);
+            SignedExternalGenesis r = registry.readEnrollment(
+                    authorityId, epoch, generation, nonce);
+            if (r == null || !java.util.Objects.equals(authorityId, r.authorityId)
+                    || epoch != r.epoch || generation != r.generation
+                    || !nonce.equals(r.challenge)
+                    || r.registrySequence < externallyPinnedMinRegistrySequence
+                    || Arrays.equals(pin, r.rootSigner)
+                    || Arrays.equals(pin, r.auditSigner)
+                    || Arrays.equals(pin, r.casSigner)
+                    || !MessageDigest.isEqual(externallyPinnedEnrollmentDigest,
+                            externalGenesisIdentityDigest(r)))
+                return FAIL;
+            byte[] payload = externalGenesisSignedPayload(r);
+            if (payload.length == 0 || r.signature == null) return FAIL;
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(registryKey);
+            verifier.update(payload);
+            if (!verifier.verify(r.signature)) return FAIL;
+            return verifyTwoSignedCheckpointRotations(r.rootSigner, r.auditSigner,
+                    r.casSigner, authorityId, epoch, generation,
+                    r.genesisSequence, r.genesisRoot, r.genesisMembers,
+                    first, firstOwner, firstChallenge,
+                    second, secondOwner, secondChallenge);
+        } catch (Exception missingOrInvalidExternalAuthority) {
+            return FAIL;
+        }
+    }
+
+    /**
      * FUTURE-ONLY opt-in TWO-ROTATION, read-only verification. Trust is anchored
      * to an externally retained root + complete member set, NOT a caller's
      * current disk image or an attestation's self-reported initial root.
