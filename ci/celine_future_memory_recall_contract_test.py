@@ -19,6 +19,7 @@ if ('--focused-global-claim-set' in sys.argv
         or '--strict-global-claim-set-rollback' in sys.argv
         or '--strict-selective-claim-rollback' in sys.argv
         or '--strict-external-cas-total-reset' in sys.argv
+        or '--strict-external-cas-selective-advancing' in sys.argv
         or '--focused-external-cas-boundary' in sys.argv
         or '--focused-per-claim-spent' in sys.argv
         or '--strict-per-claim-total-rollback' in sys.argv):
@@ -303,6 +304,13 @@ public final class FutureGlobalClaimSetProcess {
     ok(gate.queryExisting(c,ID,REV,owner(c),nonce("external-anchored-query"))==
       CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
       "read-only matching remote and downstream spent confirms completion");
+    String separate="global-claim-0100";
+    ok(gate.reserveOnce(separate,ID,REV,owner(separate),
+      nonce("external-valid-consecutive-claim"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "honest rising signed floor still permits a different fresh claim");
+    ok(Files.exists(providerDir.resolve(separate+".txt")),
+      "new unrelated claim reaches provider without a false quarantine");
     var forgedClaim="global-claim-0026";
     external.forgeReceipt=true;
     ok(gate.reserveOnce(forgedClaim,ID,REV,owner(forgedClaim),nonce("external-receipt-corrupt"))==
@@ -398,8 +406,63 @@ public final class FutureGlobalClaimSetProcess {
       "external full rollback conflicts with independently retained minimum checkpoint");
     ok(!Files.exists(providerDir.resolve(c+".txt")),
       "missing external continuity never authorizes a new downstream operation");
+    // Same-session continuity: the operator still signs a rising numeric floor,
+    // but its per-claim audit entry silently disappeared. Even valid Ed25519
+    // signatures cannot make that absence safe; this session must quarantine.
+    var missingRemote=new EphemeralExternalCAS();
+    var missingGate=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),missingRemote,missingRemote.key(),AUTH,3,42,0);
+    String missingClaim="global-claim-0097";
+    ok(missingGate.reserveOnce(missingClaim,ID,REV,owner(missingClaim),
+      nonce("external-claim-continuity-first"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "per-claim continuity fixture has a completed first reservation");
+    ok(missingRemote.spent.remove(missingClaim),
+      "malicious test operator selectively erased the claim audit record");
+    missingRemote.sequence+=2; // valid signed minimum INCREASES, not decreases.
+    ok(missingGate.queryExisting(missingClaim,ID,REV,owner(missingClaim),
+      nonce("external-audit-disappeared-query"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.REMAIN_INDETERMINATE,
+      "signed ABSENT after observed SPENT is indeterminate, never absent=permission");
+    String afterMissing="global-claim-0098";
+    ok(missingGate.reserveOnce(afterMissing,ID,REV,owner(afterMissing),
+      nonce("external-claim-continuity-poison"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "once observed SPENT disappears even under rising signed floor, quarantine session");
+    ok(!Files.exists(providerDir.resolve(afterMissing+".txt")),
+      "selective deletion quarantine prevents downstream mutation");
     System.out.println("EXTERNAL_CAS_BOUNDARY_CONTRACT_PASS checks="+checks
       +" status=MOCK_ONLY_NOT_PRODUCTION");
+  }
+  static void strictExternalCasSelectiveAdvancing()throws Exception {
+    // Intentionally FAILING across a NEW client session. Same original eighth
+    // signing identity and numeric monotonic floor remain, but per-claim history
+    // was selectively erased. Only an independently immutable audit anchor can
+    // close this gap; in-process observations cannot survive app restoration.
+    var external=new EphemeralExternalCAS();
+    String claim="global-claim-0099";
+    var original=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),external,external.key(),AUTH,3,42,0);
+    ok(original.reserveOnce(claim,ID,REV,owner(claim),
+      nonce("external-selective-advancing-original"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "initial claim spent in every mock stage");
+    var ledger=externalDir.resolve("spent.txt");
+    var oldGlobal=new ArrayList<>(Files.readAllLines(ledger));
+    ok(oldGlobal.remove(claim),"initial global entry existed");
+    atomicFile(ledger,String.join("\n",oldGlobal)+"\n");
+    Files.deleteIfExists(externalDir.resolve("seventh-claim-register/spent.txt"));
+    Files.deleteIfExists(providerDir.resolve(claim+".txt"));
+    ok(external.spent.remove(claim),"selectively delete eighth operator audit record");
+    external.sequence+=1; // new signed floor is HIGHER than original.
+    long retained=external.sequence;
+    var rebooted=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),external,external.key(),AUTH,3,42,retained);
+    var result=rebooted.reserveOnce(claim,ID,REV,owner(claim),
+      nonce("external-selective-advancing-reboot"));
+    ok(result==CelineFutureMemoryRecall.GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY,
+      "KNOWN SECURITY FAIL: unanchored per-claim deletion despite rising signed numeric floor "
+        +"reissues FIRST with same eight signing identities: "+result);
   }
   static void strictExternalCasTotalRollback()throws Exception {
     // INTENTIONALLY FAILING witness. Only a real, independently retained
@@ -787,6 +850,8 @@ public final class FutureGlobalClaimSetProcess {
       ok(CelineFutureMemoryRecall.PerClaimSpentWitnessGate.bind(live,
         new PerClaimRegister(false,false,false),keys[5].getPublic().getEncoded())==null,
         "seventh pin cannot be identical to original sixth signer");
+    }else if(action.equals("SCOPED_EXTERNAL_SELECTIVE_ADVANCING")){
+      strictExternalCasSelectiveAdvancing();
     }else if(action.equals("SCOPED_EXTERNAL_TOTAL_ROLLBACK")){
       strictExternalCasTotalRollback();
     }else if(action.equals("SCOPED_EXTERNAL_BOUNDARY")){
@@ -854,6 +919,17 @@ public final class FutureGlobalClaimSetProcess {
                 print(fail.stderr.strip() or fail.stdout.strip())
                 assert fail.returncode == 0, ('KNOWN SECURITY FAIL: a local/mock'
                     ' external CAS and resettable out-of-band minimum cannot prove durability')
+                sys.exit(0)
+            if '--strict-external-cas-selective-advancing' in sys.argv:
+                fail = subprocess.run(runner+['SCOPED_EXTERNAL_SELECTIVE_ADVANCING', state],
+                    capture_output=True, text=True, timeout=25)
+                intact = [hashlib.sha256((Path(state)/'keys'/f'{i}.priv').read_bytes()).hexdigest()
+                          for i in range(7)]
+                assert intact == original_seven, 'original seven signer keys were modified'
+                print('EXTERNAL_CAS_SELECTIVE_ADVANCING_EXPECTED_SECURITY_FAIL exit='+str(fail.returncode))
+                print(fail.stderr.strip() or fail.stdout.strip())
+                assert fail.returncode == 0, ('KNOWN SECURITY FAIL: external per-claim audit '
+                    'can be erased even while signed numeric minimum rises')
                 sys.exit(0)
             if '--focused-external-cas-boundary' in sys.argv:
                 run_guard('SCOPED_EXTERNAL_BOUNDARY', 'EXTERNAL_CAS_BOUNDARY_CONTRACT_PASS')

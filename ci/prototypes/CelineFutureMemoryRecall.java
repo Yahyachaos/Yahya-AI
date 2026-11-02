@@ -3973,6 +3973,12 @@ public final class CelineFutureMemoryRecall {
         private final java.util.concurrent.atomic.AtomicLong observedMinimum;
         private final java.util.Set<String> spentAttempts =
                 java.util.concurrent.ConcurrentHashMap.newKeySet();
+        // Runtime-only continuity observation. An authoritative SPENT may not
+        // later become ABSENT in the same bound session, even with a higher
+        // correctly signed numeric floor. This does NOT survive a new process;
+        // production requires an independent immutable per-claim audit root.
+        private final java.util.Set<String> observedSpentClaims =
+                java.util.concurrent.ConcurrentHashMap.newKeySet();
         private final java.util.concurrent.atomic.AtomicBoolean quarantined =
                 new java.util.concurrent.atomic.AtomicBoolean(false);
 
@@ -4072,6 +4078,10 @@ public final class CelineFutureMemoryRecall {
                     operation, receipt.state, receipt.sequence), receipt.signature())
                     ? receipt.state : null;
         }
+        private void observeSignedSpend(String claim, long sequence) {
+            observedSpentClaims.add(claim);
+            observedMinimum.accumulateAndGet(sequence, Math::max);
+        }
         public GlobalClaimGateOutcome reserveOnce(String claim, String exactId,
                 long revision, byte[] ownerSignature, String freshNonce) {
             if (!downstream.validInput(claim, exactId, revision,
@@ -4088,11 +4098,16 @@ public final class CelineFutureMemoryRecall {
                 String prior = checked("QUERY", claim, exactId, revision,
                         ownerSignature, freshNonce, before);
                 if ("SPENT".equals(prior)) {
+                    observeSignedSpend(claim, before.sequence);
                     return downstream.queryExisting(claim, exactId, revision,
                             ownerSignature, freshNonce)
                             == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
                             ? GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
                             : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                }
+                if ("ABSENT".equals(prior) && observedSpentClaims.contains(claim)) {
+                    quarantined.set(true);
+                    return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
                 }
                 if (!"ABSENT".equals(prior) || !spentAttempts.add(claim))
                     return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
@@ -4110,6 +4125,7 @@ public final class CelineFutureMemoryRecall {
                         quarantined.set(true);
                         return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
                     }
+                    observeSignedSpend(claim, receipt.sequence);
                     GlobalClaimGateOutcome downstreamStatus = downstream.reserveOnce(
                             claim, exactId, revision, ownerSignature, freshNonce);
                     if (downstreamStatus == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY)
@@ -4122,6 +4138,7 @@ public final class CelineFutureMemoryRecall {
                             ? downstreamStatus : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
                 }
                 if ("ALREADY_SPENT".equals(result)) {
+                    observeSignedSpend(claim, receipt.sequence);
                     return downstream.queryExisting(claim, exactId, revision,
                             ownerSignature, freshNonce)
                             == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY
@@ -4142,11 +4159,16 @@ public final class CelineFutureMemoryRecall {
                 SignedExternalCASReceipt receipt = external.queryExisting(authorityId,
                         providerEpoch, claim, exactId, revision,
                         ownerSignature.clone(), freshNonce);
-                return "SPENT".equals(checked("QUERY", claim, exactId, revision,
-                        ownerSignature, freshNonce, receipt))
-                        ? downstream.queryExisting(claim, exactId, revision,
-                                ownerSignature, freshNonce)
-                        : GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
+                String status = checked("QUERY", claim, exactId, revision,
+                        ownerSignature, freshNonce, receipt);
+                if ("SPENT".equals(status)) {
+                    observeSignedSpend(claim, receipt.sequence);
+                    return downstream.queryExisting(claim, exactId, revision,
+                            ownerSignature, freshNonce);
+                }
+                if ("ABSENT".equals(status) && observedSpentClaims.contains(claim))
+                    quarantined.set(true);
+                return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
             } catch (Exception disconnected) {
                 return GlobalClaimGateOutcome.REMAIN_INDETERMINATE;
             }
