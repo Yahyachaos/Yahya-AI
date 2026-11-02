@@ -3108,7 +3108,14 @@ public final class CelineFutureMemoryRecall {
             // for the uncertain rival rather than guessing a visible ID.
             boolean corruptTime = rival.updatedAtMs < 0 || rival.expiresAtMs < 0
                     || (rival.expiresAtMs > 0 && rival.expiresAtMs <= rival.updatedAtMs);
-            boolean potentiallyCurrent = now >= 0 && (corruptTime
+            // A source update stamped in the future may be clock skew or a
+            // reordered G1 owner snapshot. Do not infer absence when its
+            // text independently matches the user's correction subject.
+            // Preserve the original rule for unrelated or redacted future
+            // records: no lexical evidence alone is not a current rival.
+            boolean futureSubjectRival = rival.updatedAtMs > now
+                    && overlap(query, terms(rival.summary)) >= 2;
+            boolean potentiallyCurrent = now >= 0 && (corruptTime || futureSubjectRival
                     || (rival.updatedAtMs <= now
                         && (rival.expiresAtMs == 0 || rival.expiresAtMs > now)));
             if (!potentiallyCurrent) continue;
@@ -3137,7 +3144,7 @@ public final class CelineFutureMemoryRecall {
             // safely dismissed by ranking against a well-formed winner. Two
             // subject anchors already make the unknown record plausible.
             boolean unreliableEvidence = quarantinedLineage.contains(rival.id)
-                    || corruptTime || !Double.isFinite(rival.importance);
+                    || corruptTime || futureSubjectRival || !Double.isFinite(rival.importance);
             if (rivalSharedTerms >= 2 && (rivalSharedTerms >= best.sharedTerms
                     || unreliableEvidence)) return "";
         }

@@ -5235,6 +5235,50 @@ public final class FutureMemoryRecallContract {
             Arrays.asList(certifiedWinner,malformedClockWeakRival),
             certifiedRetired,certifiedRetired,NOW), "",
             "on-topic malformed timestamp may still be correction target");
+        // A future-dated G1 correction rival is NOT evidence of absence.
+        // Local clock skew, owner restore and malformed source timestamps are
+        // unknown until the G1 owner resolves them. Never guess a memory ID.
+        CelineFutureMemoryRecall.Candidate futureDatedRival =
+            new CelineFutureMemoryRecall.Candidate("future-stamped-rival", "Katze heisst Max", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW+60000,0,0.5);
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,futureDatedRival),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "future G1 update timestamp with two correction anchors forces exact-ID fallback");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(futureDatedRival,certifiedWinner),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "future G1 correction ambiguity is independent of input order");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,new CelineFutureMemoryRecall.Candidate(
+                "future-empty-rival", "und der oder", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW+60000,0,0.5)),
+            certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
+            "future-dated unrelated stopword-only source preserves no-anchor correction behavior");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,new CelineFutureMemoryRecall.Candidate(
+                "future-sensitive-rival", "Katze heisst Max", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,false,
+                NOW+60000,0,0.5)),
+            certifiedRetired,certifiedRetired,NOW), "",
+            "future sensitive same-subject G1 record is not a safe correction ID rival to ignore");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,new CelineFutureMemoryRecall.Candidate(
+                "future-other-topic", "Damu Markt verkauft Getraenke", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,
+                NOW+60000,0,0.5)),
+            certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
+            "unrelated future G1 timestamp does not suppress a unique correction");
+        eq(Fixture.retrieve("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner,futureDatedRival),
+            certifiedRetired,certifiedRetired,8,NOW).size(), 1,
+            "provider retrieval still excludes future-dated G1 candidate");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(certifiedWinner, new CelineFutureMemoryRecall.Candidate(
+                "actually-expired-rival", "Katze heisst Max", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,NOW-1,0.5)),
+            certifiedRetired,certifiedRetired,NOW), "owner-certified-winner",
+            "genuinely expired G1 correction rival remains safely ignorable");
         CelineFutureMemoryRecall.Candidate malformedWeightWeakRival =
             new CelineFutureMemoryRecall.Candidate("weak-corrupt-weight", "Katze heisst Max", "",
                 CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,NOW-100,0,Double.NaN);
