@@ -16,10 +16,10 @@ import java.util.WeakHashMap;
  * reflect that field produces ROOM-159 and, more importantly, risks re-applying transforms that were
  * solved against the rejected combined derivative rather than the immutable partition sources.
  *
- * This recovery checkpoint therefore owns validation only: verify the exact source shell and the
- * source window/drapes partition are present, then leave their authored source-PBR transforms intact.
- * Camera/FOV is owned by Celine3DView/CelineCameraZoomV70. Primary furniture is deliberately deferred
- * to the later coherent primary-furniture batch required by the recovery solve order.
+ * The exact S25 furniture transforms are already owned and applied by CelineRoomEnvironmentV80.
+ * This separate validation-only guard verifies the source shell and window/drapes partition;
+ * it must never reapply obsolete photo-derived transforms to any furniture or the camera.
+ * The byte-verified S25 JSON is authoritative; camera/FOV remains Celine3DView-owned.
  */
 final class CelineRoomReferenceLayoutV80 {
     private static final WeakHashMap<Celine3DView, FilamentAsset> APPLIED = new WeakHashMap<>();
@@ -69,7 +69,7 @@ final class CelineRoomReferenceLayoutV80 {
 
             Celine3DDiagnostics.record(view.getContext(), "ROOM-150",
                     "Partitionierter Clean-Architecture-Owner aktiv",
-                    "authority=Refernzbild.png"
+                    "authority=YahyaAI_Raumlayout_FINAL_2026-10-31.json"
                             + " shell=sourceExact440x420x265"
                             + " shellLegacyRescale=false"
                             + " proofCameraOwner=Celine3DView"
