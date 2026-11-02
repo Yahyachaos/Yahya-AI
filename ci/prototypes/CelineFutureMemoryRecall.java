@@ -4829,14 +4829,24 @@ public final class CelineFutureMemoryRecall {
         private final byte[] pin, trustedRoot;
         private final String authorityId;
         private final long epoch, generation, trustedSequence;
+        // Optional stricter opt-in. Caller must obtain this snapshot from a
+        // separate, nonrollbackable administrator, NOT restored app state.
+        private final List<AuditRootRecord> externallyTrustedMembers;
         private ImmutableAuditCheckpointRecoveryGate(
                 IndependentImmutableAuditRootRecoveryView authority, byte[] pin,
                 byte[] root, String authorityId, long epoch, long generation,
                 long sequence) {
+            this(authority, pin, root, authorityId, epoch, generation, sequence, null);
+        }
+        private ImmutableAuditCheckpointRecoveryGate(
+                IndependentImmutableAuditRootRecoveryView authority, byte[] pin,
+                byte[] root, String authorityId, long epoch, long generation,
+                long sequence, List<AuditRootRecord> trustedMembers) {
             this.authority = authority; this.pin = pin.clone();
             this.trustedRoot = root.clone(); this.authorityId = authorityId;
             this.epoch = epoch; this.generation = generation;
             this.trustedSequence = sequence;
+            this.externallyTrustedMembers = trustedMembers;
         }
         public static ImmutableAuditCheckpointRecoveryGate bind(
                 IndependentImmutableAuditRootRecoveryView independentReadOnlyAuthority,
@@ -4863,6 +4873,62 @@ public final class CelineFutureMemoryRecall {
             } catch (GeneralSecurityException | RuntimeException invalid) {
                 return null;
             }
+        }
+        /**
+         * Opt-in fail-closed continuity check: a root hash alone cannot prove
+         * that a newer signed checkpoint retained earlier spent claims. The
+         * trusted member set and matching root must both originate outside
+         * the app/backup/signing-key reset domains. Empty/missing/inconsistent
+         * retained history is not automatically enrolled from the reply.
+         * This is a cryptographic fixture, NOT proof of a real external store.
+         */
+        public static ImmutableAuditCheckpointRecoveryGate bindWithTrustedRecords(
+                IndependentImmutableAuditRootRecoveryView independentReadOnlyAuthority,
+                byte[] pinnedRootSigner, byte[] auditSigner, byte[] casSigner,
+                byte[] externallyTrustedRoot, List<AuditRootRecord> trustedMembers,
+                String authorityId, long epoch, long generation,
+                long externallyTrustedSequence) {
+            ImmutableAuditCheckpointRecoveryGate base = bind(
+                    independentReadOnlyAuthority, pinnedRootSigner, auditSigner,
+                    casSigner, externallyTrustedRoot, authorityId, epoch, generation,
+                    externallyTrustedSequence);
+            if (base == null || trustedMembers == null || trustedMembers.isEmpty()
+                    || !MessageDigest.isEqual(externallyTrustedRoot,
+                            immutableAuditRootHash(trustedMembers))) return null;
+            try {
+                List<AuditRootRecord> snapshot = new ArrayList<>();
+                for (AuditRootRecord r : trustedMembers) {
+                    snapshot.add(new AuditRootRecord(r.claim, r.exactId,
+                            r.revision, r.owner(), r.sequence));
+                }
+                return new ImmutableAuditCheckpointRecoveryGate(
+                        independentReadOnlyAuthority, base.pin, base.trustedRoot,
+                        authorityId, epoch, generation, externallyTrustedSequence,
+                        List.copyOf(snapshot));
+            } catch (RuntimeException malformed) {
+                return null;
+            }
+        }
+        private boolean retainsEveryTrustedMember(List<AuditRootRecord> records) {
+            if (externallyTrustedMembers == null) return true; // legacy-only
+            if (records == null || records.size() < externallyTrustedMembers.size())
+                return false;
+            int position = 0;
+            for (AuditRootRecord prior : externallyTrustedMembers) {
+                while (position < records.size()
+                        && records.get(position).claim.compareTo(prior.claim) < 0)
+                    position++;
+                if (position >= records.size()) return false;
+                AuditRootRecord actual = records.get(position);
+                if (!prior.claim.equals(actual.claim)
+                        || !prior.exactId.equals(actual.exactId)
+                        || prior.revision != actual.revision
+                        || prior.sequence != actual.sequence
+                        || !MessageDigest.isEqual(prior.owner(), actual.owner()))
+                    return false;
+                position++;
+            }
+            return true;
         }
         public ImmutableAuditRecoveryState recoverReadOnly(String claim,
                 String exactId, long revision, byte[] owner, long sealedSequence) {
@@ -4906,6 +4972,9 @@ public final class CelineFutureMemoryRecall {
                         .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
                 verify.update(payload);
                 if (!verify.verify(response.signature())) return UNKNOWN;
+                // Signed latest root alone is insufficient: a legitimate signer
+                // could have pruned an older claim while advancing sequence.
+                if (!retainsEveryTrustedMember(response.records)) return UNKNOWN;
                 boolean member = false;
                 for (AuditRootRecord record : response.records) {
                     if (!record.claim.equals(claim)) continue;

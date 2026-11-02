@@ -40,7 +40,10 @@ public final class FutureAuditCheckpointRecoveryProcess {
   static byte[] wrongOwner(){byte[] bad=OWNER.clone();bad[0]=1;return bad;}
   static List<AuditRootRecord> records(boolean target,String mode){
     List<AuditRootRecord> all=new ArrayList<>();
-    all.add(new AuditRootRecord(BOOT,ID,4,OWNER,1));
+    // PRUNE_BOOT models selective historical claim deletion while the
+    // same root-signing identity attests an increased checkpoint sequence.
+    if(!mode.equals("PRUNE_BOOT"))
+      all.add(new AuditRootRecord(BOOT,ID,4,OWNER,1));
     if(target)all.add(new AuditRootRecord(CLAIM,
       mode.equals("WRONG_ID")?"unauthorized-memory":ID,4,
       mode.equals("WRONG_OWNER")?wrongOwner():OWNER,2));
@@ -93,10 +96,11 @@ public final class FutureAuditCheckpointRecoveryProcess {
         casKey.getPublic().getEncoded(),oldRoot,AUTH,8,2,1);
       ok(bad==null,"recovery rejects signer reuse");
     } else {
-      var gate=ImmutableAuditCheckpointRecoveryGate.bind(new ReadOnlyView(mode),
-        rootKey.getPublic().getEncoded(),auditKey.getPublic().getEncoded(),
-        casKey.getPublic().getEncoded(),oldRoot,AUTH,8,2,1);
-      ok(gate!=null,"recovery gate binds independently pinned root");
+      var gate=ImmutableAuditCheckpointRecoveryGate.bindWithTrustedRecords(
+        new ReadOnlyView(mode),rootKey.getPublic().getEncoded(),
+        auditKey.getPublic().getEncoded(),casKey.getPublic().getEncoded(),
+        oldRoot,records(false,"NORMAL"),AUTH,8,2,1);
+      ok(gate!=null,"recovery gate binds independently pinned root plus prior members");
       ImmutableAuditRecoveryState outcome=gate.recoverReadOnly(CLAIM,ID,4,OWNER,2);
       var expected=(mode.equals("NORMAL") || (!wasAdvanced &&
         (mode.equals("WRONG_ID") || mode.equals("WRONG_OWNER"))))?
@@ -154,7 +158,8 @@ public final class FutureAuditCheckpointRecoveryProcess {
         for crash in ('CRASH_PRE', 'CRASH_POST'):
             for mode in ('NORMAL', 'FORGED_SIGNER', 'REPLAY_NONCE', 'BAD_PREVIOUS',
                          'BAD_SEQUENCE', 'BAD_ROOT', 'HIGH_WITHOUT_MEMBER',
-                         'WRONG_ID', 'WRONG_OWNER', 'OFFLINE', 'SAME_PIN'):
+                         'WRONG_ID', 'WRONG_OWNER', 'OFFLINE', 'SAME_PIN',
+                         'PRUNE_BOOT'):
                 with tempfile.TemporaryDirectory(prefix='future_recovery_restart_') as state:
                     check('INIT', state)
                     check(crash, state, 79)
@@ -162,7 +167,8 @@ public final class FutureAuditCheckpointRecoveryProcess {
                     assert 'RECOVERY_' + mode + '_PASS' in checked.stdout, checked.stdout
                     count += 3
         print(f'IMMUTABLE_AUDIT_READONLY_RECOVERY_JVM_PASS processes={count}'
-              ' crashes=2 replay=0 mutation=0 automatic_retry=0')
+              ' crashes=2 replay=0 mutation=0 automatic_retry=0'
+              ' retained_history_verified=true selective_prune_rejected=true')
     sys.exit(0)
 
 # FUTURE-ONLY opt-in signed root checkpoint-ADVANCE barrier. The root signer,
