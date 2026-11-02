@@ -62,6 +62,9 @@ public final class FutureImmutableAuditProcess {
     public SignedImmutableClaimAuditReply query(String auth,long epoch,String claim,String exact,long rev,byte[] ownerSignature,String nonce)throws Exception {
       if(mode.equals("DOWN"))return null;
       if(mode.equals("REPLAY"))return reply(claim,"stale-audit-request-nonce-999","QUERY","ABSENT",0);
+      // A signed high-water query must never be followed by a LOWER first-seal.
+      if(mode.equals("QUERY_REGRESSION")||mode.equals("QUERY_PROGRESS"))
+        return reply(claim,nonce,"QUERY","ABSENT",5);
       Path file=rec(claim);
       if(Files.exists(file))return reply(claim,nonce,"QUERY","SEALED",Long.parseLong(Files.readString(file).trim()));
       return reply(claim,nonce,"QUERY","ABSENT",0);
@@ -74,7 +77,7 @@ public final class FutureImmutableAuditProcess {
         Path file=rec(claim);
         if(Files.exists(file))return reply(claim,nonce,"SEAL","ALREADY_SEALED",Long.parseLong(Files.readString(file).trim()));
         if(mode.equals("REPLAY_FIRST"))return reply(claim,NONCE,"SEAL","FIRST_SEALED",1);
-        long next=mode.equals("FLOOR")?6:1;
+        long next=mode.equals("FLOOR")||mode.equals("QUERY_PROGRESS")?6:1;
         Path tmp=Files.createTempFile(audit,"preseal-",".tmp");
         try(FileChannel out=FileChannel.open(tmp,StandardOpenOption.WRITE)){
           out.write(StandardCharsets.US_ASCII.encode(Long.toString(next)+"\n"));out.force(true);
@@ -121,6 +124,19 @@ public final class FutureImmutableAuditProcess {
         .reserveOnce("memory-claim-stale-0001",ID,4,owner,NONCE);
       ok(outcome==GlobalClaimGateOutcome.STARTED_INDETERMINATE && writes.get()==0,
         "signed stale sequence must not reach downstream after pinned floor five");
+    }else if(mode.equals("QUERY_REGRESSION")){
+      var pinned=gate(mode,"memory-claim-query-regression-0001",writes);
+      var outcome=pinned.reserveOnce("memory-claim-query-regression-0001",ID,4,owner,NONCE);
+      ok(outcome==GlobalClaimGateOutcome.STARTED_INDETERMINATE && writes.get()==0,
+        "signed QUERY ABSENT sequence five followed by FIRST_SEALED one must not write downstream");
+      ok(pinned.reserveOnce("memory-claim-another-after-rollback-0001",ID,4,owner,NONCE)
+          ==GlobalClaimGateOutcome.NO_AUTHORITY && writes.get()==0,
+        "contradictory signed audit sequences must quarantine the whole bound session");
+    }else if(mode.equals("QUERY_PROGRESS")){
+      var outcome=gate(mode,"memory-claim-query-progress-0001",writes)
+        .reserveOnce("memory-claim-query-progress-0001",ID,4,owner,NONCE);
+      ok(outcome==GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==1,
+        "signed query five followed by FIRST_SEALED six remains allowed");
     }else if(mode.equals("REPLAY_FIRST")){
       var outcome=gate(mode,"memory-claim-replay-0001",writes)
         .reserveOnce("memory-claim-replay-0001",ID,4,owner,NONCE);
@@ -186,10 +202,11 @@ public final class FutureImmutableAuditProcess {
                     'rollbackable audit mock and unchanged original signer cannot assure continuity')
                 sys.exit(0)
             outputs=[invoke('SAME_SIGNER'),invoke('DOWN'),invoke('REPLAY'),
-                     invoke('REPLAY_FIRST'),invoke('FLOOR'),invoke('STALE_FLOOR'),invoke('FIRST'),
+                     invoke('REPLAY_FIRST'),invoke('FLOOR'),invoke('STALE_FLOOR'),
+                     invoke('QUERY_REGRESSION'),invoke('QUERY_PROGRESS'),invoke('FIRST'),
                      invoke('RESTART'),invoke('LOST_ACK'),invoke('CRASH',79),
                      invoke('CRASH_RECOVER')]
-            first=outputs[6]
+            first=next(x for x in outputs if 'AUDIT_RESULT=FIRST_RESERVED_PENDING_ACK' in x.stdout)
             assert 'AUDIT_RESULT=FIRST_RESERVED_PENDING_ACK' in first.stdout
             downstream = Path(state)/'caller-snapshot'/'memory-claim-00000001.provider'
             assert downstream.exists(), 'one original provider reservation required'

@@ -4342,8 +4342,11 @@ public final class CelineFutureMemoryRecall {
                         auditNonce, sealed);
                 if (!"FIRST_SEALED".equals(status))
                     return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
-                // An audit reply must move past the already trusted minimum.
-                if (sealed.sequence <= externalMinimum) {
+                // FIRST must advance BOTH the external minimum and the newly
+                // authenticated QUERY high-water; a signer may have rolled back
+                // between the two requests even while each proof is valid.
+                if (sealed.sequence <= externalMinimum
+                        || sealed.sequence <= query.sequence) {
                     quarantined.set(true);
                     return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
                 }
