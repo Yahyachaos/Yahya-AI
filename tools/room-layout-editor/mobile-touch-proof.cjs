@@ -697,6 +697,65 @@ async function main(){
     record.push(redoDiagnostic);
     fs.writeFileSync(path.join(out,'mobile-redo-timing.json'),
       JSON.stringify({source_sha:process.env.GITHUB_SHA||null,redoDiagnostic},null,2));
+    // Diagnostic ONLY after the unchanged real 5-second redo gate has failed.
+    // This independent native CDP tap cannot replace Playwright's actual user
+    // redo/lock/orbit checks, and never makes the strict gate green.
+    if(redoElapsed>=5000){
+      const beforeDiagnosticLayout=await page.evaluate(()=>
+        window.__celineRoomEditorE2E.serializedLayout());
+      const postGate={name:'NATIVE_AA4_PRE_POINTERDOWN_STALL_ISOLATION',
+        redo_elapsed_ms:redoElapsed,
+        redo_pre_pointerdown_ms:redoTouch.events.find(e=>e.type==='pointerdown')?.performance_ms-redoPageStarted,
+        native_aa4:NATIVE_AA4_MODE,real_redo_gate:'FAIL_UNCHANGED'};
+      try{
+        const hit=await page.evaluate(()=>{
+          const canvas=document.querySelector('#viewport canvas');
+          const b=canvas.getBoundingClientRect();
+          const x=Math.round(b.x+b.width*.53),y=Math.round(b.y+b.height*.30);
+          if(document.elementFromPoint(x,y)!==canvas)
+            throw new Error('Independent CDP control must target unobstructed canvas');
+          window.__celineDirectTouchControl={touchstart:[],pointerdown:[]};
+          for(const type of ['touchstart','pointerdown'])
+            document.addEventListener(type,e=>{
+              if(e.target===canvas)
+                window.__celineDirectTouchControl[type].push(performance.now());
+            },{capture:true,once:true});
+          return {x,y};
+        });
+        const session=await context.newCDPSession(page);
+        try{
+          const sent=Date.now();
+          await session.send('Input.dispatchTouchEvent',{
+            type:'touchStart',touchPoints:[{x:hit.x,y:hit.y,id:12}]});
+          const startAck=Date.now();
+          await session.send('Input.dispatchTouchEvent',{
+            type:'touchEnd',touchPoints:[]});
+          const endAck=Date.now();
+          postGate.native_cdp_control={hit,send_to_start_ack_ms:startAck-sent,
+            start_to_end_ack_ms:endAck-startAck,total_dispatch_ms:endAck-sent,
+            page_events:await page.evaluate(()=>window.__celineDirectTouchControl)};
+        }finally{await session.detach();}
+      }catch(error){
+        postGate.native_cdp_control={diagnostic_error:String(error.stack||error)};
+      }
+      const actionabilityStarted=Date.now();
+      try{
+        // trial:true performs Playwright actionability and scrolling checks but
+        // does NOT send a touch or change the stored user layout.
+        await page.locator('#mobile-lock').tap({trial:true,timeout:7000});
+        postGate.playwright_actionability_trial={
+          elapsed_ms:Date.now()-actionabilityStarted,verdict:'ACTIONABLE_NO_TOUCH'};
+      }catch(error){
+        postGate.playwright_actionability_trial={
+          elapsed_ms:Date.now()-actionabilityStarted,error:String(error)};
+      }
+      postGate.saved_layout_unchanged=
+        (await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()))===
+        beforeDiagnosticLayout;
+      fs.writeFileSync(path.join(out,'mobile-aa4-pre-pointerdown-isolation.json'),
+        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,postGate},null,2));
+      record.push(postGate);
+    }
     assert(redoElapsed<5000,'Genuine mobile redo remains too slow for interactive touch (<5s required)');
     assert(Math.abs(Number(await page.locator('#x').inputValue())-movedX)<0.003);
     const lockHit=await page.locator('#mobile-lock').evaluate(el=>{

@@ -827,9 +827,9 @@ jobs:
           # Two serial full real 13-GLB touch/undo/redo/lock/save/reimport/viewport
           # passes at the SAME source HEAD. In-memory proof-only AA4, not product.
           set +e
-          ROOM_EDITOR_NATIVE_MSAA4=0 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa0 node tools/room-layout-editor/mobile-touch-proof.cjs
+          DEBUG=pw:api ROOM_EDITOR_NATIVE_MSAA4=0 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa0 node tools/room-layout-editor/mobile-touch-proof.cjs
           aa0_status=$?
-          ROOM_EDITOR_NATIVE_MSAA4=1 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa4 node tools/room-layout-editor/mobile-touch-proof.cjs
+          DEBUG=pw:api ROOM_EDITOR_NATIVE_MSAA4=1 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa4 node tools/room-layout-editor/mobile-touch-proof.cjs
           aa4_status=$?
           printf '{"native_aa0_exit":%d,"native_aa4_exit":%d,"head_sha":"%s","visual_acceptance":"NOT_GRANTED"}\n' "$aa0_status" "$aa4_status" "$GITHUB_SHA" > /tmp/celine-room-editor-mobile-touch/native-aa-ab-execution.json
           if [ "$aa0_status" -ne 0 ] || [ "$aa4_status" -ne 0 ]; then
