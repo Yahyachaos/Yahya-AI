@@ -9,6 +9,158 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — signed two-domain revocation witness (not a real external service).
+# The test deliberately leaves the original-key TOTAL_RESET attack unresolved.
+if ('--focused-status-witness' in sys.argv
+        or '--strict-status-witness-total-reset' in sys.argv):
+    harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureRevocationWitnessProcess {
+  static final String AUTH="independent-audit-operator";
+  static final String OLD="enroll-original-000000001", NEXT="enroll-successor-000000001";
+  static final String ROT_NONCE="externally-challenged-nonce-000001";
+  static Path files;
+  static byte[] owner=new byte[64];
+  static KeyPair load(String n)throws Exception{
+    var k=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(k.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(files.resolve(n+".pub")))),
+      k.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(files.resolve(n+".priv")))));
+  }
+  static byte[] sign(KeyPair k,byte[] payload)throws Exception{
+    var s=Signature.getInstance("Ed25519");s.initSign(k.getPrivate());s.update(payload);return s.sign();
+  }
+  static SignedExternalGenesis genesis(String id,long seq,long last,
+        List<AuditRootRecord> members,KeyPair signer)throws Exception{
+    var unsigned=new SignedExternalGenesis(AUTH,id,8,2,seq,last,members,
+      load("root").getPublic().getEncoded(),load("audit").getPublic().getEncoded(),
+      load("cas").getPublic().getEncoded(),immutableAuditRootHash(members),ROT_NONCE,null);
+    return new SignedExternalGenesis(unsigned.authorityId,unsigned.enrollmentId,unsigned.epoch,
+      unsigned.generation,unsigned.registrySequence,unsigned.genesisSequence,
+      unsigned.genesisMembers,unsigned.rootSigner(),unsigned.auditSigner(),
+      unsigned.casSigner(),unsigned.genesisRoot(),unsigned.challenge,
+      sign(signer,externalGenesisSignedPayload(unsigned)));
+  }
+  static void run(String mode)throws Exception{
+    boolean totalReset=mode.equals("TOTAL_RESET_ORIGINAL_KEYS");
+    KeyPair old=load("oldReg"), next=load("newReg"),
+      statusSigner=load("statusReg"), witnessSigner=load("witnessReg");
+    List<AuditRootRecord> members=new ArrayList<>();
+    members.add(new AuditRootRecord("memory-bootstrap-claim-1",
+      totalReset?"attacker-rewrite":"original-memory",3,owner,1));
+    var previous=genesis(OLD,7,1,members,old);
+    members.add(new AuditRootRecord("memory-second-claim-2","second-memory",4,owner,2));
+    members.sort(Comparator.comparing(x->x.claim));
+    var successor=genesis(NEXT,8,2,members,next);
+    var pending=new SignedExternalRegistrarRotation(AUTH,OLD,NEXT,7,8,false,
+      externalGenesisIdentityDigest(previous),externalGenesisIdentityDigest(successor),
+      next.getPublic().getEncoded(),ROT_NONCE,null,null);
+    byte[] rotationPayload=externalRegistrarRotationPayload(pending);
+    var rotation=new SignedExternalRegistrarRotation(AUTH,OLD,NEXT,7,8,false,
+      pending.fromDigest(),pending.toDigest(),pending.nextSigner(),ROT_NONCE,
+      sign(old,rotationPayload),sign(next,rotationPayload));
+    byte[] transitionDigest=MessageDigest.getInstance("SHA-256").digest(rotationPayload);
+    byte[] nonceBytes=new byte[24];new SecureRandom().nextBytes(nonceBytes);
+    String nonce=Base64.getUrlEncoder().withoutPadding().encodeToString(nonceBytes);
+    boolean statusRevoked=mode.equals("REVOKED_STATUS");
+    var unsignedStatus=new SignedExternalRegistrarStatus(AUTH,OLD,NEXT,10,
+      statusRevoked,transitionDigest,nonce,null);
+    byte[] statusPayload=externalRegistrarStatusPayload(unsignedStatus);
+    byte[] statusSignature=sign(statusSigner,statusPayload);
+    if(mode.equals("BAD_STATUS_SIGNATURE"))statusSignature[0]^=1;
+    var status=new SignedExternalRegistrarStatus(AUTH,OLD,NEXT,10,statusRevoked,
+      transitionDigest,nonce,statusSignature);
+    byte[] statusDigest=MessageDigest.getInstance("SHA-256").digest(statusPayload);
+    if(mode.equals("WRONG_STATUS_DIGEST"))statusDigest[0]^=1;
+    byte[] witnessTransitionDigest=transitionDigest.clone();
+    if(mode.equals("WRONG_TRANSITION_DIGEST"))witnessTransitionDigest[0]^=1;
+    long witnessObservedFloor=mode.equals("STALE_ACTIVE_AFTER_REVOCATION")?11:10;
+    boolean revokedEver=mode.equals("STICKY_REVOKED") || mode.equals("REVOKED_AFTER_ROTATION");
+    String witnessNonce=mode.equals("REPLAYED_WITNESS_NONCE")
+      ? "previous-status-nonce-from-session-0001" : nonce;
+    String witnessAuthority=mode.equals("WRONG_WITNESS_AUTHORITY")
+      ? "other-independent-operator" : AUTH;
+    var unsignedWitness=new SignedExternalRegistrarWitness(witnessAuthority,OLD,NEXT,
+      100,witnessObservedFloor,revokedEver,witnessTransitionDigest,statusDigest,
+      witnessNonce,null);
+    byte[] witnessSignature=sign(witnessSigner,externalRegistrarWitnessPayload(unsignedWitness));
+    if(mode.equals("BAD_WITNESS_SIGNATURE"))witnessSignature[0]^=1;
+    var witness=new SignedExternalRegistrarWitness(witnessAuthority,OLD,NEXT,
+      unsignedWitness.witnessSequence,unsignedWitness.observedStatusFloor,
+      unsignedWitness.revokedEver,unsignedWitness.transitionDigest(),
+      unsignedWitness.statusDigest(),unsignedWitness.challenge,witnessSignature);
+    byte[] witnessPin=witnessSigner.getPublic().getEncoded();
+    if(mode.equals("WITNESS_SIGNER_REUSE"))witnessPin=statusSigner.getPublic().getEncoded();
+    if(mode.equals("MISSING_WITNESS_PIN"))witnessPin=null;
+    if(mode.equals("MISSING_WITNESS"))witness=null;
+    long statusFloor=mode.equals("MISSING_STATUS_FLOOR")?0:9;
+    long witnessFloor=mode.equals("WITNESS_SEQUENCE_ROLLBACK")?101:99;
+    if(mode.equals("MISSING_WITNESS_FLOOR"))witnessFloor=0;
+    var decision=verifyWitnessedRegistrarStatus(old.getPublic().getEncoded(),
+      externalGenesisIdentityDigest(previous),7,previous,successor,rotation,
+      status,statusSigner.getPublic().getEncoded(),statusFloor,
+      witness,witnessPin,witnessFloor,nonce);
+    boolean verified=decision==ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY;
+    if(totalReset){
+      if(verified)throw new AssertionError("SECURITY_FAIL: all-original-key status+witness total reset accepted");
+      throw new AssertionError("unexpectedly blocked forged full reset; re-evaluate attack fixture");
+    }
+    boolean expected=mode.equals("NORMAL") || mode.equals("RESTART_SAME_EXTERNAL_WITNESS");
+    if(verified!=expected)throw new AssertionError(mode+" actual="+decision+" expected="+expected);
+    System.out.println("REVOCATION_WITNESS_"+mode+"_PASS "+decision);
+  }
+  public static void main(String[] args)throws Exception{
+    files=Path.of(args[1]);
+    if(args[0].equals("INIT")){
+      Files.createDirectories(files);var gen=KeyPairGenerator.getInstance("Ed25519");
+      for(String name:List.of("root","audit","cas","oldReg","newReg","statusReg","witnessReg")){
+        var k=gen.generateKeyPair();
+        Files.write(files.resolve(name+".pub"),k.getPublic().getEncoded());
+        Files.write(files.resolve(name+".priv"),k.getPrivate().getEncoded());
+      }
+      return;
+    }
+    run(args[0]);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_witness_jvm_') as compiled:
+        harness_path = Path(compiled) / 'FutureRevocationWitnessProcess.java'
+        harness_path.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+                                str(source),str(harness_path)],
+                               capture_output=True,text=True,timeout=90)
+        assert build.returncode == 0, build.stderr
+        command = ['java','-cp',compiled,'de.yahya.ai.FutureRevocationWitnessProcess']
+        with tempfile.TemporaryDirectory(prefix='future_witness_simulated_trust_') as external:
+            def invoke(mode, expected_code=0):
+                result = subprocess.run(command+[mode,external],capture_output=True,
+                                        text=True,timeout=25)
+                assert result.returncode == expected_code, (mode,result.stdout,result.stderr)
+                return result
+            invoke('INIT')
+            if '--strict-status-witness-total-reset' in sys.argv:
+                attacked = invoke('TOTAL_RESET_ORIGINAL_KEYS',expected_code=1)
+                assert 'SECURITY_FAIL: all-original-key status+witness total reset accepted' in attacked.stderr
+                print('STRICT_WITNESS_SECURITY_FAIL: local status+witness trust wholly reset')
+                sys.exit(1)
+            modes = ('NORMAL','RESTART_SAME_EXTERNAL_WITNESS',
+                     'STALE_ACTIVE_AFTER_REVOCATION','REVOKED_AFTER_ROTATION',
+                     'STICKY_REVOKED','REVOKED_STATUS','BAD_STATUS_SIGNATURE',
+                     'BAD_WITNESS_SIGNATURE','WRONG_STATUS_DIGEST',
+                     'WRONG_TRANSITION_DIGEST','REPLAYED_WITNESS_NONCE',
+                     'WRONG_WITNESS_AUTHORITY','WITNESS_SIGNER_REUSE',
+                     'MISSING_WITNESS_PIN','MISSING_WITNESS',
+                     'MISSING_STATUS_FLOOR','MISSING_WITNESS_FLOOR',
+                     'WITNESS_SEQUENCE_ROLLBACK')
+            for mode in modes: print(invoke(mode).stdout.strip())
+            print('FUTURE_REVOCATION_WITNESS_JVM_PASS cases=18 separate_processes=19'
+                  ' external_custody=LOCAL_ROLLBACKABLE_MOCK')
+    sys.exit(0)
+
 # FUTURE ONLY — counter-signed registrar transition. Local signer files are a
 # deliberately rollbackable simulation, NOT independent out-of-band custody.
 if ('--focused-registrar-rotation' in sys.argv

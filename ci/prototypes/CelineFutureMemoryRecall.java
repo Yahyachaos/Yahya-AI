@@ -5427,6 +5427,143 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY: independent, monotonic, read-only revocation witness.
+     * The witness key, its high-water counter AND the sticky revocation bit
+     * must be provisioned/retained outside all caller-restorable domains.
+     * Signed local files do not supply that custody. This contract NEVER
+     * grants enrollment, reservation, retry, tool execution or app release.
+     */
+    public static final class SignedExternalRegistrarWitness {
+        public final String authorityId, fromEnrollmentId, toEnrollmentId, challenge;
+        public final long witnessSequence, observedStatusFloor;
+        public final boolean revokedEver;
+        private final byte[] transitionDigest, statusDigest, signature;
+
+        public SignedExternalRegistrarWitness(String authorityId, String fromEnrollmentId,
+                String toEnrollmentId, long witnessSequence, long observedStatusFloor,
+                boolean revokedEver, byte[] transitionDigest, byte[] statusDigest,
+                String challenge, byte[] signature) {
+            this.authorityId = authorityId;
+            this.fromEnrollmentId = fromEnrollmentId;
+            this.toEnrollmentId = toEnrollmentId;
+            this.witnessSequence = witnessSequence;
+            this.observedStatusFloor = observedStatusFloor;
+            this.revokedEver = revokedEver;
+            this.transitionDigest = transitionDigest == null ? null : transitionDigest.clone();
+            this.statusDigest = statusDigest == null ? null : statusDigest.clone();
+            this.challenge = challenge;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] transitionDigest() { return transitionDigest == null ? null : transitionDigest.clone(); }
+        public byte[] statusDigest() { return statusDigest == null ? null : statusDigest.clone(); }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    public static byte[] externalRegistrarWitnessPayload(SignedExternalRegistrarWitness r) {
+        if (r == null || r.authorityId == null
+                || !r.authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || r.fromEnrollmentId == null
+                || !r.fromEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.toEnrollmentId == null
+                || !r.toEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.fromEnrollmentId.equals(r.toEnrollmentId)
+                || r.witnessSequence <= 0 || r.observedStatusFloor <= 0
+                || r.transitionDigest == null || r.transitionDigest.length != 32
+                || r.statusDigest == null || r.statusDigest.length != 32
+                || r.challenge == null
+                || !r.challenge.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        java.util.Base64.Encoder encoder = java.util.Base64.getEncoder();
+        return ("future-g1/independent-registrar-revocation-witness/v1\n"
+                + r.authorityId + "\n" + r.fromEnrollmentId + "\n"
+                + r.toEnrollmentId + "\n" + r.witnessSequence + "\n"
+                + r.observedStatusFloor + "\n"
+                + (r.revokedEver ? "REVOKED_EVER" : "NOT_REVOKED") + "\n"
+                + encoder.encodeToString(r.transitionDigest) + "\n"
+                + encoder.encodeToString(r.statusDigest) + "\n"
+                + r.challenge + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Status and witness must both sign the SAME unpredictable read challenge.
+     * A witness observing a later revoked event defeats an earlier signed
+     * ACTIVE response. This protects only as long as a real independent actor
+     * retains its nonrollbackable witness key, sticky revoke state and floor.
+     * The entire trust domain may still be reset in the local test mock.
+     */
+    public static ExternalRegistrarRotationVerdict verifyWitnessedRegistrarStatus(
+            byte[] oldRegistrarPin, byte[] oldEnrollmentDigest, long oldRegistryFloor,
+            SignedExternalGenesis previous, SignedExternalGenesis successor,
+            SignedExternalRegistrarRotation rotation,
+            SignedExternalRegistrarStatus status, byte[] statusSignerPin,
+            long statusFloor, SignedExternalRegistrarWitness witness,
+            byte[] witnessSignerPin, long witnessFloor, String freshStatusChallenge) {
+        final ExternalRegistrarRotationVerdict FAIL =
+                ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
+        if (freshStatusChallenge == null || status == null || witness == null
+                || statusSignerPin == null || witnessSignerPin == null
+                || statusFloor <= 0 || witnessFloor <= 0
+                || previous == null || successor == null || rotation == null
+                || verifyExternalRegistrarRotation(oldRegistrarPin, oldEnrollmentDigest,
+                        oldRegistryFloor, previous, successor, rotation, rotation.challenge)
+                        != ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY)
+            return FAIL;
+        try {
+            byte[] transitionPayload = externalRegistrarRotationPayload(rotation);
+            byte[] statusPayload = externalRegistrarStatusPayload(status);
+            byte[] witnessPayload = externalRegistrarWitnessPayload(witness);
+            if (transitionPayload.length == 0 || statusPayload.length == 0
+                    || witnessPayload.length == 0 || status.revoked || witness.revokedEver
+                    || status.statusSequence < statusFloor
+                    || status.statusSequence < witness.observedStatusFloor
+                    || witness.witnessSequence < witnessFloor
+                    || !freshStatusChallenge.equals(status.challenge)
+                    || !freshStatusChallenge.equals(witness.challenge)
+                    || !java.util.Objects.equals(status.authorityId, rotation.authorityId)
+                    || !java.util.Objects.equals(witness.authorityId, rotation.authorityId)
+                    || !java.util.Objects.equals(status.fromEnrollmentId,
+                            rotation.fromEnrollmentId)
+                    || !java.util.Objects.equals(status.toEnrollmentId, rotation.toEnrollmentId)
+                    || !java.util.Objects.equals(witness.fromEnrollmentId,
+                            rotation.fromEnrollmentId)
+                    || !java.util.Objects.equals(witness.toEnrollmentId,
+                            rotation.toEnrollmentId)) return FAIL;
+            byte[] transitionDigest = MessageDigest.getInstance("SHA-256")
+                    .digest(transitionPayload);
+            byte[] statusDigest = MessageDigest.getInstance("SHA-256")
+                    .digest(statusPayload);
+            if (!MessageDigest.isEqual(transitionDigest, status.transitionDigest())
+                    || !MessageDigest.isEqual(transitionDigest, witness.transitionDigest())
+                    || !MessageDigest.isEqual(statusDigest, witness.statusDigest()))
+                return FAIL;
+            java.security.KeyFactory f = java.security.KeyFactory.getInstance("Ed25519");
+            java.security.PublicKey sKey = f.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(statusSignerPin));
+            java.security.PublicKey wKey = f.generatePublic(
+                    new java.security.spec.X509EncodedKeySpec(witnessSignerPin));
+            byte[][] forbidden = {oldRegistrarPin, rotation.nextSigner(),
+                    previous.rootSigner(), previous.auditSigner(), previous.casSigner(),
+                    successor.rootSigner(), successor.auditSigner(), successor.casSigner()};
+            if (!Arrays.equals(sKey.getEncoded(), statusSignerPin)
+                    || !Arrays.equals(wKey.getEncoded(), witnessSignerPin)
+                    || Arrays.equals(statusSignerPin, witnessSignerPin)) return FAIL;
+            for (byte[] x : forbidden)
+                if (Arrays.equals(x, statusSignerPin) || Arrays.equals(x, witnessSignerPin))
+                    return FAIL;
+            java.security.Signature sig = java.security.Signature.getInstance("Ed25519");
+            sig.initVerify(sKey);
+            sig.update(statusPayload);
+            if (status.signature() == null || !sig.verify(status.signature())) return FAIL;
+            sig.initVerify(wKey);
+            sig.update(witnessPayload);
+            return witness.signature() != null && sig.verify(witness.signature())
+                    ? ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY : FAIL;
+        } catch (Exception unavailableOrInvalid) {
+            return FAIL;
+        }
+    }
+
     public enum TwoRotationContinuity {
         VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
     }
