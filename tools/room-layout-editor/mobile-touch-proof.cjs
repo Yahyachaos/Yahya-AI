@@ -9,6 +9,11 @@ const path=require('node:path');
 const {chromium}=require('playwright');
 const repo=path.resolve(__dirname,'../..');
 const out=process.env.ROOM_EDITOR_EVIDENCE_DIR || '/tmp/celine-room-editor-mobile-touch';
+// Native AA4 is enabled ONLY by in-memory, localhost proof routing. The
+// production editor.js, 13 GLBs, source JSON and camera remain byte-identical.
+const NATIVE_AA_FLAG=process.env.ROOM_EDITOR_NATIVE_MSAA4||'0';
+assert(['0','1'].includes(NATIVE_AA_FLAG),'Native mobile AA mode must be 0 or 1');
+const NATIVE_AA4_MODE=NATIVE_AA_FLAG==='1';
 fs.mkdirSync(out,{recursive:true});
 const record=[], errors=[];
 const crypto=require('node:crypto');
@@ -132,7 +137,12 @@ async function main(){
     const s25CurtainOrderDepthPrecisionProbeInjection="\n    // E2E-ONLY; compare genuine owner-GLB drape depth/order/fragment precision\n    // in identical native S25 618x768 WebGL frames. No exported state changes.\n    s25CurtainOrderDepthPrecisionRasterProbe(){\n      if(!s25RawPreview||[...entries.values()].filter(e=>e.loaded).length!==13)\n        throw new Error('Owner S25 view with 13 original source GLBs required');\n      const w=renderer.domElement.width,h=renderer.domElement.height;\n      if(w!==618||h!==768||!s25RawViewBackup)\n        throw new Error('Exactly 618x768 source S25 frame required');\n      const modelMeshes=[];\n      for(const entry of entries.values())entry.group.traverse(mesh=>{\n        if(mesh.isMesh)modelMeshes.push({id:entry.id,mesh,order:mesh.renderOrder});\n      });\n      if(modelMeshes.length<13)throw new Error('Original source GLB meshes missing');\n      const materials=[...new Set(modelMeshes.flatMap(({mesh})=>\n        Array.isArray(mesh.material)?mesh.material:[mesh.material]))];\n      if(materials.some(m=>!m||!m.isMeshBasicMaterial||m.transparent||\n        !m.depthTest||!m.depthWrite||m.depthFunc!==THREE.LessEqualDepth))\n        throw new Error('Cannot isolate opaque S25 LEQUAL source material states');\n      const sourceValues=materials.map(material=>({\n        material,precision:material.precision,depthFunc:material.depthFunc\n      }));\n      const originalJSON=snapshot(),originalCamera=camera.position.toArray(),\n        originalTarget=orbit.target.toArray(),\n        originalFov=camera.fov,renderTarget=renderer.getRenderTarget();\n      const grid=floor.children.find(c=>c.userData.roomEditorGuideGrid===true);\n      const originalGrid=grid?.visible,originalGizmo=transform.visible;\n      const gl=renderer.getContext(),captures=[];\n      const configure=(order,mediump,less)=>{\n        modelMeshes.forEach(({mesh,order:base},i)=>{\n          mesh.renderOrder=order?1000+i:base;\n        });\n        sourceValues.forEach(({material,precision,depthFunc})=>{\n          const nextPrecision=mediump?'mediump':precision;\n          const nextDepth=less?THREE.LessDepth:depthFunc;\n          if(material.precision!==nextPrecision||material.depthFunc!==nextDepth){\n            material.precision=nextPrecision;\n            material.depthFunc=nextDepth;\n            material.needsUpdate=true;\n          }\n        });\n      };\n      const take=(name)=>{\n        renderer.setRenderTarget(null);\n        renderer.render(scene,camera);\n        const samples=[];\n        for(const [x,y] of [[435,384],[450,267]]){\n          const rgba=new Uint8Array(4);\n          gl.readPixels(x,h-y-1,1,1,gl.RGBA,gl.UNSIGNED_BYTE,rgba);\n          samples.push({xy:[x,y],rgb:Array.from(rgba.slice(0,3))});\n        }\n        if(gl.getError()!==gl.NO_ERROR)throw new Error('WebGL readPixels failed');\n        captures.push({name,samples,png_data_url:renderer.domElement.toDataURL('image/png')});\n      };\n      let restored=false;\n      try{\n        if(grid)grid.visible=false;\n        transform.visible=false;\n        configure(false,false,false);\n        take('three_current_lequal_highp');\n        configure(true,false,false);\n        take('owner_item_mesh_traversal_order_lequal_highp');\n        configure(false,false,true);\n        take('three_order_less_depth_highp');\n        configure(false,true,false);\n        take('three_order_lequal_mediump');\n        configure(true,true,false);\n        take('owner_order_lequal_mediump');\n      }finally{\n        modelMeshes.forEach(({mesh,order})=>{mesh.renderOrder=order;});\n        sourceValues.forEach(({material,precision,depthFunc})=>{\n          if(material.precision!==precision||material.depthFunc!==depthFunc){\n            material.precision=precision;material.depthFunc=depthFunc;material.needsUpdate=true;\n          }\n        });\n        if(grid)grid.visible=originalGrid;\n        transform.visible=originalGizmo;\n        renderer.setRenderTarget(renderTarget);\n        renderer.render(scene,camera);\n        restored=modelMeshes.every(({mesh,order})=>mesh.renderOrder===order)&&\n          sourceValues.every(({material,precision,depthFunc})=>\n            material.precision===precision&&material.depthFunc===depthFunc);\n      }\n      if(!restored||snapshot()!==originalJSON||\n        camera.position.toArray().some((v,i)=>v!==originalCamera[i])||\n        orbit.target.toArray().some((v,i)=>v!==originalTarget[i])||\n        camera.fov!==originalFov)\n        throw new Error('A/B GPU probe did not fully restore owner source state');\n      return {\n        read_only:true,visual_acceptance:'NOT_GRANTED',\n        original_13_glb_mesh_count:modelMeshes.length,\n        source_mesh_order_contract:'owner item order + glTF scene mesh traversal (primitive-order proxy; exact glTF primitive mapping not proven)',\n        model_order_sample:modelMeshes.filter(x=>x.id==='room_window_drapes'||\n          x.id==='room_plant_large').slice(0,8).map(x=>({id:x.id,original_order:x.order})),\n        material_count:materials.length,baseline_depth_func:'LEQUAL',\n        temporary_depth_test:'LESS',temporary_fragment_precision:'mediump',\n        original_camera_m:originalCamera,original_camera_target_m:originalTarget,\n        room_m:{...room},drawing_buffer_px:[w,h],\n        source_materials_and_mesh_orders_restored:restored,captures\n      };\n    },\n";
     const s25CurtainQuantProbeInjection="    s25CurtainQuantizedSourceRasterProbe(){\n      if(!s25RawPreview||[...entries.values()].filter(e=>e.loaded).length!==13)\n        throw new Error('Approved original S25 scene and 13 GLBs required');\n      const group=entries.get('room_window_drapes')?.group,candidates=[];\n      if(!group)throw new Error('Missing original window curtain group');\n      group.traverse(mesh=>{\n        if(!mesh.isMesh)return;\n        const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];\n        if(mats.some(m=>m?.name==='S25_UNLIT_DISPLAY_material.010'))candidates.push(mesh);\n      });\n      if(candidates.length!==1)throw new Error('Expected one original source curtain primitive');\n      const mesh=candidates[0],geometry=mesh.geometry;\n      const positions=geometry.getAttribute('position'),uvs=geometry.getAttribute('uv');\n      if(positions?.count!==381278||uvs?.count!==381278)\n        throw new Error('Expected 381278 original source curtain vertices and UVs');\n      const mat=Array.isArray(mesh.material)?\n        mesh.material.find(m=>m?.name==='S25_UNLIT_DISPLAY_material.010'):mesh.material;\n      const flags={name:mat.name,transparent:mat.transparent,opacity:mat.opacity,\n        depthWrite:mat.depthWrite,depthTest:mat.depthTest,blending:mat.blending,\n        side:mat.side,renderOrder:mesh.renderOrder,hasTexture:!!mat.map,\n        textureColorSpace:mat.map?.colorSpace??null,flipY:mat.map?.flipY??null};\n      const state=snapshot(),cam=camera.position.toArray(),target=renderer.getRenderTarget();\n      const grid=floor.children.find(c=>c.userData.roomEditorGuideGrid===true);\n      const gridWas=grid?.visible,gizmoWas=transform.visible;\n      const capture=()=>{\n        renderer.setRenderTarget(null);renderer.render(scene,camera);\n        return renderer.domElement.toDataURL('image/png');\n      };\n      const trials=[\n        {name:'position_mm',p:3,uv:null},\n        {name:'uv_1e4',p:null,uv:4},\n        {name:'position_mm_uv_1e4',p:3,uv:4}\n      ];\n      let baseline=null,restored=null;const captures=[];\n      try{\n        if(grid)grid.visible=false;\n        transform.visible=false;\n        baseline=capture();\n        for(const trial of trials){\n          const cloned=geometry.clone(),stats={};\n          try{\n            for(const [attrName,digits] of [['position',trial.p],['uv',trial.uv]]){\n              if(digits===null)continue;\n              const a=cloned.getAttribute(attrName),fac=10**digits;\n              let changed=0,maxDelta=0;\n              for(let i=0;i<a.count;i++)for(let j=0;j<a.itemSize;j++){\n                const value=a.getComponent(i,j),rounded=Math.round(value*fac)/fac;\n                if(!Number.isFinite(rounded))throw new Error('Nonfinite source attribute');\n                if(rounded!==value){\n                  changed++;maxDelta=Math.max(maxDelta,Math.abs(rounded-value));\n                  a.setComponent(i,j,rounded);\n                }\n              }\n              a.needsUpdate=true;\n              stats[attrName]={digits,components_changed:changed,max_delta:maxDelta};\n            }\n            mesh.geometry=cloned;\n            captures.push({name:trial.name,stats,png_data_url:capture()});\n          }finally{\n            mesh.geometry=geometry;\n            cloned.dispose();\n          }\n        }\n        restored=capture();\n      }finally{\n        mesh.geometry=geometry;\n        if(grid)grid.visible=gridWas;\n        transform.visible=gizmoWas;\n        renderer.setRenderTarget(target);renderer.render(scene,camera);\n      }\n      if(mesh.geometry!==geometry||snapshot()!==state||\n         camera.position.toArray().some((x,i)=>x!==cam[i]))\n        throw new Error('Temporary source-view geometry/camera/layout was not restored');\n      return {source_geometry_original:true,original_json_unchanged:true,\n        material_flags:flags,source_vertex_count:positions.count,\n        camera_position_m:cam,room_m:{...room},\n        hypothesis:'Owner offline drape may quantize positions to 0.001m and UV to 0.0001; NOT exact GLB parity',\n        baseline_png_data_url:baseline,restored_png_data_url:restored,captures,\n        visual_acceptance:'NOT_GRANTED'};\n    },\n";
     await page.route('**/tools/room-layout-editor/editor.js',async route=>{
-      const source=fs.readFileSync(path.join(__dirname,'editor.js'),'utf8');
+      let source=fs.readFileSync(path.join(__dirname,'editor.js'),'utf8');
+      const nativeRendererAAAnchor='antialias: !TOUCH_DEVICE';
+      assert.equal(source.split(nativeRendererAAAnchor).length,2,
+        'Exactly one native renderer AA configuration expected');
+      if(NATIVE_AA4_MODE)
+        source=source.replace(nativeRendererAAAnchor,'antialias: true');
       const anchor='    mobileRenderStats() {';
       assert.equal(source.split(anchor).length,2,'Single E2E readback injection point required');
       return route.fulfill({body:source.replace(anchor,s25ColorFilterProbeInjection+s25TextureAuditInjection+s25TintProbeInjection+s25CurtainQuantProbeInjection+s25CurtainOrderDepthPrecisionProbeInjection+anchor),contentType:'text/javascript'});
@@ -146,6 +156,33 @@ async function main(){
     assert.equal(await page.locator('#reference-preview').evaluate(e=>e.naturalWidth>0),true);
     assert.equal(await page.locator('canvas').evaluate(c=>!!(c.getContext('webgl2')||c.getContext('webgl'))),true);
     assert.equal(await page.locator('canvas').evaluate(c=>getComputedStyle(c).touchAction),'none');
+    // A/B is the ACTUAL interactive WebGL default framebuffer, not the
+    // separate offscreen 4x MSAA render target tested previously.
+    const nativeAA=await page.evaluate(()=>{
+      const canvas=document.querySelector('#viewport canvas');
+      const gl=canvas?.getContext('webgl2');
+      if(!gl)throw new Error('Native original-GLB WebGL2 canvas unavailable');
+      return {
+        context_attributes:gl.getContextAttributes(),
+        default_framebuffer_samples:gl.getParameter(gl.SAMPLES),
+        max_samples:gl.getParameter(gl.MAX_SAMPLES),
+        drawing_buffer_px:[gl.drawingBufferWidth,gl.drawingBufferHeight],
+        css_viewport_px:[innerWidth,innerHeight],
+        renderer_stats_before_touch:window.__celineRoomEditorE2E.mobileRenderStats()
+      };
+    });
+    assert.deepEqual(nativeAA.css_viewport_px,[412,915],
+      'Exact S25-like 412x915 mobile viewport remains mandatory');
+    assert.equal(nativeAA.context_attributes.antialias,NATIVE_AA4_MODE,
+      'Native interactive WebGL AA context attribute mismatch');
+    assert.equal(nativeAA.default_framebuffer_samples,NATIVE_AA4_MODE?4:0,
+      'Native interactive framebuffer MUST truly use requested 0 or 4 samples');
+    fs.writeFileSync(path.join(out,'native-mobile-aa-context.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+        mode:NATIVE_AA4_MODE?'native_4x_msaa':'native_aa0',
+        nativeAA,not_physical_samsung:true,visual_acceptance:'NOT_GRANTED'},null,2));
+    record.push({name:'NATIVE_INTERACTIVE_MOBILE_AA_CONTEXT_VERIFIED',
+      mode:NATIVE_AA4_MODE?'native_4x_msaa':'native_aa0',nativeAA});
     // The specific user-approved S25 JSON is the sole arrangement baseline.
     // Check original source GLB wrappers against the exact exported transforms
     // before touch exercises mutate the selected (unlocked) bed.
@@ -1042,6 +1079,13 @@ async function main(){
         error:String(msaaError.stack||msaaError),visual_acceptance:'NOT_GRANTED'});
     }
 
+    const finalNativeStats=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.mobileRenderStats());
+    record.push({name:'NATIVE_MOBILE_AA_AFTER_ALL_STRICT_TOUCH_AND_JSON_GATES',
+      mode:NATIVE_AA4_MODE?'native_4x_msaa':'native_aa0',
+      final_render_stats:finalNativeStats,
+      original_13_GLBS:true,viewport_px:[412,915],
+      original_owner_json_sha256:approvedSha});
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');

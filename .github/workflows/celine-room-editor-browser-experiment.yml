@@ -820,10 +820,23 @@ jobs:
           python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/celine-editor-mobile-http.log 2>&1 &
           sleep 2
           curl --fail --silent --show-error --head http://127.0.0.1:8765/tools/room-layout-editor/
-      - name: Real mobile touch WebGL / 13 GLBs / lock / undo / JSON export-import
+      - name: Serial genuine interactive mobile AA0 versus 4x MSAA A/B (unchanged strict gates)
         run: |
           node --check tools/room-layout-editor/mobile-touch-proof.cjs
-          node tools/room-layout-editor/mobile-touch-proof.cjs
+          mkdir -p /tmp/celine-room-editor-mobile-touch
+          # Two serial full real 13-GLB touch/undo/redo/lock/save/reimport/viewport
+          # passes at the SAME source HEAD. In-memory proof-only AA4, not product.
+          set +e
+          ROOM_EDITOR_NATIVE_MSAA4=0 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa0 node tools/room-layout-editor/mobile-touch-proof.cjs
+          aa0_status=$?
+          ROOM_EDITOR_NATIVE_MSAA4=1 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa4 node tools/room-layout-editor/mobile-touch-proof.cjs
+          aa4_status=$?
+          printf '{"native_aa0_exit":%d,"native_aa4_exit":%d,"head_sha":"%s","visual_acceptance":"NOT_GRANTED"}\n' "$aa0_status" "$aa4_status" "$GITHUB_SHA" > /tmp/celine-room-editor-mobile-touch/native-aa-ab-execution.json
+          if [ "$aa0_status" -ne 0 ] || [ "$aa4_status" -ne 0 ]; then
+            echo "NATIVE_MOBILE_AA_AB_FAIL baseline=$aa0_status candidate=$aa4_status; inspect both real artifacts"
+            exit 1
+          fi
+          echo 'NATIVE_MOBILE_AA_AB_BOTH_STRICT_TECHNICAL_PASSES; VISUAL G2.3 NOT ACCEPTED'
       - name: Upload real mobile proof including failure evidence
         if: always()
         uses: actions/upload-artifact@v4
