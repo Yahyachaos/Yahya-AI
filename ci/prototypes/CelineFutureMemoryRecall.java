@@ -4077,6 +4077,7 @@ public final class CelineFutureMemoryRecall {
             if (!downstream.validInput(claim, exactId, revision,
                     ownerSignature, freshNonce)) return GlobalClaimGateOutcome.UNVERIFIABLE;
             if (!liveAttested()) return GlobalClaimGateOutcome.NO_AUTHORITY;
+            final long floorBeforeRemoteSpend = observedMinimum.get();
             try {
                 // A lost or forged spend ACK is NOT permission to send SPEND
                 // again. First do an authenticated READ-ONLY membership check.
@@ -4101,6 +4102,14 @@ public final class CelineFutureMemoryRecall {
                 String result = checked("SPEND", claim, exactId, revision,
                         ownerSignature, freshNonce, receipt);
                 if ("FIRST_SPENT".equals(result)) {
+                    // FIRST is only fresh if the signed receipt advances the
+                    // verified pre-attempt floor. A conflicting signed response
+                    // could describe a rolled-back operator; it MUST NOT
+                    // authorize earlier downstream commits or automatic retry.
+                    if (receipt.sequence <= floorBeforeRemoteSpend) {
+                        quarantined.set(true);
+                        return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                    }
                     GlobalClaimGateOutcome downstreamStatus = downstream.reserveOnce(
                             claim, exactId, revision, ownerSignature, freshNonce);
                     if (downstreamStatus == GlobalClaimGateOutcome.ALREADY_RESERVED_NO_RETRY)
