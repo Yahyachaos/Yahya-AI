@@ -5000,6 +5000,125 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE-ONLY opt-in TWO-ROTATION, read-only verification. Trust is anchored
+     * to an externally retained root + complete member set, NOT a caller's
+     * current disk image or an attestation's self-reported initial root.
+     * Both rotations MUST be separately challenged and signed by the SAME
+     * pre-pinned independent root signer. Every prior spent claim survives
+     * both root transitions with identical ID, revision, owner and sequence.
+     * This cryptographic check cannot establish external custody or detect a
+     * simultaneous rollback of the externally trusted root/members and keys.
+     * A positive verdict grants NO permission to reserve, retry or publish.
+     */
+    public enum TwoRotationContinuity {
+        VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
+    }
+
+    public static TwoRotationContinuity verifyTwoSignedCheckpointRotations(
+            byte[] pinnedRootSigner, byte[] auditSigner, byte[] casSigner,
+            String authorityId, long epoch, long generation,
+            long externallyTrustedSequence, byte[] externallyTrustedRoot,
+            List<AuditRootRecord> externallyTrustedMembers,
+            SignedImmutableAuditRootRecovery first, byte[] firstOwner,
+            String firstChallenge, SignedImmutableAuditRootRecovery second,
+            byte[] secondOwner, String secondChallenge) {
+        final TwoRotationContinuity FAIL = TwoRotationContinuity.UNVERIFIABLE_NO_RETRY;
+        if (pinnedRootSigner == null || auditSigner == null || casSigner == null
+                || Arrays.equals(pinnedRootSigner, auditSigner)
+                || Arrays.equals(pinnedRootSigner, casSigner)
+                || first == null || second == null || firstOwner == null
+                || secondOwner == null || firstChallenge == null
+                || secondChallenge == null || firstChallenge.equals(secondChallenge)
+                || externallyTrustedMembers == null || externallyTrustedMembers.isEmpty()
+                || externallyTrustedRoot == null || externallyTrustedRoot.length != 32
+                || !MessageDigest.isEqual(externallyTrustedRoot,
+                        immutableAuditRootHash(externallyTrustedMembers)))
+            return FAIL;
+        try {
+            byte[] pin = pinnedRootSigner.clone();
+            java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                    .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+            if (!Arrays.equals(pin, key.getEncoded())) return FAIL;
+            if (!verifyRotationLink(key, authorityId, epoch, generation,
+                    externallyTrustedSequence, externallyTrustedRoot,
+                    externallyTrustedMembers, first, firstOwner, firstChallenge))
+                return FAIL;
+            return verifyRotationLink(key, authorityId, epoch, generation,
+                    first.currentSequence, first.currentRoot(), first.records,
+                    second, secondOwner, secondChallenge)
+                    ? TwoRotationContinuity.VERIFIED_TWO_ROTATIONS_NO_RETRY : FAIL;
+        } catch (GeneralSecurityException | RuntimeException invalid) {
+            return FAIL;
+        }
+    }
+
+    private static boolean verifyRotationLink(java.security.PublicKey key,
+            String authorityId, long epoch, long generation,
+            long priorSequence, byte[] priorRoot, List<AuditRootRecord> prior,
+            SignedImmutableAuditRootRecovery current, byte[] owner,
+            String challenge) throws GeneralSecurityException {
+        if (current == null || prior == null || priorRoot == null
+                || !java.util.Objects.equals(authorityId, current.authorityId)
+                || epoch != current.epoch || generation != current.generation
+                || !java.util.Objects.equals(challenge, current.challenge)
+                || current.previousSequence != priorSequence
+                || current.sealedSequence <= priorSequence
+                || current.currentSequence < current.sealedSequence
+                || current.currentSequence <= priorSequence
+                || !MessageDigest.isEqual(priorRoot, current.previousRoot()))
+            return false;
+        byte[] newRoot = current.currentRoot();
+        if (newRoot == null || !MessageDigest.isEqual(newRoot,
+                immutableAuditRootHash(current.records))
+                || !retainsAuditMembers(prior, current.records))
+            return false;
+        byte[] payload = immutableAuditRecoveryPayload(authorityId,
+                epoch, generation, current.claim, current.exactId,
+                current.revision, owner, current.sealedSequence,
+                priorSequence, priorRoot, current.currentSequence,
+                newRoot, challenge);
+        if (payload.length == 0 || current.signature() == null) return false;
+        java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+        verifier.initVerify(key);
+        verifier.update(payload);
+        if (!verifier.verify(current.signature())) return false;
+        int found = 0;
+        for (AuditRootRecord r : current.records) {
+            if (r.claim.equals(current.claim)) {
+                if (!r.exactId.equals(current.exactId)
+                        || r.revision != current.revision
+                        || r.sequence != current.sealedSequence
+                        || !MessageDigest.isEqual(r.owner(), owner)) return false;
+                found++;
+            }
+        }
+        return found == 1;
+    }
+
+    private static boolean retainsAuditMembers(List<AuditRootRecord> before,
+            List<AuditRootRecord> after) {
+        if (before == null || after == null || after.size() < before.size()
+                || immutableAuditRootHash(before).length != 32
+                || immutableAuditRootHash(after).length != 32)
+            return false;
+        int position = 0;
+        for (AuditRootRecord previous : before) {
+            while (position < after.size()
+                    && after.get(position).claim.compareTo(previous.claim) < 0)
+                position++;
+            if (position >= after.size()) return false;
+            AuditRootRecord actual = after.get(position++);
+            if (!previous.claim.equals(actual.claim)
+                    || !previous.exactId.equals(actual.exactId)
+                    || previous.revision != actual.revision
+                    || previous.sequence != actual.sequence
+                    || !MessageDigest.isEqual(previous.owner(), actual.owner()))
+                return false;
+        }
+        return true;
+    }
+
+    /**
      * Independent administrator is responsible for provisioning this already
      * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
      * sequence minimum. The constructor cannot attest real-world independence

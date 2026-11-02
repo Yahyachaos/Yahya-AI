@@ -9,6 +9,187 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — signed TWO-checkpoint continuity over separate JVM restarts.
+# This is a deterministic simulated operator, never independent durable custody.
+if ('--focused-two-rotation' in sys.argv
+        or '--strict-two-rotation-full-reset' in sys.argv):
+    harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureTwoRotationChainProcess {
+  static final String AUTH="independent-audit-operator";
+  static final String BOOT="memory-boot-00000001";
+  static final String C1="memory-claim-00000001",C2="memory-claim-00000002";
+  static final String ID="memory-id-000001";
+  static final String N1="rotation-one-fresh-challenge-000001";
+  static final String N2="rotation-two-fresh-challenge-000002";
+  static final byte[] OWNER=new byte[64];
+  static Path dir;
+  static KeyPair load(String name)throws Exception{
+    var k=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(k.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(dir.resolve(name+".pub")))),
+      k.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(dir.resolve(name+".priv")))));
+  }
+  static byte[] sign(KeyPair p,byte[] msg)throws Exception{
+    var s=Signature.getInstance("Ed25519");s.initSign(p.getPrivate());s.update(msg);return s.sign();
+  }
+  static AuditRootRecord member(String claim,String id,long revision,byte[] owner,long seq){
+    return new AuditRootRecord(claim,id,revision,owner,seq);
+  }
+  static List<AuditRootRecord> base(boolean reset){
+    return List.of(member(BOOT,reset?"attacker-reset-id":ID,4,OWNER,1));
+  }
+  static List<AuditRootRecord> first(List<AuditRootRecord> prev){
+    var records=new ArrayList<>(prev);records.add(member(C1,ID,4,OWNER,2));
+    records.sort(Comparator.comparing(r->r.claim));return records;
+  }
+  static List<AuditRootRecord> second(List<AuditRootRecord> prev){
+    var records=new ArrayList<>(prev);records.add(member(C2,ID,4,OWNER,3));
+    records.sort(Comparator.comparing(r->r.claim));return records;
+  }
+  static SignedImmutableAuditRootRecovery issue(KeyPair signer, String claim,
+    long sealed,long prevSeq, long nextSeq,byte[] oldRoot,
+    List<AuditRootRecord> records,String nonce)throws Exception {
+    byte[] nextRoot=immutableAuditRootHash(records);
+    byte[] payload=immutableAuditRecoveryPayload(AUTH,8,2,claim,ID,4,OWNER,
+      sealed,prevSeq,oldRoot,nextSeq,nextRoot,nonce);
+    return new SignedImmutableAuditRootRecovery(AUTH,8,2,claim,ID,4,
+      sealed,prevSeq,nextSeq,nonce,oldRoot,nextRoot,records,
+      payload.length==0?new byte[0]:sign(signer,payload));
+  }
+  static SignedImmutableAuditRootRecovery withSignature(SignedImmutableAuditRootRecovery receipt,
+       byte[] sig){
+    return new SignedImmutableAuditRootRecovery(receipt.authorityId,receipt.epoch,
+      receipt.generation,receipt.claim,receipt.exactId,receipt.revision,
+      receipt.sealedSequence,receipt.previousSequence,receipt.currentSequence,
+      receipt.challenge,receipt.previousRoot(),receipt.currentRoot(),receipt.records,sig);
+  }
+  static void check(String mode)throws Exception{
+    var root=load("root");var audit=load("audit");var cas=load("cas");
+    boolean reset=mode.equals("STRICT_FULL_RESET");
+    var trusted=base(reset);var root0=immutableAuditRootHash(trusted);
+    var r1=first(trusted);var r2=second(r1);
+    String nonce2=N2;
+    byte[] expectedRoot=root0;
+    byte[] pin=root.getPublic().getEncoded();
+    byte[] auditPin=audit.getPublic().getEncoded();
+    long secondPrev=2,secondSeq=3;
+    if(mode.equals("SIGN_EARLY_PRUNE"))r1=List.of(member(C1,ID,4,OWNER,2));
+    if(mode.equals("SIGN_LATE_PRUNE"))r2=List.of(member(BOOT,ID,4,OWNER,1),member(C2,ID,4,OWNER,3));
+    if(mode.equals("SIGN_LATE_REWRITE"))r2=List.of(member(BOOT,ID,4,OWNER,1),member(C1,ID,4,OWNER,999),member(C2,ID,4,OWNER,3));
+    if(mode.equals("SIGN_LATE_OWNER")){byte[] wrong=OWNER.clone();wrong[0]=7;
+      r2=List.of(member(BOOT,ID,4,OWNER,1),member(C1,ID,4,wrong,2),member(C2,ID,4,OWNER,3));}
+    if(mode.equals("SIGN_LATE_MISSING_TARGET"))r2=r1;
+    if(mode.equals("SIGN_BAD_PREVIOUS"))secondPrev=1;
+    if(mode.equals("SIGN_STALE_SEQUENCE"))secondSeq=2;
+    if(mode.equals("SIGN_NONCE_REUSE"))nonce2=N1;
+    if(mode.equals("BAD_TRUST_ROOT"))expectedRoot=new byte[32];
+    if(mode.equals("SAME_SIGNER_PIN"))auditPin=pin;
+    if(mode.equals("WRONG_SIGNER_PIN"))pin=cas.getPublic().getEncoded();
+    if(mode.equals("NO_TRUSTED_HISTORY"))trusted=null;
+    if(mode.equals("NO_TRUST_ROOT"))expectedRoot=null;
+    var proof1=issue(root,C1,2,1,2,root0,r1,N1);
+    var proof2=issue(mode.equals("FORGED_SIGNER")?audit:root,C2,3,
+       secondPrev,secondSeq,mode.equals("SIGN_BAD_PREVIOUS")?root0:immutableAuditRootHash(r1),r2,nonce2);
+    if(mode.equals("NORMAL")){
+      // The original Ed25519 receipts came from TWO PRIOR JVM processes;
+      // verifier consumes those persisted receipts, never local re-signing.
+      proof1=withSignature(proof1,Files.readAllBytes(dir.resolve("first.sig")));
+      proof2=withSignature(proof2,Files.readAllBytes(dir.resolve("second.sig")));
+    }
+    if(mode.equals("REPLAY_SECOND_SIGNATURE"))proof2=withSignature(proof2,proof1.signature());
+    if(mode.equals("TAMPER_SECOND_SIGNATURE")){byte[] wrong=proof2.signature();wrong[0]^=1;
+      proof2=withSignature(proof2,wrong);}
+    if(mode.equals("MISSING_FIRST"))proof1=null;
+    if(mode.equals("MISSING_SECOND"))proof2=null;
+    var out=verifyTwoSignedCheckpointRotations(pin,auditPin,cas.getPublic().getEncoded(),
+      AUTH,8,2,1,expectedRoot,trusted,proof1,OWNER,N1,proof2,OWNER,N2);
+    boolean ok=out==TwoRotationContinuity.VERIFIED_TWO_ROTATIONS_NO_RETRY;
+    if(reset){
+      // Intentional negative: both original keys survived, but the external
+      // starting anchor was illicitly reset to a counterfeit baseline.
+      // A real independent authority MUST block this; the mock CANNOT.
+      if(ok)throw new AssertionError("SECURITY_FAIL: original-key full trust-anchor reset accepted");
+      throw new AssertionError("unexpected mock rollback rejection");
+    }
+    if(ok != mode.equals("NORMAL"))throw new AssertionError(mode+" returned "+out);
+    if(!Files.exists(dir.resolve("root.priv")) || !Files.exists(dir.resolve("root.pub")))
+      throw new AssertionError("original trust signer lost");
+    System.out.println("TWO_ROTATION_"+mode+"_PASS "+out);
+  }
+  public static void main(String[] args)throws Exception{
+    dir=Path.of(args[1]);String mode=args[0];
+    if(mode.equals("INIT")){
+      Files.createDirectories(dir);var generator=KeyPairGenerator.getInstance("Ed25519");
+      for(String name:List.of("root","audit","cas")){
+        var p=generator.generateKeyPair();Files.write(dir.resolve(name+".pub"),p.getPublic().getEncoded());
+        Files.write(dir.resolve(name+".priv"),p.getPrivate().getEncoded());
+      }
+      return;
+    }
+    if(mode.equals("FIRST_ROTATION")){
+      var proof=issue(load("root"),C1,2,1,2,immutableAuditRootHash(base(false)),first(base(false)),N1);
+      Files.write(dir.resolve("first.sig"),proof.signature());return;
+    }
+    if(mode.equals("SECOND_ROTATION")){
+      var prev=first(base(false));var proof=issue(load("root"),C2,3,2,3,immutableAuditRootHash(prev),second(prev),N2);
+      Files.write(dir.resolve("second.sig"),proof.signature());return;
+    }
+    if(!Files.exists(dir.resolve("first.sig"))||!Files.exists(dir.resolve("second.sig")))
+      throw new AssertionError("both signed rotations must exist across process restarts");
+    check(mode);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_two_rotation_compiled_') as compiled:
+        harness_path = Path(compiled) / 'FutureTwoRotationChainProcess.java'
+        harness_path.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(harness_path)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        command = ['java', '-cp', compiled, 'de.yahya.ai.FutureTwoRotationChainProcess']
+        with tempfile.TemporaryDirectory(prefix='future_two_rotation_state_') as state:
+            calls = 0
+            def invoke(mode, expected=0):
+                global calls
+                result = subprocess.run(command + [mode, state], capture_output=True,
+                                        text=True, timeout=20)
+                assert result.returncode == expected, (mode, result.returncode,
+                                                        result.stdout, result.stderr)
+                calls += 1
+                return result
+            invoke('INIT')
+            pin_before = (Path(state) / 'root.pub').read_bytes()
+            invoke('FIRST_ROTATION')
+            invoke('SECOND_ROTATION')
+            if '--strict-two-rotation-full-reset' in sys.argv:
+                strict = invoke('STRICT_FULL_RESET', expected=1)
+                assert 'SECURITY_FAIL: original-key full trust-anchor reset accepted' in strict.stderr
+                print('STRICT_TWO_ROTATION_SECURITY_FAIL reproduced original keys retained'
+                      ' lost external anchor cannot be proven independent')
+                sys.exit(1)
+            modes = ('NORMAL','SIGN_EARLY_PRUNE','SIGN_LATE_PRUNE',
+                     'SIGN_LATE_REWRITE','SIGN_LATE_OWNER','SIGN_LATE_MISSING_TARGET',
+                     'SIGN_BAD_PREVIOUS','SIGN_STALE_SEQUENCE','SIGN_NONCE_REUSE',
+                     'BAD_TRUST_ROOT','SAME_SIGNER_PIN','WRONG_SIGNER_PIN',
+                     'NO_TRUSTED_HISTORY','NO_TRUST_ROOT','FORGED_SIGNER',
+                     'REPLAY_SECOND_SIGNATURE','TAMPER_SECOND_SIGNATURE',
+                     'MISSING_FIRST','MISSING_SECOND')
+            for mode in modes:
+                output = invoke(mode)
+                assert 'TWO_ROTATION_' + mode + '_PASS' in output.stdout
+            assert (Path(state) / 'root.pub').read_bytes() == pin_before
+            assert (Path(state) / 'first.sig').is_file()
+            assert (Path(state) / 'second.sig').is_file()
+            print(f'IMMUTABLE_TWO_ROTATION_SOURCE_EXACT_PASS java_processes={calls}'
+                  f' modes={len(modes)} original_signer_pinned=true'
+                  ' first_and_second_challenges_distinct=true no_writes_or_retries=true')
+    sys.exit(0)
+
 # FUTURE ONLY: source-exact cross-JVM signed READ-ONLY checkpoint recovery.
 # The signer and its root are mock files; a test harness cannot establish real
 # independently operated or rollback-resistant root custody.
