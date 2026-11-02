@@ -12,7 +12,9 @@ assert source.is_file(), source
 # FUTURE ONLY — counter-signed registrar transition. Local signer files are a
 # deliberately rollbackable simulation, NOT independent out-of-band custody.
 if ('--focused-registrar-rotation' in sys.argv
-        or '--strict-registrar-total-reset' in sys.argv):
+        or '--strict-registrar-total-reset' in sys.argv
+        or '--focused-registrar-status' in sys.argv
+        or '--strict-registrar-status-total-reset' in sys.argv):
     harness = r'''package de.yahya.ai;
 import java.nio.file.*;
 import java.security.*;
@@ -99,17 +101,61 @@ public final class FutureRegistrarRotationProcess {
     if(got!=expected)throw new AssertionError(mode+" got="+verdict+" expected="+expected);
     System.out.println("REGISTRAR_ROTATION_"+mode+"_PASS " +verdict);
   }
+  static void testStatus(String mode)throws Exception{
+    boolean forged=mode.equals("STATUS_FULL_RESET");
+    KeyPair old=load("oldReg"), newer=load("newReg"), statusKey=load("statusReg");
+    var first=gen(OLD,7,1,initial(forged),NONCE,old);
+    var second=gen(NEXT,8,2,extended(forged,false),NONCE,newer);
+    var transition=rotation(first,second,old,newer,false,false,false);
+    ExternalRegistrarStatusRegistry registry=(authority,from,to,nonce)->{
+      if(mode.equals("STATUS_UNAVAILABLE"))throw new IllegalStateException("independent authority offline");
+      if(mode.equals("STATUS_MISSING"))return null;
+      byte[] digest=MessageDigest.getInstance("SHA-256")
+        .digest(externalRegistrarRotationPayload(transition));
+      if(mode.equals("STATUS_WRONG_TRANSITION"))digest[0]^=1;
+      boolean revoked=mode.equals("STATUS_REVOKED");
+      long seq=mode.equals("STATUS_LOW_FLOOR")?8:10;
+      String replyNonce=mode.equals("STATUS_REPLAY")?NONCE:nonce;
+      String replyAuthority=mode.equals("STATUS_WRONG_AUTH")?"forged-other-operator":authority;
+      String replyTo=mode.equals("STATUS_WRONG_ENROLL")?OLD:to;
+      var unsigned=new SignedExternalRegistrarStatus(replyAuthority,from,replyTo,seq,
+        revoked,digest,replyNonce,null);
+      byte[] payload=externalRegistrarStatusPayload(unsigned);
+      // Invalid namespace/identity may itself fail to produce a canonical signature.
+      byte[] sig=sign(statusKey,payload);
+      if(mode.equals("STATUS_BAD_SIGNATURE"))sig[0]^=1;
+      return new SignedExternalRegistrarStatus(replyAuthority,from,replyTo,seq,
+        revoked,digest,replyNonce,sig);
+    };
+    byte[] pin=statusKey.getPublic().getEncoded();
+    if(mode.equals("STATUS_BAD_PIN"))pin=load("root").getPublic().getEncoded();
+    if(mode.equals("STATUS_SAME_SIGNER"))pin=newer.getPublic().getEncoded();
+    if(mode.equals("STATUS_ABSENT_PIN"))pin=null;
+    long floor=mode.equals("STATUS_MISSING_FLOOR")?0:9;
+    var verdict=verifyExternalRegistrarRotationWithStatus(registry,pin,floor,
+      old.getPublic().getEncoded(),externalGenesisIdentityDigest(first),7,
+      first,second,transition);
+    boolean verified=verdict==ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY;
+    if(forged){
+      if(verified)throw new AssertionError("SECURITY_FAIL: simulated independent status and enrollment reset accepted");
+      throw new AssertionError("unexpected rejection of forged fully reset status");
+    }
+    boolean expected=mode.equals("STATUS_NORMAL") || mode.equals("STATUS_CALLER_RESTART");
+    if(verified!=expected)throw new AssertionError(mode+" got="+verdict+" expected="+expected);
+    System.out.println("REGISTRAR_STATUS_"+mode+"_PASS "+verdict);
+  }
   public static void main(String[] args)throws Exception{
     external=Path.of(args[1]);String mode=args[0];
     if(mode.equals("INIT")){
       Files.createDirectories(external);var gen=KeyPairGenerator.getInstance("Ed25519");
-      for(String n:List.of("root","audit","cas","oldReg","newReg")){
+      for(String n:List.of("root","audit","cas","oldReg","newReg","statusReg")){
         var k=gen.generateKeyPair();Files.write(external.resolve(n+".pub"),k.getPublic().getEncoded());
         Files.write(external.resolve(n+".priv"),k.getPrivate().getEncoded());
       }
       return;
     }
-    test(mode);
+    if(mode.startsWith("STATUS_"))testStatus(mode);
+    else test(mode);
   }
 }
 '''
@@ -133,6 +179,23 @@ public final class FutureRegistrarRotationProcess {
                 assert 'SECURITY_FAIL: full rollback of external enrollment digest' in strict.stderr
                 print('STRICT_REGISTRAR_SECURITY_FAIL: local mock admits complete trust reset')
                 sys.exit(1)
+            if '--strict-registrar-status-total-reset' in sys.argv:
+                strict = invoke('STATUS_FULL_RESET', expected=1)
+                assert 'SECURITY_FAIL: simulated independent status and enrollment reset' in strict.stderr
+                print('STRICT_REGISTRAR_STATUS_SECURITY_FAIL: independent custody is only mocked')
+                sys.exit(1)
+            if '--focused-registrar-status' in sys.argv:
+                status_modes = ('STATUS_NORMAL', 'STATUS_CALLER_RESTART',
+                                'STATUS_UNAVAILABLE', 'STATUS_MISSING', 'STATUS_REVOKED',
+                                'STATUS_LOW_FLOOR', 'STATUS_REPLAY', 'STATUS_WRONG_TRANSITION',
+                                'STATUS_BAD_SIGNATURE', 'STATUS_BAD_PIN', 'STATUS_SAME_SIGNER',
+                                'STATUS_ABSENT_PIN', 'STATUS_MISSING_FLOOR',
+                                'STATUS_WRONG_AUTH', 'STATUS_WRONG_ENROLL')
+                for mode in status_modes:
+                    print(invoke(mode).stdout.strip())
+                print('FUTURE_REGISTRAR_STATUS_JVM_PASS cases=15 separate_processes=16'
+                      ' independent_authority=LOCAL_ROLLBACKABLE_MOCK')
+                sys.exit(0)
             modes = ('NORMAL', 'CALLER_RESTART', 'ERASE_OLD_MEMBER',
                      'BAD_OLD_SIGNATURE', 'BAD_NEW_SIGNATURE', 'TAMPER_NEXT_SIGNATURE',
                      'WRONG_OLD_PIN', 'WRONG_OLD_DIGEST', 'MISSING_OLD_DIGEST',

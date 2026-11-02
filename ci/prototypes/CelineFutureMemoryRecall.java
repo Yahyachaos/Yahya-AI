@@ -5300,6 +5300,133 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY: read-only status from a separately pre-pinned revocation
+     * authority. The caller MUST obtain its key and minimum sequence from a
+     * nonrollbackable administrative domain; this code cannot provide custody.
+     * Availability failure is indeterminate, never implicit ACTIVE status.
+     */
+    public interface ExternalRegistrarStatusRegistry {
+        SignedExternalRegistrarStatus readStatus(String authorityId,
+                String fromEnrollmentId, String toEnrollmentId,
+                String freshChallenge) throws Exception;
+    }
+
+    public static final class SignedExternalRegistrarStatus {
+        public final String authorityId, fromEnrollmentId, toEnrollmentId, challenge;
+        public final long statusSequence;
+        public final boolean revoked;
+        private final byte[] transitionDigest, signature;
+        public SignedExternalRegistrarStatus(String authorityId,
+                String fromEnrollmentId, String toEnrollmentId, long statusSequence,
+                boolean revoked, byte[] transitionDigest, String challenge,
+                byte[] signature) {
+            this.authorityId = authorityId;
+            this.fromEnrollmentId = fromEnrollmentId;
+            this.toEnrollmentId = toEnrollmentId;
+            this.statusSequence = statusSequence;
+            this.revoked = revoked;
+            this.transitionDigest = transitionDigest == null ? null : transitionDigest.clone();
+            this.challenge = challenge;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] transitionDigest() {
+            return transitionDigest == null ? null : transitionDigest.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    /** Canonical signed ACTIVE/REVOKED proof, bound to the exact rotation. */
+    public static byte[] externalRegistrarStatusPayload(SignedExternalRegistrarStatus r) {
+        if (r == null || r.authorityId == null
+                || !r.authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || r.fromEnrollmentId == null
+                || !r.fromEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.toEnrollmentId == null
+                || !r.toEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || r.fromEnrollmentId.equals(r.toEnrollmentId)
+                || r.statusSequence <= 0 || r.transitionDigest == null
+                || r.transitionDigest.length != 32 || r.challenge == null
+                || !r.challenge.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        return ("future-g1/independent-registrar-status/v1\n"
+                + r.authorityId + "\n" + r.fromEnrollmentId + "\n"
+                + r.toEnrollmentId + "\n" + r.statusSequence + "\n"
+                + (r.revoked ? "REVOKED" : "ACTIVE") + "\n"
+                + java.util.Base64.getEncoder().encodeToString(r.transitionDigest) + "\n"
+                + r.challenge + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Fail-closed, read-only rotation status check. The third-party status
+     * signer is distinct from BOTH registrar signers and all audit signers.
+     * A fresh per-query nonce, exact transition digest and independently
+     * pinned counter are mandatory. A VERIFIED verdict NEVER authorizes an
+     * enrollment/write/retry; a mock responder is NOT durable external proof.
+     */
+    public static ExternalRegistrarRotationVerdict verifyExternalRegistrarRotationWithStatus(
+            ExternalRegistrarStatusRegistry registry, byte[] pinnedStatusSigner,
+            long pinnedMinimumStatusSequence, byte[] pinnedOldRegistrar,
+            byte[] pinnedOldDigest, long pinnedMinimumRegistrySequence,
+            SignedExternalGenesis previous, SignedExternalGenesis successor,
+            SignedExternalRegistrarRotation transition) {
+        final ExternalRegistrarRotationVerdict FAIL =
+                ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
+        if (registry == null || pinnedStatusSigner == null
+                || pinnedMinimumStatusSequence <= 0 || transition == null
+                || verifyExternalRegistrarRotation(pinnedOldRegistrar, pinnedOldDigest,
+                        pinnedMinimumRegistrySequence, previous, successor,
+                        transition, transition.challenge)
+                        != ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY)
+            return FAIL;
+        try {
+            java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                    .generatePublic(new java.security.spec.X509EncodedKeySpec(pinnedStatusSigner));
+            byte[] pin = pinnedStatusSigner.clone();
+            if (!Arrays.equals(key.getEncoded(), pin)
+                    || Arrays.equals(pin, pinnedOldRegistrar)
+                    || Arrays.equals(pin, transition.nextSigner())
+                    || Arrays.equals(pin, previous.rootSigner())
+                    || Arrays.equals(pin, previous.auditSigner())
+                    || Arrays.equals(pin, previous.casSigner())
+                    || Arrays.equals(pin, successor.rootSigner())
+                    || Arrays.equals(pin, successor.auditSigner())
+                    || Arrays.equals(pin, successor.casSigner())) return FAIL;
+            byte[] transitionPayload = externalRegistrarRotationPayload(transition);
+            if (transitionPayload.length == 0) return FAIL;
+            byte[] expectedDigest = MessageDigest.getInstance("SHA-256")
+                    .digest(transitionPayload);
+            byte[] random = new byte[24];
+            new java.security.SecureRandom().nextBytes(random);
+            String nonce = java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(random);
+            SignedExternalRegistrarStatus status = registry.readStatus(
+                    transition.authorityId, transition.fromEnrollmentId,
+                    transition.toEnrollmentId, nonce);
+            if (status == null || status.revoked
+                    || status.statusSequence < pinnedMinimumStatusSequence
+                    || !java.util.Objects.equals(status.authorityId, transition.authorityId)
+                    || !java.util.Objects.equals(status.fromEnrollmentId,
+                            transition.fromEnrollmentId)
+                    || !java.util.Objects.equals(status.toEnrollmentId,
+                            transition.toEnrollmentId)
+                    || !nonce.equals(status.challenge)
+                    || !MessageDigest.isEqual(expectedDigest, status.transitionDigest()))
+                return FAIL;
+            byte[] payload = externalRegistrarStatusPayload(status);
+            if (payload.length == 0 || status.signature() == null) return FAIL;
+            java.security.Signature signature = java.security.Signature.getInstance("Ed25519");
+            signature.initVerify(key);
+            signature.update(payload);
+            return signature.verify(status.signature())
+                    ? ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY : FAIL;
+        } catch (Exception offlineOrForged) {
+            return FAIL;
+        }
+    }
+
     public enum TwoRotationContinuity {
         VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
     }
