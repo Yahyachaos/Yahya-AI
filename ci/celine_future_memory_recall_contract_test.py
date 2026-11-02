@@ -13,6 +13,7 @@ assert source.is_file(), source
 # The test deliberately leaves the original-key TOTAL_RESET attack unresolved.
 if ('--focused-status-witness' in sys.argv
         or '--focused-live-status-witness' in sys.argv
+        or '--focused-live-double-witness' in sys.argv
         or '--strict-status-witness-total-reset' in sys.argv):
     harness = r'''package de.yahya.ai;
 import java.nio.file.*;
@@ -113,56 +114,86 @@ public final class FutureRevocationWitnessProcess {
           throw new AssertionError("baseline static nonce replay not demonstrated");
       }
       final SignedExternalRegistrarStatus[] latestStatus={null};
+      final SignedExternalRegistrarStatus[] firstStatus={null};
+      final SignedExternalRegistrarWitness[] firstWitness={null};
       final HashSet<String> queried=new HashSet<>();
       final int[] statusCalls={0}, witnessCalls={0};
       ExternalRegistrarStatusRegistry statusRegistry=(authority,from,to,challenge)->{
         statusCalls[0]++;
         if(!queried.add(challenge))throw new AssertionError("challenge reused");
-        if(mode.equals("LIVE_STATUS_UNAVAILABLE"))throw new java.io.IOException("status offline");
+        if(mode.equals("LIVE_STATUS_UNAVAILABLE") ||
+           (mode.equals("LIVE_DOUBLE_STATUS_OFFLINE_SECOND") && statusCalls[0]==2))
+          throw new java.io.IOException("status offline");
         if(mode.equals("LIVE_REPLAY_BOTH") || mode.equals("LIVE_REPLAY_STATUS"))return status;
-        boolean revoked=mode.equals("LIVE_REVOKED_STATUS");
-        long seq=mode.equals("LIVE_STATUS_COUNTER_ROLLBACK")?8:10;
+        if(mode.equals("LIVE_DOUBLE_REPLAY_STATUS_SECOND") && statusCalls[0]==2)
+          return firstStatus[0];
+        boolean revoked=mode.equals("LIVE_REVOKED_STATUS") ||
+          (mode.equals("LIVE_DOUBLE_REVOKED_SECOND") && statusCalls[0]==2);
+        long seq=mode.equals("LIVE_STATUS_COUNTER_ROLLBACK")?8:
+          ((mode.equals("LIVE_DOUBLE_STATUS_ROLLBACK") && statusCalls[0]==2)?9:10);
         var unsigned=new SignedExternalRegistrarStatus(authority,from,to,seq,
           revoked,transitionDigest,challenge,null);
         byte[] proof=sign(statusSigner,externalRegistrarStatusPayload(unsigned));
         if(mode.equals("LIVE_BAD_STATUS_SIGNATURE"))proof[0]^=1;
         latestStatus[0]=new SignedExternalRegistrarStatus(authority,from,to,
           seq,revoked,transitionDigest,challenge,proof);
+        if(statusCalls[0]==1) firstStatus[0]=latestStatus[0];
         return latestStatus[0];
       };
       ExternalRegistrarRevocationWitnessRegistry witnessRegistry=(authority,from,to,challenge)->{
         witnessCalls[0]++;
-        if(mode.equals("LIVE_WITNESS_UNAVAILABLE"))throw new java.io.IOException("witness offline");
+        if(mode.equals("LIVE_WITNESS_UNAVAILABLE") ||
+           (mode.equals("LIVE_DOUBLE_WITNESS_OFFLINE_SECOND") && witnessCalls[0]==2))
+          throw new java.io.IOException("witness offline");
         if(mode.equals("LIVE_REPLAY_BOTH") || mode.equals("LIVE_REPLAY_WITNESS") || mode.equals("LIVE_REPLAY_STATUS"))return replayWitness;
+        if(mode.equals("LIVE_DOUBLE_REPLAY_WITNESS_SECOND") && witnessCalls[0]==2)
+          return firstWitness[0];
         if(latestStatus[0]==null)throw new AssertionError("status must be read before witness");
         byte[] digest=MessageDigest.getInstance("SHA-256").digest(
           externalRegistrarStatusPayload(latestStatus[0]));
         if(mode.equals("LIVE_WITNESS_DIGEST_MISMATCH"))digest[0]^=1;
-        long seq=mode.equals("LIVE_WITNESS_COUNTER_ROLLBACK")?98:100;
-        long observed=mode.equals("LIVE_STALE_STATUS_AFTER_NEW_WITNESS")?11:10;
-        boolean revoked=mode.equals("LIVE_LATE_REVOCATION");
+        long seq=mode.equals("LIVE_WITNESS_COUNTER_ROLLBACK")?98:
+          ((mode.equals("LIVE_DOUBLE_WITNESS_ROLLBACK") && witnessCalls[0]==2)?99:100);
+        long observed=mode.equals("LIVE_STALE_STATUS_AFTER_NEW_WITNESS")?11:
+          ((mode.equals("LIVE_DOUBLE_OBSERVED_FLOOR_ROLLBACK") && witnessCalls[0]==2)?9:10);
+        boolean revoked=mode.equals("LIVE_LATE_REVOCATION") ||
+          (mode.equals("LIVE_DOUBLE_REVOKED_SECOND") && witnessCalls[0]==2);
         var unsigned=new SignedExternalRegistrarWitness(authority,from,to,seq,observed,
           revoked,transitionDigest,digest,challenge,null);
         byte[] proof=sign(witnessSigner,externalRegistrarWitnessPayload(unsigned));
         if(mode.equals("LIVE_BAD_WITNESS_SIGNATURE"))proof[0]^=1;
-        return new SignedExternalRegistrarWitness(authority,from,to,seq,observed,
+        var signed=new SignedExternalRegistrarWitness(authority,from,to,seq,observed,
           revoked,transitionDigest,digest,challenge,proof);
+        if(witnessCalls[0]==1) firstWitness[0]=signed;
+        return signed;
       };
+      boolean doubleRead=mode.startsWith("LIVE_DOUBLE_");
       int attempts=mode.equals("LIVE_REPEAT_FRESH")?2:1;
-      boolean expected=mode.equals("LIVE_FRESH") || mode.equals("LIVE_REPEAT_FRESH");
+      boolean expected=mode.equals("LIVE_FRESH") || mode.equals("LIVE_REPEAT_FRESH") ||
+        mode.equals("LIVE_DOUBLE_FRESH");
       for(int i=0;i<attempts;i++){
-        var online=verifyLiveWitnessedRegistrarStatus(statusRegistry,witnessRegistry,
+        var online=doubleRead
+          ? verifyTwoLiveWitnessedRegistrarStatus(statusRegistry,witnessRegistry,
+            old.getPublic().getEncoded(),externalGenesisIdentityDigest(previous),7,
+            previous,successor,rotation,statusSigner.getPublic().getEncoded(),9,
+            witnessSigner.getPublic().getEncoded(),99)
+          : verifyLiveWitnessedRegistrarStatus(statusRegistry,witnessRegistry,
           old.getPublic().getEncoded(),externalGenesisIdentityDigest(previous),7,
           previous,successor,rotation,statusSigner.getPublic().getEncoded(),9,
           witnessSigner.getPublic().getEncoded(),99);
         boolean passed=online==ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY;
         if(passed!=expected)throw new AssertionError(mode+" actual="+online+" expected="+expected);
       }
-      if(!mode.equals("LIVE_STATUS_UNAVAILABLE") && statusCalls[0]!=attempts)
-        throw new AssertionError("status not queried exactly once per check");
+      if(!mode.equals("LIVE_STATUS_UNAVAILABLE") &&
+         !mode.equals("LIVE_DOUBLE_STATUS_OFFLINE_SECOND") &&
+         statusCalls[0]!=(doubleRead?2:1)*attempts)
+        throw new AssertionError("status not queried intended bounded number of times");
+      if(doubleRead && witnessCalls[0]>2)throw new AssertionError("unbounded witness reads");
       if(mode.equals("LIVE_STATUS_UNAVAILABLE") && witnessCalls[0]!=0)
         throw new AssertionError("witness queried after status read error");
-      if(queried.size()!=attempts)throw new AssertionError("fresh challenge count mismatch");
+      if(!mode.equals("LIVE_DOUBLE_STATUS_OFFLINE_SECOND") &&
+         queried.size()!=(doubleRead?2:1)*attempts)
+        throw new AssertionError("fresh challenge count mismatch");
       System.out.println("LIVE_REVOCATION_WITNESS_"+mode+"_PASS verdict="
         +(expected?"VERIFIED_NO_RETRY":"UNVERIFIABLE_NO_RETRY")
         +" unique_challenges="+queried.size());
@@ -216,6 +247,18 @@ public final class FutureRevocationWitnessProcess {
                 assert 'SECURITY_FAIL: all-original-key status+witness total reset accepted' in attacked.stderr
                 print('STRICT_WITNESS_SECURITY_FAIL: local status+witness trust wholly reset')
                 sys.exit(1)
+            if '--focused-live-double-witness' in sys.argv:
+                modes = ('LIVE_DOUBLE_FRESH','LIVE_DOUBLE_REVOKED_SECOND',
+                         'LIVE_DOUBLE_STATUS_ROLLBACK','LIVE_DOUBLE_WITNESS_ROLLBACK',
+                         'LIVE_DOUBLE_OBSERVED_FLOOR_ROLLBACK',
+                         'LIVE_DOUBLE_STATUS_OFFLINE_SECOND',
+                         'LIVE_DOUBLE_WITNESS_OFFLINE_SECOND',
+                         'LIVE_DOUBLE_REPLAY_STATUS_SECOND',
+                         'LIVE_DOUBLE_REPLAY_WITNESS_SECOND')
+                for mode in modes: print(invoke(mode).stdout.strip())
+                print('FUTURE_DOUBLE_READ_WITNESS_JVM_PASS cases=9 processes=10'
+                      ' custody=ROLLBACKABLE_SIMULATION')
+                sys.exit(0)
             if '--focused-live-status-witness' in sys.argv:
                 modes = ('LIVE_FRESH','LIVE_REPEAT_FRESH','LIVE_REPLAY_BOTH',
                          'LIVE_REPLAY_STATUS','LIVE_REPLAY_WITNESS',

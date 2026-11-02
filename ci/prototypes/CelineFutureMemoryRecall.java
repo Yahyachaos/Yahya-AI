@@ -5622,6 +5622,63 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE ONLY — bounded two-snapshot read-only consistency check.
+     * Two independently challenged status/witness pairs detect a revocation
+     * or a signed-counter rollback that happens BETWEEN the two reads. Each
+     * pair still passes the original pinned-key/floor/nonce verifier.
+     * This is NOT an atomic revocation query, cannot protect after the final
+     * read, and cannot prove externally independent, nonrollbackable custody.
+     * No retry, enrollment, reservation, memory write or provider permission.
+     */
+    public static ExternalRegistrarRotationVerdict verifyTwoLiveWitnessedRegistrarStatus(
+            ExternalRegistrarStatusRegistry statusRegistry,
+            ExternalRegistrarRevocationWitnessRegistry witnessRegistry,
+            byte[] oldRegistrarPin, byte[] oldEnrollmentDigest, long oldRegistryFloor,
+            SignedExternalGenesis previous, SignedExternalGenesis successor,
+            SignedExternalRegistrarRotation rotation,
+            byte[] statusSignerPin, long statusFloor,
+            byte[] witnessSignerPin, long witnessFloor) {
+        final ExternalRegistrarRotationVerdict FAIL =
+                ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
+        if (statusRegistry == null || witnessRegistry == null) return FAIL;
+        try {
+            final SignedExternalRegistrarStatus[] statuses =
+                    new SignedExternalRegistrarStatus[2];
+            final SignedExternalRegistrarWitness[] witnesses =
+                    new SignedExternalRegistrarWitness[2];
+            for (int i = 0; i < 2; i++) {
+                final int round = i;
+                ExternalRegistrarStatusRegistry statusRead = (authority, from, to, challenge) -> {
+                    statuses[round] = statusRegistry.readStatus(authority, from, to, challenge);
+                    return statuses[round];
+                };
+                ExternalRegistrarRevocationWitnessRegistry witnessRead =
+                        (authority, from, to, challenge) -> {
+                            witnesses[round] = witnessRegistry.readWitness(authority, from, to, challenge);
+                            return witnesses[round];
+                        };
+                if (verifyLiveWitnessedRegistrarStatus(statusRead, witnessRead,
+                        oldRegistrarPin, oldEnrollmentDigest, oldRegistryFloor,
+                        previous, successor, rotation,
+                        statusSignerPin, statusFloor, witnessSignerPin, witnessFloor)
+                        != ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY)
+                    return FAIL;
+            }
+            if (statuses[0] == null || statuses[1] == null
+                    || witnesses[0] == null || witnesses[1] == null
+                    || statuses[0].challenge.equals(statuses[1].challenge)
+                    || witnesses[0].challenge.equals(witnesses[1].challenge)
+                    || statuses[1].statusSequence < statuses[0].statusSequence
+                    || witnesses[1].witnessSequence < witnesses[0].witnessSequence
+                    || witnesses[1].observedStatusFloor < witnesses[0].observedStatusFloor)
+                return FAIL;
+            return ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY;
+        } catch (Exception unavailableOrInvalid) {
+            return FAIL;
+        }
+    }
+
     public enum TwoRotationContinuity {
         VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
     }
