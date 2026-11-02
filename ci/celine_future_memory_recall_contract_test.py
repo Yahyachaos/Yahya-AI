@@ -9,6 +9,233 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — genuine separate JVM operator process with its own signer/files,
+# NOT remotely hosted, hardware monotonic or independently administered custody.
+# App-only rollback is blocked CONDITIONALLY; resetting the operator's original
+# key + floor + transition digest is an intentionally unresolved SECURITY FAIL.
+if ('--focused-independent-registrar-floor' in sys.argv
+        or '--strict-independent-registrar-floor-total-reset' in sys.argv):
+    harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureIndependentRegistrarFloorProcess {
+  static final String AUTH="independent-audit-operator";
+  static final String OLD="enroll-original-000000001", NEXT="enroll-successor-000000001";
+  static final String BASE_NONCE="external-provisioning-immutable-nonce-0001";
+  static Path client, operator;
+  static byte[] owner=new byte[64];
+  static KeyPair load(Path directory,String label)throws Exception{
+    var f=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(f.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(directory.resolve(label+".pub")))),
+      f.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(directory.resolve(label+".priv")))));
+  }
+  static byte[] sign(KeyPair pair,byte[] bytes)throws Exception{
+    var s=Signature.getInstance("Ed25519"); s.initSign(pair.getPrivate()); s.update(bytes);return s.sign();
+  }
+  static void init()throws Exception{
+    Files.createDirectories(client);Files.createDirectories(operator);
+    var g=KeyPairGenerator.getInstance("Ed25519");
+    for(String n:List.of("root","audit","cas","oldReg","newReg","statusReg","witnessReg")){
+      var key=g.generateKeyPair();Files.write(client.resolve(n+".pub"),key.getPublic().getEncoded());
+      Files.write(client.resolve(n+".priv"),key.getPrivate().getEncoded());
+    }
+    var k=g.generateKeyPair();
+    Files.write(operator.resolve("floorReg.pub"),k.getPublic().getEncoded());
+    Files.write(operator.resolve("floorReg.priv"),k.getPrivate().getEncoded());
+    Files.writeString(operator.resolve("floor.state"),"1:10:100:false");
+    Files.write(operator.resolve("transition.digest"),transition(false));
+  }
+  static SignedExternalGenesis genesis(String id,long sequence,long last,
+          List<AuditRootRecord> members,KeyPair signing)throws Exception{
+    var unsigned=new SignedExternalGenesis(AUTH,id,8,2,sequence,last,members,
+      load(client,"root").getPublic().getEncoded(),load(client,"audit").getPublic().getEncoded(),
+      load(client,"cas").getPublic().getEncoded(),immutableAuditRootHash(members),BASE_NONCE,null);
+    return new SignedExternalGenesis(unsigned.authorityId,unsigned.enrollmentId,
+      unsigned.epoch,unsigned.generation,unsigned.registrySequence,unsigned.genesisSequence,
+      unsigned.genesisMembers,unsigned.rootSigner(),unsigned.auditSigner(),
+      unsigned.casSigner(),unsigned.genesisRoot(),unsigned.challenge,
+      sign(signing,externalGenesisSignedPayload(unsigned)));
+  }
+  static SignedExternalRegistrarRotation[] chain(boolean forged)throws Exception{
+    KeyPair old=load(client,"oldReg"),next=load(client,"newReg");
+    var members=new ArrayList<AuditRootRecord>();
+    members.add(new AuditRootRecord("memory-bootstrap-claim-1",
+      forged?"attacker-rewrite":"original-memory",3,owner,1));
+    var previous=genesis(OLD,7,1,members,old);
+    members.add(new AuditRootRecord("memory-second-claim-2","second-memory",4,owner,2));
+    members.sort(Comparator.comparing(x->x.claim));
+    var successor=genesis(NEXT,8,2,members,next);
+    var pending=new SignedExternalRegistrarRotation(AUTH,OLD,NEXT,7,8,false,
+      externalGenesisIdentityDigest(previous),externalGenesisIdentityDigest(successor),
+      next.getPublic().getEncoded(),BASE_NONCE,null,null);
+    byte[] payload=externalRegistrarRotationPayload(pending);
+    var signed=new SignedExternalRegistrarRotation(AUTH,OLD,NEXT,7,8,false,
+      pending.fromDigest(),pending.toDigest(),pending.nextSigner(),BASE_NONCE,
+      sign(old,payload),sign(next,payload));
+    // Used by caller to build a consistent certificate chain; never accepted as a trust pin.
+    context=new SignedExternalGenesis[]{previous,successor};
+    return new SignedExternalRegistrarRotation[]{signed};
+  }
+  static SignedExternalGenesis[] context;
+  static byte[] transition(boolean forged)throws Exception{
+    var rotation=chain(forged)[0];
+    return MessageDigest.getInstance("SHA-256").digest(externalRegistrarRotationPayload(rotation));
+  }
+  static void serve(String authority,String from,String to,String nonce)throws Exception{
+    String[] state=Files.readString(operator.resolve("floor.state")).trim().split(":");
+    if(state.length!=4)throw new IllegalStateException("state unreadable");
+    byte[] pinnedTransition=Files.readAllBytes(operator.resolve("transition.digest"));
+    var unsigned=new SignedRegistrarFloor(authority,from,to,
+      Long.parseLong(state[0]),Long.parseLong(state[1]),Long.parseLong(state[2]),
+      Boolean.parseBoolean(state[3]),pinnedTransition,nonce,null);
+    byte[] signature=sign(load(operator,"floorReg"),independentRegistrarFloorPayload(unsigned));
+    System.out.println(unsigned.floorSequence+":"+unsigned.minStatusSequence+":"+
+      unsigned.minWitnessSequence+":"+unsigned.revokedEver+":"+
+      Base64.getEncoder().encodeToString(unsigned.transitionDigest())+":"+nonce+":"+
+      Base64.getEncoder().encodeToString(signature));
+  }
+  static void verify(String mode)throws Exception{
+    boolean forged=mode.equals("FORGED_GENESIS") || mode.equals("TOTAL_RESET");
+    var rotation=chain(forged)[0];
+    var previous=context[0];var successor=context[1];
+    byte[] digest=transition(forged);
+    KeyPair old=load(client,"oldReg"),statusKey=load(client,"statusReg"),witnessKey=load(client,"witnessReg");
+    final SignedExternalRegistrarStatus[] latest={null};
+    final int[] reads={0,0,0};
+    ExternalRegistrarStatusRegistry status=(authority,from,to,challenge)->{
+      reads[0]++;
+      long sequence=mode.equals("STATUS_ROLLBACK") || mode.equals("TOTAL_RESET")?9:10;
+      var unsigned=new SignedExternalRegistrarStatus(authority,from,to,sequence,
+        false,digest,challenge,null);
+      var signed=new SignedExternalRegistrarStatus(authority,from,to,sequence,
+        false,digest,challenge,sign(statusKey,externalRegistrarStatusPayload(unsigned)));
+      latest[0]=signed;return signed;
+    };
+    ExternalRegistrarRevocationWitnessRegistry witness=(authority,from,to,challenge)->{
+      reads[1]++;
+      long sequence=mode.equals("STATUS_ROLLBACK") || mode.equals("TOTAL_RESET")?99:100;
+      long observed=mode.equals("STATUS_ROLLBACK") || mode.equals("TOTAL_RESET")?9:10;
+      byte[] statusHash=MessageDigest.getInstance("SHA-256").digest(externalRegistrarStatusPayload(latest[0]));
+      var unsigned=new SignedExternalRegistrarWitness(authority,from,to,sequence,
+        observed,false,digest,statusHash,challenge,null);
+      return new SignedExternalRegistrarWitness(authority,from,to,sequence,
+        observed,false,digest,statusHash,challenge,
+        sign(witnessKey,externalRegistrarWitnessPayload(unsigned)));
+    };
+    IndependentRegistrarFloorRegistry registry=(authority,from,to,challenge)->{
+      reads[2]++;
+      if(mode.equals("OFFLINE"))throw new java.io.IOException("operator unavailable");
+      String queried=mode.equals("REPLAY")?"replayed-operator-challenge-from-previous-session":challenge;
+      var call=new ProcessBuilder("java","-cp",System.getProperty("java.class.path"),
+        "de.yahya.ai.FutureIndependentRegistrarFloorProcess","OPERATOR",
+        client.toString(),operator.toString(),authority,from,to,queried).start();
+      boolean done=call.waitFor(5,TimeUnit.SECONDS);
+      if(!done){call.destroyForcibly();throw new java.io.IOException("operator timeout");}
+      if(call.exitValue()!=0)throw new java.io.IOException("operator not ready");
+      String[] line=new String(call.getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8).trim().split(":");
+      if(line.length!=7)throw new java.io.IOException("operator malformed reply");
+      byte[] signature=Base64.getDecoder().decode(line[6]);
+      if(mode.equals("BAD_SIGNATURE"))signature[0]^=1;
+      return new SignedRegistrarFloor(authority,from,to,Long.parseLong(line[0]),
+        Long.parseLong(line[1]),Long.parseLong(line[2]),Boolean.parseBoolean(line[3]),
+        Base64.getDecoder().decode(line[4]),line[5],signature);
+    };
+    byte[] floorPin=load(operator,"floorReg").getPublic().getEncoded();
+    if(mode.equals("BAD_PIN"))floorPin=statusKey.getPublic().getEncoded();
+    long minFloorSequence=mode.equals("STALE_MINIMUM")?2:1;
+    if(mode.equals("STATUS_ROLLBACK") || mode.equals("FORGED_GENESIS")){
+      // Reproduce the regression: the prior two-snapshot verifier accepts
+      // an original-key rollback above its static per-session minimum.
+      var baseline=verifyTwoLiveWitnessedRegistrarStatus(status,witness,
+        old.getPublic().getEncoded(),externalGenesisIdentityDigest(previous),7,
+        previous,successor,rotation,statusKey.getPublic().getEncoded(),9,
+        witnessKey.getPublic().getEncoded(),98);
+      if(baseline!=ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY)
+        throw new AssertionError("baseline regression not reproduced: "+baseline);
+      reads[0]=0;reads[1]=0;
+      System.out.println("BASELINE_STATIC_FLOOR_ACCEPTED_"+mode+"_REPRODUCED");
+    }
+    var result=verifyTwoLiveWithIndependentFloor(status,witness,registry,
+      old.getPublic().getEncoded(),externalGenesisIdentityDigest(previous),7,
+      previous,successor,rotation,statusKey.getPublic().getEncoded(),9,
+      witnessKey.getPublic().getEncoded(),98,floorPin,minFloorSequence);
+    boolean verified=result==ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY;
+    boolean expected=mode.equals("VALID")||mode.equals("VALID_RESTART");
+    if(mode.equals("TOTAL_RESET")){
+      if(verified)throw new AssertionError("UNRESOLVED_TOTAL_RESET: original-key operator rollback admitted forged history");
+      throw new AssertionError("total reset newly blocked: re-evaluate security expectation");
+    }
+    if(verified!=expected)throw new AssertionError(mode+" expected "+expected+" got "+result);
+    if(mode.equals("BAD_PIN")){
+      if(reads[0]!=0||reads[1]!=0||reads[2]!=0)
+        throw new AssertionError("bad identity unexpectedly queried authority");
+    }else if(reads[0]!=2||reads[1]!=2||reads[2]!=1)
+      throw new AssertionError("unexpected calls "+Arrays.toString(reads));
+    System.out.println("INDEPENDENT_FLOOR_"+mode+"_PASS "+result+
+      " app_status_reads="+reads[0]+" app_witness_reads="+reads[1]+" operator_processes="+reads[2]);
+  }
+  public static void main(String[] args)throws Exception{
+    client=Path.of(args[1]);operator=Path.of(args[2]);
+    if(args[0].equals("INIT")){init();return;}
+    if(args[0].equals("OPERATOR")){serve(args[3],args[4],args[5],args[6]);return;}
+    if(args[0].equals("REPROVISION_FORGED")){
+      Files.write(operator.resolve("transition.digest"),transition(true));return;
+    }
+    verify(args[0]);
+  }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_real_jvm_operator_fixture_') as compiled:
+        path = Path(compiled) / 'FutureIndependentRegistrarFloorProcess.java'
+        path.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(path)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        runner = ['java', '-cp', compiled, 'de.yahya.ai.FutureIndependentRegistrarFloorProcess']
+        with tempfile.TemporaryDirectory(prefix='future_operator_process_separation_') as top:
+            root = Path(top)
+            app, operator = root / 'app-rollback-domain', root / 'operator-independent-domain'
+            def invoke(mode, expected=0):
+                p = subprocess.run(runner + [mode, str(app), str(operator)],
+                                   capture_output=True, text=True, timeout=20)
+                assert p.returncode == expected, (mode, p.stdout, p.stderr)
+                return p
+            invoke('INIT')
+            original_pin = (operator / 'floorReg.pub').read_bytes()
+            original_digest = (operator / 'transition.digest').read_bytes()
+            for mode in ('VALID', 'STATUS_ROLLBACK', 'FORGED_GENESIS', 'OFFLINE',
+                         'REPLAY', 'BAD_SIGNATURE', 'BAD_PIN', 'STALE_MINIMUM'):
+                print(invoke(mode).stdout.strip())
+            # A monotonic operator floor survives independently of the app
+            # domain. These two changes are admin/test operations only.
+            (operator / 'floor.state').write_text('2:11:101:false')
+            print(invoke('VALID_RESTART' if False else 'ADVANCED_COUNTER').stdout.strip())
+            (operator / 'floor.state').write_text('1:10:100:true')
+            print(invoke('REVOKED_OPERATOR').stdout.strip())
+            (operator / 'floor.state').write_text('1:10:100:false')
+            print(invoke('VALID_RESTART').stdout.strip())
+            assert (operator / 'floorReg.pub').read_bytes() == original_pin
+            assert (operator / 'transition.digest').read_bytes() == original_digest
+            if '--strict-independent-registrar-floor-total-reset' in sys.argv:
+                # The attacker now controls BOTH stores, but keeps the original
+                # status, witness, registrar and operator private keys unchanged.
+                (operator / 'floor.state').write_text('1:9:99:false')
+                invoke('REPROVISION_FORGED')
+                assert (operator / 'floorReg.pub').read_bytes() == original_pin
+                assert (operator / 'transition.digest').read_bytes() != original_digest
+                p = invoke('TOTAL_RESET', expected=1)
+                assert 'UNRESOLVED_TOTAL_RESET' in p.stderr, p.stderr
+                print('STRICT_INDEPENDENT_REGISTRAR_SECURITY_FAIL: all trust domains reset with original keys')
+                sys.exit(1)
+            print('FUTURE_INDEPENDENT_REGISTRAR_FLOOR_JVM_PASS cases=11'
+                  ' client_processes=12 operator_processes=11'
+                  ' operator_custody=SEPARATE_JVM_ROLLBACKABLE_LOCAL_FILES')
+            sys.exit(0)
+
 # FUTURE ONLY — signed two-domain revocation witness (not a real external service).
 # The test deliberately leaves the original-key TOTAL_RESET attack unresolved.
 if ('--focused-status-witness' in sys.argv

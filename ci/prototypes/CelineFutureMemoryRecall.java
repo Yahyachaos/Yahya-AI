@@ -5679,6 +5679,155 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE ONLY / NOT A PRODUCTION SECURITY BOUNDARY. The app must never
+     * provision this authority, pick its pin, or control its monotonic state.
+     * Its service and signing key require independently administered custody.
+     * A caller-supplied Java implementation does NOT prove that custody.
+     */
+    public interface IndependentRegistrarFloorRegistry {
+        SignedRegistrarFloor readFloor(String authorityId, String fromEnrollmentId,
+                String toEnrollmentId, String freshChallenge) throws Exception;
+    }
+
+    /** A fresh, signed, read-only view of the operator's monotonic history. */
+    public static final class SignedRegistrarFloor {
+        public final String authorityId, fromEnrollmentId, toEnrollmentId, challenge;
+        public final long floorSequence, minStatusSequence, minWitnessSequence;
+        public final boolean revokedEver;
+        private final byte[] transitionDigest, signature;
+        public SignedRegistrarFloor(String authorityId, String fromEnrollmentId,
+                String toEnrollmentId, long floorSequence, long minStatusSequence,
+                long minWitnessSequence, boolean revokedEver,
+                byte[] transitionDigest, String challenge, byte[] signature) {
+            this.authorityId = authorityId;
+            this.fromEnrollmentId = fromEnrollmentId;
+            this.toEnrollmentId = toEnrollmentId;
+            this.floorSequence = floorSequence;
+            this.minStatusSequence = minStatusSequence;
+            this.minWitnessSequence = minWitnessSequence;
+            this.revokedEver = revokedEver;
+            this.transitionDigest = transitionDigest == null ? null : transitionDigest.clone();
+            this.challenge = challenge;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] transitionDigest() {
+            return transitionDigest == null ? null : transitionDigest.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] independentRegistrarFloorPayload(SignedRegistrarFloor r) {
+        if (r == null || r.authorityId == null || r.fromEnrollmentId == null
+                || r.toEnrollmentId == null || r.challenge == null
+                || !r.authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || !r.fromEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || !r.toEnrollmentId.matches("[A-Za-z0-9_-]{16,128}")
+                || !r.challenge.matches("[A-Za-z0-9_-]{24,128}")
+                || r.floorSequence <= 0 || r.minStatusSequence <= 0
+                || r.minWitnessSequence <= 0 || r.transitionDigest == null
+                || r.transitionDigest.length != 32) return new byte[0];
+        String s = "future-g1/independent-registrar-floor/v1\n"
+                + r.authorityId + "\n" + r.fromEnrollmentId + "\n"
+                + r.toEnrollmentId + "\n" + r.floorSequence + "\n"
+                + r.minStatusSequence + "\n" + r.minWitnessSequence + "\n"
+                + (r.revokedEver ? "REVOKED" : "ACTIVE") + "\n"
+                + java.util.Base64.getEncoder().encodeToString(r.transitionDigest) + "\n"
+                + r.challenge + "\n";
+        return s.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Read-only operator-floor check AFTER the bounded two-pair verifier.
+     * Accepts no caller-selected floor response or nonce. Externally pinned
+     * signer and trusted floor must come from outside all app-restorable domains.
+     * A surviving floor detects rollback of only the status/witness domains.
+     * Full rollback of the operator floor AND its original private key remains
+     * an EXPECTED SECURITY FAIL; two reads do not eliminate TOCTOU afterwards.
+     * A positive result is NEVER authorization to mutate/learn/retry/publish.
+     */
+    public static ExternalRegistrarRotationVerdict verifyTwoLiveWithIndependentFloor(
+            ExternalRegistrarStatusRegistry statusRegistry,
+            ExternalRegistrarRevocationWitnessRegistry witnessRegistry,
+            IndependentRegistrarFloorRegistry floorRegistry,
+            byte[] oldRegistrarPin, byte[] oldEnrollmentDigest, long oldRegistryFloor,
+            SignedExternalGenesis previous, SignedExternalGenesis successor,
+            SignedExternalRegistrarRotation rotation,
+            byte[] statusSignerPin, long statusFloor,
+            byte[] witnessSignerPin, long witnessFloor,
+            byte[] independentlyProvisionedFloorSigner, long trustedFloorSequence) {
+        final ExternalRegistrarRotationVerdict FAIL =
+                ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
+        if (statusRegistry == null || witnessRegistry == null || floorRegistry == null
+                || rotation == null || independentlyProvisionedFloorSigner == null
+                || trustedFloorSequence <= 0 || oldRegistrarPin == null
+                || statusSignerPin == null || witnessSignerPin == null
+                || Arrays.equals(independentlyProvisionedFloorSigner, oldRegistrarPin)
+                || Arrays.equals(independentlyProvisionedFloorSigner, rotation.nextSigner())
+                || Arrays.equals(independentlyProvisionedFloorSigner, statusSignerPin)
+                || Arrays.equals(independentlyProvisionedFloorSigner, witnessSignerPin))
+            return FAIL;
+        try {
+            final SignedExternalRegistrarStatus[] lastStatus = {null};
+            final SignedExternalRegistrarWitness[] lastWitness = {null};
+            final int[] statusCalls = {0}, witnessCalls = {0};
+            ExternalRegistrarStatusRegistry statusReader = (a, f, t, challenge) -> {
+                if (++statusCalls[0] > 2) throw new IllegalStateException("status limit");
+                lastStatus[0] = statusRegistry.readStatus(a, f, t, challenge);
+                return lastStatus[0];
+            };
+            ExternalRegistrarRevocationWitnessRegistry witnessReader = (a, f, t, challenge) -> {
+                if (++witnessCalls[0] > 2) throw new IllegalStateException("witness limit");
+                lastWitness[0] = witnessRegistry.readWitness(a, f, t, challenge);
+                return lastWitness[0];
+            };
+            if (verifyTwoLiveWitnessedRegistrarStatus(statusReader, witnessReader,
+                    oldRegistrarPin, oldEnrollmentDigest, oldRegistryFloor,
+                    previous, successor, rotation, statusSignerPin, statusFloor,
+                    witnessSignerPin, witnessFloor)
+                    != ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY
+                    || statusCalls[0] != 2 || witnessCalls[0] != 2
+                    || lastStatus[0] == null || lastWitness[0] == null)
+                return FAIL;
+            byte[] challengeBytes = new byte[32];
+            new java.security.SecureRandom().nextBytes(challengeBytes);
+            String challenge = java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(challengeBytes);
+            SignedRegistrarFloor floor = floorRegistry.readFloor(rotation.authorityId,
+                    rotation.fromEnrollmentId, rotation.toEnrollmentId, challenge);
+            if (floor == null || !rotation.authorityId.equals(floor.authorityId)
+                    || !rotation.fromEnrollmentId.equals(floor.fromEnrollmentId)
+                    || !rotation.toEnrollmentId.equals(floor.toEnrollmentId)
+                    || !challenge.equals(floor.challenge) || floor.revokedEver
+                    || floor.floorSequence < trustedFloorSequence
+                    || lastStatus[0].statusSequence < floor.minStatusSequence
+                    || lastWitness[0].witnessSequence < floor.minWitnessSequence
+                    || lastWitness[0].observedStatusFloor < floor.minStatusSequence)
+                return FAIL;
+            byte[] expectedTransition = MessageDigest.getInstance("SHA-256")
+                    .digest(externalRegistrarRotationPayload(rotation));
+            if (expectedTransition.length != 32
+                    || !MessageDigest.isEqual(expectedTransition, floor.transitionDigest()))
+                return FAIL;
+            byte[] payload = independentRegistrarFloorPayload(floor);
+            if (payload.length == 0 || floor.signature() == null) return FAIL;
+            java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                    .generatePublic(new java.security.spec.X509EncodedKeySpec(
+                            independentlyProvisionedFloorSigner));
+            if (!Arrays.equals(key.getEncoded(), independentlyProvisionedFloorSigner))
+                return FAIL;
+            java.security.Signature signature = java.security.Signature.getInstance("Ed25519");
+            signature.initVerify(key);
+            signature.update(payload);
+            return signature.verify(floor.signature())
+                    ? ExternalRegistrarRotationVerdict.VERIFIED_ROTATION_NO_RETRY : FAIL;
+        } catch (Exception untrustedOrUnavailable) {
+            return FAIL;
+        }
+    }
+
     public enum TwoRotationContinuity {
         VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
     }
