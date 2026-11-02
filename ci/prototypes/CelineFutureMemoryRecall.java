@@ -2672,10 +2672,11 @@ public final class CelineFutureMemoryRecall {
         if (lease == null) return OwnerPublicationOutcome.REJECTED_BEFORE_START;
         boolean journalAttempted = false;
         try (OwnerSnapshotReadLease held = lease) {
-            if (!certificate.generation.equals(held.generation())
-                    || !trustedG1Verifier.verifies(certificate, candidates))
+            List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+            if (sealed == null || !certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.verifies(certificate, sealed))
                 return OwnerPublicationOutcome.REJECTED_BEFORE_START;
-            List<Match> matches = retrieveAssumingOwnerVerified(query, candidates,
+            List<Match> matches = retrieveAssumingOwnerVerified(query, sealed,
                     certificate.retiredIds, certificate.confirmedRetiredParentIds,
                     maxResults, now);
             if (!certificate.generation.equals(held.generation())
@@ -2684,7 +2685,7 @@ public final class CelineFutureMemoryRecall {
             ArrayList<String> summaries = new ArrayList<>(matches.size());
             for (Match match : matches) summaries.add(match.candidate.summary);
             byte[] intent = ownerDispatchIntent(ownerIssuedRequestId, query,
-                    certificate, candidates, maxResults, now, summaries);
+                    certificate, sealed, maxResults, now, summaries);
             if (intent.length != 32)
                 return OwnerPublicationOutcome.REJECTED_BEFORE_START;
             journalAttempted = true;
@@ -2746,10 +2747,11 @@ public final class CelineFutureMemoryRecall {
         if (lease == null) return OwnerPublicationOutcome.REJECTED_BEFORE_START;
         boolean transactionAttempted = false;
         try (OwnerSnapshotReadLease held = lease) {
-            if (!certificate.generation.equals(held.generation())
-                    || !trustedG1Verifier.verifies(certificate, candidates))
+            List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+            if (sealed == null || !certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.verifies(certificate, sealed))
                 return OwnerPublicationOutcome.REJECTED_BEFORE_START;
-            List<Match> matches = retrieveAssumingOwnerVerified(query, candidates,
+            List<Match> matches = retrieveAssumingOwnerVerified(query, sealed,
                     certificate.retiredIds, certificate.confirmedRetiredParentIds,
                     maxResults, now);
             if (!certificate.generation.equals(held.generation())
@@ -2758,7 +2760,7 @@ public final class CelineFutureMemoryRecall {
             ArrayList<String> summaries = new ArrayList<>(matches.size());
             for (Match match : matches) summaries.add(match.candidate.summary);
             byte[] intent = ownerDispatchIntent(ownerIssuedRequestId, query,
-                    certificate, candidates, maxResults, now, summaries);
+                    certificate, sealed, maxResults, now, summaries);
             if (intent.length != 32) return OwnerPublicationOutcome.REJECTED_BEFORE_START;
             List<String> approved = Collections.unmodifiableList(summaries);
             transactionAttempted = true;
@@ -2880,10 +2882,11 @@ public final class CelineFutureMemoryRecall {
         if (lease == null) return false;
         boolean callbackStarted = false;
         try (OwnerSnapshotReadLease held = lease) {
-            if (!certificate.generation.equals(held.generation())
-                    || !trustedG1Verifier.verifies(certificate, candidates))
+            List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+            if (sealed == null || !certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.verifies(certificate, sealed))
                 return false;
-            List<Match> matches = retrieveAssumingOwnerVerified(query, candidates,
+            List<Match> matches = retrieveAssumingOwnerVerified(query, sealed,
                     certificate.retiredIds, certificate.confirmedRetiredParentIds,
                     maxResults, now);
             // The atomic owner lease must prevent all intervening revision
@@ -2905,13 +2908,32 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * Freeze the exact G1 projection BEFORE its MAC is checked. A mutable
+     * caller-owned List can swap elements during certificate serialization;
+     * authenticating one view and evaluating a later view would expose memory
+     * that was never signed by the source owner. Candidate itself is immutable.
+     * This is not a substitute for the G1 owner's atomic generation/lease.
+     */
+    private static List<Candidate> frozenCandidateSnapshot(List<Candidate> records) {
+        if (records == null || records.isEmpty() || records.size() > MAX_CANDIDATES)
+            return null;
+        try {
+            return Collections.unmodifiableList(new ArrayList<>(records));
+        } catch (RuntimeException ex) {
+            return null; // Torn or concurrently-invalid projection: fail closed.
+        }
+    }
+
     /** Certified path: without a trusted owner-pinned verifier, no unlock. */
     public static List<Match> retrieveCertified(String query, List<Candidate> candidates,
             OwnerLineageCertificate certificate, OwnerLineageVerifier trustedG1Verifier,
             int maxResults, long now) {
-        if (trustedG1Verifier == null || !trustedG1Verifier.verifies(certificate, candidates))
+        List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+        if (sealed == null || trustedG1Verifier == null
+                || !trustedG1Verifier.verifies(certificate, sealed))
             return Collections.emptyList();
-        List<Match> result = retrieveAssumingOwnerVerified(query, candidates,
+        List<Match> result = retrieveAssumingOwnerVerified(query, sealed,
                 certificate.retiredIds, certificate.confirmedRetiredParentIds, maxResults, now);
         // An owner revision may be replaced during policy evaluation, after
         // HMAC verification. Recheck before exposing any result. Future G1
@@ -2923,9 +2945,11 @@ public final class CelineFutureMemoryRecall {
     public static String unambiguousCorrectionTargetCertified(String correctionText,
             List<Candidate> candidates, OwnerLineageCertificate certificate,
             OwnerLineageVerifier trustedG1Verifier, long now) {
-        if (trustedG1Verifier == null || !trustedG1Verifier.verifies(certificate, candidates))
+        List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+        if (sealed == null || trustedG1Verifier == null
+                || !trustedG1Verifier.verifies(certificate, sealed))
             return "";
-        String target = correctionAssumingOwnerVerified(correctionText, candidates,
+        String target = correctionAssumingOwnerVerified(correctionText, sealed,
                 certificate.retiredIds, certificate.confirmedRetiredParentIds, now);
         return trustedG1Verifier.isStillCurrent(certificate) ? target : "";
     }

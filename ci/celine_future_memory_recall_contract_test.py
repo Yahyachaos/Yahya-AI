@@ -5479,6 +5479,50 @@ public final class FutureMemoryRecallContract {
             x("a", "Katze Max", "signed-retired",true,0)),
             signedRetired,signedRetired).length,0,
             "certificate encoding rejects duplicate source IDs");
+        // A caller-visible mutable projection must not switch AFTER the G1
+        // certificate was verified. An ArrayList.toArray() hook models an
+        // external adapter replacing the backing snapshot during verification.
+        CelineFutureMemoryRecall.Candidate signedAlias = c("signed-alias", "Katze Luna");
+        CelineFutureMemoryRecall.Candidate unsignedAlias = c("unsigned-alias", "Katze Luna");
+        byte[] aliasKey = new byte[32];
+        Arrays.fill(aliasKey,(byte)0x57); // deterministic TEST ONLY owner key
+        String aliasGen = "g1-alias-verified-revision";
+        javax.crypto.Mac aliasSigner = javax.crypto.Mac.getInstance("HmacSHA256");
+        aliasSigner.init(new javax.crypto.spec.SecretKeySpec(aliasKey,"HmacSHA256"));
+        Set<String> noAliasRetirement = Collections.emptySet();
+        CelineFutureMemoryRecall.OwnerLineageCertificate aliasCert =
+            new CelineFutureMemoryRecall.OwnerLineageCertificate(aliasGen,
+                noAliasRetirement,noAliasRetirement,aliasSigner.doFinal(
+                    CelineFutureMemoryRecall.certificatePayload(aliasGen,
+                        Arrays.asList(signedAlias),noAliasRetirement,noAliasRetirement)));
+        CelineFutureMemoryRecall.OwnerLineageVerifier aliasOwner =
+            new CelineFutureMemoryRecall.OwnerLineageVerifier(aliasKey,aliasGen);
+        List<CelineFutureMemoryRecall.Candidate> aliasRecall =
+            new ArrayList<CelineFutureMemoryRecall.Candidate>() {
+              boolean switched;
+              @Override public Object[] toArray() {
+                Object[] signed = super.toArray();
+                if (!switched) { switched=true; set(0,unsignedAlias); }
+                return signed;
+              }
+            };
+        aliasRecall.add(signedAlias);
+        eq(CelineFutureMemoryRecall.retrieveCertified("Katze Luna",aliasRecall,
+            aliasCert,aliasOwner,8,NOW).get(0).candidate.id,"signed-alias",
+            "authenticated retrieval never returns post-proof substituted memory");
+        List<CelineFutureMemoryRecall.Candidate> aliasCorrection =
+            new ArrayList<CelineFutureMemoryRecall.Candidate>() {
+              boolean switched;
+              @Override public Object[] toArray() {
+                Object[] signed = super.toArray();
+                if (!switched) { switched=true; set(0,unsignedAlias); }
+                return signed;
+              }
+            };
+        aliasCorrection.add(signedAlias);
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(
+            "Katze Luna",aliasCorrection,aliasCert,aliasOwner,NOW),"signed-alias",
+            "authenticated correction never selects post-proof substituted memory");
         // Replay challenge (POST-v83, NO G1 production anti-rollback integration):
         // A deleted/rewritten fact's originally valid HMAC is NOT revoked just
         // because a newer owner snapshot exists elsewhere. An obsolete pinned
