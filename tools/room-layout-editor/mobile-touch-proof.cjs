@@ -16,6 +16,75 @@ assert(['0','1'].includes(NATIVE_AA_FLAG),'Native mobile AA mode must be 0 or 1'
 const NATIVE_AA4_MODE=NATIVE_AA_FLAG==='1';
 fs.mkdirSync(out,{recursive:true});
 const record=[], errors=[];
+
+const observedMobileTaps=[];
+async function observeRealTap(locator,label) {
+  const began=Date.now(); let completed=false;
+  try {
+    const value=await locator.tap();
+    completed=true;
+    return value;
+  } finally {
+    const ended=Date.now();
+    observedMobileTaps.push({
+      label,start_epoch_ms:began,end_epoch_ms:ended,
+      elapsed_ms:ended-began,action_succeeded:completed
+    });
+  }
+}
+async function independentNativeCdpInputReceipt(page,context) {
+  // This is a measured, separate control AFTER mandatory genuine touch/JSON/
+  // viewport gates. It cannot grant PASS, replace Playwright UI touches or
+  // modify any of the 13 owner-frozen transforms, room, locks or camera.
+  const sourceBefore=await page.evaluate(()=>
+    window.__celineRoomEditorE2E.serializedLayout());
+  const point=await page.evaluate(()=>{
+    const canvas=document.querySelector('#viewport canvas');
+    const b=canvas.getBoundingClientRect();
+    const x=Math.round(b.x+b.width*.53),y=Math.round(b.y+b.height*.30);
+    if(document.elementFromPoint(x,y)!==canvas)
+      throw new Error('Independent real-CDP native control requires unobstructed WebGL canvas');
+    window.__celineIndependentNativeInputEvents=[];
+    for(const type of ['touchstart','pointerdown','touchend','pointerup'])
+      document.addEventListener(type,e=>{
+        if(e.target===canvas)
+          window.__celineIndependentNativeInputEvents.push({
+            type,epoch_ms:performance.timeOrigin+performance.now(),
+            trusted:e.isTrusted,pointer_type:e.pointerType||null
+          });
+      },{capture:true,once:true});
+    return {x,y};
+  });
+  const cdp=await context.newCDPSession(page);
+  const began=Date.now(); let downAck,upAck;
+  try {
+    await cdp.send('Input.dispatchTouchEvent',{
+      type:'touchStart',touchPoints:[{x:point.x,y:point.y,id:41}]
+    });
+    downAck=Date.now();
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    upAck=Date.now();
+  } finally {await cdp.detach();}
+  const end=await page.evaluate(()=>({
+    layout:window.__celineRoomEditorE2E.serializedLayout(),
+    events:window.__celineIndependentNativeInputEvents||[],
+    rendering:window.__celineRoomEditorE2E.mobileRenderStats()
+  }));
+  return {
+    control:'UNMODIFIED_REAL_WEBGL_CANVAS_STATIONARY_TOUCH',
+    mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+    point,dispatch_begin_epoch_ms:began,
+    send_start_ack_ms:downAck-began,send_end_ack_ms:upAck-downAck,
+    total_cdp_ack_ms:upAck-began,
+    browser_events:end.events,
+    native_touch_received:end.events.some(e=>e.type==='touchstart'&&e.trusted),
+    native_pointer_received:end.events.some(e=>e.type==='pointerdown'&&e.trusted),
+    owner_json_unchanged:end.layout===sourceBefore,
+    renderer_after:end.rendering,
+    product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'
+  };
+}
+
 const crypto=require('node:crypto');
 // V43: independent native original-GLB WebGL capture, so failure of the
 // Chromium compositor screenshot no longer destroys all visual diagnostics.
@@ -117,6 +186,52 @@ async function main(){
       deviceScaleFactor:3,isMobile:true,hasTouch:true,acceptDownloads:true
     });
     const page=await context.newPage();
+
+    // Instrument real browser event receipt / actionability long tails without
+    // changing editor.js or replacing any real Playwright taps.
+    // DEBUG=pw:api separately gives locator stable/scroll/dispatch timestamps.
+    await page.addInitScript(()=>{
+      const trace={events:[],longtasks:[],raf_gaps:[],
+        browser_epoch_origin_ms:performance.timeOrigin};
+      window.__celineMobileLatencyTrace=trace;
+      const push=(a,item,limit)=>{a.push(item);if(a.length>limit)a.shift();};
+      const targetName=(node)=>{
+        if(!(node instanceof Element))return null;
+        const key=node.closest('[data-mobile-action],[data-mobile-zoom],[data-nudge],button,summary');
+        if(!key)return node.id||node.tagName;
+        return key.id||key.getAttribute('data-mobile-action')||
+          key.getAttribute('data-mobile-zoom')||
+          key.getAttribute('data-nudge')||key.tagName;
+      };
+      for(const type of ['touchstart','touchend','pointerdown','pointerup','click'])
+        document.addEventListener(type,event=>{
+          push(trace.events,{
+            type,epoch_ms:performance.timeOrigin+performance.now(),
+            target:targetName(event.target),
+            trusted:event.isTrusted,pointer_type:event.pointerType||null
+          },1600);
+        },{capture:true,passive:true});
+      try {
+        const observer=new PerformanceObserver(list=>{
+          for(const entry of list.getEntries())
+            push(trace.longtasks,{
+              epoch_ms:performance.timeOrigin+entry.startTime,
+              duration_ms:entry.duration,name:entry.name
+            },500);
+        });
+        observer.observe({type:'longtask',buffered:true});
+      } catch(error) {trace.longtasks_unavailable=String(error);}
+      let lastFrame=0;
+      const frame=now=>{
+        if(lastFrame&&now-lastFrame>125)
+          push(trace.raf_gaps,{
+            epoch_ms:performance.timeOrigin+now,gap_ms:now-lastFrame
+          },700);
+        lastFrame=now;
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    });
     page.on('pageerror',e=>errors.push('PAGE '+e.message));
     page.on('console',m=>{if(m.type()==='error')errors.push('CONSOLE '+m.text());});
     page.on('response',r=>{
@@ -315,17 +430,17 @@ async function main(){
     // the existing selection/rotate/scale/undo/redo/JSON acceptance sequence.
     assert.equal(await page.locator('#mobile-tools-panel').evaluate(el=>el.open),false,
       'Mobile editing drawer must start closed for visible original GLBs');
-    await page.locator('#mobile-tools-panel > summary').tap();
+    await observeRealTap(page.locator('#mobile-tools-panel > summary'),"page.locator('#mobile-tools-panel > summary')");
     assert.equal(await page.locator('#mobile-tools-panel').evaluate(el=>el.open),true,
       'Mobile editing tools must genuinely open to touchscreen input');
     record.push({name:'MOBILE_EDIT_DRAWER_OPENS_BY_REAL_TOUCH_PASS'});
     await page.locator('#mobile-object').selectOption('room_bed');
     assert.equal(await page.locator('#object').inputValue(),'room_bed');
-    await page.locator('[data-mobile-action="rotate"]').tap();
+    await observeRealTap(page.locator('[data-mobile-action="rotate"]'),"page.locator('[data-mobile-action=\"rotate\"]')");
     assert.equal(await page.locator('#rotate').getAttribute('class'),'active');
-    await page.locator('[data-mobile-action="scale-mode"]').tap();
+    await observeRealTap(page.locator('[data-mobile-action="scale-mode"]'),"page.locator('[data-mobile-action=\"scale-mode\"]')");
     assert.equal(await page.locator('#scale-mode').getAttribute('class'),'active');
-    await page.locator('[data-mobile-action="move"]').tap();
+    await observeRealTap(page.locator('[data-mobile-action="move"]'),"page.locator('[data-mobile-action=\"move\"]')");
     record.push({name:'MOBILE_TOUCH_MODES_AND_SELECTION_PASS',
       rendering:await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats())});
     // V44: retain the actual native WebGL baseline and fail closed on touch latency.
@@ -343,10 +458,10 @@ async function main(){
     // The wall-hidden PNG is a DIAGNOSTIC perspective, NOT a room-shell PASS.
     const beforeWallToggle=await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout());
     assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,true);
-    await page.locator('.mobile-extra > summary').tap();
+    await observeRealTap(page.locator('.mobile-extra > summary'),"page.locator('.mobile-extra > summary')");
     const wallButton=page.locator('[data-mobile-action="toggle-walls"]');
     assert.equal(await wallButton.getAttribute('aria-pressed'),'false');
-    await wallButton.tap();
+    await observeRealTap(wallButton,"wallButton");
     assert.equal(await wallButton.getAttribute('aria-pressed'),'true');
     assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,false);
     const wallHiddenPreview=await captureRealWebGL(page,'mobile-owner-final-walls-hidden-diagnostic-webgl.png');
@@ -354,7 +469,7 @@ async function main(){
       'Wall-only visibility preview must have genuinely different WebGL pixels');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
       'Hiding walls may not alter any owner-final furniture transform or JSON metadata');
-    await wallButton.tap();
+    await observeRealTap(wallButton,"wallButton");
     assert.equal(await wallButton.getAttribute('aria-pressed'),'false');
     assert.equal((await page.evaluate(()=>window.__celineRoomEditorE2E.architectureSurfaceAudit())).walls_visible,true);
     // New opt-in neutral cutaway: real touch, real original WebGL pixels,
@@ -368,7 +483,7 @@ async function main(){
     const neutralButton=page.locator('[data-mobile-action="neutral-shell"]');
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
     const neutralStart=Date.now();
-    await neutralButton.tap();
+    await observeRealTap(neutralButton,"neutralButton");
     const neutralElapsed=Date.now()-neutralStart;
     assert(neutralElapsed<5000,'Neutral editor-only shell toggle must respond within 5000ms');
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'true');
@@ -389,7 +504,7 @@ async function main(){
       'Genuine neutral shell WebGL must differ from original shell frame');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
       'Visual-only neutral shell must preserve every original owner JSON source field');
-    await neutralButton.tap();
+    await observeRealTap(neutralButton,"neutralButton");
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit()),shellBefore,
       'Original editor shell material must be exactly restorable');
@@ -406,7 +521,7 @@ async function main(){
       window.__celineRoomEditorE2E.s25RawDisplayAudit());
     assert.equal(beforeS25.active,false);
     const s25Started=Date.now();
-    await s25Button.tap();
+    await observeRealTap(s25Button,"s25Button");
     const s25TouchMs=Date.now()-s25Started;
     assert(s25TouchMs<5000,'Genuine S25 display toggle must remain below 5000ms');
     assert.equal(await s25Button.getAttribute('aria-pressed'),'true');
@@ -633,7 +748,7 @@ async function main(){
       record.push({name:'SELECTED_TINT_FBO_DIAGNOSTIC_UNAVAILABLE',
         error:String(error.stack||error),visual_acceptance:'NOT_GRANTED'});
     }
-    await s25Button.tap();
+    await observeRealTap(s25Button,"s25Button");
     assert.equal(await s25Button.getAttribute('aria-pressed'),'false');
     assert.deepEqual(await page.evaluate(()=>
       window.__celineRoomEditorE2E.s25RawDisplayAudit()),beforeS25,
@@ -645,17 +760,17 @@ async function main(){
       s25TouchMs,s25RawFrame,duringS25,originalS25FloorHex,
       source_json_unchanged:true,source_materials_restored:true,
       visual_acceptance:'NOT_GRANTED'});
-    await page.locator('.mobile-extra > summary').tap();
+    await observeRealTap(page.locator('.mobile-extra > summary'),"page.locator('.mobile-extra > summary')");
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle);
     record.push({name:'MOBILE_VIEW_ONLY_WALL_VISIBILITY_TOUCH_PASS',
       original_layout_sha256:approvedSha,hidden_view_diagnostic_only:wallHiddenPreview,
       room_shell_geometry_unchanged:true,original_13_transform_fields_unchanged:true});
     fs.writeFileSync(path.join(out,'mobile-capture-preflight.json'),JSON.stringify({...preflight,nativeFirst},null,2));
     const baseX=Number(await page.locator('#x').inputValue());
-    await page.locator('[data-nudge="x:1"]').tap();
+    await observeRealTap(page.locator('[data-nudge="x:1"]'),"page.locator('[data-nudge=\"x:1\"]')");
     const movedX=Number(await page.locator('#x').inputValue());
     assert(movedX>baseX);
-    await page.locator('#mobile-undo').tap();
+    await observeRealTap(page.locator('#mobile-undo'),"page.locator('#mobile-undo')");
     assert(Math.abs(Number(await page.locator('#x').inputValue())-baseX)<0.003);
     // The prior failed proof used a synthesized MOUSE click at mobile-redo;
     // Playwright stalled during that dispatch, not during visibility/stability.
@@ -683,7 +798,7 @@ async function main(){
     const beforeRedoRendering=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
     const redoPageStarted=await page.evaluate(()=>performance.now());
     const redoStarted=Date.now();
-    await page.locator('#mobile-redo').tap();
+    await observeRealTap(page.locator('#mobile-redo'),"page.locator('#mobile-redo')");
     const redoTouch=await page.evaluate(()=>window.__celineRedoTouchEvidence);
     const redoPageCompleted=await page.evaluate(()=>performance.now());
     assert(redoTouch.touchstart>=1&&redoTouch.pointerdown>=1&&redoTouch.click>=1,
@@ -778,7 +893,7 @@ async function main(){
       'Mobile lock touch center obstructed or button disabled');
     const renderingBeforeLock=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
     const lockStarted=Date.now();
-    await page.locator('#mobile-lock').tap();
+    await observeRealTap(page.locator('#mobile-lock'),"page.locator('#mobile-lock')");
     const lockTouch=await page.evaluate(()=>window.__celineLockTouchEvidence);
     const lockElapsed=Date.now()-lockStarted;
     record.push({name:'GENUINE_MOBILE_LOCK_TOUCH_PASS',elapsed_ms:lockElapsed,lockTouch,
@@ -788,9 +903,9 @@ async function main(){
       'Mobile lock must receive genuine touch/pointer/click events');
     assert(lockElapsed<5000,'Genuine mobile lock remains too slow for interactive touch (<5s required)');
     assert.equal(await page.locator('#x').isDisabled(),true);
-    await page.locator('#mobile-lock').tap();
+    await observeRealTap(page.locator('#mobile-lock'),"page.locator('#mobile-lock')");
     assert.equal(await page.locator('#x').isEnabled(),true);
-    await page.locator('#mobile-lock').tap();
+    await observeRealTap(page.locator('#mobile-lock'),"page.locator('#mobile-lock')");
     record.push({name:'MOBILE_EDIT_UNDO_REDO_LOCK_PASS'});
     // A new 44px S25 shortcut is at the stage top-right. The former orbit
     // swipe used x=87%,y=20% and now falls on that button rather than WebGL.
@@ -830,13 +945,13 @@ async function main(){
     const after=await page.evaluate(()=>window.__celineRoomEditorE2E.cameraProjection().camera_position_m);
     assert(before.some((v,i)=>Math.abs(v-after[i])>0.002),'one-finger mobile orbit did not move camera');
     record.push({name:'GENUINE_CHROMIUM_SINGLE_FINGER_ORBIT_PASS',before,after});
-    await page.locator('[data-mobile-zoom="0.82"]').tap();
-    await page.locator('[data-mobile-zoom="1.22"]').tap();
+    await observeRealTap(page.locator('[data-mobile-zoom="0.82"]'),"page.locator('[data-mobile-zoom=\"0.82\"]')");
+    await observeRealTap(page.locator('[data-mobile-zoom="1.22"]'),"page.locator('[data-mobile-zoom=\"1.22\"]')");
     record.push({name:'MOBILE_ZOOM_BUTTONS_PASS'});
     const nativeAfter=await captureRealWebGL(page,'mobile-s25-real-13glb-webgl.png');
     record.push({name:'MOBILE_NATIVE_REAL_WEBGL_AFTER_GESTURES',nativeAfter});
     const downloadPromise=page.waitForEvent('download');
-    await page.locator('[data-mobile-action="save"]').tap();
+    await observeRealTap(page.locator('[data-mobile-action="save"]'),"page.locator('[data-mobile-action=\"save\"]')");
     const dl=await downloadPromise, saved=path.join(out,'mobile-export-all-13.json');
     await dl.saveAs(saved);
     const json=JSON.parse(fs.readFileSync(saved,'utf8'));
@@ -912,7 +1027,7 @@ async function main(){
     // check page, visual viewport and stage before real compositor capture.
     // Return the mobile editing controls to their compact default before
     // the genuine full viewport proof; do not crop, replace or hide the GLBs.
-    await page.locator('#mobile-tools-panel > summary').tap();
+    await observeRealTap(page.locator('#mobile-tools-panel > summary'),"page.locator('#mobile-tools-panel > summary')");
     const mobileChrome=await page.evaluate(()=>{
       const panel=document.getElementById('mobile-tools-panel');
       const tools=document.getElementById('mobile-controls').getBoundingClientRect();
@@ -1138,6 +1253,73 @@ async function main(){
         error:String(msaaError.stack||msaaError),visual_acceptance:'NOT_GRANTED'});
     }
 
+
+    // Non-acceptance diagnosis at the exact same browser scene, after the
+    // strict real user-touch + Save/Reload + 412x915 compositor gates.
+    let independentCdp;
+    try {
+      independentCdp=await independentNativeCdpInputReceipt(page,context);
+      assert(independentCdp.owner_json_unchanged,
+        'Independent stationary CDP input unexpectedly changed owner JSON');
+    } catch(error) {
+      independentCdp={diagnostic_error:String(error.stack||error),
+        product_acceptance:'NOT_GRANTED'};
+    }
+    const browserTrace=await page.evaluate(()=>
+      window.__celineMobileLatencyTrace||null).catch(error=>({
+        trace_error:String(error)
+      }));
+    const timed=observedMobileTaps.map(tap=>{
+      const events=(browserTrace?.events||[]).filter(event=>
+        event.epoch_ms>=tap.start_epoch_ms-100&&
+        event.epoch_ms<=tap.end_epoch_ms+100);
+      const first=type=>events.find(event=>event.type===type)?.epoch_ms??null;
+      const gaps=(browserTrace?.raf_gaps||[]).filter(gap=>
+        gap.epoch_ms>=tap.start_epoch_ms-150&&gap.epoch_ms<=tap.end_epoch_ms+150);
+      const tasks=(browserTrace?.longtasks||[]).filter(task=>
+        task.epoch_ms>=tap.start_epoch_ms-150&&task.epoch_ms<=tap.end_epoch_ms+150);
+      return {...tap,
+        touchstart_after_start_ms:first('touchstart')===null?null:first('touchstart')-tap.start_epoch_ms,
+        pointerdown_after_start_ms:first('pointerdown')===null?null:first('pointerdown')-tap.start_epoch_ms,
+        click_after_start_ms:first('click')===null?null:first('click')-tap.start_epoch_ms,
+        real_browser_events:events,
+        max_raf_gap_ms:gaps.length?Math.max(...gaps.map(g=>g.gap_ms)):0,
+        max_longtask_ms:tasks.length?Math.max(...tasks.map(t=>t.duration_ms)):0,
+        longtasks_near_tap:tasks.length
+      };
+    });
+    const slow=timed.filter(tap=>tap.elapsed_ms>=5000);
+    const latencyReport={
+      source_sha:process.env.GITHUB_SHA||null,
+      mobile_mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+      original_13_source_glbs:true,owner_json_sha256:approvedSha,
+      source_layout_unchanged:true,
+      strict_touch_redo_lock_orbit_import_screenshot_gates:'UNMODIFIED',
+      timeout_ms_diagnostic_only:5000,
+      observed_real_touch_count:timed.length,
+      long_tail_taps_ge_5000ms:slow.map(t=>({
+        label:t.label,elapsed_ms:t.elapsed_ms,
+        pointerdown_after_start_ms:t.pointerdown_after_start_ms,
+        max_raf_gap_ms:t.max_raf_gap_ms,
+        max_longtask_ms:t.max_longtask_ms
+      })),
+      native_independent_cdp:independentCdp,
+      real_taps:timed,
+      browser_main_thread_longtasks:browserTrace?.longtasks||[],
+      browser_raf_gaps:browserTrace?.raf_gaps||[],
+      browser_trace_error:browserTrace?.trace_error||null,
+      product_aa4_promoted:false,
+      visual_acceptance:'NOT_GRANTED'
+    };
+    fs.writeFileSync(path.join(out,'mobile-aa-touch-latency-attribution.json'),
+      JSON.stringify(latencyReport,null,2));
+    record.push({name:'NATIVE_AA_INPUT_LATENCY_PHASE_ATTRIBUTION_DIAGNOSTIC',
+      mode:latencyReport.mobile_mode,real_taps:timed.length,
+      slow_taps_ge_5000ms:slow.length,
+      native_control_pointer_receipt:independentCdp.native_pointer_received??false,
+      full_file:'mobile-aa-touch-latency-attribution.json',
+      product_aa4_promoted:false,visual_acceptance:'NOT_GRANTED'});
+
     const finalNativeStats=await page.evaluate(()=>
       window.__celineRoomEditorE2E.mobileRenderStats());
     record.push({name:'NATIVE_MOBILE_AA_AFTER_ALL_STRICT_TOUCH_AND_JSON_GATES',
@@ -1152,6 +1334,6 @@ async function main(){
 }
 main().catch(err=>{
   console.error(err.stack||String(err));
-  fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify({verdict:'FAIL',record,errors,error:String(err.stack||err)},null,2));
+  fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify({verdict:'FAIL',record,errors,observedMobileTaps,error:String(err.stack||err)},null,2));
   process.exitCode=1;
 });
