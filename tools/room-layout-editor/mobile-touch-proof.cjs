@@ -79,7 +79,11 @@ async function independentNativeCdpInputReceipt(page,context) {
     browser_events:end.events,
     native_touch_received:end.events.some(e=>e.type==='touchstart'&&e.trusted),
     native_pointer_received:end.events.some(e=>e.type==='pointerdown'&&e.trusted),
-    owner_json_unchanged:end.layout===sourceBefore,
+    // serializedLayout() returns a NEW parsed object every call. Comparing
+    // object identity always yields false, even if every owner TRS/lock is
+    // identical. Compare the complete ordered JSON values, not references;
+    // any genuine room/object/legacy-field mutation must still fail closed.
+    owner_json_unchanged:JSON.stringify(end.layout)===JSON.stringify(sourceBefore),
     renderer_after:end.rendering,
     product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'
   };
