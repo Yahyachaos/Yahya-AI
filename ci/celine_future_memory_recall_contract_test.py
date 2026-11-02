@@ -4,9 +4,208 @@ from pathlib import Path
 import subprocess
 import tempfile
 import hashlib
+import sys
 
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
+
+# FUTURE ONLY — source-exact, independently signed WRITE-AHEAD audit experiment.
+# The fixture intentionally uses rollbackable files; it proves conditional
+# replay exclusion only while the audit survives, NOT durable production custody.
+if ('--focused-immutable-audit' in sys.argv
+        or '--strict-immutable-audit-total-reset' in sys.argv):
+    audit_harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureImmutableAuditProcess {
+  static final String AUTH="independent-audit-operator", CLAIM="memory-claim-00000001";
+  static final String ID="memory-id-1", NONCE="fresh-audit-request-nonce-001";
+  static Path root, audit, caller;
+  static KeyPair operator, olderCas;
+  static final byte[] owner=new byte[64];
+  static int checks=0;
+  static void ok(boolean b,String message){if(!b)throw new AssertionError(message);checks++;}
+  static void init()throws Exception {
+    Files.createDirectories(root.resolve("keys"));
+    KeyPairGenerator gen=KeyPairGenerator.getInstance("Ed25519");
+    for(String name:new String[]{"audit","cas"}){
+      KeyPair k=gen.generateKeyPair();
+      Files.write(root.resolve("keys/"+name+".priv"),k.getPrivate().getEncoded());
+      Files.write(root.resolve("keys/"+name+".pub"),k.getPublic().getEncoded());
+    }
+    System.out.println("AUDIT_INIT_OK");
+  }
+  static KeyPair load(String id)throws Exception {
+    KeyFactory f=KeyFactory.getInstance("Ed25519");
+    Path k=root.resolve("keys/"+id);
+    return new KeyPair(f.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(Path.of(k+".pub")))),
+      f.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(Path.of(k+".priv")))));
+  }
+  static byte[] sign(String claim,String nonce,String op,String state,long seq)throws Exception {
+    byte[] p=immutableClaimAuditPayload(AUTH,8,2,claim,ID,4,owner,nonce,op,state,seq);
+    Signature sig=Signature.getInstance("Ed25519");sig.initSign(operator.getPrivate());sig.update(p);
+    return sig.sign();
+  }
+  static SignedImmutableClaimAuditReply reply(String claim,String nonce,String op,String state,long seq)throws Exception {
+    return new SignedImmutableClaimAuditReply(AUTH,8,2,claim,ID,4,nonce,op,state,seq,
+      sign(claim,nonce,op,state,seq));
+  }
+  static class FileAudit implements IndependentImmutableClaimAudit {
+    final String mode;
+    FileAudit(String m){mode=m;}
+    Path rec(String claim){return audit.resolve(claim+".spent");}
+    public SignedImmutableClaimAuditReply query(String auth,long epoch,String claim,String exact,long rev,byte[] ownerSignature,String nonce)throws Exception {
+      if(mode.equals("DOWN"))return null;
+      if(mode.equals("REPLAY"))return reply(claim,"stale-audit-request-nonce-999","QUERY","ABSENT",0);
+      Path file=rec(claim);
+      if(Files.exists(file))return reply(claim,nonce,"QUERY","SEALED",Long.parseLong(Files.readString(file).trim()));
+      return reply(claim,nonce,"QUERY","ABSENT",0);
+    }
+    public SignedImmutableClaimAuditReply sealOnce(String auth,long epoch,String claim,String exact,long rev,byte[] ownerSignature,String nonce)throws Exception {
+      Files.createDirectories(audit);
+      Path lock=audit.resolve("lock");
+      try(FileChannel chan=FileChannel.open(lock,StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+          FileLock ignored=chan.lock()) {
+        Path file=rec(claim);
+        if(Files.exists(file))return reply(claim,nonce,"SEAL","ALREADY_SEALED",Long.parseLong(Files.readString(file).trim()));
+        if(mode.equals("REPLAY_FIRST"))return reply(claim,NONCE,"SEAL","FIRST_SEALED",1);
+        long next=mode.equals("FLOOR")?6:1;
+        Path tmp=Files.createTempFile(audit,"preseal-",".tmp");
+        try(FileChannel out=FileChannel.open(tmp,StandardOpenOption.WRITE)){
+          out.write(StandardCharsets.US_ASCII.encode(Long.toString(next)+"\n"));out.force(true);
+        }
+        Files.move(tmp,file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+        try(FileChannel dir=FileChannel.open(audit,StandardOpenOption.READ)){dir.force(true);}
+        if(mode.equals("CRASH"))Runtime.getRuntime().halt(79);
+        return reply(claim,nonce,"SEAL","FIRST_SEALED",next);
+      }
+    }
+  }
+  static ImmutableAuditFirstGate gate(String mode,String claim, java.util.concurrent.atomic.AtomicInteger writes){
+    return ImmutableAuditFirstGate.bind(new FileAudit(mode),
+      (c,id,rev,signature,nonce)->{
+        writes.incrementAndGet();
+        Files.createDirectories(caller);
+        Files.writeString(caller.resolve(c+".provider"),"first");
+        if(mode.equals("LOST_ACK"))throw new IllegalStateException("lost downstream ACK");
+        return GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK;
+      }, operator.getPublic().getEncoded(),olderCas.getPublic().getEncoded(),AUTH,8,2,
+         mode.equals("FLOOR")||mode.equals("STALE_FLOOR")?5:0);
+  }
+  static void test(String mode)throws Exception {
+    java.util.concurrent.atomic.AtomicInteger writes=new java.util.concurrent.atomic.AtomicInteger();
+    if(mode.equals("SAME_SIGNER")){
+      ok(ImmutableAuditFirstGate.bind(new FileAudit("NORMAL"),(c,i,r,o,n)->GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+        operator.getPublic().getEncoded(),operator.getPublic().getEncoded(),AUTH,8,2,0)==null,"same signer forbidden");
+    }else if(mode.equals("FIRST")||mode.equals("RACE")||mode.equals("ATTACK")){
+      String target=mode.equals("RACE")?"memory-claim-race-0001":CLAIM;
+      var outcome=gate("NORMAL",target,writes).reserveOnce(target,ID,4,owner,NONCE);
+      if(mode.equals("ATTACK"))ok(outcome!=GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+        "KNOWN SECURITY FAIL: reset audit under original signing key reauthorizes FIRST: "+outcome);
+      else if(mode.equals("RACE"))ok(outcome==GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+        || outcome==GlobalClaimGateOutcome.STARTED_INDETERMINATE,"only one first in race");
+      else ok(outcome==GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==1,"fresh first granted once");
+      System.out.println("AUDIT_RESULT="+outcome);
+    }else if(mode.equals("FLOOR")){
+      var outcome=gate(mode,"memory-claim-floor-0001",writes)
+        .reserveOnce("memory-claim-floor-0001",ID,4,owner,NONCE);
+      ok(outcome==GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==1,
+        "sequence six after independently pinned floor five must remain possible");
+    }else if(mode.equals("STALE_FLOOR")){
+      var outcome=gate(mode,"memory-claim-stale-0001",writes)
+        .reserveOnce("memory-claim-stale-0001",ID,4,owner,NONCE);
+      ok(outcome==GlobalClaimGateOutcome.STARTED_INDETERMINATE && writes.get()==0,
+        "signed stale sequence must not reach downstream after pinned floor five");
+    }else if(mode.equals("REPLAY_FIRST")){
+      var outcome=gate(mode,"memory-claim-replay-0001",writes)
+        .reserveOnce("memory-claim-replay-0001",ID,4,owner,NONCE);
+      ok(outcome==GlobalClaimGateOutcome.STARTED_INDETERMINATE && writes.get()==0,
+        "old FIRST signature with caller nonce cannot satisfy internal fresh challenge");
+    }else if(mode.equals("RESTART")||mode.equals("DOWN")||mode.equals("REPLAY")){
+      var outcome=gate(mode.equals("RESTART")?"NORMAL":mode,CLAIM,writes).reserveOnce(CLAIM,ID,4,owner,NONCE);
+      ok(outcome!=GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==0,
+        "persisted audit/invalid proof never reaches downstream");
+      System.out.println("AUDIT_RESULT="+outcome);
+    }else if(mode.equals("CRASH")){
+      gate("CRASH", "memory-claim-crash-001",writes).reserveOnce("memory-claim-crash-001",ID,4,owner,NONCE);
+      throw new AssertionError("expected forced crash");
+    }else if(mode.equals("CRASH_RECOVER")){
+      var outcome=gate("NORMAL","memory-claim-crash-001",writes)
+        .reserveOnce("memory-claim-crash-001",ID,4,owner,NONCE);
+      ok(outcome!=GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==0,
+        "persisted precommit blocks duplicate after lost ACK");
+    }else if(mode.equals("LOST_ACK")){
+      var outcome=gate(mode,"memory-claim-lostack-001",writes)
+        .reserveOnce("memory-claim-lostack-001",ID,4,owner,NONCE);
+      ok(outcome==GlobalClaimGateOutcome.STARTED_INDETERMINATE && writes.get()==1,
+        "post-start callback exception remains uncertain");
+    }else throw new AssertionError(mode);
+    System.out.println("AUDIT_"+mode+"_PASS checks="+checks);
+  }
+  public static void main(String[] args)throws Exception {
+    root=Path.of(args[1]);audit=root.resolve("independently-custodied-MOCK-audit");
+    caller=root.resolve("caller-snapshot");
+    if(args[0].equals("INIT")){init();return;}
+    operator=load("audit");olderCas=load("cas");test(args[0]);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_immutable_audit_java_') as compiled:
+        child = Path(compiled) / 'FutureImmutableAuditProcess.java'
+        child.write_text(audit_harness, encoding='utf-8')
+        build = subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+                                str(source),str(child)],capture_output=True,text=True,timeout=70)
+        assert build.returncode == 0, build.stderr
+        with tempfile.TemporaryDirectory(prefix='future_immutable_audit_mock_') as state:
+            runner = ['java','-cp',compiled,'de.yahya.ai.FutureImmutableAuditProcess']
+            count=0
+            def invoke(action, exit_code=0):
+                nonlocal_count = None
+                p=subprocess.run(runner+[action,state],capture_output=True,text=True,timeout=25)
+                assert p.returncode == exit_code, (action,p.returncode,p.stdout,p.stderr)
+                return p
+            invoke('INIT')
+            keyfiles=[Path(state)/'keys'/f'{i}.{ext}' for i in ('audit','cas') for ext in ('priv','pub')]
+            original=[hashlib.sha256(p.read_bytes()).hexdigest() for p in keyfiles]
+            if '--strict-immutable-audit-total-reset' in sys.argv:
+                invoke('FIRST')
+                auditdir=Path(state)/'independently-custodied-MOCK-audit'
+                (auditdir/'memory-claim-00000001.spent').unlink()
+                downstream=Path(state)/'caller-snapshot'/'memory-claim-00000001.provider'
+                downstream.unlink()
+                attacked=subprocess.run(runner+['ATTACK',state],capture_output=True,text=True,timeout=25)
+                assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in keyfiles] == original
+                print('IMMUTABLE_AUDIT_FULL_RESET_EXPECTED_SECURITY_FAIL exit='+str(attacked.returncode))
+                print(attacked.stderr.strip() or attacked.stdout.strip())
+                assert attacked.returncode==0, ('KNOWN SECURITY FAIL: separately named but '
+                    'rollbackable audit mock and unchanged original signer cannot assure continuity')
+                sys.exit(0)
+            outputs=[invoke('SAME_SIGNER'),invoke('DOWN'),invoke('REPLAY'),
+                     invoke('REPLAY_FIRST'),invoke('FLOOR'),invoke('STALE_FLOOR'),invoke('FIRST'),
+                     invoke('RESTART'),invoke('LOST_ACK'),invoke('CRASH',79),
+                     invoke('CRASH_RECOVER')]
+            first=outputs[6]
+            assert 'AUDIT_RESULT=FIRST_RESERVED_PENDING_ACK' in first.stdout
+            downstream = Path(state)/'caller-snapshot'/'memory-claim-00000001.provider'
+            assert downstream.exists(), 'one original provider reservation required'
+            downstream.unlink()  # adversarial selective rollback of caller/CAS-only state
+            invoke('RESTART')  # original independent audit survives -> no second FIRST
+            assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in keyfiles]==original
+            # Four *new* JVM instances must share the exact same signed audit tombstone.
+            racers=[subprocess.Popen(runner+['RACE',state],stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE,text=True) for _ in range(4)]
+            race_results=[p.communicate(timeout=25) for p in racers]
+            assert all(p.returncode==0 for p in racers),race_results
+            assert sum('AUDIT_RESULT=FIRST_RESERVED_PENDING_ACK' in out for out,err in race_results)==1, (
+                'four separate fresh JVM contenders must produce exactly one FIRST')
+            print('IMMUTABLE_AUDIT_MOCK_PASS processes='+str(1+len(outputs)+len(racers))
+                  +' distinct_original_signers=2 first=1 new_race_first=1 after_restart_first=0 crash_exit=79')
+            sys.exit(0)
 
 # FUTURE-ONLY independent (sixth-key) global claim-set pre-commit. Run this
 # bounded contract without starting the unrelated 27-main legacy suite.

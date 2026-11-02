@@ -4176,6 +4176,188 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE ONLY — separately administered, write-ahead per-claim audit seam.
+     * The audit SEALS a claim before any existing CAS/provider continuation.
+     * This is a *protocol*, not a storage implementation or proof of independent
+     * immutable custody. A same-signer audit rollback remains an explicit FAIL.
+     */
+    public interface IndependentImmutableClaimAudit {
+        SignedImmutableClaimAuditReply query(String authorityId, long epoch,
+                String claim, String exactId, long revision, byte[] owner,
+                String freshNonce) throws Exception;
+        /** Must persist an immutable claim tombstone BEFORE signing FIRST_SEALED. */
+        SignedImmutableClaimAuditReply sealOnce(String authorityId, long epoch,
+                String claim, String exactId, long revision, byte[] owner,
+                String freshNonce) throws Exception;
+    }
+
+    public static final class SignedImmutableClaimAuditReply {
+        public final String authorityId, claim, exactId, freshNonce, operation, state;
+        public final long epoch, generation, revision, sequence;
+        private final byte[] signature;
+        public SignedImmutableClaimAuditReply(String authorityId, long epoch,
+                long generation, String claim, String exactId, long revision,
+                String freshNonce, String operation, String state, long sequence,
+                byte[] signature) {
+            this.authorityId = authorityId; this.epoch = epoch;
+            this.generation = generation; this.claim = claim;
+            this.exactId = exactId; this.revision = revision;
+            this.freshNonce = freshNonce; this.operation = operation;
+            this.state = state; this.sequence = sequence;
+            this.signature = signature == null ? null : signature.clone();
+        }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public static byte[] immutableClaimAuditPayload(String authorityId,
+            long epoch, long generation, String claim, String exactId,
+            long revision, byte[] owner, String freshNonce,
+            String operation, String state, long sequence) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || generation <= 0
+                || claim == null || !claim.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || exactId.isBlank() || exactId.length() > 256
+                || revision <= 0 || owner == null || owner.length != 64
+                || freshNonce == null || !freshNonce.matches("[A-Za-z0-9_-]{24,128}")
+                || !("QUERY".equals(operation) || "SEAL".equals(operation))
+                || !("QUERY".equals(operation)
+                    ? ("ABSENT".equals(state) || "SEALED".equals(state))
+                    : ("FIRST_SEALED".equals(state) || "ALREADY_SEALED".equals(state)))
+                || sequence < 0 || (sequence == 0 && !"ABSENT".equals(state)))
+            return new byte[0];
+        return ("future-g1/independent-immutable-claim-audit/v1\n"
+                + authorityId + "\n" + epoch + "\n" + generation + "\n"
+                + claim + "\n" + java.util.Base64.getEncoder().encodeToString(
+                        exactId.getBytes(StandardCharsets.UTF_8)) + "\n"
+                + revision + "\n" + java.util.Base64.getEncoder().encodeToString(owner)
+                + "\n" + freshNonce + "\n" + operation + "\n" + state
+                + "\n" + sequence + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    @FunctionalInterface
+    public interface ClaimAfterAuditSeal {
+        GlobalClaimGateOutcome continueOnce(String claim, String exactId,
+                long revision, byte[] ownerSignature, String freshNonce) throws Exception;
+    }
+
+    /**
+     * A safety wrapper for a *separately provided* downstream CAS gate.
+     * FIRST must be sealed in the independent audit before any downstream
+     * mutation. An unknown ACK burns the attempt: never retry automatically.
+     * A previously SEALED claim cannot be reauthorized by a selectively
+     * erased downstream CAS after process restart, provided this audit truly
+     * survived outside the restore domain. This condition is not proven here.
+     */
+    public static final class ImmutableAuditFirstGate {
+        private final IndependentImmutableClaimAudit audit;
+        private final ClaimAfterAuditSeal continuation;
+        private final byte[] auditPin;
+        private final String authorityId;
+        private final long epoch, generation, externalMinimum;
+        private final java.util.Set<String> attempted =
+                java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private final java.util.concurrent.atomic.AtomicBoolean quarantined =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        private ImmutableAuditFirstGate(IndependentImmutableClaimAudit audit,
+                ClaimAfterAuditSeal continuation, byte[] pin,
+                String authorityId, long epoch, long generation, long minimum) {
+            this.audit = audit; this.continuation = continuation;
+            this.auditPin = pin.clone(); this.authorityId = authorityId;
+            this.epoch = epoch; this.generation = generation;
+            this.externalMinimum = minimum;
+        }
+        public static ImmutableAuditFirstGate bind(
+                IndependentImmutableClaimAudit independentlyAdministeredAudit,
+                ClaimAfterAuditSeal downstreamOnlyAfterSeal,
+                byte[] pinnedAuditSigner, byte[] existingCasSigner,
+                String authorityId, long epoch, long generation, long minimum) {
+            if (independentlyAdministeredAudit == null || downstreamOnlyAfterSeal == null
+                    || pinnedAuditSigner == null || existingCasSigner == null
+                    || java.util.Arrays.equals(pinnedAuditSigner, existingCasSigner)
+                    || authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                    || epoch <= 0 || generation <= 0 || minimum < 0)
+                return null;
+            try {
+                byte[] pin = pinnedAuditSigner.clone();
+                java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+                if (!java.util.Arrays.equals(pin, key.getEncoded())) return null;
+                return new ImmutableAuditFirstGate(independentlyAdministeredAudit,
+                        downstreamOnlyAfterSeal, pin, authorityId, epoch, generation, minimum);
+            } catch (GeneralSecurityException | RuntimeException badPin) {
+                return null;
+            }
+        }
+        private String checked(String operation, String claim, String exactId,
+                long revision, byte[] owner, String nonce,
+                SignedImmutableClaimAuditReply receipt) {
+            if (receipt == null || !authorityId.equals(receipt.authorityId)
+                    || epoch != receipt.epoch || generation != receipt.generation
+                    || !claim.equals(receipt.claim) || !exactId.equals(receipt.exactId)
+                    || revision != receipt.revision || !nonce.equals(receipt.freshNonce)
+                    || !operation.equals(receipt.operation)
+                    || (receipt.sequence < externalMinimum
+                        && !"ABSENT".equals(receipt.state))) return null;
+            byte[] payload = immutableClaimAuditPayload(authorityId, epoch,
+                    generation, claim, exactId, revision, owner, nonce,
+                    operation, receipt.state, receipt.sequence);
+            if (payload.length == 0) return null;
+            try {
+                java.security.Signature verify = java.security.Signature.getInstance("Ed25519");
+                verify.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(auditPin)));
+                verify.update(payload);
+                return verify.verify(receipt.signature()) ? receipt.state : null;
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+        public GlobalClaimGateOutcome reserveOnce(String claim, String exactId,
+                long revision, byte[] owner, String nonce) {
+            if (immutableClaimAuditPayload(authorityId, epoch, generation,
+                    claim, exactId, revision, owner, nonce,
+                    "QUERY", "ABSENT", 0).length == 0)
+                return GlobalClaimGateOutcome.UNVERIFIABLE;
+            if (quarantined.get()) return GlobalClaimGateOutcome.NO_AUTHORITY;
+            if (!attempted.add(claim)) return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            try {
+                // Audit challenge is generated inside this gate, never supplied
+                // by a caller or reused from a restored application snapshot.
+                byte[] random = new byte[24];
+                new java.security.SecureRandom().nextBytes(random);
+                String auditNonce = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(random);
+                SignedImmutableClaimAuditReply query = audit.query(authorityId, epoch,
+                        claim, exactId, revision, owner.clone(), auditNonce);
+                String before = checked("QUERY", claim, exactId, revision, owner,
+                        auditNonce, query);
+                if ("SEALED".equals(before)) return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                if (!"ABSENT".equals(before)) return GlobalClaimGateOutcome.NO_AUTHORITY;
+                SignedImmutableClaimAuditReply sealed = audit.sealOnce(authorityId, epoch,
+                        claim, exactId, revision, owner.clone(), auditNonce);
+                String status = checked("SEAL", claim, exactId, revision, owner,
+                        auditNonce, sealed);
+                if (!"FIRST_SEALED".equals(status))
+                    return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                // An audit reply must move past the already trusted minimum.
+                if (sealed.sequence <= externalMinimum) {
+                    quarantined.set(true);
+                    return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+                }
+                GlobalClaimGateOutcome downstream = continuation.continueOnce(claim,
+                        exactId, revision, owner.clone(), nonce);
+                return downstream == GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
+                        ? downstream : GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            } catch (Exception interruptedOrUnknown) {
+                return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
+            }
+        }
+    }
+
+    /**
      * Independent administrator is responsible for provisioning this already
      * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
      * sequence minimum. The constructor cannot attest real-world independence
