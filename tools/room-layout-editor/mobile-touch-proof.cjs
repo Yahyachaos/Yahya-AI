@@ -406,6 +406,51 @@ async function main(){
       file:'mobile-owner-s25-curtain-texture-runtime.json',
       texture:s25TextureGpu.texture,samples:s25TextureGpu.samples,
       visual_acceptance:'NOT_GRANTED'});
+    // Capture real 13-owner-GLB AA pair at S25 original camera BEFORE touch orbit.
+    // The diagnostic remains optional and cannot bypass later strict gates.
+    const layoutBeforeAA=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.serializedLayout());
+    try{
+      const aa=await page.evaluate(()=>
+        window.__celineRoomEditorE2E.proofRoomMSAAReadback());
+      assert.equal(aa.original_s25_unlit_display,true);
+      assert.equal(aa.clean_editing_aids_for_capture,true);
+      assert.deepEqual(aa.camera_position_m,duringS25.camera_position_m,
+        'MSAA pair must preserve original S25 camera before touchscreen orbit');
+      assert.equal(aa.model_count,13);
+      assert.deepEqual(aa.room_m,{width:4.4,depth:4.2,height:2.65});
+      const captures=[];
+      for(const result of aa.captures){
+        const png=Buffer.from(result.png_data_url.split(',')[1],'base64');
+        assert.equal(png.subarray(1,4).toString('ascii'),'PNG');
+        const filename='owner-13glb-s25-msaa'+result.requested_samples+'-618x768.png';
+        fs.writeFileSync(path.join(out,filename),png);
+        assert.equal(result.actual_samples,result.requested_samples,
+          'Actual WebGL framebuffer sample count must match the request');
+        captures.push({filename,requested_samples:result.requested_samples,
+          actual_samples:result.actual_samples,pixels:[result.width,result.height],
+          sha256:crypto.createHash('sha256').update(png).digest('hex')});
+      }
+      fs.writeFileSync(path.join(out,'owner-13glb-msaa0-msaa4.json'),
+        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+          owner_layout_sha256:approvedSha,captures,max_samples:aa.max_samples,
+          original_camera_position_m:aa.camera_position_m,
+          matching_clean_s25_frame_sha256:s25RawFrame.sha256,
+          capture_phase:'BEFORE_NUDGE_UNDO_REDO_OR_ORBIT',
+          edit_guides_hidden_for_both:true,
+          physical_s25_aa:'NOT_MEASURED',visual_acceptance:'NOT_GRANTED'},null,2));
+      record.push({name:'REAL_OWNER_13GLB_MSAA0_MSAA4_BEFORE_TOUCH_DIAGNOSTIC',
+        file:'owner-13glb-msaa0-msaa4.json',captures,
+        source_frame:s25RawFrame.filename,visual_acceptance:'NOT_GRANTED'});
+    }catch(error){
+      record.push({name:'REAL_OWNER_13GLB_MSAA_DIAGNOSTIC_UNAVAILABLE',
+        error:String(error.stack||error),visual_acceptance:'NOT_GRANTED'});
+    }finally{
+      assert.deepEqual(await page.evaluate(()=>
+        window.__celineRoomEditorE2E.serializedLayout()),layoutBeforeAA,
+        'Real GLB AA proof must preserve exact original fields');
+    }
+
     await s25Button.tap();
     assert.equal(await s25Button.getAttribute('aria-pressed'),'false');
     assert.deepEqual(await page.evaluate(()=>
@@ -850,47 +895,6 @@ async function main(){
       // Instrumentation is non-acceptance evidence. Never relax any prior gate.
       record.push({name:'S25_MSAA_DIAGNOSTIC_UNAVAILABLE',
         error:String(msaaError.stack||msaaError),visual_acceptance:'NOT_GRANTED'});
-    }
-
-    // Optional genuine original-GLB AA comparison AFTER all strict touch/JSON/screen gates.
-    const layoutBeforeAA=await page.evaluate(()=>
-      window.__celineRoomEditorE2E.serializedLayout());
-    let switched=false;
-    try{
-      const active=await page.evaluate(()=>
-        window.__celineRoomEditorE2E.s25RawDisplayAudit().active);
-      if(!active){
-        await page.locator('[data-mobile-action="s25-display"]').tap();
-        switched=true;
-      }
-      const aa=await page.evaluate(()=>
-        window.__celineRoomEditorE2E.proofRoomMSAAReadback());
-      assert.equal(aa.model_count,13);
-      assert.deepEqual(aa.room_m,{width:4.4,depth:4.2,height:2.65});
-      const captures=[];
-      for(const result of aa.captures){
-        const png=Buffer.from(result.png_data_url.split(',')[1],'base64');
-        assert.equal(png.subarray(1,4).toString('ascii'),'PNG');
-        const filename='owner-13glb-s25-msaa'+result.requested_samples+'-618x768.png';
-        fs.writeFileSync(path.join(out,filename),png);
-        captures.push({filename,requested_samples:result.requested_samples,
-          actual_samples:result.actual_samples,pixels:[result.width,result.height],
-          sha256:crypto.createHash('sha256').update(png).digest('hex')});
-      }
-      fs.writeFileSync(path.join(out,'owner-13glb-msaa0-msaa4.json'),
-        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
-          owner_layout_sha256:approvedSha,captures,max_samples:aa.max_samples,
-          physical_s25_aa:'NOT_MEASURED',visual_acceptance:'NOT_GRANTED'},null,2));
-      record.push({name:'REAL_OWNER_13GLB_MSAA0_MSAA4_DIAGNOSTIC',
-        file:'owner-13glb-msaa0-msaa4.json',captures,visual_acceptance:'NOT_GRANTED'});
-    }catch(error){
-      record.push({name:'REAL_OWNER_13GLB_MSAA_DIAGNOSTIC_UNAVAILABLE',
-        error:String(error.stack||error),visual_acceptance:'NOT_GRANTED'});
-    }finally{
-      if(switched)await page.locator('[data-mobile-action="s25-display"]').tap();
-      assert.deepEqual(await page.evaluate(()=>
-        window.__celineRoomEditorE2E.serializedLayout()),layoutBeforeAA,
-        'Real GLB AA proof must preserve exact original fields');
     }
 
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};

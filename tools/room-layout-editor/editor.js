@@ -1240,8 +1240,13 @@ if (E2E_PROOF) {
       const maxSamples=gl.getParameter(gl.MAX_SAMPLES);
       const originalTarget=renderer.getRenderTarget();
       const originalJSON=snapshot(),originalCamera=camera.position.toArray();
+      const grid=floor.children.find(child=>child.userData.roomEditorGuideGrid===true);
+      const previousGrid=grid?.visible,previousGizmo=transform.visible;
       const captures=[];
       try{
+        // Match framePng({clean:true}): hide ONLY temporary editing aids.
+        if(grid)grid.visible=false;
+        transform.visible=false;
         for(const count of [0,4]){
           if(count>maxSamples)throw new Error('Four MSAA samples unsupported');
           const rt=new THREE.WebGLRenderTarget(width,height,{
@@ -1266,13 +1271,18 @@ if (E2E_PROOF) {
               png_data_url:canvas.toDataURL('image/png'),width,height});
           }finally{renderer.setRenderTarget(originalTarget);rt.dispose();}
         }
-      }finally{renderer.setRenderTarget(originalTarget);renderer.render(scene,camera);}
+      }finally{
+        if(grid)grid.visible=previousGrid;
+        transform.visible=previousGizmo;
+        renderer.setRenderTarget(originalTarget);
+        renderer.render(scene,camera);
+      }
       if(snapshot()!==originalJSON)throw new Error('AA proof mutated original layout');
       if(camera.position.toArray().some((v,i)=>v!==originalCamera[i]))
         throw new Error('AA proof moved camera');
       return {max_samples:maxSamples,original_s25_unlit_display:s25RawPreview,
         model_count:13,room_m:{...room},original_physical_s25_aa:'NOT_MEASURED',
-        camera_position_m:originalCamera,captures};
+        camera_position_m:originalCamera,clean_editing_aids_for_capture:true,captures};
     },
     mobileRenderStats() {
       return {...mobileRenderStats,pending:mobileFramePending,touch_device:TOUCH_DEVICE};
