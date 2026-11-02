@@ -170,9 +170,9 @@ public final class FutureIndependentRegistrarFloorProcess {
       throw new AssertionError("total reset newly blocked: re-evaluate security expectation");
     }
     if(verified!=expected)throw new AssertionError(mode+" expected "+expected+" got "+result);
-    if(mode.equals("BAD_PIN")){
+    if(mode.equals("BAD_PIN") || mode.startsWith("REUSED_G1_")){
       if(reads[0]!=0||reads[1]!=0||reads[2]!=0)
-        throw new AssertionError("bad identity unexpectedly queried authority");
+        throw new AssertionError("non-independent floor signer unexpectedly queried authority");
     }else if(reads[0]!=2||reads[1]!=2||reads[2]!=1)
       throw new AssertionError("unexpected calls "+Arrays.toString(reads));
     System.out.println("INDEPENDENT_FLOOR_"+mode+"_PASS "+result+
@@ -210,6 +210,17 @@ public final class FutureIndependentRegistrarFloorProcess {
             for mode in ('VALID', 'STATUS_ROLLBACK', 'FORGED_GENESIS', 'OFFLINE',
                          'REPLAY', 'BAD_SIGNATURE', 'BAD_PIN', 'STALE_MINIMUM'):
                 print(invoke(mode).stdout.strip())
+            # First-party G1 root/audit/CAS signer reuse is NOT independent
+            # custody even when the apparent operator is a separate process.
+            # The prior verifier only separated registrar/status/witness keys.
+            original_operator_private = (operator / 'floorReg.priv').read_bytes()
+            for reused in ('root', 'audit', 'cas'):
+                (operator / 'floorReg.pub').write_bytes((app / (reused + '.pub')).read_bytes())
+                (operator / 'floorReg.priv').write_bytes((app / (reused + '.priv')).read_bytes())
+                print(invoke('REUSED_G1_' + reused.upper()).stdout.strip())
+                (operator / 'floorReg.pub').write_bytes(original_pin)
+                (operator / 'floorReg.priv').write_bytes(original_operator_private)
+            print(invoke('VALID_RESTART').stdout.strip())
             # A monotonic operator floor survives independently of the app
             # domain. These two changes are admin/test operations only.
             (operator / 'floor.state').write_text('2:11:101:false')
@@ -231,8 +242,8 @@ public final class FutureIndependentRegistrarFloorProcess {
                 assert 'UNRESOLVED_TOTAL_RESET' in p.stderr, p.stderr
                 print('STRICT_INDEPENDENT_REGISTRAR_SECURITY_FAIL: all trust domains reset with original keys')
                 sys.exit(1)
-            print('FUTURE_INDEPENDENT_REGISTRAR_FLOOR_JVM_PASS cases=11'
-                  ' client_processes=12 operator_processes=11'
+            print('FUTURE_INDEPENDENT_REGISTRAR_FLOOR_JVM_PASS cases=15'
+                  ' client_processes=16 operator_processes=12'
                   ' operator_custody=SEPARATE_JVM_ROLLBACKABLE_LOCAL_FILES')
             sys.exit(0)
 

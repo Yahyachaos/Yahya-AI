@@ -5761,13 +5761,22 @@ public final class CelineFutureMemoryRecall {
         final ExternalRegistrarRotationVerdict FAIL =
                 ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
         if (statusRegistry == null || witnessRegistry == null || floorRegistry == null
-                || rotation == null || independentlyProvisionedFloorSigner == null
+                || rotation == null || previous == null || successor == null
+                || independentlyProvisionedFloorSigner == null
                 || trustedFloorSequence <= 0 || oldRegistrarPin == null
                 || statusSignerPin == null || witnessSignerPin == null
                 || Arrays.equals(independentlyProvisionedFloorSigner, oldRegistrarPin)
                 || Arrays.equals(independentlyProvisionedFloorSigner, rotation.nextSigner())
                 || Arrays.equals(independentlyProvisionedFloorSigner, statusSignerPin)
-                || Arrays.equals(independentlyProvisionedFloorSigner, witnessSignerPin))
+                || Arrays.equals(independentlyProvisionedFloorSigner, witnessSignerPin)
+                // A separate process is not a separate trust domain if its
+                // signing key is any G1-owned root, audit or CAS identity.
+                || Arrays.equals(independentlyProvisionedFloorSigner, previous.rootSigner())
+                || Arrays.equals(independentlyProvisionedFloorSigner, previous.auditSigner())
+                || Arrays.equals(independentlyProvisionedFloorSigner, previous.casSigner())
+                || Arrays.equals(independentlyProvisionedFloorSigner, successor.rootSigner())
+                || Arrays.equals(independentlyProvisionedFloorSigner, successor.auditSigner())
+                || Arrays.equals(independentlyProvisionedFloorSigner, successor.casSigner()))
             return FAIL;
         try {
             final SignedExternalRegistrarStatus[] lastStatus = {null};
