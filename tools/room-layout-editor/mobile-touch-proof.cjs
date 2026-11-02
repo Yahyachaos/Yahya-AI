@@ -89,6 +89,104 @@ async function independentNativeCdpInputReceipt(page,context) {
   };
 }
 
+
+async function controlledRenderPauseNativeTouchProbe(page,context) {
+  // Diagnosis after ALL strict mobile UI, orbit, save/reload and viewport gates.
+  // A stationary CDP touch never contributes to application acceptance.
+  const readState=()=>page.evaluate(()=>({
+    layout:window.__celineRoomEditorE2E.serializedLayout(),
+    camera:window.__celineRoomEditorE2E.cameraProjection(),
+    room:window.__celineRoomEditorE2E.auditScene().room_m
+  }));
+  const before=await readState(),cdp=await context.newCDPSession(page),trials=[];
+  let restoreError=null;
+  try {
+    for(const name of ['active_before','render_paused','active_after']) {
+      const paused=name==='render_paused';
+      await page.evaluate(p=>window.__celineRoomEditorE2E.proofMobileRenderLoopPause(p),paused);
+      await page.waitForTimeout(paused?300:450);
+      const pre=await page.evaluate(label=>{
+        const canvas=document.querySelector('#viewport canvas'),r=canvas.getBoundingClientRect();
+        const point={x:Math.round(r.x+r.width*.53),y:Math.round(r.y+r.height*.30)};
+        if(document.elementFromPoint(point.x,point.y)!==canvas)
+          throw new Error('CDP controlled input missed original unobstructed WebGL canvas');
+        if(!window.__renderPauseTouchListenersInstalled){
+          for(const type of ['pointerdown','pointerup','touchstart','touchend'])
+            document.addEventListener(type,event=>{
+              const current=window.__renderPauseTouchTrial;
+              if(!current||event.target!==canvas||!event.isTrusted)return;
+              const epoch_ms=performance.timeOrigin+performance.now();
+              if(epoch_ms<current.started_epoch_ms)return;
+              current.events.push({type,epoch_ms,
+                original_event_epoch_ms:performance.timeOrigin+event.timeStamp,
+                pointer_type:event.pointerType||null,trust:event.isTrusted,
+                target:'original_webgl_canvas'});
+            },{capture:true,passive:true});
+          window.__renderPauseTouchListenersInstalled=true;
+        }
+        window.__renderPauseTouchTrial={name:label,
+          started_epoch_ms:performance.timeOrigin+performance.now(),events:[]};
+        return {point,started_epoch_ms:window.__renderPauseTouchTrial.started_epoch_ms,
+          render_before:window.__celineRoomEditorE2E.mobileRenderStats()};
+      },name);
+      const started=Date.now();let startAck=null,endAck=null,error=null;
+      try {
+        await cdp.send('Input.dispatchTouchEvent',{
+          type:'touchStart',touchPoints:[{...pre.point,id:73}]});
+        startAck=Date.now();
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        endAck=Date.now();
+      }catch(e){
+        error=String(e.stack||e);
+        try{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
+        catch(_ignored){}
+      }
+      const finished=Date.now();
+      const post=await page.evaluate(()=>({
+        events:(window.__renderPauseTouchTrial?.events||[]).slice(),
+        render_after:window.__celineRoomEditorE2E.mobileRenderStats(),
+        frames:window.__celineRoomEditorE2E.proofMobileRecentFrames(),
+        trace:window.__celineMobileLatencyTrace||null
+      }));
+      const inWindow=item=>item.epoch_ms>=pre.started_epoch_ms-250&&
+        item.epoch_ms<=finished+250;
+      const frames=post.frames.filter(inWindow);
+      const gaps=(post.trace?.raf_gaps||[]).filter(inWindow);
+      const tasks=(post.trace?.longtasks||[]).filter(inWindow);
+      const pointer=post.events.find(e=>e.type==='pointerdown');
+      trials.push({name,paused,point:pre.point,
+        cdp_start_ack_ms:startAck===null?null:startAck-started,
+        cdp_end_ack_ms:endAck===null||startAck===null?null:endAck-startAck,
+        cdp_total_ack_ms:endAck===null?null:endAck-started,
+        native_dispatch_error:error,
+        native_trusted_pointer_received:!!pointer,
+        native_trusted_touch_received:post.events.some(e=>e.type==='touchstart'),
+        pointer_receipt_after_start_ms:pointer?pointer.epoch_ms-started:null,
+        target_filtered_browser_events:post.events,
+        render_count_delta:post.render_after.renders-pre.render_before.renders,
+        render_frames:frames,
+        max_raf_gap_ms:gaps.length?Math.max(...gaps.map(g=>g.gap_ms)):0,
+        max_longtask_ms:tasks.length?Math.max(...tasks.map(t=>t.duration_ms)):0,
+        relevant_longtasks:tasks});
+    }
+  } finally {
+    try{await page.evaluate(()=>
+      window.__celineRoomEditorE2E.proofMobileRenderLoopPause(false));}
+    catch(e){restoreError=String(e.stack||e);}
+    await cdp.detach();
+  }
+  const after=await readState();
+  assert.deepEqual(after.layout,before.layout,'CDP causal test changed owner JSON/legacy fields');
+  assert.deepEqual(after.camera,before.camera,'CDP causal test changed owner camera');
+  assert.deepEqual(after.room,before.room,'CDP causal test changed room dimensions');
+  assert.equal(restoreError,null,'CDP causal test did not restore render loop');
+  return {source_scene:'13 original GLBs',mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+    experiment:'same scene native CDP active/paused/active render-loop comparison',
+    paused_webgl_render_count_zero:trials.find(t=>t.paused)?.render_count_delta===0,
+    trials,owner_json_camera_room_unchanged:true,physical_s25_test:false,
+    product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'};
+}
+
 const crypto=require('node:crypto');
 // V43: independent native original-GLB WebGL capture, so failure of the
 // Chromium compositor screenshot no longer destroys all visual diagnostics.
@@ -262,9 +360,38 @@ async function main(){
         'Exactly one native renderer AA configuration expected');
       if(NATIVE_AA4_MODE)
         source=source.replace(nativeRendererAAAnchor,'antialias: true');
+
+      // E2E-only reversible render-loop control. Production editor.js is NOT
+      // changed; both AA modes are routed through the same measured code.
+      const renderStart='renderer.setAnimationLoop(()=>{';
+      const renderEnd='    mobileRenderStats.worst_render_ms=Math.max(mobileRenderStats.worst_render_ms,elapsed);\n  }\n});\n\nfunction viewPreset';
+      const statsAnchor='const mobileRenderStats = {renders:0, skipped:0, worst_render_ms:0, total_render_ms:0};';
+      assert.equal(source.split(renderStart).length,2,'One render-loop start required');
+      assert.equal(source.split(renderEnd).length,2,'One render-loop end required');
+      assert.equal(source.split(statsAnchor).length,2,'One render-stats declaration required');
+      source=source.replace(statsAnchor,statsAnchor+'\nconst __proofRenderFrames=[];');
+      source=source.replace(renderStart,'const __proofNativeAnimationLoop=()=>{');
+      source=source.replace(renderEnd,
+        '    mobileRenderStats.worst_render_ms=Math.max(mobileRenderStats.worst_render_ms,elapsed);\n'+
+        '    __proofRenderFrames.push({epoch_ms:performance.timeOrigin+began,duration_ms:elapsed});\n'+
+        '    if(__proofRenderFrames.length>500)__proofRenderFrames.shift();\n'+
+        '  }\n};\nrenderer.setAnimationLoop(__proofNativeAnimationLoop);\n\nfunction viewPreset');
+      const controlledPauseInjection=[
+        '    proofMobileRenderLoopPause(paused) {',
+        "      if(typeof paused!=='boolean'||!TOUCH_DEVICE)",
+        "        throw new Error('Render pause probe requires mobile boolean');",
+        "      if([...entries.values()].filter(e=>e.loaded).length!==13)",
+        "        throw new Error('13 original GLBs required for CDP probe');",
+        '      if(paused)renderer.setAnimationLoop(null);',
+        '      else {invalidateMobileFrame();renderer.setAnimationLoop(__proofNativeAnimationLoop);}',
+        '      return {paused,render_stats:{...mobileRenderStats}};',
+        '    },',
+        '    proofMobileRecentFrames() {return __proofRenderFrames.slice();},',
+        ''
+      ].join('\n');
       const anchor='    mobileRenderStats() {';
       assert.equal(source.split(anchor).length,2,'Single E2E readback injection point required');
-      return route.fulfill({body:source.replace(anchor,s25ColorFilterProbeInjection+s25TextureAuditInjection+s25TintProbeInjection+s25CurtainQuantProbeInjection+s25CurtainOrderDepthPrecisionProbeInjection+anchor),contentType:'text/javascript'});
+      return route.fulfill({body:source.replace(anchor,s25ColorFilterProbeInjection+s25TextureAuditInjection+s25TintProbeInjection+s25CurtainQuantProbeInjection+s25CurtainOrderDepthPrecisionProbeInjection+controlledPauseInjection+anchor),contentType:'text/javascript'});
     });
     await page.goto('http://127.0.0.1:8765/tools/room-layout-editor/?e2e=1',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),null,{timeout:240000});
@@ -1269,6 +1396,24 @@ async function main(){
       independentCdp={diagnostic_error:String(error.stack||error),
         product_acceptance:'NOT_GRANTED'};
     }
+
+    // Test AFTER strict gates and real phone screenshot. Diagnostic errors
+    // cannot manufacture application PASS. Preserve evidence in both modes.
+    let pauseProbe;
+    try{
+      pauseProbe=await controlledRenderPauseNativeTouchProbe(page,context);
+    }catch(e){
+      pauseProbe={diagnostic_error:String(e.stack||e),
+        product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'};
+    }
+    fs.writeFileSync(path.join(out,'mobile-render-pause-cdp-causality.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+        mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+        pauseProbe},null,2));
+    record.push({name:'CONTROLLED_NATIVE_CDP_RENDER_PAUSE_CAUSALITY',
+      file:'mobile-render-pause-cdp-causality.json',
+      measured:!pauseProbe.diagnostic_error,
+      product_acceptance:'NOT_GRANTED'});
     const browserTrace=await page.evaluate(()=>
       window.__celineMobileLatencyTrace||null).catch(error=>({
         trace_error:String(error)
