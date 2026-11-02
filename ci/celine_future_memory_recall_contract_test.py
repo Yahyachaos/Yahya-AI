@@ -9,6 +9,136 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — a root checkpoint is only useful when its digest is trusted
+# from OUTSIDE the app/caller/ledger backup domain. This fixture deliberately
+# uses ordinary files to demonstrate conditional detection, not real custody.
+if ('--focused-immutable-root-checkpoint' in sys.argv
+        or '--strict-immutable-root-full-reset' in sys.argv):
+    root_harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureImmutableRootProcess {
+  static final String AUTH="independent-audit-operator", CLAIM="memory-claim-00000001";
+  static final String SECOND="memory-claim-00000002", UNSEEN="memory-claim-not-yet-0003";
+  static Path path, ledger, checkpoint;
+  static KeyPair signer, forged;
+  static int checks=0;
+  static void ok(boolean b,String msg){if(!b)throw new AssertionError(msg);checks++;}
+  static byte[] owner(){byte[] b=new byte[64];Arrays.fill(b,(byte)7);return b;}
+  static AuditRootRecord item(String claim){return new AuditRootRecord(claim,"memory-id-1",4,owner(),1);}
+  static List<AuditRootRecord> records()throws Exception {
+    List<AuditRootRecord> out=new ArrayList<>();
+    if(Files.exists(ledger))for(String claim:Files.readAllLines(ledger))if(!claim.isBlank())out.add(item(claim));
+    return out;
+  }
+  static void init()throws Exception {
+    Files.createDirectories(path);
+    var gen=KeyPairGenerator.getInstance("Ed25519");signer=gen.generateKeyPair();
+    Files.write(path.resolve("signer.priv"),signer.getPrivate().getEncoded());
+    Files.write(path.resolve("signer.pub"),signer.getPublic().getEncoded());
+    Files.writeString(ledger,CLAIM+"\n"+SECOND+"\n");
+    Files.write(checkpoint, immutableAuditRootHash(records()));
+    System.out.println("ROOT_INIT_OK");
+  }
+  static KeyPair load()throws Exception {
+    var f=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(f.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(path.resolve("signer.pub")))),
+      f.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(path.resolve("signer.priv")))));
+  }
+  static class RootView implements IndependentImmutableAuditRootView {
+    final String mode;
+    RootView(String m){mode=m;}
+    public SignedImmutableAuditRootSnapshot readRoot(String authority,long epoch,long generation,String nonce)throws Exception {
+      List<AuditRootRecord> list=new ArrayList<>(records());
+      if(mode.equals("BAD_ORDER"))Collections.reverse(list);
+      if(mode.equals("WRONG_ITEM")){
+        list.clear();list.add(new AuditRootRecord(CLAIM,"tampered-id",4,owner(),1));
+      }
+      byte[] hash=immutableAuditRootHash(list);
+      if(mode.equals("FORGED_ROOT"))hash=new byte[32];
+      long seq=mode.equals("STALE_SEQ")?9:10;
+      String signedNonce=mode.equals("REPLAY")?"replayed-root-nonce-string-00001":nonce;
+      byte[] body=immutableAuditRootSnapshotPayload(AUTH,8,2,seq,hash,signedNonce);
+      var s=Signature.getInstance("Ed25519");
+      s.initSign(mode.equals("BAD_SIGNER")?forged.getPrivate():signer.getPrivate());
+      s.update(body);
+      return new SignedImmutableAuditRootSnapshot(AUTH,8,2,seq,signedNonce,hash,list,s.sign());
+    }
+  }
+  static void test(String mode)throws Exception {
+    signer=load();forged=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    byte[] trusted=Files.readAllBytes(checkpoint);
+    var gate=ImmutableAuditRootCheckpointGate.bind(new RootView(mode),
+      signer.getPublic().getEncoded(),trusted,AUTH,8,2,10);
+    ok(gate!=null,"pinned root verifier created");
+    var membership=gate.readMembership(CLAIM,"memory-id-1",4,owner());
+    if(mode.equals("NORMAL")){
+      ok(membership==AuditRootMembership.CONFIRMED_SPENT,"authenticated immutable member present");
+      ok(gate.readMembership(UNSEEN,"memory-id-1",4,owner())
+        ==AuditRootMembership.NOT_IN_CHECKPOINT_NO_AUTHORIZATION,
+        "absence does not authorize a new reservation");
+    }else if(mode.equals("FULL_RESET")){
+      ok(membership==AuditRootMembership.UNVERIFIABLE,
+        "KNOWN SECURITY FAIL: attacker reset trusted root along with entire ledger using original signer");
+    }else {
+      ok(membership==AuditRootMembership.UNVERIFIABLE,
+        "root/sequence/nonce/signature/record mismatch must not claim positive membership: "+mode+" -> "+membership);
+    }
+    System.out.println("ROOT_"+mode+"_PASS checks="+checks+" observation="+membership);
+  }
+  public static void main(String[] args)throws Exception {
+    path=Path.of(args[1]);ledger=path.resolve("mock-claims.txt");checkpoint=path.resolve("mock-pinned-root.bin");
+    if(args[0].equals("INIT")){init();return;}
+    if(args[0].equals("RESET_PIN")){
+      // Attacker controls this *mock* pin if the trust checkpoint is backed up
+      // alongside ordinary application and audit files.
+      Files.write(checkpoint,immutableAuditRootHash(records()));return;
+    }
+    test(args[0]);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_immutable_root_jvm_') as compiled:
+        child=Path(compiled)/'FutureImmutableRootProcess.java'
+        child.write_text(root_harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(child)],
+                             capture_output=True,text=True,timeout=70)
+        assert build.returncode==0, build.stderr
+        with tempfile.TemporaryDirectory(prefix='future_immutable_root_disk_mock_') as state:
+            command=['java','-cp',compiled,'de.yahya.ai.FutureImmutableRootProcess']
+            def invoke(action,expected=0):
+                result=subprocess.run(command+[action,state],capture_output=True,text=True,timeout=25)
+                assert result.returncode==expected,(action,result.returncode,result.stdout,result.stderr)
+                return result
+            invoke('INIT')
+            original_signer=hashlib.sha256((Path(state)/'signer.priv').read_bytes()).hexdigest()
+            if '--strict-immutable-root-full-reset' in sys.argv:
+                invoke('NORMAL')
+                (Path(state)/'mock-claims.txt').write_text('',encoding='utf-8')
+                # This demonstrates the untrusted MOCK anchor is resettable too.
+                # Re-enrolling checkpoint from the compromised state is forbidden in production.
+                invoke('RESET_PIN')  # attacker also resets the mock "trusted" root
+                attacked=subprocess.run(command+['FULL_RESET',state],capture_output=True,text=True,timeout=25)
+                assert hashlib.sha256((Path(state)/'signer.priv').read_bytes()).hexdigest()==original_signer
+                print('IMMUTABLE_ROOT_SAME_KEY_TOTAL_RESET_EXPECTED_SECURITY_FAIL exit='+str(attacked.returncode))
+                print(attacked.stderr.strip() or attacked.stdout.strip())
+                assert attacked.returncode==0, ('KNOWN SECURITY FAIL: resetting original-key '
+                    'ledger and same-backup root pin loses authenticated historical membership')
+                sys.exit(0)
+            invoke('NORMAL')
+            for mode in ('BAD_SIGNER','REPLAY','STALE_SEQ','FORGED_ROOT','BAD_ORDER','WRONG_ITEM'):
+                invoke(mode)
+            (Path(state)/'mock-claims.txt').write_text('memory-claim-00000002\n',encoding='utf-8')
+            response=invoke('ROLLBACK')
+            assert 'observation=UNVERIFIABLE' in response.stdout
+            assert hashlib.sha256((Path(state)/'signer.priv').read_bytes()).hexdigest()==original_signer
+            print('IMMUTABLE_ROOT_CHECKPOINT_MOCK_PASS process_runs=9 selective_delete_rejected=1')
+            sys.exit(0)
+
 # FUTURE ONLY — source-exact, independently signed WRITE-AHEAD audit experiment.
 # The fixture intentionally uses rollbackable files; it proves conditional
 # replay exclusion only while the audit survives, NOT durable production custody.

@@ -4361,6 +4361,186 @@ public final class CelineFutureMemoryRecall {
     }
 
     /**
+     * FUTURE ONLY — bounded snapshot-root continuity proof, NOT a storage
+     * service. The 32-byte trustedRoot MUST be provisioned and advanced by an
+     * administrator outside caller, audit-file and signing-key backup domains.
+     * A caller-controlled pin makes same-key total rollback undetectable.
+     * A consistent ABSENT snapshot is NEVER authorization to write/spend.
+     */
+    public static final class AuditRootRecord {
+        public final String claim, exactId;
+        public final long revision, sequence;
+        private final byte[] owner;
+        public AuditRootRecord(String claim, String exactId, long revision,
+                byte[] owner, long sequence) {
+            this.claim = claim; this.exactId = exactId;
+            this.revision = revision; this.sequence = sequence;
+            this.owner = owner == null ? null : owner.clone();
+        }
+        public byte[] owner() { return owner == null ? null : owner.clone(); }
+    }
+
+    public static byte[] immutableAuditRootHash(List<AuditRootRecord> orderedRecords) {
+        if (orderedRecords == null || orderedRecords.size() > 256)
+            return new byte[0];
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(bytes);
+            out.write("future-g1/immutable-audit-root/v1\n".getBytes(StandardCharsets.UTF_8));
+            out.writeInt(orderedRecords.size());
+            String previous = null;
+            for (AuditRootRecord r : orderedRecords) {
+                if (r == null || r.claim == null
+                        || !r.claim.matches("[A-Za-z0-9_-]{8,128}")
+                        || (previous != null && previous.compareTo(r.claim) >= 0)
+                        || r.exactId == null || r.exactId.isBlank()
+                        || r.exactId.length() > 256 || r.revision <= 0
+                        || r.sequence <= 0 || r.owner == null || r.owner.length != 64)
+                    return new byte[0];
+                for (byte[] field : new byte[][] {
+                        r.claim.getBytes(StandardCharsets.UTF_8),
+                        r.exactId.getBytes(StandardCharsets.UTF_8), r.owner }) {
+                    out.writeInt(field.length);
+                    out.write(field);
+                }
+                out.writeLong(r.revision);
+                out.writeLong(r.sequence);
+                previous = r.claim;
+            }
+            out.flush();
+            return MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray());
+        } catch (GeneralSecurityException | IOException | RuntimeException malformed) {
+            return new byte[0];
+        }
+    }
+
+    public static byte[] immutableAuditRootSnapshotPayload(String authorityId,
+            long epoch, long generation, long sequence, byte[] root,
+            String freshNonce) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || generation <= 0 || sequence <= 0
+                || root == null || root.length != 32
+                || freshNonce == null || !freshNonce.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        return ("future-g1/immutable-audit-root-snapshot/v1\n" + authorityId
+                + "\n" + epoch + "\n" + generation + "\n" + sequence
+                + "\n" + java.util.Base64.getEncoder().encodeToString(root)
+                + "\n" + freshNonce + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static final class SignedImmutableAuditRootSnapshot {
+        public final String authorityId, nonce;
+        public final long epoch, generation, sequence;
+        private final byte[] root, signature;
+        public final List<AuditRootRecord> records;
+        public SignedImmutableAuditRootSnapshot(String authorityId, long epoch,
+                long generation, long sequence, String nonce, byte[] root,
+                List<AuditRootRecord> records, byte[] signature) {
+            this.authorityId = authorityId; this.epoch = epoch;
+            this.generation = generation; this.sequence = sequence;
+            this.nonce = nonce; this.root = root == null ? null : root.clone();
+            this.signature = signature == null ? null : signature.clone();
+            this.records = records == null ? null : List.copyOf(records);
+        }
+        public byte[] root() { return root == null ? null : root.clone(); }
+        public byte[] signature() {
+            return signature == null ? null : signature.clone();
+        }
+    }
+
+    public interface IndependentImmutableAuditRootView {
+        SignedImmutableAuditRootSnapshot readRoot(String authorityId,
+                long epoch, long generation, String freshNonce) throws Exception;
+    }
+
+    public enum AuditRootMembership {
+        CONFIRMED_SPENT, NOT_IN_CHECKPOINT_NO_AUTHORIZATION, UNVERIFIABLE
+    }
+
+    public static final class ImmutableAuditRootCheckpointGate {
+        private final IndependentImmutableAuditRootView authority;
+        private final byte[] signerPin, trustedRoot;
+        private final String authorityId;
+        private final long epoch, generation, headSequence;
+        private ImmutableAuditRootCheckpointGate(IndependentImmutableAuditRootView authority,
+                byte[] signerPin, byte[] trustedRoot, String authorityId,
+                long epoch, long generation, long headSequence) {
+            this.authority = authority; this.signerPin = signerPin.clone();
+            this.trustedRoot = trustedRoot.clone(); this.authorityId = authorityId;
+            this.epoch = epoch; this.generation = generation;
+            this.headSequence = headSequence;
+        }
+        public static ImmutableAuditRootCheckpointGate bind(
+                IndependentImmutableAuditRootView independentlyManagedRoot,
+                byte[] pinnedSigner, byte[] externallyTrustedRoot,
+                String authorityId, long epoch, long generation,
+                long externallyTrustedSequence) {
+            if (independentlyManagedRoot == null || pinnedSigner == null
+                    || externallyTrustedRoot == null || externallyTrustedRoot.length != 32
+                    || immutableAuditRootSnapshotPayload(authorityId, epoch,
+                            generation, externallyTrustedSequence,
+                            externallyTrustedRoot, "synthetic-nonce-at-least-24").length == 0)
+                return null;
+            try {
+                byte[] pin = pinnedSigner.clone();
+                java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+                if (!Arrays.equals(pin, key.getEncoded())) return null;
+                return new ImmutableAuditRootCheckpointGate(independentlyManagedRoot,
+                        pin, externallyTrustedRoot, authorityId,
+                        epoch, generation, externallyTrustedSequence);
+            } catch (GeneralSecurityException | RuntimeException invalid) {
+                return null;
+            }
+        }
+        public AuditRootMembership readMembership(String claim, String exactId,
+                long revision, byte[] owner) {
+            if (claim == null || !claim.matches("[A-Za-z0-9_-]{8,128}")
+                    || exactId == null || exactId.isBlank() || exactId.length() > 256
+                    || revision <= 0 || owner == null || owner.length != 64)
+                return AuditRootMembership.UNVERIFIABLE;
+            try {
+                byte[] rnd = new byte[24];
+                new java.security.SecureRandom().nextBytes(rnd);
+                String nonce = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(rnd);
+                SignedImmutableAuditRootSnapshot snapshot = authority.readRoot(
+                        authorityId, epoch, generation, nonce);
+                if (snapshot == null || !authorityId.equals(snapshot.authorityId)
+                        || epoch != snapshot.epoch || generation != snapshot.generation
+                        || headSequence != snapshot.sequence || !nonce.equals(snapshot.nonce))
+                    return AuditRootMembership.UNVERIFIABLE;
+                byte[] returnedRoot = snapshot.root();
+                byte[] recalculated = immutableAuditRootHash(snapshot.records);
+                if (recalculated.length != 32
+                        || !MessageDigest.isEqual(trustedRoot, returnedRoot)
+                        || !MessageDigest.isEqual(recalculated, returnedRoot))
+                    return AuditRootMembership.UNVERIFIABLE;
+                byte[] payload = immutableAuditRootSnapshotPayload(authorityId,
+                        epoch, generation, snapshot.sequence, returnedRoot, nonce);
+                java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+                verifier.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(signerPin)));
+                verifier.update(payload);
+                if (!verifier.verify(snapshot.signature()))
+                    return AuditRootMembership.UNVERIFIABLE;
+                for (AuditRootRecord record : snapshot.records) {
+                    if (record.claim.equals(claim))
+                        return (record.exactId.equals(exactId)
+                                && record.revision == revision
+                                && MessageDigest.isEqual(record.owner(), owner))
+                            ? AuditRootMembership.CONFIRMED_SPENT
+                            : AuditRootMembership.UNVERIFIABLE;
+                }
+                // Snapshot absence is NOT an atomic 'FIRST' authorization.
+                return AuditRootMembership.NOT_IN_CHECKPOINT_NO_AUTHORIZATION;
+            } catch (Exception failure) {
+                return AuditRootMembership.UNVERIFIABLE;
+            }
+        }
+    }
+
+    /**
      * Independent administrator is responsible for provisioning this already
      * bound capability, its sixth Ed25519 pin and a trusted nonrollbackable
      * sequence minimum. The constructor cannot attest real-world independence
