@@ -2896,6 +2896,15 @@ public final class CelineFutureMemoryRecall {
                 return false;
             callbackStarted = true;
             consumer.consume(Collections.unmodifiableList(new ArrayList<>(matches)));
+            // A faulty owner lease may allow a correction/revocation while the
+            // synchronous publisher is executing. Do not certify completion
+            // against a now-stale source even if the callback returned cleanly.
+            // It is already too late to label this a retryable non-delivery:
+            // catch below reports INDETERMINATE, requiring manual recovery.
+            if (!certificate.generation.equals(held.generation())
+                    || !trustedG1Verifier.isStillCurrent(certificate))
+                throw new IllegalStateException(
+                    "G1 source revision advanced during provider callback");
             return true;
         } catch (RuntimeException ex) {
             // A callback may already have published data (even if its own body
