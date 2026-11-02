@@ -431,6 +431,32 @@ public final class FutureGlobalClaimSetProcess {
       "once observed SPENT disappears even under rising signed floor, quarantine session");
     ok(!Files.exists(providerDir.resolve(afterMissing+".txt")),
       "selective deletion quarantine prevents downstream mutation");
+    // The reserve path must also quarantine a direct reappearance as ABSENT;
+    // do not depend on the user explicitly calling queryExisting first.
+    var directRemote=new EphemeralExternalCAS();
+    var directGate=CelineFutureMemoryRecall.ExternallyAnchoredClaimGate.bind(
+      scopedGate(false,false,false),directRemote,directRemote.key(),AUTH,3,42,0);
+    String directClaim="global-claim-0103";
+    ok(directGate.reserveOnce(directClaim,ID,REV,owner(directClaim),
+      nonce("external-direct-initial-spend"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+      "direct-reserve continuity check starts from observed SPENT");
+    ok(directRemote.spent.remove(directClaim),"direct-reserve fixture deletes prior audit entry");
+    directRemote.sequence+=1;
+    int spendsBefore=directRemote.spendCalls;
+    ok(directGate.reserveOnce(directClaim,ID,REV,owner(directClaim),
+      nonce("external-direct-absent-replay"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.STARTED_INDETERMINATE,
+      "direct reserve cannot treat signed ABSENT for observed claim as a new first");
+    ok(directRemote.spendCalls==spendsBefore,
+      "direct-reserve regression never re-spends a selectively deleted claim");
+    String directAfter="global-claim-0104";
+    ok(directGate.reserveOnce(directAfter,ID,REV,owner(directAfter),
+      nonce("external-direct-quarantined-session"))==
+      CelineFutureMemoryRecall.GlobalClaimGateOutcome.NO_AUTHORITY,
+      "direct absent contradiction quarantines the session before unrelated writes");
+    ok(!Files.exists(providerDir.resolve(directAfter+".txt")),
+      "no provider mutation after direct-reserve contradiction");
     System.out.println("EXTERNAL_CAS_BOUNDARY_CONTRACT_PASS checks="+checks
       +" status=MOCK_ONLY_NOT_PRODUCTION");
   }
