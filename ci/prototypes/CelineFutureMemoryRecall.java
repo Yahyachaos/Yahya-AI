@@ -5564,6 +5564,64 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY read-only witness lookup interface. The implementation MUST
+     * be a separately operated authority; this interface cannot prove that
+     * the signer, monotonic floor, or history survive a full-domain reset.
+     * Never obtain pins/floors from response contents or app-restorable state.
+     */
+    public interface ExternalRegistrarRevocationWitnessRegistry {
+        SignedExternalRegistrarWitness readWitness(String authorityId,
+                String fromEnrollmentId, String toEnrollmentId,
+                String freshChallenge) throws Exception;
+    }
+
+    /**
+     * Fresh live challenge before BOTH independent status and witness reads.
+     * The low-level verifyWitnessedRegistrarStatus accepts a caller-provided
+     * challenge; replaying two previously signed responses with that same
+     * caller-chosen challenge is not proof of current non-revocation.
+     * This wrapper generates an unpredictable 256-bit challenge internally,
+     * obtains two matching signed responses, and fails CLOSED on any missing,
+     * replayed, contradictory or offline read. Read-only; VERIFIED is no write,
+     * retry, enrollment, provider, tool, memory or release permission.
+     * It does NOT solve a full reset of all truly trusted remote domains.
+     */
+    public static ExternalRegistrarRotationVerdict verifyLiveWitnessedRegistrarStatus(
+            ExternalRegistrarStatusRegistry statusRegistry,
+            ExternalRegistrarRevocationWitnessRegistry witnessRegistry,
+            byte[] oldRegistrarPin, byte[] oldEnrollmentDigest, long oldRegistryFloor,
+            SignedExternalGenesis previous, SignedExternalGenesis successor,
+            SignedExternalRegistrarRotation rotation,
+            byte[] statusSignerPin, long statusFloor,
+            byte[] witnessSignerPin, long witnessFloor) {
+        final ExternalRegistrarRotationVerdict FAIL =
+                ExternalRegistrarRotationVerdict.UNVERIFIABLE_NO_RETRY;
+        if (statusRegistry == null || witnessRegistry == null
+                || previous == null || successor == null || rotation == null
+                || statusSignerPin == null || witnessSignerPin == null
+                || statusFloor <= 0 || witnessFloor <= 0) return FAIL;
+        try {
+            byte[] random = new byte[32];
+            new java.security.SecureRandom().nextBytes(random);
+            String freshChallenge = java.util.Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(random);
+            SignedExternalRegistrarStatus status = statusRegistry.readStatus(
+                    rotation.authorityId, rotation.fromEnrollmentId,
+                    rotation.toEnrollmentId, freshChallenge);
+            if (status == null) return FAIL;
+            SignedExternalRegistrarWitness witness = witnessRegistry.readWitness(
+                    rotation.authorityId, rotation.fromEnrollmentId,
+                    rotation.toEnrollmentId, freshChallenge);
+            return verifyWitnessedRegistrarStatus(oldRegistrarPin,
+                    oldEnrollmentDigest, oldRegistryFloor, previous, successor,
+                    rotation, status, statusSignerPin, statusFloor,
+                    witness, witnessSignerPin, witnessFloor, freshChallenge);
+        } catch (Exception unavailableOrInconsistent) {
+            return FAIL;
+        }
+    }
+
     public enum TwoRotationContinuity {
         VERIFIED_TWO_ROTATIONS_NO_RETRY, UNVERIFIABLE_NO_RETRY
     }
