@@ -9,6 +9,211 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE-ONLY opt-in signed root checkpoint-ADVANCE barrier. The root signer,
+# checkpoint and audit are MOCK fixtures; they do not establish nonrollbackable
+# independent custody. Crash is forced after audit seal before root commit.
+if ('--focused-checkpoint-advance' in sys.argv
+        or '--strict-checkpoint-advance-total-reset' in sys.argv):
+    harness = r'''package de.yahya.ai;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.spec.*;
+import java.util.*;
+import static de.yahya.ai.CelineFutureMemoryRecall.*;
+public final class FutureAuditCheckpointAdvanceProcess {
+  static final String AUTH="independent-audit-operator", CLAIM="memory-claim-00000001";
+  static final String BOOT="memory-claim-bootstrap", ID="memory-id-1";
+  static final String NONCE="caller-nonce-fresh-000000001";
+  static final byte[] OWNER=new byte[64];
+  static Path disk, sealed, snapshot, checkpoint, downstream;
+  static KeyPair auditKey, casKey, rootKey, forgedKey;
+  static int checks=0;
+  static void ok(boolean yes,String msg){if(!yes)throw new AssertionError(msg);checks++;}
+  static KeyPair load(String name)throws Exception {
+    var f=KeyFactory.getInstance("Ed25519");
+    return new KeyPair(f.generatePublic(new X509EncodedKeySpec(Files.readAllBytes(disk.resolve(name+".pub")))),
+      f.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(disk.resolve(name+".priv")))));
+  }
+  static byte[] sign(KeyPair key,byte[] payload)throws Exception {
+    if(payload.length==0)return new byte[0];
+    var s=Signature.getInstance("Ed25519");s.initSign(key.getPrivate());s.update(payload);return s.sign();
+  }
+  static AuditRootRecord item(String claim,long seq){return new AuditRootRecord(claim,ID,4,OWNER,seq);}
+  static List<AuditRootRecord> records(boolean add){
+    ArrayList<AuditRootRecord> all=new ArrayList<>();all.add(item(BOOT,1));
+    if(add)all.add(item(CLAIM,2));
+    all.sort(Comparator.comparing(r->r.claim));return all;
+  }
+  static void init()throws Exception {
+    Files.createDirectories(disk);
+    var gen=KeyPairGenerator.getInstance("Ed25519");
+    for(String k:List.of("audit","cas","root")){
+      KeyPair pair=gen.generateKeyPair();
+      Files.write(disk.resolve(k+".pub"),pair.getPublic().getEncoded());
+      Files.write(disk.resolve(k+".priv"),pair.getPrivate().getEncoded());
+    }
+    Files.write(checkpoint, immutableAuditRootHash(records(false)));
+    Files.writeString(snapshot,"1\n");
+  }
+  static SignedImmutableClaimAuditReply auditReply(String claim,String nonce,String operation,String state,long seq)throws Exception {
+    byte[] body=immutableClaimAuditPayload(AUTH,8,2,claim,ID,4,OWNER,nonce,operation,state,seq);
+    return new SignedImmutableClaimAuditReply(AUTH,8,2,claim,ID,4,nonce,operation,state,seq,sign(auditKey,body));
+  }
+  static class WriteAheadAudit implements IndependentImmutableClaimAudit {
+    public SignedImmutableClaimAuditReply query(String authority,long epoch,String claim,String id,long rev,byte[] owner,String nonce)throws Exception {
+      return Files.exists(sealed)?auditReply(claim,nonce,"QUERY","SEALED",2):auditReply(claim,nonce,"QUERY","ABSENT",1);
+    }
+    public SignedImmutableClaimAuditReply sealOnce(String authority,long epoch,String claim,String id,long rev,byte[] owner,String nonce)throws Exception {
+      if(Files.exists(sealed))return auditReply(claim,nonce,"SEAL","ALREADY_SEALED",2);
+      // Controlled test fixture, not a production fsync/locking implementation.
+      Files.writeString(sealed,"2\n",StandardOpenOption.CREATE_NEW);
+      return auditReply(claim,nonce,"SEAL","FIRST_SEALED",2);
+    }
+  }
+  static class RootAuthority implements IndependentImmutableAuditRootAdvancer {
+    final String mode;
+    RootAuthority(String mode){this.mode=mode;}
+    public SignedImmutableAuditRootAdvance advance(String auth,long epoch,long generation,
+      String claim,String id,long rev,byte[] owner,long sealedSeq,long previousSeq,
+      byte[] previousRoot,String challenge)throws Exception {
+      ok(Files.exists(sealed),"audit seal must persist before root advancement");
+      if(mode.equals("CRASH_PRE"))Runtime.getRuntime().halt(79);
+      if(mode.equals("DOWN"))throw new IllegalStateException("independent checkpoint disconnected");
+      long newSeq=mode.equals("STALE_SEQ")?1:2;
+      byte[] prev=mode.equals("WRONG_PREVIOUS")?new byte[32]:previousRoot;
+      boolean include=!mode.equals("MISSING_MEMBER");
+      List<AuditRootRecord> list=records(include);
+      byte[] root=immutableAuditRootHash(list);
+      if(mode.equals("BAD_ROOT"))root=new byte[32];
+      String replyNonce=mode.equals("REPLAY")?"old-signed-challenge-00000000001":challenge;
+      byte[] body=immutableAuditRootAdvancePayload(AUTH,8,2,claim,id,rev,owner,sealedSeq,
+        previousSeq,prev,newSeq,root,replyNonce);
+      byte[] sig=sign(mode.equals("BAD_SIGNER")?forgedKey:rootKey,body);
+      if(mode.equals("CRASH_AFTER")){
+        Files.write(checkpoint,root);
+        Files.writeString(snapshot,"2\n");
+        Runtime.getRuntime().halt(79);
+      }
+      if(mode.equals("NORMAL")){
+        Files.write(checkpoint,root);
+        Files.writeString(snapshot,"2\n");
+      }
+      return new SignedImmutableAuditRootAdvance(AUTH,8,2,claim,id,rev,sealedSeq,
+        previousSeq,newSeq,replyNonce,prev,root,list,sig);
+    }
+  }
+  static ImmutableAuditFirstGate bind(String mode,java.util.concurrent.atomic.AtomicInteger writes){
+    return ImmutableAuditFirstGate.bindWithCheckpoint(new WriteAheadAudit(),
+      (claim,id,rev,owner,nonce)->{writes.incrementAndGet();
+        Files.writeString(downstream,"FIRST\n");
+        return GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK;},
+      auditKey.getPublic().getEncoded(),casKey.getPublic().getEncoded(),AUTH,8,2,1,
+      new RootAuthority(mode),rootKey.getPublic().getEncoded(),
+      immutableAuditRootHash(records(false)),1);
+  }
+  static void run(String mode)throws Exception {
+    auditKey=load("audit");casKey=load("cas");rootKey=load("root");
+    forgedKey=KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    var writes=new java.util.concurrent.atomic.AtomicInteger();
+    if(mode.equals("SAME_PIN")){
+      var denied=ImmutableAuditFirstGate.bindWithCheckpoint(new WriteAheadAudit(),
+        (c,i,r,o,n)->GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+        auditKey.getPublic().getEncoded(),casKey.getPublic().getEncoded(),AUTH,8,2,1,
+        new RootAuthority("NORMAL"),auditKey.getPublic().getEncoded(),
+        immutableAuditRootHash(records(false)),1);
+      ok(denied==null,"root signer must not share an audit identity");
+    }else{
+      var gate=bind(mode.equals("RECOVER")?"NORMAL":mode,writes);
+      ok(gate!=null,"checkpoint authority binding should be well formed");
+      var outcome=gate.reserveOnce(CLAIM,ID,4,OWNER,NONCE);
+      if(mode.equals("CRASH_PRE")||mode.equals("CRASH_AFTER"))
+        throw new AssertionError("forced cross-process crash was not triggered");
+      if(mode.equals("NORMAL")||mode.equals("ATTACK")){
+        if(mode.equals("ATTACK"))ok(outcome!=GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK,
+          "KNOWN SECURITY FAIL: unchanged keys and reset mock audit/checkpoint reauthorized a second first: "+outcome);
+        else ok(outcome==GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==1,
+          "verified signed new checkpoint with sealed claim must permit one downstream transition: "+outcome);
+      }else{
+        ok(outcome!=GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK && writes.get()==0,
+          "lost/forged/omitted/stale/root-rollback evidence must not mutate downstream: "+mode+" "+outcome);
+      }
+      if(mode.equals("RECOVER"))ok(Files.exists(sealed),
+        "a crash-restarted gate must see its prior write-ahead seal");
+    }
+    System.out.println("ADVANCE_"+mode+"_PASS checks="+checks+" downstream="+Files.exists(downstream));
+  }
+  public static void main(String[] args)throws Exception {
+    disk=Path.of(args[1]);sealed=disk.resolve("claim.sealed");
+    snapshot=disk.resolve("mock-seq.txt");checkpoint=disk.resolve("mock-root.bin");
+    downstream=disk.resolve("provider.txt");
+    if(args[0].equals("INIT")){init();return;}
+    if(args[0].equals("ROLLBACK")){
+      Files.deleteIfExists(sealed);Files.deleteIfExists(downstream);
+      Files.writeString(snapshot,"1\n");
+      Files.write(checkpoint,immutableAuditRootHash(records(false)));
+      return;
+    }
+    run(args[0]);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_checkpoint_advance_jvm_') as compiled:
+        child = Path(compiled) / 'FutureAuditCheckpointAdvanceProcess.java'
+        child.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(child)], capture_output=True,
+                               text=True, timeout=70)
+        assert build.returncode == 0, build.stderr
+        command = ['java', '-cp', compiled, 'de.yahya.ai.FutureAuditCheckpointAdvanceProcess']
+        count = 0
+        def invoke(action, state, expected=0):
+            global count
+            result = subprocess.run(command + [action, state], capture_output=True,
+                                    text=True, timeout=25)
+            assert result.returncode == expected, (action, result.returncode,
+                                                    result.stdout, result.stderr)
+            count += 1
+            return result
+        if '--strict-checkpoint-advance-total-reset' in sys.argv:
+            with tempfile.TemporaryDirectory(prefix='future_advance_reset_mock_') as state:
+                invoke('INIT', state)
+                original = [(Path(state) / f'{name}.priv').read_bytes()
+                            for name in ('audit', 'cas', 'root')]
+                invoke('NORMAL', state)
+                invoke('ROLLBACK', state)
+                attacked = subprocess.run(command + ['ATTACK', state],
+                                         capture_output=True, text=True, timeout=25)
+                assert original == [(Path(state) / f'{name}.priv').read_bytes()
+                                    for name in ('audit', 'cas', 'root')]
+                print('CHECKPOINT_ADVANCE_TOTAL_RESET_EXPECTED_SECURITY_FAIL'
+                      f' exit={attacked.returncode}')
+                print(attacked.stderr.strip() or attacked.stdout.strip())
+                # EXPECT security FAIL exit1 while both root and audit can be reset.
+                assert attacked.returncode == 0, ('KNOWN SECURITY FAIL: app-controlled'
+                    ' checkpoint + audit cannot resist original-key total rollback')
+                sys.exit(0)
+        for mode in ('NORMAL', 'BAD_SIGNER', 'REPLAY', 'WRONG_PREVIOUS',
+                     'MISSING_MEMBER', 'BAD_ROOT', 'STALE_SEQ', 'DOWN', 'SAME_PIN'):
+            with tempfile.TemporaryDirectory(prefix='future_advance_case_') as state:
+                invoke('INIT', state)
+                invoke(mode, state)
+                if mode == 'NORMAL':
+                    invoke('RECOVER', state)
+        for crash in ('CRASH_PRE', 'CRASH_AFTER'):
+            with tempfile.TemporaryDirectory(prefix='future_advance_crash_') as state:
+                invoke('INIT', state)
+                invoke(crash, state, 79)
+                recovered = invoke('RECOVER', state)
+                assert 'downstream=false' in recovered.stdout, recovered.stdout
+                if crash == 'CRASH_PRE':
+                    assert (Path(state) / 'mock-seq.txt').read_text() == '1\n'
+                else:
+                    assert (Path(state) / 'mock-seq.txt').read_text() == '2\n'
+        print(f'CHECKPOINT_ADVANCE_MOCK_PASS processes={count}'
+              ' root_signers_separate=1 no_auto_retry=1 crash_scenarios=2')
+        sys.exit(0)
+
 # FUTURE ONLY — a root checkpoint is only useful when its digest is trusted
 # from OUTSIDE the app/caller/ledger backup domain. This fixture deliberately
 # uses ordinary files to demonstrate conditional detection, not real custody.

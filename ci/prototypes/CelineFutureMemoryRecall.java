@@ -4256,6 +4256,9 @@ public final class CelineFutureMemoryRecall {
         private final byte[] auditPin;
         private final String authorityId;
         private final long epoch, generation, externalMinimum;
+        // Optional FUTURE-ONLY opt-in barrier. The old unanchored protocol stays
+        // available only as a research baseline and is NOT production safe.
+        private final ImmutableAuditCheckpointAdvanceGate rootAdvancement;
         private final java.util.Set<String> attempted =
                 java.util.concurrent.ConcurrentHashMap.newKeySet();
         private final java.util.concurrent.atomic.AtomicBoolean quarantined =
@@ -4263,11 +4266,13 @@ public final class CelineFutureMemoryRecall {
 
         private ImmutableAuditFirstGate(IndependentImmutableClaimAudit audit,
                 ClaimAfterAuditSeal continuation, byte[] pin,
-                String authorityId, long epoch, long generation, long minimum) {
+                String authorityId, long epoch, long generation, long minimum,
+                ImmutableAuditCheckpointAdvanceGate rootAdvancement) {
             this.audit = audit; this.continuation = continuation;
             this.auditPin = pin.clone(); this.authorityId = authorityId;
             this.epoch = epoch; this.generation = generation;
             this.externalMinimum = minimum;
+            this.rootAdvancement = rootAdvancement;
         }
         public static ImmutableAuditFirstGate bind(
                 IndependentImmutableClaimAudit independentlyAdministeredAudit,
@@ -4286,10 +4291,39 @@ public final class CelineFutureMemoryRecall {
                         .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
                 if (!java.util.Arrays.equals(pin, key.getEncoded())) return null;
                 return new ImmutableAuditFirstGate(independentlyAdministeredAudit,
-                        downstreamOnlyAfterSeal, pin, authorityId, epoch, generation, minimum);
+                        downstreamOnlyAfterSeal, pin, authorityId, epoch, generation,
+                        minimum, null);
             } catch (GeneralSecurityException | RuntimeException badPin) {
                 return null;
             }
+        }
+        /**
+         * Optional gated prototype: independent root advance must be signed and
+         * checked AFTER an authenticated write-ahead seal, BEFORE downstream CAS.
+         * External provisioned root/sequence must never be enrolled from an app
+         * backup. This binder cannot itself certify operator independence.
+         */
+        public static ImmutableAuditFirstGate bindWithCheckpoint(
+                IndependentImmutableClaimAudit audit,
+                ClaimAfterAuditSeal downstream, byte[] pinnedAuditSigner,
+                byte[] existingCasSigner, String authorityId, long epoch,
+                long generation, long auditMinimum,
+                IndependentImmutableAuditRootAdvancer independentlyManagedRoot,
+                byte[] independentRootSigner, byte[] externallyTrustedRoot,
+                long externallyTrustedCheckpointSequence) {
+            ImmutableAuditFirstGate base = bind(audit, downstream, pinnedAuditSigner,
+                    existingCasSigner, authorityId, epoch, generation, auditMinimum);
+            if (base == null || independentRootSigner == null
+                    || java.util.Arrays.equals(independentRootSigner, pinnedAuditSigner)
+                    || java.util.Arrays.equals(independentRootSigner, existingCasSigner))
+                return null;
+            ImmutableAuditCheckpointAdvanceGate barrier =
+                    ImmutableAuditCheckpointAdvanceGate.bind(independentlyManagedRoot,
+                            independentRootSigner, externallyTrustedRoot, authorityId,
+                            epoch, generation, externallyTrustedCheckpointSequence);
+            if (barrier == null) return null;
+            return new ImmutableAuditFirstGate(audit, downstream, pinnedAuditSigner,
+                    authorityId, epoch, generation, auditMinimum, barrier);
         }
         private String checked(String operation, String claim, String exactId,
                 long revision, byte[] owner, String nonce,
@@ -4350,6 +4384,12 @@ public final class CelineFutureMemoryRecall {
                     quarantined.set(true);
                     return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
                 }
+                // A sealed claim alone is not authorization: the separately
+                // pinned root MUST advance and prove membership before CAS.
+                // Crash or missing signed ACK: no downstream and no retry.
+                if (rootAdvancement != null && !rootAdvancement.advanceAfterSeal(
+                        claim, exactId, revision, owner, sealed.sequence))
+                    return GlobalClaimGateOutcome.STARTED_INDETERMINATE;
                 GlobalClaimGateOutcome downstream = continuation.continueOnce(claim,
                         exactId, revision, owner.clone(), nonce);
                 return downstream == GlobalClaimGateOutcome.FIRST_RESERVED_PENDING_ACK
@@ -4536,6 +4576,173 @@ public final class CelineFutureMemoryRecall {
                 return AuditRootMembership.NOT_IN_CHECKPOINT_NO_AUTHORIZATION;
             } catch (Exception failure) {
                 return AuditRootMembership.UNVERIFIABLE;
+            }
+        }
+    }
+
+    /**
+     * FUTURE ONLY — opt-in signed checkpoint ADVANCE/COMMIT contract. An audit
+     * tombstone is written first; only an independently signed, freshly
+     * challenged new checkpoint containing that EXACT tombstone may release
+     * the downstream callback. Absence, timeouts, lost ACK and crash burn the
+     * attempt; no re-enrollment or retry. This checks cryptographic consistency
+     * conditional on external custody, NOT real-world nonrollbackability.
+     */
+    public interface IndependentImmutableAuditRootAdvancer {
+        SignedImmutableAuditRootAdvance advance(String authorityId, long epoch,
+                long generation, String claim, String exactId, long revision,
+                byte[] owner, long sealedSequence, long expectedSequence,
+                byte[] expectedRoot, String freshChallenge) throws Exception;
+    }
+
+    public static final class SignedImmutableAuditRootAdvance {
+        public final String authorityId, claim, exactId, challenge;
+        public final long epoch, generation, revision, sealedSequence;
+        public final long previousSequence, nextSequence;
+        private final byte[] previousRoot, nextRoot, signature;
+        public final List<AuditRootRecord> records;
+        public SignedImmutableAuditRootAdvance(String authorityId, long epoch,
+                long generation, String claim, String exactId, long revision,
+                long sealedSequence, long previousSequence, long nextSequence,
+                String challenge, byte[] previousRoot, byte[] nextRoot,
+                List<AuditRootRecord> records, byte[] signature) {
+            this.authorityId = authorityId; this.epoch = epoch;
+            this.generation = generation; this.claim = claim;
+            this.exactId = exactId; this.revision = revision;
+            this.sealedSequence = sealedSequence;
+            this.previousSequence = previousSequence;
+            this.nextSequence = nextSequence; this.challenge = challenge;
+            this.previousRoot = previousRoot == null ? null : previousRoot.clone();
+            this.nextRoot = nextRoot == null ? null : nextRoot.clone();
+            this.signature = signature == null ? null : signature.clone();
+            this.records = records == null ? null : List.copyOf(records);
+        }
+        public byte[] previousRoot() {
+            return previousRoot == null ? null : previousRoot.clone();
+        }
+        public byte[] nextRoot() { return nextRoot == null ? null : nextRoot.clone(); }
+        public byte[] signature() { return signature == null ? null : signature.clone(); }
+    }
+
+    public static byte[] immutableAuditRootAdvancePayload(String authorityId,
+            long epoch, long generation, String claim, String exactId,
+            long revision, byte[] owner, long sealedSequence,
+            long previousSequence, byte[] previousRoot,
+            long nextSequence, byte[] nextRoot, String challenge) {
+        if (authorityId == null || !authorityId.matches("[A-Za-z0-9_-]{8,96}")
+                || epoch <= 0 || generation <= 0 || claim == null
+                || !claim.matches("[A-Za-z0-9_-]{8,128}")
+                || exactId == null || exactId.isBlank() || exactId.length() > 256
+                || revision <= 0 || owner == null || owner.length != 64
+                || sealedSequence <= previousSequence || previousSequence <= 0
+                || nextSequence < sealedSequence || nextSequence <= previousSequence
+                || previousRoot == null || previousRoot.length != 32
+                || nextRoot == null || nextRoot.length != 32
+                || challenge == null || !challenge.matches("[A-Za-z0-9_-]{24,128}"))
+            return new byte[0];
+        return ("future-g1/immutable-root-checkpoint-advance/v1\n"
+                + authorityId + "\n" + epoch + "\n" + generation + "\n"
+                + claim + "\n" + java.util.Base64.getEncoder().encodeToString(
+                        exactId.getBytes(StandardCharsets.UTF_8)) + "\n"
+                + revision + "\n" + java.util.Base64.getEncoder().encodeToString(owner)
+                + "\n" + sealedSequence + "\n" + previousSequence
+                + "\n" + java.util.Base64.getEncoder().encodeToString(previousRoot)
+                + "\n" + nextSequence + "\n"
+                + java.util.Base64.getEncoder().encodeToString(nextRoot)
+                + "\n" + challenge + "\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static final class ImmutableAuditCheckpointAdvanceGate {
+        private final IndependentImmutableAuditRootAdvancer authority;
+        private final byte[] pin, trustedRoot;
+        private final String authorityId;
+        private final long epoch, generation, trustedSequence;
+        private ImmutableAuditCheckpointAdvanceGate(
+                IndependentImmutableAuditRootAdvancer authority, byte[] pin,
+                byte[] root, String authorityId, long epoch, long generation,
+                long trustedSequence) {
+            this.authority = authority; this.pin = pin.clone();
+            this.trustedRoot = root.clone(); this.authorityId = authorityId;
+            this.epoch = epoch; this.generation = generation;
+            this.trustedSequence = trustedSequence;
+        }
+        public static ImmutableAuditCheckpointAdvanceGate bind(
+                IndependentImmutableAuditRootAdvancer independentAuthority,
+                byte[] pinnedSigner, byte[] trustedRoot,
+                String authorityId, long epoch, long generation,
+                long trustedSequence) {
+            if (independentAuthority == null || pinnedSigner == null
+                    || trustedRoot == null || trustedRoot.length != 32
+                    || immutableAuditRootSnapshotPayload(authorityId, epoch,
+                            generation, trustedSequence, trustedRoot,
+                            "synthetic-nonce-at-least-24").length == 0)
+                return null;
+            try {
+                byte[] pin = pinnedSigner.clone();
+                java.security.PublicKey key = java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin));
+                if (!Arrays.equals(key.getEncoded(), pin)) return null;
+                return new ImmutableAuditCheckpointAdvanceGate(independentAuthority,
+                        pin, trustedRoot, authorityId, epoch, generation,
+                        trustedSequence);
+            } catch (GeneralSecurityException | RuntimeException badPin) {
+                return null;
+            }
+        }
+        public boolean advanceAfterSeal(String claim, String exactId,
+                long revision, byte[] owner, long sealedSequence) {
+            if (immutableAuditRootAdvancePayload(authorityId, epoch, generation,
+                    claim, exactId, revision, owner, sealedSequence,
+                    trustedSequence, trustedRoot, sealedSequence, trustedRoot,
+                    "synthetic-nonce-at-least-24").length == 0)
+                return false;
+            try {
+                byte[] random = new byte[24];
+                new java.security.SecureRandom().nextBytes(random);
+                String challenge = java.util.Base64.getUrlEncoder().withoutPadding()
+                        .encodeToString(random);
+                SignedImmutableAuditRootAdvance result = authority.advance(
+                        authorityId, epoch, generation, claim, exactId, revision,
+                        owner.clone(), sealedSequence, trustedSequence,
+                        trustedRoot.clone(), challenge);
+                if (result == null || !authorityId.equals(result.authorityId)
+                        || epoch != result.epoch || generation != result.generation
+                        || !claim.equals(result.claim) || !exactId.equals(result.exactId)
+                        || revision != result.revision
+                        || sealedSequence != result.sealedSequence
+                        || trustedSequence != result.previousSequence
+                        || result.nextSequence <= trustedSequence
+                        || result.nextSequence < sealedSequence
+                        || !challenge.equals(result.challenge)
+                        || !MessageDigest.isEqual(trustedRoot, result.previousRoot()))
+                    return false;
+                byte[] recalculated = immutableAuditRootHash(result.records);
+                byte[] newRoot = result.nextRoot();
+                if (recalculated.length != 32
+                        || !MessageDigest.isEqual(recalculated, newRoot)) return false;
+                boolean present = false;
+                for (AuditRootRecord r : result.records) {
+                    if (r.claim.equals(claim)) {
+                        if (!r.exactId.equals(exactId) || r.revision != revision
+                                || r.sequence != sealedSequence
+                                || !MessageDigest.isEqual(owner, r.owner()))
+                            return false;
+                        present = true;
+                    }
+                }
+                if (!present) return false;
+                byte[] payload = immutableAuditRootAdvancePayload(authorityId,
+                        epoch, generation, claim, exactId, revision, owner,
+                        sealedSequence, trustedSequence, trustedRoot,
+                        result.nextSequence, newRoot, challenge);
+                if (payload.length == 0) return false;
+                java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+                verifier.initVerify(java.security.KeyFactory.getInstance("Ed25519")
+                        .generatePublic(new java.security.spec.X509EncodedKeySpec(pin)));
+                verifier.update(payload);
+                return verifier.verify(result.signature());
+            } catch (Exception unknownOrCrashed) {
+                return false;
             }
         }
     }
