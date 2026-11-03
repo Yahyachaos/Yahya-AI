@@ -53,16 +53,19 @@ final class CelineRoomReferenceLayoutV80 {
                         "partitioned source window missing: room_window_drapes__anchor");
             }
 
-            synchronized (APPLIED) {
-                if (APPLIED.get(view) == window) return true;
-            }
-
+            // Validate the real source shell on *every* activation, including
+            // when this exact window partition was already seen on the View.
+            // Otherwise the APPLIED fast path skips all six ROOM-159 guards.
             requireEntity(shell, "room_shell_floor");
             requireEntity(shell, "room_shell_ceiling");
             requireEntity(shell, "room_shell_left");
             requireEntity(shell, "room_shell_right");
             requireEntity(shell, "room_shell_back");
             requireEntity(shell, "room_shell_front");
+
+            synchronized (APPLIED) {
+                if (APPLIED.get(view) == window) return true;
+            }
 
             // Deliberately no transforms or materials here. The 14 partition exports already own the
             // clean source-fidelity baseline. The previous window-anchor correction was visually
