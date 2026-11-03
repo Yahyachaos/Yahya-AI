@@ -5188,6 +5188,22 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(c("mixed-masked-underscores", "und ___ aber"),aVisible),NOW), "",
             "underscore blank in stopwords must not become benign lexical emptiness");
+
+        // Sanitizers sometimes insert spaces between individual mask glyphs.
+        // Three identical isolated glyphs form a withheld span, not three
+        // harmless punctuation tokens, even when surrounding words are stopwords.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("fragmented-masked-stars", "und * * * oder")),NOW), "",
+            "fragmented star mask among stopwords must not guess a memory ID");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("fragmented-masked-underscores", "und _ _ _ aber"),aVisible),NOW), "",
+            "fragmented underscore blank among stopwords must abstain");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("fragmented-masked-dots", "und . . . oder")),NOW), "",
+            "fragmented ellipsis among stopwords must abstain");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("fragmented-masked-dashes", "und - - - aber"),aVisible),NOW), "",
+            "fragmented dash mask among stopwords must abstain");
         // Dots/dashes embedded among *words* can stand for elided G1 content.
         // The legacy punctuation-only fixture above must stay benign.
         eq(Fixture.correct("Meine Katze heisst Luna",
@@ -5256,6 +5272,14 @@ public final class FutureMemoryRecallContract {
             "inline ellipsis in correction request means missing content");
         eq(Fixture.correct("Meine Katze___Luna", Arrays.asList(aVisible),NOW), "",
             "inline underscore mask in correction request means missing content");
+        eq(Fixture.correct("Meine Katze * * * Luna", Arrays.asList(aVisible),NOW), "",
+            "fragmented star mask in correction request requires explicit ID");
+        eq(Fixture.correct("Meine Katze . . . Luna", Arrays.asList(aVisible),NOW), "",
+            "fragmented ellipsis in correction request requires explicit ID");
+        eq(Fixture.correct("Meine Katze - Luna", Arrays.asList(aVisible),NOW), "script-visible",
+            "single dash punctuation is not a fragmented redaction run");
+        eq(top("Meine Katze * * * Luna", Arrays.asList(aVisible)), "script-visible",
+            "non-mutating correction ambiguity must not alter retrieval ranking");
         eq(Fixture.correct("Meine Katze, Luna!", Arrays.asList(aVisible),NOW), "script-visible",
             "ordinary correction punctuation still permits a unique target");
         eq(top("Meine Katze *** Luna", Arrays.asList(aVisible)), "script-visible",

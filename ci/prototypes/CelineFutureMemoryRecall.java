@@ -3306,6 +3306,15 @@ public final class CelineFutureMemoryRecall {
         if (marker.contains("[redacted]") || marker.contains("[hidden]")
                 || marker.contains("[ausgeblendet]") || marker.contains("[gelöscht]"))
             return true;
+        // A lossy projection can separate each redaction glyph by whitespace:
+        // "und * * * oder" must not be mistaken for intact stopwords. This
+        // conservative abstention applies ONLY to correction-ID suggestions;
+        // normal memory recall and its provider authorization stay unchanged.
+        // Require three or more identical *isolated* glyphs, not ordinary
+        // punctuation such as "?! --- ... ;:" or a single multiplication sign.
+        if (java.util.regex.Pattern.compile(
+                "(?<!\\S)([.*_-])(?:\\s+\\1){2,}(?!\\S)")
+                .matcher(marker).find()) return true;
         // Stars/underscores are explicit mask runs even next to readable text.
         // Ellipses/dashes can mark omitted material when a readable fragment
         // accompanies them. A truly punctuation-only rival retains the
