@@ -33,7 +33,7 @@ async function observeRealTap(locator,label) {
   }
 }
 
-async function traceOriginalNeutralRestoreActionability(page,neutralButton) {
+async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase='restore') {
   // Proof-only, low-rate geometry/event tracing while the authentic locator.tap
   // waits. No clicks, forced taps, target movement or threshold modifications.
   const installStarted=Date.now();
@@ -140,11 +140,13 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton) {
       strict_threshold_ms_exclusive:5000,
       caveat:'Underlying Playwright locator.tap CDP ACK is not separately exposed; compare with independent native CDP target probe. rAF/rect measurements do not prove compositor timing.'
     };
-    fs.writeFileSync(path.join(out,'mobile-neutral-restore-actionability.json'),
-      JSON.stringify(evidence,null,2));
+    const filename=phase==='original'?'mobile-neutral-original-actionability.json':
+      'mobile-neutral-restore-actionability.json';
+    fs.writeFileSync(path.join(out,filename),JSON.stringify(evidence,null,2));
     record.push({
-      name:'MOBILE_NEUTRAL_RESTORE_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY',
-      filename:'mobile-neutral-restore-actionability.json',
+      name:phase==='original'?'MOBILE_NEUTRAL_ORIGINAL_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY':
+        'MOBILE_NEUTRAL_RESTORE_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY',
+      filename,
       measured_playwright_tap_ms:tapElapsed,
       trusted_events:measurement.events?.filter(e=>e.trusted).map(e=>e.type)||[],
       samples:measurement.samples?.length||0,
@@ -1030,9 +1032,11 @@ async function main(){
     const neutralWebgl=await captureRealWebGL(page,'mobile-owner-final-neutral-cutaway-webgl.png');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
       'Default cutaway may not change any approved owner field');
-    const originalStart=Date.now();
-    await observeRealTap(neutralButton,"neutralButton");
-    const originalTouchElapsed=Date.now()-originalStart;
+    // Measure the FIRST actual AA4 gate as well: the previous trace was
+    // attached only to restoration, which an earlier slow original-shell tap
+    // can prevent us from reaching. Keep genuine tap/actionability and <5s.
+    const originalTouchElapsed=await traceOriginalNeutralRestoreActionability(
+      page,neutralButton,'original');
     assert(originalTouchElapsed<5000,'Original source shell touch toggle must respond within 5000ms');
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'false');
     const shellDuring=await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit());
