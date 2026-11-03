@@ -33,12 +33,12 @@ async function observeRealTap(locator,label) {
   }
 }
 
-async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase='restore') {
+async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase='restore',selector='[data-mobile-action="neutral-shell"]',label='neutralButton') {
   // Proof-only, low-rate geometry/event tracing while the authentic locator.tap
   // waits. No clicks, forced taps, target movement or threshold modifications.
   const installStarted=Date.now();
-  const installation=await page.evaluate(()=>{
-    const button=document.querySelector('[data-mobile-action="neutral-shell"]');
+  const installation=await page.evaluate(selector=>{
+    const button=document.querySelector(selector);
     if(!button)throw new Error('Missing genuine neutral-shell viewport shortcut');
     const state={
       started_epoch_ms:performance.timeOrigin+performance.now(),
@@ -111,11 +111,11 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
       };
     };
     return {installed:true,starting_sample:state.samples[0]};
-  });
+  },selector);
   let tapElapsed=null,tapError=null;
   const tapStarted=Date.now();
   try {
-    await observeRealTap(neutralButton,'neutralButton');
+    await observeRealTap(neutralButton,label);
     tapElapsed=Date.now()-tapStarted;
   } catch(e) {
     tapElapsed=Date.now()-tapStarted;
@@ -129,7 +129,7 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     const evidence={
       mode:NATIVE_AA4_MODE?'native_aa4_proof_only':'native_aa0',
       source_sha:process.env.GITHUB_SHA||null,
-      control:'real neutral-shell mobile shortcut, same 13-source-GLB scene',
+      control:phase==='s25-enter'?'real S25 display mobile shortcut, same 13-source-GLB scene':'real neutral-shell mobile shortcut, same 13-source-GLB scene',
       install_elapsed_ms:tapStarted-installStarted,
       installation,
       playwright_tap_start_epoch_ms:tapStarted,
@@ -140,12 +140,14 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
       strict_threshold_ms_exclusive:5000,
       caveat:'Underlying Playwright locator.tap CDP ACK is not separately exposed; compare with independent native CDP target probe. rAF/rect measurements do not prove compositor timing.'
     };
-    const filename=phase==='original'?'mobile-neutral-original-actionability.json':
-      'mobile-neutral-restore-actionability.json';
+    const filename=phase==='s25-enter'?'mobile-s25-enter-actionability.json':
+      (phase==='original'?'mobile-neutral-original-actionability.json':
+      'mobile-neutral-restore-actionability.json');
     fs.writeFileSync(path.join(out,filename),JSON.stringify(evidence,null,2));
     record.push({
-      name:phase==='original'?'MOBILE_NEUTRAL_ORIGINAL_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY':
-        'MOBILE_NEUTRAL_RESTORE_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY',
+      name:phase==='s25-enter'?'MOBILE_S25_ENTER_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY':
+        (phase==='original'?'MOBILE_NEUTRAL_ORIGINAL_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY':
+        'MOBILE_NEUTRAL_RESTORE_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY'),
       filename,
       measured_playwright_tap_ms:tapElapsed,
       trusted_events:measurement.events?.filter(e=>e.trusted).map(e=>e.type)||[],
@@ -1180,9 +1182,8 @@ async function main(){
     const beforeS25=await page.evaluate(()=>
       window.__celineRoomEditorE2E.s25RawDisplayAudit());
     assert.equal(beforeS25.active,false);
-    const s25Started=Date.now();
-    await observeRealTap(s25Button,"s25Button");
-    const s25TouchMs=Date.now()-s25Started;
+    const s25TouchMs=await traceOriginalNeutralRestoreActionability(
+      page,s25Button,'s25-enter','[data-mobile-action="s25-display"]','s25Button');
     assert(s25TouchMs<5000,'Genuine S25 display toggle must remain below 5000ms');
     assert.equal(await s25Button.getAttribute('aria-pressed'),'true');
     const duringS25=await page.evaluate(()=>
