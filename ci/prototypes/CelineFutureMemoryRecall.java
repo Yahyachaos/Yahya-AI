@@ -3294,15 +3294,35 @@ public final class CelineFutureMemoryRecall {
         return result;
     }
 
-    // A sanitized G1 projection may carry a human-readable redaction tag
-    // rather than the original topic. Its lexical mismatch is not evidence
-    // that the hidden memory is unrelated to the requested correction.
+    // A sanitized G1 projection may carry a redacted fragment alongside
+    // otherwise unrelated readable text. The visible fragment is not proof
+    // that its unknown remainder differs from the requested correction.
     private static boolean isExplicitRedactionMarker(String summary) {
         String marker = safe(summary).toLowerCase(Locale.ROOT);
-        // Multiple/annotated placeholders remain opaque: the visible annotation
-        // cannot prove that the redacted topic differs from this correction.
-        return marker.contains("[redacted]") || marker.contains("[hidden]")
-                || marker.contains("[ausgeblendet]") || marker.contains("[gelöscht]");
+        if (marker.contains("[redacted]") || marker.contains("[hidden]")
+                || marker.contains("[ausgeblendet]") || marker.contains("[gelöscht]"))
+            return true;
+        // Stars/underscores are explicit mask runs even next to readable text.
+        // Ellipses/dashes can mark omitted material when a readable fragment
+        // accompanies them. A truly punctuation-only rival retains the
+        // established benign behavior via hasOnlyKnownDiscardedLexemes().
+        boolean readable = false, ellipsisOrDashes = false;
+        for (int i = 0; i < marker.length();) {
+            char ch = marker.charAt(i);
+            if (Character.isLetterOrDigit(ch)) readable = true;
+            if (ch != '*' && ch != '_' && ch != '.' && ch != '-') {
+                i++;
+                continue;
+            }
+            int end = i + 1;
+            while (end < marker.length() && marker.charAt(end) == ch) end++;
+            if (end - i >= 3) {
+                if (ch == '*' || ch == '_') return true;
+                ellipsisOrDashes = true;
+            }
+            i = end;
+        }
+        return readable && ellipsisOrDashes;
     }
 
     // This is ONLY a correction-target abstention exception, never a recall

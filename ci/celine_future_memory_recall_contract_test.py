@@ -5226,6 +5226,27 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(c("partial-tag", "[hidden] — withheld"),aVisible),NOW), "",
             "a tag followed by unrelated metadata must not discard the redaction warning");
+        // A *partially* redacted live rival still carries unknown text even
+        // when its visible topic is unrelated to the requested correction.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("partial-masked-star", "Damu Markt ***")),NOW), "",
+            "partially redacted unrelated topic cannot authorize guessed correction ID");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("partial-masked-ellipsis", "Auto ..."),aVisible),NOW), "",
+            "ellipsis attached to a visible unrelated topic remains opaque");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("partial-masked-inline", "Auto___Innenraum")),NOW), "",
+            "inline redaction with visible unrelated words remains unknown");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,new CelineFutureMemoryRecall.Candidate(
+                "partial-masked-expired", "Damu Markt ***", "",
+                CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,
+                NOW-100,NOW-1,0.5)),NOW), "script-visible",
+            "genuinely expired partial redaction does not block safe selection");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(aVisible,
+            c("partial-masked-unrelated", "Damu Markt ***"))), "script-visible",
+            "strict provider retrieval is unaffected by correction-only abstention");
+
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",
             "known short-word-only rival does not block correction");
