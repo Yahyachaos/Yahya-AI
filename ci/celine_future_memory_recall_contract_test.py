@@ -9,6 +9,55 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: provider recall must not claim lexical proof for omitted emoji.
+# Emoji carry possible factual meaning but the German tokenizer discards them.
+if '--focused-emoji-provider-recall' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public class EmojiProviderRecallContract {
+  static int checks = 0;
+  static CelineFutureMemoryRecall.Candidate c(String id, String text, String replaces) {
+    return new CelineFutureMemoryRecall.Candidate(id,text,replaces,
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100L,0L,0.9d);
+  }
+  static String top(String query, CelineFutureMemoryRecall.Candidate... items) {
+    var matches=CelineFutureMemoryRecall.retrieve(query,Arrays.asList(items),8,200L);
+    return matches.isEmpty()?"":matches.get(0).candidate.id;
+  }
+  static void eq(String got,String want,String msg) {
+    if(!Objects.equals(got,want)) throw new AssertionError(msg+" expected="+want+" got="+got);
+    checks++;
+  }
+  public static void main(String[] args) {
+    eq(top("Meine Katze 🐈 Luna",c("plain","Meine Katze Luna","")),"","query omitted cat pictograph");
+    eq(top("Meine Katze Luna",c("emoji","Meine Katze 🐕 Luna","")),"","stored omitted dog pictograph");
+    eq(top("Meine Katze 🐈 Luna",c("same","Meine Katze 🐈 Luna","")),"","matching emoji still unrepresented");
+    eq(top("Mein Golf 🚗 blau",c("plain","Mein Golf blau","")),"","query omitted vehicle pictograph");
+    eq(top("Mein Golf blau",c("symbol","Mein Golf ❤️ blau","")),"","stored emoji VS16 unsupported");
+    eq(top("Meine Katze Luna",c("plain","Meine Katze Luna","")),"plain","ordinary exact query still supported");
+    eq(top("Mein Golf blau",c("plain","Mein Golf blau!","")),"plain","ordinary punctuation remains valid");
+    eq(top("Meine Katze Luna",c("old","Meine Katze Luna",""),c("new","Meine Katze 🐕 Luna","old")),"","emoji successor still retires old fact");
+    eq(top("Meine Katze Luna",c("plain","Meine Katze Luna",""),c("hidden","Mein Hund 🐕 Rex","")),"plain","unrelated emoji rival does not block valid fact");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze 🐈 Luna",
+      List.of(c("plain","Meine Katze Luna","")),200L),"","correction already refuses emoji");
+    System.out.println("FUTURE_EMOJI_PROVIDER_RECALL_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_emoji_provider_') as compiled:
+        java_file = Path(compiled) / 'EmojiProviderRecallContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+                                str(source),str(java_file)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        test = subprocess.run(['java','-cp',compiled,
+                               'de.yahya.ai.EmojiProviderRecallContract'],
+                              capture_output=True, text=True, timeout=45)
+        assert test.returncode == 0, test.stdout + test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY: provider recall must distinguish German negative cue families.
 # A broad "any negation" boolean causes mismatched negative facts to match.
 # This is intentionally a conservative lexical guard, NOT clause-scope parsing.
@@ -201,7 +250,7 @@ public final class FutureNegationAnchorCollision {
     sys.exit(0)
 
 # FUTURE ONLY: focused genuine Java regression for unrepresented semantic emoji
-# in a correction request. Retrieval intentionally remains unchanged.
+# in a correction request. Infix pictographs also need recall abstention.
 if '--focused-semantic-emoji-correction' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;
@@ -222,7 +271,7 @@ public final class FutureSemanticEmojiCorrectionContract {
     eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze 👩‍🦰 Luna",records,now),"","compound emoji unrepresented");
     eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze ? Luna",records,now),"cat-visible","ordinary punctuation benign");
     eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze € Luna",records,now),"cat-visible","currency sign benign");
-    eq(CelineFutureMemoryRecall.retrieve("Meine Katze 🐈 Luna",records,4,now).get(0).candidate.id,"cat-visible","provider recall policy unchanged");
+    eq(CelineFutureMemoryRecall.retrieve("Meine Katze 🐈 Luna",records,4,now).size()==0?"":"unexpected","","infix emoji query must not launder subject evidence");
     System.out.println("FUTURE_SEMANTIC_EMOJI_CORRECTION_JVM_PASS cases="+checks);
   }
 }
