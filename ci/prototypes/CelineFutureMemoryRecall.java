@@ -3032,6 +3032,9 @@ public final class CelineFutureMemoryRecall {
                     || !validId(c.conflictWithId, true) || !ids.add(c.id))
                 return Collections.emptyList();
         }
+        // Interior pictographs can distinguish the subject yet vanish from the
+        // Latin tokenizer. Trailing decorations preserve the prior contract.
+        if (hasSemanticInfixPictograph(query)) return Collections.emptyList();
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
         Set<String> queryNegationCues = requireMatchingNegation
@@ -3071,7 +3074,8 @@ public final class CelineFutureMemoryRecall {
             // A partially redacted G1 projection is incomplete evidence even
             // when its surviving words match. Do not rank it for provider recall;
             // its ID still participates in lineage/supersession quarantine.
-            if (isExplicitRedactionMarker(c.summary)) continue;
+            if (isExplicitRedactionMarker(c.summary)
+                    || hasSemanticInfixPictograph(c.summary)) continue;
             if (requireMatchingNegation
                     && !queryNegationCues.equals(explicitNegationCues(c.summary))) continue;
             Set<String> stored = terms(c.summary);
@@ -3354,6 +3358,35 @@ public final class CelineFutureMemoryRecall {
             if ((cp >= 0x1F000 && cp <= 0x1FAFF)
                     || (cp >= 0x2600 && cp <= 0x27BF)) return true;
             i += Character.charCount(cp);
+        }
+        return false;
+    }
+
+    // Bounded conservative guard for a symbol between two lexical words.
+    // Such a symbol may change the factual predicate but is not represented
+    // in terms(); do not use the surviving words as complete recall proof.
+    // Preserve earlier validated terminal emoji/decorative punctuation behavior.
+    private static boolean hasSemanticInfixPictograph(String value) {
+        if (value == null) return false;
+        for (int i = 0; i < value.length();) {
+            int cp = value.codePointAt(i);
+            int start = i;
+            i += Character.charCount(cp);
+            if (!((cp >= 0x1F000 && cp <= 0x1FAFF)
+                    || (cp >= 0x2600 && cp <= 0x27BF))) continue;
+            int prev = start;
+            while (prev > 0 && Character.isWhitespace(value.codePointBefore(prev)))
+                prev -= Character.charCount(value.codePointBefore(prev));
+            if (prev == 0 || !Character.isLetterOrDigit(value.codePointBefore(prev)))
+                continue;
+            int next = i;
+            while (next < value.length()) {
+                int nextCp = value.codePointAt(next);
+                if (nextCp != 0xFE0F && !Character.isWhitespace(nextCp)) break;
+                next += Character.charCount(nextCp);
+            }
+            if (next < value.length() && Character.isLetterOrDigit(value.codePointAt(next)))
+                return true;
         }
         return false;
     }
