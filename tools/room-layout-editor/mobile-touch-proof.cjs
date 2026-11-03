@@ -217,6 +217,220 @@ async function controlledRenderPauseNativeTouchProbe(page,context) {
     product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'};
 }
 
+
+/**
+ * Proof-only differential: original real canvas versus a passive, visible HTML
+ * target on the SAME 13-source-GLB scene with the Three render loop PAUSED.
+ * Four native trusted CDP taps in alternating ABBA order mitigate warmup/order.
+ * This measures CDP acknowledgement, trusted event timestamp versus passive
+ * document capture-listener receipt, rAF/LongTask and sampled WebGL frames
+ * separately; rAF is a COMPOSITOR PROXY, not a direct Chromium compositor trace.
+ * It cannot alter production editor.js, camera, user JSON, or test limits.
+ */
+async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
+  const readOwner=()=>page.evaluate(()=>({
+    layout:window.__celineRoomEditorE2E.serializedLayout(),
+    camera:window.__celineRoomEditorE2E.cameraProjection(),
+    room:window.__celineRoomEditorE2E.auditScene().room_m
+  }));
+  const before=await readOwner(),cdp=await context.newCDPSession(page),trials=[];
+  let cleanupError=null,prepared=null;
+  const getMetrics=async()=>{
+    try {
+      const m=(await cdp.send('Performance.getMetrics')).metrics;
+      return Object.fromEntries(m.filter(x=>
+        ['TaskDuration','ScriptDuration','LayoutDuration','RecalcStyleDuration',
+         'LayoutCount','RecalcStyleCount'].includes(x.name)
+      ).map(x=>[x.name,x.value]));
+    }catch(e){return {unavailable:String(e.message||e)};}
+  };
+  try {
+    await cdp.send('Performance.enable');
+    await page.evaluate(()=>window.__celineRoomEditorE2E.proofMobileRenderLoopPause(true));
+    await page.waitForTimeout(300);
+    prepared=await page.evaluate(()=>{
+      const canvas=document.querySelector('#viewport canvas');
+      if(!canvas)throw new Error('13-source-GLB original WebGL canvas absent');
+      const r=canvas.getBoundingClientRect();
+      const el=document.createElement('div');
+      el.id='__celine_e2e_passive_html_target';
+      el.setAttribute('aria-label','Temporary passive HTML touch diagnostic only');
+      el.style.cssText=[
+        'position:fixed','width:44px','height:44px',
+        'left:'+Math.round(Math.max(2,Math.min(innerWidth-46,r.left+r.width*.12-22)))+'px',
+        'top:'+Math.round(Math.max(2,Math.min(innerHeight-46,r.top+r.height*.30-22)))+'px',
+        'display:block','visibility:visible','background:#eeeeee',
+        'border:2px solid #444444','box-sizing:border-box','opacity:1',
+        'touch-action:none','pointer-events:auto','z-index:2147483646'
+      ].join(';');
+      document.body.appendChild(el);
+      const canvasPoint={
+        x:Math.round(r.left+r.width*.53),
+        y:Math.round(r.top+r.height*.30)
+      };
+      const h=el.getBoundingClientRect();
+      const htmlPoint={x:Math.round(h.left+h.width/2),y:Math.round(h.top+h.height/2)};
+      if(document.elementFromPoint(canvasPoint.x,canvasPoint.y)!==canvas ||
+         document.elementFromPoint(htmlPoint.x,htmlPoint.y)!==el)
+        throw new Error('Canvas/HTML differential hit-test requires TWO unobstructed native targets');
+      const state={canvas,html:el,events:[],current:null};
+      const listener=event=>{
+        if(!state.current||!event.isTrusted)return;
+        const expected=state.current.target==='canvas'?canvas:el;
+        if(event.target!==expected)return;
+        const receipt=performance.timeOrigin+performance.now();
+        state.events.push({
+          trial:state.current.order,target:state.current.target,type:event.type,
+          trusted:event.isTrusted,pointer_type:event.pointerType||null,
+          browser_event_timestamp_epoch_ms:performance.timeOrigin+event.timeStamp,
+          document_capture_receipt_epoch_ms:receipt,
+          event_timestamp_to_listener_ms:receipt-(performance.timeOrigin+event.timeStamp)
+        });
+      };
+      for(const type of ['pointerdown','pointerup','touchstart','touchend'])
+        document.addEventListener(type,listener,{capture:true,passive:true});
+      state.cleanup=()=>{
+        for(const type of ['pointerdown','pointerup','touchstart','touchend'])
+          document.removeEventListener(type,listener,true);
+        el.remove();
+      };
+      window.__celineNativeTargetCompare=state;
+      return {canvasPoint,htmlPoint,htmlRect:[h.x,h.y,h.width,h.height],
+        screen:[innerWidth,innerHeight],original_canvas_rect:[r.x,r.y,r.width,r.height],
+        owner_scene:'13 original source GLBs already loaded and owner JSON verified'};
+    });
+    for(let order=0;order<4;order++){
+      const target=['canvas','html','html','canvas'][order];
+      const pre=await page.evaluate(({target,order})=>{
+        const s=window.__celineNativeTargetCompare;
+        const point=target==='canvas'?
+          {x:Math.round(s.canvas.getBoundingClientRect().left+
+             s.canvas.getBoundingClientRect().width*.53),
+           y:Math.round(s.canvas.getBoundingClientRect().top+
+             s.canvas.getBoundingClientRect().height*.30)}:
+          {x:Math.round(s.html.getBoundingClientRect().left+22),
+           y:Math.round(s.html.getBoundingClientRect().top+22)};
+        const expected=target==='canvas'?s.canvas:s.html;
+        const hit=document.elementFromPoint(point.x,point.y);
+        if(hit!==expected)throw new Error('Native '+target+' control covered: '+hit?.id);
+        s.current={target,order};
+        return {point,hit_test_pass:true,
+          dispatch_preflight_browser_epoch_ms:performance.timeOrigin+performance.now(),
+          event_offset:s.events.length,
+          render_before:window.__celineRoomEditorE2E.mobileRenderStats(),
+          screen:[innerWidth,innerHeight],scroll_y:scrollY};
+      },{target,order});
+      const perfBefore=await getMetrics(),started=Date.now();
+      let startAck=null,endAck=null,dispatchError=null;
+      try{
+        await cdp.send('Input.dispatchTouchEvent',{
+          type:'touchStart',touchPoints:[{x:pre.point.x,y:pre.point.y,id:96+order}]});
+        startAck=Date.now();
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        endAck=Date.now();
+      }catch(e){
+        dispatchError=String(e.stack||e);
+        try{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
+        catch(_ignored){}
+      }
+      const finished=Date.now(),perfAfter=await getMetrics();
+      const post=await page.evaluate(offset=>{
+        const s=window.__celineNativeTargetCompare;
+        return {events:s.events.slice(offset),
+          render_after:window.__celineRoomEditorE2E.mobileRenderStats(),
+          frames:window.__celineRoomEditorE2E.proofMobileRecentFrames(),
+          trace:window.__celineMobileLatencyTrace||null,
+          hit_target:document.elementFromPoint(
+            s.current.target==='canvas'?
+              Math.round(s.canvas.getBoundingClientRect().left+s.canvas.getBoundingClientRect().width*.53):
+              Math.round(s.html.getBoundingClientRect().left+22),
+            s.current.target==='canvas'?
+              Math.round(s.canvas.getBoundingClientRect().top+s.canvas.getBoundingClientRect().height*.30):
+              Math.round(s.html.getBoundingClientRect().top+22)
+          )=== (s.current.target==='canvas'?s.canvas:s.html),
+          scroll_y:scrollY};
+      },pre.event_offset);
+      const between=e=>e.epoch_ms>=pre.dispatch_preflight_browser_epoch_ms-150&&
+        e.epoch_ms<=finished+150;
+      const raf=(post.trace?.raf_gaps||[]).filter(between);
+      const tasks=(post.trace?.longtasks||[]).filter(between);
+      const frames=post.frames.filter(between);
+      const pointer=post.events.find(e=>e.type==='pointerdown'&&e.trusted);
+      const touch=post.events.find(e=>e.type==='touchstart'&&e.trusted);
+      const cdpTotal=endAck===null?null:endAck-started;
+      trials.push({order,target,point:pre.point,
+        hit_test_before:pre.hit_test_pass,hit_test_after:post.hit_target,
+        browser_viewport_css:pre.screen,scroll_before:pre.scroll_y,scroll_after:post.scroll_y,
+        playwright_control_start_epoch_ms:started,
+        playwright_control_end_epoch_ms:finished,
+        playwright_total_elapsed_ms:finished-started,
+        cdp_touch_start_ack_elapsed_ms:startAck===null?null:startAck-started,
+        cdp_touch_end_ack_elapsed_ms:endAck===null||startAck===null?null:endAck-startAck,
+        cdp_total_ack_elapsed_ms:cdpTotal,
+        strict_under_5000ms:cdpTotal!==null&&cdpTotal<5000,
+        dispatch_error:dispatchError,
+        trusted_touchstart_received:!!touch,
+        trusted_pointerdown_received:!!pointer,
+        pointer_listener_after_dispatch_ms:pointer?
+          pointer.document_capture_receipt_epoch_ms-started:null,
+        pointer_event_timestamp_to_listener_ms:pointer?.event_timestamp_to_listener_ms??null,
+        document_capture_browser_events:post.events,
+        paused_webgl_render_count_delta:post.render_after.renders-pre.render_before.renders,
+        paused_webgl_render_frames:frames,
+        browser_raf_gap_max_ms:raf.length?Math.max(...raf.map(x=>x.gap_ms)):0,
+        browser_longtask_max_ms:tasks.length?Math.max(...tasks.map(x=>x.duration_ms)):0,
+        browser_longtask_count:tasks.length,
+        browser_renderer_metrics_before:perfBefore,browser_renderer_metrics_after:perfAfter,
+        compositor_direct_measurement:'NOT_AVAILABLE__RAF_GAP_IS_ONLY_PROXY'});
+    }
+  } finally {
+    try{
+      await page.evaluate(()=>{
+        const s=window.__celineNativeTargetCompare;
+        if(s){s.cleanup();delete window.__celineNativeTargetCompare;}
+        window.__celineRoomEditorE2E.proofMobileRenderLoopPause(false);
+      });
+    }catch(e){
+      cleanupError=String(e.stack||e);
+      try{await page.evaluate(()=>
+        window.__celineRoomEditorE2E.proofMobileRenderLoopPause(false));}
+      catch(_ignored){}
+    }
+    await cdp.detach();
+  }
+  const after=await readOwner();
+  const report={
+    source_sha:process.env.GITHUB_SHA||null,
+    mode:NATIVE_AA4_MODE?'native_msaa4_proof_only':'native_aa0_production_default',
+    scene:'exact original owner 13 GLBs in 412x915 Chromium mobile browser',
+    comparison:'alternating real native CDP touch on canvas/visible passive HTML while WebGL render paused',
+    strict_threshold_ms_exclusive:5000,
+    prepared,trials,cleanupError,
+    strict_5s_all_taps:trials.length===4&&trials.every(t=>t.strict_under_5000ms),
+    trusted_target_events_all_received:trials.length===4&&
+      trials.every(t=>t.trusted_touchstart_received&&t.trusted_pointerdown_received),
+    paused_render_zero_all:trials.length===4&&
+      trials.every(t=>t.paused_webgl_render_count_delta===0),
+    all_hit_tests_unobstructed:trials.length===4&&
+      trials.every(t=>t.hit_test_before&&t.hit_test_after),
+    owner_json_unchanged:JSON.stringify(before.layout)===JSON.stringify(after.layout),
+    owner_camera_unchanged:JSON.stringify(before.camera)===JSON.stringify(after.camera),
+    room_dimensions_unchanged:JSON.stringify(before.room)===JSON.stringify(after.room),
+    physical_samsung_test:false,visual_acceptance:'NOT_GRANTED',
+    causality_limit:'CDP ACK, browser listener, rAF and renderer metrics separated; direct compositor/SwiftShader time is not independently instrumented'
+  };
+  fs.writeFileSync(path.join(out,'mobile-paused-webgl-versus-html-native-cdp.json'),
+    JSON.stringify(report,null,2));
+  assert.deepEqual(after.layout,before.layout,'Native canvas/HTML differential changed owner JSON');
+  assert.deepEqual(after.camera,before.camera,'Native canvas/HTML differential changed camera');
+  assert.deepEqual(after.room,before.room,'Native canvas/HTML differential changed room size');
+  assert.equal(cleanupError,null,'Failed to remove native HTML probe and restore rendering');
+  assert.equal(report.paused_render_zero_all,true,'Paused probe generated WebGL frames');
+  assert.equal(report.all_hit_tests_unobstructed,true,'Differential touched obscured element');
+  assert.equal(report.trusted_target_events_all_received,true,'CDP native trusted touch never reached target');
+  return report; // slow touches remain FAIL evidence; cannot imply AA4/visual PASS
+}
+
 const crypto=require('node:crypto');
 // V43: independent native original-GLB WebGL capture, so failure of the
 // Chromium compositor screenshot no longer destroys all visual diagnostics.
@@ -588,6 +802,28 @@ async function main(){
       file:'mobile-render-pause-cdp-causality.json',
       measured:!pauseProbe.diagnostic_error,
       product_acceptance:'NOT_GRANTED'});
+
+    // P1 03-Nov: controlled same-scene native CDP canvas versus passive HTML,
+    // WebGL render paused in BOTH controls. Proof-only, no UI/product mutation.
+    // Continue the existing mandatory orbit, 13/13, save/reload, and real
+    // 412x915 capture even if a differential diagnostic exceeds five seconds.
+    let targetComparison=null;
+    try {
+      targetComparison=await pausedCanvasVsPassiveHtmlNativeProbe(page,context);
+    } catch (e) {
+      targetComparison={diagnostic_error:String(e.stack||e),
+        strict_5s_all_taps:false,product_acceptance:'NOT_GRANTED'};
+    }
+    fs.writeFileSync(path.join(out,'mobile-paused-input-target-comparison-summary.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+        owner_layout_sha256:approvedSha,
+        mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+        comparison:targetComparison},null,2));
+    record.push({name:'PAUSED_NATIVE_WEBGL_CANVAS_VS_PASSIVE_HTML_DIFFERENTIAL',
+      file:'mobile-paused-webgl-versus-html-native-cdp.json',
+      strict_5s_all_taps:targetComparison.strict_5s_all_taps===true,
+      diagnostic_error:targetComparison.diagnostic_error||null,
+      visual_acceptance:'NOT_GRANTED'});
 
     // Genuine 44px+ view shortcut stays reachable in the 3D stage without
     // opening nested mobile drawers; no layout or camera is changed.
@@ -1628,6 +1864,13 @@ async function main(){
       final_render_stats:finalNativeStats,
       original_13_GLBS:true,viewport_px:[412,915],
       original_owner_json_sha256:approvedSha});
+    // P1: do not allow a green result when either native control was unmeasured
+    // or exceeded the unchanged 5000ms threshold. Kept AFTER all pre-existing
+    // functional/JSON/Orbit/412x915 gates so genuine evidence survives RED.
+    assert.equal(targetComparison?.strict_5s_all_taps,true,
+      'Real paused WebGL-canvas versus HTML CDP touch differential was not <5000ms for all four taps');
+    assert.equal(targetComparison?.paused_render_zero_all,true,
+      'Differential controls must operate with zero WebGL frames');
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');
