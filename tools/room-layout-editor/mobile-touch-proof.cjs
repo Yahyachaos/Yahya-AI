@@ -20,6 +20,29 @@ const NATIVE_AA4_MODE=NATIVE_AA_FLAG==='1';
 fs.mkdirSync(out,{recursive:true});
 const record=[], errors=[];
 
+// Proof-only target identity. Do not attribute a preceding tap's trailing
+// pointer events to a subsequent button; never substitute an unmatched event.
+function expectedBrowserTouchTarget(label){
+  const s=String(label);
+  if(s.includes('#mobile-tools-panel > summary'))
+    return {target:'SUMMARY',scope:'mobile-tools-panel'};
+  if(s.includes('.mobile-extra > summary'))
+    return {target:'SUMMARY',scope:'mobile-extra'};
+  if(s==='wallButton')return {target:'toggle-walls'};
+  if(s==='s25Button')return {target:'mobile-s25-shortcut'};
+  if(s==='neutralButton')return {target:'neutral-shell'};
+  for(const [field] of [['data-mobile-action'],['data-mobile-zoom'],['data-nudge']]){
+    const marker=field+'="';
+    const start=s.indexOf(marker);
+    if(start>=0){
+      const end=s.indexOf('"',start+marker.length);
+      if(end>start)return {target:s.slice(start+marker.length,end)};
+    }
+  }
+  const id=s.match(/#(mobile-[a-z0-9-]+)/);
+  return id?{target:id[1]}:null;
+}
+
 const observedMobileTaps=[];
 async function observeRealTap(locator,label) {
   const began=Date.now(); let completed=false;
@@ -814,11 +837,20 @@ async function main(){
           key.getAttribute('data-mobile-zoom')||
           key.getAttribute('data-nudge')||key.tagName;
       };
+      const targetScope=(node)=>{
+        if(!(node instanceof Element))return null;
+        const key=node.closest('[data-mobile-action],[data-mobile-zoom],[data-nudge],button,summary');
+        if(!key)return null;
+        return key.closest('details')?.id||
+          (key.closest('.mobile-extra')?'mobile-extra':null);
+      };
       for(const type of ['touchstart','touchend','pointerdown','pointerup','click'])
         document.addEventListener(type,event=>{
           push(trace.events,{
             type,epoch_ms:performance.timeOrigin+performance.now(),
             target:targetName(event.target),
+            scope:targetScope(event.target),
+            event_original_epoch_ms:performance.timeOrigin+event.timeStamp,
             trusted:event.isTrusted,pointer_type:event.pointerType||null
           },1600);
         },{capture:true,passive:true});
@@ -2084,18 +2116,34 @@ async function main(){
         trace_error:String(error)
       }));
     const timed=observedMobileTaps.map(tap=>{
-      const events=(browserTrace?.events||[]).filter(event=>
-        event.epoch_ms>=tap.start_epoch_ms-100&&
-        event.epoch_ms<=tap.end_epoch_ms+100);
+      // The previous +/-100ms window incorrectly selected stale events from
+      // neighboring taps (observed zoom-in -4.4ms). Attribute ONLY trusted
+      // events delivered to the expected target inside this tap's own clock
+      // interval; unmapped targets must remain UNATTRIBUTED, not guessed.
+      const expected=expectedBrowserTouchTarget(tap.label);
+      const nearby=(browserTrace?.events||[]).filter(event=>
+        event.epoch_ms>=tap.start_epoch_ms&&
+        event.epoch_ms<=tap.end_epoch_ms);
+      const events=expected?nearby.filter(event=>
+        event.trusted&&event.target===expected.target&&
+        (!expected.scope||event.scope===expected.scope)):[];
       const first=type=>events.find(event=>event.type===type)?.epoch_ms??null;
+      const pointer=first('pointerdown'),click=first('click');
       const gaps=(browserTrace?.raf_gaps||[]).filter(gap=>
         gap.epoch_ms>=tap.start_epoch_ms-150&&gap.epoch_ms<=tap.end_epoch_ms+150);
       const tasks=(browserTrace?.longtasks||[]).filter(task=>
         task.epoch_ms>=tap.start_epoch_ms-150&&task.epoch_ms<=tap.end_epoch_ms+150);
       return {...tap,
+        expected_event_target:expected,
+        target_attribution:expected?
+          (pointer!==null?'TRUSTED_EXPECTED_POINTER':'EXPECTED_POINTER_NOT_OBSERVED'):
+          'UNMAPPED_TARGET_NO_ATTRIBUTION',
+        ignored_nearby_unmatched_events:nearby.length-events.length,
         touchstart_after_start_ms:first('touchstart')===null?null:first('touchstart')-tap.start_epoch_ms,
-        pointerdown_after_start_ms:first('pointerdown')===null?null:first('pointerdown')-tap.start_epoch_ms,
-        click_after_start_ms:first('click')===null?null:first('click')-tap.start_epoch_ms,
+        pointerdown_after_start_ms:pointer===null?null:pointer-tap.start_epoch_ms,
+        click_after_start_ms:click===null?null:click-tap.start_epoch_ms,
+        pre_target_pointerdown_ms:pointer===null?null:pointer-tap.start_epoch_ms,
+        post_target_pointerdown_to_locator_return_ms:pointer===null?null:tap.end_epoch_ms-pointer,
         real_browser_events:events,
         max_raf_gap_ms:gaps.length?Math.max(...gaps.map(g=>g.gap_ms)):0,
         max_longtask_ms:tasks.length?Math.max(...tasks.map(t=>t.duration_ms)):0,
@@ -2110,6 +2158,7 @@ async function main(){
       source_layout_unchanged:true,
       strict_touch_redo_lock_orbit_import_screenshot_gates:'UNMODIFIED',
       timeout_ms_diagnostic_only:5000,
+      playwright_actionability_debug_source:'Existing GitHub mobile job DEBUG=pw:api with exact ISO timestamps; distinct pre-visible/stable and performing-tap stages are in the unchanged job log, not inferred from DOM events',
       observed_real_touch_count:timed.length,
       long_tail_taps_ge_5000ms:slow.map(t=>({
         label:t.label,elapsed_ms:t.elapsed_ms,
