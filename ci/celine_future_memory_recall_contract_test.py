@@ -5188,6 +5188,14 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(c("mixed-masked-underscores", "und ___ aber"),aVisible),NOW), "",
             "underscore blank in stopwords must not become benign lexical emptiness");
+        // Dots/dashes embedded among *words* can stand for elided G1 content.
+        // The legacy punctuation-only fixture above must stay benign.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("mixed-masked-ellipsis", "und ... oder")),NOW), "",
+            "ellipsis surrounded by stopwords may hide correction-subject evidence");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("mixed-masked-dashes", "und --- aber"),aVisible),NOW), "",
+            "dash mask embedded among stopwords cannot be assumed unrelated");
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("mixed-masked-punctuation", "?! *** ;:")),NOW), "",
             "mask inside punctuation sentence must remain opaque");

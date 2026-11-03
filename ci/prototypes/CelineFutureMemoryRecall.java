@@ -3334,8 +3334,11 @@ public final class CelineFutureMemoryRecall {
         // Only distinct whole-token redaction glyphs are treated as masks;
         // ordinary embedded punctuation and the legacy "?! --- ... ;:"
         // contract remain unaffected.
+        boolean wordAdjacentEllipsisOrDashes = false;
         for (String token : tokens) {
             if (token.matches("(?:\\*{3,}|_{3,})")) return false;
+            if (token.matches("(?:[.]{3,}|-{3,})"))
+                wordAdjacentEllipsisOrDashes = true;
         }
         for (int i = 0; i < summary.length(); i++) {
             char ch = summary.charAt(i);
@@ -3347,6 +3350,10 @@ public final class CelineFutureMemoryRecall {
         value = Normalizer.normalize(value, Normalizer.Form.NFD)
             .replaceAll("\\p{M}+", "")
             .replaceAll("[^a-z0-9]+", " ").trim();
+        // Standalone ellipsis/dash runs surrounded by readable words can
+        // represent withheld G1 content, despite all those words being stopwords.
+        // A purely punctuation-only summary remains known-empty and benign.
+        if (wordAdjacentEllipsisOrDashes && !value.isEmpty()) return false;
         if (value.isEmpty()) return true; // visible plain punctuation only
         for (String word : value.split("\\s+")) {
             if (word.length() >= 3 && !STOP.contains(word)) return false;
