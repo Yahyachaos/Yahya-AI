@@ -3327,6 +3327,20 @@ public final class CelineFutureMemoryRecall {
         if (java.util.regex.Pattern.compile(
                 "(?<!\\S)([.*_-])(?:\\s+\\1){2,}(?!\\S)")
                 .matcher(marker).find()) return true;
+        // UI/G1 privacy projections may mask a span with solid/shaded Unicode
+        // blocks instead of asterisks. The Latin tokenizer discards those
+        // symbols, so an otherwise matching *correction request* could select
+        // an unrelated ID. Two visible blocks (also space-separated) mean
+        // unknown source evidence; a lone decorative square is not enough.
+        int blockGlyphs = 0;
+        for (int i = 0; i < marker.length(); i++) {
+            char glyph = marker.charAt(i);
+            if ((glyph >= '▀' && glyph <= '▟') || glyph == '■' || glyph == '▪') {
+                if (++blockGlyphs >= 2) return true;
+            } else if (!Character.isWhitespace(glyph)) {
+                blockGlyphs = 0;
+            }
+        }
         // Stars/underscores are explicit mask runs even next to readable text.
         // Ellipses/dashes can mark omitted material when a readable fragment
         // accompanies them. A truly punctuation-only rival retains the
