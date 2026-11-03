@@ -32,6 +32,128 @@ async function observeRealTap(locator,label) {
     });
   }
 }
+
+async function traceOriginalNeutralRestoreActionability(page,neutralButton) {
+  // Proof-only, low-rate geometry/event tracing while the authentic locator.tap
+  // waits. No clicks, forced taps, target movement or threshold modifications.
+  const installStarted=Date.now();
+  const installation=await page.evaluate(()=>{
+    const button=document.querySelector('[data-mobile-action="neutral-shell"]');
+    if(!button)throw new Error('Missing genuine neutral-shell viewport shortcut');
+    const state={
+      started_epoch_ms:performance.timeOrigin+performance.now(),
+      samples:[],events:[],mutations:[],raf_gaps:[],frames:0
+    };
+    const sample=source=>{
+      const r=button.getBoundingClientRect(),style=getComputedStyle(button);
+      const x=r.x+r.width/2,y=r.y+r.height/2;
+      const hit=document.elementFromPoint(x,y);
+      const item={
+        epoch_ms:performance.timeOrigin+performance.now(),source,
+        rect:[r.x,r.y,r.width,r.height],
+        center:[x,y],
+        hit_tag:hit?.tagName||null,hit_id:hit?.id||null,
+        hit_button:hit===button||button.contains(hit),
+        connected:button.isConnected,disabled:button.disabled,
+        display:style.display,visibility:style.visibility,
+        opacity:style.opacity,pointer_events:style.pointerEvents,
+        aria_pressed:button.getAttribute('aria-pressed'),
+        text:button.textContent.trim().slice(0,90)
+      };
+      state.samples.push(item);
+      if(state.samples.length>300)state.samples.shift();
+    };
+    const onEvent=event=>{
+      if(!(event.target===button||button.contains(event.target)))return;
+      state.events.push({
+        type:event.type,trusted:event.isTrusted,
+        event_original_epoch_ms:performance.timeOrigin+event.timeStamp,
+        listener_epoch_ms:performance.timeOrigin+performance.now(),
+        pointer_type:event.pointerType||null,
+        target_id:event.target?.id||null
+      });
+    };
+    for(const type of ['pointerdown','touchstart','pointerup','touchend'])
+      document.addEventListener(type,onEvent,{capture:true,passive:true});
+    const observer=new MutationObserver(mutations=>{
+      for(const mutation of mutations)state.mutations.push({
+        epoch_ms:performance.timeOrigin+performance.now(),
+        type:mutation.type,attribute:mutation.attributeName||null
+      });
+    });
+    observer.observe(button,{attributes:true,childList:true,subtree:true});
+    let rafHandle=0,lastRaf=0;
+    const tick=t=>{
+      state.frames++;
+      if(lastRaf && t-lastRaf>100)state.raf_gaps.push({
+        epoch_ms:performance.timeOrigin+t,gap_ms:t-lastRaf
+      });
+      lastRaf=t;
+      if(state.frames%6===0)sample('raf_every_sixth_frame');
+      rafHandle=requestAnimationFrame(tick);
+    };
+    sample('start');
+    rafHandle=requestAnimationFrame(tick);
+    const interval=setInterval(()=>sample('interval_180ms'),180);
+    window.__celineNeutralRestoreActionabilityStop=()=>{
+      clearInterval(interval);cancelAnimationFrame(rafHandle);
+      observer.disconnect();
+      for(const type of ['pointerdown','touchstart','pointerup','touchend'])
+        document.removeEventListener(type,onEvent,true);
+      sample('stop');
+      delete window.__celineNeutralRestoreActionabilityStop;
+      return {
+        started_epoch_ms:state.started_epoch_ms,
+        stopped_epoch_ms:performance.timeOrigin+performance.now(),
+        samples:state.samples,events:state.events,
+        mutations:state.mutations,raf_gaps:state.raf_gaps,
+        frame_count:state.frames
+      };
+    };
+    return {installed:true,starting_sample:state.samples[0]};
+  });
+  let tapElapsed=null,tapError=null;
+  const tapStarted=Date.now();
+  try {
+    await observeRealTap(neutralButton,'neutralButton');
+    tapElapsed=Date.now()-tapStarted;
+  } catch(e) {
+    tapElapsed=Date.now()-tapStarted;
+    tapError=String(e.stack||e);
+    throw e;
+  } finally {
+    const tapFinished=Date.now();
+    const measurement=await page.evaluate(()=>
+      window.__celineNeutralRestoreActionabilityStop?.()||{not_installed:true}
+    ).catch(e=>({trace_read_error:String(e)}));
+    const evidence={
+      mode:NATIVE_AA4_MODE?'native_aa4_proof_only':'native_aa0',
+      source_sha:process.env.GITHUB_SHA||null,
+      control:'real neutral-shell mobile shortcut, same 13-source-GLB scene',
+      install_elapsed_ms:tapStarted-installStarted,
+      installation,
+      playwright_tap_start_epoch_ms:tapStarted,
+      playwright_tap_finish_epoch_ms:tapFinished,
+      playwright_tap_elapsed_ms:tapElapsed,
+      playwright_error:tapError,
+      measurement,
+      strict_threshold_ms_exclusive:5000,
+      caveat:'Underlying Playwright locator.tap CDP ACK is not separately exposed; compare with independent native CDP target probe. rAF/rect measurements do not prove compositor timing.'
+    };
+    fs.writeFileSync(path.join(out,'mobile-neutral-restore-actionability.json'),
+      JSON.stringify(evidence,null,2));
+    record.push({
+      name:'MOBILE_NEUTRAL_RESTORE_ACTIONABILITY_TRACE_DIAGNOSTIC_ONLY',
+      filename:'mobile-neutral-restore-actionability.json',
+      measured_playwright_tap_ms:tapElapsed,
+      trusted_events:measurement.events?.filter(e=>e.trusted).map(e=>e.type)||[],
+      samples:measurement.samples?.length||0,
+      visual_acceptance:'NOT_GRANTED'
+    });
+  }
+  return tapElapsed;
+}
+
 async function independentNativeCdpInputReceipt(page,context) {
   // This is a measured, separate control AFTER mandatory genuine touch/JSON/
   // viewport gates. It cannot grant PASS, replace Playwright UI touches or
@@ -930,9 +1052,7 @@ async function main(){
       'Original source/PBR and neutral cutaway must contain distinct genuine WebGL pixels');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.serializedLayout()),beforeWallToggle,
       'Original shell toggle must preserve the complete 13-object owner JSON');
-    const restoreStart=Date.now();
-    await observeRealTap(neutralButton,"neutralButton");
-    const neutralElapsed=Date.now()-restoreStart;
+    const neutralElapsed=await traceOriginalNeutralRestoreActionability(page,neutralButton);
     assert(neutralElapsed<5000,'Restore mobile neutral cutaway touch must respond within 5000ms');
     assert.equal(await neutralButton.getAttribute('aria-pressed'),'true');
     assert.deepEqual(await page.evaluate(()=>window.__celineRoomEditorE2E.shellPreviewAudit()),shellBefore,
