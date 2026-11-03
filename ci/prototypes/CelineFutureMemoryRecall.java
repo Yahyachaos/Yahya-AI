@@ -3037,8 +3037,8 @@ public final class CelineFutureMemoryRecall {
         if (hasSemanticInfixPictograph(query)) return Collections.emptyList();
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
-        Set<String> queryNegationCues = requireMatchingNegation
-                ? explicitNegationCues(query) : Collections.<String>emptySet();
+        Set<String> queryNegationCues = explicitNegationCues(query);
+        Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
         // or private successors. A successor's expiry must not make an obsolete
         // ancestor eligible again. The owning G1 store must retain lineage data;
@@ -3076,8 +3076,17 @@ public final class CelineFutureMemoryRecall {
             // its ID still participates in lineage/supersession quarantine.
             if (isExplicitRedactionMarker(c.summary)
                     || hasSemanticInfixPictograph(c.summary)) continue;
+            Set<String> candidateNegationCues = explicitNegationCues(c.summary);
             if (requireMatchingNegation
-                    && !queryNegationCues.equals(explicitNegationCues(c.summary))) continue;
+                    && !queryNegationCues.equals(candidateNegationCues)) continue;
+            // Equal negative cues with different objects are different facts.
+            // For correction, retain the deliberate positive->negative edit
+            // exception, but never guess an ID from two mismatched negations.
+            if (!queryNegationCues.isEmpty() && !candidateNegationCues.isEmpty()) {
+                Set<String> candidatePredicates = negatedPredicateAnchors(c.summary);
+                if (queryNegatedPredicates.isEmpty() || candidatePredicates.isEmpty()
+                        || !queryNegatedPredicates.equals(candidatePredicates)) continue;
+            }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
             // Do not return a coincidental one-word hit for a multi-topic query.
@@ -3345,6 +3354,37 @@ public final class CelineFutureMemoryRecall {
             cues.add(cue.startsWith("kein") ? "kein" : cue);
         }
         return cues;
+    }
+
+    // A matching NEGATION FAMILY is insufficient evidence of the predicate:
+    // "Mein Golf Diesel ist nicht blau" is not proof of "... nicht rot".
+    // Bind the first representable content term following each explicit cue to
+    // its family. This deliberately limited German scope is fail-closed, not
+    // a grammar parser: missing or unsupported targets cannot grant recall.
+    // Corrections may still intentionally negate a formerly positive memory.
+    private static Set<String> negatedPredicateAnchors(String sourceText) {
+        if (sourceText == null || sourceText.length() > MAX_INPUT
+                || !wellFormedUtf16(sourceText) || hasNonTextControl(sourceText)
+                || hasUnrepresentableLexicalChars(sourceText)) return Collections.emptySet();
+        Set<String> predicates = new HashSet<>();
+        java.util.regex.Matcher cues = GERMAN_NEGATION_CUE.matcher(
+                sourceText.toLowerCase(Locale.GERMANY));
+        java.util.regex.Pattern lexeme = java.util.regex.Pattern.compile("[\\p{L}\\p{N}]+");
+        while (cues.find()) {
+            String family = cues.group().startsWith("kein") ? "kein" : cues.group();
+            java.util.regex.Matcher after = lexeme.matcher(sourceText);
+            after.region(cues.end(), sourceText.length());
+            boolean found = false;
+            while (after.find()) {
+                Set<String> normalized = terms(after.group());
+                if (normalized.isEmpty()) continue;
+                predicates.add(family + ":" + normalized.iterator().next());
+                found = true;
+                break;
+            }
+            if (!found) return Collections.emptySet();
+        }
+        return predicates;
     }
 
     // The German lexical tokenizer discards emoji/pictographs entirely. They

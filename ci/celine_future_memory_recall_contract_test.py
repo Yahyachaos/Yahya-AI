@@ -9,6 +9,68 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE-ONLY: unlike general two-word overlap, a negated predicate must not
+# match a different negated predicate just because owner/topic words overlap.
+if '--focused-negated-predicate' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public class NegatedPredicateContract {
+  static int cases = 0;
+  static CelineFutureMemoryRecall.Candidate c(String subject) {
+    return new CelineFutureMemoryRecall.Candidate("fact",subject,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100L,0L,0.9d);
+  }
+  static String recall(String query, String stored) {
+    var results=CelineFutureMemoryRecall.retrieve(query,Arrays.asList(c(stored)),8,200L);
+    return results.isEmpty()?"":results.get(0).candidate.id;
+  }
+  static String correction(String query, String stored) {
+    return CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,Arrays.asList(c(stored)),200L);
+  }
+  static void eq(String got,String wanted,String why) {
+    if (!Objects.equals(got,wanted))
+      throw new AssertionError(why+" expected="+wanted+" got="+got);
+    cases++;
+  }
+  public static void main(String[] args) {
+    String a="Mein Golf Diesel ist nicht blau";
+    String b="Mein Golf Diesel ist nicht rot";
+    eq(recall(a,b),"","nicht mismatched predicate must abstain");
+    eq(recall(a,a),"fact","nicht exact predicate still retrievable");
+    eq(correction(a,b),"","nicht mismatched correction must abstain");
+    String c="Mein Golf Diesel ist ohne Dach";
+    String d="Mein Golf Diesel ist ohne Reifen";
+    eq(recall(c,d),"","ohne mismatched predicate must abstain");
+    eq(recall(c,c),"fact","ohne exact predicate still retrievable");
+    eq(correction(c,d),"","ohne mismatched correction must abstain");
+    String e="Mein Golf Diesel ist kein Benziner";
+    String f="Mein Golf Diesel ist kein Sportwagen";
+    eq(recall(e,f),"","kein mismatched predicate must abstain");
+    eq(recall(e,e),"fact","kein exact predicate still retrievable");
+    eq(correction(e,f),"","kein mismatched correction must abstain");
+    eq(recall("Mein Golf Diesel ist blau","Mein Golf Diesel ist blau"),"fact","plain positive unchanged");
+    eq(correction("Mein Golf Diesel ist nicht rot","Mein Golf Diesel ist rot"),"fact",
+       "negative correction may still target old affirmative fact");
+    eq(recall(a,"Mein Golf Diesel ist blau"),"","affirmative fact cannot answer negative question");
+    eq(correction(a,a),"fact","same negative correction subject stays selectable");
+    eq(recall("Meine Katze Luna ist nie draußen","Meine Katze Luna ist nie drinnen"),"",
+       "nie mismatch must abstain");
+    eq(recall("Meine Katze Luna ist nie draußen","Meine Katze Luna ist nie draußen"),"fact",
+       "nie exact negative remains supported");
+    eq(recall("Mein Golf Diesel ist nicht","Mein Golf Diesel ist nicht"),"",
+       "truncated negative clause has no trusted predicate");
+    eq(correction("Mein Golf Diesel ist nicht","Mein Golf Diesel ist nicht"),"",
+       "truncated correction clause cannot choose ID");
+    System.out.println("FOCUSED_NEGATED_PREDICATE_PASS cases="+cases);
+  }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future-negated-predicate-') as temp:
+        p = Path(temp) / 'NegatedPredicateContract.java'
+        p.write_text(harness,encoding='utf-8')
+        subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p)], check=True)
+        subprocess.run(['java','-cp',temp,'de.yahya.ai.NegatedPredicateContract'], check=True)
+    sys.exit(0)
+
 # FUTURE ONLY: provider recall must not claim lexical proof for omitted emoji.
 # Emoji carry possible factual meaning but the German tokenizer discards them.
 if '--focused-emoji-provider-recall' in sys.argv:
