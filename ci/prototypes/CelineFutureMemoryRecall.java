@@ -3299,8 +3299,10 @@ public final class CelineFutureMemoryRecall {
     // that the hidden memory is unrelated to the requested correction.
     private static boolean isExplicitRedactionMarker(String summary) {
         String marker = safe(summary).toLowerCase(Locale.ROOT);
-        return marker.equals("[redacted]") || marker.equals("[hidden]")
-                || marker.equals("[ausgeblendet]") || marker.equals("[gelöscht]");
+        // Multiple/annotated placeholders remain opaque: the visible annotation
+        // cannot prove that the redacted topic differs from this correction.
+        return marker.contains("[redacted]") || marker.contains("[hidden]")
+                || marker.contains("[ausgeblendet]") || marker.contains("[gelöscht]");
     }
 
     // This is ONLY a correction-target abstention exception, never a recall
@@ -3314,8 +3316,18 @@ public final class CelineFutureMemoryRecall {
         // A whole summary of repeated masking glyphs can mean redacted G1
         // evidence, not a genuinely irrelevant punctuation-only memory.
         // Abstain from automatic correction-ID selection for that live rival.
-        if (summary.trim().matches("(?:[.]{3,}|[*]{3,}|[-]{3,}|[_]{3,})"))
-            return false;
+        // Splitting a masked projection into two or more whitespace-separated
+        // mask runs must not turn it into harmless punctuation. Keep mixed
+        // ordinary punctuation sentences (e.g. "?! --- ... ;:") distinct.
+        String[] tokens = summary.trim().split("\\s+");
+        boolean allMaskTokens = tokens.length > 0;
+        for (String token : tokens) {
+            if (!token.matches("(?:[.]{3,}|[*]{3,}|[-]{3,}|[_]{3,})")) {
+                allMaskTokens = false;
+                break;
+            }
+        }
+        if (allMaskTokens) return false;
         for (int i = 0; i < summary.length(); i++) {
             char ch = summary.charAt(i);
             if (ch > 127 && ch != 'ä' && ch != 'ö' && ch != 'ü'
