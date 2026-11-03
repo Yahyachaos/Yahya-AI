@@ -3302,6 +3302,11 @@ public final class CelineFutureMemoryRecall {
         if (summary == null || summary.isEmpty() || summary.length() > MAX_INPUT
                 || !wellFormedUtf16(summary) || hasNonTextControl(summary)
                 || hasUnrepresentableLexicalChars(summary)) return false;
+        // A whole summary of repeated masking glyphs can mean redacted G1
+        // evidence, not a genuinely irrelevant punctuation-only memory.
+        // Abstain from automatic correction-ID selection for that live rival.
+        if (summary.trim().matches("(?:[.]{3,}|[*]{3,}|[-]{3,}|[_]{3,})"))
+            return false;
         for (int i = 0; i < summary.length(); i++) {
             char ch = summary.charAt(i);
             if (ch > 127 && ch != 'ä' && ch != 'ö' && ch != 'ü'

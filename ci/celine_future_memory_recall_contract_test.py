@@ -5165,6 +5165,15 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(safeEmptyPunctuation,aVisible),NOW), "script-visible",
             "ASCII punctuation-only rival does not block unique correction independent of order");
+        // A standalone redaction placeholder is not ordinary punctuation:
+        // it may hide a still-live G1 record about this same correction topic.
+        // A compound punctuation sentence remains covered by the benign case.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("dots-redaction", "...")),NOW), "",
+            "standalone three-dot hidden-memory marker requires selected-ID correction");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("stars-redaction", "***"),aVisible),NOW), "",
+            "standalone star redaction marker must abstain independent of order");
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",
             "known short-word-only rival does not block correction");
