@@ -5181,6 +5181,18 @@ public final class FutureMemoryRecallContract {
             Arrays.asList(c("tag-hidden-de", "[ausgeblendet]"),aVisible),NOW), "",
             "German masked-memory marker blocks speculative correction targeting");
         eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("composite-stars", "*** ***")),NOW), "",
+            "two whitespace-separated mask tokens are still opaque redaction evidence");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("composite-dots", "...  ---"),aVisible),NOW), "",
+            "multiple masking runs must not become benign punctuation by splitting");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("composite-tags", "[REDACTED] [ausgeblendet]")),NOW), "",
+            "two bracketed redaction tags remain opaque rather than unrelated tokens");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("partial-tag", "[hidden] — withheld"),aVisible),NOW), "",
+            "a tag followed by unrelated metadata must not discard the redaction warning");
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",
             "known short-word-only rival does not block correction");
         eq(Fixture.correct("Meine Katze heisst Luna",
