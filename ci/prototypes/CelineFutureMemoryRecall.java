@@ -3328,6 +3328,25 @@ public final class CelineFutureMemoryRecall {
             }
         }
         if (allMaskTokens) return false;
+        // Some sanitizer projections remove spaces around the redacted span.
+        // For example `und***oder` is NOT an intact German stopword phrase.
+        // Never normalize a >=3-character masking run adjacent to readable
+        // letters/digits into a separator, then auto-pick another memory ID.
+        // Pure punctuation (`?! --- ... ;:`) remains a known-empty non-rival.
+        for (int i = 0; i < summary.length();) {
+            char ch = summary.charAt(i);
+            if (ch != '*' && ch != '_' && ch != '.' && ch != '-') {
+                i++;
+                continue;
+            }
+            int end = i + 1;
+            while (end < summary.length() && summary.charAt(end) == ch) end++;
+            if (end - i >= 3 && (ch == '*' || ch == '_'
+                    || (i > 0 && Character.isLetterOrDigit(summary.charAt(i - 1)))
+                    || (end < summary.length() && Character.isLetterOrDigit(summary.charAt(end)))))
+                return false;
+            i = end;
+        }
         // A masked word can be surrounded by ordinary stopwords or punctuation.
         // Dropping those terms would otherwise make a hidden rival appear
         // harmless and could wrongly select an unrelated visible memory ID.
