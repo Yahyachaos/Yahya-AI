@@ -91,16 +91,16 @@ async function independentNativeCdpInputReceipt(page,context) {
 
 
 async function controlledRenderPauseNativeTouchProbe(page,context) {
-  // Diagnosis after ALL strict mobile UI, orbit, save/reload and viewport gates.
-  // A stationary CDP touch never contributes to application acceptance.
+  // Proof-only diagnosis BEFORE mandatory user orbit gesture, while the exact
+  // approved owner camera is naturally stationary; never grants acceptance.
   const readState=()=>page.evaluate(()=>({
     layout:window.__celineRoomEditorE2E.serializedLayout(),
     camera:window.__celineRoomEditorE2E.cameraProjection(),
     room:window.__celineRoomEditorE2E.auditScene().room_m
   }));
-  // OrbitControls damping can outlive the earlier mandatory one-finger
-  // orbit gesture. Stationary CDP timing is valid only after natural camera
-  // stabilization; never reset, clamp, or modify camera state for this proof.
+  // Require natural stillness before the first user orbit. The former late
+  // diagnostic could never settle after damping and AA4 often failed earlier;
+  // do not reset, clamp, or artificially change the frozen owner camera.
   const cameraSettle=await page.evaluate(async()=>{
     const began=performance.now();
     let previous=null,identicalFrames=0,frames=0;
@@ -566,6 +566,29 @@ async function main(){
       assert(Math.abs(initial.camera_position_m[i]-expectedS25Camera[i])<1e-5,
         'Original S25 camera coordinate '+i);
     record.push({name:'REAL_MOBILE_VIEWPORT_13_ORIGINAL_GLB_PASS',viewport:[412,915],canvas:initial.canvas_px});
+    // Proof-only native CDP causality diagnosis on the freshly loaded, naturally
+    // stationary OWNER camera, BEFORE any Playwright orbit/damping gesture.
+    // The former post-orbit experiment never passed its camera-settle precondition,
+    // while AA4 aborts at an earlier mandatory <5s tap and never reaches it.
+    // This non-acceptance diagnostic cannot substitute for strict real UI,
+    // Orbit, owner JSON roundtrip or true 412x915 viewport gates below.
+    let pauseProbe;
+    try{
+      pauseProbe=await controlledRenderPauseNativeTouchProbe(page,context);
+    }catch(e){
+      pauseProbe={diagnostic_error:String(e.stack||e),
+        product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'};
+    }
+    fs.writeFileSync(path.join(out,'mobile-render-pause-cdp-causality.json'),
+      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+        mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
+        phase:'BEFORE_ORBIT_OR_EDIT_AFTER_EXACT_OWNER_IMPORT',
+        pauseProbe},null,2));
+    record.push({name:'CONTROLLED_NATIVE_CDP_RENDER_PAUSE_CAUSALITY',
+      file:'mobile-render-pause-cdp-causality.json',
+      measured:!pauseProbe.diagnostic_error,
+      product_acceptance:'NOT_GRANTED'});
+
     // Genuine 44px+ view shortcut stays reachable in the 3D stage without
     // opening nested mobile drawers; no layout or camera is changed.
     const quickNeutral=await page.evaluate(()=>{
@@ -1543,23 +1566,6 @@ async function main(){
         product_acceptance:'NOT_GRANTED'};
     }
 
-    // Test AFTER strict gates and real phone screenshot. Diagnostic errors
-    // cannot manufacture application PASS. Preserve evidence in both modes.
-    let pauseProbe;
-    try{
-      pauseProbe=await controlledRenderPauseNativeTouchProbe(page,context);
-    }catch(e){
-      pauseProbe={diagnostic_error:String(e.stack||e),
-        product_acceptance:'NOT_GRANTED_BY_DIAGNOSTIC'};
-    }
-    fs.writeFileSync(path.join(out,'mobile-render-pause-cdp-causality.json'),
-      JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
-        mode:NATIVE_AA4_MODE?'native_msaa4':'native_aa0',
-        pauseProbe},null,2));
-    record.push({name:'CONTROLLED_NATIVE_CDP_RENDER_PAUSE_CAUSALITY',
-      file:'mobile-render-pause-cdp-causality.json',
-      measured:!pauseProbe.diagnostic_error,
-      product_acceptance:'NOT_GRANTED'});
     const browserTrace=await page.evaluate(()=>
       window.__celineMobileLatencyTrace||null).catch(error=>({
         trace_error:String(error)
