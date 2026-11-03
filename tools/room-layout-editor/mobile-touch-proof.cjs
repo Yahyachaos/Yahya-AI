@@ -7,6 +7,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const {chromium}=require('playwright');
+const {performance:nodePerformance,monitorEventLoopDelay}=require('node:perf_hooks');
+const os=require('node:os');
+const zlib=require('node:zlib');
 const repo=path.resolve(__dirname,'../..');
 const out=process.env.ROOM_EDITOR_EVIDENCE_DIR || '/tmp/celine-room-editor-mobile-touch';
 // Native AA4 is enabled ONLY by in-memory, localhost proof routing. The
@@ -156,6 +159,107 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     });
   }
   return tapElapsed;
+}
+
+// PROOF ONLY: one short Chromium scheduler trace and low-rate Node-runner
+// heartbeat around the first paused Canvas CDP tap, plus AA4 real Redo.
+// Trace timestamps are monotonic Chromium microseconds, NOT wall-clock time;
+// blink.user_timing marks and browser event epoch stamps permit correlation.
+async function beginFocusedSchedulingTrace(cdp,label) {
+  const started=Date.now(),cpu=process.cpuUsage(),resources=process.resourceUsage();
+  const lag=monitorEventLoopDelay({resolution:100});lag.enable();
+  const samples=[];let prev=nodePerformance.now();
+  const timer=setInterval(()=>{
+    const now=nodePerformance.now();
+    if(samples.length<300)samples.push({
+      epoch_ms:Date.now(),node_timer_lag_ms:Math.max(0,now-prev-100),
+      host_loadavg_1m:os.loadavg()[0]});
+    prev=now;
+  },100);
+  const state={cdp,label,started,cpu,resources,lag,samples,timer,
+    trace_started:false,trace_error:null};
+  try{
+    await cdp.send('Tracing.start',{
+      categories:'toplevel,latency,cc,blink.user_timing',
+      transferMode:'ReturnAsStream'});
+    state.trace_started=true;
+  }catch(error){state.trace_error=String(error);}
+  return state;
+}
+async function finishFocusedSchedulingTrace(state) {
+  if(!state)return null;
+  clearInterval(state.timer);state.lag.disable();
+  const cpu=process.cpuUsage(state.cpu);
+  const resources=process.resourceUsage();
+  const report={
+    name:'FOCUSED_CHROMIUM_BROWSER_AND_RUNNER_SCHEDULING_DIAGNOSTIC_ONLY',
+    label:state.label,source_sha:process.env.GITHUB_SHA||null,
+    mode:NATIVE_AA4_MODE?'native_aa4_proof_only':'native_aa0',
+    host_epoch_start_ms:state.started,host_epoch_finish_ms:Date.now(),
+    node_runner_cpu_delta_us:cpu,
+    node_runner_context_switch_delta:{
+      voluntary:resources.voluntaryContextSwitches-state.resources.voluntaryContextSwitches,
+      involuntary:resources.involuntaryContextSwitches-state.resources.involuntaryContextSwitches},
+    node_event_loop_delay_max_ms:state.lag.max/1e6,
+    node_timer_heartbeat_100ms:state.samples,
+    chrome_trace_started:state.trace_started,
+    chrome_trace_error:state.trace_error,
+    strict_touch_threshold_ms_exclusive:5000,
+    browser_process_cpu_and_os_thread_scheduler:'NOT_DIRECTLY_MEASURED',
+    physical_samsung_test:false,product_or_visual_pass:'NOT_GRANTED'
+  };
+  if(state.trace_started) {
+    try {
+      const complete=new Promise(resolve=>{
+        let finished=false;
+        const onComplete=e=>{
+          if(finished)return;finished=true;clearTimeout(timer);
+          state.cdp.off('Tracing.tracingComplete',onComplete);resolve(e);
+        };
+        state.cdp.on('Tracing.tracingComplete',onComplete);
+        const timer=setTimeout(()=>onComplete({timeout:true}),15000);
+      });
+      await state.cdp.send('Tracing.end');
+      const result=await complete;
+      if(!result.stream)throw Error('Chromium trace complete without stream: '+JSON.stringify(result));
+      let chunks=[],bytes=0,truncated=false,done=false;
+      while(!done){
+        const item=await state.cdp.send('IO.read',{handle:result.stream,size:524288});
+        const part=item.base64Encoded?Buffer.from(item.data||'','base64'):
+          Buffer.from(item.data||'','utf8');
+        bytes+=part.length;
+        if(bytes<=24*1024*1024)chunks.push(part);else truncated=true;
+        done=!!item.eof;
+      }
+      await state.cdp.send('IO.close',{handle:result.stream});
+      report.chrome_trace_bytes_total=bytes;
+      report.chrome_trace_truncated=truncated;
+      if(!truncated){
+        const raw=Buffer.concat(chunks);
+        const target='mobile-focused-chromium-'+state.label+'.json.gz';
+        fs.writeFileSync(path.join(out,target),zlib.gzipSync(raw));
+        report.chrome_trace_file=target;
+        const trace=JSON.parse(raw.toString('utf8'));
+        const events=trace.traceEvents||[];
+        report.chrome_trace_event_count=events.length;
+        report.chrome_trace_markers=events
+          .filter(e=>/CELINE_E2E_(PAUSED_CANVAS|AA4_REDO)/.test(e.name||''))
+          .slice(0,10).map(e=>({name:e.name,ts_us:e.ts,pid:e.pid,tid:e.tid}));
+        report.chrome_trace_long_scheduler_events=events
+          .filter(e=>Number(e.dur)>=100000&&
+            /RunTask|ThreadController|Scheduler|Compositor|BeginFrame|DrawFrame|Input|Touch|Dispatch/.test(e.name||''))
+          .sort((a,b)=>b.dur-a.dur).slice(0,24)
+          .map(e=>({name:e.name,category:e.cat,ts_us:e.ts,
+            duration_ms:e.dur/1000,pid:e.pid,tid:e.tid}));
+      }
+    }catch(error){report.chrome_trace_error=String(error.stack||error);}
+  }
+  const filename='mobile-focused-runner-'+state.label+'.json';
+  fs.writeFileSync(path.join(out,filename),JSON.stringify(report,null,2));
+  return {file:filename,trace_file:report.chrome_trace_file||null,
+    trace_error:report.chrome_trace_error||null,
+    runner_delay_max_ms:report.node_event_loop_delay_max_ms,
+    long_scheduler_events:report.chrome_trace_long_scheduler_events?.length||0};
 }
 
 async function independentNativeCdpInputReceipt(page,context) {
@@ -446,7 +550,12 @@ async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
           render_before:window.__celineRoomEditorE2E.mobileRenderStats(),
           screen:[innerWidth,innerHeight],scroll_y:scrollY};
       },{target,order});
-      const perfBefore=await getMetrics(),started=Date.now();
+      const perfBefore=await getMetrics();
+      const focused=order===0?await beginFocusedSchedulingTrace(cdp,
+        (NATIVE_AA4_MODE?'aa4':'aa0')+'-paused-canvas'):null;
+      if(focused)await page.evaluate(()=>
+        performance.mark('CELINE_E2E_PAUSED_CANVAS_BEFORE')).catch(()=>{});
+      const started=Date.now();
       let startAck=null,endAck=null,dispatchError=null;
       try{
         await cdp.send('Input.dispatchTouchEvent',{
@@ -459,7 +568,11 @@ async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
         try{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
         catch(_ignored){}
       }
-      const finished=Date.now(),perfAfter=await getMetrics();
+      const finished=Date.now();
+      if(focused)await page.evaluate(()=>
+        performance.mark('CELINE_E2E_PAUSED_CANVAS_AFTER')).catch(()=>{});
+      const focusedSummary=await finishFocusedSchedulingTrace(focused);
+      const perfAfter=await getMetrics();
       const post=await page.evaluate(offset=>{
         const s=window.__celineNativeTargetCompare;
         return {events:s.events.slice(offset),
@@ -507,7 +620,8 @@ async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
         browser_longtask_max_ms:tasks.length?Math.max(...tasks.map(x=>x.duration_ms)):0,
         browser_longtask_count:tasks.length,
         browser_renderer_metrics_before:perfBefore,browser_renderer_metrics_after:perfAfter,
-        compositor_direct_measurement:'NOT_AVAILABLE__RAF_GAP_IS_ONLY_PROXY'});
+        compositor_direct_measurement:'NOT_AVAILABLE__RAF_GAP_IS_ONLY_PROXY',
+        targeted_chromium_runner_trace:focusedSummary});
     }
   } finally {
     try{
@@ -1458,8 +1572,21 @@ async function main(){
     assert.equal(redoHit.disabled,false,'redo must be enabled after undo');
     const beforeRedoRendering=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
     const redoPageStarted=await page.evaluate(()=>performance.now());
+    const redoSession=NATIVE_AA4_MODE?await context.newCDPSession(page):null;
+    const redoFocus=redoSession?await beginFocusedSchedulingTrace(redoSession,'aa4-redo'):null;
+    if(redoFocus)await page.evaluate(()=>
+      performance.mark('CELINE_E2E_AA4_REDO_BEFORE')).catch(()=>{});
     const redoStarted=Date.now();
-    await observeRealTap(page.locator('#mobile-redo'),"page.locator('#mobile-redo')");
+    try{
+      await observeRealTap(page.locator('#mobile-redo'),"page.locator('#mobile-redo')");
+    }finally{
+      if(redoFocus) {
+        await page.evaluate(()=>
+          performance.mark('CELINE_E2E_AA4_REDO_AFTER')).catch(()=>{});
+        await finishFocusedSchedulingTrace(redoFocus);
+        await redoSession.detach().catch(()=>{});
+      }
+    }
     const redoTouch=await page.evaluate(()=>window.__celineRedoTouchEvidence);
     const redoPageCompleted=await page.evaluate(()=>performance.now());
     assert(redoTouch.touchstart>=1&&redoTouch.pointerdown>=1&&redoTouch.click>=1,
