@@ -5256,6 +5256,23 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("ordinary-html-tag", "Damu <span> Markt")),NOW), "script-visible",
             "ordinary markup cannot suppress safe independent correction");
+        // Dense block glyphs are also a visible privacy-redaction convention.
+        // They are not lexical German words and must not be stripped from the
+        // *request* before a separate exact-ID memory is selected.
+        eq(Fixture.correct("Meine Katze ████ Luna",
+            Arrays.asList(aVisible),NOW), "",
+            "solid block redaction in correction request must abstain");
+        eq(Fixture.correct("Meine Katze ▓ ▓ Luna",
+            Arrays.asList(aVisible),NOW), "",
+            "spaced shaded-block redaction in request must abstain");
+        eq(Fixture.correct("Meine Katze ■■ Luna",
+            Arrays.asList(aVisible),NOW), "",
+            "black-square redaction must abstain");
+        eq(Fixture.correct("Meine Katze heisst Luna ■",
+            Arrays.asList(aVisible),NOW), "script-visible",
+            "single decorative square is not by itself a redaction marker");
+        eq(top("Meine Katze ████ Luna", Arrays.asList(aVisible)),
+            "script-visible", "provider retrieval remains unchanged by correction-only block guard");
         // Annotated redaction labels are not plain German memory facts. A G1
         // projection can include a field hint inside the redaction brackets.
         // Treat this as unknown only for correction-ID suggestions.
