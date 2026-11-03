@@ -1,5 +1,8 @@
 package de.yahya.ai;
 
+import com.google.android.filament.Engine;
+import com.google.android.filament.RenderableManager;
+import com.google.android.filament.Scene;
 import com.google.android.filament.gltfio.FilamentAsset;
 
 import java.lang.reflect.Field;
@@ -36,13 +39,19 @@ final class CelineRoomReferenceLayoutV80 {
 
             Field assetsField = state.getClass().getDeclaredField("roomAssets");
             Field shellField = state.getClass().getDeclaredField("roomShellAsset");
+            Field sceneField = state.getClass().getDeclaredField("scene");
+            Field engineField = state.getClass().getDeclaredField("engine");
             assetsField.setAccessible(true);
             shellField.setAccessible(true);
+            sceneField.setAccessible(true);
+            engineField.setAccessible(true);
 
             Object rawAssets = assetsField.get(state);
             FilamentAsset shell = (FilamentAsset) shellField.get(state);
-            if (!(rawAssets instanceof List) || shell == null) {
-                throw new IllegalStateException("Room shell or partitions missing after native build");
+            Scene scene = (Scene) sceneField.get(state);
+            Engine engine = (Engine) engineField.get(state);
+            if (!(rawAssets instanceof List) || shell == null || scene == null || engine == null) {
+                throw new IllegalStateException("Room shell, scene or partitions missing after native build");
             }
 
             @SuppressWarnings("unchecked")
@@ -53,15 +62,29 @@ final class CelineRoomReferenceLayoutV80 {
                         "partitioned source window missing: room_window_drapes__anchor");
             }
 
-            // Validate the real source shell on *every* activation, including
-            // when this exact window partition was already seen on the View.
-            // Otherwise the APPLIED fast path skips all six ROOM-159 guards.
-            requireEntity(shell, "room_shell_floor");
-            requireEntity(shell, "room_shell_ceiling");
-            requireEntity(shell, "room_shell_left");
-            requireEntity(shell, "room_shell_right");
-            requireEntity(shell, "room_shell_back");
-            requireEntity(shell, "room_shell_front");
+            // Recheck the live Filament Scene before the APPLIED fast path.
+            // An existing GLB node name alone does NOT prove it is still drawn
+            // after a Scene detach/rebuild. The front wall is intentionally hidden.
+            RenderableManager renderables = engine.getRenderableManager();
+            requireAttachedRenderable(shell, scene, renderables, "room_shell_floor");
+            requireAttachedRenderable(shell, scene, renderables, "room_shell_ceiling");
+            requireAttachedRenderable(shell, scene, renderables, "room_shell_left");
+            requireAttachedRenderable(shell, scene, renderables, "room_shell_right");
+            requireAttachedRenderable(shell, scene, renderables, "room_shell_back");
+            int front = shell.getFirstEntityByName("room_shell_front");
+            if (front == 0 || scene.hasEntity(front)) {
+                throw new IllegalStateException("S25 front wall missing or unexpectedly visible");
+            }
+            boolean windowRenderableAttached = false;
+            for (int entity : window.getEntities()) {
+                if (scene.hasEntity(entity) && renderables.hasComponent(entity)) {
+                    windowRenderableAttached = true;
+                    break;
+                }
+            }
+            if (!windowRenderableAttached) {
+                throw new IllegalStateException("S25 window partition has no attached renderable");
+            }
 
             synchronized (APPLIED) {
                 if (APPLIED.get(view) == window) return true;
@@ -101,9 +124,11 @@ final class CelineRoomReferenceLayoutV80 {
         return null;
     }
 
-    private static void requireEntity(FilamentAsset asset, String entityName) {
-        if (asset == null || asset.getFirstEntityByName(entityName) == 0) {
-            throw new IllegalStateException("partitioned shell entity missing: " + entityName);
+    private static void requireAttachedRenderable(
+            FilamentAsset asset, Scene scene, RenderableManager renderables, String entityName) {
+        int entity = asset.getFirstEntityByName(entityName);
+        if (entity == 0 || !scene.hasEntity(entity) || !renderables.hasComponent(entity)) {
+            throw new IllegalStateException("partitioned shell renderable not attached: " + entityName);
         }
     }
 
