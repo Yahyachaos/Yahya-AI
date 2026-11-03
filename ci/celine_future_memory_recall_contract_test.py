@@ -5175,6 +5175,12 @@ public final class FutureMemoryRecallContract {
             Arrays.asList(c("stars-redaction", "***"),aVisible),NOW), "",
             "standalone star redaction marker must abstain independent of order");
         eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("tag-redaction", "[REDACTED]")),NOW), "",
+            "bracketed redaction marker is unknown evidence, not an unrelated topic");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("tag-hidden-de", "[ausgeblendet]"),aVisible),NOW), "",
+            "German masked-memory marker blocks speculative correction targeting");
+        eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",
             "known short-word-only rival does not block correction");
         eq(Fixture.correct("Meine Katze heisst Luna",

@@ -3153,7 +3153,7 @@ public final class CelineFutureMemoryRecall {
                         && (rival.expiresAtMs == 0 || rival.expiresAtMs > now)));
             if (!potentiallyCurrent) continue;
             if (retiredIds.contains(rival.id)) continue;
-            if (rival.summary.isEmpty()) return "";
+            if (rival.summary.isEmpty() || isExplicitRedactionMarker(rival.summary)) return "";
             // A raw eligible record may be absent from retrieve because its
             // conflict, fork or retired-parent ancestry is unresolved. It is
             // still a plausible user correction target: abstain on equal text.
@@ -3292,6 +3292,15 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
+    }
+
+    // A sanitized G1 projection may carry a human-readable redaction tag
+    // rather than the original topic. Its lexical mismatch is not evidence
+    // that the hidden memory is unrelated to the requested correction.
+    private static boolean isExplicitRedactionMarker(String summary) {
+        String marker = safe(summary).toLowerCase(Locale.ROOT);
+        return marker.equals("[redacted]") || marker.equals("[hidden]")
+                || marker.equals("[ausgeblendet]") || marker.equals("[gelöscht]");
     }
 
     // This is ONLY a correction-target abstention exception, never a recall
