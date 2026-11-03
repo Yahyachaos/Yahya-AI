@@ -27,6 +27,14 @@ public final class FutureRedactedCandidateContract {
     eq(top("Meine Katze Luna",c("bracket-note","Meine Katze [Notiz] Luna")),"bracket-note","normal note not treated as redaction");
     eq(top("Meine Katze Luna",c("plain","Meine Katze Luna")),"plain","plain unaffected");
     eq(top("Meine Katze Luna",c("expired-redacted","Meine Katze [REDACTED] Luna"),c("good","Meine Katze Luna")),"good","safe valid candidate still ranks");
+    eq(top("Meine Katze Luna",c("old","Meine Katze Luna"),
+      new CelineFutureMemoryRecall.Candidate("masked-child","Meine Katze [REDACTED: name] Luna","old",
+        CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,11,0,0.9)),"",
+        "redacted successor still suppresses old remembered fact");
+    eq(top("Meine Katze Luna",c("old","Meine Katze Luna"),
+      new CelineFutureMemoryRecall.Candidate("masked-private","Meine Katze <masked: private> Luna","old",
+        CelineFutureMemoryRecall.Privacy.LOCAL_SENSITIVE,false,true,11,0,0.9)),"",
+        "private masked successor still suppresses formerly exportable parent");
     System.out.println("FUTURE_REDACTED_CANDIDATE_JAVA_PASS cases="+checks);
   }
 }
