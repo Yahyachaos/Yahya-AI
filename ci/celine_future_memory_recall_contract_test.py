@@ -5180,6 +5180,17 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(c("tag-hidden-de", "[ausgeblendet]"),aVisible),NOW), "",
             "German masked-memory marker blocks speculative correction targeting");
+        // Masked words amid only stopwords or punctuation are still unknown:
+        // stopword filtering must not erase the evidence of withheld content.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("mixed-masked-stars", "und *** oder")),NOW), "",
+            "standalone star mask embedded in stopwords must abstain");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("mixed-masked-underscores", "und ___ aber"),aVisible),NOW), "",
+            "underscore blank in stopwords must not become benign lexical emptiness");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("mixed-masked-punctuation", "?! *** ;:")),NOW), "",
+            "mask inside punctuation sentence must remain opaque");
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("composite-stars", "*** ***")),NOW), "",
             "two whitespace-separated mask tokens are still opaque redaction evidence");

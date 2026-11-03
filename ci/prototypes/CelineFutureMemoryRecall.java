@@ -3328,6 +3328,15 @@ public final class CelineFutureMemoryRecall {
             }
         }
         if (allMaskTokens) return false;
+        // A masked word can be surrounded by ordinary stopwords or punctuation.
+        // Dropping those terms would otherwise make a hidden rival appear
+        // harmless and could wrongly select an unrelated visible memory ID.
+        // Only distinct whole-token redaction glyphs are treated as masks;
+        // ordinary embedded punctuation and the legacy "?! --- ... ;:"
+        // contract remain unaffected.
+        for (String token : tokens) {
+            if (token.matches("(?:\\*{3,}|_{3,})")) return false;
+        }
         for (int i = 0; i < summary.length(); i++) {
             char ch = summary.charAt(i);
             if (ch > 127 && ch != 'ä' && ch != 'ö' && ch != 'ü'
