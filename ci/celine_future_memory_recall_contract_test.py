@@ -5199,6 +5199,21 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("mixed-masked-punctuation", "?! *** ;:")),NOW), "",
             "mask inside punctuation sentence must remain opaque");
+        // G1 sanitizers may remove spaces around masks. Stopword extraction
+        // must not erase in-word placeholders and guess another memory ID.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("inline-star-mask", "und***oder")),NOW), "",
+            "inline star redaction between stopwords must abstain");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("inline-dash-mask", "und---aber"),aVisible),NOW), "",
+            "inline dash redaction between stopwords must abstain independent of order");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("inline-dot-mask", "und...oder")),NOW), "",
+            "inline ellipsis redaction between stopwords must abstain");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("inline-under-mask", "und___oder")),NOW), "",
+            "inline underscore redaction between stopwords must abstain");
+
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("composite-stars", "*** ***")),NOW), "",
             "two whitespace-separated mask tokens are still opaque redaction evidence");
