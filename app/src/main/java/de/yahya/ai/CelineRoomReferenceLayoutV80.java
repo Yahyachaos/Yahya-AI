@@ -85,6 +85,11 @@ final class CelineRoomReferenceLayoutV80 {
             if (!windowRenderableAttached) {
                 throw new IllegalStateException("S25 window partition has no attached renderable");
             }
+            // A previously READY room can lose a furniture renderable while
+            // the shell and drapes remain attached. Recheck all 13 imported
+            // source partitions on EVERY activation, before the APPLIED fast path.
+            // This is scene membership only; never touch authored XYZ/Euler/scale.
+            requireS25FurnitureAttached(assets, shell, scene, renderables);
 
             synchronized (APPLIED) {
                 if (APPLIED.get(view) == window) return true;
@@ -113,6 +118,48 @@ final class CelineRoomReferenceLayoutV80 {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
                     "Referenz-Solverlayout FEHLER", error);
             return false;
+        }
+    }
+
+    // Exact S25 JSON instance order, mapping only the legacy "back" ID to
+    // the immutable GLB's actual "rear" anchor. Source GLB bytes are unchanged.
+    private static final String[] S25_SOURCE_ANCHORS = {
+            "room_bed__anchor", "room_dresser__anchor",
+            "room_plant_large__anchor", "room_plant_small__anchor",
+            "room_floor_lamp__anchor", "room_nightstand_rear__anchor",
+            "room_nightstand_front__anchor", "room_lounge_chair__anchor",
+            "room_rug__anchor", "room_foreground_table__anchor",
+            "room_window_drapes__anchor", "room_wall_shelf_books__anchor",
+            "room_round_mirror__anchor"
+    };
+
+    private static void requireS25FurnitureAttached(
+            List<FilamentAsset> assets, FilamentAsset shell, Scene scene,
+            RenderableManager renderables) {
+        if (assets.size() != S25_SOURCE_ANCHORS.length + 1
+                || assets.get(0) != shell) {
+            throw new IllegalStateException("S25 room must contain shell plus 13 ordered GLB partitions");
+        }
+        java.util.HashSet<Integer> roots = new java.util.HashSet<>();
+        for (int i = 0; i < S25_SOURCE_ANCHORS.length; i++) {
+            FilamentAsset part = assets.get(i + 1);
+            String anchor = S25_SOURCE_ANCHORS[i];
+            if (part == null || part == shell
+                    || part.getFirstEntityByName(anchor) == 0
+                    || !roots.add(part.getRoot())) {
+                throw new IllegalStateException("S25 furniture partition missing or duplicated: " + anchor);
+            }
+            int attachedRenderables = 0;
+            for (int entity : part.getEntities()) {
+                if (!renderables.hasComponent(entity)) continue;
+                if (!scene.hasEntity(entity)) {
+                    throw new IllegalStateException("S25 furniture renderable detached: " + anchor);
+                }
+                attachedRenderables++;
+            }
+            if (attachedRenderables == 0) {
+                throw new IllegalStateException("S25 furniture has no live renderable: " + anchor);
+            }
         }
     }
 
