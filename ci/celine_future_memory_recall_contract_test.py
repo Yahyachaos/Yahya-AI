@@ -5246,6 +5246,20 @@ public final class FutureMemoryRecallContract {
         eq(top("Meine Katze heisst Luna", Arrays.asList(aVisible,
             c("partial-masked-unrelated", "Damu Markt ***"))), "script-visible",
             "strict provider retrieval is unaffected by correction-only abstention");
+        // The correction *request* may itself be a partially redacted G1/UI
+        // projection. Two surviving keywords cannot justify guessing an ID.
+        eq(Fixture.correct("Meine Katze *** Luna", Arrays.asList(aVisible),NOW), "",
+            "masked correction request must not guess target from visible words");
+        eq(Fixture.correct("Meine Katze [ausgeblendet] Luna", Arrays.asList(aVisible),NOW), "",
+            "tag-redacted correction request must require explicit ID");
+        eq(Fixture.correct("Meine Katze...Luna", Arrays.asList(aVisible),NOW), "",
+            "inline ellipsis in correction request means missing content");
+        eq(Fixture.correct("Meine Katze___Luna", Arrays.asList(aVisible),NOW), "",
+            "inline underscore mask in correction request means missing content");
+        eq(Fixture.correct("Meine Katze, Luna!", Arrays.asList(aVisible),NOW), "script-visible",
+            "ordinary correction punctuation still permits a unique target");
+        eq(top("Meine Katze *** Luna", Arrays.asList(aVisible)), "script-visible",
+            "provider retrieval remains unchanged by correction-only redaction guard");
 
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,safeEmptyShortWords),NOW), "script-visible",

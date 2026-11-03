@@ -3103,6 +3103,10 @@ public final class CelineFutureMemoryRecall {
     private static String correctionAssumingOwnerVerified(String correctionText,
             List<Candidate> candidates, Set<String> retiredIds,
             Set<String> confirmedRetiredParentIds, long now) {
+        // A partially hidden correction request is not an intact user subject.
+        // Remaining visible terms must never authorize a guessed memory ID;
+        // the owner-provided exact-ID correction UI is the safe fallback.
+        if (isExplicitRedactionMarker(correctionText)) return "";
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
         List<Match> matches = retrieveAssumingOwnerVerified(correctionText, candidates,
