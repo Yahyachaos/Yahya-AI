@@ -180,7 +180,11 @@ async function beginFocusedSchedulingTrace(cdp,label) {
     trace_started:false,trace_error:null};
   try{
     await cdp.send('Tracing.start',{
-      categories:'toplevel,latency,cc,blink.user_timing',
+      // Chromium gpu::Scheduler uses the `gpu,toplevel.flow` trace categories
+      // for ScheduleTask/RunNextTask and sync dependency flow. The previous
+      // categories captured only the opaque toplevel RunTask wrapper.
+      // This proof-only trace remains bounded to the existing two real gestures.
+      categories:'toplevel,latency,cc,blink.user_timing,gpu,toplevel.flow',
       transferMode:'ReturnAsStream'});
     state.trace_started=true;
   }catch(error){state.trace_error=String(error);}
@@ -203,6 +207,7 @@ async function finishFocusedSchedulingTrace(state) {
     node_event_loop_delay_max_ms:state.lag.max/1e6,
     node_timer_heartbeat_100ms:state.samples,
     chrome_trace_started:state.trace_started,
+    chrome_trace_categories:'toplevel,latency,cc,blink.user_timing,gpu,toplevel.flow',
     chrome_trace_error:state.trace_error,
     strict_touch_threshold_ms_exclusive:5000,
     browser_process_cpu_and_os_thread_scheduler:'NOT_DIRECTLY_MEASURED',
@@ -242,6 +247,26 @@ async function finishFocusedSchedulingTrace(state) {
         const trace=JSON.parse(raw.toString('utf8'));
         const events=trace.traceEvents||[];
         report.chrome_trace_event_count=events.length;
+        // GPU scheduler flow evidence is a Chromium user-space trace only:
+        // it is NOT a Linux sched_switch record or an off-CPU stack sample.
+        const gpuEvents=events.filter(e=>(e.cat||'').split(',').includes('gpu'));
+        report.chrome_trace_gpu_event_count=gpuEvents.length;
+        report.chrome_trace_gpu_scheduler_flow_events=gpuEvents
+          .filter(e=>/Scheduler::(ScheduleTask|RunNextTask|SequenceUnblocked|ContinueTask)/.test(e.name||''))
+          .slice(0,100).map(e=>({
+            name:e.name,cat:e.cat,phase:e.ph,ts_us:e.ts,pid:e.pid,tid:e.tid,
+            duration_us:e.dur??null,thread_cpu_duration_us:e.tdur??null,
+            id:e.id??null,bind_id:e.bind_id??null,
+            flow_ids:e.flow_ids??null
+          }));
+        report.chrome_trace_gpu_long_events=gpuEvents
+          .filter(e=>Number(e.dur)>=10000)
+          .sort((a,b)=>b.dur-a.dur).slice(0,20)
+          .map(e=>({name:e.name,cat:e.cat,ts_us:e.ts,
+            duration_us:e.dur,thread_cpu_duration_us:e.tdur??null,
+            pid:e.pid,tid:e.tid}));
+        report.chrome_trace_gpu_scope_caveat=
+          'GPU/flow categories reveal instrumented scheduler activity, not kernel wait reasons, syscall stacks, or physical S25 latency.';
         report.chrome_trace_markers=events
           .filter(e=>/CELINE_E2E_(PAUSED_CANVAS|AA4_REDO)/.test(e.name||''))
           .slice(0,10).map(e=>({name:e.name,ts_us:e.ts,pid:e.pid,tid:e.tid}));
