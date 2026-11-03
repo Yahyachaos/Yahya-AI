@@ -9,6 +9,45 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: focused genuine Java regression for unrepresented semantic emoji
+# in a correction request. Retrieval intentionally remains unchanged.
+if '--focused-semantic-emoji-correction' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class FutureSemanticEmojiCorrectionContract {
+  static int checks=0;
+  static void eq(String got,String expected,String label){
+    if(!Objects.equals(got,expected))throw new AssertionError(label+" expected="+expected+" got="+got);
+    checks++;
+  }
+  public static void main(String[] ignored){
+    var memory=new CelineFutureMemoryRecall.Candidate("cat-visible","Meine Katze Luna","",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.8);
+    var records=List.of(memory);long now=200;
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze Luna",records,now),"cat-visible","normal intact correction");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze 🐈 Luna",records,now),"","cat emoji changes correction subject");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze 🐕 Luna",records,now),"","dog emoji could be distinct subject");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze ☀ Luna",records,now),"","BMP pictograph unrepresented");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze 👩‍🦰 Luna",records,now),"","compound emoji unrepresented");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze ? Luna",records,now),"cat-visible","ordinary punctuation benign");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Meine Katze € Luna",records,now),"cat-visible","currency sign benign");
+    eq(CelineFutureMemoryRecall.retrieve("Meine Katze 🐈 Luna",records,4,now).get(0).candidate.id,"cat-visible","provider recall policy unchanged");
+    System.out.println("FUTURE_SEMANTIC_EMOJI_CORRECTION_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_emoji_correction_') as compiled:
+        java_file=Path(compiled) / 'FutureSemanticEmojiCorrectionContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],
+                             capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stderr
+        test=subprocess.run(['java','-cp',compiled,'de.yahya.ai.FutureSemanticEmojiCorrectionContract'],
+                            capture_output=True,text=True,timeout=45)
+        assert test.returncode==0, test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY — genuine separate JVM operator process with its own signer/files,
 # NOT remotely hosted, hardware monotonic or independently administered custody.
 # App-only rollback is blocked CONDITIONALLY; resetting the operator's original

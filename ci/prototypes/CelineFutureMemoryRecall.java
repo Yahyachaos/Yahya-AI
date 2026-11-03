@@ -3106,7 +3106,8 @@ public final class CelineFutureMemoryRecall {
         // A partially hidden correction request is not an intact user subject.
         // Remaining visible terms must never authorize a guessed memory ID;
         // the owner-provided exact-ID correction UI is the safe fallback.
-        if (isExplicitRedactionMarker(correctionText)) return "";
+        if (isExplicitRedactionMarker(correctionText)
+                || hasUnrepresentedPictograph(correctionText)) return "";
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
         List<Match> matches = retrieveAssumingOwnerVerified(correctionText, candidates,
@@ -3296,6 +3297,21 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
+    }
+
+    // The German lexical tokenizer discards emoji/pictographs entirely. They
+    // can be semantic correction subjects (cat vs dog) rather than decoration.
+    // Never infer an automatic correction ID from the remaining visible words;
+    // normal provider retrieval remains on its separate read-only path.
+    private static boolean hasUnrepresentedPictograph(String value) {
+        if (value == null) return false;
+        for (int i = 0; i < value.length();) {
+            int cp = value.codePointAt(i);
+            if ((cp >= 0x1F000 && cp <= 0x1FAFF)
+                    || (cp >= 0x2600 && cp <= 0x27BF)) return true;
+            i += Character.charCount(cp);
+        }
+        return false;
     }
 
     // A sanitized G1 projection may carry a redacted fragment alongside
