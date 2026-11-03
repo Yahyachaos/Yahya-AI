@@ -68,7 +68,16 @@ final class CelineRoomBackdropView extends View {
         threeD.dispatchFilamentWork(() -> {
             if (request != roomRequestGeneration) return;
             if (!CelineRoomEnvironmentV80.ensure(context, threeD)) return;
-            CelineRoomReferenceLayoutV80.ensure(threeD);
+            if (!CelineRoomReferenceLayoutV80.ensure(threeD)) {
+                // ROOM-159 and missing partition/shell state must fail closed.
+                // Both operations run on Filament's owner thread: detach the native
+                // scene before requesting a Canvas fallback redraw.
+                CelineRoomEnvironmentV80.release(threeD);
+                post(() -> {
+                    if (request == roomRequestGeneration && isAttachedToWindow()) invalidate();
+                });
+                return;
+            }
             post(() -> {
                 if (request == roomRequestGeneration && isAttachedToWindow()) invalidate();
             });

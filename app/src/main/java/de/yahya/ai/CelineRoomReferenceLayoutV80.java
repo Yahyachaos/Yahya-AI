@@ -26,11 +26,13 @@ final class CelineRoomReferenceLayoutV80 {
 
     private CelineRoomReferenceLayoutV80() {}
 
-    static void ensure(Celine3DView view) {
-        if (view == null) return;
+    static boolean ensure(Celine3DView view) {
+        if (view == null) return false;
         try {
             Object state = roomState(view);
-            if (state == null) return;
+            if (state == null) {
+                throw new IllegalStateException("Room state missing after native build");
+            }
 
             Field assetsField = state.getClass().getDeclaredField("roomAssets");
             Field shellField = state.getClass().getDeclaredField("roomShellAsset");
@@ -39,7 +41,9 @@ final class CelineRoomReferenceLayoutV80 {
 
             Object rawAssets = assetsField.get(state);
             FilamentAsset shell = (FilamentAsset) shellField.get(state);
-            if (!(rawAssets instanceof List) || shell == null) return;
+            if (!(rawAssets instanceof List) || shell == null) {
+                throw new IllegalStateException("Room shell or partitions missing after native build");
+            }
 
             @SuppressWarnings("unchecked")
             List<FilamentAsset> assets = (List<FilamentAsset>) rawAssets;
@@ -50,7 +54,7 @@ final class CelineRoomReferenceLayoutV80 {
             }
 
             synchronized (APPLIED) {
-                if (APPLIED.get(view) == window) return;
+                if (APPLIED.get(view) == window) return true;
             }
 
             requireEntity(shell, "room_shell_floor");
@@ -78,9 +82,11 @@ final class CelineRoomReferenceLayoutV80 {
                             + " furnitureTransformOverride=false"
                             + " mirrorMaterialOverride=false"
                             + " sourceGLBsMutated=false");
+            return true;
         } catch (Throwable error) {
             Celine3DDiagnostics.error(view.getContext(), "ROOM-159",
                     "Referenz-Solverlayout FEHLER", error);
+            return false;
         }
     }
 
