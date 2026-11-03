@@ -5239,6 +5239,23 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("composite-tags", "[REDACTED] [ausgeblendet]")),NOW), "",
             "two bracketed redaction tags remain opaque rather than unrelated tokens");
+        // Redaction metadata may arrive from other German/English UI layers.
+        // Recognize only bounded whole tags; ordinary markup is not evidence.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("masked-tag", "und [MASKED] oder")),NOW), "",
+            "English MASKED tag hides the true correction subject");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("zensiert-tag", "[zensiert: kundenname]"),aVisible),NOW), "",
+            "German censored field-tag requires explicit ID");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("angle-redaction", "und <REDACTED> oder")),NOW), "",
+            "angle-delimited redaction cannot be mistaken for unrelated text");
+        eq(Fixture.correct("Meine Katze <ausgeblendet: Name> Luna",
+            Arrays.asList(aVisible),NOW), "",
+            "angle-delimited hidden correction request abstains");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("ordinary-html-tag", "Damu <span> Markt")),NOW), "script-visible",
+            "ordinary markup cannot suppress safe independent correction");
         // Annotated redaction labels are not plain German memory facts. A G1
         // projection can include a field hint inside the redaction brackets.
         // Treat this as unknown only for correction-ID suggestions.
