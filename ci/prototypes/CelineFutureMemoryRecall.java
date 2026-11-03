@@ -3034,7 +3034,8 @@ public final class CelineFutureMemoryRecall {
         }
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
-        boolean queryNegated = requireMatchingNegation && hasExplicitNegation(query);
+        Set<String> queryNegationCues = requireMatchingNegation
+                ? explicitNegationCues(query) : Collections.<String>emptySet();
         // Build the correction lineage from ALL supplied records, including expired
         // or private successors. A successor's expiry must not make an obsolete
         // ancestor eligible again. The owning G1 store must retain lineage data;
@@ -3071,7 +3072,8 @@ public final class CelineFutureMemoryRecall {
             // when its surviving words match. Do not rank it for provider recall;
             // its ID still participates in lineage/supersession quarantine.
             if (isExplicitRedactionMarker(c.summary)) continue;
-            if (requireMatchingNegation && queryNegated != hasExplicitNegation(c.summary)) continue;
+            if (requireMatchingNegation
+                    && !queryNegationCues.equals(explicitNegationCues(c.summary))) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
             // Do not return a coincidental one-word hit for a multi-topic query.
@@ -3324,9 +3326,21 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                     "(?<![\\p{L}\\p{N}])(?:nicht|kein|keine|keinen|keinem|keiner|keines|nie|niemals|ohne)(?![\\p{L}\\p{N}])");
 
-    private static boolean hasExplicitNegation(String sourceText) {
-        return sourceText != null && GERMAN_NEGATION_CUE.matcher(
-                sourceText.toLowerCase(Locale.GERMANY)).find();
+    // A boolean "any negation" conflates different factual predicates:
+    // "Mein Golf Diesel ist nicht blau" must not retrieve "... ohne Dach"
+    // solely because both contain some negative cue and two shared anchors.
+    // Keep normalized cue families separate; this is deliberately conservative,
+    // not a full German clause-scope or logical-negation parser.
+    private static Set<String> explicitNegationCues(String sourceText) {
+        if (sourceText == null) return Collections.emptySet();
+        Set<String> cues = new HashSet<>();
+        java.util.regex.Matcher matcher = GERMAN_NEGATION_CUE.matcher(
+                sourceText.toLowerCase(Locale.GERMANY));
+        while (matcher.find()) {
+            String cue = matcher.group();
+            cues.add(cue.startsWith("kein") ? "kein" : cue);
+        }
+        return cues;
     }
 
     // The German lexical tokenizer discards emoji/pictographs entirely. They

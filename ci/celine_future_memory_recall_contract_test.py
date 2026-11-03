@@ -9,6 +9,51 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: provider recall must distinguish German negative cue families.
+# A broad "any negation" boolean causes mismatched negative facts to match.
+# This is intentionally a conservative lexical guard, NOT clause-scope parsing.
+if '--focused-negation-cue-families' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public class NegationCueContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String id, String summary) {
+    return new CelineFutureMemoryRecall.Candidate(id,summary,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100L,0L,0.9d);
+  }
+  static String top(String query, String id, String summary) {
+    List<CelineFutureMemoryRecall.Match> found=CelineFutureMemoryRecall.retrieve(query,List.of(c(id,summary)),8,200L);
+    return found.isEmpty()?"":found.get(0).candidate.id;
+  }
+  static void eq(String actual,String expected,String msg){ if(!Objects.equals(actual,expected))throw new AssertionError(msg+" expected='"+expected+"' got='"+actual+"'"); checks++; }
+  public static void main(String[] args) {
+    eq(top("Mein Golf Diesel ist nicht blau", "stored-ohne", "Mein Golf Diesel ist ohne Dach"),"", "nicht vs ohne must not match");
+    eq(top("Mein Golf Diesel ist ohne Dach", "stored-nicht", "Mein Golf Diesel ist nicht blau"),"", "ohne vs nicht must not match");
+    eq(top("Mein Golf Diesel ist kein Cabrio", "stored-nie", "Mein Golf Diesel ist nie gruen"),"", "kein vs nie must not match");
+    eq(top("Mein Golf Diesel ist NICHT blau", "same", "Mein Golf Diesel ist nicht blau"),"same", "case-insensitive same cue");
+    eq(top("Mein Golf Diesel ist ohne Dach", "same", "Mein Golf Diesel ist ohne Dach"),"same", "exact matching ohne");
+    eq(top("Mein Golf Diesel ist kein Cabrio", "same", "Mein Golf Diesel ist kein Cabrio"),"same", "exact matching kein");
+    eq(top("Mein Golf Diesel ist blau", "same", "Mein Golf Diesel ist blau"),"same", "affirmative unaffected");
+    eq(top("Mein Golf Diesel ist nicht blau", "affirm", "Mein Golf Diesel ist blau"),"", "negative vs affirmative remains blocked");
+    eq(top("Mein Golf Diesel ist blau", "neg", "Mein Golf Diesel ist nicht blau"),"", "affirmative vs negative remains blocked");
+    eq(top("Mein Golf Diesel ist nichtblau", "same", "Mein Golf Diesel ist nichtblau"),"same", "compound not tokenized as negation");
+    System.out.println("FUTURE_NEGATION_CUE_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_negation_cues_') as compiled:
+        java_file = Path(compiled) / 'NegationCueContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(java_file)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        test = subprocess.run(['java', '-cp', compiled,
+                               'de.yahya.ai.NegationCueContract'],
+                              capture_output=True, text=True, timeout=45)
+        assert test.returncode == 0, test.stdout + test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY: a partially redacted stored G1 fact is not complete lexical
 # evidence for a provider answer. Its ID remains part of supersession lineage.
 # This is narrower than the separate correction-request redaction guard.
