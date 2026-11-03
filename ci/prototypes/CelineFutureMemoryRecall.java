@@ -3608,6 +3608,8 @@ public final class CelineFutureMemoryRecall {
         "aber","also","auch","das","dass","dein","deine","dem","den","der","des",
         "die","doch","du","ein","eine","einer","es","fuer","fur","hier","ich",
         "im","in","ist","ja","mein","meine","meinem","meinen","mit","nicht",
+        // These are polarity cues, NEVER independent topical recall/correction anchors.
+        "kein","keine","keinen","keinem","keiner","keines","nie","niemals","ohne",
         "noch","oder","sie","so","und","von","war","was","wie","wir","wird",
         "zu","zum","zur","bitte","kannst","koenntest","erinnerst"));
     private static final Map<String,String> ALIASES = new HashMap<>();

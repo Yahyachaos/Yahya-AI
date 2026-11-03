@@ -58,6 +58,61 @@ public final class FutureNegationRecallContract {
         print(test.stdout.strip())
     sys.exit(0)
 
+# FUTURE ONLY: grammatical negative markers are polarity cues, not topical anchors.
+# The correction-ID guesser is intentionally polarity-permissive, but must not
+# mistake a shared "kein" / "ohne" for a second subject-specific anchor.
+if '--focused-negation-anchor-collision' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class FutureNegationAnchorCollision {
+  static int checks=0;
+  static void eq(String got,String expected,String label){
+    if(!Objects.equals(got,expected))
+      throw new AssertionError(label+" expected="+expected+" got="+got);
+    checks++;
+  }
+  static CelineFutureMemoryRecall.Candidate c(String id,String summary){
+    return new CelineFutureMemoryRecall.Candidate(id,summary,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.8);
+  }
+  static String top(String q,List<CelineFutureMemoryRecall.Candidate> list){
+    var found=CelineFutureMemoryRecall.retrieve(q,list,8,200);
+    return found.isEmpty()?"":found.get(0).candidate.id;
+  }
+  static String correction(String q,List<CelineFutureMemoryRecall.Candidate> list){
+    return CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,list,200);
+  }
+  public static void main(String[] ignored){
+    var fuel=List.of(c("petrol","Mein Golf ist kein Benziner"));
+    var roof=List.of(c("roof","Mein Golf ist ohne Dach"));
+    eq(top("Mein Golf ist kein Diesel",fuel),"","kein is not second recall anchor");
+    eq(correction("Mein Golf ist kein Diesel",fuel),"","kein is not second correction anchor");
+    eq(top("Mein Golf ist ohne Reifen",roof),"","ohne is not second recall anchor");
+    eq(correction("Mein Golf ist ohne Reifen",roof),"","ohne is not second correction anchor");
+    eq(top("Mein Golf ist kein Benziner",fuel),"petrol","exact kein subject recall");
+    eq(correction("Mein Golf ist kein Benziner",fuel),"petrol","exact kein subject correction");
+    eq(top("Mein Golf ist ohne Dach",roof),"roof","exact ohne subject recall");
+    eq(correction("Mein Golf ist ohne Dach",roof),"roof","exact ohne subject correction");
+    var positive=List.of(c("blue","Mein Golf ist blau"));
+    eq(top("Mein Golf ist blau",positive),"blue","affirmative recall kept");
+    eq(top("Mein Golf ist nicht blau",positive),"","opposite polarity recall blocked");
+    eq(correction("Mein Golf ist nicht blau",positive),"blue","correction polarity-permissive unchanged");
+    System.out.println("FUTURE_NEGATION_ANCHOR_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_neg_anchor_') as compiled:
+        java_file=Path(compiled) / 'FutureNegationAnchorCollision.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],
+                             capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stderr
+        test=subprocess.run(['java','-cp',compiled,'de.yahya.ai.FutureNegationAnchorCollision'],
+                            capture_output=True,text=True,timeout=45)
+        assert test.returncode==0,test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY: focused genuine Java regression for unrepresented semantic emoji
 # in a correction request. Retrieval intentionally remains unchanged.
 if '--focused-semantic-emoji-correction' in sys.argv:
