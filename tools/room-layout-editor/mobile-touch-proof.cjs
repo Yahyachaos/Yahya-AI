@@ -688,6 +688,111 @@ async function main(){
       source_window_material_identity_recovered:true,
       window_backdrop_neutral:nightBefore,window_backdrop_source:nightDuring,
       visual_acceptance:'NOT_GRANTED'});
+    // Owner-final isolated curtain A/B: only display material.010 is toggled.
+    // Keep neutral shell, opaque window backdrop, real GLBs, camera and full
+    // owner JSON identical. The separate native 412x915 PNGs are real browser
+    // compositor captures, not generated reference art or Android evidence.
+    if (!NATIVE_AA4_MODE) {
+      const readFabric=()=>page.evaluate(()=>({
+        layout:window.__celineRoomEditorE2E.serializedLayout(),
+        camera:window.__celineRoomEditorE2E.cameraProjection(),
+        shell:window.__celineRoomEditorE2E.shellPreviewAudit(),
+        backdrop:window.__celineRoomEditorE2E.windowBackdropAudit(),
+        fabric:window.__celineRoomEditorE2E.sheerPreviewAudit(),
+        room:window.__celineRoomEditorE2E.auditScene().room_m,
+        scroll_y:window.scrollY,viewport:[innerWidth,innerHeight]
+      }));
+      const captureFabricViewport=async filename=>{
+        const before=await readFabric();
+        assert.deepEqual(before.viewport,[412,915],
+          'Curtain A/B must use real 412x915 native mobile CSS viewport');
+        assert.equal(before.scroll_y,0,
+          'Curtain A/B must not photograph scrolled form controls');
+        const bytes=await page.screenshot({scale:'css',fullPage:false,timeout:30000});
+        assert.deepEqual([bytes.readUInt32BE(16),bytes.readUInt32BE(20)],[412,915],
+          'Curtain A/B requires unmodified full native viewport, not a crop');
+        fs.writeFileSync(path.join(out,filename),bytes);
+        return {filename,pixels:[412,915],bytes:bytes.length,
+          sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+      };
+      const toggleFabric=checked=>page.evaluate(value=>{
+        const control=document.getElementById('sheer-preview');
+        control.checked=value;
+        control.dispatchEvent(new Event('change',{bubbles:true}));
+      },checked);
+      const beforeFabric=await readFabric();
+      assert.equal(beforeFabric.fabric.controlChecked,true,
+        'Expected original warm curtain preview ON in neutral mobile default');
+      assert.equal(beforeFabric.fabric.clonedSheerSlots,1,
+        'Exactly one mapped original curtain source slot may be preview-cloned');
+      assert.equal(beforeFabric.backdrop.matches.length,1);
+      const onWebgl=await captureRealWebGL(page,
+        'owner-final-neutral-aa0-fabric-on-real-webgl.png');
+      const onViewport=await captureFabricViewport(
+        'owner-final-neutral-aa0-fabric-on-viewport-412x915.png');
+      let offFabric,offWebgl,offViewport;
+      try {
+        await toggleFabric(false);
+        offFabric=await readFabric();
+        assert.equal(offFabric.fabric.controlChecked,false);
+        assert.equal(offFabric.fabric.clonedSheerSlots,0,
+          'Fabric OFF must restore the source material, not a substitute clone');
+        const originalSheer=offFabric.fabric.slots.filter(s=>s.selectedSheer);
+        assert.equal(originalSheer.length,1);
+        assert.equal(originalSheer[0].originalIdentity,true,
+          'Fabric OFF must restore exact original material.010 instance');
+        offWebgl=await captureRealWebGL(page,
+          'owner-final-neutral-aa0-fabric-off-real-webgl.png');
+        offViewport=await captureFabricViewport(
+          'owner-final-neutral-aa0-fabric-off-viewport-412x915.png');
+      } finally {
+        // Even if capture/assertion fails, put the original mobile default
+        // back before proceeding. No source GLB material is ever rewritten.
+        await toggleFabric(true);
+      }
+      const afterFabric=await readFabric();
+      const restoredWebgl=await captureRealWebGL(page,
+        'owner-final-neutral-aa0-fabric-restored-real-webgl.png');
+      const pair={source_sha:process.env.GITHUB_SHA||null,
+        source_owner_json_sha256:approvedSha,
+        mode:'CURRENT_OWNER_FINAL_AA0_NEUTRAL_FIXED_SHELL_AND_CAMERA',
+        experimental_toggle:'mapped material.010 display-only clone ON/OFF',
+        no_furniture_or_camera_or_backdrop_changes:true,
+        before:beforeFabric,off:offFabric,restored:afterFabric,
+        onWebgl,offWebgl,restoredWebgl,onViewport,offViewport,
+        physical_s25_test:false,visual_acceptance:'NOT_GRANTED_BY_AUTOMATED_PROOF'};
+      fs.writeFileSync(path.join(out,'mobile-owner-final-curtain-fabric-isolated-pair.json'),
+        JSON.stringify(pair,null,2));
+      assert.deepEqual(offFabric.layout,beforeFabric.layout,
+        'Fabric toggle OFF changed owner 13 furniture TRS/legacy fields or locks');
+      assert.deepEqual(afterFabric.layout,beforeFabric.layout,
+        'Fabric restore changed owner JSON');
+      assert.deepEqual(offFabric.camera,beforeFabric.camera,
+        'Curtain ON/OFF altered camera');
+      assert.deepEqual(afterFabric.camera,beforeFabric.camera,
+        'Curtain restore altered camera');
+      assert.deepEqual(offFabric.shell,beforeFabric.shell,
+        'Fabric ON/OFF changed neutral room shell');
+      assert.deepEqual(afterFabric.shell,beforeFabric.shell,
+        'Fabric restore changed room shell');
+      assert.deepEqual(offFabric.backdrop,beforeFabric.backdrop,
+        'Fabric ON/OFF changed separately opaque window background');
+      assert.deepEqual(afterFabric.backdrop,beforeFabric.backdrop,
+        'Fabric restore changed window backdrop');
+      assert.deepEqual(offFabric.room,beforeFabric.room);
+      assert.deepEqual(afterFabric.room,beforeFabric.room);
+      assert.deepEqual(afterFabric.fabric,beforeFabric.fabric,
+        'Fabric ON restoration must recover the original display-only clone state');
+      assert.notEqual(onWebgl.sha256,offWebgl.sha256,
+        'ON/OFF must produce visible actual-WebGL fabric difference');
+      assert.equal(onWebgl.sha256,restoredWebgl.sha256,
+        'Restored original display-only fabric must reproduce original WebGL pixels');
+      record.push({name:'OWNER_FINAL_NEUTRAL_AA0_FABRIC_ONLY_REAL_WEBGL_AND_412X915_PAIR',
+        onWebgl,offWebgl,restoredWebgl,onViewport,offViewport,
+        original_source_material_recovered_on_off:true,
+        exact_owner_layout_camera_shell_backdrop_unchanged:true,
+        visual_acceptance:'REQUIRES_MANUAL_FRAME_REVIEW'});
+    }
     const s25Button=page.locator('[data-mobile-action="s25-display"]');
     const beforeS25=await page.evaluate(()=>
       window.__celineRoomEditorE2E.s25RawDisplayAudit());
