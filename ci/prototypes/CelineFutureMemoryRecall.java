@@ -3303,9 +3303,15 @@ public final class CelineFutureMemoryRecall {
     // that its unknown remainder differs from the requested correction.
     private static boolean isExplicitRedactionMarker(String summary) {
         String marker = safe(summary).toLowerCase(Locale.ROOT);
-        if (marker.contains("[redacted]") || marker.contains("[hidden]")
-                || marker.contains("[ausgeblendet]") || marker.contains("[gelöscht]"))
-            return true;
+        // G1 may replace private text with a bracketed label that includes
+        // its field type (e.g. [REDACTED: name]). Those labels and common
+        // deletion variants still conceal the correction subject. Restrict
+        // matching to explicit whole bracket tags to avoid treating ordinary
+        // prose mentioning "redacted" as an opaque source.
+        if (java.util.regex.Pattern.compile(
+                "\\[(?:redacted|hidden|ausgeblendet|gelöscht|removed|deleted)"
+                + "(?:\\s*[:=-][^\\]]{0,64})?\\]")
+                .matcher(marker).find()) return true;
         // A lossy projection can separate each redaction glyph by whitespace:
         // "und * * * oder" must not be mistaken for intact stopwords. This
         // conservative abstention applies ONLY to correction-ID suggestions;

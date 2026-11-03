@@ -5239,6 +5239,35 @@ public final class FutureMemoryRecallContract {
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(aVisible,c("composite-tags", "[REDACTED] [ausgeblendet]")),NOW), "",
             "two bracketed redaction tags remain opaque rather than unrelated tokens");
+        // Annotated redaction labels are not plain German memory facts. A G1
+        // projection can include a field hint inside the redaction brackets.
+        // Treat this as unknown only for correction-ID suggestions.
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("annotated-redacted-rival", "und [REDACTED: name] oder")),NOW), "",
+            "annotated English redaction in rival must force selected-ID correction");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(c("annotated-de-rival", "Damu [ausgeblendet: Privat] Markt"),aVisible),NOW), "",
+            "annotated German redaction remains opaque with visible unrelated words");
+        eq(Fixture.correct("Meine Katze [REDACTED: name] Luna",
+            Arrays.asList(aVisible),NOW), "",
+            "annotated correction request cannot select visible memory ID");
+        eq(Fixture.correct("Meine Katze heisst Luna",
+            Arrays.asList(aVisible,c("removed-tag-rival", "und [removed] oder")),NOW), "",
+            "English removed marker in rival cannot be treated as unrelated fact");
+        eq(top("Meine Katze heisst Luna", Arrays.asList(aVisible,
+            c("annotated-retrieval-control", "und [REDACTED: name] oder"))),
+            "script-visible", "provider retrieval unchanged by correction-only redaction guard");
+        eq(Fixture.correct("Meine Katze heisst Luna", Arrays.asList(aVisible,
+            c("ordinary-bracket-text", "Damu [Notiz] Markt")),NOW),
+            "script-visible", "unrelated ordinary bracket label must not overblock");
+        eq(Fixture.correct("Meine Katze heisst Luna [Notiz]",
+            Arrays.asList(aVisible),NOW), "script-visible",
+            "ordinary bracket note in correction request is not a redaction");
+        eq(Fixture.correct("Meine Katze heisst Luna", Arrays.asList(aVisible,
+            new CelineFutureMemoryRecall.Candidate("expired-annotated-tag",
+                "[REDACTED: name]", "", CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,
+                true,true,NOW-100,NOW-1,0.5)),NOW), "script-visible",
+            "expired annotated rival is not a current correction target");
         eq(Fixture.correct("Meine Katze heisst Luna",
             Arrays.asList(c("partial-tag", "[hidden] — withheld"),aVisible),NOW), "",
             "a tag followed by unrelated metadata must not discard the redaction warning");
