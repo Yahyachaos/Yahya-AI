@@ -3001,6 +3001,17 @@ public final class CelineFutureMemoryRecall {
     private static List<Match> retrieveAssumingOwnerVerified(String query, List<Candidate> candidates,
             Set<String> retiredIds, Set<String> confirmedRetiredParentIds,
             int maxResults, long now) {
+        return retrieveAssumingOwnerVerified(query, candidates, retiredIds,
+                confirmedRetiredParentIds, maxResults, now, true);
+    }
+
+    // A negated fact must not be returned as an affirmative answer (or vice
+    // versa). Correction suggestions are different: a user saying "nicht Luna"
+    // may intentionally be correcting an old positive "Luna" memory, so the
+    // correction-ID path explicitly opts out of this retrieval polarity filter.
+    private static List<Match> retrieveAssumingOwnerVerified(String query, List<Candidate> candidates,
+            Set<String> retiredIds, Set<String> confirmedRetiredParentIds,
+            int maxResults, long now, boolean requireMatchingNegation) {
         if (maxResults <= 0 || candidates == null || candidates.isEmpty()
                 || retiredIds == null || retiredIds.size() > MAX_CANDIDATES
                 || confirmedRetiredParentIds == null
@@ -3023,6 +3034,7 @@ public final class CelineFutureMemoryRecall {
         }
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
+        boolean queryNegated = requireMatchingNegation && hasExplicitNegation(query);
         // Build the correction lineage from ALL supplied records, including expired
         // or private successors. A successor's expiry must not make an obsolete
         // ancestor eligible again. The owning G1 store must retain lineage data;
@@ -3055,6 +3067,7 @@ public final class CelineFutureMemoryRecall {
         for (Candidate c : live) {
             if (replaced.contains(c.id) || unresolvedLineage.contains(c.id) || !c.authorizedForProvider || !c.userExplicit
                     || c.privacy != Privacy.LOCAL_PRIVATE) continue;
+            if (requireMatchingNegation && queryNegated != hasExplicitNegation(c.summary)) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
             // Do not return a coincidental one-word hit for a multi-topic query.
@@ -3111,7 +3124,7 @@ public final class CelineFutureMemoryRecall {
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
         List<Match> matches = retrieveAssumingOwnerVerified(correctionText, candidates,
-                retiredIds, confirmedRetiredParentIds, 8, now);
+                retiredIds, confirmedRetiredParentIds, 8, now, false);
         if (matches.isEmpty()) return "";
         Match best = matches.get(0);
         if (best.sharedTerms < 2 || best.sharedTerms * 2 < query.size()) return "";
@@ -3297,6 +3310,19 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
+    }
+
+    // The German stopword list removes "nicht". That is appropriate for broad
+    // matching, but would make opposite-polarity source facts indistinguishable
+    // during provider recall. Match only standalone negative markers; e.g.
+    // "nichtblau" is one different lexical word, not the marker "nicht".
+    private static final java.util.regex.Pattern GERMAN_NEGATION_CUE =
+            java.util.regex.Pattern.compile(
+                    "(?<![\\p{L}\\p{N}])(?:nicht|kein|keine|keinen|keinem|keiner|keines|nie|niemals|ohne)(?![\\p{L}\\p{N}])");
+
+    private static boolean hasExplicitNegation(String sourceText) {
+        return sourceText != null && GERMAN_NEGATION_CUE.matcher(
+                sourceText.toLowerCase(Locale.GERMANY)).find();
     }
 
     // The German lexical tokenizer discards emoji/pictographs entirely. They

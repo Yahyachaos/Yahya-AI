@@ -9,6 +9,55 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# Future-only lexical polarity: the recall index must not equate a negated
+# German fact with an affirmative one merely by discarding stopword "nicht".
+# Correction-ID suggestions must retain their separate explicit-ID fallback.
+if '--focused-negation-recall' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class FutureNegationRecallContract {
+  static int checks=0;
+  static void eq(String got,String expected,String label){
+    if(!Objects.equals(got,expected))throw new AssertionError(label+" expected="+expected+" got="+got);
+    checks++;
+  }
+  static String top(String q,List<CelineFutureMemoryRecall.Candidate> list){
+    var matches=CelineFutureMemoryRecall.retrieve(q,list,8,200);
+    return matches.isEmpty()?"":matches.get(0).candidate.id;
+  }
+  static CelineFutureMemoryRecall.Candidate c(String id,String summary){
+    return new CelineFutureMemoryRecall.Candidate(id,summary,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.8);
+  }
+  public static void main(String[] args){
+    var positive=List.of(c("affirmative","Mein Auto Golf ist blau"));
+    var negative=List.of(c("negated","Mein Auto Golf ist nicht blau"));
+    eq(top("Mein Auto Golf ist nicht blau",positive),"","negated query must not recall affirmative fact");
+    eq(top("Mein Auto Golf ist blau",negative),"","affirmative query must not recall negated fact");
+    eq(top("Mein Auto Golf ist blau",positive),"affirmative","positive recall unaffected");
+    eq(top("Mein Auto Golf ist nicht blau",negative),"negated","negative recall unaffected");
+    eq(top("Mein Auto Golf ist kein Cabrio",positive),"","kein changes fact semantics");
+    eq(top("Mein Auto Golf ist ohne Dach",positive),"","ohne changes fact semantics");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("Mein Auto Golf ist nicht blau",positive,200),
+      "affirmative","correction request may identify the old positive memory");
+    eq(top("Mein Auto Golf ist nichtblau",positive),"affirmative",
+      "compound nichtblau is not negation marker");
+    System.out.println("FUTURE_NEGATED_RECALL_CONTRACT_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_negation_') as compiled:
+        java_file=Path(compiled) / 'FutureNegationRecallContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],
+                             capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stderr
+        test=subprocess.run(['java','-cp',compiled,'de.yahya.ai.FutureNegationRecallContract'],
+                            capture_output=True,text=True,timeout=45)
+        assert test.returncode==0,test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY: focused genuine Java regression for unrepresented semantic emoji
 # in a correction request. Retrieval intentionally remains unchanged.
 if '--focused-semantic-emoji-correction' in sys.argv:
@@ -3823,6 +3872,20 @@ public final class FutureMemoryRecallContract {
         eq(top("Wie heißt meine Katze?",data),"cat","name normalization");
         eq(top("Damu Markt Getränke",data),"work","plural alias with store anchor");
         eq(top("Wo bekommt man Getränke?",data),"","abstain on insufficient anchor");
+        // Future-only: negation is semantic evidence, not a removable stopword
+        // for provider recall. Correction targeting is a different, safe ID hint.
+        var affirmativeFact=Arrays.asList(c("affirmative-golf","Mein Auto Golf ist blau"));
+        var negativeFact=Arrays.asList(c("negative-golf","Mein Auto Golf ist nicht blau"));
+        eq(top("Mein Auto Golf ist nicht blau",affirmativeFact),"","negated query must not recall affirmative fact");
+        eq(top("Mein Auto Golf ist blau",negativeFact),"","affirmative query must not recall negated fact");
+        eq(top("Mein Auto Golf ist blau",affirmativeFact),"affirmative-golf","affirmative fact still recalled");
+        eq(top("Mein Auto Golf ist nicht blau",negativeFact),"negative-golf","negated fact still recalled");
+        eq(top("Mein Auto Golf ist kein Cabrio",affirmativeFact),"","kein negation must not recall affirmative");
+        eq(top("Mein Auto Golf ist ohne Dach",affirmativeFact),"","ohne negation must not recall affirmative");
+        eq(Fixture.correct("Mein Auto Golf ist nicht blau",affirmativeFact,NOW),
+            "affirmative-golf","correction ID fallback preserves the old fact target");
+        eq(top("Mein Auto Golf ist nichtblau",affirmativeFact),"affirmative-golf",
+            "compound nichtblau is not a lexical negation cue");
         eq(top("Darf ich erfahren was du über mich weißt?",data),"","no irrelevant query hits");
         eq(top("",data),"","empty query");
         eq(top("  und   der    zum",data),"","stopword-only query");
