@@ -3067,6 +3067,10 @@ public final class CelineFutureMemoryRecall {
         for (Candidate c : live) {
             if (replaced.contains(c.id) || unresolvedLineage.contains(c.id) || !c.authorizedForProvider || !c.userExplicit
                     || c.privacy != Privacy.LOCAL_PRIVATE) continue;
+            // A partially redacted G1 projection is incomplete evidence even
+            // when its surviving words match. Do not rank it for provider recall;
+            // its ID still participates in lineage/supersession quarantine.
+            if (isExplicitRedactionMarker(c.summary)) continue;
             if (requireMatchingNegation && queryNegated != hasExplicitNegation(c.summary)) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);

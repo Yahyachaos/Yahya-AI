@@ -9,6 +9,40 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: a partially redacted stored G1 fact is not complete lexical
+# evidence for a provider answer. Its ID remains part of supersession lineage.
+# This is narrower than the separate correction-request redaction guard.
+if '--focused-redacted-candidate-recall' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class FutureRedactedCandidateContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String id,String summary){return new CelineFutureMemoryRecall.Candidate(id,summary,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,10,0,0.9);}
+  static String top(String q, CelineFutureMemoryRecall.Candidate... records){var list=CelineFutureMemoryRecall.retrieve(q,Arrays.asList(records),5,100);return list.isEmpty()?"":list.get(0).candidate.id;}
+  static void eq(String got, String expected,String msg){if(!Objects.equals(got,expected))throw new AssertionError(msg+" expected="+expected+" got="+got);checks++;}
+  public static void main(String[] a){
+    eq(top("Meine Katze Luna",c("redacted-cat","Meine Katze [REDACTED: name] Luna")),"","annotated redacted candidate must not prove complete fact");
+    eq(top("Meine Katze Luna",c("hidden-cat","Meine Katze <masked: name> Luna")),"","angle redacted candidate must not prove complete fact");
+    eq(top("Meine Katze Luna",c("redacted-cat","Meine Katze [REDACTED: name] Luna"),c("intact-cat","Meine Katze Luna")),"intact-cat","intact unaffected by rival redaction");
+    eq(top("Meine Katze Luna",c("bracket-note","Meine Katze [Notiz] Luna")),"bracket-note","normal note not treated as redaction");
+    eq(top("Meine Katze Luna",c("plain","Meine Katze Luna")),"plain","plain unaffected");
+    eq(top("Meine Katze Luna",c("expired-redacted","Meine Katze [REDACTED] Luna"),c("good","Meine Katze Luna")),"good","safe valid candidate still ranks");
+    System.out.println("FUTURE_REDACTED_CANDIDATE_JAVA_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_redacted_candidate_') as compiled:
+        java_file=Path(compiled) / 'FutureRedactedCandidateContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],
+                             capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stderr
+        test=subprocess.run(['java','-cp',compiled,'de.yahya.ai.FutureRedactedCandidateContract'],
+                            capture_output=True,text=True,timeout=45)
+        assert test.returncode==0,test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # Future-only lexical polarity: the recall index must not equate a negated
 # German fact with an affirmative one merely by discarding stopword "nicht".
 # Correction-ID suggestions must retain their separate explicit-ID fallback.
