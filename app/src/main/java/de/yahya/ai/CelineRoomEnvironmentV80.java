@@ -396,6 +396,11 @@ final class CelineRoomEnvironmentV80 {
                 } catch (Throwable floorError) {
                     Celine3DDiagnostics.error(context, "ROOM-145",
                             "Holzboden-Bindung FEHLER; Original-Boden unveraendert", floorError);
+                    // Floor material is part of the S25 Room visual contract, not
+                    // an optional decoration. A failed bind must never reach
+                    // ROOM-S25-READY-13 / roomBuilt=true as a false-green room.
+                    throw new IllegalStateException(
+                            "S25 floor material bind failed before Room READY", floorError);
                 }
                 // S25 scene is the shell plus thirteen user-authored furniture GLBs:
                 // reject reference-photo artwork, extra laptop and candle geometry.
