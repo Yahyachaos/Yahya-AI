@@ -3426,6 +3426,13 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}.,])([+-]?[0-9]+(?:\\.[0-9]+)?)\\s*(km/h|m/s|°c|°f|[\\p{L}]+|€|\\$|%)");
 
+    // Currency signs may precede the amount ("€5", "$ 5") instead of
+    // following it ("5 €"). They must not vanish from numeric evidence:
+    // two identically written amounts in different currencies are different.
+    private static final java.util.regex.Pattern PREFIX_CURRENCY_VALUE =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([€$])\\s*([+-]?[0-9]+(?:\\.[0-9]+)?)(?![\\p{L}\\p{N}])");
+
     // A named temperature scale following "Grad" belongs to the numeric fact.
     // The generic measurement parser sees only "5 Grad" and otherwise treats
     // "Celsius"/"Fahrenheit" as unbound topic words, allowing false recall.
@@ -3481,6 +3488,14 @@ public final class CelineFutureMemoryRecall {
             String unit = canonicalMeasurementUnit(match.group(2));
             if (unit.isEmpty()) continue;
             units.add(match.group(1) + ":" + unit);
+            if (units.size() > MAX_QUERY_TOKENS) return null;
+        }
+        // Prefix currency is the same explicit amount/unit contract as a
+        // recognized suffix; unknown or adjacent model text is not inferred.
+        java.util.regex.Matcher prefixCurrency = PREFIX_CURRENCY_VALUE.matcher(normalized);
+        while (prefixCurrency.find()) {
+            units.add(prefixCurrency.group(2) + ":"
+                    + canonicalMeasurementUnit(prefixCurrency.group(1)));
             if (units.size() > MAX_QUERY_TOKENS) return null;
         }
         // The generic matcher captures "5 Grad" but not the trailing named
