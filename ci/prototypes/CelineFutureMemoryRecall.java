@@ -1340,13 +1340,41 @@ public final class CelineFutureMemoryRecall {
                 || pinnedOwner == null || pinnedRoot == null
                 || pinnedOperator == null || pinnedCustodian == null)
             return ReceiptStatusOutcome.NO_AUTHORITY;
-        if (originalOwnerSignature == null
-                || originalOwnerClaimPayload(claimId, exactId, sourceRevision).length == 0
-                || freshQueryNonce == null
+        byte[] originalClaim = originalOwnerClaimPayload(claimId, exactId, sourceRevision);
+        if (originalOwnerSignature == null || originalOwnerSignature.length != 64
+                || originalClaim.length == 0 || freshQueryNonce == null
                 || !freshQueryNonce.matches("[A-Za-z0-9_-]{16,128}")
                 || previouslyTrustedFloorEpoch <= 0
                 || previouslyTrustedClaimSequence < 0)
             return ReceiptStatusOutcome.UNVERIFIABLE;
+        // Never dispatch an owner claim or signature to a remote callback until
+        // the ORIGINAL consent and all FIVE separately enrolled identities
+        // have been validated. The later response verifier cannot undo an
+        // earlier privacy leak / unauthenticated external read-only query.
+        // This preflight does NOT establish independent, nonrollbackable custody.
+        try {
+            java.security.KeyFactory factory = java.security.KeyFactory.getInstance("Ed25519");
+            byte[][] pins = {pinnedOwner, pinnedRoot, pinnedOperator,
+                    pinnedCustodian, pinnedIndependentFloor};
+            java.security.PublicKey[] keys = new java.security.PublicKey[pins.length];
+            for (int i = 0; i < pins.length; i++) {
+                keys[i] = factory.generatePublic(
+                        new java.security.spec.X509EncodedKeySpec(pins[i].clone()));
+                if (!java.util.Arrays.equals(keys[i].getEncoded(), pins[i]))
+                    return ReceiptStatusOutcome.NO_AUTHORITY;
+                for (int j = 0; j < i; j++) {
+                    if (java.util.Arrays.equals(pins[i], pins[j]))
+                        return ReceiptStatusOutcome.NO_AUTHORITY;
+                }
+            }
+            java.security.Signature verifier = java.security.Signature.getInstance("Ed25519");
+            verifier.initVerify(keys[0]);
+            verifier.update(originalClaim);
+            if (!verifier.verify(originalOwnerSignature))
+                return ReceiptStatusOutcome.UNVERIFIABLE;
+        } catch (GeneralSecurityException | RuntimeException invalid) {
+            return ReceiptStatusOutcome.NO_AUTHORITY;
+        }
         final SignedExternalClaimFloor authoritativeResponse;
         try {
             authoritativeResponse = readOnlyFloor.queryExisting(claimId, exactId,
