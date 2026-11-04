@@ -433,6 +433,25 @@ public final class PrefixCurrencyContract {
    correct("Mein Budget heute ist €5", "Mein Budget heute ist $5",false,"correction euro vs dollar");
    correct("Mein Budget heute ist €5", "Mein Budget heute ist 5 Euro",true,"correction equivalent currency");
    test("Mein Budget heute ist 5 Euro", "Mein Budget heute ist 5 Euro",true,"prior euro suffix");
+   // Named ISO prefix currency must retain inequality and currency, too.
+   test("Mein Budget beträgt mindestens EUR 500", "Mein Budget beträgt höchstens EUR 500",false,"EUR lower vs upper");
+   correct("Mein Budget beträgt mindestens EUR 500", "Mein Budget beträgt höchstens EUR 500",false,"EUR lower vs upper correction");
+   test("Mein Budget beträgt mindestens EUR 500", "Mein Budget beträgt wenigstens EUR 500",true,"EUR GE aliases");
+   correct("Mein Budget beträgt mindestens EUR 500", "Mein Budget beträgt wenigstens EUR 500",true,"EUR GE aliases correction");
+   test("Mein Budget beträgt maximal USD 500", "Mein Budget beträgt mindestens USD 500",false,"USD LE vs GE");
+   correct("Mein Budget beträgt maximal USD 500", "Mein Budget beträgt mindestens USD 500",false,"USD LE vs GE correction");
+   test("Mein Budget beträgt exakt EUR 500", "Mein Budget beträgt mindestens EUR 500",false,"EUR EQ vs GE");
+   correct("Mein Budget beträgt exakt EUR 500", "Mein Budget beträgt mindestens EUR 500",false,"EUR EQ vs GE correction");
+   test("Mein Budget beträgt mindestens EUR 500", "Mein Budget beträgt mindestens USD 500",false,"EUR vs USD code");
+   correct("Mein Budget beträgt mindestens EUR 500", "Mein Budget beträgt mindestens USD 500",false,"EUR vs USD code correction");
+   test("Mein Budget beträgt mindestens €500", "Mein Budget beträgt mindestens EUR 500",true,"EUR sign vs code");
+   correct("Mein Budget beträgt mindestens €500", "Mein Budget beträgt mindestens EUR 500",true,"EUR sign vs code correction");
+   test("Mein Budget beträgt mindestens 500 EUR", "Mein Budget beträgt mindestens EUR 500",true,"EUR suffix vs prefix");
+   correct("Mein Budget beträgt mindestens 500 EUR", "Mein Budget beträgt mindestens EUR 500",true,"EUR suffix vs prefix correction");
+   test("Mein Budget beträgt weniger als EUR 500", "Mein Budget beträgt über EUR 500",false,"EUR LT vs GT");
+   correct("Mein Budget beträgt weniger als EUR 500", "Mein Budget beträgt über EUR 500",false,"EUR LT vs GT correction");
+   test("Mein Budget beträgt mindestens Dollar 500", "Mein Budget beträgt mindestens Euro 500",false,"named dollar vs euro");
+   correct("Mein Budget beträgt mindestens Dollar 500", "Mein Budget beträgt mindestens Euro 500",false,"named dollar vs euro correction");
    System.out.println("PREFIX_CURRENCY_CONTRACT_PASS cases="+n);
   }
 }
