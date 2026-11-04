@@ -3445,6 +3445,12 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}])(mindestens|höchstens|mehr\\s+als|weniger\\s+als)\\s+([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
+    // Symbolic comparisons carry the same inclusive/exclusive distinction.
+    // Normalize >= and ≥ (or <= and ≤) to one bound family, not to equality.
+    private static final java.util.regex.Pattern SYMBOLIC_QUANTITY_BOUND =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+
     private static Set<String> explicitQuantityBounds(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
@@ -3459,6 +3465,15 @@ public final class CelineFutureMemoryRecall {
                     : family.equals("höchstens") ? "LE"
                     : family.equals("mehr als") ? "GT" : "LT";
             bounds.add(op + ":" + match.group(2).replace(',', '.'));
+            if (bounds.size() > MAX_QUERY_TOKENS) return null;
+        }
+        java.util.regex.Matcher symbolic = SYMBOLIC_QUANTITY_BOUND.matcher(normalized);
+        while (symbolic.find()) {
+            String relation = symbolic.group(1);
+            String op = relation.equals(">=") || relation.equals("≥") ? "GE"
+                    : relation.equals("<=") || relation.equals("≤") ? "LE"
+                    : relation.equals(">") ? "GT" : "LT";
+            bounds.add(op + ":" + symbolic.group(2).replace(',', '.'));
             if (bounds.size() > MAX_QUERY_TOKENS) return null;
         }
         return bounds;
