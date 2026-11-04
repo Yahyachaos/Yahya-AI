@@ -1109,9 +1109,86 @@ async function probeEmptyMobileViewport(label,channel){
     const bytes=await page.screenshot({timeout:3000,scale:'css'});
     const dimensions=[bytes.readUInt32BE(16),bytes.readUInt32BE(20)];
     assert.deepEqual(dimensions,[412,915],'Diagnostic blank viewport must be exactly 412x915');
+    // V153 negative control: independent HTML/2D canvas with one genuine Chrome
+    // touchscreen tap and the SAME gpu/cc/flow tracing as the real 13-GLB tap.
+    // It is never counted as a room proof, never changes the strict 5s gate,
+    // and has no connection to the immutable S25 JSON, GLBs or app runtime.
+    const controlLabel=label.replace(/[^a-z0-9-]/gi,'-');
+    const controlFile='mobile-real-2d-touch-control-'+controlLabel+'.json';
+    let twoDControl={verdict:'DIAGNOSTIC_ONLY_NOT_PRODUCT_PASS',label,
+      input_kind:'real Playwright touch on independent HTML/2D canvas',
+      original_scene:'NOT_LOADED_IN_THIS_CONTROL',visual_acceptance:'NOT_GRANTED',
+      strict_original_5000ms_gate:'UNCHANGED'};
+    let controlCdp=null,controlTrace=null;
+    try{
+      await page.evaluate(()=>{
+        const canvas=document.createElement('canvas');
+        canvas.width=100;canvas.height=100;
+        canvas.style.cssText='position:fixed;top:70px;left:15px;width:100px;height:100px';
+        const ctx=canvas.getContext('2d');
+        if(!ctx)throw new Error('2D canvas context unavailable');
+        document.body.appendChild(canvas);
+        const button=document.createElement('button');
+        button.id='celine-2d-control-button';button.textContent='2D touch control';
+        button.style.cssText='position:fixed;left:235px;top:180px;width:154px;height:58px;z-index:99';
+        document.body.appendChild(button);
+        const d={events:[],raf_count:0,max_raf_gap_ms:0,frames_start_epoch_ms:Date.now()};
+        for(const name of ['pointerdown','touchstart','click']){
+          button.addEventListener(name,e=>{
+            d.events.push({type:name,epoch_ms:performance.timeOrigin+performance.now(),
+              trusted:e.isTrusted,pointer_type:e.pointerType||null});
+          },{capture:true});
+        }
+        let lastFrame=null,stopped=false,frameId=0;
+        const frame=now=>{
+          if(stopped)return;
+          if(lastFrame!==null)d.max_raf_gap_ms=Math.max(d.max_raf_gap_ms,now-lastFrame);
+          lastFrame=now;d.raf_count++;
+          ctx.clearRect(0,0,100,100);ctx.fillStyle='rgb(30,60,100)';
+          ctx.fillRect(d.raf_count%85,5,15,15);
+          frameId=requestAnimationFrame(frame);
+        };
+        frameId=requestAnimationFrame(frame);
+        window.__celine2dControlStop=()=>{
+          stopped=true;cancelAnimationFrame(frameId);
+          d.frames_end_epoch_ms=Date.now();
+          d.target_rect=(()=>{const r=button.getBoundingClientRect();
+            return {x:r.x,y:r.y,width:r.width,height:r.height};})();
+          d.hit_target_at_center=(()=>{const r=button.getBoundingClientRect();
+            return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.id||null;})();
+          d.scroll_y=scrollY;return d;
+        };
+      });
+      controlCdp=await context.newCDPSession(page);
+      controlTrace=await beginFocusedSchedulingTrace(controlCdp,
+        'pure-2d-'+controlLabel,'toplevel,latency,cc,blink.user_timing,gpu,toplevel.flow');
+      const tapStarted=Date.now();let tapError=null;
+      try{await page.locator('#celine-2d-control-button').tap({timeout:12000});}
+      catch(error){tapError=String(error.stack||error);}
+      const tapFinished=Date.now();
+      const browserData=await page.evaluate(()=>window.__celine2dControlStop())
+        .catch(error=>({read_error:String(error)}));
+      twoDControl={...twoDControl,tap_start_epoch_ms:tapStarted,
+        tap_finish_epoch_ms:tapFinished,tap_elapsed_ms:tapFinished-tapStarted,
+        tap_error:tapError,real_browser_2d:browserData,
+        first_trusted_pointerdown_after_start_ms:browserData.events?.find(e=>
+          e.type==='pointerdown'&&e.trusted)?.epoch_ms-tapStarted??null,
+        caveat:'Separate no-WebGL Chrome page is a negative control, not proof of a kernel fence, driver wait or physical S25 behavior.'};
+    }catch(error){twoDControl.control_error=String(error.stack||error);}
+    finally{
+      if(controlTrace)try{twoDControl.trace=await finishFocusedSchedulingTrace(controlTrace);}
+        catch(error){twoDControl.trace_error=String(error);}
+      if(controlCdp)await controlCdp.detach().catch(error=>{
+        twoDControl.detach_error=String(error);
+      });
+      fs.writeFileSync(path.join(out,controlFile),JSON.stringify(twoDControl,null,2));
+    }
     return {label,verdict:'PASS_BLANK_DIAGNOSTIC_ONLY',
       browser_version:browser.version(),elapsed_ms:Date.now()-started,
-      sha256:crypto.createHash('sha256').update(bytes).digest('hex'),pixels:dimensions};
+      sha256:crypto.createHash('sha256').update(bytes).digest('hex'),pixels:dimensions,
+      two_d_control_file:controlFile,
+      two_d_touch_elapsed_ms:twoDControl.tap_elapsed_ms??null,
+      two_d_pointerdown_ms:twoDControl.first_trusted_pointerdown_after_start_ms??null};
   } catch(err) {
     return {label,verdict:'FAIL_BLANK_DIAGNOSTIC_ONLY',
       elapsed_ms:Date.now()-started,error:String(err.stack||err)};
