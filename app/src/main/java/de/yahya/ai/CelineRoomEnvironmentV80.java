@@ -286,6 +286,11 @@ final class CelineRoomEnvironmentV80 {
         // Do not lock a multi-second native ResourceLoader transaction from onDraw.
         // Publish true only after the entire Room (including lights/materials) is ready.
         private volatile boolean roomBuilt;
+        // Exact post-build Filament world matrices, never a replacement for the
+        // pinned S25 JSON. A cached READY must retain all 13 original transforms
+        // as well as Scene membership after HOME/CALL reactivation.
+        private final Map<Integer, float[]> builtS25RootWorlds = new LinkedHashMap<>();
+        private final Map<Integer, float[]> builtS25MeshWorlds = new LinkedHashMap<>();
 
         State(Context context, Celine3DView view) throws Exception {
             this.context = context;
@@ -301,8 +306,80 @@ final class CelineRoomEnvironmentV80 {
             return roomBuilt;
         }
 
+        // Called ONLY on the Filament owner by ensureBuilt(). Scene membership
+        // alone cannot detect a relocated or rescaled yet still attached GLB.
+        // On cached activation compare every root and descendant mesh against
+        // the exact matrices verified during the original canonical import.
+        // Fail closed; do not rewrite a user's transform to silence the error.
+        private void verifyCachedS25WorldMatrices() {
+            if (builtS25RootWorlds.size() != S25_IDS.length
+                    || builtS25MeshWorlds.size() < S25_IDS.length) {
+                throw new IllegalStateException("Incomplete S25 cached 13/13 matrix snapshot");
+            }
+            RenderableManager renderables = engine.getRenderableManager();
+            float maxRootDelta = 0f;
+            float maxMeshDelta = 0f;
+            for (Map.Entry<Integer, float[]> entry : builtS25RootWorlds.entrySet()) {
+                int instance = transforms.getInstance(entry.getKey());
+                if (instance == 0) {
+                    throw new IllegalStateException("Missing cached S25 furniture root " + entry.getKey());
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                float[] expected = entry.getValue();
+                for (int i = 0; i < 16; i++) {
+                    if (!Float.isFinite(actual[i]) || !Float.isFinite(expected[i])) {
+                        throw new IllegalStateException("Nonfinite cached S25 furniture root");
+                    }
+                    maxRootDelta = Math.max(maxRootDelta, Math.abs(actual[i] - expected[i]));
+                }
+            }
+            for (Map.Entry<Integer, float[]> entry : builtS25MeshWorlds.entrySet()) {
+                int entity = entry.getKey();
+                int instance = transforms.getInstance(entity);
+                if (instance == 0 || !scene.hasEntity(entity)
+                        || !renderables.hasComponent(entity)) {
+                    throw new IllegalStateException("Missing cached S25 furniture mesh " + entity);
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                float[] expected = entry.getValue();
+                for (int i = 0; i < 16; i++) {
+                    if (!Float.isFinite(actual[i]) || !Float.isFinite(expected[i])) {
+                        throw new IllegalStateException("Nonfinite cached S25 furniture mesh");
+                    }
+                    maxMeshDelta = Math.max(maxMeshDelta, Math.abs(actual[i] - expected[i]));
+                }
+            }
+            if (maxRootDelta > 0.0001f || maxMeshDelta > 0.0001f) {
+                throw new IllegalStateException("Cached S25 furniture matrix drift; root="
+                        + maxRootDelta + " mesh=" + maxMeshDelta);
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-CACHED-13",
+                    "Reactivated 13 source GLB furniture transforms verified",
+                    "rootCount=" + builtS25RootWorlds.size()
+                            + " meshCount=" + builtS25MeshWorlds.size()
+                            + " maxRootDelta=" + maxRootDelta
+                            + " maxMeshDelta=" + maxMeshDelta
+                            + " visual=UNVERIFIED G2.3=PAUSED");
+        }
+
         synchronized boolean ensureBuilt() {
-            if (isBuilt()) return true;
+            if (isBuilt()) {
+                try {
+                    verifyCachedS25WorldMatrices();
+                    return true;
+                } catch (Throwable cachedError) {
+                    Celine3DDiagnostics.error(context, "ROOM-199",
+                            "S25 cached furniture changed after original import; Canvas fallback",
+                            cachedError);
+                    try { destroyRoom(); }
+                    catch (Throwable cleanupError) {
+                        roomBuilt = false;
+                        Celine3DDiagnostics.error(context, "ROOM-198",
+                                "S25 cached room cleanup after transform drift failed", cleanupError);
+                    }
+                    return false;
+                }
+            }
             ArrayList<FilamentAsset> candidates = new ArrayList<>();
             try {
                 CelineRoomWorldContractV80 contract = CelineRoomWorldContractV80.load(context);
@@ -434,6 +511,16 @@ final class CelineRoomEnvironmentV80 {
                 // This checks numerical runtime state, never Android raster appearance.
                 recordReadyS25WorldMatrices(expectedS25RootIds,
                         expectedS25Roots, expectedS25Meshes, expectedS25MeshIds);
+                // Publish immutable copies only after full attached-scene 13/13
+                // measurement; these are used to detect later transform drift.
+                builtS25RootWorlds.clear();
+                for (Map.Entry<Integer, float[]> entry : expectedS25Roots.entrySet()) {
+                    builtS25RootWorlds.put(entry.getKey(), entry.getValue().clone());
+                }
+                builtS25MeshWorlds.clear();
+                for (Map.Entry<Integer, float[]> entry : expectedS25Meshes.entrySet()) {
+                    builtS25MeshWorlds.put(entry.getKey(), entry.getValue().clone());
+                }
                 failureLogged = false;
                 roomBuilt = true;
                 // Emit whole-scene 13/13 evidence only after scene attachment and
@@ -1432,6 +1519,8 @@ final class CelineRoomEnvironmentV80 {
             int floorFillLight = warmFloorFillLightEntity;
             int lampLight = floorLampLightEntity;
             roomAssets.clear();
+            builtS25RootWorlds.clear();
+            builtS25MeshWorlds.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
