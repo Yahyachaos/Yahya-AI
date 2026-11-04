@@ -3426,6 +3426,14 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}.,])([+-]?[0-9]+(?:\\.[0-9]+)?)\\s*(km/h|m/s|°c|°f|[\\p{L}]+|€|\\$|%)");
 
+    // A named temperature scale following "Grad" belongs to the numeric fact.
+    // The generic measurement parser sees only "5 Grad" and otherwise treats
+    // "Celsius"/"Fahrenheit" as unbound topic words, allowing false recall.
+    // Add an explicit scale anchor without claiming unit conversions.
+    private static final java.util.regex.Pattern NAMED_TEMPERATURE_SCALE =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}.,])([+-]?[0-9]+(?:\\.[0-9]+)?)\\s+grad\\s+(celsius|fahrenheit)(?![\\p{L}])");
+
     private static String canonicalMeasurementUnit(String unit) {
         switch (unit) {
             case "l": case "liter": case "litern": return "liter";
@@ -3472,6 +3480,13 @@ public final class CelineFutureMemoryRecall {
             String unit = canonicalMeasurementUnit(match.group(2));
             if (unit.isEmpty()) continue;
             units.add(match.group(1) + ":" + unit);
+            if (units.size() > MAX_QUERY_TOKENS) return null;
+        }
+        // The generic matcher captures "5 Grad" but not the trailing named
+        // Celsius/Fahrenheit scale. Require both when the scale is explicit.
+        java.util.regex.Matcher namedScale = NAMED_TEMPERATURE_SCALE.matcher(normalized);
+        while (namedScale.find()) {
+            units.add(namedScale.group(1) + ":" + canonicalMeasurementUnit(namedScale.group(2)));
             if (units.size() > MAX_QUERY_TOKENS) return null;
         }
         return units;
