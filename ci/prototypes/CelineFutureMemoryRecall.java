@@ -3432,7 +3432,7 @@ public final class CelineFutureMemoryRecall {
     // Add an explicit scale anchor without claiming unit conversions.
     private static final java.util.regex.Pattern NAMED_TEMPERATURE_SCALE =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}.,])([+-]?[0-9]+(?:\\.[0-9]+)?)\\s+grad\\s+(celsius|fahrenheit)(?![\\p{L}])");
+                "(?<![\\p{L}\\p{N}.,])([+-]?[0-9]+(?:\\.[0-9]+)?)\\s+grad\\s+(celsius|fahrenheit|kelvin)(?![\\p{L}])");
 
     private static String canonicalMeasurementUnit(String unit) {
         switch (unit) {
@@ -3462,6 +3462,7 @@ public final class CelineFutureMemoryRecall {
             case "grad": return "grad";
             case "°c": case "celsius": return "celsius";
             case "°f": case "fahrenheit": return "fahrenheit";
+            case "k": case "kelvin": return "kelvin";
             case "prozent": case "%": return "prozent";
             default: return "";
         }
