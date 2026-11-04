@@ -1950,25 +1950,36 @@ async function main(){
     const redoFocus=redoSession?await beginFocusedSchedulingTrace(redoSession,'aa4-redo'):null;
     if(redoFocus)await page.evaluate(()=>
       performance.mark('CELINE_E2E_AA4_REDO_BEFORE')).catch(()=>{});
+    // Measure only the genuine Playwright tap; trace finalization belongs to
+    // diagnostic overhead and must never push a sub-5s tap beyond the strict gate.
     const redoStarted=Date.now();
+    let redoElapsed=NaN;
+    let redoTraceCleanupMs=0;
     try{
       await observeRealTap(page.locator('#mobile-redo'),"page.locator('#mobile-redo')");
     }finally{
-      if(redoFocus) {
-        await page.evaluate(()=>
-          performance.mark('CELINE_E2E_AA4_REDO_AFTER')).catch(()=>{});
-        await finishFocusedSchedulingTrace(redoFocus);
-        await redoSession.detach().catch(()=>{});
+      // Freeze elapsed time immediately on tap settlement, including failures.
+      redoElapsed=Date.now()-redoStarted;
+      const redoCleanupStarted=Date.now();
+      try{
+        if(redoFocus) {
+          await page.evaluate(()=>
+            performance.mark('CELINE_E2E_AA4_REDO_AFTER')).catch(()=>{});
+          await finishFocusedSchedulingTrace(redoFocus);
+          await redoSession.detach().catch(()=>{});
+        }
+      }finally{
+        redoTraceCleanupMs=Date.now()-redoCleanupStarted;
       }
     }
     const redoTouch=await page.evaluate(()=>window.__celineRedoTouchEvidence);
     const redoPageCompleted=await page.evaluate(()=>performance.now());
     assert(redoTouch.touchstart>=1&&redoTouch.pointerdown>=1&&redoTouch.click>=1,
       'mobile redo must receive genuine touch/pointer/click events');
-    const redoElapsed=Date.now()-redoStarted;
     const afterRedoRendering=await page.evaluate(()=>window.__celineRoomEditorE2E.mobileRenderStats());
     const redoDiagnostic={name:'GENUINE_MOBILE_REDO_TOUCH_TIMING_DIAGNOSTIC',
-      elapsed_ms:redoElapsed,page_elapsed_ms:redoPageCompleted-redoPageStarted,
+      elapsed_ms:redoElapsed,trace_cleanup_ms:redoTraceCleanupMs,
+      page_elapsed_ms:redoPageCompleted-redoPageStarted,
       page_start_ms:redoPageStarted,page_end_ms:redoPageCompleted,redoTouch,
       render_before:beforeRedoRendering,render_after:afterRedoRendering};
     record.push(redoDiagnostic);
