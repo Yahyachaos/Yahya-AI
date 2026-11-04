@@ -132,6 +132,54 @@ public final class SignedNumericRegression {
         print(test.stdout.strip())
     sys.exit(0)
 
+# FUTURE-ONLY: temperature is measured in Kelvin as well as Celsius/Fahrenheit.
+# Distinguish explicit scale labels in provider-safe recall and correction-ID
+# suggestion. This verifies only the Java policy, not real Android memory.
+if '--focused-temperature-kelvin' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class KelvinPolicyContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String summary){return new CelineFutureMemoryRecall.Candidate("temperature",summary,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);}
+  static void check(String q,String s,boolean expected,String why){boolean got=!CelineFutureMemoryRecall.retrieve(q,List.of(c(s)),4,200).isEmpty();if(got!=expected)throw new AssertionError(why+" expected="+expected+" got="+got);++n;}
+  static void correction(String q,String s,boolean expected,String why){boolean got=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c(s)),200).isEmpty();if(got!=expected)throw new AssertionError(why+" expected="+expected+" got="+got);++n;}
+  public static void main(String[] args){
+    check("Mein Wohnzimmer hat 5 Grad Kelvin", "Mein Wohnzimmer hat 5 Grad Celsius", false,"named Kelvin must not match Celsius");
+    check("Mein Wohnzimmer hat 5 Grad Kelvin", "Mein Wohnzimmer hat 5 Grad Fahrenheit",false,"named Kelvin must not match Fahrenheit");
+    check("Mein Wohnzimmer hat 5 Grad Celsius", "Mein Wohnzimmer hat 5 Grad Kelvin",false,"Celsius must not match Kelvin");
+    check("Mein Wohnzimmer hat 5 Grad Kelvin", "Mein Wohnzimmer hat 5 Grad Kelvin",true,"same named Kelvin");
+    check("Mein Wohnzimmer hat 5 Kelvin", "Mein Wohnzimmer hat 5 Grad Celsius",false,"unit Kelvin must not match Celsius");
+    check("Mein Wohnzimmer hat 5 Kelvin", "Mein Wohnzimmer hat 5 Kelvin",true,"same standalone Kelvin");
+    check("Mein Wohnzimmer hat 5 K", "Mein Wohnzimmer hat 5 Grad Celsius",false,"Kelvin symbol must not match Celsius");
+    check("Mein Wohnzimmer hat 5 K", "Mein Wohnzimmer hat 5 Kelvin",true,"Kelvin symbol alias");
+    check("Mein Wohnzimmer hat 5 K", "Mein Wohnzimmer hat 5 kW",false,"Kelvin and kilowatt differ");
+    check("Mein Wohnzimmer hat 5 Grad Kelvin", "Mein Wohnzimmer hat 5 Grad",false,"missing explicit Kelvin scale");
+    correction("Mein Wohnzimmer hat 5 Grad Kelvin", "Mein Wohnzimmer hat 5 Grad Celsius",false,"different scale correction abstains");
+    correction("Mein Wohnzimmer hat 5 Grad Kelvin", "Mein Wohnzimmer hat 5 Grad Kelvin",true,"same scale correction allowed");
+    check("Mein Wohnzimmer hat 5 Grad Fahrenheit", "Mein Wohnzimmer hat 5 Grad Celsius",false,"prior Fahrenheit guard");
+    check("Mein Wohnzimmer hat 5 Grad Celsius", "Mein Wohnzimmer hat 5 Grad Celsius",true,"prior Celsius match");
+    check("Mein Wohnzimmer hat 5 °C", "Mein Wohnzimmer hat 5 °F",false,"prior symbol guard");
+    check("Mein Wohnzimmer hat 5 K", "Mein Wohnzimmer hat 5 K",true,"same symbol K");
+    check("Mein Wohnzimmer hat -5 K", "Mein Wohnzimmer hat +5 K",false,"signed Kelvin remains distinct");
+    check("Mein Wohnzimmer hat 1,5 Kelvin", "Mein Wohnzimmer hat 1.5 K",true,"decimal Kelvin notation alias");
+    check("Mein Wohnzimmer hat 5 K", "Mein Wohnzimmer hat 5 Monate",false,"Kelvin not month");
+    check("Mein Wohnzimmer hat 5 Grad", "Mein Wohnzimmer hat 5 Grad Kelvin",true,"broad scale-unspecified query");
+    System.out.println("KELVIN_TEMPERATURE_POLICY_PASS cases="+n);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_temp_kelvin_') as compiled:
+        java_file = Path(compiled) / 'KelvinPolicyContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+            str(source), str(java_file)], capture_output=True, text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        test = subprocess.run(['java','-cp',compiled,
+            'de.yahya.ai.KelvinPolicyContract'], capture_output=True, text=True, timeout=45)
+        assert test.returncode == 0, test.stdout + test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY: degree scale words are part of a numeric claim.
 # An explicit "5 Grad Celsius" must not retrieve "5 Grad Fahrenheit".
 # Only policy/projection tests; no app or Android integration.
