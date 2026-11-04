@@ -12,6 +12,62 @@ assert source.is_file(), source
 # FUTURE-ONLY: angle-bracket deletion markers must enforce the same
 # read-only recall and correction abstention as equivalent bracket markers.
 # A redacted G1 projection is incomplete evidence, even with topic overlap.
+# A numeric value in a user's question must not attach to a different fact
+# merely because other subject tokens overlap (ages, device models, years).
+# This pure Java guard is future-only, not an Android or provider proof.
+if '--focused-numeric-anchor' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public class NumericAnchorsRegression {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String id, String s){return new CelineFutureMemoryRecall.Candidate(id,s,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);}
+  static void check(String q, String s, boolean should, String label){
+    var ls=CelineFutureMemoryRecall.retrieve(q,List.of(c("fact",s)),4,200);
+    boolean found=!ls.isEmpty();
+    if (found != should)throw new AssertionError(label+": expected "+should+" got "+found);
+    ++n;
+  }
+  static void correction(String q,String s,boolean should,String label){
+    boolean found=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c("fact",s)),200).isEmpty();
+    if (found != should)throw new AssertionError(label+": expected "+should+" got "+found);
+    ++n;
+  }
+  public static void main(String[] args){
+    check("Meine Tochter ist 5 Jahre alt und heißt Lena","Meine Tochter ist 9 Jahre alt und heißt Lena",false,"one-digit age mismatch");
+    check("Meine Tochter ist 5 Jahre alt und heißt Lena","Meine Tochter ist 5 Jahre alt und heißt Lena",true,"matching age still found");
+    check("Mein Samsung S25 Ultra ist schnell","Mein Samsung S22 Ultra ist schnell",false,"model-number mismatch");
+    check("Mein Golf 6 GTI Baujahr 2011","Mein Golf 6 GTI Baujahr 2010",false,"year mismatch");
+    check("Mein Golf 6 GTI","Mein Golf 6 GTI Baujahr 2010",true,"subset number query");
+    check("Mein Golf hat 200 PS Diesel und 9 Jahre","Mein Golf hat 200 PS Diesel und 8 Jahre",false,"partially matching numbers");
+    check("Meine Tochter Lena ist wie alt","Meine Tochter Lena ist 9 Jahre alt",true,"non-numeric question still works");
+    correction("Meine Tochter ist 5 Jahre alt und heißt Lena","Meine Tochter ist 9 Jahre alt und heißt Lena",false,"wrong-age correction abstains");
+    correction("Meine Tochter ist 5 Jahre alt und heißt Lena","Meine Tochter ist 5 Jahre alt und heißt Lena",true,"same age correction still found");
+    check("Mein Golf 6 GTI Baujahr 2011","Mein Golf 6 GTI Baujahr 2011",true,"same year allowed");
+    check("Mein Golf hat 200 PS Diesel","Mein Golf hat 300 PS Diesel",false,"power mismatch");
+    check("Mein Golf hat 200 PS Diesel","Mein Golf hat Diesel Motor",false,"missing numeric claim");
+    check("Mein Verbrauch liegt bei 1,5 Liter Diesel","Mein Verbrauch liegt bei 1.5 Liter Diesel",true,"decimal punctuation equivalent");
+    check("Mein Verbrauch liegt bei 1,5 Liter Diesel","Mein Verbrauch liegt bei 1.6 Liter Diesel",false,"different decimal number");
+    check("Mein Termin war am 04.11.2026 in Herne","Mein Termin war am 04.12.2026 in Herne",false,"different date");
+    correction("Mein Samsung S25 Ultra ist schnell","Mein Samsung S22 Ultra ist schnell",false,"model correction abstains");
+    check("Mein Samsung S25 Ultra ist schnell","Mein Samsung S25 Ultra ist schnell",true,"same device remains");
+    System.out.println("NUMERIC_ANCHOR_REGRESSION_PASS cases="+n);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_numbers_') as compiled:
+        java_file = Path(compiled) / 'NumericAnchorsRegression.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(java_file)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        test = subprocess.run(['java', '-cp', compiled,
+                               'de.yahya.ai.NumericAnchorsRegression'], capture_output=True,
+                              text=True, timeout=45)
+        assert test.returncode == 0, test.stdout + test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 if '--focused-angle-deletion' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;

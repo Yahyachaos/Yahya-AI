@@ -3043,6 +3043,10 @@ public final class CelineFutureMemoryRecall {
             return Collections.emptyList();
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
+        // Numeric facts (age, year, device model, amount) must not match a
+        // different value merely because several topical words coincide.
+        // A broad question without a number may still retrieve a dated fact.
+        Set<String> requestedNumericAnchors = numericAnchors(query);
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3093,6 +3097,7 @@ public final class CelineFutureMemoryRecall {
                 if (queryNegatedPredicates.isEmpty() || candidatePredicates.isEmpty()
                         || !queryNegatedPredicates.equals(candidatePredicates)) continue;
             }
+            if (!numericAnchors(c.summary).containsAll(requestedNumericAnchors)) continue;
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
             // Do not return a coincidental one-word hit for a multi-topic query.
@@ -3332,6 +3337,25 @@ public final class CelineFutureMemoryRecall {
             if (word.length() < 3 || STOP.contains(word)) continue;
             String term = ALIASES.containsKey(word) ? ALIASES.get(word) : word;
             result.add(term);
+            if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
+        }
+        return result;
+    }
+
+    // Preserve even 1- and 2-digit numbers (and model identifiers such as S25)
+    // separately from topical terms, which deliberately discard short words.
+    // This is a conservative lexical guard, not numeric semantic equivalence.
+    private static Set<String> numericAnchors(String text) {
+        Set<String> result = new HashSet<>();
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return result;
+        String normalized = Normalizer.normalize(safe(text).toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFD).replaceAll("\\p{M}+", "")
+                .replaceAll("[^a-z0-9]+", " ").trim();
+        if (normalized.isEmpty()) return result;
+        for (String word : normalized.split("\\s+")) {
+            if (word.matches(".*[0-9].*")) result.add(word);
             if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
         }
         return result;
