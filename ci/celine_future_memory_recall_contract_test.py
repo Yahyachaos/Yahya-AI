@@ -10,6 +10,52 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
+# FUTURE-ONLY lexical currency bounds "ab/bis": no opposite-bound recall or
+# inferred correction ID. Currency must be explicit; a date or free numeral is
+# not a monetary floor/ceiling. Not a conversion or production G1 adapter.
+if '--focused-ab-bis-currency' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AbBisCurrencyContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String text) {
+    return new CelineFutureMemoryRecall.Candidate("fact",text,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String stored, boolean expected, String note) {
+    List<CelineFutureMemoryRecall.Candidate> facts=List.of(c(stored));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,facts,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,facts,200).isEmpty();
+    if(recall!=expected || correction!=expected)
+      throw new AssertionError(note+" expected="+expected+" recall="+recall+" correction="+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Mein Budget gilt ab 500 Euro", "Mein Budget gilt bis 500 Euro", false, "floor not ceiling suffix");
+    check("Mein Budget gilt bis 500 Euro", "Mein Budget gilt ab 500 Euro", false, "ceiling not floor suffix");
+    check("Mein Budget gilt ab €500", "Mein Budget gilt bis €500", false, "floor not ceiling prefix sign");
+    check("Mein Budget gilt bis $500", "Mein Budget gilt ab $500", false, "ceiling not floor prefix dollar");
+    check("Mein Budget gilt ab EUR 500", "Mein Budget gilt bis EUR 500", false, "floor not ceiling prefix code");
+    check("Mein Budget gilt bis USD 500", "Mein Budget gilt ab USD 500", false, "ceiling not floor prefix code");
+    check("Mein Budget gilt ab 1,5 Euro", "Mein Budget gilt bis 1.5 Euro", false, "decimal floor not ceiling");
+    check("Mein Budget gilt ab 500 Euro", "Mein Budget gilt ab 500 Euro", true, "same floor");
+    check("Mein Budget gilt bis €500", "Mein Budget gilt bis €500", true, "same ceiling");
+    check("Mein Budget gilt ab EUR 500", "Mein Budget gilt ab 500 Euro", true, "code versus suffix floor");
+    check("Mein Budget gilt bis $500", "Mein Budget gilt bis 500 Dollar", true, "dollar ceiling equivalent");
+    check("Mein Budget gilt ab EUR 500", "Mein Budget gilt ab USD 500", false, "currency mismatch");
+    System.out.println("AB_BIS_CURRENCY_CONTRACT_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_ab_bis_') as compiled:
+        f=Path(compiled)/'AbBisCurrencyContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stdout+build.stderr
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.AbBisCurrencyContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('ab/bis currency RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY: German umlaut transliteration must preserve numeric inequalities.
 # A query with "ueber/hoechstens" may not select the opposite bound.
 if '--focused-transliterated-quantity' in sys.argv:
