@@ -17,6 +17,11 @@ const out=process.env.ROOM_EDITOR_EVIDENCE_DIR || '/tmp/celine-room-editor-mobil
 const NATIVE_AA_FLAG=process.env.ROOM_EDITOR_NATIVE_MSAA4||'0';
 assert(['0','1'].includes(NATIVE_AA_FLAG),'Native mobile AA mode must be 0 or 1');
 const NATIVE_AA4_MODE=NATIVE_AA_FLAG==='1';
+// V150 GPU/Viz SwapBuffers wait: test-process-only VSync hypothesis.
+// Never modify editor runtime, the user source, or official touch thresholds.
+const GPU_VSYNC_PROBE=process.env.ROOM_EDITOR_GPU_VSYNC_PROBE||'default';
+assert(['default','no-vsync'].includes(GPU_VSYNC_PROBE),
+  'Only default or no-vsync GPU timing diagnostic permitted');
 fs.mkdirSync(out,{recursive:true});
 const record=[], errors=[];
 
@@ -1086,7 +1091,8 @@ async function completedMobileJsonImport(page,filename,stage) {
 // loading any GLBs. Neither control is a screenshot of the user room.
 const chromiumArgs=[
   '--enable-webgl','--use-gl=angle','--use-angle=swiftshader',
-  '--enable-unsafe-swiftshader','--disable-dev-shm-usage'
+  '--enable-unsafe-swiftshader','--disable-dev-shm-usage',
+  ...(GPU_VSYNC_PROBE==='no-vsync'?['--disable-gpu-vsync']:[])
 ];
 async function probeEmptyMobileViewport(label,channel){
   let browser;
@@ -1112,6 +1118,14 @@ async function probeEmptyMobileViewport(label,channel){
   } finally {if(browser)await browser.close();}
 }
 async function main(){
+  // One extra diagnostic variant on pinned original Chromium/13 GLBs; the
+  // ordinary genuine Playwright AA0+AA4 gate and captures stay authoritative.
+  const gpuProbe={source_sha:process.env.GITHUB_SHA||null,
+    variant:GPU_VSYNC_PROBE,chromium_args:chromiumArgs,
+    original_owner_layout_unchanged:true,visual_acceptance:'NOT_GRANTED'};
+  fs.writeFileSync(path.join(out,'mobile-gpu-vsync-variant.json'),
+    JSON.stringify(gpuProbe,null,2));
+  record.push({name:'CHROMIUM_GPU_VSYNC_DIAGNOSTIC_ONLY',...gpuProbe});
   // Pairwise single-flight control: default headless shell versus new/full
   // Chromium headless. Historic tests exercised only the former; the genuine
   // room viewport below is still a mandatory independent acceptance gate.

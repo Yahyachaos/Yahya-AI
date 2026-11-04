@@ -831,12 +831,19 @@ jobs:
           aa0_status=$?
           DEBUG=pw:api ROOM_EDITOR_NATIVE_MSAA4=1 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa4 node tools/room-layout-editor/mobile-touch-proof.cjs
           aa4_status=$?
-          printf '{"native_aa0_exit":%d,"native_aa4_exit":%d,"head_sha":"%s","visual_acceptance":"NOT_GRANTED"}\n' "$aa0_status" "$aa4_status" "$GITHUB_SHA" > /tmp/celine-room-editor-mobile-touch/native-aa-ab-execution.json
+          # V150 same-event 5.017s GPU/Viz SwapBuffers wait justifies a
+          # Chromium test-process-only VSync A/B, never an editor/runtime fix.
+          # Single job; serial AA4 baseline -> no-vsync -> baseline repeat.
+          DEBUG=pw:api ROOM_EDITOR_NATIVE_MSAA4=1 ROOM_EDITOR_GPU_VSYNC_PROBE=no-vsync ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa4-no-vsync node tools/room-layout-editor/mobile-touch-proof.cjs
+          aa4_no_vsync_status=$?
+          DEBUG=pw:api ROOM_EDITOR_NATIVE_MSAA4=1 ROOM_EDITOR_EVIDENCE_DIR=/tmp/celine-room-editor-mobile-touch/native-aa4-repeat node tools/room-layout-editor/mobile-touch-proof.cjs
+          aa4_repeat_status=$?
+          printf '{"native_aa0_exit":%d,"native_aa4_exit":%d,"native_aa4_no_vsync_exit":%d,"native_aa4_repeat_exit":%d,"head_sha":"%s","visual_acceptance":"NOT_GRANTED","gpu_variant_only":"diagnostic"}\n' "$aa0_status" "$aa4_status" "$aa4_no_vsync_status" "$aa4_repeat_status" "$GITHUB_SHA" > /tmp/celine-room-editor-mobile-touch/native-aa-ab-execution.json
           if [ "$aa0_status" -ne 0 ] || [ "$aa4_status" -ne 0 ]; then
-            echo "NATIVE_MOBILE_AA_AB_FAIL baseline=$aa0_status candidate=$aa4_status; inspect both real artifacts"
+            echo "NATIVE_MOBILE_AA_AB_FAIL baseline=$aa0_status candidate=$aa4_status; no-vsync=$aa4_no_vsync_status repeat=$aa4_repeat_status; inspect original traces"
             exit 1
           fi
-          echo 'NATIVE_MOBILE_AA_AB_BOTH_STRICT_TECHNICAL_PASSES; VISUAL G2.3 NOT ACCEPTED'
+          echo "NATIVE_MOBILE_AA_AB_BOTH_STRICT_TECHNICAL_PASSES; diagnostic no-vsync=$aa4_no_vsync_status baseline-repeat=$aa4_repeat_status; VISUAL G2.3 NOT ACCEPTED"
       - name: Upload real mobile proof including failure evidence
         if: always()
         uses: actions/upload-artifact@v4
