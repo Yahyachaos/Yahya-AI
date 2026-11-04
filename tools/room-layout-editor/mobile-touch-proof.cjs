@@ -221,7 +221,8 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     if(!button)throw new Error('Missing genuine neutral-shell viewport shortcut');
     const state={
       started_epoch_ms:performance.timeOrigin+performance.now(),
-      samples:[],events:[],mutations:[],raf_gaps:[],frames:0
+      samples:[],events:[],mutations:[],raf_gaps:[],frames:0,
+      raf_timestamps_epoch_ms:[],raf_last_epoch_ms:null
     };
     const sample=source=>{
       const r=button.getBoundingClientRect(),style=getComputedStyle(button);
@@ -237,7 +238,9 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
         display:style.display,visibility:style.visibility,
         opacity:style.opacity,pointer_events:style.pointerEvents,
         aria_pressed:button.getAttribute('aria-pressed'),
-        text:button.textContent.trim().slice(0,90)
+        text:button.textContent.trim().slice(0,90),
+        scroll_y:window.scrollY,
+        visual_viewport_offset_top:window.visualViewport?.offsetTop??null
       };
       state.samples.push(item);
       if(state.samples.length>300)state.samples.shift();
@@ -264,8 +267,12 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     let rafHandle=0,lastRaf=0;
     const tick=t=>{
       state.frames++;
+      const frameEpoch=performance.timeOrigin+t;
+      state.raf_last_epoch_ms=frameEpoch;
+      if(state.raf_timestamps_epoch_ms.length<180)
+        state.raf_timestamps_epoch_ms.push(frameEpoch);
       if(lastRaf && t-lastRaf>100)state.raf_gaps.push({
-        epoch_ms:performance.timeOrigin+t,gap_ms:t-lastRaf
+        epoch_ms:frameEpoch,gap_ms:t-lastRaf
       });
       lastRaf=t;
       if(state.frames%6===0)sample('raf_every_sixth_frame');
@@ -281,11 +288,19 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
         document.removeEventListener(type,onEvent,true);
       sample('stop');
       delete window.__celineNeutralRestoreActionabilityStop;
+      const stoppedEpoch=performance.timeOrigin+performance.now();
+      // No completed rAF gap is emitted when the next callback never arrives;
+      // retain the still-open frame interval at genuine tap completion.
+      const lastFrameEpoch=state.raf_last_epoch_ms;
       return {
         started_epoch_ms:state.started_epoch_ms,
-        stopped_epoch_ms:performance.timeOrigin+performance.now(),
+        stopped_epoch_ms:stoppedEpoch,
         samples:state.samples,events:state.events,
         mutations:state.mutations,raf_gaps:state.raf_gaps,
+        raf_timestamps_epoch_ms:state.raf_timestamps_epoch_ms,
+        raf_first_epoch_ms:state.raf_timestamps_epoch_ms[0]??null,
+        raf_last_epoch_ms:lastFrameEpoch,
+        raf_pending_gap_at_stop_ms:stoppedEpoch-(lastFrameEpoch??state.started_epoch_ms),
         frame_count:state.frames
       };
     };
