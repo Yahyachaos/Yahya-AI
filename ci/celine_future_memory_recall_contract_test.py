@@ -42,6 +42,16 @@ public final class AngleRedactionContract {
   eq(correction(plain,plain),"fact","unredacted correction still allowed");
   eq(recall("Meine Katze <profile> Luna",plain),"fact","unrelated markup is not a redaction");
   eq(recall("Meine Katze <removed> Luna",plain),"","existing whole removed tag still blocked");
+  eq(recall("Meine Katze ［REDACTED： name］ Luna",plain),"","fullwidth square tag query");
+  eq(recall("Meine Katze ＜deleted： name＞ Luna",plain),"","fullwidth angle tag query");
+  eq(recall(plain,"Meine Katze ［REDACTED： name］ Luna"),"","fullwidth square stored record");
+  eq(recall(plain,"Meine Katze ＜deleted： name＞ Luna"),"","fullwidth angle stored record");
+  eq(correction("Meine Katze ［REDACTED： name］ Luna",plain),"","fullwidth square correction query");
+  eq(correction("Meine Katze ＜deleted： name＞ Luna",plain),"","fullwidth angle correction query");
+  eq(correction(plain,"Meine Katze ［REDACTED： name］ Luna"),"","fullwidth square correction rival");
+  eq(correction(plain,"Meine Katze ＜deleted： name＞ Luna"),"","fullwidth angle correction rival");
+  eq(recall("Meine Katze ［Familie： Mia］ Luna",plain),"fact","unrelated fullwidth bracket prose remains eligible");
+  eq(recall("Meine Katze ＜profile＞ Luna",plain),"fact","unrelated fullwidth angle prose remains eligible");
   System.out.println("FOCUSED_ANGLE_DELETION_REDACTION_PASS cases="+cases);
  }
 }
