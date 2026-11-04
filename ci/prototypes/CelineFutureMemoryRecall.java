@@ -3479,6 +3479,14 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*(?:(?:[€$]|eur|usd|euro|dollar)\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
+    // German monetary range prepositions: "ab €500" is a lower bound,
+    // "bis 500 Euro" an upper bound. Require an EXPLICIT currency token;
+    // bare dates ("bis 2027") or arbitrary numeric words never become
+    // guessed quantities. No currency conversion or domain fact inference.
+    private static final java.util.regex.Pattern CURRENCY_PREPOSITION_BOUND =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])(ab|bis)\\s+(?:(?:[€$]|eur|usd|euro|dollar)\\s*([+-]?[0-9]+(?:[.,][0-9]+)?)|([+-]?[0-9]+(?:[.,][0-9]+)?)\\s*(?:[€$]|eur|usd|euro|dollar))(?![\\p{L}\\p{N}])");
+
     private static Set<String> explicitQuantityBounds(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
@@ -3504,6 +3512,14 @@ public final class CelineFutureMemoryRecall {
                     : relation.equals("<=") || relation.equals("≤") ? "LE"
                     : relation.equals(">") ? "GT" : "LT";
             bounds.add(op + ":" + symbolic.group(2).replace(',', '.'));
+            if (bounds.size() > MAX_QUERY_TOKENS) return null;
+        }
+        java.util.regex.Matcher currencyPreposition = CURRENCY_PREPOSITION_BOUND.matcher(normalized);
+        while (currencyPreposition.find()) {
+            String value = currencyPreposition.group(2) != null
+                    ? currencyPreposition.group(2) : currencyPreposition.group(3);
+            bounds.add((currencyPreposition.group(1).equals("ab") ? "GE:" : "LE:")
+                    + value.replace(',', '.'));
             if (bounds.size() > MAX_QUERY_TOKENS) return null;
         }
         return bounds;
