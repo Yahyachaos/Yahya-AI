@@ -50,6 +50,18 @@ public final class QuantityBoundContract {
   correct("Mein Budget ist mindestens 500 Euro","Mein Budget ist mindestens 500 Euro",true,"matching GE correction");
   correct("Mein Budget ist höchstens 500 Euro","Mein Budget ist höchstens 500 Euro",true,"matching LE correction");
   correct("Mein Budget ist mindestens 500 Euro","Mein Budget ist 500 Euro",false,"correction does not assume bound");
+  recall("Mein Budget ist >=500 Euro","Mein Budget ist <=500 Euro",false,"symbol GE not LE");
+  recall("Mein Budget ist <=500 Euro","Mein Budget ist >=500 Euro",false,"symbol LE not GE");
+  recall("Meine Fahrt dauert >5 Stunden","Meine Fahrt dauert <5 Stunden",false,"symbol GT not LT");
+  recall("Meine Fahrt dauert <5 Stunden","Meine Fahrt dauert >5 Stunden",false,"symbol LT not GT");
+  recall("Mein Budget ist >=500 Euro","Mein Budget ist >500 Euro",false,"inclusive vs strict symbol");
+  recall("Mein Budget ist ≥500 Euro","Mein Budget ist mindestens 500 Euro",true,"unicode GE matches German GE");
+  recall("Mein Budget ist mindestens 500 Euro","Mein Budget ist >=500 Euro",true,"German GE matches ASCII GE");
+  recall("Mein Budget ist <=500 Euro","Mein Budget ist höchstens 500 Euro",true,"symbol LE matches German LE");
+  recall("Meine Fahrt dauert >5 Stunden","Meine Fahrt dauert mehr als 5 Stunden",true,"symbol GT matches German GT");
+  recall("Meine Fahrt dauert ≤5 Stunden","Meine Fahrt dauert <5 Stunden",false,"inclusive LE not strict LT");
+  correct("Mein Budget ist >=500 Euro","Mein Budget ist <=500 Euro",false,"no incorrect symbolic ID");
+  correct("Mein Budget ist ≥500 Euro","Mein Budget ist mindestens 500 Euro",true,"symbolic equivalent correction");
   System.out.println("QUANTITY_BOUND_CONTRACT_PASS cases="+n);
  }
 }'''
