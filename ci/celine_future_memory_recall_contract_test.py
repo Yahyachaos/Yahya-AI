@@ -14,6 +14,88 @@ assert source.is_file(), source
 # This is a lexical guard, not unit conversion or threshold inference.
 # A written exact amount is a different fact from a lower/upper bound.
 # Deterministic lexical-only guard for read-only recall and correction suggestions.
+# Read-only external floor preflight: reject unverified original identity/consent
+# BEFORE invoking any independently supplied remote callback. This cannot prove
+# real-world nonrollbackable custody; it protects the query boundary only.
+if '--focused-readonly-preflight' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.security.*;
+import java.util.concurrent.atomic.AtomicInteger;
+public final class ReadOnlyPreflightContract {
+  static int n=0;
+  static final String CLAIM="Claim_Owner_2026", ID="fact99", NONCE="fresh_challenge_2026_ABCD";
+  static KeyPair[] keys = new KeyPair[5];
+  static byte[][] pins = new byte[5][];
+  static byte[] goodSignature;
+  static byte[] sign(PrivateKey key, byte[] message) throws Exception {
+    Signature s=Signature.getInstance("Ed25519"); s.initSign(key); s.update(message); return s.sign();
+  }
+  static void verify(String note, byte[][] ids, byte[] sig, boolean expectedDispatch,
+      CelineFutureMemoryRecall.ReceiptStatusOutcome expected) {
+    AtomicInteger called=new AtomicInteger();
+    CelineFutureMemoryRecall.IndependentClaimFloorReadOnlyAuthority remote=
+        (claim,id,revision,signature,nonce)->{called.incrementAndGet(); return null;};
+    CelineFutureMemoryRecall.ReceiptStatusOutcome actual=
+        CelineFutureMemoryRecall.reconcileAtomicAckWithLiveClaimFloor(CLAIM,ID,2,sig,NONCE,
+            ids[0],ids[1],ids[2],ids[3],ids[4],1,0,remote,null);
+    if(actual!=expected || called.get()!=(expectedDispatch?1:0))
+      throw new AssertionError(note+" outcome="+actual+" calls="+called.get());
+    n++;
+  }
+  static byte[][] pinsCopy() {byte[][] x=pins.clone(); return x;}
+  public static void main(String[] args) throws Exception {
+    KeyPairGenerator g=KeyPairGenerator.getInstance("Ed25519");
+    for(int i=0;i<5;i++){keys[i]=g.generateKeyPair(); pins[i]=keys[i].getPublic().getEncoded();}
+    goodSignature=sign(keys[0].getPrivate(),
+        CelineFutureMemoryRecall.originalOwnerClaimPayload(CLAIM,ID,2));
+    verify("valid five pins read only once",pins,goodSignature,true,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    byte[][] bad=pinsCopy(); bad[4]=new byte[]{1};
+    verify("malformed fifth identity",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    bad=pinsCopy(); bad[0]=new byte[]{1};
+    verify("malformed owner identity",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    bad=pinsCopy(); bad[2]=new byte[]{1};
+    verify("malformed operator identity",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    bad=pinsCopy(); bad[1]=pins[0];
+    verify("owner equals root",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    bad=pinsCopy(); bad[4]=pins[3];
+    verify("fifth equals custodian",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    bad=pinsCopy(); bad[2]=pins[1];
+    verify("operator equals root",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    bad=pinsCopy(); bad[3]=pins[1];
+    verify("custodian equals root",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    byte[] zeros=new byte[64];
+    verify("unverified all-zero owner consent",pins,zeros,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.UNVERIFIABLE);
+    byte[] forged=sign(keys[1].getPrivate(),
+        CelineFutureMemoryRecall.originalOwnerClaimPayload(CLAIM,ID,2));
+    verify("wrong signer original consent",pins,forged,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.UNVERIFIABLE);
+    bad=pinsCopy(); bad[0]=keys[4].getPublic().getEncoded();
+    verify("owner pin swapped despite signature",bad,goodSignature,false,
+        CelineFutureMemoryRecall.ReceiptStatusOutcome.NO_AUTHORITY);
+    System.out.println("READONLY_PREFLIGHT_CONTRACT_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='core_readonly_preflight_') as compiled:
+        java_file = Path(compiled) / 'ReadOnlyPreflightContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        step = subprocess.run(['javac', '-d', compiled, str(source), str(java_file)], capture_output=True, text=True)
+        if step.returncode:
+            raise AssertionError('javac failed:\\n' + step.stderr)
+        run = subprocess.run(['java', '-cp', compiled, 'de.yahya.ai.ReadOnlyPreflightContract'], capture_output=True, text=True)
+        print(run.stdout.strip())
+        if run.returncode:
+            raise AssertionError('read-only preflight security RED: ' + run.stderr)
+    sys.exit(0)
+
 if '--focused-exact-amount' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;
