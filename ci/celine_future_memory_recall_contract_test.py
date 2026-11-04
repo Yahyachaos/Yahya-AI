@@ -9,6 +9,62 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE-ONLY: an explicit temporal relation anchored to a year is part of
+# the fact. A shared year and topical words never prove "before" == "after"
+# or "since" == "until" in recall or suggested correction targets.
+# This does not infer vague dates or replace the app-owned G1 memory editor.
+if '--focused-temporal-direction' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class TemporalDirectionContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String summary) {
+    return new CelineFutureMemoryRecall.Candidate("fact",summary,"",
+       CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void recall(String query,String stored,boolean expected,String note){
+    boolean got=!CelineFutureMemoryRecall.retrieve(query,List.of(c(stored)),4,200).isEmpty();
+    if(got!=expected)throw new AssertionError(note+" recall expected="+expected+" got="+got);
+    n++;
+  }
+  static void correct(String query,String stored,boolean expected,String note){
+    boolean got=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,List.of(c(stored)),200).isEmpty();
+    if(got!=expected)throw new AssertionError(note+" correction expected="+expected+" got="+got);
+    n++;
+  }
+  public static void main(String[] args){
+    recall("Mein Golf wurde vor 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", false,"before is not after");
+    recall("Mein Golf wurde nach 2024 gekauft", "Mein Golf wurde vor 2024 gekauft", false,"after is not before");
+    recall("Mein Führerschein gilt bis 2027", "Mein Führerschein gilt seit 2027", false,"until is not since");
+    recall("Die Frist läuft ab 2027", "Die Frist läuft bis 2027", false,"from is not until");
+    recall("Mein Auto ist seit 2024 angemeldet", "Mein Auto ist ab 2024 angemeldet", false,"since not interchangeable with from");
+    recall("Mein Golf wurde vor 2024 gekauft", "Mein Golf wurde vor 2024 gekauft", true,"same before-year fact");
+    recall("Mein Golf wurde nach 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", true,"same after-year fact");
+    recall("Mein Führerschein gilt bis 2027", "Mein Führerschein gilt bis 2027", true,"same until-year fact");
+    recall("Die Frist läuft ab 2027", "Die Frist läuft ab 2027", true,"same from-year fact");
+    recall("Mein Auto ist seit 2024 angemeldet", "Mein Auto ist seit 2024 angemeldet", true,"same since-year fact");
+    recall("Mein Golf 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", true,"broad year query retained");
+    recall("Mein Golf vor 2024 und nach 2025 gekauft", "Mein Golf vor 2024 und vor 2025 gekauft", false,"multi-relation mismatch");
+    recall("Mein Golf vor 2024 und nach 2025 gekauft", "Mein Golf vor 2024 und nach 2025 gekauft", true,"multi-relation identity");
+    recall("Mein Golf VOR 2024 gekauft", "Mein Golf vor 2024 gekauft", true,"case-insensitive relation");
+    recall("Mein Golf wurde vorher 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", true,"no invented before anchor in vorher");
+    correct("Mein Golf wurde vor 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", false,"wrong direction ID abstain");
+    correct("Mein Führerschein gilt seit 2027", "Mein Führerschein gilt bis 2027", false,"different deadline ID abstain");
+    correct("Mein Golf wurde nach 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", true,"matching relation selected ID");
+    System.out.println("TEMPORAL_DIRECTION_CONTRACT_PASS cases="+n);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_temporal_direction_') as compiled:
+        java_file=Path(compiled)/'TemporalDirectionContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stdout+build.stderr
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.TemporalDirectionContract'],capture_output=True,text=True,timeout=45)
+        assert run.returncode==0,run.stdout+run.stderr
+        print(run.stdout.strip())
+    sys.exit(0)
+
 # FUTURE-ONLY: currency sign BEFORE a numeric value is still its currency.
 # Do not match the same number expressed in a different currency; selected-ID
 # correction must also abstain. Only deterministic pure-Java policy checks.
