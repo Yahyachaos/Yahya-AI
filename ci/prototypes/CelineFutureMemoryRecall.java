@@ -3406,12 +3406,13 @@ public final class CelineFutureMemoryRecall {
     }
 
     // The leading relation changes what a dated claim actually asserts.
-    // Stay narrow: only explicit standalone prepositions immediately before
-    // a four-digit year, never infer tense, vague dates or relative time.
-    // Generic year queries without a relation continue matching as before.
+    // Stay narrow: only explicit standalone prepositions directly before
+    // a four-digit year/date, optionally with one German date article (e.g.
+    // "bis zum 31.12.2027", "seit dem 31.12.2027"). Never infer tense,
+    // vague dates or relative time. Generic dated queries still match.
     private static final java.util.regex.Pattern EXPLICIT_YEAR_RELATION =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(vor|nach|seit|bis|ab)\\s+((?:[0-3]?[0-9][./][0-1]?[0-9][./])?[12][0-9]{3})(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(vor|nach|seit|bis|ab)\\s+(?:(?:dem|der|zum)\\s+)?((?:[0-3]?[0-9][./][0-1]?[0-9][./])?[12][0-9]{3})(?![\\p{L}\\p{N}])");
 
     private static Set<String> explicitYearRelations(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
