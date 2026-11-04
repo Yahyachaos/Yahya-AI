@@ -3495,7 +3495,7 @@ public final class CelineFutureMemoryRecall {
         // Some external projections use explicit angle-delimited redaction
         // labels; ordinary HTML-like tags must remain harmless.
         if (java.util.regex.Pattern.compile(
-                "<\\s*(?:redacted|hidden|ausgeblendet|removed|masked|maskiert|zensiert|entfernt)"
+                "<\\s*(?:redacted|hidden|ausgeblendet|gelöscht|removed|deleted|masked|maskiert|zensiert|entfernt)"
                 + "(?:\\s*[:=-]\\s*[^<>]{0,64})?\\s*>")
                 .matcher(marker).find()) return true;
         return false;
