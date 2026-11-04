@@ -3471,13 +3471,13 @@ public final class CelineFutureMemoryRecall {
     // fuzzy quantity interpretation, or an autonomous memory update.
     private static final java.util.regex.Pattern EXPLICIT_QUANTITY_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(mindestens|wenigstens|minimal|höchstens|hoechstens|maximal|über|ueber|unter|mehr\\s+als|weniger\\s+als|genau|exakt)\\s+(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(mindestens|wenigstens|minimal|höchstens|hoechstens|maximal|über|ueber|unter|mehr\\s+als|weniger\\s+als|genau|exakt)\\s+(?:(?:[€$]|eur|usd|euro|dollar)\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     // Symbolic comparisons carry the same inclusive/exclusive distinction.
     // Normalize >= and ≥ (or <= and ≤) to one bound family, not to equality.
     private static final java.util.regex.Pattern SYMBOLIC_QUANTITY_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*(?:(?:[€$]|eur|usd|euro|dollar)\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     private static Set<String> explicitQuantityBounds(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
@@ -3545,7 +3545,7 @@ public final class CelineFutureMemoryRecall {
     // two identically written amounts in different currencies are different.
     private static final java.util.regex.Pattern PREFIX_CURRENCY_VALUE =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])([€$])\\s*([+-]?[0-9]+(?:\\.[0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])([€$]|eur|usd|euro|dollar)\\s*([+-]?[0-9]+(?:\\.[0-9]+)?)(?![\\p{L}\\p{N}])");
 
     // A named temperature scale following "Grad" belongs to the numeric fact.
     // The generic measurement parser sees only "5 Grad" and otherwise treats
@@ -3604,7 +3604,8 @@ public final class CelineFutureMemoryRecall {
             units.add(match.group(1) + ":" + unit);
             if (units.size() > MAX_QUERY_TOKENS) return null;
         }
-        // Prefix currency is the same explicit amount/unit contract as a
+        // Prefix currency (symbol or recognized EUR/USD name) is the same
+        // explicit amount/unit contract as a
         // recognized suffix; unknown or adjacent model text is not inferred.
         java.util.regex.Matcher prefixCurrency = PREFIX_CURRENCY_VALUE.matcher(normalized);
         while (prefixCurrency.find()) {
