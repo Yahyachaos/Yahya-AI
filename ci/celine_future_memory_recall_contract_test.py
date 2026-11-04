@@ -74,6 +74,22 @@ public class NegatedPredicateContract {
     eq(recall(conjunctionRed,conjunctionRed),"fact","identical compound negative preserved");
     eq(correction("Mein Golf Diesel ist nicht wirklich rot", "Mein Golf Diesel ist rot"),"fact",
        "affirmative-to-negative correction exception preserved");
+    // These conjunctions change the truth conditions of a negated clause.
+    // Counting only content terms erases the distinction and may return a
+    // misleading fact or choose the wrong correction ID.
+    String butBlue="Mein Golf Diesel ist nicht rot aber blau";
+    String orBlue="Mein Golf Diesel ist nicht rot oder blau";
+    String andBlue="Mein Golf Diesel ist nicht rot und blau";
+    eq(recall(butBlue,orBlue),"","aber/or disjunction must not return wrong fact");
+    eq(correction(butBlue,orBlue),"","aber/or disjunction must not auto-select ID");
+    eq(recall(orBlue,butBlue),"","or/aber reverse must abstain");
+    eq(correction(orBlue,butBlue),"","or/aber correction reverse must abstain");
+    eq(recall(andBlue,orBlue),"","und/or conjunction mismatch must abstain");
+    eq(correction(andBlue,orBlue),"","und/or correction mismatch must abstain");
+    eq(recall(butBlue,butBlue),"fact","exact aber clause remains retrievable");
+    eq(recall(orBlue,orBlue),"fact","exact oder clause remains retrievable");
+    eq(recall(andBlue,andBlue),"fact","exact und clause remains retrievable");
+    eq(correction(butBlue,butBlue),"fact","exact aber correction remains selectable");
     System.out.println("FOCUSED_NEGATED_PREDICATE_PASS cases="+cases);
   }
 }'''
