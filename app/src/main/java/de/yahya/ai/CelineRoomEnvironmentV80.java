@@ -353,6 +353,19 @@ final class CelineRoomEnvironmentV80 {
                 throw new IllegalStateException("Cached S25 furniture matrix drift; root="
                         + maxRootDelta + " mesh=" + maxMeshDelta);
             }
+            // A cached 13/13 furniture PASS alone is insufficient: HOME/CALL
+            // may detach or displace the genuine floor, ceiling, walls or
+            // window while leaving all furniture world matrices unchanged.
+            // Reuse the original native shell geometry/Scene guard. Never
+            // reapply or auto-adjust the user's furniture transforms.
+            if (roomShellAsset == null) {
+                throw new IllegalStateException("Missing cached S25 native shell");
+            }
+            int hiddenFrontWall = roomShellAsset.getFirstEntityByName("room_shell_front");
+            if (hiddenFrontWall == 0) {
+                throw new IllegalStateException("Missing cached S25 front-wall anchor");
+            }
+            verifyNativeS25ShellAfterAttach(roomShellAsset, hiddenFrontWall);
             Celine3DDiagnostics.record(context, "ROOM-S25-CACHED-13",
                     "Reactivated 13 source GLB furniture transforms verified",
                     "rootCount=" + builtS25RootWorlds.size()
@@ -369,7 +382,7 @@ final class CelineRoomEnvironmentV80 {
                     return true;
                 } catch (Throwable cachedError) {
                     Celine3DDiagnostics.error(context, "ROOM-199",
-                            "S25 cached furniture changed after original import; Canvas fallback",
+                            "S25 cached shell or furniture changed after original import; Canvas fallback",
                             cachedError);
                     try { destroyRoom(); }
                     catch (Throwable cleanupError) {
