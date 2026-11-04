@@ -9,6 +9,59 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — a leading pictograph can identify the subject just as an
+# infix one can. The broad Latin tokenizer cannot represent it and must abstain,
+# while terminal decorative pictographs remain permitted by the old contract.
+if '--focused-prefix-pictograph' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class PrefixPictographRecallContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String summary){
+    return new CelineFutureMemoryRecall.Candidate("fact",summary,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static String top(String query,String summary){
+    var found=CelineFutureMemoryRecall.retrieve(query,List.of(c(summary)),4,200);
+    return found.isEmpty()?"":found.get(0).candidate.id;
+  }
+  static void eq(String got,String expected,String description){
+    if(!Objects.equals(got,expected))
+      throw new AssertionError(description+" expected="+expected+" got="+got);
+    checks++;
+  }
+  public static void main(String[] a){
+    eq(top("Meine Katze Luna","Meine Katze Luna"),"fact","plain facts unaffected");
+    eq(top("🐈 Meine Katze Luna","Meine Katze Luna"),"","leading cat query is not plain fact");
+    eq(top("🐕 Meine Katze Luna","Meine Katze Luna"),"","leading dog query cannot borrow plain evidence");
+    eq(top("Meine Katze Luna","🐈 Meine Katze Luna"),"","leading cat memory cannot answer plain query");
+    eq(top("🐕 Meine Katze Luna","🐈 Meine Katze Luna"),"","different leading emojis cannot compare equal");
+    eq(top("🐈 🐾 Meine Katze Luna","Meine Katze Luna"),"","multiple leading emojis also guarded");
+    eq(top("?! 🐈: Meine Katze Luna","Meine Katze Luna"),"","punctuation does not hide leading emoji");
+    eq(top("Meine Katze 🐈 Luna","Meine Katze Luna"),"","infix emoji existing guard retained");
+    eq(top("Meine Katze Luna 🐈","Meine Katze Luna"),"fact","terminal decorative emoji remains supported");
+    eq(top("Meine Katze Luna","Meine Katze Luna 🐈"),"fact","candidate terminal emoji remains supported");
+    eq(top("🐈","Meine Katze Luna"),"","emoji-only query still has no terms");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget("🐈 Meine Katze Luna",
+      List.of(c("Meine Katze Luna")),200),"","correction ID already blocks pictograph");
+    System.out.println("FUTURE_PREFIX_PICTOGRAPH_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_prefix_emoji_') as compiled:
+        java_file=Path(compiled)/'PrefixPictographRecallContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+                              str(source),str(java_file)], capture_output=True,
+                             text=True,timeout=90)
+        assert build.returncode==0, build.stderr
+        test=subprocess.run(['java','-cp',compiled,
+                             'de.yahya.ai.PrefixPictographRecallContract'],
+                            capture_output=True,text=True,timeout=45)
+        assert test.returncode==0, test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE-ONLY: unlike general two-word overlap, a negated predicate must not
 # match a different negated predicate just because owner/topic words overlap.
 if '--focused-negated-predicate' in sys.argv:

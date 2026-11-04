@@ -3034,7 +3034,7 @@ public final class CelineFutureMemoryRecall {
         }
         // Interior pictographs can distinguish the subject yet vanish from the
         // Latin tokenizer. Trailing decorations preserve the prior contract.
-        if (hasSemanticInfixPictograph(query)) return Collections.emptyList();
+        if (hasSemanticLeadingOrInfixPictograph(query)) return Collections.emptyList();
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
@@ -3075,7 +3075,7 @@ public final class CelineFutureMemoryRecall {
             // when its surviving words match. Do not rank it for provider recall;
             // its ID still participates in lineage/supersession quarantine.
             if (isExplicitRedactionMarker(c.summary)
-                    || hasSemanticInfixPictograph(c.summary)) continue;
+                    || hasSemanticLeadingOrInfixPictograph(c.summary)) continue;
             Set<String> candidateNegationCues = explicitNegationCues(c.summary);
             if (requireMatchingNegation
                     && !queryNegationCues.equals(candidateNegationCues)) continue;
@@ -3431,18 +3431,30 @@ public final class CelineFutureMemoryRecall {
         return false;
     }
 
-    // Bounded conservative guard for a symbol between two lexical words.
-    // Such a symbol may change the factual predicate but is not represented
-    // in terms(); do not use the surviving words as complete recall proof.
-    // Preserve earlier validated terminal emoji/decorative punctuation behavior.
-    private static boolean hasSemanticInfixPictograph(String value) {
+    // A pictograph BEFORE the first lexical subject word may identify that
+    // subject (e.g. cat versus dog), not merely decorate it. Preserve the
+    // existing narrower infix rule and terminal/sentence-end decorations,
+    // including "Luna ❤️, heute" which must remain searchable. The first
+    // lexical position is computed once so even long pictograph prefixes are
+    // checked in linear time.
+    private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
         if (value == null) return false;
+        int firstLexical = -1;
+        for (int at = 0; at < value.length();) {
+            int cp = value.codePointAt(at);
+            if (Character.isLetterOrDigit(cp)) {
+                firstLexical = at;
+                break;
+            }
+            at += Character.charCount(cp);
+        }
         for (int i = 0; i < value.length();) {
             int cp = value.codePointAt(i);
             int start = i;
             i += Character.charCount(cp);
             if (!((cp >= 0x1F000 && cp <= 0x1FAFF)
                     || (cp >= 0x2600 && cp <= 0x27BF))) continue;
+            if (firstLexical > start) return true;
             int prev = start;
             while (prev > 0 && Character.isWhitespace(value.codePointBefore(prev)))
                 prev -= Character.charCount(value.codePointBefore(prev));
