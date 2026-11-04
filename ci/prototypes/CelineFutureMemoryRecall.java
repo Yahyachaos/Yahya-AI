@@ -3443,7 +3443,7 @@ public final class CelineFutureMemoryRecall {
     // fuzzy quantity interpretation, or an autonomous memory update.
     private static final java.util.regex.Pattern EXPLICIT_QUANTITY_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(mindestens|höchstens|mehr\\s+als|weniger\\s+als)\\s+(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(mindestens|höchstens|mehr\\s+als|weniger\\s+als|genau|exakt)\\s+(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     // Symbolic comparisons carry the same inclusive/exclusive distinction.
     // Normalize >= and ≥ (or <= and ≤) to one bound family, not to equality.
@@ -3463,6 +3463,7 @@ public final class CelineFutureMemoryRecall {
             String family = match.group(1).replaceAll("\\s+", " ");
             String op = family.equals("mindestens") ? "GE"
                     : family.equals("höchstens") ? "LE"
+                    : family.equals("genau") || family.equals("exakt") ? "EQ"
                     : family.equals("mehr als") ? "GT" : "LT";
             bounds.add(op + ":" + match.group(2).replace(',', '.'));
             if (bounds.size() > MAX_QUERY_TOKENS) return null;
@@ -4023,6 +4024,7 @@ public final class CelineFutureMemoryRecall {
             ALIASES.put(w,"getraenk");
         for (String w : Arrays.asList("bevorzuge","bevorzugen","lieber","mag"))
             ALIASES.put(w,"praeferenz");
+        ALIASES.put("exakt", "genau"); // precise numerical fact, not a range
     }
     /**
      * POST-v83 ONLY. A separately administered append-only claim set must make
