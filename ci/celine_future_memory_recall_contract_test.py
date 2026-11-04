@@ -12,6 +12,64 @@ assert source.is_file(), source
 # FUTURE ONLY: partial redaction in the USER QUERY must never launder
 # visible topic anchors into a provider-safe memory answer. Selected-ID
 # correction remains the fallback; no Android/provider wiring is changed.
+# FUTURE-ONLY: explicit redaction labels often survive sanitization with spaces
+# inside their delimiters. Their remaining words are NOT a full recollection.
+if '--focused-spaced-redaction' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class SpacedRedactionContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String s) {
+    return new CelineFutureMemoryRecall.Candidate("fact",s,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static String top(String q,String fact) {
+    var out=CelineFutureMemoryRecall.retrieve(q,List.of(c(fact)),4,200);
+    return out.isEmpty()?"":out.get(0).candidate.id;
+  }
+  static void eq(String got,String expected,String why) {
+    if(!Objects.equals(got,expected))
+      throw new AssertionError(why+" expected="+expected+" got="+got);
+    checks++;
+  }
+  public static void main(String[] args) {
+    String fact="Meine Katze Luna";
+    eq(top(fact,fact),"fact","intact base retrieval remains");
+    eq(top("Meine Katze [ REDACTED: name ] Luna",fact),"","spaced redacted query");
+    eq(top("Meine Katze [redacted : name] Luna",fact),"","spaced separator query");
+    eq(top("Meine Katze [ hidden ] Luna",fact),"","spaced hidden query");
+    eq(top("Meine Katze < hidden: name > Luna",fact),"","spaced angle query");
+    eq(top("Meine Katze <removed : name> Luna",fact),"","spaced angle separator query");
+    eq(top(fact,"Meine Katze [ REDACTED: name ] Luna"),"","spaced redacted stored fact");
+    eq(top(fact,"Meine Katze [ hidden ] Luna"),"","spaced hidden stored fact");
+    eq(top(fact,"Meine Katze < hidden: name > Luna"),"","spaced angle stored fact");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(fact,
+       List.of(c("Meine Katze [ REDACTED: name ] Luna")),200),"",
+       "incomplete stored memory cannot select correction ID");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+       "Meine Katze [ REDACTED: name ] Luna",List.of(c(fact)),200),"",
+       "incomplete query cannot select correction ID");
+    eq(top("Meine Katze [redacted prose] Luna",fact),"fact",
+       "ordinary prose in brackets is not a formal redaction");
+    eq(top("Meine Katze [mein name] Luna",fact),"fact",
+       "ordinary bracket text unaffected");
+    System.out.println("FUTURE_SPACED_REDACTION_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='core116-spaced-redaction-') as t:
+        f=Path(t)/'SpacedRedactionContract.java'
+        f.write_text(harness,encoding='utf-8')
+        run=subprocess.run(['javac','-encoding','UTF-8','-d',t,
+                            str(source),str(f)],capture_output=True,text=True,timeout=90)
+        assert run.returncode==0,run.stderr
+        result=subprocess.run(['java','-cp',t,'de.yahya.ai.SpacedRedactionContract'],
+                              capture_output=True,text=True,timeout=45)
+        if result.returncode:
+            raise SystemExit(result.stdout+result.stderr)
+        print(result.stdout.strip())
+    sys.exit(0)
+
 if '--focused-redacted-query' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;
