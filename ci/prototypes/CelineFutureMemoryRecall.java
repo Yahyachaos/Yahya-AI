@@ -3394,13 +3394,26 @@ public final class CelineFutureMemoryRecall {
                 .compile("[\\p{L}\\p{N}]+").matcher(text);
         after.region(begin, end);
         StringBuilder signature = new StringBuilder();
+        boolean contentSeen = false;
         while (after.find()) {
+            String word = after.group().toLowerCase(Locale.GERMANY);
+            // ``aber``, ``oder`` and ``und`` are discarded by the broad
+            // topical tokenizer, but they distinguish different propositions
+            // within an otherwise identical negated clause. Preserve their
+            // identity only in this narrow negative-clause fingerprint.
+            // A bare connector is not a factual predicate.
+            if ("aber".equals(word) || "oder".equals(word) || "und".equals(word)) {
+                if (!contentSeen) return "";
+                signature.append("/join:").append(word);
+                continue;
+            }
             Set<String> normalized = terms(after.group());
             if (normalized.isEmpty()) continue; // G1/German stopword or small word
             if (signature.length() != 0) signature.append('/');
             signature.append(normalized.iterator().next());
+            contentSeen = true;
         }
-        return signature.toString();
+        return contentSeen ? signature.toString() : "";
     }
 
     // The German lexical tokenizer discards emoji/pictographs entirely. They
