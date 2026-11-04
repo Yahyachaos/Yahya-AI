@@ -9,6 +9,46 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE-ONLY: currency sign BEFORE a numeric value is still its currency.
+# Do not match the same number expressed in a different currency; selected-ID
+# correction must also abstain. Only deterministic pure-Java policy checks.
+if '--focused-prefix-currency' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class PrefixCurrencyContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String s) {return new CelineFutureMemoryRecall.Candidate("currency",s,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);}
+  static void test(String q,String s,boolean wanted,String why){boolean got=!CelineFutureMemoryRecall.retrieve(q,List.of(c(s)),4,200).isEmpty();if(got!=wanted)throw new AssertionError(why+" expected="+wanted+" got="+got);n++;}
+  static void correct(String q,String s,boolean wanted,String why){boolean got=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c(s)),200).isEmpty();if(got!=wanted)throw new AssertionError(why+" correction expected="+wanted+" got="+got);n++;}
+  public static void main(String[] a){
+   test("Mein Budget heute ist €5", "Mein Budget heute ist $5",false,"prefix euro vs dollar");
+   test("Mein Budget heute ist $5", "Mein Budget heute ist €5",false,"prefix dollar vs euro");
+   test("Mein Budget heute ist € 5", "Mein Budget heute ist $ 5",false,"spaced currency prefix");
+   test("Mein Budget heute ist €1,5", "Mein Budget heute ist $1.5",false,"decimal currency difference");
+   test("Mein Budget heute ist €5", "Mein Budget heute ist €5",true,"matching euro prefix");
+   test("Mein Budget heute ist $5", "Mein Budget heute ist $5",true,"matching dollar prefix");
+   test("Mein Budget heute ist €5", "Mein Budget heute ist 5 Euro",true,"prefix to named suffix euro");
+   test("Mein Budget heute ist $5", "Mein Budget heute ist 5 USD",true,"prefix to named suffix dollar");
+   test("Mein Budget heute ist € 5", "Mein Budget heute ist 5 €",true,"spaced prefix to postfix euro");
+   test("Mein Budget heute ist €5", "Mein Budget heute ist 5 USD",false,"prefix vs named currency");
+   test("Mein Budget heute ist 5 Euro", "Mein Budget heute ist $5",false,"suffix vs wrong prefix");
+   correct("Mein Budget heute ist €5", "Mein Budget heute ist $5",false,"correction euro vs dollar");
+   correct("Mein Budget heute ist €5", "Mein Budget heute ist 5 Euro",true,"correction equivalent currency");
+   test("Mein Budget heute ist 5 Euro", "Mein Budget heute ist 5 Euro",true,"prior euro suffix");
+   System.out.println("PREFIX_CURRENCY_CONTRACT_PASS cases="+n);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_prefix_currency_') as compiled:
+        java_file=Path(compiled)/'PrefixCurrencyContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stdout+build.stderr
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.PrefixCurrencyContract'],capture_output=True,text=True,timeout=45)
+        assert run.returncode==0,run.stdout+run.stderr
+        print(run.stdout.strip())
+    sys.exit(0)
+
 # FUTURE-ONLY: angle-bracket deletion markers must enforce the same
 # read-only recall and correction abstention as equivalent bracket markers.
 # A redacted G1 projection is incomplete evidence, even with topic overlap.
