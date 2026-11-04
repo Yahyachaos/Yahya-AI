@@ -59,6 +59,19 @@ public final class TemporalDirectionContract {
     recall("Mein Vertrag gilt 01.01.2027", "Mein Vertrag gilt seit 01.01.2027", true,"broad dated retrieval");
     correct("Mein Vertrag gilt seit 01.01.2027", "Mein Vertrag gilt bis 01.01.2027", false,"date-boundary correction must abstain");
     correct("Mein Führerschein gilt bis 31.12.2027", "Mein Führerschein gilt bis 31.12.2027", true,"correct matching deadline date");
+    // Deterministic German article forms: 'bis zum', 'seit dem', 'ab dem'.
+    recall("Mein Führerschein gilt bis zum 31.12.2027", "Mein Führerschein gilt seit dem 31.12.2027", false,"bis zum is not seit dem date");
+    recall("Mein Führerschein gilt seit dem 31.12.2027", "Mein Führerschein gilt bis zum 31.12.2027", false,"seit dem is not bis zum date");
+    recall("Meine Frist beginnt ab dem 05.06.2027", "Meine Frist beginnt vor dem 05.06.2027", false,"ab dem is not vor dem date");
+    recall("Mein Vertrag endet nach dem 01.01.2027", "Mein Vertrag endet vor dem 01.01.2027", false,"nach dem is not vor dem date");
+    recall("Mein Führerschein gilt bis zum 31.12.2027", "Mein Führerschein gilt bis 31.12.2027", true,"bis zum compatible with bis date");
+    recall("Mein Führerschein gilt bis 31.12.2027", "Mein Führerschein gilt bis zum 31.12.2027", true,"bis compatible with bis zum date");
+    recall("Meine Frist beginnt ab dem 05.06.2027", "Meine Frist beginnt ab 05.06.2027", true,"ab dem compatible with ab date");
+    recall("Mein Auto ist seit dem 01.01.2027 angemeldet", "Mein Auto ist seit 01.01.2027 angemeldet", true,"seit dem compatible with seit date");
+    recall("Mein Vertrag gilt seit dem 01.01.2027", "Mein Vertrag gilt seit dem 01.01.2027", true,"same article date");
+    recall("Mein Vertrag gilt seit dem 01.01.2027", "Mein Vertrag gilt bis 01.01.2027", false,"article date prevents wrong match");
+    correct("Mein Führerschein gilt bis zum 31.12.2027", "Mein Führerschein gilt seit 31.12.2027", false,"article date correction abstains");
+    correct("Mein Führerschein gilt bis zum 31.12.2027", "Mein Führerschein gilt bis 31.12.2027", true,"article date correction matches");
     System.out.println("TEMPORAL_DIRECTION_CONTRACT_PASS cases="+n);
   }
 }
