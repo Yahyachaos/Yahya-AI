@@ -3047,6 +3047,7 @@ public final class CelineFutureMemoryRecall {
         // different value merely because several topical words coincide.
         // A broad question without a number may still retrieve a dated fact.
         Set<String> requestedNumericAnchors = numericAnchors(query);
+        if (requestedNumericAnchors == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3097,7 +3098,11 @@ public final class CelineFutureMemoryRecall {
                 if (queryNegatedPredicates.isEmpty() || candidatePredicates.isEmpty()
                         || !queryNegatedPredicates.equals(candidatePredicates)) continue;
             }
-            if (!numericAnchors(c.summary).containsAll(requestedNumericAnchors)) continue;
+            if (!requestedNumericAnchors.isEmpty()) {
+                Set<String> storedNumbers = numericAnchors(c.summary);
+                if (storedNumbers == null || !storedNumbers.containsAll(requestedNumericAnchors))
+                    continue;
+            }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
             // Do not return a coincidental one-word hit for a multi-topic query.
@@ -3356,7 +3361,20 @@ public final class CelineFutureMemoryRecall {
         if (normalized.isEmpty()) return result;
         for (String word : normalized.split("\\s+")) {
             if (word.matches(".*[0-9].*")) result.add(word);
-            if (result.size() > MAX_QUERY_TOKENS) return Collections.emptySet();
+            if (result.size() > MAX_QUERY_TOKENS) return null;
+        }
+        // Adjacent numeric segments carry meaning: 1,5 and 1.5 denote the
+        // same written decimal, but 1/5 is a fraction, not that decimal;
+        // 10:30 is a clock time, not 10.30. A vanished separator must not
+        // silently turn two different measurements into matching evidence.
+        String numberStructure = Normalizer.normalize(safe(text).toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFD).replaceAll("\\p{M}+", "")
+                .replaceAll("(?<=[0-9]),(?=[0-9])", ".");
+        java.util.regex.Matcher sequence = java.util.regex.Pattern.compile(
+                "[0-9]+(?:[./:-][0-9]+)+").matcher(numberStructure);
+        while (sequence.find()) {
+            result.add("sequence:" + sequence.group());
+            if (result.size() > MAX_QUERY_TOKENS) return null;
         }
         return result;
     }

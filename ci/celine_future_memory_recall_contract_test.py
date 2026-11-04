@@ -50,6 +50,12 @@ public class NumericAnchorsRegression {
     check("Mein Termin war am 04.11.2026 in Herne","Mein Termin war am 04.12.2026 in Herne",false,"different date");
     correction("Mein Samsung S25 Ultra ist schnell","Mein Samsung S22 Ultra ist schnell",false,"model correction abstains");
     check("Mein Samsung S25 Ultra ist schnell","Mein Samsung S25 Ultra ist schnell",true,"same device remains");
+    check("Mein Verbrauch liegt bei 1,5 Liter Diesel","Mein Verbrauch liegt bei 1/5 Liter Diesel",false,"ratio is not decimal");
+    check("Mein Termin 10:30 beim Golf Diesel","Mein Termin 10.30 beim Golf Diesel",false,"clock not decimal");
+    check("Mein Termin 10:30 beim Golf Diesel","Mein Termin 10:30 beim Golf Diesel",true,"same time allowed");
+    StringBuilder many = new StringBuilder("Mein Golf Diesel");
+    for(int i=0;i<35;i++) many.append(' ').append(String.format(java.util.Locale.ROOT,"%02d",i));
+    check(many.toString(),"Mein Golf Diesel",false,"numeric anchor overflow never silently disables validation");
     System.out.println("NUMERIC_ANCHOR_REGRESSION_PASS cases="+n);
   }
 }
