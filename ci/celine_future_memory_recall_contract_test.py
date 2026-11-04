@@ -215,6 +215,18 @@ public final class QuantityBoundContract {
   correct("Mein Budget ist >= €500", "Mein Budget ist <= €500", false,"prefix symbols wrong ID abstain");
   correct("Mein Budget ist >= €500", "Mein Budget ist mindestens 500 Euro", true,"prefix equivalent correction");
   correct("Mein Budget ist mindestens €500", "Mein Budget ist €500", false,"prefix missing stored bound no ID");
+  // Written German minimum/maximum synonyms must not select opposite bounds.
+  recall("Mein Budget ist maximal 500 Euro","Mein Budget ist mindestens 500 Euro",false,"maximal never GE");
+  recall("Mein Budget ist minimal 500 Euro","Mein Budget ist höchstens 500 Euro",false,"minimal never LE");
+  recall("Mein Budget ist wenigstens 500 Euro","Mein Budget ist maximal 500 Euro",false,"wenigstens never maximal");
+  recall("Mein Budget ist maximal 500 Euro","Mein Budget ist höchstens 500 Euro",true,"maximal same as LE");
+  recall("Mein Budget ist mindestens 500 Euro","Mein Budget ist wenigstens 500 Euro",true,"wenigstens same as GE");
+  recall("Mein Budget ist minimal 500 Euro","Mein Budget ist >=500 Euro",true,"minimal equals inclusive GE");
+  recall("Mein Budget ist höchstens 500 Euro","Mein Budget ist maximal 500 Euro",true,"LE equals maximal");
+  correct("Mein Budget ist maximal 500 Euro","Mein Budget ist mindestens 500 Euro",false,"no wrong maximum correction ID");
+  correct("Mein Budget ist wenigstens 500 Euro","Mein Budget ist höchstens 500 Euro",false,"no wrong minimum correction ID");
+  correct("Mein Budget ist maximal 500 Euro","Mein Budget ist höchstens 500 Euro",true,"correct same max bound ID");
+  correct("Mein Budget ist minimal 500 Euro","Mein Budget ist mindestens 500 Euro",true,"correct same min bound ID");
   System.out.println("QUANTITY_BOUND_CONTRACT_PASS cases="+n);
  }
 }'''
