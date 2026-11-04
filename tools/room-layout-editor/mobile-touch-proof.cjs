@@ -346,20 +346,21 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     };
     return {installed:true,starting_sample:state.samples[0]};
   },selector);
-  // V147: trace the SAME genuine AA4 neutral-shell actionability wait, not
-  // the earlier paused-canvas experiment. Node 100ms heartbeat and Chromium
-  // cc/viz/BeginFrame categories are passive diagnostics, never input.
+  // V149: trace the SAME genuine AA4 neutral OR S25-display actionability
+  // interval: V148 real S25 touch 5133ms failed before trusted pointerdown.
+  // Node 100ms heartbeat and Chromium cc/viz/BeginFrame are passive; they
+  // never synthesize input, alter the UI, or relax the strict <5000ms gate.
   let neutralSchedulingSession=null,neutralScheduling=null;
-  if(NATIVE_AA4_MODE && phase==='original') {
+  if(NATIVE_AA4_MODE && (phase==='original'||phase==='s25-enter')) {
     try {
       neutralSchedulingSession=await page.context().newCDPSession(page);
       neutralScheduling=await beginFocusedSchedulingTrace(
-        neutralSchedulingSession,'aa4-real-neutral-original',
+        neutralSchedulingSession,phase==='s25-enter'?'aa4-real-s25-enter':'aa4-real-neutral-original',
         'toplevel,latency,cc,viz,benchmark,blink.user_timing,gpu,toplevel.flow,disabled-by-default-devtools.timeline.frame');
-      await page.evaluate(() =>
-        performance.mark('CELINE_E2E_AA4_REAL_NEUTRAL_BEFORE'));
+      await page.evaluate(marker=>performance.mark(marker),
+        phase==='s25-enter'?'CELINE_E2E_AA4_REAL_S25_BEFORE':'CELINE_E2E_AA4_REAL_NEUTRAL_BEFORE');
     }catch(error){
-      record.push({name:'AA4_REAL_NEUTRAL_SCHEDULING_INSTALL_UNAVAILABLE',
+      record.push({name:phase==='s25-enter'?'AA4_REAL_S25_SCHEDULING_INSTALL_UNAVAILABLE':'AA4_REAL_NEUTRAL_SCHEDULING_INSTALL_UNAVAILABLE',
         diagnostic_error:String(error),visual_acceptance:'NOT_GRANTED'});
     }
   }
@@ -374,8 +375,8 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     throw e;
   } finally {
     const tapFinished=Date.now();
-    if(neutralScheduling)await page.evaluate(() =>
-      performance.mark('CELINE_E2E_AA4_REAL_NEUTRAL_AFTER')).catch(()=>{});
+    if(neutralScheduling)await page.evaluate(marker=>performance.mark(marker),
+      phase==='s25-enter'?'CELINE_E2E_AA4_REAL_S25_AFTER':'CELINE_E2E_AA4_REAL_NEUTRAL_AFTER').catch(()=>{});
     const measurement=await page.evaluate(()=>
       window.__celineNeutralRestoreActionabilityStop?.()||{not_installed:true}
     ).catch(e=>({trace_read_error:String(e)}));
@@ -410,13 +411,13 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
     if(neutralScheduling) {
       try {
         const data=await finishFocusedSchedulingTrace(neutralScheduling);
-        record.push({name:'AA4_REAL_NEUTRAL_SAME_INTERVAL_COMPOSITOR_AND_NODE_TRACE',
+        record.push({name:phase==='s25-enter'?'AA4_REAL_S25_SAME_INTERVAL_COMPOSITOR_AND_NODE_TRACE':'AA4_REAL_NEUTRAL_SAME_INTERVAL_COMPOSITOR_AND_NODE_TRACE',
           trace:data,tap_start_epoch_ms:tapStarted,
           tap_finish_epoch_ms:tapFinished,
           evidence:'Playwright original genuine tap + Chromium cc/viz trace + 100ms Node heartbeat',
           visual_acceptance:'NOT_GRANTED'});
       }catch(error){
-        record.push({name:'AA4_REAL_NEUTRAL_SCHEDULING_READBACK_UNAVAILABLE',
+        record.push({name:phase==='s25-enter'?'AA4_REAL_S25_SCHEDULING_READBACK_UNAVAILABLE':'AA4_REAL_NEUTRAL_SCHEDULING_READBACK_UNAVAILABLE',
           diagnostic_error:String(error),visual_acceptance:'NOT_GRANTED'});
       }
     }
@@ -533,7 +534,7 @@ async function finishFocusedSchedulingTrace(state) {
         report.chrome_trace_gpu_scope_caveat=
           'GPU/flow categories reveal instrumented scheduler activity, not kernel wait reasons, syscall stacks, or physical S25 latency.';
         report.chrome_trace_markers=events
-          .filter(e=>/CELINE_E2E_(PAUSED_CANVAS|AA4_REDO|AA4_REAL_NEUTRAL)/.test(e.name||''))
+          .filter(e=>/CELINE_E2E_(PAUSED_CANVAS|AA4_REDO|AA4_REAL_NEUTRAL|AA4_REAL_S25)/.test(e.name||''))
           .slice(0,10).map(e=>({name:e.name,ts_us:e.ts,pid:e.pid,tid:e.tid}));
         report.chrome_trace_long_scheduler_events=events
           .filter(e=>Number(e.dur)>=100000&&
