@@ -62,6 +62,23 @@ public final class QuantityBoundContract {
   recall("Meine Fahrt dauert ≤5 Stunden","Meine Fahrt dauert <5 Stunden",false,"inclusive LE not strict LT");
   correct("Mein Budget ist >=500 Euro","Mein Budget ist <=500 Euro",false,"no incorrect symbolic ID");
   correct("Mein Budget ist ≥500 Euro","Mein Budget ist mindestens 500 Euro",true,"symbolic equivalent correction");
+  // Currency signs before a number do not erase the bound direction.
+  recall("Mein Budget ist mindestens €500", "Mein Budget ist höchstens €500", false,"prefix EUR GE not LE");
+  recall("Mein Budget ist >= €500", "Mein Budget ist <= €500", false,"prefix EUR symbol GE not LE");
+  recall("Mein Budget ist mindestens $500", "Mein Budget ist höchstens $500", false,"prefix USD GE not LE");
+  recall("Mein Budget ist >$500", "Mein Budget ist >=$500", false,"prefix USD strict vs inclusive");
+  recall("Mein Budget ist mindestens €500", "Mein Budget ist mindestens €500", true,"prefix EUR identical bound");
+  recall("Mein Budget ist >= €500", "Mein Budget ist mindestens 500 Euro", true,"prefix EUR equals suffix word");
+  recall("Mein Budget ist <=$500", "Mein Budget ist höchstens $500", true,"prefix USD symbolic equals word");
+  recall("Mein Budget ist >= €500", "Mein Budget ist >=$500", false,"bound equal currency different");
+  recall("Mein Budget ist mindestens €500", "Mein Budget ist mindestens $500", false,"word bound currency different");
+  recall("Mein Budget ist mindestens €500", "Mein Budget ist €500", false,"unbounded stored cannot prove bound");
+  recall("Mein Budget beträgt €500", "Mein Budget beträgt mindestens €500", true,"unbounded query remains broad");
+  recall("Mein Budget ist mindestens €1,5", "Mein Budget ist mindestens €1.5", true,"prefix decimal comma dot");
+  correct("Mein Budget ist mindestens €500", "Mein Budget ist höchstens €500", false,"prefix currency wrong ID abstain");
+  correct("Mein Budget ist >= €500", "Mein Budget ist <= €500", false,"prefix symbols wrong ID abstain");
+  correct("Mein Budget ist >= €500", "Mein Budget ist mindestens 500 Euro", true,"prefix equivalent correction");
+  correct("Mein Budget ist mindestens €500", "Mein Budget ist €500", false,"prefix missing stored bound no ID");
   System.out.println("QUANTITY_BOUND_CONTRACT_PASS cases="+n);
  }
 }'''
