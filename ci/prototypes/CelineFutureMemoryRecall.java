@@ -3056,6 +3056,11 @@ public final class CelineFutureMemoryRecall {
         // 5 years != 5 months; 5 kg != 5 g. Pure conservative recall only.
         Set<String> requestedMeasures = measuredNumberUnits(query);
         if (requestedMeasures == null) return Collections.emptyList();
+        // A stated year boundary is a fact, not a stopword: "vor 2024"
+        // cannot authorize a memory asserting "nach 2024" merely because
+        // the subject and year agree. This also protects suggested IDs.
+        Set<String> requestedYearRelations = explicitYearRelations(query);
+        if (requestedYearRelations == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3117,6 +3122,11 @@ public final class CelineFutureMemoryRecall {
                     Set<String> storedMeasures = measuredNumberUnits(c.summary);
                     if (storedMeasures == null || !storedMeasures.containsAll(requestedMeasures))
                         continue;
+                }
+                if (!requestedYearRelations.isEmpty()) {
+                    Set<String> storedYearRelations = explicitYearRelations(c.summary);
+                    if (storedYearRelations == null
+                            || !storedYearRelations.containsAll(requestedYearRelations)) continue;
                 }
             }
             Set<String> stored = terms(c.summary);
@@ -3390,6 +3400,29 @@ public final class CelineFutureMemoryRecall {
                 "[0-9]+(?:[./:-][0-9]+)+").matcher(numberStructure);
         while (sequence.find()) {
             result.add("sequence:" + sequence.group());
+            if (result.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return result;
+    }
+
+    // The leading relation changes what a dated claim actually asserts.
+    // Stay narrow: only explicit standalone prepositions immediately before
+    // a four-digit year, never infer tense, vague dates or relative time.
+    // Generic year queries without a relation continue matching as before.
+    private static final java.util.regex.Pattern EXPLICIT_YEAR_RELATION =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])(vor|nach|seit|bis|ab)\\s+([12][0-9]{3})(?![\\p{L}\\p{N}])");
+
+    private static Set<String> explicitYearRelations(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        Set<String> result = new HashSet<>();
+        java.util.regex.Matcher m = EXPLICIT_YEAR_RELATION.matcher(normalized);
+        while (m.find()) {
+            result.add(m.group(1) + ":" + m.group(2));
             if (result.size() > MAX_QUERY_TOKENS) return null;
         }
         return result;
