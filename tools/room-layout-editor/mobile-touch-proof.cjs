@@ -97,6 +97,121 @@ async function observeRealTap(locator,label) {
   }
 }
 
+// Proof-only V140: sample genuine AA4 X+ nudge hit testing while the
+// EXISTING Playwright locator.tap proceeds unmodified. This distinguishes the
+// observed Save-over-nudge interception/scroll from unexplained stable waits.
+// It does not create synthetic events, modify layout, loosen <5000ms gates,
+// or claim an Android/Samsung visual PASS.
+async function observeNudgeTapWithHitTest(page,locator,label){
+  if(!NATIVE_AA4_MODE)return observeRealTap(locator,label);
+  const selector='[data-nudge="x:1"]';
+  const installation=await page.evaluate(selector=>{
+    const target=document.querySelector(selector);
+    if(!target)throw new Error('Missing authentic X+ nudge target');
+    const data={samples:[],events:[],raf_gaps:[],frame_count:0};
+    const epoch=()=>performance.timeOrigin+performance.now();
+    const rectangle=element=>{
+      if(!element)return null;
+      const b=element.getBoundingClientRect();
+      return [b.left,b.top,b.width,b.height];
+    };
+    const identify=element=>element?{
+      tag:element.tagName,id:element.id||null,
+      mobile_action:element.getAttribute('data-mobile-action'),
+      nudge:element.getAttribute('data-nudge'),
+      class_name:typeof element.className==='string'?element.className.slice(0,90):null
+    }:null;
+    const sample=source=>{
+      const b=target.getBoundingClientRect();
+      const x=b.left+b.width/2,y=b.top+b.height/2;
+      const centerInside=x>=0&&x<innerWidth&&y>=0&&y<innerHeight;
+      const stack=centerInside?document.elementsFromPoint(x,y):[];
+      const save=document.querySelector('[data-mobile-action="save"]');
+      const s=save?.getBoundingClientRect();
+      const intersection=s?Math.max(0,Math.min(b.right,s.right)-Math.max(b.left,s.left))*
+        Math.max(0,Math.min(b.bottom,s.bottom)-Math.max(b.top,s.top)):0;
+      const style=getComputedStyle(target);
+      data.samples.push({
+        epoch_ms:epoch(),source,
+        target_rect:rectangle(target),save_rect:rectangle(save),
+        target_center:[x,y],center_inside_viewport:centerInside,
+        hit_is_nudge:!!stack[0]&&(stack[0]===target||target.contains(stack[0])),
+        hit_stack:stack.slice(0,5).map(identify),
+        target_save_rect_overlap_css_px2:intersection,
+        target_connected:target.isConnected,target_disabled:target.disabled,
+        target_display:style.display,target_visibility:style.visibility,
+        target_pointer_events:style.pointerEvents,
+        scroll_y:window.scrollY,
+        viewport_css:[innerWidth,innerHeight],
+        visual_viewport_offset_y:visualViewport?.offsetTop??null
+      });
+      if(data.samples.length>250)data.samples.shift();
+    };
+    const listener=e=>{
+      if(!(e.target===target||target.contains(e.target)))return;
+      data.events.push({
+        type:e.type,trusted:e.isTrusted,epoch_ms:epoch(),
+        target:identify(e.target)
+      });
+    };
+    for(const type of ['pointerdown','touchstart'])
+      document.addEventListener(type,listener,{capture:true,passive:true});
+    let lastFrame=0,rafId=0;
+    const frame=t=>{
+      data.frame_count++;
+      if(lastFrame&&t-lastFrame>100)
+        data.raf_gaps.push({epoch_ms:performance.timeOrigin+t,gap_ms:t-lastFrame});
+      lastFrame=t;
+      rafId=requestAnimationFrame(frame);
+    };
+    sample('start');
+    rafId=requestAnimationFrame(frame);
+    const interval=setInterval(()=>sample('interval_180ms'),180);
+    window.__celineXPlusHitTestStop=()=>{
+      clearInterval(interval);cancelAnimationFrame(rafId);
+      for(const type of ['pointerdown','touchstart'])
+        document.removeEventListener(type,listener,true);
+      sample('stop');
+      delete window.__celineXPlusHitTestStop;
+      return data;
+    };
+    return {installed:true,first_sample:data.samples[0]};
+  },selector);
+  const started=Date.now();let tapError=null;
+  try{
+    return await observeRealTap(locator,label);
+  }catch(error){
+    tapError=String(error.stack||error);
+    throw error;
+  }finally{
+    const finished=Date.now();
+    const measurement=await page.evaluate(()=>
+      window.__celineXPlusHitTestStop?.()||{missing_stop:true}
+    ).catch(error=>({read_error:String(error)}));
+    const evidence={
+      mode:'genuine_native_aa4_emulation',
+      source_sha:process.env.GITHUB_SHA||null,
+      label,selector,installation,
+      playwright_tap_start_epoch_ms:started,
+      playwright_tap_finish_epoch_ms:finished,
+      playwright_tap_elapsed_ms:finished-started,
+      tap_error:tapError,measurement,
+      debug_log:'GitHub mobile job DEBUG=pw:api',
+      strict_lt_5000ms_gate:'UNCHANGED',
+      warning:'Hit testing at the DOM center is a sampled geometry proxy; Playwright may use a different visible click point. Does not establish browser/compositor/driver root cause.',
+      visual_acceptance:'NOT_GRANTED'
+    };
+    fs.writeFileSync(path.join(out,'mobile-aa4-xplus-hit-test.json'),
+      JSON.stringify(evidence,null,2));
+    record.push({name:'AA4_REAL_XPLUS_HIT_TEST_DIAGNOSTIC_ONLY',
+      file:'mobile-aa4-xplus-hit-test.json',
+      samples:measurement.samples?.length||0,
+      intercepted_samples:measurement.samples?.filter(s=>
+        s.center_inside_viewport&&!s.hit_is_nudge).length||0,
+      playwright_tap_ms:finished-started,visual_acceptance:'NOT_GRANTED'});
+  }
+}
+
 async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase='restore',selector='[data-mobile-action="neutral-shell"]',label='neutralButton') {
   // Proof-only, low-rate geometry/event tracing while the authentic locator.tap
   // waits. No clicks, forced taps, target movement or threshold modifications.
@@ -1639,7 +1754,7 @@ async function main(){
       room_shell_geometry_unchanged:true,original_13_transform_fields_unchanged:true});
     fs.writeFileSync(path.join(out,'mobile-capture-preflight.json'),JSON.stringify({...preflight,nativeFirst},null,2));
     const baseX=Number(await page.locator('#x').inputValue());
-    await observeRealTap(page.locator('[data-nudge="x:1"]'),"page.locator('[data-nudge=\"x:1\"]')");
+    await observeNudgeTapWithHitTest(page,page.locator('[data-nudge="x:1"]'),"page.locator('[data-nudge=\"x:1\"]')");
     const movedX=Number(await page.locator('#x').inputValue());
     assert(movedX>baseX);
     await observeRealTap(page.locator('#mobile-undo'),"page.locator('#mobile-undo')");
