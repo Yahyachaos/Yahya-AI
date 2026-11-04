@@ -3061,6 +3061,10 @@ public final class CelineFutureMemoryRecall {
         // the subject and year agree. This also protects suggested IDs.
         Set<String> requestedYearRelations = explicitYearRelations(query);
         if (requestedYearRelations == null) return Collections.emptyList();
+        // An explicit numeric inequality is a semantic qualifier: at least
+        // 500 is not at most 500, and strict >5 is not >=5.
+        Set<String> requestedQuantityBounds = explicitQuantityBounds(query);
+        if (requestedQuantityBounds == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3127,6 +3131,11 @@ public final class CelineFutureMemoryRecall {
                     Set<String> storedYearRelations = explicitYearRelations(c.summary);
                     if (storedYearRelations == null
                             || !storedYearRelations.containsAll(requestedYearRelations)) continue;
+                }
+                if (!requestedQuantityBounds.isEmpty()) {
+                    Set<String> storedQuantityBounds = explicitQuantityBounds(c.summary);
+                    if (storedQuantityBounds == null
+                            || !storedQuantityBounds.containsAll(requestedQuantityBounds)) continue;
                 }
             }
             Set<String> stored = terms(c.summary);
@@ -3427,6 +3436,32 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return null;
         }
         return result;
+    }
+
+    // Whitelist only standalone, digit-anchored German quantity comparisons.
+    // These are lexical exact-bound safeguards, not arithmetic reasoning,
+    // fuzzy quantity interpretation, or an autonomous memory update.
+    private static final java.util.regex.Pattern EXPLICIT_QUANTITY_BOUND =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])(mindestens|höchstens|mehr\\s+als|weniger\\s+als)\\s+([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+
+    private static Set<String> explicitQuantityBounds(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC).replace('\u2212', '-');
+        Set<String> bounds = new HashSet<>();
+        java.util.regex.Matcher match = EXPLICIT_QUANTITY_BOUND.matcher(normalized);
+        while (match.find()) {
+            String family = match.group(1).replaceAll("\\s+", " ");
+            String op = family.equals("mindestens") ? "GE"
+                    : family.equals("höchstens") ? "LE"
+                    : family.equals("mehr als") ? "GT" : "LT";
+            bounds.add(op + ":" + match.group(2).replace(',', '.'));
+            if (bounds.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return bounds;
     }
 
     // Returns only explicitly signed numeric literals, preserving minus/plus
