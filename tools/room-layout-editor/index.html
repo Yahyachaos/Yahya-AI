@@ -51,6 +51,8 @@
       #mobile-controls button,#mobile-controls .file-label{font-size:.79rem;flex:1 1 auto}
       #mobile-controls button:disabled{opacity:.45}
       .fields input{min-height:42px;font-size:16px}
+      /* Keep sidebar XYZ nudge taps clear of the sticky mobile WebGL toolbar when scrolled into view. */
+      aside button[data-nudge]{scroll-margin-top:calc(clamp(390px,56dvh,630px) + 16px)}
       aside button,aside select,aside .file-label{min-height:44px}
     }
   </style>
