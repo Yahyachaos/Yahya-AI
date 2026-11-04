@@ -3034,7 +3034,13 @@ public final class CelineFutureMemoryRecall {
         }
         // Interior pictographs can distinguish the subject yet vanish from the
         // Latin tokenizer. Trailing decorations preserve the prior contract.
-        if (hasSemanticLeadingOrInfixPictograph(query)) return Collections.emptyList();
+        // Explicit [REDACTED: field] / <hidden> labels in a user query mean
+        // the requested subject is incomplete. Their surviving topic words
+        // must not prove a different record. Preserve the established provider
+        // handling of bare stars/blocks and the stricter correction-only gate.
+        if (hasExplicitTaggedRedactionMarker(query)
+                || hasSemanticLeadingOrInfixPictograph(query))
+            return Collections.emptyList();
         Set<String> wanted = terms(query);
         if (wanted.isEmpty()) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
@@ -3475,7 +3481,7 @@ public final class CelineFutureMemoryRecall {
     // A sanitized G1 projection may carry a redacted fragment alongside
     // otherwise unrelated readable text. The visible fragment is not proof
     // that its unknown remainder differs from the requested correction.
-    private static boolean isExplicitRedactionMarker(String summary) {
+    private static boolean hasExplicitTaggedRedactionMarker(String summary) {
         String marker = safe(summary).toLowerCase(Locale.ROOT);
         // G1 may replace private text with a bracketed label that includes
         // its field type (e.g. [REDACTED: name]). Those labels and common
@@ -3492,6 +3498,12 @@ public final class CelineFutureMemoryRecall {
                 "<(?:redacted|hidden|ausgeblendet|removed|masked|maskiert|zensiert|entfernt)"
                 + "(?:\\s*[:=-][^<>]{0,64})?>")
                 .matcher(marker).find()) return true;
+        return false;
+    }
+
+    private static boolean isExplicitRedactionMarker(String summary) {
+        String marker = safe(summary).toLowerCase(Locale.ROOT);
+        if (hasExplicitTaggedRedactionMarker(summary)) return true;
         // A lossy projection can separate each redaction glyph by whitespace:
         // "und * * * oder" must not be mistaken for intact stopwords. This
         // conservative abstention applies ONLY to correction-ID suggestions;

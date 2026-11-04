@@ -9,6 +9,67 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: partial redaction in the USER QUERY must never launder
+# visible topic anchors into a provider-safe memory answer. Selected-ID
+# correction remains the fallback; no Android/provider wiring is changed.
+if '--focused-redacted-query' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class RedactedQueryRecallContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String summary){
+    return new CelineFutureMemoryRecall.Candidate("fact",summary,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static String top(String query,String stored){
+    var found=CelineFutureMemoryRecall.retrieve(query,List.of(c(stored)),4,200);
+    return found.isEmpty()?"":found.get(0).candidate.id;
+  }
+  static void eq(String got,String expected,String why){
+    if(!Objects.equals(got,expected))
+      throw new AssertionError(why+" expected="+expected+" got="+got);
+    checks++;
+  }
+  public static void main(String[] a){
+    String cat="Meine Katze Luna";
+    String golf="Mein Golf Diesel ist blau";
+    eq(top(cat,cat),"fact","intact query still matches");
+    eq(top("Meine Katze [REDACTED: name] Luna",cat),"","bracketed redacted query must abstain");
+    eq(top("Meine Katze <hidden: name> Luna",cat),"","angle hidden query must abstain");
+    eq(top("Meine Katze [gelöscht] Luna",cat),"","German deletion marker query must abstain");
+    eq(top("Meine Katze *** Luna",cat),"fact","legacy provider recall of stars retained");
+    eq(top("Meine Katze ■■ Luna",cat),"fact","legacy provider recall of blocks retained");
+    eq(top("Meine Katze [maskiert] Luna",cat),"","German mask marker must abstain");
+    eq(top("Meine Katze <removed> Luna",cat),"","angle removed marker must abstain");
+    eq(top("Mein Golf Diesel [zensiert] ist blau",golf),"","mixed-topic censored query must abstain");
+    eq(top("Mein Golf Diesel [masked: license] ist blau",golf),"","field mask query must abstain");
+    eq(top("Meine Katze redacted Luna",cat),"fact","ordinary prose without bracket remains matchable");
+    eq(top("Meine Katze ? Luna",cat),"fact","ordinary question punctuation not a redaction");
+    eq(top(cat,"Meine Katze [REDACTED: name] Luna"),"","existing source redaction guard stays");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+         "Meine Katze [REDACTED: name] Luna",List.of(c(cat)),200),"",
+       "existing correction query guard remains");
+    eq(CelineFutureMemoryRecall.unambiguousCorrectionTarget(
+         "Meine Katze *** Luna",List.of(c(cat)),200),"",
+       "correction star masks still abstain");
+    System.out.println("FUTURE_REDACTED_QUERY_JVM_PASS cases="+checks);
+  }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_query_redaction_') as compiled:
+        java_file=Path(compiled)/'RedactedQueryRecallContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+                              str(source),str(java_file)],capture_output=True,
+                             text=True,timeout=90)
+        assert build.returncode==0,build.stderr
+        test=subprocess.run(['java','-cp',compiled,
+                             'de.yahya.ai.RedactedQueryRecallContract'],
+                            capture_output=True,text=True,timeout=45)
+        assert test.returncode==0,test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY — a leading pictograph can identify the subject just as an
 # infix one can. The broad Latin tokenizer cannot represent it and must abstain,
 # while terminal decorative pictographs remain permitted by the old contract.
