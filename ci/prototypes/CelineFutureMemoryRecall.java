@@ -3052,6 +3052,10 @@ public final class CelineFutureMemoryRecall {
         // -5, +5 and unsigned 5 are not interchangeable evidence.
         Set<String> requestedSignedNumbers = signedNumberAnchors(query);
         if (requestedSignedNumbers == null) return Collections.emptyList();
+        // A matching number does not license a conflicting physical unit:
+        // 5 years != 5 months; 5 kg != 5 g. Pure conservative recall only.
+        Set<String> requestedMeasures = measuredNumberUnits(query);
+        if (requestedMeasures == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3109,6 +3113,11 @@ public final class CelineFutureMemoryRecall {
                 Set<String> storedSignedNumbers = signedNumberAnchors(c.summary);
                 if (storedSignedNumbers == null
                         || !requestedSignedNumbers.equals(storedSignedNumbers)) continue;
+                if (!requestedMeasures.isEmpty()) {
+                    Set<String> storedMeasures = measuredNumberUnits(c.summary);
+                    if (storedMeasures == null || !storedMeasures.containsAll(requestedMeasures))
+                        continue;
+                }
             }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
@@ -3407,6 +3416,65 @@ public final class CelineFutureMemoryRecall {
             if (signs.size() > MAX_QUERY_TOKENS) return null;
         }
         return signs;
+    }
+
+    // Whitelisted *explicit* measurement/currency/time units only. A literal
+    // numerical match is insufficient when the requested unit differs. Do not
+    // infer physical conversions or guess unknown units: the G1 owner still
+    // owns actual facts and explicit selected-ID correction.
+    private static final java.util.regex.Pattern MEASUREMENT_VALUE =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}.,])([+-]?[0-9]+(?:\\.[0-9]+)?)\\s*(km/h|m/s|°c|°f|[\\p{L}]+|€|\\$|%)");
+
+    private static String canonicalMeasurementUnit(String unit) {
+        switch (unit) {
+            case "l": case "liter": case "litern": return "liter";
+            case "ml": case "milliliter": case "millilitern": return "milliliter";
+            case "g": case "gramm": return "gramm";
+            case "kg": case "kilogramm": return "kilogramm";
+            case "t": case "tonne": case "tonnen": return "tonne";
+            case "mm": case "millimeter": return "millimeter";
+            case "cm": case "zentimeter": return "zentimeter";
+            case "m": case "meter": case "metern": return "meter";
+            case "km": case "kilometer": case "kilometern": return "kilometer";
+            case "km/h": case "kmh": return "kilometer_pro_stunde";
+            case "m/s": return "meter_pro_sekunde";
+            case "gallone": case "gallonen": return "gallone";
+            case "jahr": case "jahre": case "jahren": return "jahr";
+            case "monat": case "monate": case "monaten": return "monat";
+            case "woche": case "wochen": return "woche";
+            case "tag": case "tage": case "tagen": return "tag";
+            case "stunde": case "stunden": return "stunde";
+            case "minute": case "minuten": case "min": return "minute";
+            case "sekunde": case "sekunden": case "sek": return "sekunde";
+            case "eur": case "euro": case "€": return "euro";
+            case "usd": case "dollar": case "$": return "dollar";
+            case "ps": return "pferdestaerke";
+            case "kw": case "kilowatt": return "kilowatt";
+            case "grad": return "grad";
+            case "°c": case "celsius": return "celsius";
+            case "°f": case "fahrenheit": return "fahrenheit";
+            case "prozent": case "%": return "prozent";
+            default: return "";
+        }
+    }
+
+    private static Set<String> measuredNumberUnits(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC).replace('\u2212', '-')
+                .replaceAll("(?<=[0-9]),(?=[0-9])", ".");
+        Set<String> units = new HashSet<>();
+        java.util.regex.Matcher match = MEASUREMENT_VALUE.matcher(normalized);
+        while (match.find()) {
+            String unit = canonicalMeasurementUnit(match.group(2));
+            if (unit.isEmpty()) continue;
+            units.add(match.group(1) + ":" + unit);
+            if (units.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return units;
     }
 
     // The German stopword list removes "nicht". That is appropriate for broad

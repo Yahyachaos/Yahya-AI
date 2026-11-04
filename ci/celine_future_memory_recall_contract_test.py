@@ -132,6 +132,63 @@ public final class SignedNumericRegression {
         print(test.stdout.strip())
     sys.exit(0)
 
+# FUTURE-ONLY: A repeated number does not prove the same fact if its unit
+# differs (5 kg vs 5 g, five years vs five months). Pure Java policy only.
+if '--focused-measurement-unit' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class UnitAnchorsRegression {
+ static int n=0;
+ static CelineFutureMemoryRecall.Candidate c(String s) {return new CelineFutureMemoryRecall.Candidate("fact",s,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);}
+ static void check(String q,String s,boolean expected,String name) {
+   boolean actual=!CelineFutureMemoryRecall.retrieve(q,List.of(c(s)),4,200).isEmpty();
+   if (actual != expected)throw new AssertionError(name+" recall expected="+expected+" got="+actual);n++;
+ }
+ static void correction(String q,String s,boolean expected,String name) {
+   boolean actual=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c(s)),200).isEmpty();
+   if (actual != expected)throw new AssertionError(name+" target expected="+expected+" got="+actual);n++;
+ }
+ public static void main(String[] args) {
+   check("Mein Golf Diesel verbraucht 5 Liter", "Mein Golf Diesel verbraucht 5 Gallonen", false, "liter vs gallon");
+   check("Mein Golf Diesel verbraucht 5 Liter", "Mein Golf Diesel verbraucht 5 Liter", true, "same liters");
+   check("Meine Tochter Lena ist 5 Jahre alt", "Meine Tochter Lena ist 5 Monate alt", false, "years vs months");
+   check("Meine Tochter Lena ist 5 Jahre alt", "Meine Tochter Lena ist 5 Jahre alt", true, "matching years");
+   check("Mein Golf Diesel hat 5 kg Gepäck", "Mein Golf Diesel hat 5 g Gepäck", false, "kg vs grams");
+   check("Mein Golf Diesel hat 5 kg Gepäck", "Mein Golf Diesel hat 5 kg Gepäck", true, "matching kg");
+   check("Mein Golf Diesel fährt 10 km", "Mein Golf Diesel fährt 10 m", false, "kilometer vs meter");
+   check("Mein Golf Diesel fährt 10 km", "Mein Golf Diesel fährt 10 km", true, "matching kilometers");
+   check("Mein Golf Diesel hat 200 PS Leistung", "Mein Golf Diesel hat 200 kW Leistung", false, "hp vs kilowatts");
+   check("Mein Golf Diesel hat 200 PS Leistung", "Mein Golf Diesel hat 200 PS Leistung", true, "same hp");
+   check("Mein Preis liegt bei 5 Euro gestern", "Mein Preis liegt bei 5 Dollar gestern", false, "euros vs dollars");
+   check("Mein Preis liegt bei 5 Euro gestern", "Mein Preis liegt bei 5 EUR gestern", true, "euro synonym");
+   check("Mein Golf Diesel verbraucht 5 Liter", "Mein Golf Diesel verbraucht 5 l", true, "liter symbol");
+   check("Mein Golf Diesel verbraucht 1,5 Liter", "Mein Golf Diesel verbraucht 1.5 l", true, "decimal and unit alias");
+   check("Mein Golf Diesel hat 5 Kilogramm Gepäck", "Mein Golf Diesel hat 5 kg Gepäck", true, "kg synonym");
+   check("Meine Tochter Lena ist 5 Jahren alt", "Meine Tochter Lena ist 5 Jahre alt", true, "year grammar alias");
+   check("Mein Golf Diesel braucht Kraftstoff", "Mein Golf Diesel braucht 5 Liter Kraftstoff", true, "broad nonnumeric recall unaffected");
+   check("Mein Golf Diesel braucht 5", "Mein Golf Diesel braucht 5 Liter", true, "numeric-only query keeps broad units");
+   correction("Mein Golf Diesel verbraucht 5 Liter", "Mein Golf Diesel verbraucht 5 Gallonen", false, "correction wrong unit");
+   correction("Mein Golf Diesel verbraucht 5 Liter", "Mein Golf Diesel verbraucht 5 Liter", true, "correction matching unit");
+   correction("Meine Tochter Lena ist 5 Jahre alt", "Meine Tochter Lena ist 5 Monate alt", false, "correction months mismatch");
+   check("Mein Golf Diesel braucht 1/5 Liter", "Mein Golf Diesel braucht 1.5 Liter", false, "fraction vs decimal remains separate");
+   System.out.println("MEASUREMENT_UNIT_REGRESSION_PASS cases="+n);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_units_') as compiled:
+        java_file = Path(compiled) / 'UnitAnchorsRegression.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(java_file)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        test = subprocess.run(['java','-cp',compiled,
+                               'de.yahya.ai.UnitAnchorsRegression'],capture_output=True,
+                              text=True,timeout=45)
+        assert test.returncode == 0,test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 if '--focused-angle-deletion' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;
