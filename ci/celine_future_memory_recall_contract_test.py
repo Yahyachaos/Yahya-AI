@@ -9,6 +9,48 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+
+# FUTURE-ONLY: German umlaut transliteration must preserve numeric inequalities.
+# A query with "ueber/hoechstens" may not select the opposite bound.
+if '--focused-transliterated-quantity' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class TransliteratedQuantityContract {
+  static int count=0;
+  static CelineFutureMemoryRecall.Candidate c(String text) {
+    return new CelineFutureMemoryRecall.Candidate("fact",text,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String stored, boolean expected, String note) {
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,List.of(c(stored)),4,200).isEmpty();
+    boolean correct=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,List.of(c(stored)),200).isEmpty();
+    if(recall!=expected || correct!=expected)
+       throw new AssertionError(note+" expected="+expected+" recall="+recall+" correction="+correct);
+    count+=2;
+  }
+  public static void main(String[] args) {
+    check("Mein Budget liegt ueber 500 Euro", "Mein Budget liegt unter 500 Euro", false, "ueber vs unter");
+    check("Mein Budget liegt ueber 500 Euro", "Mein Budget liegt hoechstens 500 Euro", false, "ueber vs hoechstens");
+    check("Mein Budget liegt ueber 500 Euro", "Mein Budget liegt mehr als 500 Euro", true, "ueber == mehr als");
+    check("Mein Budget liegt über 500 Euro", "Mein Budget liegt ueber 500 Euro", true, "umlaut equivalence");
+    check("Mein Budget ist hoechstens 500 Euro", "Mein Budget ist mindestens 500 Euro", false, "hoechstens vs mindestens");
+    check("Mein Budget ist hoechstens 500 Euro", "Mein Budget ist über 500 Euro", false, "hoechstens vs ueber");
+    check("Mein Budget ist hoechstens 500 Euro", "Mein Budget ist maximal 500 Euro", true, "hoechstens == maximal");
+    check("Mein Budget ist höchstens 500 Euro", "Mein Budget ist hoechstens 500 Euro", true, "hoechstens equivalence");
+    check("Mein Budget ist mindestens 500 Euro", "Mein Budget ist hoechstens 500 Euro", false, "reverse GE vs LE");
+    System.out.println("TRANSLITERATED_QUANTITY_CONTRACT_PASS cases="+count);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='transliterated_quantity_') as out:
+        java_file=Path(out)/'TransliteratedQuantityContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        compile=subprocess.run(['javac','-d',out,str(source),str(java_file)],capture_output=True,text=True)
+        if compile.returncode: raise AssertionError('javac failed: '+compile.stderr)
+        actual=subprocess.run(['java','-cp',out,'de.yahya.ai.TransliteratedQuantityContract'],capture_output=True,text=True)
+        print(actual.stdout.strip())
+        if actual.returncode: raise AssertionError('transliterated bound RED: '+actual.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY: disjoint explicit German quantity inequalities must never
 # select a different fact or guessed correction ID from matching topic/amount.
 # This is a lexical guard, not unit conversion or threshold inference.
