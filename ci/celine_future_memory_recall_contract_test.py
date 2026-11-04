@@ -148,6 +148,52 @@ public final class ExactAmountContract {
         if run.returncode: raise AssertionError('exact amount contract RED: '+run.stderr)
     sys.exit(0)
 
+# FUTURE ONLY: direct German strict comparison prepositions, not fuzzy inequalities.
+# "ueber 500" and "unter 500" are opposite numeric facts.
+if '--focused-open-quantity-synonyms' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class OpenQuantitySynonymsContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String text) {
+    return new CelineFutureMemoryRecall.Candidate("fact", text, "",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, 100, 0, 0.9);
+  }
+  static void check(String q,String memory,boolean expected,boolean correction,String note) {
+    boolean actual=correction
+      ? !CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c(memory)),200).isEmpty()
+      : !CelineFutureMemoryRecall.retrieve(q,List.of(c(memory)),4,200).isEmpty();
+    if(actual!=expected) throw new AssertionError(note+" expected="+expected+" got="+actual);
+    n++;
+  }
+  public static void main(String[] args) {
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt unter 500 Euro",false,false,"strict opposite budget");
+    check("Mein Budget liegt unter 500 Euro","Mein Budget liegt über 500 Euro",false,false,"strict opposite reverse");
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt höchstens 500 Euro",false,false,"strict greater not inclusive LE");
+    check("Mein Budget liegt unter 500 Euro","Mein Budget liegt mindestens 500 Euro",false,false,"strict less not inclusive GE");
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt mehr als 500 Euro",true,false,"ueber matches mehr als");
+    check("Mein Budget liegt unter 500 Euro","Mein Budget liegt weniger als 500 Euro",true,false,"unter matches weniger als");
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt >500 Euro",true,false,"ueber matches symbolic >");
+    check("Mein Budget liegt unter 500 Euro","Mein Budget liegt <500 Euro",true,false,"unter matches symbolic <");
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt 500 Euro",false,true,"no unbounded correction ID");
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt unter 500 Euro",false,true,"no opposite correction ID");
+    check("Mein Budget liegt über 500 Euro","Mein Budget liegt mehr als 500 Euro",true,true,"equivalent correction ID");
+    check("Mein Budget liegt unter 500 Euro","Mein Budget liegt weniger als 500 Euro",true,true,"equivalent lower correction ID");
+    check("Mein Budget liegt über €500","Mein Budget liegt unter €500",false,false,"prefix EUR opposite");
+    check("Mein Budget liegt unter $500","Mein Budget liegt über $500",false,true,"prefix USD correction opposite");
+    System.out.println("OPEN_QUANTITY_SYNONYMS_CONTRACT_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_open_quantity_') as compiled:
+        java_file=Path(compiled)/'OpenQuantitySynonymsContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        built=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],capture_output=True,text=True,timeout=90)
+        assert built.returncode==0,built.stdout+built.stderr
+        check=subprocess.run(['java','-cp',compiled,'de.yahya.ai.OpenQuantitySynonymsContract'],capture_output=True,text=True,timeout=45)
+        assert check.returncode==0,check.stdout+check.stderr
+        print(check.stdout.strip())
+    sys.exit(0)
+
 if '--focused-quantity-bound' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;
