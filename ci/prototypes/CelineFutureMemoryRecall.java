@@ -3471,7 +3471,7 @@ public final class CelineFutureMemoryRecall {
     // fuzzy quantity interpretation, or an autonomous memory update.
     private static final java.util.regex.Pattern EXPLICIT_QUANTITY_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(mindestens|wenigstens|minimal|höchstens|maximal|über|unter|mehr\\s+als|weniger\\s+als|genau|exakt)\\s+(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(mindestens|wenigstens|minimal|höchstens|hoechstens|maximal|über|ueber|unter|mehr\\s+als|weniger\\s+als|genau|exakt)\\s+(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     // Symbolic comparisons carry the same inclusive/exclusive distinction.
     // Normalize >= and ≥ (or <= and ≤) to one bound family, not to equality.
@@ -3491,9 +3491,9 @@ public final class CelineFutureMemoryRecall {
             String family = match.group(1).replaceAll("\\s+", " ");
             String op = family.equals("mindestens") || family.equals("wenigstens")
                     || family.equals("minimal") ? "GE"
-                    : family.equals("höchstens") || family.equals("maximal") ? "LE"
+                    : family.equals("höchstens") || family.equals("hoechstens") || family.equals("maximal") ? "LE"
                     : family.equals("genau") || family.equals("exakt") ? "EQ"
-                    : family.equals("mehr als") || family.equals("über") ? "GT" : "LT";
+                    : family.equals("mehr als") || family.equals("über") || family.equals("ueber") ? "GT" : "LT";
             bounds.add(op + ":" + match.group(2).replace(',', '.'));
             if (bounds.size() > MAX_QUERY_TOKENS) return null;
         }
