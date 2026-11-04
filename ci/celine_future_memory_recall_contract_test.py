@@ -9,6 +9,57 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE-ONLY: angle-bracket deletion markers must enforce the same
+# read-only recall and correction abstention as equivalent bracket markers.
+# A redacted G1 projection is incomplete evidence, even with topic overlap.
+if '--focused-angle-deletion' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AngleRedactionContract {
+ static int cases=0;
+ static CelineFutureMemoryRecall.Candidate c(String text) {
+  return new CelineFutureMemoryRecall.Candidate("fact",text,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+ }
+ static String recall(String q, String stored) {
+  var result=CelineFutureMemoryRecall.retrieve(q,List.of(c(stored)),4,200);
+  return result.isEmpty()?"":result.get(0).candidate.id;
+ }
+ static String correction(String q, String stored) {
+  return CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c(stored)),200);
+ }
+ static void eq(String got,String expected,String why){if(!Objects.equals(got,expected))throw new AssertionError(why+" expected="+expected+" got="+got);cases++;}
+ public static void main(String[] a) {
+  String plain="Meine Katze Luna";
+  eq(recall("Meine Katze <deleted: name> Luna",plain),"","deleted angle-tag query omitted subject");
+  eq(recall("Meine Katze <gelöscht: name> Luna",plain),"","geloescht angle-tag query omitted subject");
+  eq(correction("Meine Katze <deleted: name> Luna",plain),"","deleted angle-tag correction must abstain");
+  eq(correction("Meine Katze <gelöscht: name> Luna",plain),"","geloescht angle-tag correction must abstain");
+  eq(recall(plain,"Meine Katze <deleted: name> Luna"),"","stored deletion redaction must be withheld");
+  eq(recall(plain,"Meine Katze <gelöscht: name> Luna"),"","stored german deletion redaction must be withheld");
+  eq(recall("Meine Katze <removed: name> Luna",plain),"","existing removed redaction still withheld");
+  eq(recall("Meine Katze [DELETED: name] Luna",plain),"","existing bracket deletion tag still withheld");
+  eq(recall(plain,plain),"fact","unredacted exact recall still allowed");
+  eq(correction(plain,plain),"fact","unredacted correction still allowed");
+  eq(recall("Meine Katze <profile> Luna",plain),"fact","unrelated markup is not a redaction");
+  eq(recall("Meine Katze <removed> Luna",plain),"","existing whole removed tag still blocked");
+  System.out.println("FOCUSED_ANGLE_DELETION_REDACTION_PASS cases="+cases);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_angle_deletion_') as compiled:
+        java_file = Path(compiled) / 'AngleRedactionContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+                                str(source),str(java_file)], capture_output=True,
+                               text=True,timeout=90)
+        assert build.returncode == 0,build.stderr
+        test = subprocess.run(['java','-cp',compiled,
+                               'de.yahya.ai.AngleRedactionContract'],capture_output=True,
+                              text=True,timeout=45)
+        assert test.returncode == 0,test.stdout+test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY: partial redaction in the USER QUERY must never launder
 # visible topic anchors into a provider-safe memory answer. Selected-ID
 # correction remains the fallback; no Android/provider wiring is changed.
