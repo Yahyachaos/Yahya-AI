@@ -9,6 +9,62 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE-ONLY: disjoint explicit German quantity inequalities must never
+# select a different fact or guessed correction ID from matching topic/amount.
+# This is a lexical guard, not unit conversion or threshold inference.
+if '--focused-quantity-bound' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class QuantityBoundContract {
+ static int n=0;
+ static CelineFutureMemoryRecall.Candidate c(String summary) {
+  return new CelineFutureMemoryRecall.Candidate("fact",summary,"",
+    CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+ }
+ static void recall(String query,String stored,boolean expected,String note){
+  boolean actual=!CelineFutureMemoryRecall.retrieve(query,List.of(c(stored)),4,200).isEmpty();
+  if(actual!=expected)throw new AssertionError(note+" recall expected="+expected+" got="+actual);n++;
+ }
+ static void correct(String query,String stored,boolean expected,String note){
+  boolean actual=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,List.of(c(stored)),200).isEmpty();
+  if(actual!=expected)throw new AssertionError(note+" correction expected="+expected+" got="+actual);n++;
+ }
+ public static void main(String[] a){
+  recall("Mein Budget ist mindestens 500 Euro","Mein Budget ist höchstens 500 Euro",false,"GE not LE");
+  recall("Mein Budget ist höchstens 500 Euro","Mein Budget ist mindestens 500 Euro",false,"LE not GE");
+  recall("Meine Fahrt dauert mehr als 5 Stunden","Meine Fahrt dauert weniger als 5 Stunden",false,"GT not LT");
+  recall("Meine Fahrt dauert weniger als 5 Stunden","Meine Fahrt dauert mehr als 5 Stunden",false,"LT not GT");
+  recall("Mein Budget ist mindestens 500 Euro","Mein Budget ist mehr als 500 Euro",false,"GE not GT");
+  recall("Mein Budget ist höchstens 500 Euro","Mein Budget ist weniger als 500 Euro",false,"LE not LT");
+  recall("Mein Budget ist mindestens 500 Euro","Mein Budget ist 500 Euro",false,"bounded request not unbounded source");
+  recall("Mein Budget ist mindestens 500 Euro","Mein Budget ist mindestens 500 Euro",true,"same GE");
+  recall("Mein Budget ist höchstens 500 Euro","Mein Budget ist höchstens 500 Euro",true,"same LE");
+  recall("Meine Fahrt dauert mehr als 5 Stunden","Meine Fahrt dauert mehr als 5 Stunden",true,"same GT");
+  recall("Meine Fahrt dauert weniger als 5 Stunden","Meine Fahrt dauert weniger als 5 Stunden",true,"same LT");
+  recall("Mein Budget ist MINDESTENS 500 Euro","Mein Budget ist mindestens 500 Euro",true,"uppercase compatible");
+  recall("Mein Budget ist mindestens 1,5 Euro","Mein Budget ist mindestens 1.5 Euro",true,"decimal notation compatible");
+  recall("Mein Budget beträgt 500 Euro","Mein Budget beträgt mindestens 500 Euro",true,"broad query unchanged");
+  correct("Mein Budget ist mindestens 500 Euro","Mein Budget ist höchstens 500 Euro",false,"no wrong correction GE LE");
+  correct("Mein Budget ist höchstens 500 Euro","Mein Budget ist mindestens 500 Euro",false,"no wrong correction LE GE");
+  correct("Meine Fahrt dauert mehr als 5 Stunden","Meine Fahrt dauert weniger als 5 Stunden",false,"no wrong correction GT LT");
+  correct("Mein Budget ist mindestens 500 Euro","Mein Budget ist mindestens 500 Euro",true,"matching GE correction");
+  correct("Mein Budget ist höchstens 500 Euro","Mein Budget ist höchstens 500 Euro",true,"matching LE correction");
+  correct("Mein Budget ist mindestens 500 Euro","Mein Budget ist 500 Euro",false,"correction does not assume bound");
+  System.out.println("QUANTITY_BOUND_CONTRACT_PASS cases="+n);
+ }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_quantity_bound_') as compiled:
+        java_file=Path(compiled)/'QuantityBoundContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],
+                capture_output=True,text=True,timeout=90)
+        assert build.returncode==0,build.stdout+build.stderr
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.QuantityBoundContract'],
+                capture_output=True,text=True,timeout=45)
+        assert run.returncode==0,run.stdout+run.stderr
+        print(run.stdout.strip())
+    sys.exit(0)
+
 # FUTURE-ONLY: an explicit temporal relation anchored to a year is part of
 # the fact. A shared year and topical words never prove "before" == "after"
 # or "since" == "until" in recall or suggested correction targets.
