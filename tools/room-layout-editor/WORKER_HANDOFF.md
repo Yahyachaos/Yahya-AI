@@ -1534,3 +1534,37 @@ The V35b change is confined to `tools/room-layout-editor/architecture-v20-proof.
 
 **exact_next_action (CURRENT; supersedes all earlier editor handoffs):** Within exclusive Editor scope and only after fresh owner/lease/CI reconciliation, inspect Playwright's actual actionability stable/rAF implementation and the original V138 ~4933ms stable wait versus the 180ms unchanged-rectangle/hit-test samples; identify a minimal non-invasive way to separate Playwright rAF/stability acknowledgement, browser compositor, and runner dispatch timing on genuine AA0/AA4 neutral restore (not inferred from DOM events alone). If sufficient to produce a causal, reproducible test, make only that editor-owned measurement change and launch exactly one serial Chromium proof with the same strict <5000ms and 13-GLB/Save/Lock/412x915 gates, then inspect originals. Otherwise record which internal stage is inaccessible and **do not** speculate, weaken gates, modify owner transforms or trigger blind tests.
 
+
+
+---
+
+## 04 Nov 2026 — V139 two ORIGINAL mobile artifacts, same editor executable, intermittent AA4 long tails
+
+- Fresh live AGENTS §§2/4/5/10/12, queue/work-order/validation/source manifest and PR/ownership reconcile: editor branch **ab6df9f63f549fd06566ec6321b6527d8493a58f**, Room PR #121 OPEN/DRAFT, Core #113 OPEN/DRAFT, old #111 CLOSED. Latest relevant browser workflow is [#41753036667](https://github.com/Yahyachaos/Yahya-AI/actions/runs/41753036667) TERMINAL/SUCCESS on that HEAD; **exactly three required jobs SUCCESS** (13-original-GLB Save/Lock, V21 original curtain, S25-like AA0+AA4), remaining 13 optional jobs SKIPPED (NOT PASS). No active overlapping editor workflow in the latest Actions listing. Previous exact runtime-code head was **930acfb50bdac239bb7a2f4d7546a32d32709988**; GitHub compare 930acfb..ab6df9f confirms **one and only one changed file: WORKER_HANDOFF.md**. The subsequent green run therefore tested identical editor executable/proof code, not a latency fix.
+- Actually downloaded, ZIP-SHA256-verified and inspected both **ORIGINAL** mobile artifacts: V138 FAILURE [#13284112029](https://github.com/Yahyachaos/Yahya-AI/actions/runs/41745738808/artifacts/13284112029), **7a7b39f7906e36cb93154285978db81dfefa8f637d83d3c47bfd8462e1d4f91d**; V139 SUCCESS [#13287656397](https://github.com/Yahyachaos/Yahya-AI/actions/runs/41753036667/artifacts/13287656397), **abbad9b31ffe2c9ed31f692decf88dcf05b4a2071f517dfed93888dd42f2caae**. Their AA attribution reports preserve **22/22 trusted correctly targeted pointerdowns** in each complete mode, no unmatched targets; V138 AA4 was interrupted after 9/9 correctly targeted events. Both preserve user approved 13-GLB source-layout SHA256 **471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f**, strict gates unchanged.
+- Quantified ordinary genuine Playwright taps (p95 = **nearest-rank**, strict smoothness requires each under 5000ms):
+
+| ORIGINAL artifact | Mode | Taps observed | >=5000ms | p95 elapsed | Worst elapsed | Mandatory mobile job |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| V138 #13284112029 | AA0 | 22/22 | **4** | **7010ms** | 7339ms | Mobile AA0 portion completed |
+| V138 #13284112029 | AA4 | **9/22** before abort | **3 of 9** | 9817ms (TRUNCATED sample) | 9817ms | **FAIL**, neutral restore 5010ms |
+| V139 #13287656397 | AA0 | 22/22 | **0** | **4851ms** | 4852ms | completed |
+| V139 #13287656397 | AA4 | 22/22 | **5** | **14837ms** | 15560ms | **PASS selective technical gates**, **FAIL smoothness** |
+
+  Caution: 9-sample AA4 p95 versus complete 22-sample AA4 is NOT a controlled matched-population comparison. But two runs of **the same executable code** giving one mobile job FAILURE and the other SUCCESS while both have >5s AA4 ordinary taps establish **intermittent latency not fixed**.
+- All five V139 AA4 >5s actions are from the **true original trusted targeted browser events**, not neighboring-tap attribution:
+
+| Target | Playwright locator.tap wall | Trusted pointerdown after start | From Playwright start until \`performing tap action\` | From \`performing tap action\` to locator return |
+| --- | ---: | ---: | ---: | ---: |
+| X+ nudge | 7703ms | 7698.6ms | 7635ms | 68ms |
+| Zoom out 0.82 | 11057ms | 11053.5ms | 6198ms | 4859ms |
+| Zoom in 1.22 | 15560ms | 15554.6ms | 11433ms | 4126ms |
+| JSON Save | 14837ms | 14820.3ms | 9222ms | 5615ms |
+| Tools summary | 11925ms | 11918.8ms | 10907ms | 1018ms |
+
+  Source: V139 original mobile attribution JSON plus **actual job #126323905329 DEBUG=pw:api log**, matched ISO action start and end timestamps. The trusted event arrives at the very end of each slow tap; post-pointerdown locator resolution is only **3.5–16.7ms**, so multi-second synchronous per-button handler **is not demonstrated**. However compositor-frame responsiveness after the event is not established. Most delay sits in Playwright visibility/enabled/stable and/or tap action dispatch; which underlying CDP/Chromium/SwiftShader/host stage is responsible remains **UNPROVEN**.
+- One **concrete single-occurrence** editor/UI hit-test finding: V139 nudge action had initial stable-actionability wait ~3914ms, then Playwright reported **\`<button data-mobile-action="save">JSON ↓</button> ... intercepts pointer events\`**, retried, and delivered the genuine nudge at ~7699ms. This proves one actual target interception/retry in that run, **not** yet reproducible or sufficient to explain other long taps (zoom/Save/summary had no such interception in their original log). Do not silently mark it a permanent layout root cause.
+- Actually opened new native-AA0 and native-AA4 **412x915** viewport PNGs. Original bed, dresser, chair, plants, curtains, tables visible, but the broad opaque gray window/backplane still visually wrong. V139 AA0 screenshot SHA256 **1a0b073e422d3026a2be0daed454ccef41d4aa52c22ea55888f0e74c4177babe**; V139 AA4 SHA256 **f1f9ce32a48b90c09476a78be4add9135ee976c58ae698799e8d86d97e5cb103**. Both are Chromium emulation, **NOT native Samsung S25/Android Filament**. **ROOM VISUAL FAIL / G2.3 PAUSED**, no release acceptance.
+- This handoff changes **only documentation** with \`[skip ci]\` to avoid a redundant Chromium proof. No runtime/proof thresholds, original 13 GLBs, owner JSON/XYZ/Euler/legacy rotation_y_deg/scale/lock, camera, 4.40x4.20x2.65m room, reference solver, Android/Build/shared/CI/release or new worker/branch/PR touched. Old reference-photo placement directives remain revoked.
+
+**exact_next_action (CURRENT; supersedes prior editor next actions):** In exclusive editor-owned scope after fresh lease/HEAD/Actions reconcile, target a minimal repeatable **ordinary AA4 Playwright tap diagnostic** with simultaneous button-rect/hit-test/scroll/rAF sampling and separate Playwright actionability-versus-tap-dispatch and trusted pointerdown timestamps; first attempt to reproduce the proven one-off **Save-over-X+ nudge hit-test interception**, then compare unchanged zoom/Save/tools controls. If and only if an editor-owned causal defect is reproduced, apply its smallest non-geometric fix in \`tools/room-layout-editor/**\` and execute **exactly one** nonconcurrent original-GLB, strict <5000ms, Save/Lock/Touch and native 412x915 Chromium proof. Otherwise record the browser/host visibility limits without speculative patch or blind CI. Keep **AA4 smoothness FAIL, VISUAL FAIL / G2.3 PAUSED**.
