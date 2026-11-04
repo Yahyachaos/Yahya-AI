@@ -74,6 +74,64 @@ public class NumericAnchorsRegression {
         print(test.stdout.strip())
     sys.exit(0)
 
+# FUTURE-ONLY: explicit signed numbers must not recall opposite or unsigned facts.
+# Small bounded regression: no Android, provider or persistence claim.
+if '--focused-signed-numeric' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class SignedNumericRegression {
+    private static int n=0;
+    static CelineFutureMemoryRecall.Candidate candidate(String summary) {
+        return new CelineFutureMemoryRecall.Candidate("fact", summary, "",
+            CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, 100, 0, 0.9);
+    }
+    static void recall(String q,String s,boolean wanted,String label) {
+        boolean found=!CelineFutureMemoryRecall.retrieve(q,List.of(candidate(s)),4,200).isEmpty();
+        if(found!=wanted) throw new AssertionError(label+": expected "+wanted+" got "+found);
+        n++;
+    }
+    static void correction(String q,String s,boolean wanted,String label) {
+        boolean found=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(candidate(s)),200).isEmpty();
+        if(found!=wanted) throw new AssertionError(label+": expected "+wanted+" got "+found);
+        n++;
+    }
+    public static void main(String[] args) {
+        recall("Meine Temperatur ist -5 Grad kalt", "Meine Temperatur ist +5 Grad kalt", false, "negative vs positive");
+        recall("Meine Temperatur ist -5 Grad kalt", "Meine Temperatur ist 5 Grad kalt", false, "negative vs unsigned");
+        recall("Meine Temperatur ist 5 Grad kalt", "Meine Temperatur ist -5 Grad kalt", false, "unsigned vs negative");
+        recall("Meine Temperatur ist +5 Grad kalt", "Meine Temperatur ist 5 Grad kalt", false, "positive vs unsigned");
+        recall("Meine Temperatur ist -5 Grad kalt", "Meine Temperatur ist -5 Grad kalt", true, "matching negatives");
+        recall("Meine Temperatur ist +5 Grad kalt", "Meine Temperatur ist +5 Grad kalt", true, "matching positives");
+        recall("Meine Temperatur ist 5 Grad kalt", "Meine Temperatur ist 5 Grad kalt", true, "matching unsigned");
+        recall("Mein Messwert liegt bei -1,5 Liter", "Mein Messwert liegt bei -1.5 Liter", true, "signed comma-dot equivalence");
+        recall("Mein Messwert liegt bei -1,5 Liter", "Mein Messwert liegt bei +1.5 Liter", false, "signed decimal mismatch");
+        correction("Meine Temperatur ist -5 Grad kalt", "Meine Temperatur ist +5 Grad kalt", false, "incorrect signed correction");
+        correction("Meine Temperatur ist -5 Grad kalt", "Meine Temperatur ist -5 Grad kalt", true, "matching signed correction");
+        recall("Mein Modell S-25 ist schnell", "Mein Modell S-25 ist schnell", true, "model suffix not sign");
+        recall("Mein Datum 2026-11-04 ist bekannt", "Mein Datum 2026-11-04 ist bekannt", true, "date hyphens not signs");
+        recall("Meine Rechnung beträgt -50 Euro", "Meine Rechnung beträgt 50 Euro", false, "negative amount not unsigned");
+        recall("Meine Temperatur ist −5 Grad kalt", "Meine Temperatur ist 5 Grad kalt", false, "unicode minus vs unsigned");
+        recall("Meine Temperatur ist −5 Grad kalt", "Meine Temperatur ist -5 Grad kalt", true, "unicode minus equivalent");
+        recall("Meine Temperatur ist -5 Grad kalt", "Meine Temperatur ist −5 Grad kalt", true, "unicode minus stored equivalent");
+        recall("Meine Temperatur ist ＋5 Grad kalt", "Meine Temperatur ist -5 Grad kalt", false, "fullwidth plus differs from minus");
+        System.out.println("SIGNED_NUMERIC_REGRESSION_PASS cases="+n);
+    }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_core_sign_') as compiled:
+        java_file = Path(compiled) / 'SignedNumericRegression.java'
+        java_file.write_text(harness, encoding='utf-8')
+        build = subprocess.run(['javac', '-encoding', 'UTF-8', '-d', compiled,
+                                str(source), str(java_file)], capture_output=True,
+                               text=True, timeout=90)
+        assert build.returncode == 0, build.stderr
+        test = subprocess.run(['java', '-cp', compiled,
+                               'de.yahya.ai.SignedNumericRegression'], capture_output=True,
+                              text=True, timeout=45)
+        assert test.returncode == 0, test.stdout + test.stderr
+        print(test.stdout.strip())
+    sys.exit(0)
+
 if '--focused-angle-deletion' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;

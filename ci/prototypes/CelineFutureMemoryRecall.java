@@ -3048,6 +3048,10 @@ public final class CelineFutureMemoryRecall {
         // A broad question without a number may still retrieve a dated fact.
         Set<String> requestedNumericAnchors = numericAnchors(query);
         if (requestedNumericAnchors == null) return Collections.emptyList();
+        // An explicit sign is part of a factual numeric value. In particular,
+        // -5, +5 and unsigned 5 are not interchangeable evidence.
+        Set<String> requestedSignedNumbers = signedNumberAnchors(query);
+        if (requestedSignedNumbers == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3102,6 +3106,9 @@ public final class CelineFutureMemoryRecall {
                 Set<String> storedNumbers = numericAnchors(c.summary);
                 if (storedNumbers == null || !storedNumbers.containsAll(requestedNumericAnchors))
                     continue;
+                Set<String> storedSignedNumbers = signedNumberAnchors(c.summary);
+                if (storedSignedNumbers == null
+                        || !requestedSignedNumbers.equals(storedSignedNumbers)) continue;
             }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
@@ -3377,6 +3384,29 @@ public final class CelineFutureMemoryRecall {
             if (result.size() > MAX_QUERY_TOKENS) return null;
         }
         return result;
+    }
+
+    // Returns only explicitly signed numeric literals, preserving minus/plus
+    // and decimal punctuation. The negative/positive/unsigned distinction is
+    // deliberately strict because a stale fact must never win by topic overlap.
+    // Sign recognition requires a word boundary: S-25 model names and 3-5
+    // ranges are not implicitly negative measurements.
+    private static Set<String> signedNumberAnchors(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        Set<String> signs = new HashSet<>();
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC).replace('\u2212', '-')
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("(?<=[0-9]),(?=[0-9])", ".");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])[-+][0-9]+(?:\\.[0-9]+)*").matcher(normalized);
+        while (matcher.find()) {
+            signs.add(matcher.group());
+            if (signs.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return signs;
     }
 
     // The German stopword list removes "nicht". That is appropriate for broad
