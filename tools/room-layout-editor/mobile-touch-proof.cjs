@@ -478,6 +478,73 @@ async function finishFocusedSchedulingTrace(state) {
     long_scheduler_events:report.chrome_trace_long_scheduler_events?.length||0};
 }
 
+
+// V145 proof-only: independently ping the renderer through a second CDP
+// session WHILE the existing original WebGL canvas touch is outstanding.
+// The probe issues no new touch or UI change; it cannot grant a PASS.
+async function beginPassiveRendererCdpProbe(context,page,label) {
+  const report={
+    name:'V145_PASSIVE_RENDERER_CDP_RESPONSIVENESS_DURING_REAL_CANVAS_TOUCH',
+    label,source_sha:process.env.GITHUB_SHA||null,
+    epoch_started_ms:Date.now(),samples:[],ticks:[],
+    caveat:'Read-only Runtime.evaluate on separate CDP session may itself perturb browser scheduling; this is not OS, GPU driver or physical S25 proof.',
+    strict_touch_threshold_ms_exclusive:5000,visual_acceptance:'NOT_GRANTED'
+  };
+  let session=null,ongoing=null,inFlight=false,stopped=false,sequence=0;
+  try{
+    session=await context.newCDPSession(page);
+    await session.send('Runtime.enable');
+  }catch(error){
+    report.install_error=String(error);
+    if(session)await session.detach().catch(()=>{});
+    return {stop:async()=>{
+      fs.writeFileSync(path.join(out,'mobile-passive-renderer-cdp-'+label+'.json'),
+        JSON.stringify(report,null,2));
+      return {file:'mobile-passive-renderer-cdp-'+label+'.json',
+        install_error:report.install_error};
+    }};
+  }
+  const send=()=>{
+    if(stopped)return;
+    const epoch=Date.now();
+    if(report.ticks.length<100)report.ticks.push({epoch_ms:epoch,pending:inFlight});
+    if(inFlight||report.samples.length>=45)return;
+    const id=++sequence;
+    inFlight=true;
+    ongoing=session.send('Runtime.evaluate',{
+      expression:'performance.timeOrigin + performance.now()',
+      returnByValue:true,silent:true
+    }).then(response=>{
+      const ack=Date.now();
+      report.samples.push({sequence:id,sent_epoch_ms:epoch,
+        ack_epoch_ms:ack,ack_elapsed_ms:ack-epoch,
+        renderer_epoch_ms:response.result?.value??null,
+        exception:response.exceptionDetails?.text??null});
+    }).catch(error=>{
+      report.samples.push({sequence:id,sent_epoch_ms:epoch,
+        ack_epoch_ms:Date.now(),error:String(error)});
+    }).finally(()=>{inFlight=false;});
+  };
+  const timer=setInterval(send,200);
+  send();
+  return {stop:async()=>{
+    stopped=true;
+    clearInterval(timer);
+    const stopping=Date.now();
+    if(ongoing)await Promise.race([ongoing,new Promise(resolve=>setTimeout(resolve,1500))]);
+    report.epoch_stopped_ms=Date.now();
+    report.stop_wait_ms=Date.now()-stopping;
+    report.unresolved_at_stop=inFlight;
+    report.max_acked_ms=report.samples.length?
+      Math.max(...report.samples.filter(s=>s.ack_elapsed_ms!=null).map(s=>s.ack_elapsed_ms),0):null;
+    await session.detach().catch(error=>{report.detach_error=String(error);});
+    const file='mobile-passive-renderer-cdp-'+label+'.json';
+    fs.writeFileSync(path.join(out,file),JSON.stringify(report,null,2));
+    return {file,samples:report.samples.length,ticks:report.ticks.length,
+      max_acked_ms:report.max_acked_ms,unresolved_at_stop:report.unresolved_at_stop};
+  }};
+}
+
 async function independentNativeCdpInputReceipt(page,context) {
   // This is a measured, separate control AFTER mandatory genuine touch/JSON/
   // viewport gates. It cannot grant PASS, replace Playwright UI touches or
@@ -769,6 +836,8 @@ async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
       const perfBefore=await getMetrics();
       const focused=order===0?await beginFocusedSchedulingTrace(cdp,
         (NATIVE_AA4_MODE?'aa4':'aa0')+'-paused-canvas'):null;
+      const rendererProbe=order===0?await beginPassiveRendererCdpProbe(context,page,
+        (NATIVE_AA4_MODE?'aa4':'aa0')+'-paused-canvas'):null;
       if(focused)await page.evaluate(()=>
         performance.mark('CELINE_E2E_PAUSED_CANVAS_BEFORE')).catch(()=>{});
       const started=Date.now();
@@ -787,6 +856,7 @@ async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
       const finished=Date.now();
       if(focused)await page.evaluate(()=>
         performance.mark('CELINE_E2E_PAUSED_CANVAS_AFTER')).catch(()=>{});
+      const passiveRendererSummary=rendererProbe?await rendererProbe.stop():null;
       const focusedSummary=await finishFocusedSchedulingTrace(focused);
       const perfAfter=await getMetrics();
       const post=await page.evaluate(offset=>{
@@ -837,6 +907,7 @@ async function pausedCanvasVsPassiveHtmlNativeProbe(page,context) {
         browser_longtask_count:tasks.length,
         browser_renderer_metrics_before:perfBefore,browser_renderer_metrics_after:perfAfter,
         compositor_direct_measurement:'NOT_AVAILABLE__RAF_GAP_IS_ONLY_PROXY',
+        passive_renderer_cdp_responsiveness:passiveRendererSummary,
         targeted_chromium_runner_trace:focusedSummary});
     }
   } finally {
