@@ -3489,14 +3489,14 @@ public final class CelineFutureMemoryRecall {
         // matching to explicit whole bracket tags to avoid treating ordinary
         // prose mentioning "redacted" as an opaque source.
         if (java.util.regex.Pattern.compile(
-                "\\[(?:redacted|hidden|ausgeblendet|gelöscht|removed|deleted|masked|maskiert|zensiert|entfernt)"
-                + "(?:\\s*[:=-][^\\]<>]{0,64})?\\]")
+                "\\[\\s*(?:redacted|hidden|ausgeblendet|gelöscht|removed|deleted|masked|maskiert|zensiert|entfernt)"
+                + "(?:\\s*[:=-]\\s*[^\\]<>]{0,64})?\\s*\\]")
                 .matcher(marker).find()) return true;
         // Some external projections use explicit angle-delimited redaction
         // labels; ordinary HTML-like tags must remain harmless.
         if (java.util.regex.Pattern.compile(
-                "<(?:redacted|hidden|ausgeblendet|removed|masked|maskiert|zensiert|entfernt)"
-                + "(?:\\s*[:=-][^<>]{0,64})?>")
+                "<\\s*(?:redacted|hidden|ausgeblendet|removed|masked|maskiert|zensiert|entfernt)"
+                + "(?:\\s*[:=-]\\s*[^<>]{0,64})?\\s*>")
                 .matcher(marker).find()) return true;
         return false;
     }
