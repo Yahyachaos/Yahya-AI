@@ -3356,12 +3356,13 @@ public final class CelineFutureMemoryRecall {
         return cues;
     }
 
-    // A matching NEGATION FAMILY is insufficient evidence of the predicate:
-    // "Mein Golf Diesel ist nicht blau" is not proof of "... nicht rot".
-    // Bind the first representable content term following each explicit cue to
-    // its family. This deliberately limited German scope is fail-closed, not
-    // a grammar parser: missing or unsupported targets cannot grant recall.
-    // Corrections may still intentionally negate a formerly positive memory.
+    // A negation prefix alone is not an identifiable proposition. In particular,
+    // the *first* post-cue content word can be a shared adverb ("wirklich") or
+    // the beginning of a different compound clause. Preserve the ordered,
+    // representable content of each bounded negated clause instead of choosing
+    // just that first word. Extra/mismatching content must abstain rather than
+    // turn a shared subject into a false factual match or correction-ID guess.
+    // This is a conservative lexical fingerprint, NOT a German syntax parser.
     private static Set<String> negatedPredicateAnchors(String sourceText) {
         if (sourceText == null || sourceText.length() > MAX_INPUT
                 || !wellFormedUtf16(sourceText) || hasNonTextControl(sourceText)
@@ -3369,22 +3370,37 @@ public final class CelineFutureMemoryRecall {
         Set<String> predicates = new HashSet<>();
         java.util.regex.Matcher cues = GERMAN_NEGATION_CUE.matcher(
                 sourceText.toLowerCase(Locale.GERMANY));
-        java.util.regex.Pattern lexeme = java.util.regex.Pattern.compile("[\\p{L}\\p{N}]+");
+        String previousFamily = null;
+        int previousEnd = -1;
         while (cues.find()) {
-            String family = cues.group().startsWith("kein") ? "kein" : cues.group();
-            java.util.regex.Matcher after = lexeme.matcher(sourceText);
-            after.region(cues.end(), sourceText.length());
-            boolean found = false;
-            while (after.find()) {
-                Set<String> normalized = terms(after.group());
-                if (normalized.isEmpty()) continue;
-                predicates.add(family + ":" + normalized.iterator().next());
-                found = true;
-                break;
+            if (previousEnd >= 0) {
+                String signature = negatedClauseSignature(sourceText, previousEnd, cues.start());
+                if (signature.isEmpty()) return Collections.emptySet();
+                predicates.add(previousFamily + ":" + signature);
             }
-            if (!found) return Collections.emptySet();
+            previousFamily = cues.group().startsWith("kein") ? "kein" : cues.group();
+            previousEnd = cues.end();
+        }
+        if (previousEnd >= 0) {
+            String signature = negatedClauseSignature(sourceText, previousEnd, sourceText.length());
+            if (signature.isEmpty()) return Collections.emptySet();
+            predicates.add(previousFamily + ":" + signature);
         }
         return predicates;
+    }
+
+    private static String negatedClauseSignature(String text, int begin, int end) {
+        java.util.regex.Matcher after = java.util.regex.Pattern
+                .compile("[\\p{L}\\p{N}]+").matcher(text);
+        after.region(begin, end);
+        StringBuilder signature = new StringBuilder();
+        while (after.find()) {
+            Set<String> normalized = terms(after.group());
+            if (normalized.isEmpty()) continue; // G1/German stopword or small word
+            if (signature.length() != 0) signature.append('/');
+            signature.append(normalized.iterator().next());
+        }
+        return signature.toString();
     }
 
     // The German lexical tokenizer discards emoji/pictographs entirely. They

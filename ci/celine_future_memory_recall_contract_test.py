@@ -61,6 +61,19 @@ public class NegatedPredicateContract {
        "truncated negative clause has no trusted predicate");
     eq(correction("Mein Golf Diesel ist nicht","Mein Golf Diesel ist nicht"),"",
        "truncated correction clause cannot choose ID");
+    String adverbBlue="Mein Golf Diesel ist nicht wirklich blau";
+    String adverbRed="Mein Golf Diesel ist nicht wirklich rot";
+    eq(recall(adverbBlue,adverbRed),"","shared adverb is not the negated predicate");
+    eq(correction(adverbBlue,adverbRed),"","adverb cannot authorize wrong correction ID");
+    eq(recall(adverbBlue,adverbBlue),"fact","identical negated adverb clause preserved");
+    eq(correction(adverbBlue,adverbBlue),"fact","identical adverb correction preserved");
+    String conjunctionRed="Mein Golf Diesel ist nicht blau sondern rot";
+    String conjunctionGreen="Mein Golf Diesel ist nicht blau sondern gruen";
+    eq(recall(conjunctionRed,conjunctionGreen),"","same first negative anchor but different remainder");
+    eq(correction(conjunctionRed,conjunctionGreen),"","different clause remainder not a correction ID");
+    eq(recall(conjunctionRed,conjunctionRed),"fact","identical compound negative preserved");
+    eq(correction("Mein Golf Diesel ist nicht wirklich rot", "Mein Golf Diesel ist rot"),"fact",
+       "affirmative-to-negative correction exception preserved");
     System.out.println("FOCUSED_NEGATED_PREDICATE_PASS cases="+cases);
   }
 }'''
