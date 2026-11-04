@@ -132,6 +132,58 @@ public final class SignedNumericRegression {
         print(test.stdout.strip())
     sys.exit(0)
 
+# FUTURE ONLY: degree scale words are part of a numeric claim.
+# An explicit "5 Grad Celsius" must not retrieve "5 Grad Fahrenheit".
+# Only policy/projection tests; no app or Android integration.
+if '--focused-temperature-scale' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class TemperatureScaleContract {
+ static int n=0;
+ static CelineFutureMemoryRecall.Candidate c(String value){
+   return new CelineFutureMemoryRecall.Candidate("temperature", value, "",
+     CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+ }
+ static void recall(String q,String stored,boolean wanted,String why){
+   boolean found=!CelineFutureMemoryRecall.retrieve(q,List.of(c(stored)),4,200).isEmpty();
+   if(found!=wanted) throw new AssertionError(why+" expected="+wanted+" got="+found);
+   n++;
+ }
+ static void correct(String q,String stored,boolean wanted,String why){
+   boolean found=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q,List.of(c(stored)),200).isEmpty();
+   if(found!=wanted) throw new AssertionError(why+" expected="+wanted+" got="+found);
+   n++;
+ }
+ public static void main(String[] args){
+   recall("Mein Wohnzimmer ist 5 Grad Celsius", "Mein Wohnzimmer ist 5 Grad Fahrenheit", false, "Celsius query must not match Fahrenheit");
+   recall("Mein Wohnzimmer ist 5 Grad Fahrenheit", "Mein Wohnzimmer ist 5 Grad Celsius", false, "Fahrenheit query must not match Celsius");
+   recall("Mein Wohnzimmer ist 5 Grad Celsius", "Mein Wohnzimmer ist 5 Grad Celsius", true, "same named Celsius scale");
+   recall("Mein Wohnzimmer ist 5 Grad Fahrenheit", "Mein Wohnzimmer ist 5 Grad Fahrenheit", true, "same named Fahrenheit scale");
+   recall("Mein Wohnzimmer ist 1,5 Grad Celsius", "Mein Wohnzimmer ist 1.5 Grad Fahrenheit", false, "decimal with different named scale");
+   recall("Mein Wohnzimmer ist -5 Grad Celsius", "Mein Wohnzimmer ist +5 Grad Celsius", false, "signed scale values stay distinct");
+   recall("Mein Wohnzimmer ist 5 °C", "Mein Wohnzimmer ist 5 °F", false, "degree symbol scales stay distinct");
+   recall("Mein Wohnzimmer ist 5 °C", "Mein Wohnzimmer ist 5 °C", true, "same degree symbol scale");
+   recall("Mein Wohnzimmer ist 5 Grad Celsius", "Mein Wohnzimmer ist 5 Grad", false, "scale missing from stored numeric fact");
+   correct("Mein Wohnzimmer ist 5 Grad Celsius", "Mein Wohnzimmer ist 5 Grad Fahrenheit", false, "different-scale correction target abstains");
+   correct("Mein Wohnzimmer ist 5 Grad Celsius", "Mein Wohnzimmer ist 5 Grad Celsius", true, "same-scale correction remains possible");
+   recall("Mein Verbrauch beträgt 5 Liter Diesel", "Mein Verbrauch beträgt 5 Gallonen Diesel", false, "earlier unit filter intact");
+   recall("Mein Verbrauch beträgt 5 Liter Diesel", "Mein Verbrauch beträgt 5 Liter Diesel", true, "earlier unit positive intact");
+   System.out.println("TEMPERATURE_SCALE_CONTRACT_PASS cases="+n);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_temp_scale_') as compiled:
+        java_file=Path(compiled)/'TemperatureScaleContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,
+            str(source),str(java_file)],capture_output=True,text=True,timeout=90)
+        assert build.returncode == 0, build.stderr
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.TemperatureScaleContract'],
+            capture_output=True,text=True,timeout=45)
+        assert run.returncode == 0, run.stdout+run.stderr
+        print(run.stdout.strip())
+    sys.exit(0)
+
 # FUTURE-ONLY: A repeated number does not prove the same fact if its unit
 # differs (5 kg vs 5 g, five years vs five months). Pure Java policy only.
 if '--focused-measurement-unit' in sys.argv:
