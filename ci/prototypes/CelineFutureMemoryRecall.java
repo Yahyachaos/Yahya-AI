@@ -3411,7 +3411,7 @@ public final class CelineFutureMemoryRecall {
     // Generic year queries without a relation continue matching as before.
     private static final java.util.regex.Pattern EXPLICIT_YEAR_RELATION =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(vor|nach|seit|bis|ab)\\s+([12][0-9]{3})(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(vor|nach|seit|bis|ab)\\s+((?:[0-3]?[0-9][./][0-1]?[0-9][./])?[12][0-9]{3})(?![\\p{L}\\p{N}])");
 
     private static Set<String> explicitYearRelations(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
