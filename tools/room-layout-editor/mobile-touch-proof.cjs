@@ -437,6 +437,29 @@ async function traceOriginalNeutralRestoreActionability(page,neutralButton,phase
 // blink.user_timing marks and browser event epoch stamps permit correlation.
 async function beginFocusedSchedulingTrace(cdp,label,
   categories='toplevel,latency,cc,blink.user_timing,gpu,toplevel.flow') {
+  // V158: only the existing first paused 13-GLB canvas touch gets extra
+  // GPU/Viz categories, conditionally discovered from this exact Chromium.
+  // No extra input, WebGL frame, product flag, or <5000ms gate alteration.
+  const deepCategories={requested:[],supported:[],missing:[],error:null};
+  if(label.endsWith('-paused-canvas')){
+    deepCategories.requested=[
+      'gpu.angle','sync','viz',
+      'disabled-by-default-gpu.debug',
+      'disabled-by-default-gpu.service',
+      'disabled-by-default-gpu.decoder',
+      'disabled-by-default-gpu.device',
+      'disabled-by-default-gpu_cmd_queue',
+      'disabled-by-default-skia.gpu',
+      'disabled-by-default-viz.gpu_composite_time'
+    ];
+    try{
+      const available=new Set((await cdp.send('Tracing.getCategories')).categories||[]);
+      deepCategories.supported=deepCategories.requested.filter(c=>available.has(c));
+      deepCategories.missing=deepCategories.requested.filter(c=>!available.has(c));
+      if(deepCategories.supported.length)
+        categories+=','+deepCategories.supported.join(',');
+    }catch(error){deepCategories.error=String(error);}
+  }
   const started=Date.now(),cpu=process.cpuUsage(),resources=process.resourceUsage();
   const lag=monitorEventLoopDelay({resolution:100});lag.enable();
   const samples=[];let prev=nodePerformance.now();
@@ -448,7 +471,7 @@ async function beginFocusedSchedulingTrace(cdp,label,
     prev=now;
   },100);
   const state={cdp,label,started,cpu,resources,lag,samples,timer,
-    categories,trace_started:false,trace_error:null};
+    categories,deepCategories,trace_started:false,trace_error:null};
   try{
     await cdp.send('Tracing.start',{
       // Chromium gpu::Scheduler uses the `gpu,toplevel.flow` trace categories
@@ -479,6 +502,7 @@ async function finishFocusedSchedulingTrace(state) {
     node_timer_heartbeat_100ms:state.samples,
     chrome_trace_started:state.trace_started,
     chrome_trace_categories:state.categories,
+    chrome_deep_gpu_category_preflight:state.deepCategories,
     chrome_trace_error:state.trace_error,
     strict_touch_threshold_ms_exclusive:5000,
     browser_process_cpu_and_os_thread_scheduler:'NOT_DIRECTLY_MEASURED',
@@ -536,8 +560,14 @@ async function finishFocusedSchedulingTrace(state) {
           .map(e=>({name:e.name,cat:e.cat,ts_us:e.ts,
             duration_us:e.dur,thread_cpu_duration_us:e.tdur??null,
             pid:e.pid,tid:e.tid}));
+        report.chrome_trace_named_gpu_sync_candidates=events.filter(e=>
+          /Fence|WaitSync|SyncToken|CommandBuffer|SwapBuffers|WaitableEvent|WaitFor|Semaphore|Flush|Finish|Swapchain/i.test(e.name||'') &&
+          /gpu|viz|skia|sync|toplevel/i.test(e.cat||''))
+          .slice(0,180).map(e=>({name:e.name,cat:e.cat,ph:e.ph,
+            ts_us:e.ts,duration_us:e.dur??null,thread_cpu_duration_us:e.tdur??null,
+            pid:e.pid,tid:e.tid,id:e.id??null,bind_id:e.bind_id??null}));
         report.chrome_trace_gpu_scope_caveat=
-          'GPU/flow categories reveal instrumented scheduler activity, not kernel wait reasons, syscall stacks, or physical S25 latency.';
+          'Named user-space GPU/Viz spans MAY reveal synchronization. Absence of a recorded primitive does NOT prove no wait; kernel, driver and physical S25 remain unmeasured.';
         report.chrome_trace_markers=events
           .filter(e=>/CELINE_E2E_(PAUSED_CANVAS|AA4_REDO|AA4_REAL_NEUTRAL|AA4_REAL_S25)/.test(e.name||''))
           .slice(0,10).map(e=>({name:e.name,ts_us:e.ts,pid:e.pid,tid:e.tid}));
