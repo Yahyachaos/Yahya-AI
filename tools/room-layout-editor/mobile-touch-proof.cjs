@@ -82,7 +82,35 @@ function summarizeTouchAttribution(browserTrace,taps){
 }
 
 const observedMobileTaps=[];
+let activeProofContext=null,activeProofPage=null,realTapProbeSequence=0;
+// V146 read-only differential: V145's paused first canvas touch was FAST in
+// both modes, while later authentic AA4 Playwright taps still took 5-14s.
+// Time a second independent renderer CDP session DURING those existing taps,
+// never dispatch an additional input event or widen any strict latency gate.
+function passiveProbeForExistingTap(label) {
+  if(!NATIVE_AA4_MODE||!activeProofContext||!activeProofPage)return null;
+  const s=String(label);
+  const name=s==='neutralButton'?'neutral':
+    s==='s25Button'?'s25':
+    s.includes('[data-nudge="x:1"]')?'xplus':
+    s.includes('[data-mobile-zoom="0.82"]')?'zoomout':
+    s.includes('[data-mobile-zoom="1.22"]')?'zoomin':
+    s.includes('[data-mobile-action="save"]')?'save':
+    s.includes('#mobile-tools-panel > summary')?'tools':null;
+  return name?'aa4-real-'+name+'-'+(++realTapProbeSequence):null;
+}
 async function observeRealTap(locator,label) {
+  const probeLabel=passiveProbeForExistingTap(label);
+  let passiveProbe=null;
+  if(probeLabel) {
+    try {
+      passiveProbe=await beginPassiveRendererCdpProbe(
+        activeProofContext,activeProofPage,probeLabel);
+    } catch(error) {
+      record.push({name:'AA4_REAL_TAP_PASSIVE_CDP_INSTALL_UNAVAILABLE',
+        label,diagnostic_error:String(error),visual_acceptance:'NOT_GRANTED'});
+    }
+  }
   const began=Date.now(); let completed=false;
   try {
     const value=await locator.tap();
@@ -94,6 +122,18 @@ async function observeRealTap(locator,label) {
       label,start_epoch_ms:began,end_epoch_ms:ended,
       elapsed_ms:ended-began,action_succeeded:completed
     });
+    if(passiveProbe) {
+      try {
+        const summary=await passiveProbe.stop();
+        record.push({name:'AA4_REAL_EXISTING_TOUCH_PASSIVE_CDP_DIAGNOSTIC',
+          label,start_epoch_ms:began,end_epoch_ms:ended,
+          real_touch_elapsed_ms:ended-began,...summary,
+          visual_acceptance:'NOT_GRANTED'});
+      } catch(error) {
+        record.push({name:'AA4_REAL_TAP_PASSIVE_CDP_READBACK_UNAVAILABLE',
+          label,diagnostic_error:String(error),visual_acceptance:'NOT_GRANTED'});
+      }
+    }
   }
 }
 
@@ -1061,6 +1101,8 @@ async function main(){
     });
     const page=await context.newPage();
     mobilePage=page;
+    activeProofPage=page;
+    activeProofContext=context;
 
     // Instrument real browser event receipt / actionability long tails without
     // changing editor.js or replacing any real Playwright taps.
