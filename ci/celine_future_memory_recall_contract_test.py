@@ -51,6 +51,14 @@ public final class TemporalDirectionContract {
     correct("Mein Golf wurde vor 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", false,"wrong direction ID abstain");
     correct("Mein Führerschein gilt seit 2027", "Mein Führerschein gilt bis 2027", false,"different deadline ID abstain");
     correct("Mein Golf wurde nach 2024 gekauft", "Mein Golf wurde nach 2024 gekauft", true,"matching relation selected ID");
+    recall("Mein Führerschein gilt bis 31.12.2027", "Mein Führerschein gilt seit 31.12.2027", false,"deadline date vs since date");
+    recall("Meine Frist beginnt nach 05.06.2027", "Meine Frist beginnt vor 05.06.2027", false,"after date vs before date");
+    recall("Mein Vertrag gilt seit 01.01.2027", "Mein Vertrag gilt bis 01.01.2027", false,"since date vs until date");
+    recall("Mein Führerschein gilt bis 31.12.2027", "Mein Führerschein gilt bis 31.12.2027", true,"identical deadline date");
+    recall("Meine Frist beginnt nach 05.06.2027", "Meine Frist beginnt nach 05.06.2027", true,"identical after date");
+    recall("Mein Vertrag gilt 01.01.2027", "Mein Vertrag gilt seit 01.01.2027", true,"broad dated retrieval");
+    correct("Mein Vertrag gilt seit 01.01.2027", "Mein Vertrag gilt bis 01.01.2027", false,"date-boundary correction must abstain");
+    correct("Mein Führerschein gilt bis 31.12.2027", "Mein Führerschein gilt bis 31.12.2027", true,"correct matching deadline date");
     System.out.println("TEMPORAL_DIRECTION_CONTRACT_PASS cases="+n);
   }
 }
