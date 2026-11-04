@@ -3443,13 +3443,13 @@ public final class CelineFutureMemoryRecall {
     // fuzzy quantity interpretation, or an autonomous memory update.
     private static final java.util.regex.Pattern EXPLICIT_QUANTITY_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(mindestens|höchstens|mehr\\s+als|weniger\\s+als)\\s+([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(mindestens|höchstens|mehr\\s+als|weniger\\s+als)\\s+(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     // Symbolic comparisons carry the same inclusive/exclusive distinction.
     // Normalize >= and ≥ (or <= and ≤) to one bound family, not to equality.
     private static final java.util.regex.Pattern SYMBOLIC_QUANTITY_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*(?:[€$]\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     private static Set<String> explicitQuantityBounds(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
