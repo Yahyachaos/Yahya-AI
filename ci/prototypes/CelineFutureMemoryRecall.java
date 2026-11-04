@@ -3483,6 +3483,11 @@ public final class CelineFutureMemoryRecall {
     // that its unknown remainder differs from the requested correction.
     private static boolean hasExplicitTaggedRedactionMarker(String summary) {
         String marker = safe(summary).toLowerCase(Locale.ROOT);
+        // Fullwidth punctuation is a common presentation/export variant of
+        // explicit privacy tags. Normalize ONLY delimiters and colon here;
+        // the explicit deletion/redaction label allowlist stays unchanged.
+        marker = marker.replace('［', '[').replace('］', ']')
+                .replace('＜', '<').replace('＞', '>').replace('：', ':');
         // G1 may replace private text with a bracketed label that includes
         // its field type (e.g. [REDACTED: name]). Those labels and common
         // deletion variants still conceal the correction subject. Restrict
