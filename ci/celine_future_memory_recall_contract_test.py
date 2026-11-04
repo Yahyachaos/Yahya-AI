@@ -12,6 +12,60 @@ assert source.is_file(), source
 # FUTURE-ONLY: disjoint explicit German quantity inequalities must never
 # select a different fact or guessed correction ID from matching topic/amount.
 # This is a lexical guard, not unit conversion or threshold inference.
+# A written exact amount is a different fact from a lower/upper bound.
+# Deterministic lexical-only guard for read-only recall and correction suggestions.
+if '--focused-exact-amount' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class ExactAmountContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String value) {
+    return new CelineFutureMemoryRecall.Candidate("fact", value, "",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, 100, 0, 0.9);
+  }
+  static void recall(String q, String stored, boolean expected, String note) {
+    boolean actual=!CelineFutureMemoryRecall.retrieve(q, List.of(c(stored)), 4, 200).isEmpty();
+    if(actual!=expected) throw new AssertionError(note+" recall expected="+expected+" got="+actual);
+    n++;
+  }
+  static void correct(String q, String stored, boolean expected, String note) {
+    boolean actual=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(q, List.of(c(stored)), 200).isEmpty();
+    if(actual!=expected) throw new AssertionError(note+" correction expected="+expected+" got="+actual);
+    n++;
+  }
+  public static void main(String[] args) {
+    recall("Mein Budget ist genau 500 Euro", "Mein Budget ist mindestens 500 Euro", false, "exact vs GE");
+    recall("Mein Budget ist genau 500 Euro", "Mein Budget ist höchstens 500 Euro", false, "exact vs LE");
+    recall("Mein Budget ist genau 500 Euro", "Mein Budget ist mehr als 500 Euro", false, "exact vs GT");
+    recall("Mein Budget ist genau 500 Euro", "Mein Budget ist 500 Euro", false, "exact vs unqualified");
+    recall("Mein Budget ist exakt 500 Euro", "Mein Budget ist genau 500 Euro", true, "exakt equals genau");
+    recall("Mein Budget ist genau 500 Euro", "Mein Budget ist exakt 500 Euro", true, "genau equals exakt");
+    recall("Mein Budget ist genau €500", "Mein Budget ist genau $500", false, "exact EUR not USD");
+    recall("Mein Budget ist genau €500", "Mein Budget ist genau 500 Euro", true, "exact prefix EUR equivalence");
+    recall("Mein Budget ist genau €1,5", "Mein Budget ist exakt €1.5", true, "exact decimal equivalence");
+    recall("Meine Fahrt dauert exakt 5 Stunden", "Meine Fahrt dauert mindestens 5 Stunden", false, "exact hours not lower bound");
+    recall("Mein Budget beträgt 500 Euro", "Mein Budget ist genau 500 Euro", true, "broad numeric query preserved");
+    correct("Mein Budget ist genau 500 Euro", "Mein Budget ist mindestens 500 Euro", false, "no wrong GE target");
+    correct("Mein Budget ist genau 500 Euro", "Mein Budget ist höchstens 500 Euro", false, "no wrong LE target");
+    correct("Mein Budget ist genau 500 Euro", "Mein Budget ist 500 Euro", false, "no guessed unqualified target");
+    correct("Mein Budget ist exakt 500 Euro", "Mein Budget ist genau 500 Euro", true, "equivalent exact target");
+    correct("Mein Budget ist genau €500", "Mein Budget ist genau $500", false, "no wrong currency target");
+    correct("Mein Budget ist genau €500", "Mein Budget ist genau 500 Euro", true, "same exact EUR target");
+    correct("Mein Budget ist genau €1,5", "Mein Budget ist exakt €1.5", true, "same decimal target");
+    System.out.println("EXACT_AMOUNT_CONTRACT_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_exact_amount_') as compiled:
+        java_file=Path(compiled)/'ExactAmountContract.java'
+        java_file.write_text(harness, encoding='utf-8')
+        base=['javac','-d',compiled,str(source),str(java_file)]
+        step=subprocess.run(base, capture_output=True, text=True)
+        if step.returncode: raise AssertionError('javac failed:\n'+step.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.ExactAmountContract'],capture_output=True,text=True)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('exact amount contract RED: '+run.stderr)
+    sys.exit(0)
+
 if '--focused-quantity-bound' in sys.argv:
     harness = r'''package de.yahya.ai;
 import java.util.*;
