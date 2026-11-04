@@ -30,7 +30,7 @@ function expectedBrowserTouchTarget(label){
     return {target:'SUMMARY',scope:'mobile-extra'};
   if(s==='wallButton')return {target:'toggle-walls'};
   if(s==='s25Button')return {target:'mobile-s25-shortcut'};
-  if(s==='neutralButton')return {target:'neutral-shell'};
+  if(s==='neutralButton')return {target:'mobile-neutral-shortcut'};
   for(const [field] of [['data-mobile-action'],['data-mobile-zoom'],['data-nudge']]){
     const marker=field+'="';
     const start=s.indexOf(marker);
@@ -41,6 +41,44 @@ function expectedBrowserTouchTarget(label){
   }
   const id=s.match(/#(mobile-[a-z0-9-]+)/);
   return id?{target:id[1]}:null;
+}
+
+function summarizeTouchAttribution(browserTrace,taps){
+  return taps.map(tap=>{
+      // The previous +/-100ms window incorrectly selected stale events from
+      // neighboring taps (observed zoom-in -4.4ms). Attribute ONLY trusted
+      // events delivered to the expected target inside this tap's own clock
+      // interval; unmapped targets must remain UNATTRIBUTED, not guessed.
+      const expected=expectedBrowserTouchTarget(tap.label);
+      const nearby=(browserTrace?.events||[]).filter(event=>
+        event.epoch_ms>=tap.start_epoch_ms&&
+        event.epoch_ms<=tap.end_epoch_ms);
+      const events=expected?nearby.filter(event=>
+        event.trusted&&event.target===expected.target&&
+        (!expected.scope||event.scope===expected.scope)):[];
+      const first=type=>events.find(event=>event.type===type)?.epoch_ms??null;
+      const pointer=first('pointerdown'),click=first('click');
+      const gaps=(browserTrace?.raf_gaps||[]).filter(gap=>
+        gap.epoch_ms>=tap.start_epoch_ms-150&&gap.epoch_ms<=tap.end_epoch_ms+150);
+      const tasks=(browserTrace?.longtasks||[]).filter(task=>
+        task.epoch_ms>=tap.start_epoch_ms-150&&task.epoch_ms<=tap.end_epoch_ms+150);
+      return {...tap,
+        expected_event_target:expected,
+        target_attribution:expected?
+          (pointer!==null?'TRUSTED_EXPECTED_POINTER':'EXPECTED_POINTER_NOT_OBSERVED'):
+          'UNMAPPED_TARGET_NO_ATTRIBUTION',
+        ignored_nearby_unmatched_events:nearby.length-events.length,
+        touchstart_after_start_ms:first('touchstart')===null?null:first('touchstart')-tap.start_epoch_ms,
+        pointerdown_after_start_ms:pointer===null?null:pointer-tap.start_epoch_ms,
+        click_after_start_ms:click===null?null:click-tap.start_epoch_ms,
+        pre_target_pointerdown_ms:pointer===null?null:pointer-tap.start_epoch_ms,
+        post_target_pointerdown_to_locator_return_ms:pointer===null?null:tap.end_epoch_ms-pointer,
+        real_browser_events:events,
+        max_raf_gap_ms:gaps.length?Math.max(...gaps.map(g=>g.gap_ms)):0,
+        max_longtask_ms:tasks.length?Math.max(...tasks.map(t=>t.duration_ms)):0,
+        longtasks_near_tap:tasks.length
+      };
+  });
 }
 
 const observedMobileTaps=[];
@@ -814,12 +852,14 @@ async function main(){
   // Do not change the strict 412x915 viewport, captures or furniture state.
   const browser=await chromium.launch({headless:true,channel:'chromium',
     args:chromiumArgs});
+  let mobilePage=null;
   try {
     const context=await browser.newContext({
       viewport:{width:412,height:915},screen:{width:412,height:915},
       deviceScaleFactor:3,isMobile:true,hasTouch:true,acceptDownloads:true
     });
     const page=await context.newPage();
+    mobilePage=page;
 
     // Instrument real browser event receipt / actionability long tails without
     // changing editor.js or replacing any real Playwright taps.
@@ -2115,41 +2155,7 @@ async function main(){
       window.__celineMobileLatencyTrace||null).catch(error=>({
         trace_error:String(error)
       }));
-    const timed=observedMobileTaps.map(tap=>{
-      // The previous +/-100ms window incorrectly selected stale events from
-      // neighboring taps (observed zoom-in -4.4ms). Attribute ONLY trusted
-      // events delivered to the expected target inside this tap's own clock
-      // interval; unmapped targets must remain UNATTRIBUTED, not guessed.
-      const expected=expectedBrowserTouchTarget(tap.label);
-      const nearby=(browserTrace?.events||[]).filter(event=>
-        event.epoch_ms>=tap.start_epoch_ms&&
-        event.epoch_ms<=tap.end_epoch_ms);
-      const events=expected?nearby.filter(event=>
-        event.trusted&&event.target===expected.target&&
-        (!expected.scope||event.scope===expected.scope)):[];
-      const first=type=>events.find(event=>event.type===type)?.epoch_ms??null;
-      const pointer=first('pointerdown'),click=first('click');
-      const gaps=(browserTrace?.raf_gaps||[]).filter(gap=>
-        gap.epoch_ms>=tap.start_epoch_ms-150&&gap.epoch_ms<=tap.end_epoch_ms+150);
-      const tasks=(browserTrace?.longtasks||[]).filter(task=>
-        task.epoch_ms>=tap.start_epoch_ms-150&&task.epoch_ms<=tap.end_epoch_ms+150);
-      return {...tap,
-        expected_event_target:expected,
-        target_attribution:expected?
-          (pointer!==null?'TRUSTED_EXPECTED_POINTER':'EXPECTED_POINTER_NOT_OBSERVED'):
-          'UNMAPPED_TARGET_NO_ATTRIBUTION',
-        ignored_nearby_unmatched_events:nearby.length-events.length,
-        touchstart_after_start_ms:first('touchstart')===null?null:first('touchstart')-tap.start_epoch_ms,
-        pointerdown_after_start_ms:pointer===null?null:pointer-tap.start_epoch_ms,
-        click_after_start_ms:click===null?null:click-tap.start_epoch_ms,
-        pre_target_pointerdown_ms:pointer===null?null:pointer-tap.start_epoch_ms,
-        post_target_pointerdown_to_locator_return_ms:pointer===null?null:tap.end_epoch_ms-pointer,
-        real_browser_events:events,
-        max_raf_gap_ms:gaps.length?Math.max(...gaps.map(g=>g.gap_ms)):0,
-        max_longtask_ms:tasks.length?Math.max(...tasks.map(t=>t.duration_ms)):0,
-        longtasks_near_tap:tasks.length
-      };
-    });
+    const timed=summarizeTouchAttribution(browserTrace,observedMobileTaps);
     const slow=timed.filter(tap=>tap.elapsed_ms>=5000);
     const latencyReport={
       source_sha:process.env.GITHUB_SHA||null,
@@ -2200,7 +2206,53 @@ async function main(){
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');
-  } finally {await browser.close();}
+  } finally {
+    // Always preserve browser-target touch attribution BEFORE closing Chromium,
+    // even when a strict AA4 latency assertion exits before the final report.
+    // This is diagnostic evidence only: it never changes an assertion/verdict.
+    try {
+      const trace=mobilePage?
+        await mobilePage.evaluate(() => window.__celineMobileLatencyTrace||null)
+          .catch(error=>({trace_error:String(error)})):null;
+      const timed=summarizeTouchAttribution(trace,observedMobileTaps);
+      const unmatched=timed.filter(t=>t.target_attribution!=='TRUSTED_EXPECTED_POINTER')
+        .map(t=>({label:t.label,elapsed_ms:t.elapsed_ms,
+          target_attribution:t.target_attribution,
+          expected_event_target:t.expected_event_target,
+          ignored_nearby_unmatched_events:t.ignored_nearby_unmatched_events}));
+      const partial={
+        source_sha:process.env.GITHUB_SHA||null,
+        mode:NATIVE_AA4_MODE?'native_aa4':'native_aa0',
+        capture_reason:'ALWAYS_SAVE_PARTIAL_EVEN_ON_EARLY_FAIL',
+        verdict:'DIAGNOSTIC_ONLY_NOT_A_TEST_PASS',
+        strict_lt_5000_ms_gate:'UNCHANGED',
+        observed_real_touch_count:timed.length,
+        long_tail_taps_ge_5000ms:timed.filter(t=>t.elapsed_ms>=5000)
+          .map(t=>({label:t.label,elapsed_ms:t.elapsed_ms,
+            pointerdown_after_start_ms:t.pointerdown_after_start_ms,
+            target_attribution:t.target_attribution})),
+        unmatched_targets:unmatched,
+        // The independently recorded actionability/rect/hit tests are kept
+        // as their original files, even if main exits before the full report.
+        existing_actionability_files:[
+          'mobile-neutral-original-actionability.json',
+          'mobile-neutral-restore-actionability.json',
+          'mobile-s25-enter-actionability.json'
+        ].filter(name=>fs.existsSync(path.join(out,name))),
+        playwright_api_debug_log:'workflow mobile job DEBUG=pw:api',
+        browser_trace_error:trace?.trace_error||null,
+        real_taps:timed,
+        visual_acceptance:'NOT_GRANTED'
+      };
+      fs.writeFileSync(path.join(out,'mobile-aa-touch-latency-partial.json'),
+        JSON.stringify(partial,null,2));
+    } catch(error) {
+      fs.writeFileSync(path.join(out,'mobile-aa-touch-latency-partial-error.json'),
+        JSON.stringify({diagnostic_error:String(error.stack||error),
+          product_acceptance:'NOT_GRANTED'},null,2));
+    }
+    await browser.close();
+  }
 }
 main().catch(err=>{
   console.error(err.stack||String(err));
