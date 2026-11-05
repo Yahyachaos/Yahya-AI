@@ -11,6 +11,57 @@ assert source.is_file(), source
 
 
 
+# FUTURE-ONLY: person-possessive ownership is part of a stated age subject.
+# Same noun/number/direction/comparator cannot authorize somebody else's relative.
+if '--focused-relative-age-possessive-owner' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class RelativeAgePossessiveOwnerContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String statement) {
+    return new CelineFutureMemoryRecall.Candidate("age",statement,"",
+        CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String statement, boolean expected, String label) {
+    List<CelineFutureMemoryRecall.Candidate> projection=List.of(c(statement));
+    boolean retrieved=!CelineFutureMemoryRecall.retrieve(query,projection,4,200).isEmpty();
+    boolean targeted=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,projection,200).isEmpty();
+    if(retrieved!=expected || targeted!=expected)
+      throw new AssertionError(label+" expected="+expected+" retrieved="+retrieved+" targeted="+targeted);
+    checks+=2;
+  }
+  public static void main(String[] args) {
+    check("Deine Schwester ist 2 Jahre älter als ich","Meine Schwester ist 2 Jahre älter als ich",false,"your vs my sister");
+    check("Meine Schwester ist 2 Jahre älter als ich","Deine Schwester ist 2 Jahre älter als ich",false,"my vs your sister");
+    check("Unsere Schwester ist 2 Jahre älter als ich","Meine Schwester ist 2 Jahre älter als ich",false,"our vs my sister");
+    check("Meine Schwester ist 2 Jahre älter als ich","Unsere Schwester ist 2 Jahre älter als ich",false,"my vs our sister");
+    check("Seine Schwester ist 2 Jahre älter als ich","Ihre Schwester ist 2 Jahre älter als ich",false,"his vs her/their sister");
+    check("Ihre Schwester ist 2 Jahre älter als ich","Seine Schwester ist 2 Jahre älter als ich",false,"her/their vs his sister");
+    check("Eure Schwester ist 2 Jahre älter als ich","Unsere Schwester ist 2 Jahre älter als ich",false,"your plural vs our sister");
+    check("Deren Schwester ist 2 Jahre älter als ich","Meine Schwester ist 2 Jahre älter als ich",false,"unsupported possessor must abstain");
+    check("Meine Schwester Anna ist 2 Jahre älter als ich","Deine Schwester Anna ist 2 Jahre älter als ich",false,"same name different owner");
+    check("Deine Schwester Anna ist 2 Jahre älter als ich","Deine Schwester Eva ist 2 Jahre älter als ich",false,"same owner different name");
+    check("Deine Schwester ist 2 Jahre älter als ich","Deine Schwester ist 2 Jahre älter als ich",true,"your same owner");
+    check("Unsere Schwester ist 2 Jahre älter als ich","Unsere Schwester ist 2 Jahre älter als ich",true,"our same owner");
+    check("Seine Schwester ist 2 Jahre älter als ich","Seine Schwester ist 2 Jahre älter als ich",true,"his same owner");
+    check("Ihre Schwester ist 2 Jahre älter als ich","Ihre Schwester ist 2 Jahre älter als ich",true,"her/their lexical owner same");
+    check("Meine Schwester ist 2 Jahre aelter als ich","Meine Schwester ist 2 Jahre älter als ich",true,"transliteration same owner");
+    check("2 Jahre älter als ich","Meine Schwester ist 2 Jahre älter als ich",true,"broad query still allowed");
+    check("Deine Schwester ist 2 Jahre älter als ich","2 Jahre älter als ich",false,"explicit owner absent from stored fact");
+    check("Meine Schwester ist 2 Jahre jünger als ich","Meine Schwester ist 2 Jahre älter als ich",false,"direction remains protected");
+    System.out.println("RELATIVE_AGE_POSSESSIVE_OWNER_PASS cases="+checks);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_age_possessive_') as compiled:
+        f=Path(compiled)/'RelativeAgePossessiveOwnerContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.RelativeAgePossessiveOwnerContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative-age-possessive RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY relative-age subject binding. A comparator and duration alone
 # must not suggest a correction ID for a different family member/person.
 if '--focused-relative-age-subject' in sys.argv:

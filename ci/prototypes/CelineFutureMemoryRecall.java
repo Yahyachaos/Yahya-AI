@@ -3553,7 +3553,14 @@ public final class CelineFutureMemoryRecall {
     // abstain; a genuinely broad query without a named subject remains broad.
     private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE_SUBJECT =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(?:mein|meine|meiner|meinen|meinem|unser|unsere|unserer|unseren|unserem|der|die|das|ein|eine|einer)"
+                "(?<![\\p{L}\\p{N}])"
+                + "(mein|meine|meiner|meinen|meinem|meines|"
+                + "dein|deine|deiner|deinen|deinem|deines|"
+                + "unser|unsere|unserer|unseren|unserem|unseres|"
+                + "euer|eure|eurer|euren|eurem|eures|"
+                + "sein|seine|seiner|seinen|seinem|seines|"
+                + "ihr|ihre|ihrer|ihren|ihrem|ihres|"
+                + "deren|dessen|der|die|das|ein|eine|einer|einem|einen|eines)"
                 + "\\s+([\\p{L}]+(?:\\s+[\\p{L}]+)*)\\s+(?:ist|war)\\s*$");
 
     private static Set<String> explicitRelativeAges(String text) {
@@ -3573,10 +3580,23 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Matcher subject = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(
                     normalized.substring(0, match.start()));
             if (subject.find()) {
-                String subjectKey = subject.group(1).trim().replaceAll("\\s+", " ");
+                String owner = subject.group(1);
+                // German possessive inflection is not a new person. Different
+                // owners (my/your/our/his/her) are NOT interchangeable, even
+                // if the noun, age, direction and referent are identical.
+                // This is only a lexical identity guard, not co-reference
+                // resolution: "ihr" still cannot distinguish her/their/Your.
+                if (owner.startsWith("mein")) owner = "mein";
+                else if (owner.startsWith("dein")) owner = "dein";
+                else if (owner.startsWith("unser")) owner = "unser";
+                else if (owner.startsWith("eur") || owner.equals("euer")) owner = "euer";
+                else if (owner.startsWith("sein")) owner = "sein";
+                else if (owner.startsWith("ihr")) owner = "ihr";
+                else if (owner.startsWith("ein")) owner = "ein";
+                String subjectKey = subject.group(2).trim().replaceAll("\\s+", " ");
                 // Never silently truncate a person's complete name/descriptor.
                 if (subjectKey.split(" ").length > 8) return null;
-                relations.add(base + ":SUB:" + subjectKey);
+                relations.add(base + ":SUB:" + owner + ":" + subjectKey);
             }
             // Add a second, referent-specific evidence key. A broad query
             // without "als ..." may match a precise stored relation, but an
