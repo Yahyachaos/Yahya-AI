@@ -11,6 +11,49 @@ assert source.is_file(), source
 
 
 
+# FUTURE-ONLY: a bare named relative-age subject must remain distinct
+# from another named person for both recall and correction-ID targeting.
+if '--focused-relative-age-bare-subject' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class BareAgeSubjectContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String s) {
+    return new CelineFutureMemoryRecall.Candidate("age",s,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String stored, boolean expected, String note) {
+    List<CelineFutureMemoryRecall.Candidate> facts=List.of(c(stored));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,facts,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,facts,200).isEmpty();
+    if (recall!=expected || correction!=expected)
+      throw new AssertionError(note+" expected="+expected+" recall="+recall+" correction="+correction);
+    checks+=2;
+  }
+  public static void main(String[] args) {
+    check("Anna ist 2 Jahre älter als ich","Eva ist 2 Jahre älter als ich",false,"Anna vs Eva");
+    check("Eva ist 2 Jahre älter als ich","Anna ist 2 Jahre älter als ich",false,"Eva vs Anna");
+    check("Anna ist 2 Jahre älter als ich","Anna ist 2 Jahre älter als ich",true,"same Anna");
+    check("Anna ist 2 Jahre aelter als ich","Anna ist 2 Jahre älter als ich",true,"same transliterated Anna");
+    check("Peter Schmidt ist 2 Jahre älter als ich","Paul Schmidt ist 2 Jahre älter als ich",false,"different first name same surname");
+    check("Peter Schmidt ist 2 Jahre älter als ich","Peter Schmidt ist 2 Jahre älter als ich",true,"same full name");
+    check("Anna ist 2 Jahre älter als ich","Anna ist 2 Jahre jünger als ich",false,"same name opposite direction");
+    check("Anna ist 3 Jahre älter als ich","Anna ist 2 Jahre älter als ich",false,"same name different duration");
+    check("Anna ist 2 Jahre älter als ich","2 Jahre älter als ich",false,"bare subject missing from stored");
+    check("2 Jahre älter als ich","Anna ist 2 Jahre älter als ich",true,"broad request allowed");
+    System.out.println("RELATIVE_AGE_BARE_SUBJECT_PASS cases="+checks);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_age_bare_') as compiled:
+        f=Path(compiled)/'BareAgeSubjectContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.BareAgeSubjectContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative-age bare subject RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY: person-possessive ownership is part of a stated age subject.
 # Same noun/number/direction/comparator cannot authorize somebody else's relative.
 if '--focused-relative-age-possessive-owner' in sys.argv:

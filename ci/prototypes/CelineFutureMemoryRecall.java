@@ -3563,6 +3563,16 @@ public final class CelineFutureMemoryRecall {
                 + "deren|dessen|der|die|das|ein|eine|einer|einem|einen|eines)"
                 + "\\s+([\\p{L}]+(?:\\s+[\\p{L}]+)*)\\s+(?:ist|war)\\s*$");
 
+    // A bare explicit subject ("Anna ist ...", "Peter Schmidt war ...")
+    // also names a distinct person. Without this key the shared numeral and
+    // comparator could suggest another person's memory as a correction target.
+    // Only a short name immediately adjoining ist/war is recognized; do not
+    // infer co-reference, identity or speaker relationships from free text.
+    private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE_BARE_SUBJECT =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([\\p{L}]{2,}(?:\\s+[\\p{L}]{2,}){0,1})"
+                + "\\s+(?:ist|war)\\s*$");
+
     private static Set<String> explicitRelativeAges(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
@@ -3597,6 +3607,15 @@ public final class CelineFutureMemoryRecall {
                 // Never silently truncate a person's complete name/descriptor.
                 if (subjectKey.split(" ").length > 8) return null;
                 relations.add(base + ":SUB:" + owner + ":" + subjectKey);
+            } else {
+                // A short bare name is explicit identity evidence too. Do not
+                // treat "Anna ist 2 Jahre älter" as "Eva ist 2 Jahre älter".
+                java.util.regex.Matcher bare = EXPLICIT_RELATIVE_AGE_BARE_SUBJECT
+                        .matcher(normalized.substring(0, match.start()));
+                if (bare.find()) {
+                    String name = bare.group(1).trim().replaceAll("\\s+", " ");
+                    relations.add(base + ":SUB:bare:" + name);
+                }
             }
             // Add a second, referent-specific evidence key. A broad query
             // without "als ..." may match a precise stored relation, but an
