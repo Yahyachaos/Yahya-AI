@@ -11,6 +11,54 @@ assert source.is_file(), source
 
 
 
+# FUTURE ONLY: explicit past vs present age assertions are different fact identities.
+# Read-only correction-ID suggestions must not target an opposite-tense assertion.
+if '--focused-age-tense' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AgeTenseContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String fact) {
+    return new CelineFutureMemoryRecall.Candidate("tense", fact, "",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String request, String fact, boolean expected, String name) {
+    var list=List.of(c(fact));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(request,list,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(request,list,200).isEmpty();
+    if (recall!=expected || correction!=expected) throw new AssertionError(
+       name+" expected="+expected+" actual="+recall+"/"+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Anna ist 2 Jahre alt", "Anna war 2 Jahre alt", false, "present cannot target past age");
+    check("Anna war 2 Jahre alt", "Anna ist 2 Jahre alt", false, "past cannot target present age");
+    check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre alt", true, "same present age");
+    check("Anna war 2 Jahre alt", "Anna war 2 Jahre alt", true, "same past age");
+    check("Meine Schwester ist zwei Jahre alt", "Meine Schwester war zwei Jahre alt", false, "owner and word-age past difference");
+    check("Meine Schwester war zwei Jahre alt", "Meine Schwester ist zwei Jahre alt", false, "owner and word-age reverse");
+    check("Meine Schwester war zwei Jahre alt", "Meine Schwester war 2 Jahre alt", true, "spelled number, same past");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna war 2 Jahre und 3 Monate alt", false, "compound age tense");
+    check("Anna war 2 Jahre und 3 Monate alt", "Anna war zwei Jahre und drei Monate alt", true, "compound same past");
+    check("Anna ist 2 Jahre älter als ich", "Anna war 2 Jahre älter als ich", false, "relative present cannot target past");
+    check("Anna war 2 Jahre älter als ich", "Anna ist 2 Jahre älter als ich", false, "relative past cannot target present");
+    check("Anna war zwei Jahre jünger als ich", "Anna war 2 Jahre jünger als ich", true, "relative same past");
+    check("Meine Schwester war zwei Jahre jünger als ich", "Meine Schwester ist zwei Jahre jünger als ich", false, "possessive relative tense mismatch");
+    check("2 Jahre alt", "Anna war 2 Jahre alt", true, "subject-free broad absolute age");
+    check("2 Jahre älter als ich", "Anna war 2 Jahre älter als ich", true, "subject-free broad relative age");
+    System.out.println("AGE_TENSE_PASS cases="+n);
+  }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_age_tense_') as compiled:
+        f=Path(compiled)/'AgeTenseContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.AgeTenseContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('age tense RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE ONLY: composite absolute ages are a single subject-bound fact.
 # Matching and suggested correction IDs must agree; unsupported forms abstain.
 if '--focused-compound-absolute-age' in sys.argv:

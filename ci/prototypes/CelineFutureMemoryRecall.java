@@ -3625,6 +3625,16 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    // "ist" and "war" do not name interchangeable facts. This deliberately
+    // tiny tense cue is used only after a complete explicit subject matched;
+    // a broad subject-free age query carries no inferred tense requirement.
+    private static String explicitAgeTense(String completeSubjectPrefix) {
+        String prefix = completeSubjectPrefix.trim();
+        if (prefix.endsWith(" war")) return "PAST";
+        if (prefix.endsWith(" ist")) return "PRESENT";
+        return "";
+    }
+
     private static Set<String> explicitRelativeAges(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
@@ -3644,8 +3654,8 @@ public final class CelineFutureMemoryRecall {
             String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
             String base = direction + ":" + canonicalRelativeAgeValue(match.group(1)) + ":" + unit;
             relations.add(base);
-            java.util.regex.Matcher subject = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(
-                    normalized.substring(0, match.start()));
+            String subjectPrefix = normalized.substring(0, match.start());
+            java.util.regex.Matcher subject = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(subjectPrefix);
             if (subject.find()) {
                 String owner = subject.group(1);
                 // German possessive inflection is not a new person. Different
@@ -3664,6 +3674,7 @@ public final class CelineFutureMemoryRecall {
                 // Never silently truncate a person's complete name/descriptor.
                 if (subjectKey.split(" ").length > 8) return null;
                 relations.add(base + ":SUB:" + owner + ":" + subjectKey);
+                relations.add(base + ":TENSE:" + explicitAgeTense(subjectPrefix));
             } else {
                 // A short bare name is explicit identity evidence too. Do not
                 // treat "Anna ist 2 Jahre älter" as "Eva ist 2 Jahre älter".
@@ -3672,6 +3683,7 @@ public final class CelineFutureMemoryRecall {
                 if (bare.matches()) {
                     String name = bare.group(1).trim().replaceAll("\\s+", " ");
                     relations.add(base + ":SUB:bare:" + name);
+                    relations.add(base + ":TENSE:" + explicitAgeTense(prefix));
                 } else if (!prefix.trim().isEmpty()) {
                     // There is an explicit leading phrase but no supported
                     // complete subject identity. Treating it as a broad age
@@ -3779,10 +3791,12 @@ public final class CelineFutureMemoryRecall {
                 String descriptor = named.group(2).trim().replaceAll("\\s+", " ");
                 if (descriptor.split(" ").length > 8) return null;
                 ages.add(base + ":SUB:" + owner + ":" + descriptor);
+                ages.add(base + ":TENSE:" + explicitAgeTense(prefix));
             } else {
                 java.util.regex.Matcher bare = EXPLICIT_RELATIVE_AGE_BARE_SUBJECT.matcher(prefix);
                 if (bare.matches()) {
                     ages.add(base + ":SUB:bare:" + bare.group(1).trim().replaceAll("\\s+", " "));
+                    ages.add(base + ":TENSE:" + explicitAgeTense(prefix));
                 } else if (!prefix.trim().isEmpty()) {
                     return null; // Unsupported/ambiguous prefix must not become a broad query.
                 }
