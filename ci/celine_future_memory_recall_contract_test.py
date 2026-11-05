@@ -11,6 +11,51 @@ assert source.is_file(), source
 
 
 
+# FUTURE ONLY: absolute age is not a relative-age difference, and an
+# explicitly named person must not be confused with another person.
+if '--focused-absolute-age-identity' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AbsoluteAgeIdentityContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String text) {
+    return new CelineFutureMemoryRecall.Candidate("age",text,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String fact, boolean expected, String label) {
+    var facts=List.of(c(fact));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,facts,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,facts,200).isEmpty();
+    if (recall!=expected || correction!=expected) throw new AssertionError(
+      label+" expected="+expected+" recall="+recall+" correction="+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre älter als ich", false, "absolute vs relative");
+    check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre jünger als ich", false, "absolute vs younger");
+    check("Anna ist 2 Jahre alt", "Eva ist 2 Jahre alt", false, "absolute named identity");
+    check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre alt", true, "absolute same person");
+    check("Meine Schwester ist 2 Jahre alt", "Deine Schwester ist 2 Jahre alt", false, "absolute owner identity");
+    check("Meine Schwester ist 2 Jahre alt", "Meine Schwester ist 2 Jahre alt", true, "absolute same owner");
+    check("Anna ist zwei Jahre alt", "Anna ist 2 Jahre alt", true, "word numeric equivalence");
+    check("Anna ist zwei Jahre alt", "Anna ist drei Jahre alt", false, "word different value");
+    check("Anna ist 2 Monate alt", "Anna ist 2 Jahre alt", false, "absolute different unit");
+    check("2 Jahre alt", "Anna ist 2 Jahre alt", true, "broad absolute query");
+    check("Anna ist zwanzig Jahre alt", "Anna ist zehn Jahre alt", false, "unknown word age fails closed");
+    check("Anna ist 2 Jahre alt", "Anna ist 3 Jahre alt", false, "different numeric age");
+    System.out.println("ABSOLUTE_AGE_IDENTITY_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_absolute_age_') as compiled:
+        f=Path(compiled)/'AbsoluteAgeIdentityContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.AbsoluteAgeIdentityContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('absolute age identity RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE ONLY: spelled-out German age differences must not alias opposing
 # directions or values. Both read-only retrieval and target suggestions apply.
 if '--focused-relative-age-word-number' in sys.argv:

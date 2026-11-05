@@ -3097,6 +3097,10 @@ public final class CelineFutureMemoryRecall {
         // and read-only correction-ID suggestions alike.
         Set<String> requestedRelativeAges = explicitRelativeAges(query);
         if (requestedRelativeAges == null) return Collections.emptyList();
+        // "Anna ist 2 Jahre alt" is an absolute age, NOT the relation
+        // "Anna ist 2 Jahre älter". Numeric/topic overlap is insufficient.
+        Set<String> requestedAbsoluteAges = explicitAbsoluteAges(query);
+        if (requestedAbsoluteAges == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3176,6 +3180,11 @@ public final class CelineFutureMemoryRecall {
                 Set<String> storedRelativeAges = explicitRelativeAges(c.summary);
                 if (storedRelativeAges == null
                         || !storedRelativeAges.containsAll(requestedRelativeAges)) continue;
+            }
+            if (!requestedAbsoluteAges.isEmpty()) {
+                Set<String> storedAbsoluteAges = explicitAbsoluteAges(c.summary);
+                if (storedAbsoluteAges == null
+                        || !storedAbsoluteAges.containsAll(requestedAbsoluteAges)) continue;
             }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
@@ -3674,6 +3683,62 @@ public final class CelineFutureMemoryRecall {
             if (relations.size() > MAX_QUERY_TOKENS) return null;
         }
         return relations;
+    }
+
+    // Absolute age is not a directed age comparison. Separate evidence is
+    // required before a provider recall or a guessed correction ID is allowed.
+    // Bounded direct German "[subject] ist/war N Jahre/Monate alt" only; no
+    // inferred birthdays, age arithmetic, or cross-identity name resolution.
+    private static final java.util.regex.Pattern EXPLICIT_ABSOLUTE_AGE =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?|ein|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf)\\s+"
+                + "(jahr|jahre|jahren|monat|monate|monaten)\\s+alt(?![\\p{L}\\p{N}])");
+    private static final java.util.regex.Pattern ABSOLUTE_AGE_WORD_CONTEXT =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([\\p{L}]+)\\s+"
+                + "(?:jahr|jahre|jahren|monat|monate|monaten)\\s+alt(?![\\p{L}\\p{N}])");
+
+    private static Set<String> explicitAbsoluteAges(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        Set<String> ages = new HashSet<>();
+        java.util.regex.Matcher words = ABSOLUTE_AGE_WORD_CONTEXT.matcher(normalized);
+        while (words.find()) {
+            if (canonicalRelativeAgeValue(words.group(1)).equals(words.group(1))) return null;
+        }
+        java.util.regex.Matcher match = EXPLICIT_ABSOLUTE_AGE.matcher(normalized);
+        while (match.find()) {
+            String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
+            String base = "ABS:" + canonicalRelativeAgeValue(match.group(1)) + ":" + unit;
+            ages.add(base);
+            String prefix = normalized.substring(0, match.start());
+            java.util.regex.Matcher named = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(prefix);
+            if (named.find()) {
+                String owner = named.group(1);
+                if (owner.startsWith("mein")) owner = "mein";
+                else if (owner.startsWith("dein")) owner = "dein";
+                else if (owner.startsWith("unser")) owner = "unser";
+                else if (owner.startsWith("eur") || owner.equals("euer")) owner = "euer";
+                else if (owner.startsWith("sein")) owner = "sein";
+                else if (owner.startsWith("ihr")) owner = "ihr";
+                else if (owner.startsWith("ein")) owner = "ein";
+                String descriptor = named.group(2).trim().replaceAll("\\s+", " ");
+                if (descriptor.split(" ").length > 8) return null;
+                ages.add(base + ":SUB:" + owner + ":" + descriptor);
+            } else {
+                java.util.regex.Matcher bare = EXPLICIT_RELATIVE_AGE_BARE_SUBJECT.matcher(prefix);
+                if (bare.matches()) {
+                    ages.add(base + ":SUB:bare:" + bare.group(1).trim().replaceAll("\\s+", " "));
+                } else if (!prefix.trim().isEmpty()) {
+                    return null; // Unsupported/ambiguous prefix must not become a broad query.
+                }
+            }
+            if (ages.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return ages;
     }
 
     // Returns only explicitly signed numeric literals, preserving minus/plus
