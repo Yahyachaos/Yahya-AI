@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Immutable v80 4R room/world contract.
+ * Post-v83 S25 user-authored native-frame contract. Legacy 9R geometry is NOT calibrated.
  *
  * The room action graph is data-only in 4R. Walking, contact poses, natural-language commands and
  * autonomous room behavior remain deliberately disabled until the later 9R phase.
@@ -24,21 +24,15 @@ final class CelineRoomWorldContractV80 {
     static final String ASSEMBLY_PATH = "models/room/celine_room_v80_assembly.json";
     static final String ANCHORS_PATH = "models/room/celine_room_v80_anchors.json";
     static final String NAV_COLLISION_PATH = "models/room/celine_room_v80_nav_collision.json";
+    static final String S25_LAYOUT_PATH = "models/room/layouts/YahyaAI_Raumlayout_FINAL_2026-10-31.json";
+    static final String S25_LAYOUT_SHA256 = "471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f";
 
     static final float RUNTIME_OFFSET_X = 0.0f;
-    static final float RUNTIME_OFFSET_Y = -1.55f;
-    static final float RUNTIME_OFFSET_Z = -4.0f;
+    static final float RUNTIME_OFFSET_Y = 0.0f;
+    static final float RUNTIME_OFFSET_Z = 0.0f;
 
-    // Real in-app Candidate #1139 on the corrected 1.75 m floor-grounded Celine makes the earlier
-    // +0.12 m HOME depth control stale. On the exact 964x761 HOME stage her reliable vertical
-    // silhouette is about 0.524 H versus 0.666 H in Refernzbild.png, with the feet too high in the
-    // frame. With the accepted exact camera (eye Z=-1.1265625) and current root Z=-3.88, pinhole
-    // depth scaling solves the HOME presentation root to about local Z=+0.705 m. Rebase only the
-    // parsed talk anchor; immutable source JSON, furniture TRS, camera/lens, rig/scale and every
-    // non-talk route endpoint stay unchanged because navigator relative-Z algebra cancels this
-    // talk-baseline shift. CALL remains independently at its existing +0.12 m until the next real
-    // HOME/CALL evidence is inspected.
-    private static final float RECONSTRUCTION_TALK_LOCAL_Z = 0.705f;
+    // The old photo-fitted HOME depth override does not belong to the S25-authored world.
+    // Draft navigation/contact anchors remain unverified until real transformed mesh proof.
 
     private static final String ROOM_ID = "celine_room_v80_final_modular";
     private static final String ROOM_SHA256 =
@@ -165,9 +159,9 @@ final class CelineRoomWorldContractV80 {
         float width = finitePositive(shell, "width");
         float depth = finitePositive(shell, "depth");
         float height = finitePositive(shell, "height");
-        requireClose(width, 6.4f, "room width");
-        requireClose(depth, 5.8f, "room depth");
-        requireClose(height, 2.8f, "room height");
+        requireClose(width, 4.4f, "room width");
+        requireClose(depth, 4.2f, "room depth");
+        requireClose(height, 2.65f, "room height");
 
         JSONObject viewer = world.getJSONObject("viewer");
         require("laptop_webcam".equals(viewer.optString("type")), "viewer type");
@@ -179,9 +173,9 @@ final class CelineRoomWorldContractV80 {
         float bedY = finite(contacts, "bed_mattress_y_m");
         float chairY = finite(contacts, "chair_seat_y_m");
         float tableY = finite(contacts, "foreground_table_top_y_m");
-        requireClose(bedY, 0.461f, "bed contact");
-        requireClose(chairY, 0.457f, "chair contact");
-        requireClose(tableY, 0.756f, "table contact");
+        // Old asset contact heights are recorded for compatibility, NOT S25 contact proof.
+        require("UNVERIFIED_LEGACY".equals(world.optString("contact_planes_status")),
+                "S25 contact calibration not accepted");
 
         require(assembly.optInt("schema") == 1, "assembly schema");
         require(ROOM_ID.equals(assembly.optString("room_id")), "assembly room id");
@@ -196,7 +190,16 @@ final class CelineRoomWorldContractV80 {
                 "one nightstand source used twice");
         require(assembly.getJSONArray("objects").length() == FURNITURE_INSTANCES,
                 "assembly object count");
+        JSONObject assemblyShell = assembly.getJSONObject("room_shell_m");
+        requireClose(finitePositive(assemblyShell, "width"), width, "assembly S25 width");
+        requireClose(finitePositive(assemblyShell, "depth"), depth, "assembly S25 depth");
+        requireClose(finitePositive(assemblyShell, "height"), height, "assembly S25 height");
+        require(S25_LAYOUT_SHA256.equals(assembly.optString("authoritative_layout_sha256")),
+                "S25 assembly authority SHA256");
+        validateS25Assembly(assembly, readJson(context, S25_LAYOUT_PATH), width, depth, height);
 
+        require("PENDING_S25_GEOMETRY_PROOF".equals(anchorDocument.optString("s25_status")),
+                "anchor geometry pending, not accepted");
         JSONObject anchorSource = anchorDocument.getJSONObject("anchors");
         JSONObject lockedAnchors = world.getJSONObject("anchors");
         require(anchorSource.length() == ANCHOR_COUNT, "prepared anchor count");
@@ -205,6 +208,17 @@ final class CelineRoomWorldContractV80 {
                 lockedAnchors, anchorSource, bedY, chairY, tableY);
 
         require(nav.optInt("schema") == 1, "nav schema");
+        require("PENDING_S25_MESH_AABBS".equals(nav.optString("s25_status")),
+                "collision geometry pending, not accepted");
+        JSONObject navBounds = nav.getJSONObject("room_bounds_m");
+        JSONArray navMin = navBounds.getJSONArray("min");
+        JSONArray navMax = navBounds.getJSONArray("max");
+        requireClose(finite(navMin, 0, "nav min x"), -width / 2f, "S25 nav min x");
+        requireClose(finite(navMin, 1, "nav min y"), 0f, "S25 nav floor");
+        requireClose(finite(navMin, 2, "nav min z"), -depth / 2f, "S25 nav min z");
+        requireClose(finite(navMax, 0, "nav max x"), width / 2f, "S25 nav max x");
+        requireClose(finite(navMax, 1, "nav max y"), height, "S25 nav height");
+        requireClose(finite(navMax, 2, "nav max z"), depth / 2f, "S25 nav max z");
         JSONArray colliders = nav.getJSONArray("colliders");
         JSONArray edges = nav.getJSONArray("edges");
         JSONArray contactEdges = nav.getJSONArray("contact_edges");
@@ -240,7 +254,9 @@ final class CelineRoomWorldContractV80 {
                 + " anchors=" + anchors.size() + " colliders=" + colliderCount
                 + " navEdges=" + navEdgeCount + " contactEdges=" + contactEdgeCount
                 + " contactY=" + bedMattressY + "/" + chairSeatY + "/"
-                + foregroundTableTopY + " 9R=false";
+                + foregroundTableTopY
+                + " s25NavCollision=UNVERIFIED s25Contact=UNVERIFIED"
+                + " s25RuntimeAndVisual=UNVERIFIED";
     }
 
     private static Map<String, Anchor> parseAnchors(
@@ -255,8 +271,7 @@ final class CelineRoomWorldContractV80 {
             JSONArray xz = value.getJSONArray("world_xz_m");
             float x = finite(xz, 0, id + " x");
             float sourceZ = finite(xz, 1, id + " z");
-            float z = "camera_talk_anchor".equals(id)
-                    ? RECONSTRUCTION_TALK_LOCAL_Z : sourceZ;
+            float z = sourceZ; // No reference-photo-derived talk-root override.
             float y = value.isNull("world_y_m")
                     ? resolvedContactY(id, bedY, chairY, tableY)
                     : finite(value, "world_y_m");
@@ -284,6 +299,63 @@ final class CelineRoomWorldContractV80 {
                 || "bed_relax_anchor".equals(id)
                 || "bed_lie_anchor".equals(id)) return bedY;
         return 0.0f;
+    }
+
+
+    // Retain all original independent editor fields; legacy yaw/scale never substitute
+    // for full Euler rotations and XYZ scale. The canonical JSON remains byte-unmodified.
+    private static void validateS25Assembly(
+            JSONObject assembly, JSONObject layout, float width, float depth, float height)
+            throws Exception {
+        require("yahya-room-layout-editor/v1".equals(layout.optString("schema")),
+                "S25 layout schema");
+        require("2026-10-31T03:29:20.855Z".equals(layout.optString("saved_at")),
+                "S25 layout checkpoint");
+        JSONObject room = layout.getJSONObject("room");
+        requireClose(finitePositive(room, "width"), width, "S25 layout width");
+        requireClose(finitePositive(room, "depth"), depth, "S25 layout depth");
+        requireClose(finitePositive(room, "height"), height, "S25 layout height");
+        JSONArray authored = layout.getJSONArray("objects");
+        JSONArray objects = assembly.getJSONArray("objects");
+        require(authored.length() == FURNITURE_INSTANCES, "S25 author object count");
+        Map<String, JSONObject> byId = new LinkedHashMap<>();
+        for (int i = 0; i < authored.length(); i++) {
+            JSONObject source = authored.getJSONObject(i);
+            String id = source.getString("id");
+            require(!byId.containsKey(id), "duplicate author id " + id);
+            byId.put(id, source);
+        }
+        for (int i = 0; i < objects.length(); i++) {
+            JSONObject entry = objects.getJSONObject(i);
+            String id = entry.getString("id");
+            JSONObject source = byId.remove(id);
+            require(source != null, "missing or duplicated S25 assembly id " + id);
+            JSONObject transform = entry.getJSONObject("transform");
+            requireNumbersEqual(transform.getJSONArray("translation_m"),
+                    source.getJSONArray("translation_m"), id + " XYZ");
+            requireNumbersEqual(transform.getJSONArray("rotation_euler_deg"),
+                    source.getJSONArray("rotation_euler_deg"), id + " Euler");
+            requireNumbersEqual(transform.getJSONArray("scale_xyz"),
+                    source.getJSONArray("scale_xyz"), id + " XYZ scale");
+            require(Double.compare(transform.getDouble("rotation_y_deg"),
+                    source.getDouble("rotation_y_deg")) == 0, id + " legacy yaw");
+            require(Double.compare(transform.getDouble("uniform_scale"),
+                    source.getDouble("uniform_scale")) == 0, id + " legacy scale");
+            require(transform.getBoolean("locked") == source.getBoolean("locked"),
+                    id + " lock");
+        }
+        require(byId.isEmpty(), "unmatched S25 furniture ids");
+    }
+
+    private static void requireNumbersEqual(
+            JSONArray actual, JSONArray expected, String label) throws Exception {
+        require(actual.length() == 3 && expected.length() == 3, label + " length");
+        for (int i = 0; i < 3; i++) {
+            double a = actual.getDouble(i);
+            double b = expected.getDouble(i);
+            require(Double.isFinite(a) && Double.isFinite(b) && Double.compare(a, b) == 0,
+                    label + " entry " + i + " mismatch");
+        }
     }
 
     private static JSONObject readJson(Context context, String path) throws Exception {

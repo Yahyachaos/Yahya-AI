@@ -1,0 +1,295 @@
+{
+  "schema": "yahya-room-layout-editor/v1",
+  "units": "meters",
+  "coordinate_system": "X horizontal, Y height, Z depth; origin room-floor center",
+  "original_room_m": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "room": {
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
+  },
+  "objects": [
+    {
+      "id": "room_bed",
+      "translation_m": [
+        0.8714736127446272,
+        0.588966,
+        0.452383630927264
+      ],
+      "rotation_y_deg": 180,
+      "rotation_euler_deg": [
+        0,
+        270.00000000000034,
+        0
+      ],
+      "scale_xyz": [
+        1.3840211765750603,
+        1.3840211765750603,
+        1.3840211765750603
+      ],
+      "uniform_scale": 0.96,
+      "locked": false
+    },
+    {
+      "id": "room_dresser",
+      "translation_m": [
+        -1.8822733364790232,
+        0.689,
+        0.6430374296015684
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90.11249999999995,
+        0
+      ],
+      "scale_xyz": [
+        1.1033906769422541,
+        1.1033906769422541,
+        1.1033906769422541
+      ],
+      "uniform_scale": 0.72,
+      "locked": false
+    },
+    {
+      "id": "room_plant_large",
+      "translation_m": [
+        1.5963197950919137,
+        1.052313,
+        -1.757751426077387
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.14,
+        1.14,
+        1.14
+      ],
+      "uniform_scale": 1.14,
+      "locked": true
+    },
+    {
+      "id": "room_plant_small",
+      "translation_m": [
+        0.709290009873116,
+        1.075,
+        2.165650214193175
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.3364453491070697,
+        0.3364453491070697,
+        0.3364453491070697
+      ],
+      "uniform_scale": 1.3,
+      "locked": false
+    },
+    {
+      "id": "room_floor_lamp",
+      "translation_m": [
+        -1.856367326126549,
+        0.6491830067291915,
+        -1.7070916209531746
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.86,
+        0.86,
+        0.86
+      ],
+      "uniform_scale": 0.86,
+      "locked": false
+    },
+    {
+      "id": "room_nightstand_back",
+      "translation_m": [
+        1.908166493816783,
+        0.767,
+        -0.9582164385658503
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90.22499999999994,
+        0
+      ],
+      "scale_xyz": [
+        0.7059861506367527,
+        0.7059861506367527,
+        0.7059861506367527
+      ],
+      "uniform_scale": 0.8,
+      "locked": true
+    },
+    {
+      "id": "room_nightstand_front",
+      "translation_m": [
+        1.9076237979264326,
+        1.091,
+        1.6806262192082744
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90,
+        0
+      ],
+      "scale_xyz": [
+        0.6312655181805529,
+        0.6312655181805529,
+        0.6312655181805529
+      ],
+      "uniform_scale": 0.7,
+      "locked": true
+    },
+    {
+      "id": "room_lounge_chair",
+      "translation_m": [
+        -1.611308348133699,
+        0.5076,
+        -1.0190387036075788
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        64.18124999999999,
+        0
+      ],
+      "scale_xyz": [
+        0.5320448502769782,
+        0.5320448502769782,
+        0.5320448502769782
+      ],
+      "uniform_scale": 0.9,
+      "locked": true
+    },
+    {
+      "id": "room_rug",
+      "translation_m": [
+        0.1087295637615564,
+        0.022655,
+        0.07599246792746465
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.8417180316835466,
+        1.8417180316835466,
+        1.8417180316835466
+      ],
+      "uniform_scale": 0.92,
+      "locked": true
+    },
+    {
+      "id": "room_foreground_table",
+      "translation_m": [
+        0.011233047553133153,
+        0.402,
+        2.1960190157285577
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        0.8373333213034769,
+        0.8373333213034769,
+        0.8373333213034769
+      ],
+      "uniform_scale": 1.35,
+      "locked": false
+    },
+    {
+      "id": "room_window_drapes",
+      "translation_m": [
+        -0.14986530169856907,
+        1.33,
+        -1.9565861013139196
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        0,
+        0
+      ],
+      "scale_xyz": [
+        1.6494872590626748,
+        1.6494872590626748,
+        1.6494872590626748
+      ],
+      "uniform_scale": 1.1,
+      "locked": false
+    },
+    {
+      "id": "room_wall_shelf_books",
+      "translation_m": [
+        -1.8996562440211349,
+        1.364,
+        0.4142458836672216
+      ],
+      "rotation_y_deg": 0,
+      "rotation_euler_deg": [
+        0,
+        89.71875000000001,
+        0
+      ],
+      "scale_xyz": [
+        0.9271692225816242,
+        0.9271692225816242,
+        0.9271692225816242
+      ],
+      "uniform_scale": 0.98,
+      "locked": false
+    },
+    {
+      "id": "room_round_mirror",
+      "translation_m": [
+        -2.185488449288431,
+        2.034,
+        0.46838509131201145
+      ],
+      "rotation_y_deg": 90,
+      "rotation_euler_deg": [
+        0,
+        90,
+        0
+      ],
+      "scale_xyz": [
+        0.5276607038867498,
+        0.5276607038867498,
+        0.5276607038867498
+      ],
+      "uniform_scale": 1,
+      "locked": true
+    }
+  ],
+  "source_assembly": "../../app/src/main/assets/models/room/celine_room_v80_assembly.json",
+  "reference_image": "Refernzbild.png",
+  "note": "Editor export only. Android/Filament placement not automatically modified or validated.",
+  "saved_at": "2026-10-31T03:29:20.855Z",
+  "editor": "Yahya AI S25 – 13 GLBs offline · height drag + centimeter controls · original mesh/UV/images"
+}
