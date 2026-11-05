@@ -10,6 +10,51 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
+# FUTURE ONLY: numeric relative age direction is semantic evidence. This is
+# only a scoped lexical guard; no subject/temporal inference or G1 mutation.
+if '--focused-relative-age' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class RelativeAgeContract {
+    static int assertions=0;
+    static CelineFutureMemoryRecall.Candidate fact(String text) {
+        return new CelineFutureMemoryRecall.Candidate("age", text, "",
+            CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE, true, true, 100, 0, 0.9);
+    }
+    static void check(String query, String stored, boolean expect, String note) {
+        List<CelineFutureMemoryRecall.Candidate> facts=List.of(fact(stored));
+        boolean recall=!CelineFutureMemoryRecall.retrieve(query, facts, 4, 200).isEmpty();
+        boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query, facts, 200).isEmpty();
+        if (recall!=expect || correction!=expect)
+            throw new AssertionError(note + " expected=" + expect + " recall=" + recall + " correction=" + correction);
+        assertions+=2;
+    }
+    public static void main(String[] args) {
+        check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre jünger als ich", false, "older vs younger");
+        check("Meine Schwester ist 2 Jahre jünger als ich", "Meine Schwester ist 2 Jahre älter als ich", false, "younger vs older");
+        check("Mein Sohn ist 6 Monate älter", "Mein Sohn ist 6 Monate jünger", false, "month direction");
+        check("Mein Sohn ist 6 Monate jünger", "Mein Sohn ist 6 Monate älter", false, "month reverse");
+        check("Meine Schwester ist 2 Jahre aelter als ich", "Meine Schwester ist 2 Jahre juenger als ich", false, "transliterated directions");
+        check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre aelter als ich", true, "equivalent umlaut");
+        check("Meine Schwester ist 2 Jahre jünger als ich", "Meine Schwester ist 2 Jahre juenger als ich", true, "equivalent transliteration");
+        check("Mein Sohn ist 6 Monate älter", "Mein Sohn ist 6 Monate aelter", true, "equivalent month");
+        check("Mein Sohn ist 6 Monate jünger", "Mein Sohn ist 6 Monate jünger", true, "exact same relation");
+        check("Meine Schwester ist 2 Jahre älter", "Meine Schwester ist 2 Jahre alt", false, "older not unqualified age");
+        check("Mein Sohn ist 6 Monate älter", "Mein Sohn ist 6 Jahre älter", false, "months not years");
+        check("Meine Schwester ist 2 Jahre älter", "Meine Schwester ist 3 Jahre älter", false, "number identity");
+        System.out.println("RELATIVE_AGE_DIRECTION_CONTRACT_PASS cases="+assertions);
+    }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_relative_age_') as compiled:
+        f=Path(compiled)/'RelativeAgeContract.java'
+        f.write_text(harness, encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.RelativeAgeContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative-age RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY lexical currency bounds "ab/bis/bis zu/bis einschließlich":
 # no opposite-bound recall or
 # inferred correction ID. Currency must be explicit; a date or free numeral is

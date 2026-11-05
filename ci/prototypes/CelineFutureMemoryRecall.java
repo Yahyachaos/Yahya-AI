@@ -3093,6 +3093,10 @@ public final class CelineFutureMemoryRecall {
         // 500 is not at most 500, and strict >5 is not >=5.
         Set<String> requestedQuantityBounds = explicitQuantityBounds(query);
         if (requestedQuantityBounds == null) return Collections.emptyList();
+        // Preserve numeric relative-age direction for provider-safe recall
+        // and read-only correction-ID suggestions alike.
+        Set<String> requestedRelativeAges = explicitRelativeAges(query);
+        if (requestedRelativeAges == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3164,6 +3168,11 @@ public final class CelineFutureMemoryRecall {
                     Set<String> storedQuantityBounds = explicitQuantityBounds(c.summary);
                     if (storedQuantityBounds == null
                             || !storedQuantityBounds.containsAll(requestedQuantityBounds)) continue;
+                }
+                if (!requestedRelativeAges.isEmpty()) {
+                    Set<String> storedRelativeAges = explicitRelativeAges(c.summary);
+                    if (storedRelativeAges == null
+                            || !storedRelativeAges.containsAll(requestedRelativeAges)) continue;
                 }
             }
             Set<String> stored = terms(c.summary);
@@ -3524,6 +3533,33 @@ public final class CelineFutureMemoryRecall {
             if (bounds.size() > MAX_QUERY_TOKENS) return null;
         }
         return bounds;
+    }
+
+    // Numeric relative-age statements are directed facts: "2 Jahre älter"
+    // is not "2 Jahre jünger". Only a digit + exact time unit + adjective
+    // is recognized here; we do not infer age arithmetic, grammar or subject.
+    private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?)\\s+"
+                + "(jahr|jahre|jahren|monat|monate|monaten)\\s+"
+                + "(älter|aelter|jünger|juenger)(?![\\p{L}\\p{N}])");
+
+    private static Set<String> explicitRelativeAges(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        Set<String> relations = new HashSet<>();
+        java.util.regex.Matcher match = EXPLICIT_RELATIVE_AGE.matcher(normalized);
+        while (match.find()) {
+            String direction = match.group(3).equals("älter")
+                    || match.group(3).equals("aelter") ? "OLDER" : "YOUNGER";
+            String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
+            relations.add(direction + ":" + match.group(1).replace(',', '.') + ":" + unit);
+            if (relations.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return relations;
     }
 
     // Returns only explicitly signed numeric literals, preserving minus/plus
