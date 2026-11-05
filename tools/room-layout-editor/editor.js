@@ -615,7 +615,10 @@ function setS25RawPreview(enabled){
           if(!materials.has(original)){
             const basic=new THREE.MeshBasicMaterial({
               map:original.map||null,
-              color:original.map?0xffffff:0xd9c9b3,
+              // View-only S25 clone: preserve the original opaque night backdrop color.
+              // No mesh/source GLB, visibility, camera, owner TRS or JSON changes.
+              color:original.map?0xffffff:
+                (original.name===NIGHT_BACKDROP_MATERIAL?0x1d242b:0xd9c9b3),
               side:THREE.DoubleSide,transparent:false,opacity:1,
               depthWrite:true,toneMapped:false
             });
