@@ -1339,7 +1339,7 @@ async function main(){
     proofS25BackdropTrialBegin(mode) {
       if(mode!=='source-dark'&&mode!=='backdrop-hidden')
         throw new Error('Unsupported bounded S25 window diagnostic');
-      if(this.__proofS25BackdropTrial||!s25RawPreview||!s25RawViewBackup||
+      if(window.__proofS25BackdropTrial||!s25RawPreview||!s25RawViewBackup||
          loadCount!==13||failCount)
         throw new Error('S25 original 13-GLB view required; no active trial');
       const entry=entries.get('room_window_drapes'),matches=[];
@@ -1363,7 +1363,7 @@ async function main(){
         fov:camera.fov,aspect:camera.aspect,
         originalHex:original.color.getHexString()
       };
-      this.__proofS25BackdropTrial=state;
+      window.__proofS25BackdropTrial=state;
       try {
         if(mode==='source-dark') {
           state.clone=mat.clone();
@@ -1389,11 +1389,11 @@ async function main(){
       }
     },
     proofS25BackdropTrialRestore() {
-      const s=this.__proofS25BackdropTrial;
+      const s=window.__proofS25BackdropTrial;
       if(!s)return {no_active_trial:true};
       s.mesh.material=s.mat;s.mesh.visible=s.visible;
       if(s.clone)s.clone.dispose();
-      this.__proofS25BackdropTrial=null;
+      window.__proofS25BackdropTrial=null;
       renderer.render(scene,camera);
       invalidateMobileFrame();
       const ok=s.mesh.material===s.mat&&s.mesh.visible===s.visible&&
