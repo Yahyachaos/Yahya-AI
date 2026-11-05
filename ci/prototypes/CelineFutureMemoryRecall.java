@@ -3101,6 +3101,9 @@ public final class CelineFutureMemoryRecall {
         // "Anna ist 2 Jahre älter". Numeric/topic overlap is insufficient.
         Set<String> requestedAbsoluteAges = explicitAbsoluteAges(query);
         if (requestedAbsoluteAges == null) return Collections.emptyList();
+        Set<String> requestedAdditionalAgeMeasures =
+                additionalExplicitAgeMeasures(query);
+        if (requestedAdditionalAgeMeasures == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3198,6 +3201,14 @@ public final class CelineFutureMemoryRecall {
                 Set<String> storedAbsoluteAges = explicitAbsoluteAges(c.summary);
                 if (storedAbsoluteAges == null
                         || !storedAbsoluteAges.containsAll(requestedAbsoluteAges)) continue;
+            }
+            if ((!requestedRelativeAges.isEmpty() || !requestedAbsoluteAges.isEmpty())
+                    && !requestedAdditionalAgeMeasures.isEmpty()) {
+                Set<String> storedAdditionalAgeMeasures =
+                        additionalExplicitAgeMeasures(c.summary);
+                if (storedAdditionalAgeMeasures == null
+                        || !storedAdditionalAgeMeasures.containsAll(requestedAdditionalAgeMeasures))
+                    continue;
             }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
@@ -3804,6 +3815,46 @@ public final class CelineFutureMemoryRecall {
             if (ages.size() > MAX_QUERY_TOKENS) return null;
         }
         return ages;
+    }
+
+    // FUTURE ONLY: a compound fact can name an age AND a second, distinct
+    // measurement. The age signature alone must not authorize a shorter
+    // age-only memory as a provider recall or correction-ID suggestion.
+    // Unlike the numeric-only general unit extractor, this recognizes a
+    // tiny, explicit German 1..12 spelling allowlist. Never infer amounts.
+    private static final java.util.regex.Pattern AGE_ADDITIONAL_MEASURE =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?|ein|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf)"
+                + "\\s+(km/h|m/s|°c|°f|[\\p{L}]+|€|\\$|%)(?![\\p{L}\\p{N}])");
+
+    private static Set<String> additionalExplicitAgeMeasures(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return null;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        java.util.ArrayList<int[]> ageSpans = new java.util.ArrayList<>();
+        java.util.regex.Matcher absolute = EXPLICIT_ABSOLUTE_AGE.matcher(normalized);
+        while (absolute.find()) ageSpans.add(new int[] {absolute.start(), absolute.end()});
+        java.util.regex.Matcher relative = EXPLICIT_RELATIVE_AGE.matcher(normalized);
+        while (relative.find()) ageSpans.add(new int[] {relative.start(), relative.end()});
+        Set<String> extra = new HashSet<>();
+        java.util.regex.Matcher measure = AGE_ADDITIONAL_MEASURE.matcher(normalized);
+        while (measure.find()) {
+            boolean withinAge = false;
+            for (int[] span : ageSpans) {
+                if (measure.start() >= span[0] && measure.end() <= span[1]) {
+                    withinAge = true;
+                    break;
+                }
+            }
+            if (withinAge) continue;
+            String unit = canonicalMeasurementUnit(measure.group(2));
+            if (unit.isEmpty()) continue;
+            extra.add(canonicalRelativeAgeValue(measure.group(1)) + ":" + unit);
+            if (extra.size() > MAX_QUERY_TOKENS) return null;
+        }
+        return extra;
     }
 
     // Returns only explicitly signed numeric literals, preserving minus/plus

@@ -12,6 +12,65 @@ assert source.is_file(), source
 
 
 
+# FUTURE ONLY: written German quantities attached to a SECOND measurement
+# must not select an age-only memory or invent its correction ID.
+if '--focused-age-extra-word-measure' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AgeExtraWordMetric {
+ static int checks=0;
+ static CelineFutureMemoryRecall.Candidate c(String text) {
+  return new CelineFutureMemoryRecall.Candidate("age",text,"",
+   CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+ }
+ static void check(String query, String fact, boolean expected, String label) {
+  var facts=List.of(c(fact));
+  boolean recall=!CelineFutureMemoryRecall.retrieve(query,facts,4,200).isEmpty();
+  boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,facts,200).isEmpty();
+  if(recall!=expected||correction!=expected) throw new AssertionError(
+    label+" expected="+expected+" recall="+recall+" correction="+correction);
+  checks+=2;
+ }
+ public static void main(String[] args) {
+  check("Anna ist zwei Jahre alt und zwei Meter groß","Anna ist zwei Jahre alt",false,"word extra meter");
+  check("Anna ist zwei Jahre alt und drei Euro teuer","Anna ist zwei Jahre alt",false,"word extra euro");
+  check("Anna ist zwei Jahre alt und drei Monate krank","Anna ist zwei Jahre alt",false,"word extra month");
+  check("Anna ist 2 Jahre alt und zwei Meter groß","Anna ist 2 Jahre alt",false,"mixed extra meter");
+  check("Anna ist zwei Jahre alt und drei Kilogramm schwer","Anna ist zwei Jahre alt",false,"word extra kg");
+  check("Anna ist zwei Jahre alt und drei Meter groß","Anna ist zwei Jahre alt und vier Meter groß",false,"different extra magnitude");
+  check("Anna ist zwei Jahre alt und drei Meter groß","Anna ist zwei Jahre alt und drei Meter groß",true,"same extra");
+  check("Anna ist zwei Jahre alt und drei Euro teuer","Anna ist zwei Jahre alt und drei Euro teuer",true,"same euro");
+  check("Anna ist zwei Jahre alt und drei Monate krank","Anna ist zwei Jahre alt und drei Monate krank",true,"same extra month");
+  check("Anna ist zwei Jahre alt und drei Meter groß","Anna ist zwei Jahre alt und 3 Meter groß",true,"word extra vs digit");
+  check("Anna ist 2 Jahre alt und 3 Meter groß","Anna ist 2 Jahre alt und 3 Meter groß",true,"legacy numeric equal");
+  check("Anna ist zwei Jahre und drei Monate alt","Anna ist 2 Jahre und 3 Monate alt",true,"age span excluded");
+  check("Anna ist zwei Jahre und drei Monate alt und vier Meter groß","Anna ist zwei Jahre und drei Monate alt",false,"compound plus extra");
+  check("Anna ist zwei Jahre und drei Monate alt und vier Meter groß","Anna ist zwei Jahre und drei Monate alt und vier Meter groß",true,"compound with equal extra");
+  check("Anna ist zwei Jahre alt","Anna ist zwei Jahre alt",true,"ordinary word age");
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt",true,"ordinary digit age");
+  check("Meine Schwester ist zwei Jahre alt","Meine Schwester ist 2 Jahre alt",true,"possessive word age");
+  check("Meine Schwester ist zwei Jahre jünger","Meine Schwester ist 2 Jahre jünger",true,"relative age");
+  check("Meine Schwester ist zwei Jahre jünger und drei Meter groß","Meine Schwester ist zwei Jahre jünger",false,"relative plus extra");
+  check("Meine Schwester ist zwei Jahre jünger und drei Meter groß","Meine Schwester ist zwei Jahre jünger und drei Meter groß",true,"relative equal extras");
+  check("Anna war zwei Jahre alt und drei Meter groß","Anna ist zwei Jahre alt und drei Meter groß",false,"tense cannot alias");
+  check("Anna ist zwei Jahre alt und drei Meter groß","Eva ist zwei Jahre alt und drei Meter groß",false,"subject cannot alias");
+  check("Anna ist zwei Jahre alt und drei Meter groß","Anna ist zwei Jahre alt und drei Euro teuer",false,"unit cannot alias");
+  check("Anna ist zwei Jahre alt und drei Meter groß","Anna ist zwei Jahre alt und drei Zentimeter groß",false,"physical unit cannot alias");
+  System.out.println("AGE_EXTRA_WORD_MEASURE_PASS cases="+checks);
+ }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_age_extra_word_measure_') as compiled:
+        f=Path(compiled)/'AgeExtraWordMetric.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],
+                             capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.AgeExtraWordMetric'],
+                           capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('age extra word measure RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY: an explicit owner subject must occupy the COMPLETE prefix.
 # A suffix-only owner match can confuse a leading clause with a memory ID.
 if '--focused-age-subject-prefix' in sys.argv:
