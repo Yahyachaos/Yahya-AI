@@ -10,6 +10,58 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
+# FUTURE ONLY: punctuation-delimited alternatives and hedged relative ages
+# must not authorize provider recall or a guessed correction-target ID.
+if '--focused-age-hedge-punctuation' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AgeHedgePunctuationContract {
+ static int count=0;
+ static CelineFutureMemoryRecall.Candidate c(String text) {
+  return new CelineFutureMemoryRecall.Candidate("age-id",text,"",
+    CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+ }
+ static void check(String query, String stored, boolean expected, String name) {
+  var records=List.of(c(stored));
+  boolean recall=!CelineFutureMemoryRecall.retrieve(query,records,4,200).isEmpty();
+  boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,records,200).isEmpty();
+  if(recall!=expected || correction!=expected) throw new AssertionError(
+    name+" expected="+expected+" got recall="+recall+" correction="+correction);
+  count+=2;
+ }
+ public static void main(String[] args) {
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt. Vielleicht 3",false,"period alternative source");
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt? Oder 3",false,"question alternative source");
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt! Vielleicht 3",false,"exclamation alternative source");
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt, ich glaube",false,"postfix uncertainty source");
+  check("Anna ist 2 Jahre alt. Vielleicht 3","Anna ist 2 Jahre alt",false,"period alternative query");
+  check("Anna ist 2 Jahre alt, ich glaube","Anna ist 2 Jahre alt",false,"postfix uncertainty query");
+  check("Anna ist 2 Jahre älter als ich","Anna ist 2 Jahre älter als ich, glaube ich",false,"relative source hedge");
+  check("Anna ist 2 Jahre älter als ich, glaube ich","Anna ist 2 Jahre älter als ich",false,"relative query hedge");
+  check("Anna ist zwei Jahre jünger als ich","Anna ist zwei Jahre jünger als ich. Vielleicht drei",false,"word relative source alternative");
+  check("Meine Schwester ist 2 Jahre jünger","Meine Schwester ist 2 Jahre jünger oder vielleicht älter",false,"relative direction source alternative");
+  check("Meine Schwester ist 2 Jahre jünger oder vielleicht älter","Meine Schwester ist 2 Jahre jünger",false,"relative direction query alternative");
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt",true,"exact absolute control");
+  check("Anna ist 2 Jahre alt","Anna ist zwei Jahre alt",true,"spelled absolute control");
+  check("Anna ist 2 Jahre und 3 Monate alt","Anna ist zwei Jahre und drei Monate alt",true,"compound control");
+  check("Anna ist 2 Jahre älter als ich","Anna ist 2 Jahre älter als ich",true,"relative control");
+  check("Meine Schwester ist zwei Jahre jünger","Meine Schwester ist 2 Jahre jünger",true,"spelled relative control");
+  check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt und liebt Musik",true,"unrelated positive tail control");
+  System.out.println("AGE_HEDGE_PUNCTUATION_PASS cases="+count);
+ }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_age_hedge_') as compiled:
+        f=Path(compiled)/'AgeHedgePunctuationContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=120)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.AgeHedgePunctuationContract'],capture_output=True,text=True,timeout=80)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('age hedge RED: '+run.stderr)
+    sys.exit(0)
+
+
+
 
 
 # FUTURE ONLY: ambiguous alternative/hedged age assertions must not be

@@ -3742,15 +3742,16 @@ public final class CelineFutureMemoryRecall {
                 "(?<![\\p{L}\\p{N}])([\\p{L}]+)\\s+"
                 + "(?:jahr|jahre|jahren|monat|monate|monaten)\\s+alt(?![\\p{L}\\p{N}])");
 
-    // FUTURE ONLY: a definite source "Anna ist 2 Jahre alt" is NOT
-    // equivalent to "Anna ist 2 Jahre alt oder vielleicht 3" or
-    // "Anna ist 2 Jahre alt, glaube ich". This is deliberately narrow:
-    // uncertainty in an unrelated following clause is not auto-interpreted.
+    // FUTURE ONLY: a stated age (absolute OR relative) cannot authorize a
+    // provider recall/correction ID when an immediately following uncertainty,
+    // disjunction or alternative makes that age fact non-definite. Full stops,
+    // question/exclamation marks and common comma hedges are delimiters too.
+    // Keep this deliberately narrow: do not infer an unrelated later clause.
     private static final java.util.regex.Pattern UNCERTAIN_AGE_SUFFIX =
             java.util.regex.Pattern.compile(
-                "^[\\s,;:()\\[\\]-]*(?:oder\\b|vielleicht\\b|vermutlich\\b|"
+                "^[\\s.,!?;:()\\[\\]-]*(?:oder\\b|vielleicht\\b|vermutlich\\b|"
                 + "wahrscheinlich\\b|möglicherweise\\b|glaube\\s+ich\\b|"
-                + "denke\\s+ich\\b)");
+                + "denke\\s+ich\\b|ich\\s+glaube\\b|ich\\s+denke\\b)");
 
     private static boolean hasUncertainAbsoluteAge(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
@@ -3761,6 +3762,14 @@ public final class CelineFutureMemoryRecall {
         java.util.regex.Matcher age = EXPLICIT_ABSOLUTE_AGE.matcher(normalized);
         while (age.find()) {
             if (UNCERTAIN_AGE_SUFFIX.matcher(normalized.substring(age.end())).find())
+                return true;
+        }
+        // An explicitly directed relation can be hedged as well. It must not
+        // select a definite memory or guess its correction ID merely because
+        // the direction and duration happen to be identical.
+        java.util.regex.Matcher relation = EXPLICIT_RELATIVE_AGE.matcher(normalized);
+        while (relation.find()) {
+            if (UNCERTAIN_AGE_SUFFIX.matcher(normalized.substring(relation.end())).find())
                 return true;
         }
         return false;
