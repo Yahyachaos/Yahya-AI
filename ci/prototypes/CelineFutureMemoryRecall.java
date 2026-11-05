@@ -3101,6 +3101,10 @@ public final class CelineFutureMemoryRecall {
         // "Anna ist 2 Jahre älter". Numeric/topic overlap is insufficient.
         Set<String> requestedAbsoluteAges = explicitAbsoluteAges(query);
         if (requestedAbsoluteAges == null) return Collections.emptyList();
+        // A hedged/disjunctive age is not a definite memory fact, and a
+        // correction request containing an unresolved alternative cannot
+        // safely identify one source record by lexical overlap.
+        if (hasUncertainAbsoluteAge(query)) return Collections.emptyList();
         Set<String> requestedAdditionalAgeMeasures =
                 additionalExplicitAgeMeasures(query);
         if (requestedAdditionalAgeMeasures == null) return Collections.emptyList();
@@ -3142,7 +3146,8 @@ public final class CelineFutureMemoryRecall {
             // when its surviving words match. Do not rank it for provider recall;
             // its ID still participates in lineage/supersession quarantine.
             if (isExplicitRedactionMarker(c.summary)
-                    || hasSemanticLeadingOrInfixPictograph(c.summary)) continue;
+                    || hasSemanticLeadingOrInfixPictograph(c.summary)
+                    || hasUncertainAbsoluteAge(c.summary)) continue;
             Set<String> candidateNegationCues = explicitNegationCues(c.summary);
             if (requireMatchingNegation
                     && !queryNegationCues.equals(candidateNegationCues)) continue;
@@ -3736,6 +3741,30 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}])([\\p{L}]+)\\s+"
                 + "(?:jahr|jahre|jahren|monat|monate|monaten)\\s+alt(?![\\p{L}\\p{N}])");
+
+    // FUTURE ONLY: a definite source "Anna ist 2 Jahre alt" is NOT
+    // equivalent to "Anna ist 2 Jahre alt oder vielleicht 3" or
+    // "Anna ist 2 Jahre alt, glaube ich". This is deliberately narrow:
+    // uncertainty in an unrelated following clause is not auto-interpreted.
+    private static final java.util.regex.Pattern UNCERTAIN_AGE_SUFFIX =
+            java.util.regex.Pattern.compile(
+                "^[\\s,;:()\\[\\]-]*(?:oder\\b|vielleicht\\b|vermutlich\\b|"
+                + "wahrscheinlich\\b|möglicherweise\\b|glaube\\s+ich\\b|"
+                + "denke\\s+ich\\b)");
+
+    private static boolean hasUncertainAbsoluteAge(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
+            return true;
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        java.util.regex.Matcher age = EXPLICIT_ABSOLUTE_AGE.matcher(normalized);
+        while (age.find()) {
+            if (UNCERTAIN_AGE_SUFFIX.matcher(normalized.substring(age.end())).find())
+                return true;
+        }
+        return false;
+    }
 
     private static Set<String> absoluteAgeNumericAnchors(String text) {
         Set<String> anchors = new HashSet<>();

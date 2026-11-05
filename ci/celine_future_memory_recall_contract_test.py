@@ -12,6 +12,53 @@ assert source.is_file(), source
 
 
 
+# FUTURE ONLY: ambiguous alternative/hedged age assertions must not be
+# treated as a definite G1 fact or guessed selected-memory correction ID.
+if '--focused-uncertain-absolute-age' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class UncertainAbsoluteAgeContract {
+  static int n = 0;
+  static CelineFutureMemoryRecall.Candidate c(String fact) {
+    return new CelineFutureMemoryRecall.Candidate("uncertain-age",fact,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String request,String stored,boolean expected,String name) {
+    var items=List.of(c(stored));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(request,items,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(request,items,200).isEmpty();
+    if (recall!=expected || correction!=expected) throw new AssertionError(
+      name+" expected="+expected+" got="+recall+"/"+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt oder vielleicht 3",false,"source disjunction numeric");
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt oder drei",false,"source disjunction spelled");
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt (oder 3)",false,"source parenthesized alternative");
+    check("Anna ist zwei Jahre alt","Anna ist zwei Jahre alt, glaube ich",false,"source hedged spelled age");
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt, vermutlich",false,"source probabilistic suffix");
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt, möglicherweise 3",false,"source possibility suffix");
+    check("Anna ist 2 Jahre alt oder vielleicht 3","Anna ist 2 Jahre alt",false,"uncertain correction request");
+    check("Anna ist zwei Jahre alt, glaube ich","Anna ist zwei Jahre alt",false,"hedged correction request");
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt",true,"exact definite fact");
+    check("Anna ist zwei Jahre alt","Anna ist 2 Jahre alt",true,"word vs digit age kept");
+    check("Anna ist 2 Jahre und 3 Monate alt","Anna ist zwei Jahre und drei Monate alt",true,"compound age kept");
+    check("Anna ist 2 Jahre alt","Anna ist 2 Jahre alt und liebt Musik",true,"separate positive predicate kept");
+    check("Anna ist 2 Jahre älter als ich","Anna ist 2 Jahre älter als ich",true,"relative age kept");
+    check("Anna war 2 Jahre alt","Anna war 2 Jahre alt",true,"past age kept");
+    System.out.println("UNCERTAIN_ABSOLUTE_AGE_PASS cases="+n);
+  }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_uncertain_age_') as compiled:
+        f=Path(compiled)/'UncertainAbsoluteAgeContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.UncertainAbsoluteAgeContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('uncertain absolute age RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE ONLY: written German quantities attached to a SECOND measurement
 # must not select an age-only memory or invent its correction ID.
 if '--focused-age-extra-word-measure' in sys.argv:
