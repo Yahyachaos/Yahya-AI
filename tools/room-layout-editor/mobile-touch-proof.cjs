@@ -2781,6 +2781,18 @@ async function main(){
       'Real paused WebGL-canvas versus HTML CDP touch differential was not <5000ms for all four taps');
     assert.equal(targetComparison?.paused_render_zero_all,true,
       'Differential controls must operate with zero WebGL frames');
+    // V173 global fail-closed genuine mobile-touch gate: previously AA0
+    // Zoom/Save/Tools and some AA4 controls could exceed 5s on an Exit 0.
+    // Evidence and 412x915 images were saved above; finally preserves partial
+    // original touch attribution on any rejection below.
+    assert(timed.length>0&&timed.length===observedMobileTaps.length,
+      'Every genuine mobile touch must appear in the latency audit');
+    assert(timed.every(tap=>Number.isFinite(tap.elapsed_ms)&&tap.elapsed_ms>=0),
+      'Every genuine mobile touch must have a finite nonnegative elapsed_ms');
+    assert.equal(slow.length,0,
+      'ALL genuine mobile touches must be strictly <5000ms ('+
+      latencyReport.mobile_mode+'): '+
+      slow.map(tap=>tap.label+'='+tap.elapsed_ms+'ms').join(', '));
     const result={verdict:'PASS_TECHNICAL_VISUAL_REVIEW_REQUIRED',source_sha:process.env.GITHUB_SHA||null,device:'Samsung S25 Ultra-like Android Chrome emulation (not physical Samsung)',record,errors};
     fs.writeFileSync(path.join(out,'mobile-proof.json'),JSON.stringify(result,null,2));
     console.log('CELINE_ROOM_EDITOR_MOBILE_TOUCH_13_SOURCE_GLB_JSON_PASS');
