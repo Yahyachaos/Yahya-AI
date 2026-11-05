@@ -3566,11 +3566,12 @@ public final class CelineFutureMemoryRecall {
     // A bare explicit subject ("Anna ist ...", "Peter Schmidt war ...")
     // also names a distinct person. Without this key the shared numeral and
     // comparator could suggest another person's memory as a correction target.
-    // Only a short name immediately adjoining ist/war is recognized; do not
-    // infer co-reference, identity or speaker relationships from free text.
+    // Anchor at the entire prefix: Matcher.find() must never truncate a
+    // three/four-part name to its matching last one or two words.
+    // Three components are supported; longer/unsupported prefixes abstain.
     private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE_BARE_SUBJECT =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])([\\p{L}]{2,}(?:\\s+[\\p{L}]{2,}){0,1})"
+                "^\\s*([\\p{L}]{2,}(?:\\s+[\\p{L}]{2,}){0,2})"
                 + "\\s+(?:ist|war)\\s*$");
 
     private static Set<String> explicitRelativeAges(String text) {
@@ -3610,11 +3611,16 @@ public final class CelineFutureMemoryRecall {
             } else {
                 // A short bare name is explicit identity evidence too. Do not
                 // treat "Anna ist 2 Jahre älter" as "Eva ist 2 Jahre älter".
-                java.util.regex.Matcher bare = EXPLICIT_RELATIVE_AGE_BARE_SUBJECT
-                        .matcher(normalized.substring(0, match.start()));
-                if (bare.find()) {
+                String prefix = normalized.substring(0, match.start());
+                java.util.regex.Matcher bare = EXPLICIT_RELATIVE_AGE_BARE_SUBJECT.matcher(prefix);
+                if (bare.matches()) {
                     String name = bare.group(1).trim().replaceAll("\\s+", " ");
                     relations.add(base + ":SUB:bare:" + name);
+                } else if (!prefix.trim().isEmpty()) {
+                    // There is an explicit leading phrase but no supported
+                    // complete subject identity. Treating it as a broad age
+                    // query could target a different person's saved memory.
+                    return null;
                 }
             }
             // Add a second, referent-specific evidence key. A broad query

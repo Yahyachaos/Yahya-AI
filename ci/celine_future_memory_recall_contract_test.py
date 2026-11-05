@@ -11,6 +11,53 @@ assert source.is_file(), source
 
 
 
+# FUTURE-ONLY TDD: never bind a partial suffix of a 3+ word bare person name.
+# All judgments are tested through both retrieval and correction-ID suggestion.
+if '--focused-relative-age-full-bare-name' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class FullBareAgeNameContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String s) {
+    return new CelineFutureMemoryRecall.Candidate("age",s,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String stored, boolean expected, String note) {
+    List<CelineFutureMemoryRecall.Candidate> facts=List.of(c(stored));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,facts,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,facts,200).isEmpty();
+    if(recall!=expected || correction!=expected)
+      throw new AssertionError(note+" expected="+expected+" recall="+recall+" correction="+correction);
+    checks+=2;
+  }
+  public static void main(String[] args) {
+    check("Anna Maria Schmidt ist 2 Jahre älter als ich","Eva Maria Schmidt ist 2 Jahre älter als ich",false,"3-part distinct first");
+    check("Eva Maria Schmidt ist 2 Jahre älter als ich","Anna Maria Schmidt ist 2 Jahre älter als ich",false,"3-part reverse");
+    check("Anna Maria Schmidt ist 2 Jahre älter als ich","Anna Maria Schmidt ist 2 Jahre älter als ich",true,"3-part same full");
+    check("Anna Maria Schmidt ist 2 Jahre älter als ich","Maria Schmidt ist 2 Jahre älter als ich",false,"3-part vs two-part");
+    check("Maria Schmidt ist 2 Jahre älter als ich","Anna Maria Schmidt ist 2 Jahre älter als ich",false,"two-part vs 3-part");
+    check("Anna Maria Schmidt ist 2 Jahre älter als ich","Anna Eva Schmidt ist 2 Jahre älter als ich",false,"3-part distinct middle");
+    check("Anna Maria Paula Schmidt ist 2 Jahre älter als ich","Eva Maria Paula Schmidt ist 2 Jahre älter als ich",false,"4-part no suffix collision");
+    check("Anna Maria Paula Schmidt ist 2 Jahre älter als ich","Anna Maria Paula Schmidt ist 2 Jahre älter als ich",false,"unsupported 4-part abstains");
+    check("Anna Maria Paula Schmidt ist 2 Jahre älter als ich","Maria Paula Schmidt ist 2 Jahre älter als ich",false,"unsupported 4-part vs 3-part");
+    check("Maria Paula Schmidt ist 2 Jahre älter als ich","Anna Maria Paula Schmidt ist 2 Jahre älter als ich",false,"3-part vs unsupported 4-part");
+    check("Anna Maria Paula Eva Schmidt ist 2 Jahre älter als ich","Paula Eva Schmidt ist 2 Jahre älter als ich",false,"5-part unsupported");
+    check("Anna ist 2 Jahre älter als ich","Eva ist 2 Jahre älter als ich",false,"old 1-part remains distinct");
+    check("Peter Schmidt ist 2 Jahre älter als ich","Peter Schmidt ist 2 Jahre älter als ich",true,"old 2-part remains equal");
+    check("2 Jahre älter als ich","Anna Maria Schmidt ist 2 Jahre älter als ich",true,"broad subject-free query remains valid");
+    System.out.println("RELATIVE_AGE_FULL_BARE_NAME_PASS cases="+checks);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_full_bare_age_') as compiled:
+        f=Path(compiled)/'FullBareAgeNameContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.FullBareAgeNameContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative-age full bare-name RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY: a bare named relative-age subject must remain distinct
 # from another named person for both recall and correction-ID targeting.
 if '--focused-relative-age-bare-subject' in sys.argv:
