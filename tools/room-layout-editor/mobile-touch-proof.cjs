@@ -1561,6 +1561,64 @@ async function main(){
       diagnostic_error:targetComparison.diagnostic_error||null,
       visual_acceptance:'NOT_GRANTED'});
 
+    // V164 acceptance of the ACTUAL mobile default, not an old opt-in render:
+    // verify original S25 source scene, native uncropped 412x915 viewport,
+    // immutable owner JSON/camera, and real reversible touchscreen exit.
+    // The subsequent neutral/PBR/drape A/B below is deliberately performed
+    // after this explicit original-S25-to-neutral exit, not faked as startup.
+    const defaultRawAudit=await page.evaluate(()=>
+      window.__celineRoomEditorE2E.s25RawDisplayAudit());
+    assert.equal(defaultRawAudit.active,true,
+      'After 13 authentic GLBs load, mobile must start in owner S25 RAW display');
+    const rawBefore=await page.evaluate(()=>({
+      layout:window.__celineRoomEditorE2E.serializedLayout(),
+      camera:window.__celineRoomEditorE2E.cameraProjection(),
+      viewport:[innerWidth,innerHeight],scroll_y:scrollY,
+      edit_drawer_open:document.querySelector('#mobile-tools-panel').open
+    }));
+    assert.deepEqual(rawBefore.layout,baseline,
+      'Default original S25 view may not mutate any original saved field');
+    assert.deepEqual(rawBefore.viewport,[412,915]);
+    assert.equal(rawBefore.scroll_y,0);
+    assert.equal(rawBefore.edit_drawer_open,false,
+      'Original S25 mobile scene must start with editing drawer closed');
+    const defaultRawWebgl=await captureRealWebGL(page,
+      'mobile-owner-default-s25-raw-real-webgl.png');
+    const rawViewportBytes=await page.screenshot({scale:'css',fullPage:false,timeout:30000});
+    const rawViewportSize=[rawViewportBytes.readUInt32BE(16),rawViewportBytes.readUInt32BE(20)];
+    assert.deepEqual(rawViewportSize,[412,915],
+      'Original S25 default requires an authentic uncropped 412x915 viewport');
+    const rawViewportAfter=await page.evaluate(()=>({scroll_y:scrollY,
+      layout:window.__celineRoomEditorE2E.serializedLayout(),
+      camera:window.__celineRoomEditorE2E.cameraProjection()}));
+    assert.equal(rawViewportAfter.scroll_y,0,'Original S25 raw viewport must stay unscrolled');
+    assert.deepEqual(rawViewportAfter.layout,rawBefore.layout);
+    assert.deepEqual(rawViewportAfter.camera,rawBefore.camera);
+    fs.writeFileSync(path.join(out,'mobile-owner-default-s25-raw-viewport-412x915.png'),
+      rawViewportBytes);
+    record.push({name:'MOBILE_OWNER_S25_RAW_ACTUAL_DEFAULT_412x915_CAPTURED',
+      raw_default:true,mode:NATIVE_AA4_MODE?'AA4':'AA0',
+      raw_default_display_audit:defaultRawAudit,
+      webgl:defaultRawWebgl,
+      native_viewport_sha256:crypto.createHash('sha256').update(rawViewportBytes).digest('hex'),
+      native_viewport_size:rawViewportSize,owner_json_unchanged:true,camera_unchanged:true,
+      visual_acceptance:'REQUIRES_MANUAL_IMAGE_INSPECTION'});
+    const rawExitTapCount=observedMobileTaps.length;
+    await observeRealTap(page.locator('[data-mobile-action="s25-display"]'),
+      'page.locator(\'[data-mobile-action="s25-display"]\')');
+    const rawExitTap=observedMobileTaps[rawExitTapCount];
+    assert(rawExitTap?.action_succeeded && rawExitTap.elapsed_ms<5000,
+      'S25 raw display must exit using a REAL mobile touch strictly under 5000ms');
+    assert.equal((await page.evaluate(()=>
+      window.__celineRoomEditorE2E.s25RawDisplayAudit())).active,false,
+      'S25 default exit must restore the reversible neutral display');
+    assert.deepEqual(await page.evaluate(()=>
+      window.__celineRoomEditorE2E.serializedLayout()),baseline,
+      'Returning to editor neutral view cannot alter any owner-saved field');
+    record.push({name:'MOBILE_S25_RAW_DEFAULT_REAL_TOUCH_REVERSIBLE_PASS',
+      actual_tap_ms:rawExitTap.elapsed_ms,strict_threshold_exclusive_ms:5000,
+      layout_unchanged:true});
+
     // Genuine 44px+ view shortcut stays reachable in the 3D stage without
     // opening nested mobile drawers; no layout or camera is changed.
     const quickNeutral=await page.evaluate(()=>{

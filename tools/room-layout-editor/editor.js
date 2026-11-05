@@ -809,6 +809,16 @@ async function loadModel(entry) {
   status(loadCount + '/13 Modelle versucht, ' + failCount +
     ' Fehler. ' + (loadCount===13 ? 'Editor bereit (Modellqualität siehe Warnungen).' : 'Ladevorgang…'),
     failCount?'warn':'ok');
+  // The owner's raw S25 shader is the DISPLAY-only mobile default after
+  // all 13 authentic GLBs are loaded. Neutral cutaway remains available after
+  // exiting the reversible S25 view; no furniture, camera or JSON mutation.
+  if (TOUCH_DEVICE && loadCount===13 && failCount===0) {
+    try { setS25RawPreview(true); }
+    catch(error) {
+      console.error('Mobile S25 display activation failed',error);
+      status('S25-Originalansicht konnte nicht aktiviert werden: '+error.message,'warn');
+    }
+  }
   refreshWarnings();
   invalidateMobileFrame(); // freshly decoded genuine GLB must appear without continuous redraw
 }
