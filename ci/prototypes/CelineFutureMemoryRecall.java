@@ -3546,6 +3546,16 @@ public final class CelineFutureMemoryRecall {
                 + "(älter|aelter|jünger|juenger)(?![\\p{L}\\p{N}])"
                 + "(?:\\s+als\\s+([\\p{L}]+(?:\\s+[\\p{L}]+){0,6}))?");
 
+    // A stated age relationship binds to its named subject, not merely to the
+    // shared duration/direction/comparator. This only recognizes a narrow,
+    // explicit German possessive/article + name + "ist/war" form immediately
+    // before the age value. Ambiguous or overlong explicit subject phrases
+    // abstain; a genuinely broad query without a named subject remains broad.
+    private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE_SUBJECT =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])(?:mein|meine|meiner|meinen|meinem|unser|unsere|unserer|unseren|unserem|der|die|das|ein|eine|einer)"
+                + "\\s+([\\p{L}]+(?:\\s+[\\p{L}]+)*)\\s+(?:ist|war)\\s*$");
+
     private static Set<String> explicitRelativeAges(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
@@ -3560,6 +3570,14 @@ public final class CelineFutureMemoryRecall {
             String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
             String base = direction + ":" + match.group(1).replace(',', '.') + ":" + unit;
             relations.add(base);
+            java.util.regex.Matcher subject = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(
+                    normalized.substring(0, match.start()));
+            if (subject.find()) {
+                String subjectKey = subject.group(1).trim().replaceAll("\\s+", " ");
+                // Never silently truncate a person's complete name/descriptor.
+                if (subjectKey.split(" ").length > 8) return null;
+                relations.add(base + ":SUB:" + subjectKey);
+            }
             // Add a second, referent-specific evidence key. A broad query
             // without "als ..." may match a precise stored relation, but an
             // explicit "als ich" may not match another or missing referent.

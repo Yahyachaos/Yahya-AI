@@ -11,6 +11,57 @@ assert source.is_file(), source
 
 
 
+# FUTURE-ONLY relative-age subject binding. A comparator and duration alone
+# must not suggest a correction ID for a different family member/person.
+if '--focused-relative-age-subject' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class RelativeAgeSubjectContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String summary) {
+    return new CelineFutureMemoryRecall.Candidate("age",summary,"",
+        CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String memory, boolean expected, String label) {
+    List<CelineFutureMemoryRecall.Candidate> records=List.of(c(memory));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,records,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,records,200).isEmpty();
+    if (recall!=expected || correction!=expected)
+      throw new AssertionError(label+" expected="+expected+" recall="+recall+" correction="+correction);
+    checks+=2;
+  }
+  public static void main(String[] args) {
+    check("Meine Schwester ist 2 Jahre älter als ich", "Mein Sohn ist 2 Jahre älter als ich",false,"different family member");
+    check("Mein Sohn ist 6 Monate jünger als ich", "Mein Hund ist 6 Monate jünger als ich",false,"child vs animal");
+    check("Meine Schwester Anna ist 2 Jahre älter als ich", "Meine Schwester Eva ist 2 Jahre älter als ich",false,"named subject collision");
+    check("Meine Schwester Eva ist 2 Jahre älter als ich", "Meine Schwester Anna ist 2 Jahre älter als ich",false,"reverse named subject");
+    check("Mein Sohn ist 6 Monate jünger als ich", "Meine Tochter ist 6 Monate jünger als ich",false,"child subject gender");
+    check("Meine Schwester ist 2 Jahre älter als ich", "2 Jahre älter als ich",false,"explicit subject missing in memory");
+    check("Meine Schwester ist 2 Jahre älter", "Mein Sohn ist 2 Jahre älter",false,"subject binding without comparator");
+    check("Meine beste Freundin Anna ist 2 Jahre älter als ich", "Meine beste Freundin Eva ist 2 Jahre älter als ich",false,"multiword named subject");
+    check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als ich",true,"same sibling");
+    check("Mein Sohn ist 6 Monate jünger als ich", "Mein Sohn ist 6 Monate jünger als ich",true,"same child");
+    check("Meine Schwester Anna ist 2 Jahre älter als ich", "Meine Schwester Anna ist 2 Jahre älter als ich",true,"same named subject");
+    check("Meine beste Freundin Anna ist 2 Jahre älter als ich", "Meine beste Freundin Anna ist 2 Jahre älter als ich",true,"same multiword subject");
+    check("Mein Sohn ist 6 Monate juenger als ich", "Mein Sohn ist 6 Monate jünger als ich",true,"transliteration preserved");
+    check("2 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als ich",true,"broad subject-less request");
+    check("Meine Schwester ist 2 Jahre jünger als ich", "Meine Schwester ist 2 Jahre älter als ich",false,"direction still distinct");
+    check("Meine Schwester ist 3 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als ich",false,"duration still distinct");
+    check("Meine sehr liebe ältere kleine Schwester Anna aus Köln ist 2 Jahre älter als ich", "Meine sehr liebe ältere kleine Schwester Eva aus Köln ist 2 Jahre älter als ich",false,"long but bounded named subject");
+    check("Meine erste zweite dritte vierte fünfte sechste siebte achte neunte Schwester ist 2 Jahre älter als ich", "Meine erste zweite dritte vierte fünfte sechste siebte achte neunte Schwester ist 2 Jahre älter als ich",false,"overlong subject cannot prove identity");
+    System.out.println("RELATIVE_AGE_SUBJECT_CONTRACT_PASS cases="+checks);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_relative_age_subject_') as compiled:
+        f=Path(compiled)/'RelativeAgeSubjectContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.RelativeAgeSubjectContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative-age-subject RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY relative-age referent matching: "als ich" is not "als du".
 # Do not infer subject/grammatical equivalence. Never mutate G1 memories.
 if '--focused-relative-age-referent' in sys.argv:
