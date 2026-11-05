@@ -1680,79 +1680,38 @@ async function main(){
       native_viewport_sha256:crypto.createHash('sha256').update(rawViewportBytes).digest('hex'),
       native_viewport_size:rawViewportSize,owner_json_unchanged:true,camera_unchanged:true,
       visual_acceptance:'REQUIRES_MANUAL_IMAGE_INSPECTION'});
-    // V167: ONE bounded A/B from ORIGINAL source scene, AA0 ONLY.
-    // Baseline above is already the authentic uncut 412x915 native viewport.
-    // Never weaken or bypass any genuine <5000ms AA4 touch, or mutate editor.js.
+    // V171: The genuine V169 beige/dark/hidden A/B already passed independent
+    // image review. Current default intentionally uses source-dark #1d242b.
+    // Never replay that obsolete beige-baseline diagnostic on the new product
+    // state; instead assert one opaque source-identical COLOR on a DISPLAY
+    // clone, unchanged GLB material identity and entire user JSON/camera.
+    // Genuine AA0/AA4/AA4-repeat touches still use strict <5000ms gates.
     if(!NATIVE_AA4_MODE) {
-      const beforeState={layout:rawBefore.layout,camera:rawBefore.camera};
-      const comparisons=[{
-        mode:'current-beige-original-render',
-        file:'mobile-owner-default-s25-raw-viewport-412x915.png',
-        sha256:crypto.createHash('sha256').update(rawViewportBytes).digest('hex'),
-        native_viewport_px:rawViewportSize
-      }];
-      for(const mode of ['source-dark','backdrop-hidden']) {
-        const info=await page.evaluate(mode=>
-          window.__celineRoomEditorE2E.proofS25BackdropTrialBegin(mode),mode);
-        let restoreInfo;
-        try {
-          assert(info.source_layout_unchanged&&info.original_13_glbs===13);
-          const bytes=await page.screenshot({scale:'css',fullPage:false,timeout:30000});
-          assert.deepEqual([bytes.readUInt32BE(16),bytes.readUInt32BE(20)],[412,915],
-            'Native source-backdrop A/B must be full 412x915');
-          const state=await page.evaluate(()=>({
-            scroll_y:scrollY,
-            layout:window.__celineRoomEditorE2E.serializedLayout(),
-            camera:window.__celineRoomEditorE2E.cameraProjection()
-          }));
-          assert.equal(state.scroll_y,0,'Native backdrop trial must remain unscrolled');
-          assert.deepEqual(state.layout,beforeState.layout);
-          assert.deepEqual(state.camera,beforeState.camera);
-          const file='mobile-owner-s25-backdrop-'+mode+'-viewport-412x915.png';
-          fs.writeFileSync(path.join(out,file),bytes);
-          comparisons.push({mode,file,
-            sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
-            native_viewport_px:[412,915],source_view:info,
-            original_json_camera_unchanged:true,visual_acceptance:'REQUIRES_MANUAL_REVIEW'});
-        } finally {
-          restoreInfo=await page.evaluate(()=>
-            window.__celineRoomEditorE2E.proofS25BackdropTrialRestore());
-          assert.equal(restoreInfo.restored,true,'A/B material visibility source restore');
-          assert.equal(restoreInfo.owner_layout_camera_room_unchanged,true);
-        }
-      }
-      const restoredBytes=await page.screenshot({scale:'css',fullPage:false,timeout:30000});
-      assert.deepEqual([restoredBytes.readUInt32BE(16),restoredBytes.readUInt32BE(20)],
-        [412,915]);
-      const afterState=await page.evaluate(()=>({
-        scroll_y:scrollY,
-        layout:window.__celineRoomEditorE2E.serializedLayout(),
-        camera:window.__celineRoomEditorE2E.cameraProjection()
-      }));
-      assert.equal(afterState.scroll_y,0);
-      assert.deepEqual(afterState.layout,beforeState.layout);
-      assert.deepEqual(afterState.camera,beforeState.camera);
-      const restoreFile='mobile-owner-s25-backdrop-restored-viewport-412x915.png';
-      fs.writeFileSync(path.join(out,restoreFile),restoredBytes);
-      comparisons.push({mode:'restored-original-beige',
-        file:restoreFile,
-        sha256:crypto.createHash('sha256').update(restoredBytes).digest('hex'),
-        native_viewport_px:[412,915],
-        material_identity_restored:true});
-      fs.writeFileSync(path.join(out,'owner-s25-window-backdrop-native-ab.json'),
-        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
-          approved_user_s25_sha256:approvedSha,
-          source_dark_night_hex:'1d242b',current_display_beige_hex:'d9c9b3',
-          original_13_glbs:13,room_m:approved.room,
-          exactly_one_proof_comparison:true,
-          native_unedited_412x915_screenshots:comparisons,
-          production_editor_js_unchanged:true,source_mesh_geometry_unchanged:true,
-          source_original_materials_unchanged:true,
-          camera_layout_locks_unchanged:true,visual_acceptance:'NOT_GRANTED',
-          strict_touch_lt_5000_ms_gate:'UNCHANGED'},null,2));
-      record.push({name:'OWNER_S25_BACKDROP_SOURCE_DARK_VS_ISOLATED_HIDDEN_NATIVE_AB',
-        comparison_files:comparisons.map(x=>x.file),owner_layout_camera_unchanged:true,
-        original_13_source_glbs:true,visual_acceptance:'NOT_GRANTED'});
+      const windowBackdrop=await page.evaluate(()=>
+        window.__celineRoomEditorE2E.windowBackdropAudit());
+      assert.equal(windowBackdrop.matches.length,1,
+        'Exactly one authentic window-background material is required');
+      const slot=windowBackdrop.matches[0];
+      assert.equal(slot.source_hex,'1d242b',
+        'Original immutable GLB background must stay source dark');
+      assert.equal(slot.displayed_hex,'1d242b',
+        'Current S25 display clone must use exact original dark color');
+      assert.equal(slot.original_identity,false,
+        'S25 raw mode must clone display material, not mutate source GLB');
+      assert.equal(slot.source_opacity,1,'Original source backplane must remain opaque');
+      assert.equal(slot.displayed_opacity,1,'Display may not fake an open window');
+      assert.deepEqual(await page.evaluate(()=>
+        window.__celineRoomEditorE2E.serializedLayout()),rawBefore.layout);
+      assert.deepEqual(await page.evaluate(()=>
+        window.__celineRoomEditorE2E.cameraProjection()),rawBefore.camera);
+      record.push({name:'S25_SOURCE_DARK_DEFAULT_MATERIAL_CLONE_PROOF',
+        original_source_hex:slot.source_hex,display_clone_hex:slot.displayed_hex,
+        original_source_material_identity_preserved:true,
+        source_backplane_opaque:true,original_13_glb_layout_unchanged:true,
+        existing_native_412x915_sha256:
+          crypto.createHash('sha256').update(rawViewportBytes).digest('hex'),
+        previous_genuine_v169_ab_artifact_id:13400057960,
+        visual_acceptance:'NOT_GRANTED',strict_touch_lt_5000_ms_gate:'UNCHANGED'});
     }
     const rawExitTapCount=observedMobileTaps.length;
     await observeRealTap(page.locator('[data-mobile-action="s25-display"]'),
