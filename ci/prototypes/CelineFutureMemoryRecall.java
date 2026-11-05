@@ -3153,14 +3153,26 @@ public final class CelineFutureMemoryRecall {
             }
             if (!requestedNumericAnchors.isEmpty()) {
                 Set<String> storedNumbers = numericAnchors(c.summary);
-                if (storedNumbers == null || !storedNumbers.containsAll(requestedNumericAnchors))
+                // Written-out German ages may express the very same explicit
+                // absolute-age signature as a digit query. Accept that one
+                // narrow spelling equivalence only if ALL numeric query
+                // anchors belong to the age and the stored fact has NO
+                // additional numeric anchors to hide an unrelated mismatch.
+                Set<String> storedAge = explicitAbsoluteAges(c.summary);
+                boolean wordAgeEquivalent = storedNumbers != null
+                        && storedNumbers.isEmpty() && !requestedAbsoluteAges.isEmpty()
+                        && storedAge != null && storedAge.containsAll(requestedAbsoluteAges)
+                        && requestedNumericAnchors.equals(absoluteAgeNumericAnchors(query));
+                if (storedNumbers == null || (!storedNumbers.containsAll(requestedNumericAnchors)
+                        && !wordAgeEquivalent))
                     continue;
                 Set<String> storedSignedNumbers = signedNumberAnchors(c.summary);
                 if (storedSignedNumbers == null
                         || !requestedSignedNumbers.equals(storedSignedNumbers)) continue;
                 if (!requestedMeasures.isEmpty()) {
                     Set<String> storedMeasures = measuredNumberUnits(c.summary);
-                    if (storedMeasures == null || !storedMeasures.containsAll(requestedMeasures))
+                    if (storedMeasures == null || (!storedMeasures.containsAll(requestedMeasures)
+                            && !wordAgeEquivalent))
                         continue;
                 }
                 if (!requestedYearRelations.isEmpty()) {
@@ -3692,11 +3704,27 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern EXPLICIT_ABSOLUTE_AGE =
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?|ein|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf)\\s+"
-                + "(jahr|jahre|jahren|monat|monate|monaten)\\s+alt(?![\\p{L}\\p{N}])");
+                + "(jahr|jahre|jahren|monat|monate|monaten)"
+                + "(?:\\s+und\\s+([0-9]+(?:[.,][0-9]+)?|ein|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf)\\s+"
+                + "(jahr|jahre|jahren|monat|monate|monaten))?"
+                + "\\s+alt(?![\\p{L}\\p{N}])");
     private static final java.util.regex.Pattern ABSOLUTE_AGE_WORD_CONTEXT =
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}])([\\p{L}]+)\\s+"
                 + "(?:jahr|jahre|jahren|monat|monate|monaten)\\s+alt(?![\\p{L}\\p{N}])");
+
+    private static Set<String> absoluteAgeNumericAnchors(String text) {
+        Set<String> anchors = new HashSet<>();
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        java.util.regex.Matcher match = EXPLICIT_ABSOLUTE_AGE.matcher(normalized);
+        while (match.find()) {
+            if (match.group(1).matches("[0-9]+")) anchors.add(match.group(1));
+            if (match.group(3) != null && match.group(3).matches("[0-9]+"))
+                anchors.add(match.group(3));
+        }
+        return anchors;
+    }
 
     private static Set<String> explicitAbsoluteAges(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
@@ -3713,6 +3741,14 @@ public final class CelineFutureMemoryRecall {
         while (match.find()) {
             String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
             String base = "ABS:" + canonicalRelativeAgeValue(match.group(1)) + ":" + unit;
+            if (match.group(3) != null) {
+                // Two explicit units form ONE compound age. Reject repeated
+                // units or reversed/unsupported composition rather than
+                // selecting an ambiguous inner fragment as a correction ID.
+                String secondUnit = match.group(4).startsWith("jahr") ? "YEAR" : "MONTH";
+                if (!unit.equals("YEAR") || !secondUnit.equals("MONTH")) return null;
+                base += "+" + canonicalRelativeAgeValue(match.group(3)) + ":" + secondUnit;
+            }
             ages.add(base);
             String prefix = normalized.substring(0, match.start());
             java.util.regex.Matcher named = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(prefix);

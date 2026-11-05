@@ -11,6 +11,53 @@ assert source.is_file(), source
 
 
 
+# FUTURE ONLY: composite absolute ages are a single subject-bound fact.
+# Matching and suggested correction IDs must agree; unsupported forms abstain.
+if '--focused-compound-absolute-age' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class CompoundAbsoluteAgeContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String fact) {
+    return new CelineFutureMemoryRecall.Candidate("compound-age",fact,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String request, String fact, boolean expected, String name) {
+    var list=List.of(c(fact));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(request,list,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(request,list,200).isEmpty();
+    if (recall!=expected || correction!=expected) throw new AssertionError(
+        name+" expected="+expected+" actual="+recall+"/"+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist 2 Jahre und 3 Monate alt",true,"exact composite");
+    check("Anna ist zwei Jahre und drei Monate alt", "Anna ist 2 Jahre und 3 Monate alt",true,"word-number composite");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist zwei Jahre und drei Monate alt",true,"reverse word-number composite");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist 2 Jahre und 4 Monate alt",false,"different months");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist 3 Jahre und 2 Monate alt",false,"swapped units");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist 2 Jahre alt",false,"composite versus simple");
+    check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre und 3 Monate alt",false,"simple versus composite");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Eva ist 2 Jahre und 3 Monate alt",false,"separate named people");
+    check("Meine Schwester ist 2 Jahre und 3 Monate alt", "Deine Schwester ist 2 Jahre und 3 Monate alt",false,"owner identity");
+    check("Meine Schwester ist 2 Jahre und 3 Monate alt", "Meine Schwester ist 2 Jahre und 3 Monate alt",true,"same owner identity");
+    check("Anna ist zwanzig Jahre und 3 Monate alt", "Anna ist 2 Jahre und 3 Monate alt",false,"unsupported first word");
+    check("Anna ist 2 Jahre und zwanzig Monate alt", "Anna ist 2 Jahre und 3 Monate alt",false,"unsupported second word");
+    check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist 2 Jahre und 3 Monate älter als ich",false,"absolute versus relative");
+    check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre alt",true,"legacy simple stays matchable");
+    System.out.println("COMPOUND_ABSOLUTE_AGE_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_compound_age_') as compiled:
+        f=Path(compiled)/'CompoundAbsoluteAgeContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.CompoundAbsoluteAgeContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('composite absolute age RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE ONLY: absolute age is not a relative-age difference, and an
 # explicitly named person must not be confused with another person.
 if '--focused-absolute-age-identity' in sys.argv:
