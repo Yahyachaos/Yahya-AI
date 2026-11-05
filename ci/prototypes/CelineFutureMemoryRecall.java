@@ -3169,11 +3169,13 @@ public final class CelineFutureMemoryRecall {
                     if (storedQuantityBounds == null
                             || !storedQuantityBounds.containsAll(requestedQuantityBounds)) continue;
                 }
-                if (!requestedRelativeAges.isEmpty()) {
-                    Set<String> storedRelativeAges = explicitRelativeAges(c.summary);
-                    if (storedRelativeAges == null
-                            || !storedRelativeAges.containsAll(requestedRelativeAges)) continue;
-                }
+            }
+            // Word-number ages have no digit anchors. The age-specific
+            // identity/direction/quantity guard must still run for them.
+            if (!requestedRelativeAges.isEmpty()) {
+                Set<String> storedRelativeAges = explicitRelativeAges(c.summary);
+                if (storedRelativeAges == null
+                        || !storedRelativeAges.containsAll(requestedRelativeAges)) continue;
             }
             Set<String> stored = terms(c.summary);
             int overlap = overlap(wanted, stored);
@@ -3541,7 +3543,7 @@ public final class CelineFutureMemoryRecall {
     // This is bounded lexical evidence, not subject inversion or grammar.
     private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?)\\s+"
+                "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?|ein|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf)\\s+"
                 + "(jahr|jahre|jahren|monat|monate|monaten)\\s+"
                 + "(älter|aelter|jünger|juenger)(?![\\p{L}\\p{N}])"
                 + "(?:\\s+als\\s+([\\p{L}]+(?:\\s+[\\p{L}]+){0,6}))?");
@@ -3574,6 +3576,33 @@ public final class CelineFutureMemoryRecall {
                 "^\\s*([\\p{L}]{2,}(?:\\s+[\\p{L}]{2,}){0,2})"
                 + "\\s+(?:ist|war)\\s*$");
 
+    // A textual age quantity is still an explicit numeric fact. Unknown
+    // spelled quantities must abstain, rather than falling back to topical
+    // word overlap and retrieving an opposing direction or person.
+    private static final java.util.regex.Pattern AGE_WORD_NUMBER_CONTEXT =
+            java.util.regex.Pattern.compile(
+                "(?<![\\p{L}\\p{N}])([\\p{L}]+)\\s+"
+                + "(?:jahr|jahre|jahren|monat|monate|monaten)\\s+"
+                + "(?:älter|aelter|jünger|juenger)(?![\\p{L}\\p{N}])");
+
+    private static String canonicalRelativeAgeValue(String value) {
+        switch (value) {
+            case "ein": case "eins": return "1";
+            case "zwei": return "2";
+            case "drei": return "3";
+            case "vier": return "4";
+            case "fünf": case "fuenf": return "5";
+            case "sechs": return "6";
+            case "sieben": return "7";
+            case "acht": return "8";
+            case "neun": return "9";
+            case "zehn": return "10";
+            case "elf": return "11";
+            case "zwölf": case "zwoelf": return "12";
+            default: return value.replace(',', '.');
+        }
+    }
+
     private static Set<String> explicitRelativeAges(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text))
@@ -3581,12 +3610,17 @@ public final class CelineFutureMemoryRecall {
         String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
                 Normalizer.Form.NFKC);
         Set<String> relations = new HashSet<>();
+        java.util.regex.Matcher wordQuantity = AGE_WORD_NUMBER_CONTEXT.matcher(normalized);
+        while (wordQuantity.find()) {
+            String number = wordQuantity.group(1);
+            if (canonicalRelativeAgeValue(number).equals(number)) return null;
+        }
         java.util.regex.Matcher match = EXPLICIT_RELATIVE_AGE.matcher(normalized);
         while (match.find()) {
             String direction = match.group(3).equals("älter")
                     || match.group(3).equals("aelter") ? "OLDER" : "YOUNGER";
             String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
-            String base = direction + ":" + match.group(1).replace(',', '.') + ":" + unit;
+            String base = direction + ":" + canonicalRelativeAgeValue(match.group(1)) + ":" + unit;
             relations.add(base);
             java.util.regex.Matcher subject = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(
                     normalized.substring(0, match.start()));

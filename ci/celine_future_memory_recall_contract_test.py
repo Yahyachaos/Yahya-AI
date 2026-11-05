@@ -11,6 +11,51 @@ assert source.is_file(), source
 
 
 
+# FUTURE ONLY: spelled-out German age differences must not alias opposing
+# directions or values. Both read-only retrieval and target suggestions apply.
+if '--focused-relative-age-word-number' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class WordAgeNumberContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String statement) {
+    return new CelineFutureMemoryRecall.Candidate("fact",statement,"",
+      CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String request, String fact, boolean expected, String note) {
+    var facts=List.of(c(fact));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(request,facts,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(request,facts,200).isEmpty();
+    if (recall!=expected || correction!=expected) throw new AssertionError(
+      note+" expected="+expected+" recall="+recall+" correction="+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Meine Schwester ist zwei Jahre älter als ich", "Meine Schwester ist zwei Jahre jünger als ich",false,"word direction opposing");
+    check("Meine Schwester ist zwei Jahre älter als ich", "Meine Schwester ist drei Jahre älter als ich",false,"word number mismatch");
+    check("Meine Schwester ist zwei Jahre älter als ich", "Meine Schwester ist zwei Jahre älter als ich",true,"word equal");
+    check("Meine Schwester ist zwei Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als ich",true,"word request numeric fact");
+    check("Anna ist zwei Jahre älter als ich", "Eva ist zwei Jahre älter als ich",false,"word named subject");
+    check("Anna ist zwei Jahre älter als ich", "Anna ist zwei Jahre älter als ich",true,"word same subject");
+    check("Anna ist zwei Jahre älter als ich", "Anna ist zwei Monate älter als ich",false,"word unit mismatch");
+    check("Meine Schwester ist zwölf Jahre jünger als ich", "Meine Schwester ist elf Jahre jünger als ich",false,"word two digit mismatch");
+    check("Deine Schwester ist zwei Jahre älter als ich", "Meine Schwester ist zwei Jahre älter als ich",false,"word different possessor");
+    check("Anna ist zwei Jahre älter als ich", "Anna ist zwei Jahre älter als du",false,"word different comparator");
+    check("Anna ist zwanzig Jahre älter als ich", "Anna ist zehn Jahre älter als ich",false,"unsupported number fails closed");
+    check("Anna ist viele Jahre älter als ich", "Anna ist zwei Jahre älter als ich",false,"ambiguous number fails closed");
+    System.out.println("RELATIVE_AGE_WORD_NUMBER_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_word_age_') as compiled:
+        f=Path(compiled)/'WordAgeNumberContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.WordAgeNumberContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative age word number RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE-ONLY TDD: never bind a partial suffix of a 3+ word bare person name.
 # All judgments are tested through both retrieval and correction-ID suggestion.
 if '--focused-relative-age-full-bare-name' in sys.argv:
