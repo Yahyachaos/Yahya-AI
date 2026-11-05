@@ -10,6 +10,58 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
+
+# FUTURE-ONLY relative-age referent matching: "als ich" is not "als du".
+# Do not infer subject/grammatical equivalence. Never mutate G1 memories.
+if '--focused-relative-age-referent' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class RelativeAgeReferentContract {
+  static int n=0;
+  static CelineFutureMemoryRecall.Candidate c(String fact) {
+    return new CelineFutureMemoryRecall.Candidate("age",fact,"",
+        CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String query, String stored, boolean expected, String label) {
+    List<CelineFutureMemoryRecall.Candidate> records=List.of(c(stored));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(query,records,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,records,200).isEmpty();
+    if(recall!=expected || correction!=expected)
+      throw new AssertionError(label+" expected="+expected+" recall="+recall+" correction="+correction);
+    n+=2;
+  }
+  public static void main(String[] args) {
+    check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als du",false,"first-person vs second-person");
+    check("Meine Schwester ist 2 Jahre älter als du", "Meine Schwester ist 2 Jahre älter als ich",false,"reverse person");
+    check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als mein Bruder",false,"person versus sibling");
+    check("Meine Schwester ist 2 Jahre älter als mein Bruder", "Meine Schwester ist 2 Jahre älter als ich",false,"sibling versus person");
+    check("Mein Sohn ist 6 Monate jünger als du", "Mein Sohn ist 6 Monate jünger als ich",false,"months directional referent");
+    check("Meine Schwester ist 2 Jahre älter als meine Mutter", "Meine Schwester ist 2 Jahre älter als mein Bruder",false,"two named referents");
+    check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter",false,"stored missing comparator");
+    check("Meine Schwester ist 2 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als ich",true,"same explicit comparator");
+    check("Meine Schwester ist 2 Jahre älter als mein Bruder", "Meine Schwester ist 2 Jahre älter als mein Bruder",true,"same named comparator");
+    check("Meine Schwester ist 2 Jahre älter als meine beste Freundin Anna", "Meine Schwester ist 2 Jahre älter als meine beste Freundin Eva",false,"must not drop fourth comparator token");
+    check("Meine Schwester ist 2 Jahre älter als meine beste Freundin Anna", "Meine Schwester ist 2 Jahre älter als meine beste Freundin Anna",true,"same four-token comparator");
+    check("Meine Schwester ist 2 Jahre älter als meine langjährige beste Freundin Anna", "Meine Schwester ist 2 Jahre älter als meine langjährige beste Freundin Eva",false,"must not drop fifth comparator token");
+    check("Meine Schwester ist 2 Jahre älter als meine beste Freundin aus Berlin namens Anna", "Meine Schwester ist 2 Jahre älter als meine beste Freundin aus Berlin namens Eva",false,"must not truncate long comparator identity");
+    check("Meine Schwester ist 2 Jahre aelter als ich", "Meine Schwester ist 2 Jahre älter als ich",true,"transliterated age and same comparator");
+    check("Mein Sohn ist 6 Monate jünger als ich", "Mein Sohn ist 6 Monate juenger als ich",true,"transliterated month age");
+    check("Meine Schwester ist 2 Jahre älter", "Meine Schwester ist 2 Jahre älter als ich",true,"broad request may recall specific stored relation");
+    check("Meine Schwester ist 2 Jahre jünger als ich", "Meine Schwester ist 2 Jahre älter als ich",false,"older younger still blocked");
+    check("Meine Schwester ist 3 Jahre älter als ich", "Meine Schwester ist 2 Jahre älter als ich",false,"age difference still blocked");
+    System.out.println("RELATIVE_AGE_REFERENT_CONTRACT_PASS cases="+n);
+  }
+} '''
+    with tempfile.TemporaryDirectory(prefix='future_relative_age_referent_') as compiled:
+        f=Path(compiled)/'RelativeAgeReferentContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.RelativeAgeReferentContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('relative-age-referent RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE ONLY: numeric relative age direction is semantic evidence. This is
 # only a scoped lexical guard; no subject/temporal inference or G1 mutation.
 if '--focused-relative-age' in sys.argv:

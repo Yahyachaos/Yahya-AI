@@ -3535,14 +3535,16 @@ public final class CelineFutureMemoryRecall {
         return bounds;
     }
 
-    // Numeric relative-age statements are directed facts: "2 Jahre älter"
-    // is not "2 Jahre jünger". Only a digit + exact time unit + adjective
-    // is recognized here; we do not infer age arithmetic, grammar or subject.
+    // Numeric relative age is a directed fact with an optional explicit
+    // comparator. "2 Jahre älter als ich" must never authorize "als du"
+    // or "als mein Bruder" merely because age/direction/topic are shared.
+    // This is bounded lexical evidence, not subject inversion or grammar.
     private static final java.util.regex.Pattern EXPLICIT_RELATIVE_AGE =
             java.util.regex.Pattern.compile(
                 "(?<![\\p{L}\\p{N}])([0-9]+(?:[.,][0-9]+)?)\\s+"
                 + "(jahr|jahre|jahren|monat|monate|monaten)\\s+"
-                + "(älter|aelter|jünger|juenger)(?![\\p{L}\\p{N}])");
+                + "(älter|aelter|jünger|juenger)(?![\\p{L}\\p{N}])"
+                + "(?:\\s+als\\s+([\\p{L}]+(?:\\s+[\\p{L}]+){0,6}))?");
 
     private static Set<String> explicitRelativeAges(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
@@ -3556,7 +3558,22 @@ public final class CelineFutureMemoryRecall {
             String direction = match.group(3).equals("älter")
                     || match.group(3).equals("aelter") ? "OLDER" : "YOUNGER";
             String unit = match.group(2).startsWith("jahr") ? "YEAR" : "MONTH";
-            relations.add(direction + ":" + match.group(1).replace(',', '.') + ":" + unit);
+            String base = direction + ":" + match.group(1).replace(',', '.') + ":" + unit;
+            relations.add(base);
+            // Add a second, referent-specific evidence key. A broad query
+            // without "als ..." may match a precise stored relation, but an
+            // explicit "als ich" may not match another or missing referent.
+            if (match.group(4) != null) {
+                // A truncated comparator must not match a different person
+                // because its first seven words happen to be identical.
+                java.util.regex.Matcher continuation = java.util.regex.Pattern
+                        .compile("\\s+[\\p{L}]").matcher(normalized);
+                continuation.region(match.end(), normalized.length());
+                if (continuation.lookingAt()) return null;
+                String referent = match.group(4).trim().replaceAll("\\s+", " ");
+                if (referent.isEmpty()) return null;
+                relations.add(base + ":AS:" + referent);
+            }
             if (relations.size() > MAX_QUERY_TOKENS) return null;
         }
         return relations;
