@@ -3162,7 +3162,8 @@ public final class CelineFutureMemoryRecall {
                 boolean wordAgeEquivalent = storedNumbers != null
                         && storedNumbers.isEmpty() && !requestedAbsoluteAges.isEmpty()
                         && storedAge != null && storedAge.containsAll(requestedAbsoluteAges)
-                        && requestedNumericAnchors.equals(absoluteAgeNumericAnchors(query));
+                        && requestedNumericAnchors.equals(absoluteAgeNumericAnchors(query))
+                        && requestedMeasures.equals(absoluteAgeDigitMeasures(query));
                 if (storedNumbers == null || (!storedNumbers.containsAll(requestedNumericAnchors)
                         && !wordAgeEquivalent))
                     continue;
@@ -3724,6 +3725,20 @@ public final class CelineFutureMemoryRecall {
                 anchors.add(match.group(3));
         }
         return anchors;
+    }
+
+    private static Set<String> absoluteAgeDigitMeasures(String text) {
+        Set<String> result = new HashSet<>();
+        String normalized = Normalizer.normalize(text.toLowerCase(Locale.GERMANY),
+                Normalizer.Form.NFKC);
+        java.util.regex.Matcher match = EXPLICIT_ABSOLUTE_AGE.matcher(normalized);
+        while (match.find()) {
+            if (match.group(1).matches("[0-9]+"))
+                result.add(match.group(1) + ":" + (match.group(2).startsWith("jahr") ? "jahr" : "monat"));
+            if (match.group(3) != null && match.group(3).matches("[0-9]+"))
+                result.add(match.group(3) + ":" + (match.group(4).startsWith("jahr") ? "jahr" : "monat"));
+        }
+        return result;
     }
 
     private static Set<String> explicitAbsoluteAges(String text) {

@@ -44,6 +44,9 @@ public final class CompoundAbsoluteAgeContract {
     check("Anna ist zwanzig Jahre und 3 Monate alt", "Anna ist 2 Jahre und 3 Monate alt",false,"unsupported first word");
     check("Anna ist 2 Jahre und zwanzig Monate alt", "Anna ist 2 Jahre und 3 Monate alt",false,"unsupported second word");
     check("Anna ist 2 Jahre und 3 Monate alt", "Anna ist 2 Jahre und 3 Monate älter als ich",false,"absolute versus relative");
+    check("Anna ist 2 Jahre alt und 2 Meter groß", "Anna ist zwei Jahre alt",false,"extra same-number physical unit");
+    check("Anna ist 2 Jahre alt und hat 2 Euro", "Anna ist zwei Jahre alt",false,"extra same-number currency unit");
+    check("Anna ist 2 Jahre alt und 2 Monate krank", "Anna ist zwei Jahre alt",false,"extra same-number time unit");
     check("Anna ist 2 Jahre alt", "Anna ist 2 Jahre alt",true,"legacy simple stays matchable");
     System.out.println("COMPOUND_ABSOLUTE_AGE_PASS cases="+n);
   }
