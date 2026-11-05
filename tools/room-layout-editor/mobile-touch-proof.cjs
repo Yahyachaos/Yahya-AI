@@ -1333,6 +1333,83 @@ async function main(){
     const s25TintProbeInjection="    selectedTintFramebufferAudit(){\n      if(!s25RawPreview||!s25RawViewBackup||selected?.id!=='room_bed')\n        throw new Error('Selected original S25 bed required');\n      if([...entries.values()].filter(e=>e.loaded).length!==13)\n        throw new Error('Exactly 13 source GLBs required');\n      const gl=renderer.getContext(),w=renderer.domElement.width,h=renderer.domElement.height;\n      if(w!==618||h!==768)throw new Error('618x768 S25 WebGL required');\n      const originalTarget=renderer.getRenderTarget(),originalJSON=snapshot(),\n        originalCamera=camera.position.toArray();\n      const grid=floor.children.find(c=>c.userData.roomEditorGuideGrid===true);\n      const gridVisible=grid?.visible,gizmoVisible=transform.visible,materials=[];\n      selected.group.traverse(mesh=>{\n        if(!mesh.isMesh)return;\n        const baseline=s25RawViewBackup.displayBaseByMesh.get(mesh);\n        if(!baseline)throw new Error('Missing S25 original display material');\n        materials.push({mesh,baseline,old:mesh.material});\n      });\n      if(!materials.length||!materials.some(m=>m.old!==m.baseline))\n        throw new Error('Expected selected-bed tint');\n      const rt=new THREE.WebGLRenderTarget(w,h,{samples:0,depthBuffer:true,stencilBuffer:false});\n      rt.texture.colorSpace=renderer.outputColorSpace;\n      const read=(target)=>{\n        const bytes=new Uint8Array(w*h*4);\n        if(target){\n          renderer.setRenderTarget(rt);renderer.clear();renderer.render(scene,camera);\n          renderer.readRenderTargetPixels(rt,0,0,w,h,bytes);\n        }else{\n          renderer.setRenderTarget(null);renderer.render(scene,camera);\n          gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,bytes);\n        }\n        if(gl.getError()!==gl.NO_ERROR)throw new Error('GPU readPixels error');\n        return bytes;\n      };\n      const compare=(a,b)=>{\n        let sum=0,changed=0,positive=0,negative=0,max=0;\n        for(let i=0;i<a.length;i+=4){\n          let altered=false;\n          for(let k=0;k<3;k++){\n            const d=a[i+k]-b[i+k];sum+=Math.abs(d);\n            max=Math.max(max,Math.abs(d));\n            if(d>0)positive++;else if(d<0)negative++;\n            if(d!==0)altered=true;\n          }\n          if(altered)changed++;\n        }\n        return {rgb_mae:sum/(w*h*3),changed_pixels:changed,\n          changed_fraction:changed/(w*h),max_channel_delta:max,\n          native_brighter_channel_count:positive,\n          offscreen_brighter_channel_count:negative};\n      };\n      let result;\n      try{\n        if(grid)grid.visible=false;\n        transform.visible=false;\n        const tintedNative=read(false),tintedOffscreen=read(true);\n        for(const m of materials)m.mesh.material=m.baseline;\n        const plainNative=read(false),plainOffscreen=read(true);\n        result={selected_id:selected.id,source_models:13,\n          tinted_native_vs_offscreen0:compare(tintedNative,tintedOffscreen),\n          untinted_native_vs_offscreen0:compare(plainNative,plainOffscreen),\n          native_selected_vs_untinted:compare(tintedNative,plainNative),\n          offscreen_selected_vs_untinted:compare(tintedOffscreen,plainOffscreen),\n          target_samples:rt.samples,target_color_space:rt.texture.colorSpace,\n          renderer_output_color_space:renderer.outputColorSpace,\n          drawing_buffer:[w,h],physical_samsung_test:false,\n          visual_acceptance:'NOT_GRANTED'};\n      }finally{\n        for(const m of materials)m.mesh.material=m.old;\n        if(grid)grid.visible=gridVisible;\n        transform.visible=gizmoVisible;\n        renderer.setRenderTarget(originalTarget);renderer.render(scene,camera);\n        rt.dispose();\n      }\n      if(snapshot()!==originalJSON||\n         camera.position.toArray().some((v,i)=>v!==originalCamera[i]))\n        throw new Error('GPU diagnostic modified original source state or camera');\n      return result;\n    },\n";
     const s25CurtainOrderDepthPrecisionProbeInjection="\n    // E2E-ONLY; compare genuine owner-GLB drape depth/order/fragment precision\n    // in identical native S25 618x768 WebGL frames. No exported state changes.\n    s25CurtainOrderDepthPrecisionRasterProbe(){\n      if(!s25RawPreview||[...entries.values()].filter(e=>e.loaded).length!==13)\n        throw new Error('Owner S25 view with 13 original source GLBs required');\n      const w=renderer.domElement.width,h=renderer.domElement.height;\n      if(w!==618||h!==768||!s25RawViewBackup)\n        throw new Error('Exactly 618x768 source S25 frame required');\n      const modelMeshes=[];\n      for(const entry of entries.values())entry.group.traverse(mesh=>{\n        if(mesh.isMesh)modelMeshes.push({id:entry.id,mesh,order:mesh.renderOrder});\n      });\n      if(modelMeshes.length<13)throw new Error('Original source GLB meshes missing');\n      const materials=[...new Set(modelMeshes.flatMap(({mesh})=>\n        Array.isArray(mesh.material)?mesh.material:[mesh.material]))];\n      if(materials.some(m=>!m||!m.isMeshBasicMaterial||m.transparent||\n        !m.depthTest||!m.depthWrite||m.depthFunc!==THREE.LessEqualDepth))\n        throw new Error('Cannot isolate opaque S25 LEQUAL source material states');\n      const sourceValues=materials.map(material=>({\n        material,precision:material.precision,depthFunc:material.depthFunc\n      }));\n      const originalJSON=snapshot(),originalCamera=camera.position.toArray(),\n        originalTarget=orbit.target.toArray(),\n        originalFov=camera.fov,renderTarget=renderer.getRenderTarget();\n      const grid=floor.children.find(c=>c.userData.roomEditorGuideGrid===true);\n      const originalGrid=grid?.visible,originalGizmo=transform.visible;\n      const gl=renderer.getContext(),captures=[];\n      const configure=(order,mediump,less)=>{\n        modelMeshes.forEach(({mesh,order:base},i)=>{\n          mesh.renderOrder=order?1000+i:base;\n        });\n        sourceValues.forEach(({material,precision,depthFunc})=>{\n          const nextPrecision=mediump?'mediump':precision;\n          const nextDepth=less?THREE.LessDepth:depthFunc;\n          if(material.precision!==nextPrecision||material.depthFunc!==nextDepth){\n            material.precision=nextPrecision;\n            material.depthFunc=nextDepth;\n            material.needsUpdate=true;\n          }\n        });\n      };\n      const take=(name)=>{\n        renderer.setRenderTarget(null);\n        renderer.render(scene,camera);\n        const samples=[];\n        for(const [x,y] of [[435,384],[450,267]]){\n          const rgba=new Uint8Array(4);\n          gl.readPixels(x,h-y-1,1,1,gl.RGBA,gl.UNSIGNED_BYTE,rgba);\n          samples.push({xy:[x,y],rgb:Array.from(rgba.slice(0,3))});\n        }\n        if(gl.getError()!==gl.NO_ERROR)throw new Error('WebGL readPixels failed');\n        captures.push({name,samples,png_data_url:renderer.domElement.toDataURL('image/png')});\n      };\n      let restored=false;\n      try{\n        if(grid)grid.visible=false;\n        transform.visible=false;\n        configure(false,false,false);\n        take('three_current_lequal_highp');\n        configure(true,false,false);\n        take('owner_item_mesh_traversal_order_lequal_highp');\n        configure(false,false,true);\n        take('three_order_less_depth_highp');\n        configure(false,true,false);\n        take('three_order_lequal_mediump');\n        configure(true,true,false);\n        take('owner_order_lequal_mediump');\n      }finally{\n        modelMeshes.forEach(({mesh,order})=>{mesh.renderOrder=order;});\n        sourceValues.forEach(({material,precision,depthFunc})=>{\n          if(material.precision!==precision||material.depthFunc!==depthFunc){\n            material.precision=precision;material.depthFunc=depthFunc;material.needsUpdate=true;\n          }\n        });\n        if(grid)grid.visible=originalGrid;\n        transform.visible=originalGizmo;\n        renderer.setRenderTarget(renderTarget);\n        renderer.render(scene,camera);\n        restored=modelMeshes.every(({mesh,order})=>mesh.renderOrder===order)&&\n          sourceValues.every(({material,precision,depthFunc})=>\n            material.precision===precision&&material.depthFunc===depthFunc);\n      }\n      if(!restored||snapshot()!==originalJSON||\n        camera.position.toArray().some((v,i)=>v!==originalCamera[i])||\n        orbit.target.toArray().some((v,i)=>v!==originalTarget[i])||\n        camera.fov!==originalFov)\n        throw new Error('A/B GPU probe did not fully restore owner source state');\n      return {\n        read_only:true,visual_acceptance:'NOT_GRANTED',\n        original_13_glb_mesh_count:modelMeshes.length,\n        source_mesh_order_contract:'owner item order + glTF scene mesh traversal (primitive-order proxy; exact glTF primitive mapping not proven)',\n        model_order_sample:modelMeshes.filter(x=>x.id==='room_window_drapes'||\n          x.id==='room_plant_large').slice(0,8).map(x=>({id:x.id,original_order:x.order})),\n        material_count:materials.length,baseline_depth_func:'LEQUAL',\n        temporary_depth_test:'LESS',temporary_fragment_precision:'mediump',\n        original_camera_m:originalCamera,original_camera_target_m:originalTarget,\n        room_m:{...room},drawing_buffer_px:[w,h],\n        source_materials_and_mesh_orders_restored:restored,captures\n      };\n    },\n";
     const s25CurtainQuantProbeInjection="    s25CurtainQuantizedSourceRasterProbe(){\n      if(!s25RawPreview||[...entries.values()].filter(e=>e.loaded).length!==13)\n        throw new Error('Approved original S25 scene and 13 GLBs required');\n      const group=entries.get('room_window_drapes')?.group,candidates=[];\n      if(!group)throw new Error('Missing original window curtain group');\n      group.traverse(mesh=>{\n        if(!mesh.isMesh)return;\n        const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];\n        if(mats.some(m=>m?.name==='S25_UNLIT_DISPLAY_material.010'))candidates.push(mesh);\n      });\n      if(candidates.length!==1)throw new Error('Expected one original source curtain primitive');\n      const mesh=candidates[0],geometry=mesh.geometry;\n      const positions=geometry.getAttribute('position'),uvs=geometry.getAttribute('uv');\n      if(positions?.count!==381278||uvs?.count!==381278)\n        throw new Error('Expected 381278 original source curtain vertices and UVs');\n      const mat=Array.isArray(mesh.material)?\n        mesh.material.find(m=>m?.name==='S25_UNLIT_DISPLAY_material.010'):mesh.material;\n      const flags={name:mat.name,transparent:mat.transparent,opacity:mat.opacity,\n        depthWrite:mat.depthWrite,depthTest:mat.depthTest,blending:mat.blending,\n        side:mat.side,renderOrder:mesh.renderOrder,hasTexture:!!mat.map,\n        textureColorSpace:mat.map?.colorSpace??null,flipY:mat.map?.flipY??null};\n      const state=snapshot(),cam=camera.position.toArray(),target=renderer.getRenderTarget();\n      const grid=floor.children.find(c=>c.userData.roomEditorGuideGrid===true);\n      const gridWas=grid?.visible,gizmoWas=transform.visible;\n      const capture=()=>{\n        renderer.setRenderTarget(null);renderer.render(scene,camera);\n        return renderer.domElement.toDataURL('image/png');\n      };\n      const trials=[\n        {name:'position_mm',p:3,uv:null},\n        {name:'uv_1e4',p:null,uv:4},\n        {name:'position_mm_uv_1e4',p:3,uv:4}\n      ];\n      let baseline=null,restored=null;const captures=[];\n      try{\n        if(grid)grid.visible=false;\n        transform.visible=false;\n        baseline=capture();\n        for(const trial of trials){\n          const cloned=geometry.clone(),stats={};\n          try{\n            for(const [attrName,digits] of [['position',trial.p],['uv',trial.uv]]){\n              if(digits===null)continue;\n              const a=cloned.getAttribute(attrName),fac=10**digits;\n              let changed=0,maxDelta=0;\n              for(let i=0;i<a.count;i++)for(let j=0;j<a.itemSize;j++){\n                const value=a.getComponent(i,j),rounded=Math.round(value*fac)/fac;\n                if(!Number.isFinite(rounded))throw new Error('Nonfinite source attribute');\n                if(rounded!==value){\n                  changed++;maxDelta=Math.max(maxDelta,Math.abs(rounded-value));\n                  a.setComponent(i,j,rounded);\n                }\n              }\n              a.needsUpdate=true;\n              stats[attrName]={digits,components_changed:changed,max_delta:maxDelta};\n            }\n            mesh.geometry=cloned;\n            captures.push({name:trial.name,stats,png_data_url:capture()});\n          }finally{\n            mesh.geometry=geometry;\n            cloned.dispose();\n          }\n        }\n        restored=capture();\n      }finally{\n        mesh.geometry=geometry;\n        if(grid)grid.visible=gridWas;\n        transform.visible=gizmoWas;\n        renderer.setRenderTarget(target);renderer.render(scene,camera);\n      }\n      if(mesh.geometry!==geometry||snapshot()!==state||\n         camera.position.toArray().some((x,i)=>x!==cam[i]))\n        throw new Error('Temporary source-view geometry/camera/layout was not restored');\n      return {source_geometry_original:true,original_json_unchanged:true,\n        material_flags:flags,source_vertex_count:positions.count,\n        camera_position_m:cam,room_m:{...room},\n        hypothesis:'Owner offline drape may quantize positions to 0.001m and UV to 0.0001; NOT exact GLB parity',\n        baseline_png_data_url:baseline,restored_png_data_url:restored,captures,\n        visual_acceptance:'NOT_GRANTED'};\n    },\n";
+    // V167: PROOF-ONLY, branch-local diagnostic. Never change editor.js or
+    // any source GLB/JSON/camera. Take native full 412x915 screenshots outside.
+    const s25BackdropAblationInjection=String.raw\`
+    proofS25BackdropTrialBegin(mode) {
+      if(mode!=='source-dark'&&mode!=='backdrop-hidden')
+        throw new Error('Unsupported bounded S25 window diagnostic');
+      if(this.__proofS25BackdropTrial||!s25RawPreview||!s25RawViewBackup||
+         loadCount!==13||failCount)
+        throw new Error('S25 original 13-GLB view required; no active trial');
+      const entry=entries.get('room_window_drapes'),matches=[];
+      if(!entry?.loaded)throw new Error('Original curtain GLB missing');
+      entry.group.traverse(mesh=>{
+        if(!mesh.isMesh)return;
+        const original=sourceDrapeMaterials.get(mesh),mat=mesh.material;
+        if(original?.name===NIGHT_BACKDROP_MATERIAL)matches.push({mesh,original,mat});
+      });
+      if(matches.length!==1)
+        throw new Error('Ablation requires exactly one independently isolated backdrop mesh; found '+matches.length);
+      const {mesh,original,mat}=matches[0];
+      if(Array.isArray(mesh.material)||Array.isArray(original)||!mat?.isMeshBasicMaterial||
+         !mesh.visible||!!original.map||original.color.getHexString()!=='1d242b'||
+         original.opacity!==1||!!mat.map||mat.color.getHexString()!=='d9c9b3')
+        throw new Error('Expected exact source dark material and distinct S25 beige clone');
+      const state={
+        mesh,mat,visible:mesh.visible,clone:null,original,
+        savedLayout:JSON.stringify(snapshot()),room:{...room},
+        camera:camera.position.toArray(),target:orbit.target.toArray(),
+        fov:camera.fov,aspect:camera.aspect,
+        originalHex:original.color.getHexString()
+      };
+      this.__proofS25BackdropTrial=state;
+      try {
+        if(mode==='source-dark') {
+          state.clone=mat.clone();
+          state.clone.name='E2E_ONLY_EXACT_SOURCE_NIGHT_HEX_1d242b';
+          state.clone.color.setHex(0x1d242b);
+          mesh.material=state.clone;
+        } else {
+          mesh.visible=false; // Only this separate source-backed opaque mesh.
+        }
+        renderer.render(scene,camera);
+        invalidateMobileFrame();
+        return {mode,original_source_hex:state.originalHex,
+          shown_hex:mesh.material.color.getHexString(),
+          backdrop_mesh_visible:mesh.visible,
+          backdrop_source_mesh_material_slots:1,
+          original_13_glbs:loadCount,
+          room_m:{...room},camera_position_m:camera.position.toArray(),
+          source_layout_unchanged:JSON.stringify(snapshot())===state.savedLayout,
+          diagnostic_only:true,visual_acceptance:'NOT_GRANTED'};
+      } catch(error) {
+        this.proofS25BackdropTrialRestore();
+        throw error;
+      }
+    },
+    proofS25BackdropTrialRestore() {
+      const s=this.__proofS25BackdropTrial;
+      if(!s)return {no_active_trial:true};
+      s.mesh.material=s.mat;s.mesh.visible=s.visible;
+      if(s.clone)s.clone.dispose();
+      this.__proofS25BackdropTrial=null;
+      renderer.render(scene,camera);
+      invalidateMobileFrame();
+      const ok=s.mesh.material===s.mat&&s.mesh.visible===s.visible&&
+        s.original.color.getHexString()===s.originalHex&&
+        JSON.stringify(snapshot())===s.savedLayout&&
+        camera.position.toArray().every((v,i)=>v===s.camera[i])&&
+        orbit.target.toArray().every((v,i)=>v===s.target[i])&&
+        camera.fov===s.fov&&camera.aspect===s.aspect&&
+        Object.entries(s.room).every(([k,v])=>room[k]===v)&&
+        s25RawPreview&&loadCount===13;
+      if(!ok)throw new Error('Temporary backdrop A/B did not restore source/camera/layout');
+      return {restored:true,original_source_material_untouched:true,
+        original_display_material_identity_restored:true,
+        original_13_glbs:loadCount,owner_layout_camera_room_unchanged:true};
+    },
+\`;
     await page.route('**/tools/room-layout-editor/editor.js',async route=>{
       let source=fs.readFileSync(path.join(__dirname,'editor.js'),'utf8');
       const nativeRendererAAAnchor='antialias: !TOUCH_DEVICE';
@@ -1371,7 +1448,7 @@ async function main(){
       ].join('\n');
       const anchor='    mobileRenderStats() {';
       assert.equal(source.split(anchor).length,2,'Single E2E readback injection point required');
-      return route.fulfill({body:source.replace(anchor,s25ColorFilterProbeInjection+s25TextureAuditInjection+s25TintProbeInjection+s25CurtainQuantProbeInjection+s25CurtainOrderDepthPrecisionProbeInjection+controlledPauseInjection+anchor),contentType:'text/javascript'});
+      return route.fulfill({body:source.replace(anchor,s25ColorFilterProbeInjection+s25TextureAuditInjection+s25TintProbeInjection+s25CurtainQuantProbeInjection+s25CurtainOrderDepthPrecisionProbeInjection+s25BackdropAblationInjection+controlledPauseInjection+anchor),contentType:'text/javascript'});
     });
     await page.goto('http://127.0.0.1:8765/tools/room-layout-editor/?e2e=1',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForFunction(()=>document.querySelector('#loaded')?.textContent?.includes('13/13'),null,{timeout:240000});
@@ -1603,6 +1680,80 @@ async function main(){
       native_viewport_sha256:crypto.createHash('sha256').update(rawViewportBytes).digest('hex'),
       native_viewport_size:rawViewportSize,owner_json_unchanged:true,camera_unchanged:true,
       visual_acceptance:'REQUIRES_MANUAL_IMAGE_INSPECTION'});
+    // V167: ONE bounded A/B from ORIGINAL source scene, AA0 ONLY.
+    // Baseline above is already the authentic uncut 412x915 native viewport.
+    // Never weaken or bypass any genuine <5000ms AA4 touch, or mutate editor.js.
+    if(!NATIVE_AA4_MODE) {
+      const beforeState={layout:rawBefore.layout,camera:rawBefore.camera};
+      const comparisons=[{
+        mode:'current-beige-original-render',
+        file:'mobile-owner-default-s25-raw-viewport-412x915.png',
+        sha256:crypto.createHash('sha256').update(rawViewportBytes).digest('hex'),
+        native_viewport_px:rawViewportSize
+      }];
+      for(const mode of ['source-dark','backdrop-hidden']) {
+        const info=await page.evaluate(mode=>
+          window.__celineRoomEditorE2E.proofS25BackdropTrialBegin(mode),mode);
+        let restoreInfo;
+        try {
+          assert(info.source_layout_unchanged&&info.original_13_glbs===13);
+          const bytes=await page.screenshot({scale:'css',fullPage:false,timeout:30000});
+          assert.deepEqual([bytes.readUInt32BE(16),bytes.readUInt32BE(20)],[412,915],
+            'Native source-backdrop A/B must be full 412x915');
+          const state=await page.evaluate(()=>({
+            scroll_y:scrollY,
+            layout:window.__celineRoomEditorE2E.serializedLayout(),
+            camera:window.__celineRoomEditorE2E.cameraProjection()
+          }));
+          assert.equal(state.scroll_y,0,'Native backdrop trial must remain unscrolled');
+          assert.deepEqual(state.layout,beforeState.layout);
+          assert.deepEqual(state.camera,beforeState.camera);
+          const file='mobile-owner-s25-backdrop-'+mode+'-viewport-412x915.png';
+          fs.writeFileSync(path.join(out,file),bytes);
+          comparisons.push({mode,file,
+            sha256:crypto.createHash('sha256').update(bytes).digest('hex'),
+            native_viewport_px:[412,915],source_view:info,
+            original_json_camera_unchanged:true,visual_acceptance:'REQUIRES_MANUAL_REVIEW'});
+        } finally {
+          restoreInfo=await page.evaluate(()=>
+            window.__celineRoomEditorE2E.proofS25BackdropTrialRestore());
+          assert.equal(restoreInfo.restored,true,'A/B material visibility source restore');
+          assert.equal(restoreInfo.owner_layout_camera_room_unchanged,true);
+        }
+      }
+      const restoredBytes=await page.screenshot({scale:'css',fullPage:false,timeout:30000});
+      assert.deepEqual([restoredBytes.readUInt32BE(16),restoredBytes.readUInt32BE(20)],
+        [412,915]);
+      const afterState=await page.evaluate(()=>({
+        scroll_y:scrollY,
+        layout:window.__celineRoomEditorE2E.serializedLayout(),
+        camera:window.__celineRoomEditorE2E.cameraProjection()
+      }));
+      assert.equal(afterState.scroll_y,0);
+      assert.deepEqual(afterState.layout,beforeState.layout);
+      assert.deepEqual(afterState.camera,beforeState.camera);
+      const restoreFile='mobile-owner-s25-backdrop-restored-viewport-412x915.png';
+      fs.writeFileSync(path.join(out,restoreFile),restoredBytes);
+      comparisons.push({mode:'restored-original-beige',
+        file:restoreFile,
+        sha256:crypto.createHash('sha256').update(restoredBytes).digest('hex'),
+        native_viewport_px:[412,915],
+        material_identity_restored:true});
+      fs.writeFileSync(path.join(out,'owner-s25-window-backdrop-native-ab.json'),
+        JSON.stringify({source_sha:process.env.GITHUB_SHA||null,
+          approved_user_s25_sha256:approvedSha,
+          source_dark_night_hex:'1d242b',current_display_beige_hex:'d9c9b3',
+          original_13_glbs:13,room_m:approved.room,
+          exactly_one_proof_comparison:true,
+          native_unedited_412x915_screenshots:comparisons,
+          production_editor_js_unchanged:true,source_mesh_geometry_unchanged:true,
+          source_original_materials_unchanged:true,
+          camera_layout_locks_unchanged:true,visual_acceptance:'NOT_GRANTED',
+          strict_touch_lt_5000_ms_gate:'UNCHANGED'},null,2));
+      record.push({name:'OWNER_S25_BACKDROP_SOURCE_DARK_VS_ISOLATED_HIDDEN_NATIVE_AB',
+        comparison_files:comparisons.map(x=>x.file),owner_layout_camera_unchanged:true,
+        original_13_source_glbs:true,visual_acceptance:'NOT_GRANTED'});
+    }
     const rawExitTapCount=observedMobileTaps.length;
     await observeRealTap(page.locator('[data-mobile-action="s25-display"]'),
       'page.locator(\'[data-mobile-action="s25-display"]\')');
