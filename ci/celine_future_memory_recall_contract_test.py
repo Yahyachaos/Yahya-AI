@@ -11,6 +11,64 @@ assert source.is_file(), source
 
 
 
+
+# FUTURE-ONLY: an explicit owner subject must occupy the COMPLETE prefix.
+# A suffix-only owner match can confuse a leading clause with a memory ID.
+if '--focused-age-subject-prefix' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class AgeSubjectPrefixContract {
+  static int checks=0;
+  static CelineFutureMemoryRecall.Candidate c(String fact) {
+    return new CelineFutureMemoryRecall.Candidate("prefix",fact,"",
+        CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,0.9);
+  }
+  static void check(String request,String fact,boolean expected,String name) {
+    var list=List.of(c(fact));
+    boolean recall=!CelineFutureMemoryRecall.retrieve(request,list,4,200).isEmpty();
+    boolean correction=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(request,list,200).isEmpty();
+    if(recall!=expected || correction!=expected) throw new AssertionError(
+        name+" expected="+expected+" actual="+recall+"/"+correction);
+    checks+=2;
+  }
+  public static void main(String[] args) {
+    check("Angeblich meine Schwester ist 2 Jahre älter als ich",
+          "Meine Schwester ist 2 Jahre älter als ich",false,"leading qualifier relative");
+    check("Tatsächlich meine Schwester ist 2 Jahre jünger als ich",
+          "Meine Schwester ist 2 Jahre jünger als ich",false,"leading qualifier reverse");
+    check("Eva und meine Schwester ist 2 Jahre älter als ich",
+          "Meine Schwester ist 2 Jahre älter als ich",false,"multiple subject relative");
+    check("Vielleicht meine Schwester ist zwei Jahre alt",
+          "Meine Schwester ist zwei Jahre alt",false,"leading qualifier absolute");
+    check("Anna und meine Schwester ist 2 Jahre alt",
+          "Meine Schwester ist 2 Jahre alt",false,"multiple subject absolute");
+    check("Irgendwer meine Schwester war 2 Jahre alt",
+          "Meine Schwester war 2 Jahre alt",false,"leading past absolute");
+    check("Meine Schwester ist 2 Jahre älter als ich",
+          "Meine Schwester ist 2 Jahre älter als ich",true,"valid relative owner");
+    check("Meine Schwester ist zwei Jahre alt",
+          "Meine Schwester ist 2 Jahre alt",true,"valid digit word equivalence");
+    check("Meine Schwester war 2 Jahre alt",
+          "Meine Schwester war 2 Jahre alt",true,"valid past absolute");
+    check("Meine Schwester Anna ist 2 Jahre älter als ich",
+          "Meine Schwester Anna ist 2 Jahre älter als ich",true,"valid full named owner");
+    check("2 Jahre älter als ich",
+          "Meine Schwester ist 2 Jahre älter als ich",true,"broad relative remains");
+    check("2 Jahre alt",
+          "Meine Schwester ist 2 Jahre alt",true,"broad absolute remains");
+    System.out.println("AGE_SUBJECT_PREFIX_PASS cases="+checks);
+  }
+}'''
+    with tempfile.TemporaryDirectory(prefix='future_age_subject_prefix_') as compiled:
+        f=Path(compiled)/'AgeSubjectPrefixContract.java'
+        f.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(f)],capture_output=True,text=True,timeout=90)
+        if build.returncode: raise AssertionError('javac: '+build.stderr)
+        run=subprocess.run(['java','-cp',compiled,'de.yahya.ai.AgeSubjectPrefixContract'],capture_output=True,text=True,timeout=60)
+        print(run.stdout.strip())
+        if run.returncode: raise AssertionError('age subject prefix RED: '+run.stderr)
+    sys.exit(0)
+
 # FUTURE ONLY: explicit past vs present age assertions are different fact identities.
 # Read-only correction-ID suggestions must not target an opposite-tense assertion.
 if '--focused-age-tense' in sys.argv:

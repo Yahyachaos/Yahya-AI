@@ -3656,7 +3656,7 @@ public final class CelineFutureMemoryRecall {
             relations.add(base);
             String subjectPrefix = normalized.substring(0, match.start());
             java.util.regex.Matcher subject = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(subjectPrefix);
-            if (subject.find()) {
+            if (subject.matches()) {
                 String owner = subject.group(1);
                 // German possessive inflection is not a new person. Different
                 // owners (my/your/our/his/her) are NOT interchangeable, even
@@ -3779,7 +3779,7 @@ public final class CelineFutureMemoryRecall {
             ages.add(base);
             String prefix = normalized.substring(0, match.start());
             java.util.regex.Matcher named = EXPLICIT_RELATIVE_AGE_SUBJECT.matcher(prefix);
-            if (named.find()) {
+            if (named.matches()) {
                 String owner = named.group(1);
                 if (owner.startsWith("mein")) owner = "mein";
                 else if (owner.startsWith("dein")) owner = "dein";
