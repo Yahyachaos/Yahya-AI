@@ -3480,12 +3480,13 @@ public final class CelineFutureMemoryRecall {
                 "(?<![\\p{L}\\p{N}])(>=|<=|≥|≤|>|<)\\s*(?:(?:[€$]|eur|usd|euro|dollar)\\s*)?([+-]?[0-9]+(?:[.,][0-9]+)?)(?![\\p{L}\\p{N}])");
 
     // German monetary range prepositions: "ab €500" is a lower bound,
-    // "bis 500 Euro" an upper bound. Require an EXPLICIT currency token;
+    // "bis 500 Euro", "bis zu 500 Euro" and "bis einschließlich 500 Euro"
+    // are upper bounds. Require an EXPLICIT currency token;
     // bare dates ("bis 2027") or arbitrary numeric words never become
     // guessed quantities. No currency conversion or domain fact inference.
     private static final java.util.regex.Pattern CURRENCY_PREPOSITION_BOUND =
             java.util.regex.Pattern.compile(
-                "(?<![\\p{L}\\p{N}])(ab|bis)\\s+(?:(?:[€$]|eur|usd|euro|dollar)\\s*([+-]?[0-9]+(?:[.,][0-9]+)?)|([+-]?[0-9]+(?:[.,][0-9]+)?)\\s*(?:[€$]|eur|usd|euro|dollar))(?![\\p{L}\\p{N}])");
+                "(?<![\\p{L}\\p{N}])(ab|bis(?:\\s+(?:zu|einschließlich|einschliesslich|inklusive))?)\\s+(?:(?:[€$]|eur|usd|euro|dollar)\\s*([+-]?[0-9]+(?:[.,][0-9]+)?)|([+-]?[0-9]+(?:[.,][0-9]+)?)\\s*(?:[€$]|eur|usd|euro|dollar))(?![\\p{L}\\p{N}])");
 
     private static Set<String> explicitQuantityBounds(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)

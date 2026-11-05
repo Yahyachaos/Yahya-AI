@@ -10,7 +10,8 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
-# FUTURE-ONLY lexical currency bounds "ab/bis": no opposite-bound recall or
+# FUTURE-ONLY lexical currency bounds "ab/bis/bis zu/bis einschließlich":
+# no opposite-bound recall or
 # inferred correction ID. Currency must be explicit; a date or free numeral is
 # not a monetary floor/ceiling. Not a conversion or production G1 adapter.
 if '--focused-ab-bis-currency' in sys.argv:
@@ -43,6 +44,18 @@ public final class AbBisCurrencyContract {
     check("Mein Budget gilt ab EUR 500", "Mein Budget gilt ab 500 Euro", true, "code versus suffix floor");
     check("Mein Budget gilt bis $500", "Mein Budget gilt bis 500 Dollar", true, "dollar ceiling equivalent");
     check("Mein Budget gilt ab EUR 500", "Mein Budget gilt ab USD 500", false, "currency mismatch");
+    check("Mein Budget gilt bis zu 500 Euro", "Mein Budget gilt ab 500 Euro", false, "bis zu versus ab");
+    check("Mein Budget gilt bis zu EUR 500", "Mein Budget gilt ab EUR 500", false, "bis zu prefix code");
+    check("Mein Budget gilt bis zu €500", "Mein Budget gilt ab €500", false, "bis zu sign");
+    check("Mein Budget gilt bis einschließlich 500 Euro", "Mein Budget gilt ab 500 Euro", false, "inclusive upper versus lower");
+    check("Mein Budget gilt bis einschliesslich 500 Euro", "Mein Budget gilt ab 500 Euro", false, "transliterated upper versus lower");
+    check("Mein Budget gilt bis inklusive $500", "Mein Budget gilt ab $500", false, "inclusive dollar versus lower");
+    check("Mein Budget gilt bis zu 500 Euro", "Mein Budget gilt bis 500 Euro", true, "bis zu equivalent to bis");
+    check("Mein Budget gilt bis einschließlich 500 Euro", "Mein Budget gilt maximal 500 Euro", true, "inclusive equivalent to maximal");
+    check("Mein Budget gilt bis einschliesslich EUR 500", "Mein Budget gilt höchstens 500 Euro", true, "transliterated equivalent upper");
+    check("Mein Budget gilt bis inklusive USD 500", "Mein Budget gilt bis 500 Dollar", true, "named dollar upper");
+    check("Mein Budget gilt bis zu 500 Euro", "Mein Budget gilt bis zu 500 Euro", true, "same upper phrase");
+    check("Mein Budget gilt bis zu 500 Euro", "Mein Budget gilt bis zu 500 Dollar", false, "currency mismatch upper phrase");
     System.out.println("AB_BIS_CURRENCY_CONTRACT_PASS cases="+n);
   }
 } '''
