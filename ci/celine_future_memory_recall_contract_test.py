@@ -32,6 +32,12 @@ public final class PossessionPerfectContract {
   check("past-perfect-vs-simple", "Ich habe einen Golf gehabt", "Ich hatte einen Golf", true,true);
   check("past-perfect-question", "Habe ich einen Golf gehabt", "Ich habe einen Golf gehabt", true,false);
   check("past-perfect-question-not-current", "Habe ich einen Golf gehabt", "Ich habe einen Golf", false,false);
+  check("past-participle-not-present", "Ich habe einen Golf", "Ich habe einen Golf besessen", false,false);
+  check("present-not-past-participle", "Ich habe einen Golf besessen", "Ich habe einen Golf", false,false);
+  check("same-past-participle", "Ich habe einen Golf besessen", "Ich habe einen Golf besessen", true,true);
+  check("past-participle-question", "Habe ich einen Golf besessen", "Ich habe einen Golf besessen", true,false);
+  check("past-participle-question-not-present", "Habe ich einen Golf besessen", "Ich habe einen Golf", false,false);
+  check("present-control", "Ich habe einen Golf", "Ich habe einen Golf", true,true);
   System.out.println("POSSESSION_PERFECT_PASS cases="+checks);
  }
 }
@@ -43,7 +49,7 @@ public final class PossessionPerfectContract {
         assert build.returncode==0,build.stderr
         run=subprocess.run(['java','-Dfile.encoding=UTF-8','-cp',compiled,'de.yahya.ai.PossessionPerfectContract'],capture_output=True,text=True,timeout=60)
         assert run.returncode==0,run.stdout+run.stderr
-        print('POSSESSION_PERFECT_PASS cases=12')
+        print('POSSESSION_PERFECT_PASS cases=24')
     sys.exit(0)
 
 # FUTURE ONLY — do not conflate German first-person former/current possession.
