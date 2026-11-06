@@ -4032,13 +4032,13 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile("(?iu)\\A\\s*(?:habe|hab|hatte)\\s+ich(?=\\s|[?？]|$)");
 
     private static final java.util.regex.Pattern FIRST_PERSON_HAVE_PARTICIPLE =
-            java.util.regex.Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])gehabt(?![\\p{L}\\p{N}])");
+            java.util.regex.Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:gehabt|besessen)(?![\\p{L}\\p{N}])");
 
     private static String explicitFirstPersonHaveTime(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text)) return null;
         java.util.regex.Matcher m = FIRST_PERSON_HAVE_TIME.matcher(text);
-        // German "habe ... gehabt" is past possession, despite its present
+        // German "habe ... gehabt/besessen" is past possession, despite its present
         // auxiliary. Do not use a present-perfect fact to prove possession now.
         boolean pastPerfect = FIRST_PERSON_HAVE_PARTICIPLE.matcher(text).find();
         String time = "";
