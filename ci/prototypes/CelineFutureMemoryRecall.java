@@ -3108,6 +3108,9 @@ public final class CelineFutureMemoryRecall {
         Set<String> requestedAdditionalAgeMeasures =
                 additionalExplicitAgeMeasures(query);
         if (requestedAdditionalAgeMeasures == null) return Collections.emptyList();
+        // Verified past possession cannot prove current possession, or vice versa.
+        String requestedHaveTime = explicitFirstPersonHaveTime(query);
+        if (requestedHaveTime == null) return Collections.emptyList();
         Set<String> queryNegationCues = explicitNegationCues(query);
         Set<String> queryNegatedPredicates = negatedPredicateAnchors(query);
         // Build the correction lineage from ALL supplied records, including expired
@@ -3148,6 +3151,10 @@ public final class CelineFutureMemoryRecall {
             if (isExplicitRedactionMarker(c.summary)
                     || hasSemanticLeadingOrInfixPictograph(c.summary)
                     || hasUncertainAbsoluteAge(c.summary)) continue;
+            String storedHaveTime = explicitFirstPersonHaveTime(c.summary);
+            if (storedHaveTime == null
+                    || (!requestedHaveTime.isEmpty() && !storedHaveTime.isEmpty()
+                    && !requestedHaveTime.equals(storedHaveTime))) continue;
             Set<String> candidateNegationCues = explicitNegationCues(c.summary);
             if (requireMatchingNegation
                     && !queryNegationCues.equals(candidateNegationCues)) continue;
@@ -3267,7 +3274,10 @@ public final class CelineFutureMemoryRecall {
         // Remaining visible terms must never authorize a guessed memory ID;
         // the owner-provided exact-ID correction UI is the safe fallback.
         if (isExplicitRedactionMarker(correctionText)
-                || hasUnrepresentedPictograph(correctionText)) return "";
+                || hasUnrepresentedPictograph(correctionText)
+                // A past/present possession question is read-only. Never
+                // guess a memory ID for mutation from an inverted question.
+                || FIRST_PERSON_HAVE_QUESTION.matcher(safe(correctionText)).find()) return "";
         Set<String> query = terms(correctionText);
         if (query.size() < 2) return "";
         List<Match> matches = retrieveAssumingOwnerVerified(correctionText, candidates,
@@ -4007,6 +4017,32 @@ public final class CelineFutureMemoryRecall {
             if (units.size() > MAX_QUERY_TOKENS) return null;
         }
         return units;
+    }
+
+    // FUTURE ONLY: explicit first-person "have/had" time. A confirmed past
+    // possession is not a current possession (or vice versa), including in
+    // inverted read-only questions. This is a bounded grammatical gate, not
+    // general past-tense or perfect-aspect understanding.
+    private static final java.util.regex.Pattern FIRST_PERSON_HAVE_TIME =
+            java.util.regex.Pattern.compile(
+                "(?iu)(?<![\\p{L}\\p{N}])(?:ich\\s+(habe|hab|hatte)"
+                + "|(habe|hab|hatte)\\s+ich)(?![\\p{L}\\p{N}])");
+
+    private static final java.util.regex.Pattern FIRST_PERSON_HAVE_QUESTION =
+            java.util.regex.Pattern.compile("(?iu)\\A\\s*(?:habe|hab|hatte)\\s+ich(?=\\s|[?？]|$)");
+
+    private static String explicitFirstPersonHaveTime(String text) {
+        if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
+                || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text)) return null;
+        java.util.regex.Matcher m = FIRST_PERSON_HAVE_TIME.matcher(text);
+        String time = "";
+        while (m.find()) {
+            String verb = m.group(1) != null ? m.group(1) : m.group(2);
+            String next = "hatte".equalsIgnoreCase(verb) ? "PAST" : "PRESENT";
+            if (!time.isEmpty() && !time.equals(next)) return null;
+            time = next;
+        }
+        return time;
     }
 
     // The German stopword list removes "nicht". That is appropriate for broad

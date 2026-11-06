@@ -10,6 +10,43 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
+# FUTURE ONLY — do not conflate German first-person former/current possession.
+if '--focused-possession-tense' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class PossessionTenseContract {
+ static int checks=0;
+ static void check(String label,String query,String src, boolean r,boolean c){
+ var ca=new CelineFutureMemoryRecall.Candidate("pos-1",src,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,.95);
+ boolean gotR=!CelineFutureMemoryRecall.retrieve(query,List.of(ca),3,1000).isEmpty();
+ boolean gotC=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,List.of(ca),1000).isEmpty();
+ System.out.printf("%s exp %s/%s got %s/%s%n",label,r,c,gotR,gotC);
+ if(r!=gotR||c!=gotC)throw new AssertionError(label);
+ checks+=2;
+ }
+ public static void main(String[] args){
+ check("historical-not-current", "Ich habe einen Golf", "Ich hatte einen Golf", false,false);
+ check("current-not-historical", "Ich hatte einen Golf", "Ich habe einen Golf", false,false);
+ check("same-current", "Ich habe einen Golf", "Ich habe einen Golf", true,true);
+ check("same-historical", "Ich hatte einen Golf", "Ich hatte einen Golf", true,true);
+ check("current-question-not-historical", "Habe ich einen Golf", "Ich hatte einen Golf", false,false);
+ check("historical-question-not-current", "Hatte ich einen Golf", "Ich habe einen Golf", false,false);
+ check("current-question", "Habe ich einen Golf", "Ich habe einen Golf", true,false);
+ check("historical-question", "Hatte ich einen Golf", "Ich hatte einen Golf", true,false);
+ System.out.println("POSSESSION_TENSE_PASS cases="+checks);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_possession_tense_') as compiled:
+        java_file=Path(compiled)/'PossessionTenseContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],capture_output=True,text=True,timeout=120)
+        assert build.returncode==0,build.stderr
+        run=subprocess.run(['java','-Dfile.encoding=UTF-8','-cp',compiled,'de.yahya.ai.PossessionTenseContract'],capture_output=True,text=True,timeout=60)
+        assert run.returncode==0,run.stdout+run.stderr
+        print('POSSESSION_TENSE_PASS cases=16')
+    sys.exit(0)
+
 # FUTURE ONLY: punctuation-delimited alternatives and hedged relative ages
 # must not authorize provider recall or a guessed correction-target ID.
 if '--focused-age-hedge-punctuation' in sys.argv:
