@@ -3067,6 +3067,7 @@ public final class CelineFutureMemoryRecall {
         // must not prove a different record. Preserve the established provider
         // handling of bare stars/blocks and the stricter correction-only gate.
         if (hasExplicitTaggedRedactionMarker(query)
+                || hasMarkdownBlockquoteFrame(query)
                 || hasSemanticLeadingOrInfixPictograph(query))
             return Collections.emptyList();
         Set<String> wanted = terms(query);
@@ -3149,6 +3150,7 @@ public final class CelineFutureMemoryRecall {
             // when its surviving words match. Do not rank it for provider recall;
             // its ID still participates in lineage/supersession quarantine.
             if (isExplicitRedactionMarker(c.summary)
+                    || hasMarkdownBlockquoteFrame(c.summary)
                     || hasSemanticLeadingOrInfixPictograph(c.summary)
                     || hasUncertainAbsoluteAge(c.summary)) continue;
             String storedHaveTime = explicitFirstPersonHaveTime(c.summary);
@@ -3274,6 +3276,7 @@ public final class CelineFutureMemoryRecall {
         // Remaining visible terms must never authorize a guessed memory ID;
         // the owner-provided exact-ID correction UI is the safe fallback.
         if (isExplicitRedactionMarker(correctionText)
+                || hasMarkdownBlockquoteFrame(correctionText)
                 || hasUnrepresentedPictograph(correctionText)
                 // A past/present possession question is read-only. Never
                 // guess a memory ID for mutation from an inverted question.
@@ -4163,6 +4166,18 @@ public final class CelineFutureMemoryRecall {
     // including "Luna ❤️, heute" which must remain searchable. The first
     // lexical position is computed once so even long pictograph prefixes are
     // checked in linear time.
+    // FUTURE ONLY: quoted/imported Markdown lines are not first-party G1
+    // assertions. Detect compact and spaced blockquotes, including nested
+    // levels, without rejecting an ordinary greater-than sign inside prose.
+    // This lexical guard is not proof of authenticated source provenance.
+    private static final java.util.regex.Pattern MARKDOWN_BLOCKQUOTE_FRAME =
+            java.util.regex.Pattern.compile("(?m)^[ 	]*>{1,4}[ 	]*(?=[A-Za-zÄÖÜäöü])");
+
+    private static boolean hasMarkdownBlockquoteFrame(String value) {
+        return value != null && value.length() <= MAX_INPUT
+                && MARKDOWN_BLOCKQUOTE_FRAME.matcher(value).find();
+    }
+
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
         if (value == null) return false;
         int firstLexical = -1;

@@ -9,6 +9,45 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY — compact and spaced Markdown blockquotes are not user facts.
+if '--focused-markdown-blockquote' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class MarkdownBlockquoteContract {
+ static int checks;
+ static void check(String label,String query,String saved,boolean recall,boolean correction){
+  var c=new CelineFutureMemoryRecall.Candidate("fact-1",saved,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,.95);
+  var items=List.of(c);
+  boolean r=!CelineFutureMemoryRecall.retrieve(query,items,3,1000).isEmpty();
+  boolean t=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,items,1000).isEmpty();
+  if(r!=recall||t!=correction)throw new AssertionError(label+" expected="+recall+"/"+correction+" actual="+r+"/"+t);
+  checks+=2;
+ }
+ public static void main(String[] a){
+  check("compact-source","Mein Golf ist rot",">Mein Golf ist rot",false,false);
+  check("nested-source","Mein Golf ist rot",">>Mein Golf ist rot",false,false);
+  check("spaced-source","Mein Golf ist rot","> Mein Golf ist rot",false,false);
+  check("multiline-source","Mein Golf ist rot","Notizen\n>Mein Golf ist rot",false,false);
+  check("compact-query",">Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("nested-query",">>Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("spaced-query","> Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("direct-positive","Mein Golf ist rot","Mein Golf ist rot",true,true);
+  check("prose-greater-than","Mein Golf ist rot","Mein Golf ist rot und das Zeichen > steht hier",true,true);
+  check("read-only-question","Habe ich einen Golf","Ich habe einen Golf",true,false);
+  System.out.println("MARKDOWN_BLOCKQUOTE_PASS cases="+checks);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_markdown_') as compiled:
+        java_test=Path(compiled)/'MarkdownBlockquoteContract.java'
+        java_test.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_test)],capture_output=True,text=True,timeout=120)
+        assert build.returncode==0,build.stderr
+        run=subprocess.run(['java','-Dfile.encoding=UTF-8','-cp',compiled,'de.yahya.ai.MarkdownBlockquoteContract'],capture_output=True,text=True,timeout=60)
+        assert run.returncode==0,run.stdout+run.stderr
+        print(run.stdout.strip())
+    sys.exit(0)
+
 
 # FUTURE ONLY — a German present-perfect auxiliary does not prove current possession.
 if '--focused-possession-perfect' in sys.argv:
