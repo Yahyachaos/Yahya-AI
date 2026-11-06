@@ -10,6 +10,42 @@ source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java
 assert source.is_file(), source
 
 
+# FUTURE ONLY — a German present-perfect auxiliary does not prove current possession.
+if '--focused-possession-perfect' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class PossessionPerfectContract {
+ static int checks;
+ static void check(String label,String query,String src,boolean recall,boolean correction){
+  var ca=new CelineFutureMemoryRecall.Candidate("pos-1",src,"",CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,.95);
+  var cs=List.of(ca);
+  boolean gotR=!CelineFutureMemoryRecall.retrieve(query,cs,3,1000).isEmpty();
+  boolean gotC=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,cs,1000).isEmpty();
+  System.out.printf("%s expected %s/%s actual %s/%s%n",label,recall,correction,gotR,gotC);
+  if(recall!=gotR || correction!=gotC) throw new AssertionError(label);
+  checks+=2;
+ }
+ public static void main(String[] args){
+  check("past-perfect-not-current", "Ich habe einen Golf", "Ich habe einen Golf gehabt", false,false);
+  check("current-not-past-perfect", "Ich habe einen Golf gehabt", "Ich habe einen Golf", false,false);
+  check("past-simple-vs-perfect", "Ich hatte einen Golf", "Ich habe einen Golf gehabt", true,true);
+  check("past-perfect-vs-simple", "Ich habe einen Golf gehabt", "Ich hatte einen Golf", true,true);
+  check("past-perfect-question", "Habe ich einen Golf gehabt", "Ich habe einen Golf gehabt", true,false);
+  check("past-perfect-question-not-current", "Habe ich einen Golf gehabt", "Ich habe einen Golf", false,false);
+  System.out.println("POSSESSION_PERFECT_PASS cases="+checks);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_possession_perfect_') as compiled:
+        java_file=Path(compiled)/'PossessionPerfectContract.java'
+        java_file.write_text(harness,encoding='utf-8')
+        build=subprocess.run(['javac','-encoding','UTF-8','-d',compiled,str(source),str(java_file)],capture_output=True,text=True,timeout=120)
+        assert build.returncode==0,build.stderr
+        run=subprocess.run(['java','-Dfile.encoding=UTF-8','-cp',compiled,'de.yahya.ai.PossessionPerfectContract'],capture_output=True,text=True,timeout=60)
+        assert run.returncode==0,run.stdout+run.stderr
+        print('POSSESSION_PERFECT_PASS cases=12')
+    sys.exit(0)
+
 # FUTURE ONLY — do not conflate German first-person former/current possession.
 if '--focused-possession-tense' in sys.argv:
     harness = r'''package de.yahya.ai;

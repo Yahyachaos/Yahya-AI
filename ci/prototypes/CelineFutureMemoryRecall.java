@@ -4031,14 +4031,26 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern FIRST_PERSON_HAVE_QUESTION =
             java.util.regex.Pattern.compile("(?iu)\\A\\s*(?:habe|hab|hatte)\\s+ich(?=\\s|[?？]|$)");
 
+    private static final java.util.regex.Pattern FIRST_PERSON_HAVE_PARTICIPLE =
+            java.util.regex.Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])gehabt(?![\\p{L}\\p{N}])");
+
     private static String explicitFirstPersonHaveTime(String text) {
         if (text == null || text.length() > MAX_INPUT || !wellFormedUtf16(text)
                 || hasNonTextControl(text) || hasUnrepresentableLexicalChars(text)) return null;
         java.util.regex.Matcher m = FIRST_PERSON_HAVE_TIME.matcher(text);
+        // German "habe ... gehabt" is past possession, despite its present
+        // auxiliary. Do not use a present-perfect fact to prove possession now.
+        boolean pastPerfect = FIRST_PERSON_HAVE_PARTICIPLE.matcher(text).find();
         String time = "";
+        int haveForms = 0;
         while (m.find()) {
+            haveForms++;
+            // More than one have-clause with "gehabt" needs clause parsing;
+            // abstain rather than wrongly assign the participle to both.
+            if (pastPerfect && haveForms > 1) return null;
             String verb = m.group(1) != null ? m.group(1) : m.group(2);
-            String next = "hatte".equalsIgnoreCase(verb) ? "PAST" : "PRESENT";
+            String next = ("hatte".equalsIgnoreCase(verb) || pastPerfect)
+                    ? "PAST" : "PRESENT";
             if (!time.isEmpty() && !time.equals(next)) return null;
             time = next;
         }
