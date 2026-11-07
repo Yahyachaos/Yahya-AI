@@ -53,6 +53,15 @@ public final class RoleTranscriptContract {
   check("bold-blank-query","Export:\n**Assistant:**\n\nMein Golf ist rot","Mein Golf ist rot",false,false);
   check("colon-crlf-blank-saved","Mein Golf ist rot","Export:\r\nuser:\r\n \r\nMein Golf ist rot",false,false);
   check("bold-multiple-blank-saved","Mein Golf ist rot","Export:\n **tool:** \n\n  \n  Mein Golf ist rot",false,false);
+  // More than seven blank lines are still a copied transcript; bound work by MAX_INPUT bytes,
+  // not an arbitrary separator-line count. Reject both candidate and query framing.
+  check("colon-nine-blank-saved","Mein Golf ist rot","Export:\nassistant:\n" + "\n".repeat(9) + "Mein Golf ist rot",false,false);
+  check("colon-nine-blank-query","Export:\nassistant:\n" + "\n".repeat(9) + "Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("bold-nine-blank-saved","Mein Golf ist rot","Export:\n**Assistant:**\n" + "\n".repeat(9) + "Mein Golf ist rot",false,false);
+  check("bold-nine-blank-query","Export:\n**Assistant:**\n" + "\n".repeat(9) + "Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("colon-thirtytwo-blank-saved","Mein Golf ist rot","Export:\nuser:\n" + " \r\n".repeat(32) + "Mein Golf ist rot",false,false);
+  check("bold-thirtytwo-blank-query","Export:\n**Tool:**\n" + "\t\n".repeat(32) + "Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("colon-many-lines-bounded","Mein Golf ist rot","Export:\nassistant:\n" + "\n".repeat(128) + "Mein Golf ist rot",false,false);
   check("colon-crlf-saved","Mein Golf ist rot","Export:\r\nuser:\r\nMein Golf ist rot",false,false);
   check("bold-indented-nextline","Mein Golf ist rot","Export:\n   **tool:**  \n   Mein Golf ist rot",false,false);
   check("colon-in-notes-elsewhere","Mein Golf ist rot","Notizen\nMein Golf ist rot\nsystem:\ngekürzt",false,false);
