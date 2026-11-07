@@ -228,6 +228,14 @@ public final class MarkdownBlockquoteContract {
   check("nested-source","Mein Golf ist rot",">>Mein Golf ist rot",false,false);
   check("spaced-source","Mein Golf ist rot","> Mein Golf ist rot",false,false);
   check("multiline-source","Mein Golf ist rot","Notizen\n>Mein Golf ist rot",false,false);
+  // A standalone quote marker with no text on the same line still starts an
+  // imported block. Reject the following first-person line rather than
+  // treating a stripped quote marker as direct-user G1 provenance.
+  check("empty-marker-source","Mein Golf ist rot","Export:\n>\nMein Golf ist rot",false,false);
+  check("empty-marker-query","Export:\n>\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  check("nested-empty-marker-source","Mein Golf ist rot","Export:\n>>\nMein Golf ist rot",false,false);
+  check("crlf-empty-marker-source","Mein Golf ist rot","Export:\r\n> \t\r\nMein Golf ist rot",false,false);
+
   check("compact-query",">Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("nested-query",">>Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("spaced-query","> Mein Golf ist rot","Mein Golf ist rot",false,false);

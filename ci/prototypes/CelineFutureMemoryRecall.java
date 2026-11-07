@@ -4189,7 +4189,7 @@ public final class CelineFutureMemoryRecall {
     // greater-than signs inside prose are not line-anchored and remain valid.
     // This lexical guard is not proof of authenticated source provenance.
     private static final java.util.regex.Pattern MARKDOWN_BLOCKQUOTE_FRAME =
-            java.util.regex.Pattern.compile("(?m)^[ 	]*>{1,4}[ 	]*(?=\\S)");
+            java.util.regex.Pattern.compile("(?m)^[ 	]*>{1,4}[ 	]*(?=\\S|\\R)");
 
     private static boolean hasMarkdownBlockquoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
