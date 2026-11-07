@@ -190,6 +190,20 @@ public final class RoleTranscriptContract {
   check("yaml-flow-no-body-control","Mein Golf ist rot","{role: assistant, note: Mein Golf ist rot}",true,true);
   check("yaml-flow-content-only-control","Mein Golf ist rot","{content: Mein Golf ist rot}",true,true);
   check("yaml-flow-in-prose-control","Mein Golf ist rot (role: assistant)","Mein Golf ist rot (role: assistant)",true,true);
+  // TOML chat-array tables are copied transcripts; the role/body pair must
+  // belong to the SAME messages table, not arbitrary independent TOML notes.
+  check("toml-chat-message-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);
+  check("toml-chat-message-query","[[messages]]\nrole = \"user\"\ncontent = \"Mein Golf ist rot\"","Mein Golf ist rot",false,false);
+  check("toml-chat-speaker-text","Mein Golf ist rot","[[chat.messages]]\nspeaker = 'tool'\ntext = 'Mein Golf ist rot'",false,false);
+  check("toml-chat-body-before-role","Mein Golf ist rot","[[message]]\nmessage = 'Mein Golf ist rot'\nrole = 'developer'",false,false);
+  check("toml-chat-inline-comment","Mein Golf ist rot","[[messages]]\nrole = 'assistant' # export\nparts = [\"Mein Golf ist rot\"]",false,false);
+  check("toml-chat-crlf","Mein Golf ist rot","[[messages]]\r\nrole = \"system\"\r\ndelta = \"Mein Golf ist rot\"",false,false);
+  check("toml-chat-prefaced","Mein Golf ist rot","Export:\n[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);
+  check("toml-chat-unknown-role-control","Mein Golf ist rot","[[messages]]\nrole = \"owner\"\ncontent = \"Mein Golf ist rot\"",true,true);
+  check("toml-chat-no-body-control","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\nnotes = \"Mein Golf ist rot\"",true,true);
+  check("toml-chat-no-role-control","Mein Golf ist rot","[[messages]]\ncontent = \"Mein Golf ist rot\"",true,true);
+  check("toml-chat-separated-sections-control","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\n[notes]\ncontent = \"Mein Golf ist rot\"",true,true);
+  check("toml-ordinary-notes-control","Mein Golf ist rot","[notes]\ntext = \"Mein Golf ist rot\"",true,true);
   check("yaml-unknown-role-control","Mein Golf ist rot","role: owner\ncontent: Mein Golf ist rot",true,true);
   check("yaml-role-only-control","Mein Golf ist rot","Mein Golf ist rot\nrole: user",true,true);
   check("yaml-content-only-control","Mein Golf ist rot","content: Mein Golf ist rot",true,true);

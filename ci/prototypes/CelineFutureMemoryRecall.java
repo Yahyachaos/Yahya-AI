@@ -4283,6 +4283,36 @@ public final class CelineFutureMemoryRecall {
         return false;
     }
 
+    // A TOML array-of-tables conversation export may serialize each message as
+    // [[messages]] or [[chat.messages]] plus `role`/`content` assignments.
+    // Recognize exact known actor and body keys INSIDE ONE table, never across
+    // section boundaries. This is lexical abstention, not origin attestation.
+    private static final java.util.regex.Pattern TOML_CHAT_MESSAGE_HEADER =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \t]*\\[\\[(?:messages?|chat\\.messages?)\\]\\][ \t]*(?=\\r?$)");
+    private static final java.util.regex.Pattern TOML_SECTION_HEADER =
+            java.util.regex.Pattern.compile(
+                "(?m)^[ \t]*\\[[^\\r\\n]*\\][ \t]*(?=\\r?$)");
+    private static final java.util.regex.Pattern TOML_CHAT_ROLE =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \t]*(?:role|speaker)[ \t]*=[ \t]*(['\"])(?:assistant|user|system|developer|tool)\\1(?:[ \t]+#[^\\r\\n]*)?[ \t]*(?=\\r?$)");
+    private static final java.util.regex.Pattern TOML_CHAT_BODY =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \t]*(?:content|text|message|parts|delta)[ \t]*=[ \t]*\\S");
+
+    private static boolean hasTomlChatFrame(String value) {
+        java.util.regex.Matcher table = TOML_CHAT_MESSAGE_HEADER.matcher(value);
+        while (table.find()) {
+            int start = table.end();
+            java.util.regex.Matcher following = TOML_SECTION_HEADER.matcher(value);
+            int end = following.find(start) ? following.start() : value.length();
+            String fields = value.substring(start, end);
+            if (TOML_CHAT_ROLE.matcher(fields).find()
+                    && TOML_CHAT_BODY.matcher(fields).find()) return true;
+        }
+        return false;
+    }
+
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
                 && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
@@ -4291,7 +4321,8 @@ public final class CelineFutureMemoryRecall {
                         && JSON_CHAT_CONTENT_FIELD.matcher(value).find())
                     || (YAML_CHAT_ROLE_LINE.matcher(value).find()
                         && YAML_CHAT_BODY_LINE.matcher(value).find())
-                    || hasYamlFlowChatFrame(value));
+                    || hasYamlFlowChatFrame(value)
+                    || hasTomlChatFrame(value));
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
