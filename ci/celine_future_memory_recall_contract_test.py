@@ -145,6 +145,15 @@ public final class RoleTranscriptContract {
   check("json-speaker-content-query","{\"content\":\"Mein Golf ist rot\",\"speaker\":\"user\"}","Mein Golf ist rot",false,false);
   check("json-role-text-multiline","Mein Golf ist rot","Export:\n{\n \"role\": \"assistant\",\n \"text\": \"Mein Golf ist rot\"\n}",false,false);
   check("json-speaker-content-array","Mein Golf ist rot","Kopie: [{\"speaker\":\"tool\",\"content\":\"Mein Golf ist rot\"}]",false,false);
+  // Streamed and part-based chat exports: a role plus parts/delta is still
+  // copied external text, even without a content/text/message property.
+  check("json-role-parts-source","Mein Golf ist rot","{\"role\":\"assistant\",\"parts\":[\"Mein Golf ist rot\"]}",false,false);
+  check("json-role-parts-query","{\"parts\":[\"Mein Golf ist rot\"],\"role\":\"user\"}","Mein Golf ist rot",false,false);
+  check("json-role-delta-source","Mein Golf ist rot","{\"role\":\"tool\",\"delta\":\"Mein Golf ist rot\"}",false,false);
+  check("json-role-delta-query","{\"delta\":\"Mein Golf ist rot\",\"speaker\":\"developer\"}","Mein Golf ist rot",false,false);
+  check("json-plain-parts-control","Mein Golf ist rot","{\"parts\":[\"Mein Golf ist rot\"]}",true,true);
+  check("json-plain-delta-control","Mein Golf ist rot","{\"delta\":\"Mein Golf ist rot\"}",true,true);
+  check("json-custom-role-parts-control","Mein Golf ist rot","{\"role\":\"owner\",\"parts\":[\"Mein Golf ist rot\"]}",true,true);
   // Retain ordinary JSON notes when no recognized chat role/message pair.
   check("json-unknown-role-text-control","Mein Golf ist rot","{\"role\":\"owner\",\"text\":\"Mein Golf ist rot\"}",true,true);
   check("json-unknown-speaker-control","Mein Golf ist rot","{\"speaker\":\"owner\",\"content\":\"Mein Golf ist rot\"}",true,true);
