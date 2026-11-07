@@ -246,6 +246,19 @@ public final class MarkdownBlockquoteContract {
   check("nested-empty-marker-source","Mein Golf ist rot","Export:\n>>\nMein Golf ist rot",false,false);
   check("crlf-empty-marker-source","Mein Golf ist rot","Export:\r\n> \t\r\nMein Golf ist rot",false,false);
 
+  // HTML-escaped Markdown quote markers in copied/exported chat must not be
+  // treated as first-party facts, even when the escaped marker occurs after
+  // an export header. The corresponding query is equally untrusted.
+  check("html-gt-entity-source","Mein Golf ist rot","Export:\n&amp;gt; Mein Golf ist rot",false,false);
+  check("html-gt-entity-query","Export:\n&amp;gt; Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("html-gt-literal-source","Mein Golf ist rot","Export:\n&gt; Mein Golf ist rot",false,false);
+  check("html-gt-literal-query","Export:\n&gt; Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("html-numeric-quote-source","Mein Golf ist rot","Export:\n&#62; Mein Golf ist rot",false,false);
+  check("html-hex-quote-query","Export:\n&#x3E; Mein Golf ist rot","Mein Golf ist rot",false,false);
+  // Embedded relational entities are not blockquotes and remain searchable.
+  check("html-inline-entity-positive","Mein Golf ist rot","Mein Golf ist rot und 2 &gt; 1",true,true);
+
+
   check("compact-query",">Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("nested-query",">>Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("spaced-query","> Mein Golf ist rot","Mein Golf ist rot",false,false);

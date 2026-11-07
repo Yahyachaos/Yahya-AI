@@ -4195,9 +4195,12 @@ public final class CelineFutureMemoryRecall {
     // assertions. Detect compact and spaced blockquotes, including nested
     // levels with punctuation or leading numbers. Ordinary
     // greater-than signs inside prose are not line-anchored and remain valid.
+    // Also recognize line-leading HTML-escaped/numeric '>' quote markers
+    // in pasted exports; inline &gt; relations remain ordinary prose.
     // This lexical guard is not proof of authenticated source provenance.
     private static final java.util.regex.Pattern MARKDOWN_BLOCKQUOTE_FRAME =
-            java.util.regex.Pattern.compile("(?m)^[ 	]*>{1,4}[ 	]*(?=\\S|\\R)");
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \t]*(?:>{1,4}|&(?:amp;)?gt;|&#(?:0*62|x0*3e);)[ \t]*(?=\\S|\\R)");
 
     private static boolean hasMarkdownBlockquoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
