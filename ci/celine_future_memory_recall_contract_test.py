@@ -89,6 +89,19 @@ public final class RoleTranscriptContract {
   check("timed-german-bracket-query","[08:12, 7.11.2026] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("timed-role-nextline-saved","Mein Golf ist rot","Export:\r\n[08:12] assistant:\r\nMein Golf ist rot",false,false);
   check("timed-role-blank-query","Export:\n[08:12] user:\n\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  // External timestamp role headers with ISO zones, German dates or bare clocks.
+  // Each must suppress BOTH read-only recall and automatic correction targeting.
+  check("timed-iso-utc-zone-saved","Mein Golf ist rot","Export:\n[2026-11-07T08:12:30Z] assistant: Mein Golf ist rot",false,false);
+  check("timed-iso-utc-zone-query","[2026-11-07T08:12:30Z] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-iso-offset-saved","Mein Golf ist rot","[2026-11-07T08:12:30+01:00] user: Mein Golf ist rot",false,false);
+  check("timed-iso-offset-query","[2026-11-07T08:12:30+01:00] user: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-german-date-saved","Mein Golf ist rot","[07.11.2026 08:12] assistant: Mein Golf ist rot",false,false);
+  check("timed-german-date-query","[07.11.2026 08:12] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-clock-dash-saved","Mein Golf ist rot","Export:\n08:12 - assistant: Mein Golf ist rot",false,false);
+  check("timed-clock-dash-query","08:12 - assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  // Narrow role-anchored recognition must not discard ordinary clock/date notes.
+  check("timed-clock-note-positive","Mein Golf ist rot","08:12 - Notiz: Mein Golf ist rot",true,true);
+  check("timed-iso-note-positive","Mein Golf ist rot","[2026-11-07T08:12:30Z] Notiz: Mein Golf ist rot",true,true);
   // Timestamp as ordinary content, without a copied speaker role, is not a
   // reason to discard a direct first-party fact.
   check("timestamp-prose-positive","Mein Golf ist rot","Mein Golf ist rot seit 2026-11-07 um 08:12",true,true);

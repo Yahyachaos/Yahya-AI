@@ -4219,9 +4219,11 @@ public final class CelineFutureMemoryRecall {
     // scanning; matching text is never considered authenticated provenance.
     private static final java.util.regex.Pattern TIMESTAMPED_TRANSCRIPT_FRAME =
             java.util.regex.Pattern.compile(
-                "(?imu)^[ \t]*(?:\\[(?:\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?"
-                + "|\\d{1,2}:\\d{2}(?::\\d{2})?(?:,[ \t]*\\d{1,2}\\.\\d{1,2}\\.\\d{4})?)\\]"
-                + "|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?)"
+                "(?imu)^[ \t]*(?:\\[(?:\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?(?:Z|[+-]\\d{2}:?\\d{2})?"
+                + "|\\d{1,2}:\\d{2}(?::\\d{2})?(?:,[ \t]*\\d{1,2}\\.\\d{1,2}\\.\\d{4})?"
+                + "|\\d{1,2}\\.\\d{1,2}\\.\\d{4}[ \t]+\\d{1,2}:\\d{2}(?::\\d{2})?)\\]"
+                + "|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?(?:Z|[+-]\\d{2}:?\\d{2})?"
+                + "|\\d{1,2}:\\d{2}(?::\\d{2})?)"
                 + "[ \t]*(?:[-|][ \t]*)?(?:assistant|user|system|developer|tool):"
                 + "(?:[ \t]*\\S|[ \t]*\\R(?:[ \t]*\\R)*[ \t]*\\S)");
 
