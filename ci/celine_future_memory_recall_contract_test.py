@@ -16009,7 +16009,7 @@ public final class FutureIndependentClaimFloorProcess {
     byte[] signature=hasFloor?sign(witnessMode.equals("FLOOR_WRONG_KEY")?custodian:floor,floorPayload):null;
     if(witnessMode.equals("FLOOR_BAD_SIG")&&signature!=null)signature[0]^=1;
     byte[] suppliedFloorPin=witnessMode.equals("FLOOR_PIN_COLLISION")?ownerPin:floorPin;
-    if(witnessMode.equals("FORGED_OWNER"))ownerSignature[0]^=1;
+    if(witnessMode.equals("FORGED_OWNER"))java.util.Arrays.fill(ownerSignature,(byte)0);
     var attestation=!hasFloor?null:new CelineFutureMemoryRecall.SignedExternalClaimFloor(
       claim,witnessMode.equals("FLOOR_WRONG_ID")?"other-id":ID,
       witnessMode.equals("FLOOR_WRONG_REV")?3:REV,
@@ -16104,8 +16104,8 @@ def process_independent_claim_floor_proof(compiled, strict=False, strict_live=Fa
             ('LIVE_NULL','NO_AUTHORITY',1),
             ('LIVE_FLOOR_BAD_SIG','UNVERIFIABLE',1),
             ('LIVE_FLOOR_WRONG_NONCE','UNVERIFIABLE',1),
-            ('LIVE_FLOOR_PIN_COLLISION','NO_AUTHORITY',1),
-            ('LIVE_FORGED_OWNER','UNVERIFIABLE',1),
+            ('LIVE_FLOOR_PIN_COLLISION','NO_AUTHORITY',0),  # preflight: do not disclose claim or query remote authority
+            ('LIVE_FORGED_OWNER','UNVERIFIABLE',0),  # verify malformed signature locally, no authority query
             ('LIVE_MISSING_ACK','REMAIN_INDETERMINATE',1),
             ('LIVE_REPLAY_COMMITTED','UNVERIFIABLE',1)):
             output=verify(mode=mode,expected=result)
