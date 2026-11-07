@@ -4329,6 +4329,34 @@ public final class CelineFutureMemoryRecall {
         return false;
     }
 
+    // TOML multiline `messages = [ ... ]` arrays may contain inline tables
+    // on separate lines. Stop at the closing array bracket, and never cross
+    // a new TOML table section. Only a single map with both keys is a frame.
+    private static final java.util.regex.Pattern TOML_MULTILINE_CHAT_HEADER =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:messages?|chat\\.messages?)[ \\t]*=[ \\t]*\\[[ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+    private static final java.util.regex.Pattern TOML_MULTILINE_CHAT_END =
+            java.util.regex.Pattern.compile(
+                "(?m)^[ \\t]*\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+
+    private static boolean hasTomlMultilineChatFrame(String value) {
+        java.util.regex.Matcher arrays = TOML_MULTILINE_CHAT_HEADER.matcher(value);
+        while (arrays.find()) {
+            java.util.regex.Matcher ends = TOML_MULTILINE_CHAT_END.matcher(value);
+            if (!ends.find(arrays.end())) continue;
+            java.util.regex.Matcher section = TOML_SECTION_HEADER.matcher(value);
+            if (section.find(arrays.end()) && section.start() < ends.start()) continue;
+            java.util.regex.Matcher rows = TOML_INLINE_TABLE.matcher(
+                    value.substring(arrays.end(), ends.start()));
+            while (rows.find()) {
+                String record = rows.group();
+                if (TOML_INLINE_CHAT_ROLE.matcher(record).find()
+                        && TOML_INLINE_CHAT_BODY.matcher(record).find()) return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean hasTomlChatFrame(String value) {
         java.util.regex.Matcher table = TOML_CHAT_MESSAGE_HEADER.matcher(value);
         while (table.find()) {
@@ -4352,7 +4380,8 @@ public final class CelineFutureMemoryRecall {
                         && YAML_CHAT_BODY_LINE.matcher(value).find())
                     || hasYamlFlowChatFrame(value)
                     || hasTomlChatFrame(value)
-                    || hasTomlInlineChatFrame(value));
+                    || hasTomlInlineChatFrame(value)
+                    || hasTomlMultilineChatFrame(value));
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
