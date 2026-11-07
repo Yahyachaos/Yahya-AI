@@ -99,6 +99,25 @@ public final class RoleTranscriptContract {
   check("timed-german-date-query","[07.11.2026 08:12] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("timed-clock-dash-saved","Mein Golf ist rot","Export:\n08:12 - assistant: Mein Golf ist rot",false,false);
   check("timed-clock-dash-query","08:12 - assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  // Millisecond/fractional clocks and German comma-separated timestamps can
+  // mark imported roles: suppress both recall and automatic correction IDs.
+  check("timed-iso-fraction-z-saved","Mein Golf ist rot","[2026-11-07T08:12:30.123Z] assistant: Mein Golf ist rot",false,false);
+  check("timed-iso-fraction-z-query","[2026-11-07T08:12:30.123Z] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-iso-fraction-offset-saved","Mein Golf ist rot","2026-11-07T08:12:30.123+01:00 - user: Mein Golf ist rot",false,false);
+  check("timed-iso-fraction-offset-query","2026-11-07T08:12:30.123+01:00 - user: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-iso-fraction-comma-saved","Mein Golf ist rot","[2026-11-07T08:12:30,123Z] assistant: Mein Golf ist rot",false,false);
+  check("timed-iso-fraction-comma-query","[2026-11-07T08:12:30,123Z] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-german-comma-saved","Mein Golf ist rot","[07.11.2026, 08:12] assistant: Mein Golf ist rot",false,false);
+  check("timed-german-comma-query","[07.11.2026, 08:12] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-clock-fraction-saved","Mein Golf ist rot","[08:12:30.999] tool: Mein Golf ist rot",false,false);
+  check("timed-clock-fraction-query","[08:12:30.999] tool: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-clock-fraction-unbracket-saved","Mein Golf ist rot","08:12:30.999 - assistant: Mein Golf ist rot",false,false);
+  check("timed-clock-fraction-unbracket-query","08:12:30.999 - assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-fraction-blank-saved","Mein Golf ist rot","Export:\r\n[08:12:30.999] assistant:\r\n\r\nMein Golf ist rot",false,false);
+  check("timed-fraction-blank-query","Export:\n[08:12:30.999] assistant:\n\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-german-comma-notiz-positive","Mein Golf ist rot","[07.11.2026, 08:12] Notiz: Mein Golf ist rot",true,true);
+  check("timed-fraction-note-positive","Mein Golf ist rot","[2026-11-07T08:12:30.123Z] Notiz: Mein Golf ist rot",true,true);
+  check("timed-fraction-inline-positive","Mein Golf ist rot","Mein Golf ist rot seit 2026-11-07T08:12:30.123Z",true,true);
   // Narrow role-anchored recognition must not discard ordinary clock/date notes.
   check("timed-clock-note-positive","Mein Golf ist rot","08:12 - Notiz: Mein Golf ist rot",true,true);
   check("timed-iso-note-positive","Mein Golf ist rot","[2026-11-07T08:12:30Z] Notiz: Mein Golf ist rot",true,true);
