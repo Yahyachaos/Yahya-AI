@@ -160,6 +160,10 @@ public final class RoleTranscriptContract {
   check("yaml-speaker-message-query","speaker: tool\nmessage: Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("yaml-role-delta-source","Mein Golf ist rot","Chat:\n  role: developer\n  delta: Mein Golf ist rot",false,false);
   check("yaml-role-parts-source","Mein Golf ist rot","- role: system\n  parts: Mein Golf ist rot",false,false);
+  check("yaml-double-quoted-role-source","Mein Golf ist rot","- role: \"assistant\"\n  content: Mein Golf ist rot",false,false);
+  check("yaml-single-quoted-role-query","role: 'user'\ncontent: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("yaml-double-quoted-role-crlf","Mein Golf ist rot","role: \"tool\"\r\nmessage: Mein Golf ist rot",false,false);
+  check("yaml-quoted-unknown-role-control","Mein Golf ist rot","role: \"owner\"\ncontent: Mein Golf ist rot",true,true);
   check("yaml-unknown-role-control","Mein Golf ist rot","role: owner\ncontent: Mein Golf ist rot",true,true);
   check("yaml-role-only-control","Mein Golf ist rot","Mein Golf ist rot\nrole: user",true,true);
   check("yaml-content-only-control","Mein Golf ist rot","content: Mein Golf ist rot",true,true);
