@@ -4176,7 +4176,7 @@ public final class CelineFutureMemoryRecall {
     // not verified first-party G1 facts. This is a conservative lexical
     // rejection, not authenticated provenance or a trust decision.
     private static final java.util.regex.Pattern IMPORTED_QUOTE_FRAME =
-            java.util.regex.Pattern.compile("(?im)^[ \\t]*(?:`{1,3}|<(?:blockquote|q|pre|code)(?=[\\s>/]))");
+            java.util.regex.Pattern.compile("(?im)^[ \\t]*(?:`{1,3}|~{3,}|<(?:blockquote|q|pre|code)(?=[\\s>/]))");
 
     private static boolean hasImportedQuoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT

@@ -179,6 +179,16 @@ public final class ImportedQuoteHtmlContract {
   test("prefaced-html-pre-query","Notiz:\n<pre>Mein Golf ist rot</pre>","Mein Golf ist rot",false,false);
   test("prefaced-fenced-code-source","Mein Golf ist rot","Export:\n```text\nMein Golf ist rot\n```",false,false);
   test("prefaced-fenced-code-query","Export:\n```text\nMein Golf ist rot\n```","Mein Golf ist rot",false,false);
+  // CommonMark-compatible fenced code can also use 3+ tilde markers.
+  // A copied first-person claim inside a tilde fence is NOT authenticated G1 provenance.
+  test("tilde-fence-source","Mein Golf ist rot","~~~\nMein Golf ist rot\n~~~",false,false);
+  test("tilde-fence-query","~~~\nMein Golf ist rot\n~~~","Mein Golf ist rot",false,false);
+  test("prefaced-tilde-language-source","Mein Golf ist rot","Import:\n  ~~~~java\nMein Golf ist rot\n~~~~",false,false);
+  test("prefaced-tilde-language-query","Import:\n~~~text\nMein Golf ist rot\n~~~","Mein Golf ist rot",false,false);
+  test("tilde-crlf-source","Mein Golf ist rot","Notiz:\r\n~~~\r\nMein Golf ist rot\r\n~~~",false,false);
+  // An inline mention of a fence is not itself a pasted code block.
+  test("inline-tilde-prose-control","Mein Golf ist rot","Mein Golf ist rot und ~~~ bedeutet Code",true,true);
+  test("double-tilde-prose-control","Mein Golf ist rot","~~Mein Golf ist rot~~",true,true);
   test("prefaced-backtick-code-source","Mein Golf ist rot","Export:\n  `Mein Golf ist rot`",false,false);
   test("inline-html-tag-positive","Mein Golf ist rot","Mein Golf ist rot und <code>rot</code> ist hier ein Wort",true,true);
   test("direct-positive","Mein Golf ist rot","Mein Golf ist rot",true,true);
