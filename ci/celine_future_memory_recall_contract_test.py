@@ -170,6 +170,17 @@ public final class ImportedQuoteHtmlContract {
   test("html-code-source","Mein Golf ist rot","<code>Mein Golf ist rot</code>",false,false);
   test("html-pre-source","Mein Golf ist rot","<pre class=\"snippet\">Mein Golf ist rot</pre>",false,false);
   test("html-q-query","<q>Mein Golf ist rot</q>","Mein Golf ist rot",false,false);
+  // A pasted quote/code block can follow an export note on a new line.
+  // That makes the quoted text external, even when its first-person words match.
+  test("prefaced-html-blockquote-source","Mein Golf ist rot","Exportiert:\n<blockquote>Mein Golf ist rot</blockquote>",false,false);
+  test("prefaced-html-blockquote-query","Exportiert:\n<blockquote>Mein Golf ist rot</blockquote>","Mein Golf ist rot",false,false);
+  test("prefaced-html-q-source","Mein Golf ist rot","Kopie:\n<q>Mein Golf ist rot</q>",false,false);
+  test("prefaced-html-code-source","Mein Golf ist rot","Import:\n  <code>Mein Golf ist rot</code>",false,false);
+  test("prefaced-html-pre-query","Notiz:\n<pre>Mein Golf ist rot</pre>","Mein Golf ist rot",false,false);
+  test("prefaced-fenced-code-source","Mein Golf ist rot","Export:\n```text\nMein Golf ist rot\n```",false,false);
+  test("prefaced-fenced-code-query","Export:\n```text\nMein Golf ist rot\n```","Mein Golf ist rot",false,false);
+  test("prefaced-backtick-code-source","Mein Golf ist rot","Export:\n  `Mein Golf ist rot`",false,false);
+  test("inline-html-tag-positive","Mein Golf ist rot","Mein Golf ist rot und <code>rot</code> ist hier ein Wort",true,true);
   test("direct-positive","Mein Golf ist rot","Mein Golf ist rot",true,true);
   test("read-only-question","Habe ich einen Golf","Ich habe einen Golf",true,false);
   test("inline-code-prose-control","Mein Golf ist rot","Mein Golf ist rot und in `HTML` steht mehr",true,true);
