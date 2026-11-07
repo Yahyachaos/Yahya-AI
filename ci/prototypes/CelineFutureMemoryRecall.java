@@ -4260,6 +4260,29 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)'):[ \\t]*\\S");
 
+    // YAML flow maps are a one-line alternative to block records:
+    // `{role: assistant, content: ...}` or `{content: ..., speaker: user}`.
+    // Require BOTH fields inside the SAME bounded, non-nested flow mapping;
+    // unrelated notes or an unknown role are not transcript evidence.
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_MAP =
+            java.util.regex.Pattern.compile("(?m)^[ \t]*(?:-[ \t]+)?\\{[^\\r\\n{}]*\\}[ \t]*(?=\\r?$)");
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_ROLE =
+            java.util.regex.Pattern.compile(
+                "(?i)(?:\\{|,)[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')\\s*:\\s*(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_BODY =
+            java.util.regex.Pattern.compile(
+                "(?i)(?:\\{|,)[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')\\s*:[ \t]*\\S");
+
+    private static boolean hasYamlFlowChatFrame(String value) {
+        java.util.regex.Matcher maps = YAML_CHAT_FLOW_MAP.matcher(value);
+        while (maps.find()) {
+            String flow = maps.group();
+            if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()
+                    && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
+        }
+        return false;
+    }
+
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
                 && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
@@ -4267,7 +4290,8 @@ public final class CelineFutureMemoryRecall {
                     || (JSON_CHAT_ROLE_FIELD.matcher(value).find()
                         && JSON_CHAT_CONTENT_FIELD.matcher(value).find())
                     || (YAML_CHAT_ROLE_LINE.matcher(value).find()
-                        && YAML_CHAT_BODY_LINE.matcher(value).find()));
+                        && YAML_CHAT_BODY_LINE.matcher(value).find())
+                    || hasYamlFlowChatFrame(value));
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
