@@ -3067,6 +3067,7 @@ public final class CelineFutureMemoryRecall {
         // must not prove a different record. Preserve the established provider
         // handling of bare stars/blocks and the stricter correction-only gate.
         if (hasExplicitTaggedRedactionMarker(query)
+                || hasImportedQuoteFrame(query)
                 || hasMarkdownBlockquoteFrame(query)
                 || hasSemanticLeadingOrInfixPictograph(query))
             return Collections.emptyList();
@@ -3150,7 +3151,8 @@ public final class CelineFutureMemoryRecall {
             // when its surviving words match. Do not rank it for provider recall;
             // its ID still participates in lineage/supersession quarantine.
             if (isExplicitRedactionMarker(c.summary)
-                    || hasMarkdownBlockquoteFrame(c.summary)
+                    || hasImportedQuoteFrame(c.summary)
+                || hasMarkdownBlockquoteFrame(c.summary)
                     || hasSemanticLeadingOrInfixPictograph(c.summary)
                     || hasUncertainAbsoluteAge(c.summary)) continue;
             String storedHaveTime = explicitFirstPersonHaveTime(c.summary);
@@ -3276,6 +3278,7 @@ public final class CelineFutureMemoryRecall {
         // Remaining visible terms must never authorize a guessed memory ID;
         // the owner-provided exact-ID correction UI is the safe fallback.
         if (isExplicitRedactionMarker(correctionText)
+                || hasImportedQuoteFrame(correctionText)
                 || hasMarkdownBlockquoteFrame(correctionText)
                 || hasUnrepresentedPictograph(correctionText)
                 // A past/present possession question is read-only. Never
@@ -4166,6 +4169,17 @@ public final class CelineFutureMemoryRecall {
     // including "Luna ❤️, heute" which must remain searchable. The first
     // lexical position is computed once so even long pictograph prefixes are
     // checked in linear time.
+    // FUTURE ONLY: top-level quoted/code imports are external text frames,
+    // not verified first-party G1 facts. This is a conservative lexical
+    // rejection, not authenticated provenance or a trust decision.
+    private static final java.util.regex.Pattern IMPORTED_QUOTE_FRAME =
+            java.util.regex.Pattern.compile("(?is)\\A\\s*(?:`{1,3}|<(?:blockquote|q|pre|code)(?=[\\s>/]))");
+
+    private static boolean hasImportedQuoteFrame(String value) {
+        return value != null && value.length() <= MAX_INPUT
+                && IMPORTED_QUOTE_FRAME.matcher(value).find();
+    }
+
     // FUTURE ONLY: quoted/imported Markdown lines are not first-party G1
     // assertions. Detect compact and spaced blockquotes, including nested
     // levels with punctuation or leading numbers. Ordinary

@@ -9,6 +9,51 @@ import sys
 source = Path(__file__).with_name('prototypes') / 'CelineFutureMemoryRecall.java'
 assert source.is_file(), source
 
+# FUTURE ONLY: quoted/embedded source text is not a first-party memory assertion.
+if '--focused-imported-quote-html' in sys.argv:
+    harness = r'''package de.yahya.ai;
+import java.util.*;
+public final class ImportedQuoteHtmlContract {
+ static int checks;
+ static void test(String label,String query,String summary,boolean expectRecall,boolean expectCorrection) {
+  var candidate=new CelineFutureMemoryRecall.Candidate("memory-1",summary,"",
+   CelineFutureMemoryRecall.Privacy.LOCAL_PRIVATE,true,true,100,0,.95);
+  var items=List.of(candidate);
+  boolean gotRecall=!CelineFutureMemoryRecall.retrieve(query,items,3,1000).isEmpty();
+  boolean gotCorrection=!CelineFutureMemoryRecall.unambiguousCorrectionTarget(query,items,1000).isEmpty();
+  if(gotRecall!=expectRecall||gotCorrection!=expectCorrection)
+   throw new AssertionError(label+" expected="+expectRecall+"/"+expectCorrection+" got="+gotRecall+"/"+gotCorrection);
+  checks+=2;
+ }
+ public static void main(String[] args){
+  test("backtick-source","Mein Golf ist rot","`Mein Golf ist rot`",false,false);
+  test("backtick-query","`Mein Golf ist rot`","Mein Golf ist rot",false,false);
+  test("code-fence-source","Mein Golf ist rot","```text\nMein Golf ist rot\n```",false,false);
+  test("code-fence-query","```\nMein Golf ist rot\n```","Mein Golf ist rot",false,false);
+  test("html-blockquote-source","Mein Golf ist rot","<blockquote>Mein Golf ist rot</blockquote>",false,false);
+  test("html-blockquote-query","<blockquote>Mein Golf ist rot</blockquote>","Mein Golf ist rot",false,false);
+  test("html-attr-quote-source","Mein Golf ist rot","<blockquote class='gmail_quote'>Mein Golf ist rot</blockquote>",false,false);
+  test("html-code-source","Mein Golf ist rot","<code>Mein Golf ist rot</code>",false,false);
+  test("html-pre-source","Mein Golf ist rot","<pre class=\"snippet\">Mein Golf ist rot</pre>",false,false);
+  test("html-q-query","<q>Mein Golf ist rot</q>","Mein Golf ist rot",false,false);
+  test("direct-positive","Mein Golf ist rot","Mein Golf ist rot",true,true);
+  test("read-only-question","Habe ich einen Golf","Ich habe einen Golf",true,false);
+  test("inline-code-prose-control","Mein Golf ist rot","Mein Golf ist rot und in `HTML` steht mehr",true,true);
+  test("html-word-prose-control","Mein Golf ist rot","Mein Golf ist rot und das steht in HTML",true,true);
+  System.out.println("IMPORTED_QUOTE_HTML_PASS checks="+checks);
+ }
+}
+'''
+    with tempfile.TemporaryDirectory(prefix='future_imported_quote_') as tmp:
+        f=Path(tmp)/'ImportedQuoteHtmlContract.java'
+        f.write_text(harness,encoding='utf-8')
+        compiled=subprocess.run(['javac','-encoding','UTF-8','-d',tmp,str(source),str(f)],capture_output=True,text=True,timeout=120)
+        assert compiled.returncode==0,compiled.stdout+compiled.stderr
+        ran=subprocess.run(['java','-Dfile.encoding=UTF-8','-cp',tmp,'de.yahya.ai.ImportedQuoteHtmlContract'],capture_output=True,text=True,timeout=60)
+        assert ran.returncode==0,ran.stdout+ran.stderr
+        print(ran.stdout.strip())
+    sys.exit(0)
+
 # FUTURE ONLY — compact and spaced Markdown blockquotes are not user facts.
 if '--focused-markdown-blockquote' in sys.argv:
     harness = r'''package de.yahya.ai;
