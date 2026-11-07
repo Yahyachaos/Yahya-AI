@@ -4295,10 +4295,10 @@ public final class CelineFutureMemoryRecall {
                 "(?m)^[ \t]*\\[[^\\r\\n]*\\][ \t]*(?=\\r?$)");
     private static final java.util.regex.Pattern TOML_CHAT_ROLE =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \t]*(?:role|speaker)[ \t]*=[ \t]*(['\"])(?:assistant|user|system|developer|tool)\\1(?:[ \t]+#[^\\r\\n]*)?[ \t]*(?=\\r?$)");
+                "(?im)^[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')[ \t]*=[ \t]*(['\"])(?:assistant|user|system|developer|tool)\\1(?:[ \t]+#[^\\r\\n]*)?[ \t]*(?=\\r?$)");
     private static final java.util.regex.Pattern TOML_CHAT_BODY =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \t]*(?:content|text|message|parts|delta)[ \t]*=[ \t]*\\S");
+                "(?im)^[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \t]*=[ \t]*\\S");
 
     private static boolean hasTomlChatFrame(String value) {
         java.util.regex.Matcher table = TOML_CHAT_MESSAGE_HEADER.matcher(value);
