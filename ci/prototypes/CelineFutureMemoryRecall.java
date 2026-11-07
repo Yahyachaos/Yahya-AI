@@ -4198,11 +4198,13 @@ public final class CelineFutureMemoryRecall {
 
 
     // Imported conversation role headers are not proof of first-party G1
-    // origin, even when a copied speaker calls themselves "user". This is
-    // an anchored, conservative import-frame rejection, not authentication.
+    // origin, even when a copied speaker calls themselves "user". A genuine
+    // transcript role may follow an import/export note, so check every role
+    // line start, not just the beginning of the whole text. This remains a
+    // conservative lexical abstention, not authenticated provenance.
     private static final java.util.regex.Pattern IMPORTED_TRANSCRIPT_FRAME =
             java.util.regex.Pattern.compile(
-                "(?iu)\\A\\s*(?:\\[(?:assistant|user|system|developer|tool)\\]\\s*:?\\s*\\S"
+                "(?imu)^[ \t]*(?:\\[(?:assistant|user|system|developer|tool)\\]\\s*:?\\s*\\S"
                 + "|#{1,6}[ \\t]+(?:assistant|user|system|developer|tool)\\s*(?::[ \\t]*\\S|\\R)"
                 + "|<\\|im_start\\|>\\s*(?:assistant|user|system|developer|tool)(?=\\s|$)"
                 + "|\\*\\*(?:assistant|user|system|developer|tool):?\\*\\*[ \\t]*\\S"
