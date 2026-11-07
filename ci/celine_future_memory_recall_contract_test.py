@@ -77,6 +77,23 @@ public final class RoleTranscriptContract {
   check("prefaced-indented-tool","Mein Golf ist rot","Protokoll:\n   [tool] Mein Golf ist rot",false,false);
   check("prefaced-multi-role","Mein Golf ist rot","Vergleich:\n[system] antworte kurz\n[assistant] Mein Golf ist rot",false,false);
   check("unlabelled-notes-positive","Mein Golf ist rot","Meine Notizen\nMein Golf ist rot",true,true);
+  // Timestamped external role frames are NOT direct-user memory: check both
+  // stored projections and inbound correction/query subjects.
+  check("timed-iso-bracket-saved","Mein Golf ist rot","Export:\n[2026-11-07 08:12] assistant: Mein Golf ist rot",false,false);
+  check("timed-iso-bracket-query","[2026-11-07 08:12] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-iso-dash-saved","Mein Golf ist rot","2026-11-07 08:12 - assistant: Mein Golf ist rot",false,false);
+  check("timed-iso-dash-query","2026-11-07 08:12 - assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-clock-bracket-saved","Mein Golf ist rot","[08:12] user: Mein Golf ist rot",false,false);
+  check("timed-clock-bracket-query","[08:12] user: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-german-bracket-saved","Mein Golf ist rot","[08:12, 7.11.2026] assistant: Mein Golf ist rot",false,false);
+  check("timed-german-bracket-query","[08:12, 7.11.2026] assistant: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("timed-role-nextline-saved","Mein Golf ist rot","Export:\r\n[08:12] assistant:\r\nMein Golf ist rot",false,false);
+  check("timed-role-blank-query","Export:\n[08:12] user:\n\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  // Timestamp as ordinary content, without a copied speaker role, is not a
+  // reason to discard a direct first-party fact.
+  check("timestamp-prose-positive","Mein Golf ist rot","Mein Golf ist rot seit 2026-11-07 um 08:12",true,true);
+  check("timestamp-note-positive","Mein Golf ist rot","2026-11-07 08:12 - Notiz: Mein Golf ist rot",true,true);
+  check("timestamp-role-middle-positive","Mein Golf ist rot (assistant: vermerkt)","Mein Golf ist rot (assistant: vermerkt) seit 08:12",true,true);
   check("direct-fact","Mein Golf ist rot","Mein Golf ist rot",true,true);
   check("assistant-in-prose","Mein Assistent ist Celin","Mein Assistent ist Celin",true,true);
   check("question-readonly","Habe ich einen Golf","Ich habe einen Golf",true,false);

@@ -4213,9 +4213,22 @@ public final class CelineFutureMemoryRecall {
                 + "|\\[INST\\]\\s*\\S|<<SYS>>\\s*\\S"
                 + "|(?:assistant|user|system|developer|tool):(?:[ \\t]*\\S|[ \\t]*\\R(?:[ \\t]*\\R)*[ \\t]*\\S))");
 
+    // A copied conversation line may have a timestamp before its speaker.
+    // Recognize only narrow, line-anchored clock/ISO-date prefixes followed
+    // by an actual role token. The existing 512-character input cap bounds
+    // scanning; matching text is never considered authenticated provenance.
+    private static final java.util.regex.Pattern TIMESTAMPED_TRANSCRIPT_FRAME =
+            java.util.regex.Pattern.compile(
+                "(?imu)^[ \t]*(?:\\[(?:\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?"
+                + "|\\d{1,2}:\\d{2}(?::\\d{2})?(?:,[ \t]*\\d{1,2}\\.\\d{1,2}\\.\\d{4})?)\\]"
+                + "|\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?)"
+                + "[ \t]*(?:[-|][ \t]*)?(?:assistant|user|system|developer|tool):"
+                + "(?:[ \t]*\\S|[ \t]*\\R(?:[ \t]*\\R)*[ \t]*\\S)");
+
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
-                && IMPORTED_TRANSCRIPT_FRAME.matcher(value).find();
+                && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
+                    || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find());
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
