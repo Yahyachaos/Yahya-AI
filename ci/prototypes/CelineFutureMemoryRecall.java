@@ -4238,15 +4238,15 @@ public final class CelineFutureMemoryRecall {
                 + "[ \t]*(?:[-|][ \t]*)?(?:assistant|user|system|developer|tool):"
                 + "(?:[ \t]*\\S|[ \t]*\\R(?:[ \t]*\\R)*[ \t]*\\S)");
 
-    // JSON-formatted chat exports can carry first-person text attributed to
-    // "user", "assistant" or tools. A role field plus a content field in a
-    // bounded JSON-like record is only evidence of an IMPORT, never authentic
-    // G1 user-origin. Keep JSON snippets without this pair searchable.
+    // JSON chat exports may use role/text, role/message, or speaker/content
+    // as well as role/content. Recognized role + message fields are evidence
+    // of a copied transcript, never authenticated first-party G1 origin.
+    // Unlabelled JSON facts and unknown role values remain searchable.
     private static final java.util.regex.Pattern JSON_CHAT_ROLE_FIELD =
             java.util.regex.Pattern.compile(
-                "(?i)[\\[{,][ \\t\\r\\n]*\\\"role\\\"\\s*:\\s*\\\"(?:assistant|user|system|developer|tool)\\\"\\s*[,}]");
+                "(?i)[\\[{,][ \\t\\r\\n]*\\\"(?:role|speaker)\\\"\\s*:\\s*\\\"(?:assistant|user|system|developer|tool)\\\"\\s*[,}]");
     private static final java.util.regex.Pattern JSON_CHAT_CONTENT_FIELD =
-            java.util.regex.Pattern.compile("(?i)\\\"content\\\"\\s*:");
+            java.util.regex.Pattern.compile("(?i)\\\"(?:content|text|message)\\\"\\s*:");
 
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT

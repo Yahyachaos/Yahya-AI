@@ -135,6 +135,22 @@ public final class RoleTranscriptContract {
   check("json-content-first-source","Mein Golf ist rot","{\"content\":\"Mein Golf ist rot\",\"role\":\"system\"}",false,false);
   check("json-multiline-source","Mein Golf ist rot","Export:\n{\n  \"role\": \"assistant\",\n  \"content\": \"Mein Golf ist rot\"\n}",false,false);
   check("json-export-with-header","Mein Golf ist rot","Kopie:\n{\"messages\":[{\"role\":\"developer\",\"content\":\"Mein Golf ist rot\"}]}",false,false);
+  // Other common export schemas must be treated as copied messages, NOT
+  // direct user G1 assertions. Each suppresses recall and correction ID.
+  check("json-role-text-source","Mein Golf ist rot","{\"role\":\"assistant\",\"text\":\"Mein Golf ist rot\"}",false,false);
+  check("json-role-text-query","{\"role\":\"user\",\"text\":\"Mein Golf ist rot\"}","Mein Golf ist rot",false,false);
+  check("json-role-message-source","Mein Golf ist rot","{\"role\":\"tool\",\"message\":\"Mein Golf ist rot\"}",false,false);
+  check("json-role-message-query","{\"message\":\"Mein Golf ist rot\",\"role\":\"developer\"}","Mein Golf ist rot",false,false);
+  check("json-speaker-content-source","Mein Golf ist rot","{\"speaker\":\"assistant\",\"content\":\"Mein Golf ist rot\"}",false,false);
+  check("json-speaker-content-query","{\"content\":\"Mein Golf ist rot\",\"speaker\":\"user\"}","Mein Golf ist rot",false,false);
+  check("json-role-text-multiline","Mein Golf ist rot","Export:\n{\n \"role\": \"assistant\",\n \"text\": \"Mein Golf ist rot\"\n}",false,false);
+  check("json-speaker-content-array","Mein Golf ist rot","Kopie: [{\"speaker\":\"tool\",\"content\":\"Mein Golf ist rot\"}]",false,false);
+  // Retain ordinary JSON notes when no recognized chat role/message pair.
+  check("json-unknown-role-text-control","Mein Golf ist rot","{\"role\":\"owner\",\"text\":\"Mein Golf ist rot\"}",true,true);
+  check("json-unknown-speaker-control","Mein Golf ist rot","{\"speaker\":\"owner\",\"content\":\"Mein Golf ist rot\"}",true,true);
+  check("json-text-without-role-control","Mein Golf ist rot","{\"text\":\"Mein Golf ist rot\"}",true,true);
+  check("json-message-without-role-control","Mein Golf ist rot","{\"message\":\"Mein Golf ist rot\"}",true,true);
+
   check("json-content-without-role-control","Mein Golf ist rot","{\"content\":\"Mein Golf ist rot\"}",true,true);
   check("json-role-without-content-control","Mein Golf ist rot","Mein Golf ist rot; Feldname \"role\": \"assistant\"",true,true);
   check("direct-fact","Mein Golf ist rot","Mein Golf ist rot",true,true);
