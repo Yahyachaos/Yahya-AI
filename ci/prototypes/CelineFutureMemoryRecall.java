@@ -4200,16 +4200,17 @@ public final class CelineFutureMemoryRecall {
     // Imported conversation role headers are not proof of first-party G1
     // origin, even when a copied speaker calls themselves "user". A genuine
     // transcript role may follow an import/export note, so check every role
-    // line start, not just the beginning of the whole text. This remains a
-    // conservative lexical abstention, not authenticated provenance.
+    // line start, not just the beginning of the whole text. Role labels
+    // alone on a line may introduce the copied message on the next line.
+    // This remains conservative lexical abstention, not provenance proof.
     private static final java.util.regex.Pattern IMPORTED_TRANSCRIPT_FRAME =
             java.util.regex.Pattern.compile(
                 "(?imu)^[ \t]*(?:\\[(?:assistant|user|system|developer|tool)\\]\\s*:?\\s*\\S"
                 + "|#{1,6}[ \\t]+(?:assistant|user|system|developer|tool)\\s*(?::[ \\t]*\\S|\\R)"
                 + "|<\\|im_start\\|>\\s*(?:assistant|user|system|developer|tool)(?=\\s|$)"
-                + "|\\*\\*(?:assistant|user|system|developer|tool):?\\*\\*[ \\t]*\\S"
+                + "|\\*\\*(?:assistant|user|system|developer|tool):?\\*\\*(?:[ \\t]*\\S|[ \\t]*\\R[ \\t]*\\S)"
                 + "|\\[INST\\]\\s*\\S|<<SYS>>\\s*\\S"
-                + "|(?:assistant|user|system|developer|tool):[ \\t]*\\S)");
+                + "|(?:assistant|user|system|developer|tool):(?:[ \\t]*\\S|[ \\t]*\\R[ \\t]*\\S))");
 
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
