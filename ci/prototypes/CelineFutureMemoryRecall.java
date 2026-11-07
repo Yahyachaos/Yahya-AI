@@ -4178,9 +4178,17 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern IMPORTED_QUOTE_FRAME =
             java.util.regex.Pattern.compile("(?im)^[ \\t]*(?:`{1,3}|~{3,}|<(?:blockquote|q|pre|code)(?=[\\s>/]))");
 
+    // CommonMark-style indented code blocks (four spaces or a tab) are also
+    // copied/untrusted text, not independently verified user-origin G1 facts.
+    // MAX_INPUT bounds the scan; ordinary three-space and inline spacing are
+    // deliberately not treated as fenced or indented code.
+    private static final java.util.regex.Pattern INDENTED_CODE_FRAME =
+            java.util.regex.Pattern.compile("(?m)^(?: {4,}|\\t+)[ \t]*\\S");
+
     private static boolean hasImportedQuoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
-                && IMPORTED_QUOTE_FRAME.matcher(value).find();
+                && (IMPORTED_QUOTE_FRAME.matcher(value).find()
+                    || INDENTED_CODE_FRAME.matcher(value).find());
     }
 
     // FUTURE ONLY: quoted/imported Markdown lines are not first-party G1

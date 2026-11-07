@@ -179,6 +179,16 @@ public final class ImportedQuoteHtmlContract {
   test("prefaced-html-pre-query","Notiz:\n<pre>Mein Golf ist rot</pre>","Mein Golf ist rot",false,false);
   test("prefaced-fenced-code-source","Mein Golf ist rot","Export:\n```text\nMein Golf ist rot\n```",false,false);
   test("prefaced-fenced-code-query","Export:\n```text\nMein Golf ist rot\n```","Mein Golf ist rot",false,false);
+  // Markdown also treats four-space or tab-indented material as copied code.
+  // Its first-person words are not independently authenticated G1 memories.
+  test("indented-code-source","Mein Golf ist rot","Export:\n    Mein Golf ist rot",false,false);
+  test("indented-code-query","Export:\n    Mein Golf ist rot","Mein Golf ist rot",false,false);
+  test("indented-tab-source","Mein Golf ist rot","Import:\n\tMein Golf ist rot",false,false);
+  test("indented-tab-query","Import:\n\tMein Golf ist rot","Mein Golf ist rot",false,false);
+  test("indented-crlf-source","Mein Golf ist rot","Export:\r\n    Mein Golf ist rot",false,false);
+  // Less than four spaces is ordinary note formatting, not a code block.
+  test("three-space-note-control","Mein Golf ist rot","   Mein Golf ist rot",true,true);
+  test("inline-four-space-control","Mein Golf ist rot","Mein Golf ist rot    und das stimmt",true,true);
   // CommonMark-compatible fenced code can also use 3+ tilde markers.
   // A copied first-person claim inside a tilde fence is NOT authenticated G1 provenance.
   test("tilde-fence-source","Mein Golf ist rot","~~~\nMein Golf ist rot\n~~~",false,false);
