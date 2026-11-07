@@ -31,6 +31,16 @@ public final class MarkdownBlockquoteContract {
   check("compact-query",">Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("nested-query",">>Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("spaced-query","> Mein Golf ist rot","Mein Golf ist rot",false,false);
+  // Real Markdown import: a quote may start with punctuation, numbers or Unicode quotes.
+  check("curly-quote-source", "Mein Golf ist rot", ">„Mein Golf ist rot“", false, false);
+  check("curly-quote-query", ">„Mein Golf ist rot“", "Mein Golf ist rot", false, false);
+  check("year-prefix-source", "Mein Golf ist rot", ">2026 Mein Golf ist rot", false, false);
+  check("year-prefix-query", ">2026 Mein Golf ist rot", "Mein Golf ist rot", false, false);
+  check("ascii-quote-source", "Mein Golf ist rot", ">\"Mein Golf ist rot\"", false, false);
+  check("punctuation-prefix-source", "Mein Golf ist rot", "> (Mein Golf ist rot)", false, false);
+  check("nested-number-source", "Mein Golf ist rot", ">>2026 Mein Golf ist rot", false, false);
+  check("multiline-year-query", "Notiz\n>2026 Mein Golf ist rot", "Mein Golf ist rot", false, false);
+  check("non-markdown-math-control", "Mein Golf ist rot", "Mein Golf ist rot und 2 > 1", true, true);
   check("direct-positive","Mein Golf ist rot","Mein Golf ist rot",true,true);
   check("prose-greater-than","Mein Golf ist rot","Mein Golf ist rot und das Zeichen > steht hier",true,true);
   check("read-only-question","Habe ich einen Golf","Ich habe einen Golf",true,false);

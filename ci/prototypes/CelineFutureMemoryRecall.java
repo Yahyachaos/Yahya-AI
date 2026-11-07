@@ -4168,10 +4168,11 @@ public final class CelineFutureMemoryRecall {
     // checked in linear time.
     // FUTURE ONLY: quoted/imported Markdown lines are not first-party G1
     // assertions. Detect compact and spaced blockquotes, including nested
-    // levels, without rejecting an ordinary greater-than sign inside prose.
+    // levels with punctuation or leading numbers. Ordinary
+    // greater-than signs inside prose are not line-anchored and remain valid.
     // This lexical guard is not proof of authenticated source provenance.
     private static final java.util.regex.Pattern MARKDOWN_BLOCKQUOTE_FRAME =
-            java.util.regex.Pattern.compile("(?m)^[ 	]*>{1,4}[ 	]*(?=[A-Za-zÄÖÜäöü])");
+            java.util.regex.Pattern.compile("(?m)^[ 	]*>{1,4}[ 	]*(?=\\S)");
 
     private static boolean hasMarkdownBlockquoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
