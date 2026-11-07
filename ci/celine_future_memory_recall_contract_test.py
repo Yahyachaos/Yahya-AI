@@ -151,6 +151,19 @@ public final class RoleTranscriptContract {
   check("json-role-parts-query","{\"parts\":[\"Mein Golf ist rot\"],\"role\":\"user\"}","Mein Golf ist rot",false,false);
   check("json-role-delta-source","Mein Golf ist rot","{\"role\":\"tool\",\"delta\":\"Mein Golf ist rot\"}",false,false);
   check("json-role-delta-query","{\"delta\":\"Mein Golf ist rot\",\"speaker\":\"developer\"}","Mein Golf ist rot",false,false);
+  // YAML conversation exports with role/speaker metadata are also external
+  // copied messages; only a recognized role + a distinct message-body field
+  // triggers abstention. Bare notes and unknown roles remain searchable.
+  check("yaml-list-role-content-source","Mein Golf ist rot","Export:\n- role: assistant\n  content: Mein Golf ist rot",false,false);
+  check("yaml-list-role-content-query","- role: user\n  content: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("yaml-role-text-source","Mein Golf ist rot","role: user\ntext: Mein Golf ist rot",false,false);
+  check("yaml-speaker-message-query","speaker: tool\nmessage: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("yaml-role-delta-source","Mein Golf ist rot","Chat:\n  role: developer\n  delta: Mein Golf ist rot",false,false);
+  check("yaml-role-parts-source","Mein Golf ist rot","- role: system\n  parts: Mein Golf ist rot",false,false);
+  check("yaml-unknown-role-control","Mein Golf ist rot","role: owner\ncontent: Mein Golf ist rot",true,true);
+  check("yaml-role-only-control","Mein Golf ist rot","Mein Golf ist rot\nrole: user",true,true);
+  check("yaml-content-only-control","Mein Golf ist rot","content: Mein Golf ist rot",true,true);
+  check("yaml-role-inline-prose-control","Mein Golf ist rot (role: user)","Mein Golf ist rot (role: user)",true,true);
   check("json-plain-parts-control","Mein Golf ist rot","{\"parts\":[\"Mein Golf ist rot\"]}",true,true);
   check("json-plain-delta-control","Mein Golf ist rot","{\"delta\":\"Mein Golf ist rot\"}",true,true);
   check("json-custom-role-parts-control","Mein Golf ist rot","{\"role\":\"owner\",\"parts\":[\"Mein Golf ist rot\"]}",true,true);

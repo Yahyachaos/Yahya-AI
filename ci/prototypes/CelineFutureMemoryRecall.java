@@ -4249,12 +4249,25 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern JSON_CHAT_CONTENT_FIELD =
             java.util.regex.Pattern.compile("(?i)\\\"(?:content|text|message|parts|delta)\\\"\\s*:");
 
+    // YAML-style copied chat records have plain role/speaker lines followed
+    // by content/text/message/parts/delta. Both line-anchored fields must
+    // occur; an ordinary note with only one field remains eligible. This is
+    // conservative import abstention, not authenticated source provenance.
+    private static final java.util.regex.Pattern YAML_CHAT_ROLE_LINE =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:role|speaker):[ \\t]*(?:assistant|user|system|developer|tool)[ \\t]*(?=\\r?$)");
+    private static final java.util.regex.Pattern YAML_CHAT_BODY_LINE =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta):[ \\t]*\\S");
+
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
                 && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
                     || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find()
                     || (JSON_CHAT_ROLE_FIELD.matcher(value).find()
-                        && JSON_CHAT_CONTENT_FIELD.matcher(value).find()));
+                        && JSON_CHAT_CONTENT_FIELD.matcher(value).find())
+                    || (YAML_CHAT_ROLE_LINE.matcher(value).find()
+                        && YAML_CHAT_BODY_LINE.matcher(value).find()));
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
