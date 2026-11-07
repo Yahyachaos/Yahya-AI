@@ -46,6 +46,13 @@ public final class RoleTranscriptContract {
   check("colon-nextline-query","Export:\nassistant:\nMein Golf ist rot","Mein Golf ist rot",false,false);
   check("bold-nextline-saved","Mein Golf ist rot","Export:\n**Assistant:**\nMein Golf ist rot",false,false);
   check("bold-nextline-query","Export:\n**Assistant:**\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  // Blank separator lines in copied dialogs must not become authenticated facts.
+  check("colon-blank-saved","Mein Golf ist rot","Export:\nassistant:\n\nMein Golf ist rot",false,false);
+  check("colon-blank-query","Export:\nassistant:\n\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  check("bold-blank-saved","Mein Golf ist rot","Export:\n**Assistant:**\n\nMein Golf ist rot",false,false);
+  check("bold-blank-query","Export:\n**Assistant:**\n\nMein Golf ist rot","Mein Golf ist rot",false,false);
+  check("colon-crlf-blank-saved","Mein Golf ist rot","Export:\r\nuser:\r\n \r\nMein Golf ist rot",false,false);
+  check("bold-multiple-blank-saved","Mein Golf ist rot","Export:\n **tool:** \n\n  \n  Mein Golf ist rot",false,false);
   check("colon-crlf-saved","Mein Golf ist rot","Export:\r\nuser:\r\nMein Golf ist rot",false,false);
   check("bold-indented-nextline","Mein Golf ist rot","Export:\n   **tool:**  \n   Mein Golf ist rot",false,false);
   check("colon-in-notes-elsewhere","Mein Golf ist rot","Notizen\nMein Golf ist rot\nsystem:\ngekürzt",false,false);

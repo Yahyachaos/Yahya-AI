@@ -4208,9 +4208,9 @@ public final class CelineFutureMemoryRecall {
                 "(?imu)^[ \t]*(?:\\[(?:assistant|user|system|developer|tool)\\]\\s*:?\\s*\\S"
                 + "|#{1,6}[ \\t]+(?:assistant|user|system|developer|tool)\\s*(?::[ \\t]*\\S|\\R)"
                 + "|<\\|im_start\\|>\\s*(?:assistant|user|system|developer|tool)(?=\\s|$)"
-                + "|\\*\\*(?:assistant|user|system|developer|tool):?\\*\\*(?:[ \\t]*\\S|[ \\t]*\\R[ \\t]*\\S)"
+                + "|\\*\\*(?:assistant|user|system|developer|tool):?\\*\\*(?:[ \\t]*\\S|[ \\t]*\\R(?:[ \\t]*\\R){0,7}[ \\t]*\\S)"
                 + "|\\[INST\\]\\s*\\S|<<SYS>>\\s*\\S"
-                + "|(?:assistant|user|system|developer|tool):(?:[ \\t]*\\S|[ \\t]*\\R[ \\t]*\\S))");
+                + "|(?:assistant|user|system|developer|tool):(?:[ \\t]*\\S|[ \\t]*\\R(?:[ \\t]*\\R){0,7}[ \\t]*\\S))");
 
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
