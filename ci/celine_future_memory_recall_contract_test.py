@@ -126,6 +126,17 @@ public final class RoleTranscriptContract {
   check("timestamp-prose-positive","Mein Golf ist rot","Mein Golf ist rot seit 2026-11-07 um 08:12",true,true);
   check("timestamp-note-positive","Mein Golf ist rot","2026-11-07 08:12 - Notiz: Mein Golf ist rot",true,true);
   check("timestamp-role-middle-positive","Mein Golf ist rot (assistant: vermerkt)","Mein Golf ist rot (assistant: vermerkt) seit 08:12",true,true);
+  // Imported JSON chat exports are external transcripts even when they
+  // attribute first-person words to "user". Preserve ordinary JSON prose.
+  check("json-role-assistant-source","Mein Golf ist rot","{\"role\":\"assistant\",\"content\":\"Mein Golf ist rot\"}",false,false);
+  check("json-role-assistant-query","{\"role\":\"assistant\",\"content\":\"Mein Golf ist rot\"}","Mein Golf ist rot",false,false);
+  check("json-role-user-source","Mein Golf ist rot","{\"role\": \"user\", \"content\": \"Mein Golf ist rot\"}",false,false);
+  check("json-role-tool-query","[{\"role\":\"tool\",\"content\":\"Mein Golf ist rot\"}]","Mein Golf ist rot",false,false);
+  check("json-content-first-source","Mein Golf ist rot","{\"content\":\"Mein Golf ist rot\",\"role\":\"system\"}",false,false);
+  check("json-multiline-source","Mein Golf ist rot","Export:\n{\n  \"role\": \"assistant\",\n  \"content\": \"Mein Golf ist rot\"\n}",false,false);
+  check("json-export-with-header","Mein Golf ist rot","Kopie:\n{\"messages\":[{\"role\":\"developer\",\"content\":\"Mein Golf ist rot\"}]}",false,false);
+  check("json-content-without-role-control","Mein Golf ist rot","{\"content\":\"Mein Golf ist rot\"}",true,true);
+  check("json-role-without-content-control","Mein Golf ist rot","Mein Golf ist rot; Feldname \"role\": \"assistant\"",true,true);
   check("direct-fact","Mein Golf ist rot","Mein Golf ist rot",true,true);
   check("assistant-in-prose","Mein Assistent ist Celin","Mein Assistent ist Celin",true,true);
   check("question-readonly","Habe ich einen Golf","Ich habe einen Golf",true,false);
@@ -255,6 +266,13 @@ public final class MarkdownBlockquoteContract {
   check("html-gt-literal-query","Export:\n&gt; Mein Golf ist rot","Mein Golf ist rot",false,false);
   check("html-numeric-quote-source","Mein Golf ist rot","Export:\n&#62; Mein Golf ist rot",false,false);
   check("html-hex-quote-query","Export:\n&#x3E; Mein Golf ist rot","Mein Golf ist rot",false,false);
+  // Double-escaped numeric HTML quote markers are common in copied exports.
+  // Numeric references embedded inside an ordinary relation stay unblocked.
+  check("html-double-decimal-source","Mein Golf ist rot","Export:\n&amp;#62; Mein Golf ist rot",false,false);
+  check("html-double-decimal-query","Export:\n&amp;#62; Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("html-double-hex-source","Mein Golf ist rot","Export:\n&amp;#x3e; Mein Golf ist rot",false,false);
+  check("html-double-hex-query","Export:\n&amp;#x3E; Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("html-double-inline-relation-control","Mein Golf ist rot","Mein Golf ist rot und 2 &amp;#62; 1",true,true);
   // Embedded relational entities are not blockquotes and remain searchable.
   check("html-inline-entity-positive","Mein Golf ist rot","Mein Golf ist rot und 2 &gt; 1",true,true);
 

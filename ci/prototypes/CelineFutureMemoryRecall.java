@@ -4200,7 +4200,7 @@ public final class CelineFutureMemoryRecall {
     // This lexical guard is not proof of authenticated source provenance.
     private static final java.util.regex.Pattern MARKDOWN_BLOCKQUOTE_FRAME =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \t]*(?:>{1,4}|&(?:amp;)?gt;|&#(?:0*62|x0*3e);)[ \t]*(?=\\S|\\R)");
+                "(?im)^[ \t]*(?:>{1,4}|&(?:amp;)?gt;|&(?:amp;)?#(?:0*62|x0*3e);)[ \t]*(?=\\S|\\R)");
 
     private static boolean hasMarkdownBlockquoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
@@ -4238,10 +4238,22 @@ public final class CelineFutureMemoryRecall {
                 + "[ \t]*(?:[-|][ \t]*)?(?:assistant|user|system|developer|tool):"
                 + "(?:[ \t]*\\S|[ \t]*\\R(?:[ \t]*\\R)*[ \t]*\\S)");
 
+    // JSON-formatted chat exports can carry first-person text attributed to
+    // "user", "assistant" or tools. A role field plus a content field in a
+    // bounded JSON-like record is only evidence of an IMPORT, never authentic
+    // G1 user-origin. Keep JSON snippets without this pair searchable.
+    private static final java.util.regex.Pattern JSON_CHAT_ROLE_FIELD =
+            java.util.regex.Pattern.compile(
+                "(?i)[\\[{,][ \\t\\r\\n]*\\\"role\\\"\\s*:\\s*\\\"(?:assistant|user|system|developer|tool)\\\"\\s*[,}]");
+    private static final java.util.regex.Pattern JSON_CHAT_CONTENT_FIELD =
+            java.util.regex.Pattern.compile("(?i)\\\"content\\\"\\s*:");
+
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
                 && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
-                    || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find());
+                    || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find()
+                    || (JSON_CHAT_ROLE_FIELD.matcher(value).find()
+                        && JSON_CHAT_CONTENT_FIELD.matcher(value).find()));
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
