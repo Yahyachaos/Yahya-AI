@@ -190,6 +190,18 @@ public final class RoleTranscriptContract {
   check("yaml-flow-no-body-control","Mein Golf ist rot","{role: assistant, note: Mein Golf ist rot}",true,true);
   check("yaml-flow-content-only-control","Mein Golf ist rot","{content: Mein Golf ist rot}",true,true);
   check("yaml-flow-in-prose-control","Mein Golf ist rot (role: assistant)","Mein Golf ist rot (role: assistant)",true,true);
+  // TOML chat message arrays with INLINE tables are also copied messages.
+  // Require role+body within ONE inline object, not unrelated array entries.
+  check("toml-inline-array-source","Mein Golf ist rot","messages = [{role = \"assistant\", content = \"Mein Golf ist rot\"}]",false,false);
+  check("toml-inline-array-query","messages = [{role = 'user', content = 'Mein Golf ist rot'}]","Mein Golf ist rot",false,false);
+  check("toml-inline-chat-dotted-source","Mein Golf ist rot","chat.messages = [{message = 'Mein Golf ist rot', role = 'tool'}]",false,false);
+  check("toml-inline-speaker-text-source","Mein Golf ist rot","[chat]\nmessages = [{speaker = 'developer', text = 'Mein Golf ist rot'}]",false,false);
+  check("toml-inline-quoted-keys-query","messages = [{\"role\" = \"system\", \"delta\" = \"Mein Golf ist rot\"}]","Mein Golf ist rot",false,false);
+  check("toml-inline-header-comment-source","Mein Golf ist rot","messages = [{role = 'assistant', parts = 'Mein Golf ist rot'}] # import",false,false);
+  check("toml-inline-unknown-role-control","Mein Golf ist rot","messages = [{role = 'owner', content = 'Mein Golf ist rot'}]",true,true);
+  check("toml-inline-note-key-control","Mein Golf ist rot","notes = [{role = 'assistant', content = 'Mein Golf ist rot'}]",true,true);
+  check("toml-inline-role-only-control","Mein Golf ist rot","messages = [{role = 'assistant', note = 'Mein Golf ist rot'}]",true,true);
+  check("toml-inline-separate-objects-control","Mein Golf ist rot","messages = [{role = 'assistant'}, {content = 'Mein Golf ist rot'}]",true,true);
   // TOML chat-array tables are copied transcripts; the role/body pair must
   // belong to the SAME messages table, not arbitrary independent TOML notes.
   check("toml-chat-message-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);

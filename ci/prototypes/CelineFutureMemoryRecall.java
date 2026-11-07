@@ -4300,6 +4300,35 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?im)^[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \t]*=[ \t]*\\S");
 
+    // TOML also permits array values containing inline message tables, e.g.
+    // `messages = [{ role = "assistant", content = "..." }]`.
+    // Require an anchored messages assignment and an actor/body pair within
+    // the SAME bounded inline table; never conflate two separate entries.
+    private static final java.util.regex.Pattern TOML_INLINE_CHAT_ARRAY =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:messages?|chat\\.messages?)[ \\t]*=[ \\t]*\\[([^\\r\\n]*)\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+    private static final java.util.regex.Pattern TOML_INLINE_TABLE =
+            java.util.regex.Pattern.compile("\\{[^\\r\\n{}]*\\}");
+    private static final java.util.regex.Pattern TOML_INLINE_CHAT_ROLE =
+            java.util.regex.Pattern.compile(
+                "(?i)(?:\\{|,)[ \\t]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*=[ \\t]*(['\\\"])(?:assistant|user|system|developer|tool)\\1(?=[ \\t]*[,}])");
+    private static final java.util.regex.Pattern TOML_INLINE_CHAT_BODY =
+            java.util.regex.Pattern.compile(
+                "(?i)(?:\\{|,)[ \\t]*(?:content|text|message|parts|delta|\\\"(?:content|text|message|parts|delta)\\\"|'(?:content|text|message|parts|delta)')[ \\t]*=[ \\t]*\\S");
+
+    private static boolean hasTomlInlineChatFrame(String value) {
+        java.util.regex.Matcher arrays = TOML_INLINE_CHAT_ARRAY.matcher(value);
+        while (arrays.find()) {
+            java.util.regex.Matcher table = TOML_INLINE_TABLE.matcher(arrays.group(1));
+            while (table.find()) {
+                String record = table.group();
+                if (TOML_INLINE_CHAT_ROLE.matcher(record).find()
+                        && TOML_INLINE_CHAT_BODY.matcher(record).find()) return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean hasTomlChatFrame(String value) {
         java.util.regex.Matcher table = TOML_CHAT_MESSAGE_HEADER.matcher(value);
         while (table.find()) {
@@ -4322,7 +4351,8 @@ public final class CelineFutureMemoryRecall {
                     || (YAML_CHAT_ROLE_LINE.matcher(value).find()
                         && YAML_CHAT_BODY_LINE.matcher(value).find())
                     || hasYamlFlowChatFrame(value)
-                    || hasTomlChatFrame(value));
+                    || hasTomlChatFrame(value)
+                    || hasTomlInlineChatFrame(value));
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
