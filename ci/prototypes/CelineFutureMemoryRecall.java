@@ -3069,6 +3069,7 @@ public final class CelineFutureMemoryRecall {
         if (hasExplicitTaggedRedactionMarker(query)
                 || hasImportedQuoteFrame(query)
                 || hasMarkdownBlockquoteFrame(query)
+                || hasImportedTranscriptFrame(query)
                 || hasSemanticLeadingOrInfixPictograph(query))
             return Collections.emptyList();
         Set<String> wanted = terms(query);
@@ -3153,6 +3154,7 @@ public final class CelineFutureMemoryRecall {
             if (isExplicitRedactionMarker(c.summary)
                     || hasImportedQuoteFrame(c.summary)
                 || hasMarkdownBlockquoteFrame(c.summary)
+                || hasImportedTranscriptFrame(c.summary)
                     || hasSemanticLeadingOrInfixPictograph(c.summary)
                     || hasUncertainAbsoluteAge(c.summary)) continue;
             String storedHaveTime = explicitFirstPersonHaveTime(c.summary);
@@ -3280,6 +3282,7 @@ public final class CelineFutureMemoryRecall {
         if (isExplicitRedactionMarker(correctionText)
                 || hasImportedQuoteFrame(correctionText)
                 || hasMarkdownBlockquoteFrame(correctionText)
+                || hasImportedTranscriptFrame(correctionText)
                 || hasUnrepresentedPictograph(correctionText)
                 // A past/present possession question is read-only. Never
                 // guess a memory ID for mutation from an inverted question.
@@ -4191,6 +4194,24 @@ public final class CelineFutureMemoryRecall {
     private static boolean hasMarkdownBlockquoteFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
                 && MARKDOWN_BLOCKQUOTE_FRAME.matcher(value).find();
+    }
+
+
+    // Imported conversation role headers are not proof of first-party G1
+    // origin, even when a copied speaker calls themselves "user". This is
+    // an anchored, conservative import-frame rejection, not authentication.
+    private static final java.util.regex.Pattern IMPORTED_TRANSCRIPT_FRAME =
+            java.util.regex.Pattern.compile(
+                "(?iu)\\A\\s*(?:\\[(?:assistant|user|system|developer|tool)\\]\\s*:?\\s*\\S"
+                + "|#{1,6}[ \\t]+(?:assistant|user|system|developer|tool)\\s*(?::[ \\t]*\\S|\\R)"
+                + "|<\\|im_start\\|>\\s*(?:assistant|user|system|developer|tool)(?=\\s|$)"
+                + "|\\*\\*(?:assistant|user|system|developer|tool):?\\*\\*[ \\t]*\\S"
+                + "|\\[INST\\]\\s*\\S|<<SYS>>\\s*\\S"
+                + "|(?:assistant|user|system|developer|tool):[ \\t]*\\S)");
+
+    private static boolean hasImportedTranscriptFrame(String value) {
+        return value != null && value.length() <= MAX_INPUT
+                && IMPORTED_TRANSCRIPT_FRAME.matcher(value).find();
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
