@@ -4255,10 +4255,10 @@ public final class CelineFutureMemoryRecall {
     // conservative import abstention, not authenticated source provenance.
     private static final java.util.regex.Pattern YAML_CHAT_ROLE_LINE =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:role|speaker):[ \\t]*(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)[ \\t]*(?=\\r?$)");
+                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)'):[ \\t]*(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_BODY_LINE =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta):[ \\t]*\\S");
+                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)'):[ \\t]*\\S");
 
     private static boolean hasImportedTranscriptFrame(String value) {
         return value != null && value.length() <= MAX_INPUT
