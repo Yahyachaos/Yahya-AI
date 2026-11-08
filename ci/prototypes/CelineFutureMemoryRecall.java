@@ -4378,18 +4378,30 @@ public final class CelineFutureMemoryRecall {
         StringBuilder masked = new StringBuilder(value);
         char quote = 0;
         boolean inlineComment = false;
+        int flowDepth = 0;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (c == '\n') { inlineComment = false; continue; }
             if (inlineComment) {
-                if (c == '{' || c == '}' || c == '\'' || c == '"')
+                // Inside a flow map, inline comments cannot contain fields.
+                // Outside the map, retain comment-only rows because the
+                // anchored-alias recognizer uses them as bounded separators.
+                if (flowDepth > 0) {
+                    if (c != '\r') masked.setCharAt(i, ' ');
+                } else if (c == '{' || c == '}' || c == '\'' || c == '"') {
                     masked.setCharAt(i, '_');
+                }
                 continue;
             }
             if (quote == 0) {
                 if (c == '#' && (i == 0 || value.charAt(i - 1) == ' '
                         || value.charAt(i - 1) == '\t')) {
                     inlineComment = true;
+                    if (flowDepth > 0) masked.setCharAt(i, ' ');
+                } else if (c == '{') {
+                    flowDepth++;
+                } else if (c == '}' && flowDepth > 0) {
+                    flowDepth--;
                 } else if ((c == '"' || c == '\'') && (i == 0
                         || !Character.isLetterOrDigit(value.charAt(i - 1)))) {
                     quote = c;
