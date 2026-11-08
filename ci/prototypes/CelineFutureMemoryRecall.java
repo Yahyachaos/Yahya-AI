@@ -4308,9 +4308,14 @@ public final class CelineFutureMemoryRecall {
     // by content/text/message/parts/delta. Both line-anchored fields must
     // occur; an ordinary note with only one field remains eligible. This is
     // conservative import abstention, not authenticated source provenance.
+    // YAML 1.2 permits a scalar role to have an anchor and/or the core
+    // string tag before its actual actor value. Bound this to two known
+    // properties; arbitrary tags or resolved aliases confer no provenance.
+    private static final String YAML_ROLE_PROPERTIES =
+            "(?:(?:&[A-Za-z0-9_-]{1,64}|!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+){0,2}";
     private static final java.util.regex.Pattern YAML_CHAT_ROLE_LINE =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')[ \\t]*:[ \\t]*(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*(?=\\r?$)");
+                "(?im)^[ \\t]*(?:-[ \\t]+)?(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')[ \\t]*:[ \\t]*" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_BODY_LINE =
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \\t]*:[ \\t]*\\S");
@@ -4323,7 +4328,7 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile("(?m)^[ \t]*(?:-[ \t]+)?\\{[^\\r\\n{}]*\\}[ \t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ROLE =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')\\s*:\\s*(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
+                "(?i)(?:\\{|,)[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')\\s*:\\s*" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_BODY =
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')\\s*:[ \t]*\\S");
