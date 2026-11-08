@@ -4365,7 +4365,7 @@ public final class CelineFutureMemoryRecall {
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
                 + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
                 + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
-                + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{((?:[^{}\\r\\n]*\\r?\\n){0,4}[^{}\\r\\n]*)\\}[ \\t]*(?=\\r?$)");
+                + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{((?:(?:[^{}\\r\\n]|\\{[^{}\\r\\n]{0,256}\\})*\\r?\\n){0,4}(?:[^{}\\r\\n]|\\{[^{}\\r\\n]{0,256}\\})*)\\}[ \\t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ALIAS_ROLE =
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \\t\\r\\n]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*:[ \\t]*\\*([A-Za-z0-9_-]{1,64})(?=[ \\t\\r\\n]*[,}])");
@@ -4375,8 +4375,13 @@ public final class CelineFutureMemoryRecall {
         while (pairs.find()) {
             // Comments inside a bounded YAML flow frame are not content/role
             // fields; remove comment-only rows before matching existing keys.
-            String flow = "{" + pairs.group(3).replaceAll(
-                    "(?m)^[ \\t]*#[^\\r\\n]*(?:\\r?\\n|$)", "") + "}";
+            // A copied message can have a one-level nested content map.
+            // Mask nested fields before checking outer role/body, otherwise a
+            // nested notes.role could be mistaken for the message actor.
+            String flow = pairs.group(3).replaceAll(
+                    "(?m)^[ \\t]*#[^\\r\\n]*(?:\\r?\\n|$)", "");
+            flow = flow.replaceAll("\\{[^{}\\r\\n]{0,256}\\}", "NESTED");
+            flow = "{" + flow + "}";
             java.util.regex.Matcher alias = YAML_CHAT_FLOW_ALIAS_ROLE.matcher(flow);
             if (alias.find() && pairs.group(1).equals(alias.group(1))
                     && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
