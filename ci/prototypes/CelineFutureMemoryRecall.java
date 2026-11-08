@@ -4256,18 +4256,24 @@ public final class CelineFutureMemoryRecall {
     // and a double-escaped backslash must stay a literal key character.
     // This is bounded lexical import abstention, NOT a full JSON parser or
     // a substitute for authenticated first-party G1 provenance.
-    private static String normalizedJsonChatAsciiAliases(String value) {
-        if (value.indexOf("\\u") < 0) return value;
+    private static String normalizedQuotedChatAsciiAliases(String value, boolean yaml) {
+        // JSON supports four-digit Unicode escapes; YAML 1.2 double-quoted
+        // scalars additionally support two- and eight-digit forms. Neither
+        // language decodes escapes in single-quoted YAML strings.
+        if (value.indexOf('\\') < 0) return value;
         StringBuilder out = new StringBuilder(value.length());
         boolean quoted = false;
         for (int i = 0; i < value.length();) {
             char c = value.charAt(i);
             if (quoted && c == '\\' && i + 1 < value.length()) {
                 char next = value.charAt(i + 1);
-                if (next == 'u' && i + 6 <= value.length()) {
+                int digits = next == 'u' ? 4
+                        : yaml && next == 'x' ? 2
+                        : yaml && next == 'U' ? 8 : 0;
+                if (digits > 0 && i + 2 + digits <= value.length()) {
                     int cp = 0;
                     boolean good = true;
-                    for (int k = i + 2; k < i + 6; k++) {
+                    for (int k = i + 2; k < i + 2 + digits; k++) {
                         int digit = Character.digit(value.charAt(k), 16);
                         if (digit < 0) { good = false; break; }
                         cp = cp * 16 + digit;
@@ -4275,12 +4281,12 @@ public final class CelineFutureMemoryRecall {
                     if (good && (cp >= 'a' && cp <= 'z'
                             || cp >= 'A' && cp <= 'Z')) {
                         out.append((char) cp);
-                        i += 6;
+                        i += 2 + digits;
                         continue;
                     }
                 }
-                // Preserve escaped slash and quote verbatim, rather than
-                // mistaking the next quoted character for a token boundary.
+                // An escaped slash is NOT a Unicode prefix. Preserve the
+                // quoted lexical structure and do not infer real role keys.
                 out.append(c).append(next);
                 i += 2;
             } else {
@@ -4293,7 +4299,7 @@ public final class CelineFutureMemoryRecall {
     }
 
     private static boolean hasJsonChatFrame(String value) {
-        String normalized = normalizedJsonChatAsciiAliases(value);
+        String normalized = normalizedQuotedChatAsciiAliases(value, false);
         return JSON_CHAT_ROLE_FIELD.matcher(normalized).find()
                 && JSON_CHAT_CONTENT_FIELD.matcher(normalized).find();
     }
@@ -4628,16 +4634,21 @@ public final class CelineFutureMemoryRecall {
     }
 
     private static boolean hasImportedTranscriptFrame(String value) {
-        return value != null && value.length() <= MAX_INPUT
-                && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
-                    || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find()
-                    || hasJsonChatFrame(value)
-                    || (YAML_CHAT_ROLE_LINE.matcher(value).find()
-                        && YAML_CHAT_BODY_LINE.matcher(value).find())
-                    || hasYamlFlowChatFrame(value)
-                    || hasTomlChatFrame(value)
-                    || hasTomlInlineChatFrame(value)
-                    || hasTomlMultilineChatFrame(value));
+        if (value == null || value.length() > MAX_INPUT) return false;
+        // YAML 1.2 double-quoted scalar keys/roles can encode ASCII
+        // letters using hexadecimal escapes. The decoder preserves escaped
+        // backslashes and single-quoted literals. Normalize only the YAML
+        // lexical classifier; never change stored G1 projections.
+        String yamlAliases = normalizedQuotedChatAsciiAliases(value, true);
+        return IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
+                || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find()
+                || hasJsonChatFrame(value)
+                || (YAML_CHAT_ROLE_LINE.matcher(yamlAliases).find()
+                    && YAML_CHAT_BODY_LINE.matcher(yamlAliases).find())
+                || hasYamlFlowChatFrame(yamlAliases)
+                || hasTomlChatFrame(value)
+                || hasTomlInlineChatFrame(value)
+                || hasTomlMultilineChatFrame(value);
     }
 
     private static boolean hasSemanticLeadingOrInfixPictograph(String value) {
