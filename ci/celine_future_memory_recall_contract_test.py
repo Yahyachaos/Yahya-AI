@@ -495,6 +495,20 @@ public final class RoleTranscriptContract {
   check("yaml-anchor-unknown-role-control","Mein Golf ist rot","role: &speaker owner\ncontent: Mein Golf ist rot",true,true);
   check("yaml-quoted-key-anchor","Mein Golf ist rot","\"role\" : &speaker assistant\n\"content\" : Mein Golf ist rot",false,false);
   check("yaml-anchor-single-quoted-role","Mein Golf ist rot","role: &speaker 'assistant'\ncontent: Mein Golf ist rot",false,false);
+  // YAML 1.2 alias values resolve to their anchored actor. A copied
+  // transcript is never promoted into authenticated G1 memory or correction.
+  check("yaml-role-alias-source","Mein Golf ist rot","roles: &actor assistant\nrole: *actor\ncontent: Mein Golf ist rot",false,false);
+  check("yaml-role-alias-query","roles: &actor assistant\nrole: *actor\ncontent: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("yaml-speaker-alias-source","Mein Golf ist rot","actor: &who user\nspeaker: *who\nmessage: Mein Golf ist rot",false,false);
+  check("yaml-tagged-anchor-alias","Mein Golf ist rot","actor: &who !!str assistant\nrole: *who\ntext: Mein Golf ist rot",false,false);
+  check("yaml-quoted-actor-alias","Mein Golf ist rot","actor: &who 'developer'\nspeaker: *who\nparts: Mein Golf ist rot",false,false);
+  check("yaml-alias-field-source","Mein Golf ist rot","source: &speaker tool\nrole: *speaker\ndelta: Mein Golf ist rot",false,false);
+  check("yaml-unknown-alias-control","Mein Golf ist rot","roles: &actor owner\nrole: *actor\ncontent: Mein Golf ist rot",true,true);
+  check("yaml-unresolved-alias-control","Mein Golf ist rot","roles: &actor assistant\nrole: *other\ncontent: Mein Golf ist rot",true,true);
+  check("yaml-alias-missing-body-control","Mein Golf ist rot","roles: &actor assistant\nrole: *actor\nnotes: Mein Golf ist rot",true,true);
+  check("yaml-cross-document-alias-control","Mein Golf ist rot","roles: &actor assistant\n---\nrole: *actor\ncontent: Mein Golf ist rot",false,false);
+  check("yaml-alias-comment-control","Mein Golf ist rot","# roles: &actor assistant\nrole: *actor\ncontent: Mein Golf ist rot",true,true);
+  check("yaml-alias-quoted-note-control","Mein Golf ist rot","note: 'roles: &actor assistant'\nrole: *actor\ncontent: Mein Golf ist rot",true,true);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }

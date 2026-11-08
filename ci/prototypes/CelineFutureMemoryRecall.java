@@ -4320,6 +4320,22 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \\t]*:[ \\t]*\\S");
 
+    // A YAML alias (role: *actor) is a reference, not an authenticated
+    // first-party statement. Abstain only for a source-proven, allowlisted
+    // role anchor immediately followed by its SAME-NAME alias and a body
+    // field in one contiguous block. Do not resolve aliases globally: a
+    // different YAML document, unknown actor, missing body, quoted note or
+    // unrelated anchor cannot authorize cross-block role inference.
+    // This narrow copy-transcript classifier is not a YAML parser.
+    private static final java.util.regex.Pattern YAML_CHAT_ANCHORED_ALIAS_BLOCK =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:-[ \\t]+)?[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&([A-Za-z0-9_-]{1,64})[ \\t]+"
+                + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
+                + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
+                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "[ \\t]*(?:-[ \\t]+)?(?:role|speaker)[ \\t]*:[ \\t]*\\*\\1(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta)[ \\t]*:[ \\t]*\\S");
+
     // YAML flow maps are a one-line alternative to block records:
     // `{role: assistant, content: ...}` or `{content: ..., speaker: user}`.
     // Require BOTH fields inside the SAME bounded, non-nested flow mapping;
@@ -4650,6 +4666,7 @@ public final class CelineFutureMemoryRecall {
                 || hasJsonChatFrame(value)
                 || (YAML_CHAT_ROLE_LINE.matcher(yamlAliases).find()
                     && YAML_CHAT_BODY_LINE.matcher(yamlAliases).find())
+                || YAML_CHAT_ANCHORED_ALIAS_BLOCK.matcher(yamlAliases).find()
                 || hasYamlFlowChatFrame(yamlAliases)
                 || hasTomlChatFrame(value)
                 || hasTomlInlineChatFrame(value)
