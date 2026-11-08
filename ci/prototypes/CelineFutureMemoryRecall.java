@@ -4262,10 +4262,34 @@ public final class CelineFutureMemoryRecall {
         // language decodes escapes in single-quoted YAML strings.
         if (value.indexOf('\\') < 0) return value;
         StringBuilder out = new StringBuilder(value.length());
-        boolean quoted = false;
+        char quote = 0;
+        boolean yamlComment = false;
         for (int i = 0; i < value.length();) {
             char c = value.charAt(i);
-            if (quoted && c == '\\' && i + 1 < value.length()) {
+            // A YAML comment is opaque, including its quotes and escapes.
+            // It cannot open a quoted key on the following mapping line.
+            if (yaml && yamlComment) {
+                out.append(c);
+                if (c == '\n') yamlComment = false;
+                i++;
+                continue;
+            }
+            if (yaml && quote == 0 && c == '#'
+                    && (i == 0 || Character.isWhitespace(value.charAt(i - 1)))) {
+                yamlComment = true;
+                out.append(c);
+                i++;
+                continue;
+            }
+            // Escapes in single-quoted YAML scalars are literal; doubled
+            // apostrophes are one scalar quote, not a field delimiter.
+            if (yaml && quote == '\'' && c == '\''
+                    && i + 1 < value.length() && value.charAt(i + 1) == '\'') {
+                out.append("''");
+                i += 2;
+                continue;
+            }
+            if (quote == '"' && c == '\\' && i + 1 < value.length()) {
                 char next = value.charAt(i + 1);
                 int digits = next == 'u' ? 4
                         : yaml && next == 'x' ? 2
@@ -4291,7 +4315,12 @@ public final class CelineFutureMemoryRecall {
                 i += 2;
             } else {
                 out.append(c);
-                if (c == '"') quoted = !quoted;
+                if (c == '"' && (quote == 0 || quote == '"'))
+                    quote = quote == 0 ? '"' : 0;
+                else if (yaml && c == '\'' && quote == '\'') quote = 0;
+                else if (yaml && c == '\'' && quote == 0 && (i == 0
+                        || !Character.isLetterOrDigit(value.charAt(i - 1))))
+                    quote = '\'';
                 i++;
             }
         }
