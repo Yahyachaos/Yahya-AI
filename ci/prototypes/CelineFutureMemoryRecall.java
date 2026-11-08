@@ -4349,7 +4349,7 @@ public final class CelineFutureMemoryRecall {
                 "(?i)(?:\\{|,)[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')\\s*:\\s*" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_BODY =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')\\s*:[ \t]*\\S");
+                "(?i)(?:\\{|,)[ \\t\\r\\n]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')\\s*:[ \t]*\\S");
 
     // YAML may put an alias role and its message body in the SAME flow
     // mapping, with an explicit anchor on the immediately preceding line:
@@ -4365,15 +4365,18 @@ public final class CelineFutureMemoryRecall {
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
                 + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
                 + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
-                + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{([^{}\\r\\n]*)\\}[ \\t]*(?=\\r?$)");
+                + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{((?:[^{}\\r\\n]*\\r?\\n){0,4}[^{}\\r\\n]*)\\}[ \\t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ALIAS_ROLE =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \\t]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*:[ \\t]*\\*([A-Za-z0-9_-]{1,64})(?=[ \\t]*[,}])");
+                "(?i)(?:\\{|,)[ \\t\\r\\n]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*:[ \\t]*\\*([A-Za-z0-9_-]{1,64})(?=[ \\t\\r\\n]*[,}])");
 
     private static boolean hasYamlAnchoredAliasFlowFrame(String value) {
         java.util.regex.Matcher pairs = YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR.matcher(value);
         while (pairs.find()) {
-            String flow = "{" + pairs.group(3) + "}";
+            // Comments inside a bounded YAML flow frame are not content/role
+            // fields; remove comment-only rows before matching existing keys.
+            String flow = "{" + pairs.group(3).replaceAll(
+                    "(?m)^[ \\t]*#[^\\r\\n]*(?:\\r?\\n|$)", "") + "}";
             java.util.regex.Matcher alias = YAML_CHAT_FLOW_ALIAS_ROLE.matcher(flow);
             if (alias.find() && pairs.group(1).equals(alias.group(1))
                     && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;

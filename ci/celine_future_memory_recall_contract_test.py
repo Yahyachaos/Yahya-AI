@@ -541,6 +541,24 @@ public final class RoleTranscriptContract {
   check("yaml-block-body-comment-mismatched-control","Mein Golf ist rot","actor: &who assistant\nrole: *other\n# body\ncontent: Mein Golf ist rot",true,true);
 
 
+  // Independently parsed by PyYAML 6.0.3: multiline flow maps retain the
+  // same resolved actor/alias. These remain copied transcript data, not G1 origin.
+  check("yaml-multiline-flow-alias-saved","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-multiline-flow-alias-query","actor: &who assistant\nmessage: {\n role: *who,\n content: Mein Golf ist rot\n}","Mein Golf ist rot",false,false);
+  check("yaml-multiline-flow-alias-reordered","Mein Golf ist rot","actors: &who user\nrecord: {\n 'content': Mein Golf ist rot,\n 'speaker': *who\n}",false,false);
+  check("yaml-multiline-flow-alias-quoted-body","Mein Golf ist rot","actor: &who !!str 'assistant'\nchat: {\n \"role\": *who,\n \"text\": \"Mein Golf ist rot\"\n}",false,false);
+  check("yaml-multiline-flow-alias-comment-before-map","Mein Golf ist rot","actor: &who assistant\n# copied exchange\nmessage: {\n role: *who,\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-multiline-flow-alias-crlf","Mein Golf ist rot","actor: &who assistant\r\nmessage: {\r\n role: *who,\r\n content: Mein Golf ist rot\r\n}",false,false);
+  check("yaml-multiline-flow-alias-unknown-control","Mein Golf ist rot","actor: &who owner\nmessage: {\n role: *who,\n content: Mein Golf ist rot\n}",true,true);
+  check("yaml-multiline-flow-alias-mismatch-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *different,\n content: Mein Golf ist rot\n}",true,true);
+  check("yaml-multiline-flow-alias-literal-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: '*who',\n content: Mein Golf ist rot\n}",true,true);
+  check("yaml-multiline-flow-alias-no-body-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n notes: Mein Golf ist rot\n}",true,true);
+  check("yaml-multiline-flow-comment-between-role-body","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n # serialized\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-multiline-flow-comment-before-role","Mein Golf ist rot","actor: &who assistant\nmessage: {\n # copied\n role: *who,\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-multiline-flow-blank-separator","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-multiline-flow-comment-no-role-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n # role: *who,\n notes: Mein Golf ist rot\n}",true,true);
+  check("yaml-multiline-quoted-role-direct-control","Mein Golf ist rot","messages:\n - {\n    role: \"assistant\",\n    content: \"Mein Golf ist rot\"\n   }",false,false);
+  check("yaml-multiline-quoted-key-direct-control","Mein Golf ist rot","messages:\n - {\n    \"role\": \"tool\",\n    \"content\": \"Mein Golf ist rot\"\n   }",false,false);
   check("yaml-flow-alias-document-boundary-control","Mein Golf ist rot","actor: &who assistant\n---\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
