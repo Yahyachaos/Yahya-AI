@@ -509,6 +509,20 @@ public final class RoleTranscriptContract {
   check("yaml-cross-document-alias-control","Mein Golf ist rot","roles: &actor assistant\n---\nrole: *actor\ncontent: Mein Golf ist rot",false,false);
   check("yaml-alias-comment-control","Mein Golf ist rot","# roles: &actor assistant\nrole: *actor\ncontent: Mein Golf ist rot",true,true);
   check("yaml-alias-quoted-note-control","Mein Golf ist rot","note: 'roles: &actor assistant'\nrole: *actor\ncontent: Mein Golf ist rot",true,true);
+  // A role alias inside a same-line YAML flow map must still be treated
+  // as copied transcript content when the adjacent source anchor resolves.
+  check("yaml-flow-alias-role-source","Mein Golf ist rot","actor: &who assistant\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);
+  check("yaml-flow-alias-role-query","actor: &who assistant\nmessage: {role: *who, content: Mein Golf ist rot}","Mein Golf ist rot",false,false);
+  check("yaml-flow-alias-speaker-reordered","Mein Golf ist rot","actors: &u user\nframe: {text: Mein Golf ist rot, speaker: *u}",false,false);
+  check("yaml-flow-alias-core-tag","Mein Golf ist rot","identity: &a !!str developer\nrecord: {'speaker': *a, parts: Mein Golf ist rot}",false,false);
+  check("yaml-flow-alias-quoted-actor","Mein Golf ist rot","identity: &a 'tool'\nentry: {role: *a, delta: Mein Golf ist rot}",false,false);
+  check("yaml-flow-alias-unknown-control","Mein Golf ist rot","actor: &who owner\nmessage: {role: *who, content: Mein Golf ist rot}",true,true);
+  check("yaml-flow-alias-mismatch-control","Mein Golf ist rot","actor: &who assistant\nmessage: {role: *other, content: Mein Golf ist rot}",true,true);
+  check("yaml-flow-alias-body-missing-control","Mein Golf ist rot","actor: &who assistant\nmessage: {role: *who, notes: Mein Golf ist rot}",true,true);
+  check("yaml-flow-alias-quoted-literal-control","Mein Golf ist rot","actor: &who assistant\nmessage: {role: '*who', content: Mein Golf ist rot}",true,true);
+  check("yaml-flow-alias-unrelated-map-control","Mein Golf ist rot","actor: &who assistant\nmessage: {role: *who, notes: ok}\nframe: {content: Mein Golf ist rot}",true,true);
+  check("yaml-flow-alias-comment-control","Mein Golf ist rot","# actor: &who assistant\nmessage: {role: *who, content: Mein Golf ist rot}",true,true);
+  check("yaml-flow-alias-document-boundary-control","Mein Golf ist rot","actor: &who assistant\n---\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }

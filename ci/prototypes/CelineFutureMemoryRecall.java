@@ -4349,6 +4349,35 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')\\s*:[ \t]*\\S");
 
+    // YAML may put an alias role and its message body in the SAME flow
+    // mapping, with an explicit anchor on the immediately preceding line:
+    // actor: &who assistant / message: {role: *who, content: ...}
+    // Bound this to adjacent, line-anchored fields and one non-nested map;
+    // alias identity must exactly match the source anchor name. Unrelated
+    // anchors, literal '*who' strings and body fields in another map do
+    // not prove a transcript. No generic YAML alias graph or G1 write.
+    private static final java.util.regex.Pattern YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:-[ \\t]+)?[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&([A-Za-z0-9_-]{1,64})[ \\t]+"
+                + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
+                + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
+                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{([^{}\\r\\n]*)\\}[ \\t]*(?=\\r?$)");
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_ALIAS_ROLE =
+            java.util.regex.Pattern.compile(
+                "(?i)(?:\\{|,)[ \\t]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*:[ \\t]*\\*([A-Za-z0-9_-]{1,64})(?=[ \\t]*[,}])");
+
+    private static boolean hasYamlAnchoredAliasFlowFrame(String value) {
+        java.util.regex.Matcher pairs = YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR.matcher(value);
+        while (pairs.find()) {
+            String flow = "{" + pairs.group(3) + "}";
+            java.util.regex.Matcher alias = YAML_CHAT_FLOW_ALIAS_ROLE.matcher(flow);
+            if (alias.find() && pairs.group(1).equals(alias.group(1))
+                    && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
+        }
+        return false;
+    }
+
     private static boolean hasYamlFlowChatFrame(String value) {
         java.util.regex.Matcher maps = YAML_CHAT_FLOW_MAP.matcher(value);
         while (maps.find()) {
@@ -4667,6 +4696,7 @@ public final class CelineFutureMemoryRecall {
                 || (YAML_CHAT_ROLE_LINE.matcher(yamlAliases).find()
                     && YAML_CHAT_BODY_LINE.matcher(yamlAliases).find())
                 || YAML_CHAT_ANCHORED_ALIAS_BLOCK.matcher(yamlAliases).find()
+                || hasYamlAnchoredAliasFlowFrame(yamlAliases)
                 || hasYamlFlowChatFrame(yamlAliases)
                 || hasTomlChatFrame(value)
                 || hasTomlInlineChatFrame(value)
