@@ -4289,7 +4289,9 @@ public final class CelineFutureMemoryRecall {
     // section boundaries. This is lexical abstention, not origin attestation.
     private static final java.util.regex.Pattern TOML_CHAT_MESSAGE_HEADER =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \t]*\\[\\[(?:messages?|chat\\.messages?)\\]\\][ \t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+                "(?im)^[ \t]*\\[\\[[ \t]*(?:(?:messages?|\"messages?\"|'messages?')|" +
+                "(?:chat|\"chat\"|'chat')[ \t]*\\.[ \t]*(?:messages?|\"messages?\"|'messages?'))" +
+                "[ \t]*\\]\\][ \t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
     private static final java.util.regex.Pattern TOML_SECTION_HEADER =
             java.util.regex.Pattern.compile(
                 "(?m)^[ \t]*\\[[^\\r\\n]*\\][ \t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
