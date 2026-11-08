@@ -4376,6 +4376,28 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?im)^[ \t]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \t]*=[ \t]*\\S");
 
+    // Only normalize an explicitly line-anchored TOML messages-array LHS.
+    // Quoted table keys may encode letters as \\uXXXX / \\UXXXXXXXX; values,
+    // inline metadata, other arrays and double-escaped keys stay untouched.
+    private static final java.util.regex.Pattern TOML_CHAT_ARRAY_ASSIGNMENT_NAME =
+            java.util.regex.Pattern.compile(
+                "(?m)^([ \\t]*)((?:[A-Za-z]+|\\\"[^\\\"\\r\\n]*\\\"|'[^'\\r\\n]*')(?:[ \\t]*\\.[ \\t]*(?:[A-Za-z]+|\\\"[^\\\"\\r\\n]*\\\"|'[^'\\r\\n]*'))?)([ \\t]*=[ \\t]*\\[)");
+
+    private static String normalizedTomlChatArrayAssignmentNames(String value) {
+        java.util.regex.Matcher names = TOML_CHAT_ARRAY_ASSIGNMENT_NAME.matcher(value);
+        StringBuffer out = new StringBuffer(value.length());
+        while (names.find()) {
+            String decoded = normalizedTomlSectionHeader(names.group(2))
+                    .replace("\"", "").replace("'", "")
+                    .replaceAll("[ \\t]*\\.[ \\t]*", ".");
+            if (!decoded.matches("(?i)(?:messages?|chat\\.messages?)")) continue;
+            names.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(
+                    names.group(1) + "messages" + names.group(3)));
+        }
+        names.appendTail(out);
+        return out.toString();
+    }
+
     // TOML also permits array values containing inline message tables, e.g.
     // `messages = [{ role = "assistant", content = "..." }]`.
     // Require an anchored messages assignment and an actor/body pair within
@@ -4470,11 +4492,12 @@ public final class CelineFutureMemoryRecall {
                 "(?im)^[ \t]*(?:messages?|chat\\.messages?)[ \t]*=[ \t]*\\[([^\\r\\n]*)$");
 
     private static boolean hasTomlInlineChatFrame(String value) {
-        java.util.regex.Matcher arrays = TOML_INLINE_CHAT_ARRAY.matcher(value);
+        String normalized = normalizedTomlChatArrayAssignmentNames(value);
+        java.util.regex.Matcher arrays = TOML_INLINE_CHAT_ARRAY.matcher(normalized);
         while (arrays.find()) {
             if (hasTomlInlineChatRows(arrays.group(1))) return true;
         }
-        java.util.regex.Matcher clipped = TOML_CLIPPED_INLINE_CHAT_ARRAY.matcher(value);
+        java.util.regex.Matcher clipped = TOML_CLIPPED_INLINE_CHAT_ARRAY.matcher(normalized);
         while (clipped.find()) {
             if (hasTomlInlineChatRows(clipped.group(1))) return true;
         }
@@ -4492,23 +4515,24 @@ public final class CelineFutureMemoryRecall {
                 "(?m)^[ \\t]*\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
 
     private static boolean hasTomlMultilineChatFrame(String value) {
-        java.util.regex.Matcher arrays = TOML_MULTILINE_CHAT_HEADER.matcher(value);
+        String normalized = normalizedTomlChatArrayAssignmentNames(value);
+        java.util.regex.Matcher arrays = TOML_MULTILINE_CHAT_HEADER.matcher(normalized);
         while (arrays.find()) {
             // A copied export may be clipped before its final array bracket.
             // Inspect only the current assignment, ending at the first array
             // close, TOML section or new messages assignment. A role and body
             // must still belong to ONE complete or partial inline record.
             int start = arrays.end();
-            int end = value.length();
-            java.util.regex.Matcher ends = TOML_MULTILINE_CHAT_END.matcher(value);
+            int end = normalized.length();
+            java.util.regex.Matcher ends = TOML_MULTILINE_CHAT_END.matcher(normalized);
             if (ends.find(start)) end = ends.start();
-            java.util.regex.Matcher section = TOML_SECTION_HEADER.matcher(value);
+            java.util.regex.Matcher section = TOML_SECTION_HEADER.matcher(normalized);
             if (section.find(start) && section.start() < end)
                 end = section.start();
-            java.util.regex.Matcher nextArray = TOML_MULTILINE_CHAT_HEADER.matcher(value);
+            java.util.regex.Matcher nextArray = TOML_MULTILINE_CHAT_HEADER.matcher(normalized);
             if (nextArray.find(start) && nextArray.start() < end)
                 end = nextArray.start();
-            if (hasTomlInlineChatRows(value.substring(start, end))) return true;
+            if (hasTomlInlineChatRows(normalized.substring(start, end))) return true;
         }
         return false;
     }
