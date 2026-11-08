@@ -4377,17 +4377,30 @@ public final class CelineFutureMemoryRecall {
     private static String maskedYamlQuotedFlowBraces(String value) {
         StringBuilder masked = new StringBuilder(value);
         char quote = 0;
+        boolean inlineComment = false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
+            if (c == '\n') { inlineComment = false; continue; }
+            if (inlineComment) {
+                if (c == '{' || c == '}' || c == '\'' || c == '"')
+                    masked.setCharAt(i, '_');
+                continue;
+            }
             if (quote == 0) {
-                if (c == '"' || c == '\'') quote = c;
+                if (c == '#' && (i == 0 || value.charAt(i - 1) == ' '
+                        || value.charAt(i - 1) == '\t')) {
+                    inlineComment = true;
+                } else if ((c == '"' || c == '\'') && (i == 0
+                        || !Character.isLetterOrDigit(value.charAt(i - 1)))) {
+                    quote = c;
+                }
             } else if (c == quote) {
                 if (quote == '\'' && i + 1 < value.length()
                         && value.charAt(i + 1) == '\'') {
-                    i++; // YAML escaped apostrophe ('') in single quoted scalar
+                    i++;
                 } else quote = 0;
             } else if (quote == '"' && c == '\\' && i + 1 < value.length()) {
-                i++; // Skip escaped double quote (or any escaped character)
+                i++;
             } else if (c == '{' || c == '}') {
                 masked.setCharAt(i, '_');
             }

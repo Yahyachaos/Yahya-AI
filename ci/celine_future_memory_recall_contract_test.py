@@ -579,6 +579,8 @@ public final class RoleTranscriptContract {
   check("yaml-quoted-braces-mismatch-control","Mein Golf ist rot","other: &wrong owner\nactor: &who assistant\nmessage: {\n role: *wrong,\n content: \"Mein Golf ist rot {Notiz}\"\n}",true,true);
   check("yaml-quoted-braces-inner-role-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: {role: *who, content: \"Mein Golf ist rot {Notiz}\"},\n comment: \"hi\"\n}",true,true);
   check("yaml-quoted-braces-nobody-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n note: \"Mein Golf ist rot {Notiz}\"\n}",true,true);
+  check("yaml-comment-braces","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n # comment has } {\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-plain-apostrophe-prefix","Mein Golf ist rot","note: it's a plain word\nactor: &who assistant\nmessage: {\n role: *who,\n content: Mein Golf ist rot\n}",false,false);
   check("yaml-multiline-quoted-role-direct-control","Mein Golf ist rot","messages:\n - {\n    role: \"assistant\",\n    content: \"Mein Golf ist rot\"\n   }",false,false);
   check("yaml-multiline-quoted-key-direct-control","Mein Golf ist rot","messages:\n - {\n    \"role\": \"tool\",\n    \"content\": \"Mein Golf ist rot\"\n   }",false,false);
   check("yaml-flow-alias-document-boundary-control","Mein Golf ist rot","actor: &who assistant\n---\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);
