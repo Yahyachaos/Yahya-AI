@@ -4532,6 +4532,32 @@ public final class CelineFutureMemoryRecall {
         return false;
     }
 
+    // YAML may keep copied chat messages in a compact one-line sequence:
+    // `messages: [{role: assistant, content: ...}, {role: user, ...}]`.
+    // Inspect only bounded top-level flow-map members in known chat arrays.
+    // Quoted map-looking strings and fake role/body fields within note scalar
+    // values are data, never evidence of authenticated G1 provenance.
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[([^\\r\\n\\[\\]]{0,512})\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE_ENTRY =
+            java.util.regex.Pattern.compile("\\{[^{}\\r\\n]*\\}");
+
+    private static boolean hasYamlFlowSequenceChatFrame(String value) {
+        java.util.regex.Matcher sequences = YAML_CHAT_FLOW_SEQUENCE.matcher(
+                maskedYamlQuotedFlowBraces(value));
+        while (sequences.find()) {
+            java.util.regex.Matcher entries = YAML_CHAT_FLOW_SEQUENCE_ENTRY.matcher(
+                    sequences.group(1));
+            while (entries.find()) {
+                String flow = maskedYamlFlowQuotedScalarValues(entries.group());
+                if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()
+                        && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
+            }
+        }
+        return false;
+    }
+
     // A TOML array-of-tables conversation export may serialize each message as
     // [[messages]] or [[chat.messages]] plus `role`/`content` assignments.
     // Recognize exact known actor and body keys INSIDE ONE table, never across
@@ -4842,6 +4868,7 @@ public final class CelineFutureMemoryRecall {
                 || YAML_CHAT_ANCHORED_ALIAS_BLOCK.matcher(yamlAliases).find()
                 || hasYamlAnchoredAliasFlowFrame(yamlAliases)
                 || hasYamlFlowChatFrame(yamlAliases)
+                || hasYamlFlowSequenceChatFrame(yamlAliases)
                 || hasTomlChatFrame(value)
                 || hasTomlInlineChatFrame(value)
                 || hasTomlMultilineChatFrame(value);
