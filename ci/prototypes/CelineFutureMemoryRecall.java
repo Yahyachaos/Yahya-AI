@@ -4249,6 +4249,55 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern JSON_CHAT_CONTENT_FIELD =
             java.util.regex.Pattern.compile("(?i)\\\"(?:content|text|message|parts|delta)\\\"\\s*:");
 
+    // JSON 1.0 permits an ASCII letter in a quoted key or role value to be
+    // spelled as backslash-uXXXX. Decode only those letters inside double-quoted JSON
+    // strings before checking the existing narrow role/body markers. Do NOT
+    // decode JSON punctuation, quotes or slashes: that could invent structure,
+    // and a double-escaped backslash must stay a literal key character.
+    // This is bounded lexical import abstention, NOT a full JSON parser or
+    // a substitute for authenticated first-party G1 provenance.
+    private static String normalizedJsonChatAsciiAliases(String value) {
+        if (value.indexOf("\\u") < 0) return value;
+        StringBuilder out = new StringBuilder(value.length());
+        boolean quoted = false;
+        for (int i = 0; i < value.length();) {
+            char c = value.charAt(i);
+            if (quoted && c == '\\' && i + 1 < value.length()) {
+                char next = value.charAt(i + 1);
+                if (next == 'u' && i + 6 <= value.length()) {
+                    int cp = 0;
+                    boolean good = true;
+                    for (int k = i + 2; k < i + 6; k++) {
+                        int digit = Character.digit(value.charAt(k), 16);
+                        if (digit < 0) { good = false; break; }
+                        cp = cp * 16 + digit;
+                    }
+                    if (good && (cp >= 'a' && cp <= 'z'
+                            || cp >= 'A' && cp <= 'Z')) {
+                        out.append((char) cp);
+                        i += 6;
+                        continue;
+                    }
+                }
+                // Preserve escaped slash and quote verbatim, rather than
+                // mistaking the next quoted character for a token boundary.
+                out.append(c).append(next);
+                i += 2;
+            } else {
+                out.append(c);
+                if (c == '"') quoted = !quoted;
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    private static boolean hasJsonChatFrame(String value) {
+        String normalized = normalizedJsonChatAsciiAliases(value);
+        return JSON_CHAT_ROLE_FIELD.matcher(normalized).find()
+                && JSON_CHAT_CONTENT_FIELD.matcher(normalized).find();
+    }
+
     // YAML-style copied chat records have plain role/speaker lines followed
     // by content/text/message/parts/delta. Both line-anchored fields must
     // occur; an ordinary note with only one field remains eligible. This is
@@ -4582,8 +4631,7 @@ public final class CelineFutureMemoryRecall {
         return value != null && value.length() <= MAX_INPUT
                 && (IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
                     || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find()
-                    || (JSON_CHAT_ROLE_FIELD.matcher(value).find()
-                        && JSON_CHAT_CONTENT_FIELD.matcher(value).find())
+                    || hasJsonChatFrame(value)
                     || (YAML_CHAT_ROLE_LINE.matcher(value).find()
                         && YAML_CHAT_BODY_LINE.matcher(value).find())
                     || hasYamlFlowChatFrame(value)
