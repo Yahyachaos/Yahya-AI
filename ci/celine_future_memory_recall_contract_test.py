@@ -623,6 +623,18 @@ public final class RoleTranscriptContract {
   check("yaml-comment-escaped-quote-no-body-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who, # \\\"escaped\n \"n\\u006fte\": Mein Golf ist rot\n}",true,true);
   check("yaml-quoted-hash-scalar-and-comment-saved","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n note: \"literal # \\\"quotes\\\"\", # \\\"comment\n \"co\\u006etent\": Mein Golf ist rot\n}",false,false);
   check("yaml-comment-quotes-nonstructural-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: \"literal, role: *who\", # \\\"comment\n \"co\\u006etent\": Mein Golf ist rot\n}",true,true);
+  // Wrapped single-line YAML flow maps parse as real copied chat records.
+  check("yaml-wrapped-flow-chat-saved","Mein Golf ist rot","message: {role: assistant, content: Mein Golf ist rot}",false,false);
+  check("yaml-wrapped-flow-chat-query","message: {role: assistant, content: Mein Golf ist rot}","Mein Golf ist rot",false,false);
+  check("yaml-wrapped-flow-quoted-role","Mein Golf ist rot","message: {role: \"assistant\", content: Mein Golf ist rot}",false,false);
+  check("yaml-wrapped-flow-speaker","Mein Golf ist rot","record: {speaker: user, text: Mein Golf ist rot}",false,false);
+  check("yaml-wrapped-flow-quoted-braces","Mein Golf ist rot","chat: {role: assistant, note: \"{}\", content: Mein Golf ist rot}",false,false);
+  check("yaml-wrapped-flow-no-role-control","Mein Golf ist rot","message: {note: copied, content: Mein Golf ist rot}",true,true);
+  check("yaml-wrapped-flow-unknown-role-control","Mein Golf ist rot","message: {role: owner, content: Mein Golf ist rot}",true,true);
+  check("yaml-wrapped-flow-quoted-fake-role-control","Mein Golf ist rot","message: {note: \", role: assistant\", content: Mein Golf ist rot}",true,true);
+  check("yaml-wrapped-flow-quoted-fake-body-control","Mein Golf ist rot","message: {role: assistant, note: \", content: Mein Golf ist rot\", other: memo}",true,true);
+  check("yaml-direct-flow-quoted-fake-body-control","Mein Golf ist rot","{role: assistant, note: \", content: Mein Golf ist rot\", other: memo}",true,true);
+  check("yaml-direct-flow-quoted-fake-role-control","Mein Golf ist rot","{note: \", role: assistant\", content: Mein Golf ist rot}",true,true);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }

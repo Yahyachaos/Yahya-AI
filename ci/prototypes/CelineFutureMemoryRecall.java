@@ -4372,7 +4372,7 @@ public final class CelineFutureMemoryRecall {
     // Require BOTH fields inside the SAME bounded, non-nested flow mapping;
     // unrelated notes or an unknown role are not transcript evidence.
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_MAP =
-            java.util.regex.Pattern.compile("(?m)^[ \t]*(?:-[ \t]+)?\\{[^\\r\\n{}]*\\}[ \t]*(?=\\r?$)");
+            java.util.regex.Pattern.compile("(?m)^[ \t]*(?:-[ \t]+)?(?:(?:message|frame|record|entry|chat)[ \t]*:[ \t]*)?\\{[^\\r\\n{}]*\\}[ \t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ROLE =
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')\\s*:\\s*" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
@@ -4449,6 +4449,12 @@ public final class CelineFutureMemoryRecall {
         return masked.toString();
     }
 
+    // Preserve a quoted actor scalar ONLY when it is an actual top-level
+    // role/speaker mapping value, never when role-like words appear in notes.
+    private static final java.util.regex.Pattern YAML_FLOW_ACTOR_VALUE_PREFIX =
+            java.util.regex.Pattern.compile(
+                "(?i)(?:\\{|,)[ \t\\r\\n]*(?:role|speaker|\\x22(?:role|speaker)\\x22|'(?:role|speaker)')[ \t]*:[ \t\\r\\n]*$");
+
     // Only classify top-level keys in a bounded YAML flow map. Quoted scalar
     // VALUES may contain literal `, role:` or `, content:` text; these are
     // not YAML mapping keys. Preserve actual quoted keys (followed by `:`)
@@ -4477,7 +4483,10 @@ public final class CelineFutureMemoryRecall {
             if (close < 0) continue;
             int next = close + 1;
             while (next < value.length() && Character.isWhitespace(value.charAt(next))) next++;
-            if (next >= value.length() || value.charAt(next) != ':') {
+            boolean actorValue = YAML_FLOW_ACTOR_VALUE_PREFIX.matcher(
+                    value.substring(0, i)).find();
+            if ((next >= value.length() || value.charAt(next) != ':')
+                    && !actorValue) {
                 for (int j = i + 1; j < close; j++) {
                     char c = value.charAt(j);
                     if (c != '\n' && c != '\r') masked.setCharAt(j, '_');
@@ -4510,9 +4519,13 @@ public final class CelineFutureMemoryRecall {
     }
 
     private static boolean hasYamlFlowChatFrame(String value) {
-        java.util.regex.Matcher maps = YAML_CHAT_FLOW_MAP.matcher(value);
+        // YAML permits named single-line chat maps: `message: {role: ...}`.
+        // Quoted scalar braces and comma-delimited note strings are data,
+        // not frame structure. This remains a bounded lexical classifier.
+        java.util.regex.Matcher maps = YAML_CHAT_FLOW_MAP.matcher(
+                maskedYamlQuotedFlowBraces(value));
         while (maps.find()) {
-            String flow = maps.group();
+            String flow = maskedYamlFlowQuotedScalarValues(maps.group());
             if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()
                     && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
         }
