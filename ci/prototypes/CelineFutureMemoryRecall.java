@@ -4416,12 +4416,21 @@ public final class CelineFutureMemoryRecall {
     private static boolean hasTomlMultilineChatFrame(String value) {
         java.util.regex.Matcher arrays = TOML_MULTILINE_CHAT_HEADER.matcher(value);
         while (arrays.find()) {
+            // A copied export may be clipped before its final array bracket.
+            // Inspect only the current assignment, ending at the first array
+            // close, TOML section or new messages assignment. A role and body
+            // must still belong to ONE complete or partial inline record.
+            int start = arrays.end();
+            int end = value.length();
             java.util.regex.Matcher ends = TOML_MULTILINE_CHAT_END.matcher(value);
-            if (!ends.find(arrays.end())) continue;
+            if (ends.find(start)) end = ends.start();
             java.util.regex.Matcher section = TOML_SECTION_HEADER.matcher(value);
-            if (section.find(arrays.end()) && section.start() < ends.start()) continue;
-            if (hasTomlInlineChatRows(value.substring(arrays.end(), ends.start())))
-                return true;
+            if (section.find(start) && section.start() < end)
+                end = section.start();
+            java.util.regex.Matcher nextArray = TOML_MULTILINE_CHAT_HEADER.matcher(value);
+            if (nextArray.find(start) && nextArray.start() < end)
+                end = nextArray.start();
+            if (hasTomlInlineChatRows(value.substring(start, end))) return true;
         }
         return false;
     }

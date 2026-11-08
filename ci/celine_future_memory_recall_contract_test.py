@@ -246,6 +246,19 @@ public final class RoleTranscriptContract {
   check("toml-trunc-role-only-control","Mein Golf ist rot","messages = [{role = 'assistant', note = 'Mein Golf ist rot']",true,true);
   check("toml-trunc-different-rows-control","Mein Golf ist rot","messages = [{role = 'assistant'}, {content = 'Mein Golf ist rot'",true,true);
   check("toml-trunc-unrelated-notes-control","Mein Golf ist rot","notes = [{role = 'assistant', content = 'Mein Golf ist rot'",true,true);
+  // Multiline copied TOML messages may be cut off before a closing array ]:
+  // records are not first-party G1 facts even with an otherwise complete row.
+  check("toml-trunc-multi-array-source","Mein Golf ist rot","messages = [\n {role = 'assistant', content = 'Mein Golf ist rot'}",false,false);
+  check("toml-trunc-multi-array-query","messages = [\n {role = 'user', content = 'Mein Golf ist rot'}","Mein Golf ist rot",false,false);
+  check("toml-trunc-multi-array-open-table","Mein Golf ist rot","messages = [\n {speaker = 'tool', text = 'Mein Golf ist rot'",false,false);
+  check("toml-trunc-multi-array-header-comment","Mein Golf ist rot","chat.messages = [ # copied\n {role = 'developer', message = 'Mein Golf ist rot'},",false,false);
+  check("toml-trunc-multi-array-section-boundary","Mein Golf ist rot","messages = [\n {role = 'assistant', content = 'Mein Golf ist rot'}\n[notes]\nother = 1",false,false);
+  check("toml-trunc-multi-array-unknown-role-control","Mein Golf ist rot","messages = [\n {role = 'owner', content = 'Mein Golf ist rot'}",true,true);
+  check("toml-trunc-multi-array-split-rows-control","Mein Golf ist rot","messages = [\n {role = 'assistant'},\n {content = 'Mein Golf ist rot'}",true,true);
+  check("toml-trunc-multi-array-role-only-control","Mein Golf ist rot","messages = [\n {role = 'assistant', note = 'Mein Golf ist rot'}",true,true);
+  check("toml-trunc-multi-array-other-key-control","Mein Golf ist rot","notes = [\n {role = 'assistant', content = 'Mein Golf ist rot'}",true,true);
+  check("toml-trunc-multi-array-across-section-control","Mein Golf ist rot","messages = [\n {role = 'assistant'},\n[notes]\n {content = 'Mein Golf ist rot'}",true,true);
+  check("toml-trunc-multi-array-across-header-control","Mein Golf ist rot","messages = [\n {role = 'assistant'},\nmessages = [\n {content = 'Mein Golf ist rot'}",true,true);
   // TOML chat-array tables are copied transcripts; the role/body pair must
   // belong to the SAME messages table, not arbitrary independent TOML notes.
   check("toml-chat-message-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);
