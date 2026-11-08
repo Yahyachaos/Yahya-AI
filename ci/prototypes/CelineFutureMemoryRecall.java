@@ -4347,6 +4347,28 @@ public final class CelineFutureMemoryRecall {
         return decoded.toString();
     }
 
+    // TOML basic-quoted assignment names can use the same Unicode escapes as
+    // table headers. Decode ONLY full, top-level, double-quoted assignment
+    // keys and ONLY if the decoded key is one of the known chat role/body keys.
+    // Never normalize values, comments, arbitrary notes, or double-escaped \\u.
+    private static final java.util.regex.Pattern TOML_QUOTED_CHAT_ASSIGNMENT_KEY =
+            java.util.regex.Pattern.compile(
+                "(?m)^([ \\t]*)(\\\"(?:\\\\.|[^\\\"\\\\\\r\\n])*\\\")([ \\t]*=)");
+
+    private static String normalizedTomlChatAssignmentKeys(String fields) {
+        java.util.regex.Matcher keys = TOML_QUOTED_CHAT_ASSIGNMENT_KEY.matcher(fields);
+        StringBuffer out = new StringBuffer(fields.length());
+        while (keys.find()) {
+            String candidate = normalizedTomlSectionHeader(keys.group(2));
+            if (!candidate.matches("(?i)\\\"(?:role|speaker|content|text|message|parts|delta)\\\""))
+                continue;
+            keys.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(
+                    keys.group(1) + candidate + keys.group(3)));
+        }
+        keys.appendTail(out);
+        return out.toString();
+    }
+
     private static final java.util.regex.Pattern TOML_CHAT_ROLE =
             java.util.regex.Pattern.compile(
                 "(?im)^[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')[ \t]*=[ \t]*(['\"])(?:assistant|user|system|developer|tool)\\1(?:[ \t]*#[^\\r\\n]*)?[ \t]*(?=\\r?$)");
@@ -4497,7 +4519,7 @@ public final class CelineFutureMemoryRecall {
             int start = table.end();
             java.util.regex.Matcher following = TOML_SECTION_HEADER.matcher(value);
             int end = following.find(start) ? following.start() : value.length();
-            String fields = value.substring(start, end);
+            String fields = normalizedTomlChatAssignmentKeys(value.substring(start, end));
             if (TOML_CHAT_ROLE.matcher(fields).find()
                     && TOML_CHAT_BODY.matcher(fields).find()) return true;
         }
