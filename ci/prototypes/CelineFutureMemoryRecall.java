@@ -4307,8 +4307,11 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern TOML_INLINE_CHAT_ARRAY =
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:messages?|chat\\.messages?)[ \\t]*=[ \\t]*\\[([^\\r\\n]*)\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+    // Keep TOML quote-delimited strings intact while recognizing each inline
+    // table. Braces inside a quoted value are data, not a second table or
+    // a table delimiter; unquoted nested braces still cannot be paired.
     private static final java.util.regex.Pattern TOML_INLINE_TABLE =
-            java.util.regex.Pattern.compile("\\{[^\\r\\n{}]*\\}");
+            java.util.regex.Pattern.compile("\\{(?:[^{}\\\"'\\r\\n]|\\\"(?:\\\\.|[^\\\"\\\\\\r\\n])*\\\"|'[^'\\r\\n]*')*\\}");
     private static final java.util.regex.Pattern TOML_INLINE_CHAT_ROLE =
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \\t]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*=[ \\t]*(['\\\"])(?:assistant|user|system|developer|tool)\\1(?=[ \\t]*[,}])");

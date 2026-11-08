@@ -214,6 +214,16 @@ public final class RoleTranscriptContract {
   check("toml-multi-separate-objects-control","Mein Golf ist rot","messages = [\n {role = 'assistant'},\n {content = 'Mein Golf ist rot'},\n]",true,true);
   check("toml-multi-role-only-control","Mein Golf ist rot","messages = [\n {role = 'assistant', note = 'Mein Golf ist rot'},\n]",true,true);
   check("toml-multi-separated-section-control","Mein Golf ist rot","messages = [\n {role = 'assistant'},\n]\n[notes]\ncontent = 'Mein Golf ist rot'",true,true);
+  // A TOML string may contain literal braces. These are not nested objects:
+  // imported chat rows must still be excluded, without combining split rows.
+  check("toml-inline-literal-braces-source","Mein Golf ist rot","messages = [{role = \"assistant\", content = \"Mein Golf {ist} rot\"}]",false,false);
+  check("toml-inline-literal-right-brace-query","messages = [{role = 'user', message = 'Mein Golf } ist rot'}]","Mein Golf ist rot",false,false);
+  check("toml-multi-literal-braces-source","Mein Golf ist rot","messages = [\n {speaker = \"tool\", text = \"Mein Golf {ist} rot\"},\n]",false,false);
+  check("toml-multi-escaped-quote-braces-source","Mein Golf ist rot","messages = [\n {role = \"assistant\", content = \"Mein Golf \\\"{ist}\\\" rot\"},\n]",false,false);
+  check("toml-inline-brace-unknown-role-control","Mein Golf ist rot","messages = [{role = 'owner', content = 'Mein Golf {ist} rot'}]",true,true);
+  check("toml-inline-brace-unrelated-notes-control","Mein Golf ist rot","notes = [{role = 'assistant', content = 'Mein Golf {ist} rot'}]",true,true);
+  check("toml-multi-brace-cross-table-control","Mein Golf ist rot","messages = [\n {role = 'assistant', note = 'x {y}'},\n {content = 'Mein Golf ist rot'},\n]",true,true);
+  check("toml-inline-brace-cross-table-control","Mein Golf ist rot","messages = [{role = 'assistant', note = 'x {y}'}, {content = 'Mein Golf ist rot'}]",true,true);
   // TOML chat-array tables are copied transcripts; the role/body pair must
   // belong to the SAME messages table, not arbitrary independent TOML notes.
   check("toml-chat-message-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);
