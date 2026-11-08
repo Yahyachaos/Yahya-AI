@@ -173,6 +173,62 @@ final class CelineRoomEnvironmentV80 {
 
     private CelineRoomEnvironmentV80() {}
 
+    /**
+     * Explicit DEBUG-only, synchronous proof bracket for an unobstructed
+     * overhead image. BUILD/Proof owns the caller, camera and native capture.
+     * Only the real source ceiling renderable is transiently removed here:
+     * every furniture world matrix and the actual 4.40 x 4.20 x 2.65m shell
+     * must pass the normal cached guards both before and after the callback.
+     *
+     * A callback must encompass the actual frame/capture transaction. This
+     * method does not enable a permanent ceiling-off state, bypass shell
+     * verification, or claim that any Android pixels have been measured.
+     */
+    static void withNativeS25CeilingHiddenForDiagnosticTopview(
+            Celine3DView view, Runnable synchronousFrameAndCapture) {
+        if (view == null || synchronousFrameAndCapture == null
+                || !view.isFilamentOwnerThread()) {
+            throw new IllegalStateException("S25 diagnostic topview requires Filament owner and frame");
+        }
+        if ((view.getContext().getApplicationInfo().flags
+                & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            throw new IllegalStateException("S25 diagnostic ceiling removal forbidden outside DEBUG");
+        }
+        State state;
+        synchronized (STATES) { state = STATES.get(view); }
+        if (state == null || !state.isBuilt() || state.roomShellAsset == null) {
+            throw new IllegalStateException("S25 diagnostic topview requires the fully built Room");
+        }
+        state.verifyCachedS25WorldMatrices();
+        int ceiling = state.roomShellAsset.getFirstEntityByName("room_shell_ceiling");
+        if (ceiling == 0 || !state.engine.getRenderableManager().hasComponent(ceiling)
+                || !state.scene.hasEntity(ceiling)) {
+            throw new IllegalStateException("Real S25 ceiling absent before diagnostic topview");
+        }
+        try {
+            CelineRoomProofCeilingScopeV80.run(
+                    new CelineRoomProofCeilingScopeV80.CeilingScene() {
+                        @Override public boolean isAttached() {
+                            return state.scene.hasEntity(ceiling);
+                        }
+                        @Override public void detach() {
+                            state.scene.removeEntity(ceiling);
+                        }
+                        @Override public void restore() {
+                            state.scene.addEntity(ceiling);
+                        }
+                    }, synchronousFrameAndCapture);
+        } finally {
+            // A broken callback/restoration must never yield a green cached
+            // ROOM. Retain the original floor/ceiling/wall + 13/13 guards.
+            state.verifyCachedS25WorldMatrices();
+        }
+        Celine3DDiagnostics.record(state.context, "ROOM-S25-DIAG-CEILING",
+                "Synchronous DEBUG topview bracket completed; original ceiling restored",
+                "ceilingRestored=true 13FurnitureUnchanged=true"
+                        + " AndroidPixels=UNVERIFIED G2.3=PAUSED");
+    }
+
     static boolean ensure(Context context, Celine3DView view) {
         if (context == null || view == null) return false;
         // Main-thread attachment callbacks must not enter the worker-owned gltfio.
