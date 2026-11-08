@@ -310,6 +310,17 @@ public final class RoleTranscriptContract {
   check("toml-quoted-unknown-role-control","Mein Golf ist rot","[[messages]]\n'role' = 'owner'\n'content' = 'Mein Golf ist rot'",true,true);
   check("toml-quoted-only-body-control","Mein Golf ist rot","[[messages]]\n'content' = 'Mein Golf ist rot'",true,true);
   check("toml-quoted-separated-sections-control","Mein Golf ist rot","[[messages]]\n'role' = 'assistant'\n[notes]\n'content' = 'Mein Golf ist rot'",true,true);
+  // TOML basic quoted table names may escape Unicode codepoints. This is
+  // still the *same* messages table, not a first-party memory source.
+  check("toml-unicode-basic-source","Mein Golf ist rot","[[ \"mes\\u0073ages\" ]]\nrole = 'assistant'\ncontent = 'Mein Golf ist rot'",false,false);
+  check("toml-unicode-basic-query","[[ \"me\\u0073sage\" ]]\nrole = 'user'\ncontent = 'Mein Golf ist rot'","Mein Golf ist rot",false,false);
+  check("toml-unicode-chat-segment","Mein Golf ist rot","[[ \"ch\\u0061t\" . messages ]]\nspeaker = 'tool'\ntext = 'Mein Golf ist rot'",false,false);
+  check("toml-unicode-message-segment","Mein Golf ist rot","[[ chat . \"mess\\U00000061ge\" ]]\nrole = 'system'\nparts = 'Mein Golf ist rot'",false,false);
+  check("toml-unicode-comments","Mein Golf ist rot","[[ \"mes\\u0073ages\" ]]#export\nrole = 'developer'\ncontent = 'Mein Golf ist rot'",false,false);
+  // A literal backslash in a quoted TOML key is not a Unicode escape.
+  check("toml-unicode-double-backslash-control","Mein Golf ist rot","[[ \"mes\\\\u0073ages\" ]]\nrole = 'assistant'\ncontent = 'Mein Golf ist rot'",true,true);
+  check("toml-unicode-unrelated-notes-control","Mein Golf ist rot","[[ \"not\\u0065s\" ]]\nrole = 'assistant'\ncontent = 'Mein Golf ist rot'",true,true);
+  check("toml-unicode-split-section-control","Mein Golf ist rot","[[ \"mes\\u0073ages\" ]]\nrole = 'assistant'\n[notes]\ncontent = 'Mein Golf ist rot'",true,true);
   // Valid TOML table comments do not remove the imported role/body frame;
   // a comment on a DIFFERENT section must not allow cross-section pairing.
   check("toml-comment-message-header-source","Mein Golf ist rot","[[messages]] # imported chat\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);

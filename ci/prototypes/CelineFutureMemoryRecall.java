@@ -4295,6 +4295,58 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern TOML_SECTION_HEADER =
             java.util.regex.Pattern.compile(
                 "(?m)^[ \t]*\\[[^\\r\\n]*\\][ \t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+    // TOML basic quoted table-key segments permit Unicode escape sequences:
+    // [[ "mes\u0073ages" ]] denotes [[ "messages" ]]. Decode only inside
+    // double-quoted section keys (not arbitrary notes or quoted values), and
+    // never interpret an escaped backslash as the start of a Unicode escape.
+    // The enclosing transcript input is MAX_INPUT-bounded.
+    private static String normalizedTomlSectionHeader(String header) {
+        StringBuilder decoded = new StringBuilder(header.length());
+        char quoted = 0;
+        for (int i = 0; i < header.length();) {
+            char c = header.charAt(i);
+            if (quoted == 0) {
+                decoded.append(c);
+                if (c == '"' || c == '\'') quoted = c;
+                i++;
+            } else if (quoted == '\'') {
+                decoded.append(c);
+                if (c == '\'') quoted = 0;
+                i++;
+            } else if (c == '\\' && i + 1 < header.length()) {
+                char escaped = header.charAt(i + 1);
+                if (escaped == '\\' || escaped == '"') {
+                    decoded.append(c).append(escaped);
+                    i += 2;
+                    continue;
+                }
+                int digits = escaped == 'u' ? 4 : escaped == 'U' ? 8 : 0;
+                if (digits != 0 && i + 2 + digits <= header.length()) {
+                    int codePoint = 0;
+                    boolean valid = true;
+                    for (int k = i + 2; k < i + 2 + digits; k++) {
+                        int digit = Character.digit(header.charAt(k), 16);
+                        if (digit < 0) { valid = false; break; }
+                        codePoint = (codePoint << 4) | digit;
+                    }
+                    if (valid && Character.isValidCodePoint(codePoint)
+                            && (codePoint < 0xD800 || codePoint > 0xDFFF)) {
+                        decoded.appendCodePoint(codePoint);
+                        i += 2 + digits;
+                        continue;
+                    }
+                }
+                decoded.append(c);
+                i++;
+            } else {
+                decoded.append(c);
+                if (c == '"') quoted = 0;
+                i++;
+            }
+        }
+        return decoded.toString();
+    }
+
     private static final java.util.regex.Pattern TOML_CHAT_ROLE =
             java.util.regex.Pattern.compile(
                 "(?im)^[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')[ \t]*=[ \t]*(['\"])(?:assistant|user|system|developer|tool)\\1(?:[ \t]*#[^\\r\\n]*)?[ \t]*(?=\\r?$)");
@@ -4438,8 +4490,10 @@ public final class CelineFutureMemoryRecall {
     }
 
     private static boolean hasTomlChatFrame(String value) {
-        java.util.regex.Matcher table = TOML_CHAT_MESSAGE_HEADER.matcher(value);
+        java.util.regex.Matcher table = TOML_SECTION_HEADER.matcher(value);
         while (table.find()) {
+            if (!TOML_CHAT_MESSAGE_HEADER.matcher(
+                    normalizedTomlSectionHeader(table.group())).matches()) continue;
             int start = table.end();
             java.util.regex.Matcher following = TOML_SECTION_HEADER.matcher(value);
             int end = following.find(start) ? following.start() : value.length();
