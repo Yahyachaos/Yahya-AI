@@ -4420,6 +4420,45 @@ public final class CelineFutureMemoryRecall {
         return masked.toString();
     }
 
+    // Only classify top-level keys in a bounded YAML flow map. Quoted scalar
+    // VALUES may contain literal `, role:` or `, content:` text; these are
+    // not YAML mapping keys. Preserve actual quoted keys (followed by `:`)
+    // while masking nonstructural scalar interiors. This is not a YAML parser.
+    private static String maskedYamlFlowQuotedScalarValues(String value) {
+        StringBuilder masked = new StringBuilder(value);
+        for (int i = 0; i < value.length(); i++) {
+            char quote = value.charAt(i);
+            if ((quote != '\'' && quote != '"') ||
+                    (i > 0 && Character.isLetterOrDigit(value.charAt(i - 1)))) continue;
+            int close = -1;
+            for (int j = i + 1; j < value.length(); j++) {
+                char c = value.charAt(j);
+                if (quote == '"' && c == '\\' && j + 1 < value.length()) {
+                    j++;
+                } else if (c == quote) {
+                    if (quote == '\'' && j + 1 < value.length()
+                            && value.charAt(j + 1) == '\'') {
+                        j++;
+                    } else {
+                        close = j;
+                        break;
+                    }
+                }
+            }
+            if (close < 0) continue;
+            int next = close + 1;
+            while (next < value.length() && Character.isWhitespace(value.charAt(next))) next++;
+            if (next >= value.length() || value.charAt(next) != ':') {
+                for (int j = i + 1; j < close; j++) {
+                    char c = value.charAt(j);
+                    if (c != '\n' && c != '\r') masked.setCharAt(j, '_');
+                }
+            }
+            i = close;
+        }
+        return masked.toString();
+    }
+
     private static boolean hasYamlAnchoredAliasFlowFrame(String value) {
         java.util.regex.Matcher pairs = YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR.matcher(
                 maskedYamlQuotedFlowBraces(value));
@@ -4432,6 +4471,7 @@ public final class CelineFutureMemoryRecall {
             String flow = pairs.group(3).replaceAll(
                     "(?m)^[ \\t]*#[^\\r\\n]*(?:\\r?\\n|$)", "");
             flow = flow.replaceAll("\\{[^{}\\r\\n]{0,256}\\}", "NESTED");
+            flow = maskedYamlFlowQuotedScalarValues(flow);
             flow = "{" + flow + "}";
             java.util.regex.Matcher alias = YAML_CHAT_FLOW_ALIAS_ROLE.matcher(flow);
             if (alias.find() && pairs.group(1).equals(alias.group(1))

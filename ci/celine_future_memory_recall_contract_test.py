@@ -593,6 +593,14 @@ public final class RoleTranscriptContract {
   check("yaml-inline-comment-role-only-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: ok, # role: *who,\n content: Mein Golf ist rot\n}",true,true);
   check("yaml-inline-comment-body-only-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who, # content: Mein Golf ist rot\n notes: Mein Golf ist rot\n}",true,true);
   check("yaml-inline-comment-wrong-alias-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *other, # forwarded\n content: Mein Golf ist rot\n}",true,true);
+  check("followup-quoted-hash-copied","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who, # comment\n content: \"Mein #Golf ist rot\"\n}",false,false);
+  check("followup-quoted-comma-note-not-role","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: \"hint, role: *who\",\n content: Mein Golf ist rot\n}",true,true);
+  check("followup-quoted-comma-note-not-body","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n note: \"hint, content: Mein Golf ist rot\"\n}",true,true);
+  check("followup-quoted-hash-note-not-role","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: \"hint, role: *who #\",\n content: Mein Golf ist rot\n}",true,true);
+  check("followup-quoted-key-alias-valid","Mein Golf ist rot","actor: &who assistant\nmessage: {\n 'role': *who,\n \"content\": \"Mein Golf ist rot\"\n}",false,false);
+  check("followup-singlequoted-fake-body","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n note: 'hint, content: Mein Golf ist rot,'\n}",true,true);
+  check("followup-singlequoted-fake-role","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: 'hint, role: *who,',\n content: Mein Golf ist rot\n}",true,true);
+  check("followup-quoted-comma-body-and-comment","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who, # note\n content: \"Mein Golf ist rot, role: *who\"\n}",false,false);
   check("yaml-flow-alias-document-boundary-control","Mein Golf ist rot","actor: &who assistant\n---\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
