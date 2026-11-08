@@ -4335,6 +4335,7 @@ public final class CelineFutureMemoryRecall {
                 + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
                 + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
                 + "[ \\t]*(?:-[ \\t]+)?(?:role|speaker)[ \\t]*:[ \\t]*\\*\\1(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
                 + "[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta)[ \\t]*:[ \\t]*\\S");
 
     // YAML flow maps are a one-line alternative to block records:
