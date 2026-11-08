@@ -4333,6 +4333,7 @@ public final class CelineFutureMemoryRecall {
                 + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
                 + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
                 + "[ \\t]*(?:-[ \\t]+)?(?:role|speaker)[ \\t]*:[ \\t]*\\*\\1(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
                 + "[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta)[ \\t]*:[ \\t]*\\S");
 
@@ -4362,6 +4363,7 @@ public final class CelineFutureMemoryRecall {
                 + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
                 + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
                 + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{([^{}\\r\\n]*)\\}[ \\t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ALIAS_ROLE =
             java.util.regex.Pattern.compile(
