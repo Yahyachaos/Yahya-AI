@@ -569,6 +569,16 @@ public final class RoleTranscriptContract {
   check("yaml-nested-content-role-only-inner-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: {role: *who, content: Mein Golf ist rot},\n other: Mein Golf ist rot\n}",true,true);
   check("yaml-nested-content-body-only-inner-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n note: {content: Mein Golf ist rot}\n}",true,true);
   check("yaml-nested-content-unknown-actor-control","Mein Golf ist rot","actor: &who owner\nmessage: {\n role: *who,\n content: {text: Mein Golf ist rot}\n}",true,true);
+  // Valid YAML 1.2 copied-message flow maps: literal braces within quoted
+  // scalar content or metadata are data, never structural map boundaries.
+  check("yaml-quoted-braces-body-saved","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n content: \"Mein Golf ist rot {Notiz}\"\n}",false,false);
+  check("yaml-quoted-braces-body-query","actor: &who assistant\nmessage: {\n role: *who,\n content: \"Mein Golf ist rot {Notiz}\"\n}","Mein Golf ist rot",false,false);
+  check("yaml-quoted-unbalanced-braces","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n content: \"Mein Golf ist rot } {\"\n}",false,false);
+  check("yaml-quoted-braces-nested-body","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n content: {text: \"Mein Golf ist rot } {\"}\n}",false,false);
+  check("yaml-quoted-braces-note-before-role","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: \"}{\",\n role: *who,\n content: Mein Golf ist rot\n}",false,false);
+  check("yaml-quoted-braces-mismatch-control","Mein Golf ist rot","other: &wrong owner\nactor: &who assistant\nmessage: {\n role: *wrong,\n content: \"Mein Golf ist rot {Notiz}\"\n}",true,true);
+  check("yaml-quoted-braces-inner-role-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n note: {role: *who, content: \"Mein Golf ist rot {Notiz}\"},\n comment: \"hi\"\n}",true,true);
+  check("yaml-quoted-braces-nobody-control","Mein Golf ist rot","actor: &who assistant\nmessage: {\n role: *who,\n note: \"Mein Golf ist rot {Notiz}\"\n}",true,true);
   check("yaml-multiline-quoted-role-direct-control","Mein Golf ist rot","messages:\n - {\n    role: \"assistant\",\n    content: \"Mein Golf ist rot\"\n   }",false,false);
   check("yaml-multiline-quoted-key-direct-control","Mein Golf ist rot","messages:\n - {\n    \"role\": \"tool\",\n    \"content\": \"Mein Golf ist rot\"\n   }",false,false);
   check("yaml-flow-alias-document-boundary-control","Mein Golf ist rot","actor: &who assistant\n---\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);

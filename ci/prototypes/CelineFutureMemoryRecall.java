@@ -4370,8 +4370,34 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \\t\\r\\n]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*:[ \\t]*\\*([A-Za-z0-9_-]{1,64})(?=[ \\t\\r\\n]*[,}])");
 
+    // Only for conservative copied-YAML flow frame classification: braces
+    // inside quoted scalar values are DATA, not nested mapping delimiters.
+    // Keep ordinary keys, values, and quote boundaries intact; never mutate
+    // the memory value or trust source metadata. Input is MAX_INPUT bounded.
+    private static String maskedYamlQuotedFlowBraces(String value) {
+        StringBuilder masked = new StringBuilder(value);
+        char quote = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (quote == 0) {
+                if (c == '"' || c == '\'') quote = c;
+            } else if (c == quote) {
+                if (quote == '\'' && i + 1 < value.length()
+                        && value.charAt(i + 1) == '\'') {
+                    i++; // YAML escaped apostrophe ('') in single quoted scalar
+                } else quote = 0;
+            } else if (quote == '"' && c == '\\' && i + 1 < value.length()) {
+                i++; // Skip escaped double quote (or any escaped character)
+            } else if (c == '{' || c == '}') {
+                masked.setCharAt(i, '_');
+            }
+        }
+        return masked.toString();
+    }
+
     private static boolean hasYamlAnchoredAliasFlowFrame(String value) {
-        java.util.regex.Matcher pairs = YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR.matcher(value);
+        java.util.regex.Matcher pairs = YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR.matcher(
+                maskedYamlQuotedFlowBraces(value));
         while (pairs.find()) {
             // Comments inside a bounded YAML flow frame are not content/role
             // fields; remove comment-only rows before matching existing keys.
