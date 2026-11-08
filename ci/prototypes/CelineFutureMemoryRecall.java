@@ -4394,7 +4394,9 @@ public final class CelineFutureMemoryRecall {
                 "(?i)(?:\\{|,)[ \\t]*(?:content|text|message|parts|delta|\\\"(?:content|text|message|parts|delta)\\\"|'(?:content|text|message|parts|delta)')[ \\t]*=[ \\t]*\\S");
 
     private static boolean isTomlTopLevelChatField(String field, boolean actor) {
-        String isolated = "{" + field.trim() + "}";
+        // Inline table fields are bounded top-level assignments, so reuse the
+        // quoted TOML key decoder without touching string values or metadata.
+        String isolated = "{" + normalizedTomlChatAssignmentKeys(field.trim()) + "}";
         return (actor ? TOML_INLINE_CHAT_ROLE : TOML_INLINE_CHAT_BODY)
                 .matcher(isolated).lookingAt();
     }
