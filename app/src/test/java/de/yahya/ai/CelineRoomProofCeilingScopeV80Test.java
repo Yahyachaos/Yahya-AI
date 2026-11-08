@@ -70,7 +70,7 @@ public final class CelineRoomProofCeilingScopeV80Test {
                 reattachDuringFrame, () -> reattachDuringFrame.attached = true));
         check(reattachDuringFrame.attached, "Reattached scene not restored");
 
-// A capture initiated after the roof bracket is NOT a roof-hidden frame.
+        // A capture initiated after the roof bracket is NOT a roof-hidden frame.
         // This intentionally failing synthetic probe guards against deferring
         // renderer.render()/readPixels() submission to a later frame callback.
         FakeScene deferredRender = new FakeScene();
