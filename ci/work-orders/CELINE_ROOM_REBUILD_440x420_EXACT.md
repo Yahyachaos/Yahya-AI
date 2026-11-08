@@ -1,3 +1,19 @@
+## 09.11.2026, 00:17 MEZ — tatsächliche Binärprüfung des zuletzt erfolgreich gebauten DEBUG-APK (NEW; KEIN Android-Visual-PASS)
+
+**Neu selbst aus dem echten GitHub-Actions-Artefakt ausgelesen, nicht aus Logs abgeleitet:** Zu [Android-Build #42504863710](https://github.com/Yahyachaos/Yahya-AI/actions/runs/42504863710) wurde das Original-Artefakt **13626742669** (`yahya-ai-debug`) heruntergeladen und als ZIP mit tatsächlichen Bytes geprüft. Das äußere GitHub-Artefakt-ZIP hat SHA256 **`0462bed6427c94e893fecca18909f803a673bce7c860c95bcf34207ec4fc5abf`** (stimmt mit GitHub Actions Digest überein). Sein einziges Mitglied `app-debug.apk` hat **370764644 Bytes** und den neu unabhängig berechneten **inneren APK-SHA256 `5ae7de9528bff81d696c78b9d5a389075ebd2af2b326092266e66e62d4c50a46`**. **Unbedingt diese APK-Byte-Identität** für den BUILD-exklusiven nativen Proof verwenden; ZIP-Digest ist *nicht* APK-Digest.
+
+Im tatsächlich extrahierten APK sind **14 `assets/models/room/source-fidelity/*.glb`** enthalten (originale Room-Shell plus 13 Möbelinstanzen), dazu das finale Editorlayout und 4R-Assembly/World-Contract. Die drei *aus APK-Bytes selbst berechneten Git-Blob-SHAs* stimmen jeweils mit den auf aktuellem #121-HEAD `81936eb4e954d3e8c4cce16c16fcb2fc0b45c20e` live zurückgelesenen GitHub-Blob-SHAs überein:
+
+- S25-Layout: `9de653b558c0cda8e747d439beff44d373ae8f87`; Original-Layoutbytes SHA256 **`471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f`**; 13 eindeutige IDs, Raum **4.40 × 4.20 × 2.65 m**.
+- Assembly: `19908bc396c4fb83ab8984d47294a6dfae207355`; **13 Original-IDs** und dieselben Raumabmessungen.
+- World-Contract: `c40243d80f0886d40420974be991ffef4e8675ae`; dieselben Raumabmessungen, alte 9R-Kontakt-/Kollisionsmetadaten weiterhin ausdrücklich **UNVERIFIED**.
+
+**Aussagegrenze:** Diese neue Prüfung ist reine signierte/reproduzierbare **APK-Datei-/Paket-Inhaltsprüfung** (nicht APK-Signaturprüfung, nicht 14/14 GitHub-GLB-Bytevergleich, keine Android-Ausführung). Sie beweist weder korrekt dargestellte GLBs noch 13/13 *native* Filament-Readbacks, Bildschirmbild oder HOME-/CALL-Abnahme. DEBUG-Decken-Bridge bleibt opt-in, normaler Raum und Nutzermöbel bleiben unangetastet. Kein neuer Android-Build und kein Release. **ROOM VISUAL FAIL / G2.3 PAUSED**.
+
+**Genau ein unverändertes `exact_next_action`:** Der bestehende BUILD-/Proof-Owner prüft seine exklusive Shared-Kamera-/CI-/Runner-Lease und führt eine einzelne echte Android-Filament-Aufnahme mit dem so gebundenen APK-SHA durch: framegebundene Kamera, synchrone Render-/`readPixels`-Submission im DEBUG-Dachfenster, vollständige asynchrone Readback-Korrelation, Decken-Restore sowie originaler Logcat 13/13 Root-/Mesh-/AABB-Readbacks, positive Boden-/Shell-Prüfung und getrennte echte 3D-/Topview-/HOME-/CALL-Bilder. Scheitern oder fehlende Lease als BLOCKED/FAIL melden. Erst danach kalibrierte 9R Collider/Anker, nie durch Verschieben der 13 Nutzermöbel. Kein zweiter Worker/Build/Release.
+
+---
+
 ## 08.11.2026, 19:16 MEZ — EXAKTER NEUER PR-HEAD #121 / ANDROID-BUILD #42504863710: abgeschlossen, jedoch weiterhin KEIN nativer Visual-Proof
 
 **Live erneut aus GitHub gelesen:** Bestehender Room-Branch `room/user-layout-exact-20261031`, PR #121 **OPEN/DRAFT**, HEAD `c574e9bffa6f8565d30645aa64efcc8504288411`. Der neueste GitHub Actions [Android-Build #42504863710](https://github.com/Yahyachaos/Yahya-AI/actions/runs/42504863710) hat **COMPLETED/SUCCESS** mit erfolgreichem Gradle-Debug-APK, getrenntem nicht-debuggable Produktionspaket, Paketsigner-Prüfung und Projektprüfung. Die Emulator-, Publish- und Android-Upgrade-Jobs wurden **SKIPPED**. Er ist weder ein echter Android-Filament-Pixelnachweis noch ein veröffentlichtes Release.
