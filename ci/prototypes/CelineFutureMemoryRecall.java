@@ -4307,11 +4307,9 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern TOML_INLINE_CHAT_ARRAY =
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:messages?|chat\\.messages?)[ \\t]*=[ \\t]*\\[([^\\r\\n]*)\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
-    // Keep TOML quote-delimited strings intact while recognizing each inline
-    // table. Braces inside a quoted value are data, not a second table or
-    // a table delimiter; unquoted nested braces still cannot be paired.
-    private static final java.util.regex.Pattern TOML_INLINE_TABLE =
-            java.util.regex.Pattern.compile("\\{(?:[^{}\\\"'\\r\\n]|\\\"(?:\\\\.|[^\\\"\\\\\\r\\n])*\\\"|'[^'\\r\\n]*')*\\}");
+    // Braces in quoted values are literal; nested inline metadata is real
+    // TOML syntax. A bounded scanner isolates complete outer records without
+    // pairing a nested metadata key with a top-level message field.
     private static final java.util.regex.Pattern TOML_INLINE_CHAT_ROLE =
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \\t]*(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*=[ \\t]*(['\\\"])(?:assistant|user|system|developer|tool)\\1(?=[ \\t]*[,}])");
@@ -4319,15 +4317,69 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \\t]*(?:content|text|message|parts|delta|\\\"(?:content|text|message|parts|delta)\\\"|'(?:content|text|message|parts|delta)')[ \\t]*=[ \\t]*\\S");
 
+    private static boolean isTomlTopLevelChatField(String field, boolean actor) {
+        String isolated = "{" + field.trim() + "}";
+        return (actor ? TOML_INLINE_CHAT_ROLE : TOML_INLINE_CHAT_BODY)
+                .matcher(isolated).lookingAt();
+    }
+
+    private static boolean isTomlInlineChatRecord(String record) {
+        boolean actor = false, body = false;
+        int nested = 0, start = 1;
+        char quote = 0;
+        for (int i = 1; i < record.length() - 1; i++) {
+            char c = record.charAt(i);
+            if (quote != 0) {
+                if (quote == '"' && c == '\\' && i + 1 < record.length() - 1) i++;
+                else if (c == quote) quote = 0;
+                continue;
+            }
+            if (c == '"' || c == '\'') quote = c;
+            else if (c == '{') nested++;
+            else if (c == '}') nested--;
+            else if (c == ',' && nested == 0) {
+                String field = record.substring(start, i);
+                actor |= isTomlTopLevelChatField(field, true);
+                body |= isTomlTopLevelChatField(field, false);
+                start = i + 1;
+            }
+        }
+        String last = record.substring(start, record.length() - 1);
+        return (actor || isTomlTopLevelChatField(last, true))
+                && (body || isTomlTopLevelChatField(last, false));
+    }
+
+    // The enclosing input is MAX_INPUT-bounded (512 chars). Quote-aware
+    // balancing identifies each whole inline message, not nested metadata
+    // tables or unrelated array entries; no backtracking regex is needed.
+    private static boolean hasTomlInlineChatRows(String rows) {
+        char quote = 0;
+        int depth = 0, start = -1;
+        for (int i = 0; i < rows.length(); i++) {
+            char c = rows.charAt(i);
+            if (quote != 0) {
+                if (quote == '"' && c == '\\' && i + 1 < rows.length()) i++;
+                else if (c == quote) quote = 0;
+                continue;
+            }
+            if (c == '"' || c == '\'') quote = c;
+            else if (c == '{') {
+                if (depth == 0) start = i;
+                depth++;
+            } else if (c == '}' && depth > 0) {
+                depth--;
+                if (depth == 0 && start >= 0
+                        && isTomlInlineChatRecord(rows.substring(start, i + 1)))
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean hasTomlInlineChatFrame(String value) {
         java.util.regex.Matcher arrays = TOML_INLINE_CHAT_ARRAY.matcher(value);
         while (arrays.find()) {
-            java.util.regex.Matcher table = TOML_INLINE_TABLE.matcher(arrays.group(1));
-            while (table.find()) {
-                String record = table.group();
-                if (TOML_INLINE_CHAT_ROLE.matcher(record).find()
-                        && TOML_INLINE_CHAT_BODY.matcher(record).find()) return true;
-            }
+            if (hasTomlInlineChatRows(arrays.group(1))) return true;
         }
         return false;
     }
@@ -4349,13 +4401,8 @@ public final class CelineFutureMemoryRecall {
             if (!ends.find(arrays.end())) continue;
             java.util.regex.Matcher section = TOML_SECTION_HEADER.matcher(value);
             if (section.find(arrays.end()) && section.start() < ends.start()) continue;
-            java.util.regex.Matcher rows = TOML_INLINE_TABLE.matcher(
-                    value.substring(arrays.end(), ends.start()));
-            while (rows.find()) {
-                String record = rows.group();
-                if (TOML_INLINE_CHAT_ROLE.matcher(record).find()
-                        && TOML_INLINE_CHAT_BODY.matcher(record).find()) return true;
-            }
+            if (hasTomlInlineChatRows(value.substring(arrays.end(), ends.start())))
+                return true;
         }
         return false;
     }

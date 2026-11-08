@@ -224,6 +224,19 @@ public final class RoleTranscriptContract {
   check("toml-inline-brace-unrelated-notes-control","Mein Golf ist rot","notes = [{role = 'assistant', content = 'Mein Golf {ist} rot'}]",true,true);
   check("toml-multi-brace-cross-table-control","Mein Golf ist rot","messages = [\n {role = 'assistant', note = 'x {y}'},\n {content = 'Mein Golf ist rot'},\n]",true,true);
   check("toml-inline-brace-cross-table-control","Mein Golf ist rot","messages = [{role = 'assistant', note = 'x {y}'}, {content = 'Mein Golf ist rot'}]",true,true);
+  // Valid nested TOML metadata is not part of the imported message's actor
+  // and body. A top-level actor/body pair still proves copied provenance;
+  // nested-only keys must not be conflated with top-level fields.
+  check("toml-inline-nested-meta-after-source","Mein Golf ist rot","messages = [{role = 'assistant', content = 'Mein Golf ist rot', meta = {seq = 1}}]",false,false);
+  check("toml-inline-nested-meta-before-query","messages = [{meta = {seq = 1}, role = 'user', content = 'Mein Golf ist rot'}]","Mein Golf ist rot",false,false);
+  check("toml-multi-nested-meta-source","Mein Golf ist rot","messages = [\n {speaker = 'tool', metadata = {seq = 1, flag = true}, text = 'Mein Golf ist rot'},\n]",false,false);
+  check("toml-multi-nested-meta-before-source","Mein Golf ist rot","messages = [\n {metadata = {seq = 1}, role = 'developer', message = 'Mein Golf ist rot'},\n]",false,false);
+  check("toml-inline-nested-metadata-role-control","Mein Golf ist rot","messages = [{metadata = {role = 'assistant'}, content = 'Mein Golf ist rot'}]",true,true);
+  check("toml-inline-nested-metadata-body-control","Mein Golf ist rot","messages = [{role = 'assistant', metadata = {content = 'Mein Golf ist rot'}}]",true,true);
+  check("toml-inline-nested-quoted-control","Mein Golf ist rot","messages = [{note = \"role = 'assistant', content = 'Mein Golf ist rot'\", meta = {seq = 1}}]",true,true);
+  check("toml-inline-nested-other-array-control","Mein Golf ist rot","notes = [{role = 'assistant', content = 'Mein Golf ist rot', meta = {seq = 1}}]",true,true);
+  check("toml-inline-nested-unknown-role-control","Mein Golf ist rot","messages = [{role = 'owner', content = 'Mein Golf ist rot', meta = {seq = 1}}]",true,true);
+  check("toml-inline-nested-different-records-control","Mein Golf ist rot","messages = [{role = 'assistant', meta = {seq = 1}}, {content = 'Mein Golf ist rot'}]",true,true);
   // TOML chat-array tables are copied transcripts; the role/body pair must
   // belong to the SAME messages table, not arbitrary independent TOML notes.
   check("toml-chat-message-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);
