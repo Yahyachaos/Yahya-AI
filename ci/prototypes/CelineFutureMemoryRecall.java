@@ -4373,13 +4373,32 @@ public final class CelineFutureMemoryRecall {
                     return true;
             }
         }
+        // A clipped export can retain an explicit messages array and its
+        // top-level actor/body pair while losing the closing table brace.
+        // Abstain instead of authenticating that copied text as G1 memory.
+        // Never combine fields across complete or partial sibling records.
+        if (depth == 1 && start >= 0 && quote == 0) {
+            String partial = rows.substring(start).trim();
+            if (partial.endsWith("]")) partial = partial.substring(0, partial.length() - 1).trim();
+            return isTomlInlineChatRecord(partial + "}");
+        }
         return false;
     }
+
+    // A one-line imported messages array may itself be clipped before `]`.
+    // Keep this fallback separate from the strict complete-array matcher.
+    private static final java.util.regex.Pattern TOML_CLIPPED_INLINE_CHAT_ARRAY =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \t]*(?:messages?|chat\\.messages?)[ \t]*=[ \t]*\\[([^\\r\\n]*)$");
 
     private static boolean hasTomlInlineChatFrame(String value) {
         java.util.regex.Matcher arrays = TOML_INLINE_CHAT_ARRAY.matcher(value);
         while (arrays.find()) {
             if (hasTomlInlineChatRows(arrays.group(1))) return true;
+        }
+        java.util.regex.Matcher clipped = TOML_CLIPPED_INLINE_CHAT_ARRAY.matcher(value);
+        while (clipped.find()) {
+            if (hasTomlInlineChatRows(clipped.group(1))) return true;
         }
         return false;
     }
