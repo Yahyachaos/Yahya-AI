@@ -261,6 +261,16 @@ public final class RoleTranscriptContract {
   check("toml-trunc-multi-array-across-header-control","Mein Golf ist rot","messages = [\n {role = 'assistant'},\nmessages = [\n {content = 'Mein Golf ist rot'}",true,true);
   // TOML chat-array tables are copied transcripts; the role/body pair must
   // belong to the SAME messages table, not arbitrary independent TOML notes.
+  // TOML permits a comment marker immediately after a completed quoted value.
+  // Imported message headers must still abstain without requiring whitespace.
+  check("toml-role-comment-tight-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"#export\ncontent = \"Mein Golf ist rot\"",false,false);
+  check("toml-role-comment-tight-query","[[messages]]\nrole = 'user'#copied\ncontent = 'Mein Golf ist rot'","Mein Golf ist rot",false,false);
+  check("toml-speaker-comment-tight","Mein Golf ist rot","[[chat.messages]]\nspeaker = 'tool'#copy\ntext = 'Mein Golf ist rot'",false,false);
+  check("toml-quoted-role-comment-tight","Mein Golf ist rot","[[message]]\n'role' = 'developer'#source\nmessage = 'Mein Golf ist rot'",false,false);
+  check("toml-comment-tight-crlf","Mein Golf ist rot","[[messages]]\r\nrole = \"system\"#export\r\ncontent = \"Mein Golf ist rot\"",false,false);
+  check("toml-comment-tight-unknown-role-control","Mein Golf ist rot","[[messages]]\nrole = 'owner'#copy\ncontent = 'Mein Golf ist rot'",true,true);
+  check("toml-comment-tight-notes-control","Mein Golf ist rot","[notes]\nrole = 'assistant'#not_a_chat\ncontent = 'Mein Golf ist rot'",true,true);
+  check("toml-comment-tight-section-control","Mein Golf ist rot","[[messages]]\nrole = 'assistant'#copy\n[notes]\ncontent = 'Mein Golf ist rot'",true,true);
   check("toml-chat-message-source","Mein Golf ist rot","[[messages]]\nrole = \"assistant\"\ncontent = \"Mein Golf ist rot\"",false,false);
   check("toml-chat-message-query","[[messages]]\nrole = \"user\"\ncontent = \"Mein Golf ist rot\"","Mein Golf ist rot",false,false);
   check("toml-chat-speaker-text","Mein Golf ist rot","[[chat.messages]]\nspeaker = 'tool'\ntext = 'Mein Golf ist rot'",false,false);
