@@ -4383,14 +4383,40 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?m)^([ \\t]*)((?:[A-Za-z]+|\\\"[^\\\"\\r\\n]*\\\"|'[^'\\r\\n]*')(?:[ \\t]*\\.[ \\t]*(?:[A-Za-z]+|\\\"[^\\\"\\r\\n]*\\\"|'[^'\\r\\n]*'))?)([ \\t]*=[ \\t]*\\[)");
 
+    private static String tomlChatKeySegment(String segment) {
+        String decoded = normalizedTomlSectionHeader(segment.trim());
+        if (decoded.length() >= 2 && (decoded.charAt(0) == '\"' || decoded.charAt(0) == '\'')) {
+            char quote = decoded.charAt(0);
+            if (decoded.charAt(decoded.length() - 1) == quote)
+                return decoded.substring(1, decoded.length() - 1);
+        }
+        return decoded;
+    }
+
+    private static int tomlArrayDottedKeySeparator(String key) {
+        char quote = 0;
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            if (quote != 0) {
+                if (quote == '\"' && c == '\\' && i + 1 < key.length()) i++;
+                else if (c == quote) quote = 0;
+            } else if (c == '\"' || c == '\'') quote = c;
+            else if (c == '.') return i;
+        }
+        return -1;
+    }
+
     private static String normalizedTomlChatArrayAssignmentNames(String value) {
         java.util.regex.Matcher names = TOML_CHAT_ARRAY_ASSIGNMENT_NAME.matcher(value);
         StringBuffer out = new StringBuffer(value.length());
         while (names.find()) {
-            String decoded = normalizedTomlSectionHeader(names.group(2))
-                    .replace("\"", "").replace("'", "")
-                    .replaceAll("[ \\t]*\\.[ \\t]*", ".");
-            if (!decoded.matches("(?i)(?:messages?|chat\\.messages?)")) continue;
+            String raw = names.group(2);
+            int dot = tomlArrayDottedKeySeparator(raw);
+            boolean known = dot < 0
+                    ? tomlChatKeySegment(raw).matches("(?i)messages?")
+                    : tomlChatKeySegment(raw.substring(0, dot)).equalsIgnoreCase("chat")
+                    && tomlChatKeySegment(raw.substring(dot + 1)).matches("(?i)messages?");
+            if (!known) continue;
             names.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(
                     names.group(1) + "messages" + names.group(3)));
         }
