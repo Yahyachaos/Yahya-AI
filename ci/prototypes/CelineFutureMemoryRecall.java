@@ -2977,6 +2977,72 @@ public final class CelineFutureMemoryRecall {
         }
     }
 
+    /**
+     * FUTURE-ONLY strict G1 read contract for already-owned projections. Unlike
+     * the historical certified fixture reader, only an owner-bound high-water
+     * capability with an acquired same-generation snapshot lease may authorize
+     * recall. The sealed snapshot is checked under that lease before and after
+     * policy evaluation; missing, rolled-back, compromised or throwing witness
+     * state fails closed. It does not store, reimport or compact G1 memories.
+     *
+     * This is conditional on a real independent nonrollbackable owner and a
+     * lease which serializes actual G1 changes. The injectable JVM fixture
+     * does NOT supply either production guarantee; do not send this output to
+     * a provider or use it as a production retraction/security certificate.
+     */
+    public static List<Match> retrieveCertifiedOwnerHighWater(String query,
+            List<Candidate> candidates, OwnerLineageCertificate certificate,
+            OwnerLineageVerifier ownerVerifier, int maxResults, long now) {
+        if (ownerVerifier == null || certificate == null
+                || !(ownerVerifier.ownerAtomicDispatchAuthority
+                        instanceof OwnerHighWaterDispatchAuthority))
+            return Collections.emptyList();
+        OwnerSnapshotReadLease lease = ownerVerifier.openOwnerReadLease();
+        if (lease == null) return Collections.emptyList();
+        try (OwnerSnapshotReadLease held = lease) {
+            List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+            if (sealed == null || !certificate.generation.equals(held.generation())
+                    || !ownerVerifier.verifies(certificate, sealed))
+                return Collections.emptyList();
+            List<Match> matches = retrieveAssumingOwnerVerified(query, sealed,
+                    certificate.retiredIds, certificate.confirmedRetiredParentIds,
+                    maxResults, now);
+            return certificate.generation.equals(held.generation())
+                    && ownerVerifier.isStillCurrent(certificate)
+                    ? matches : Collections.<Match>emptyList();
+        } catch (RuntimeException ex) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * FUTURE-ONLY non-mutating correction-ID suggestion under the same strict
+     * protected owner and snapshot lease. For any uncertainty the existing
+     * explicit selected-ID UI remains the required fallback. No corrections
+     * or retractions are persisted by this prototype.
+     */
+    public static String unambiguousCorrectionTargetCertifiedOwnerHighWater(
+            String correctionText, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier ownerVerifier,
+            long now) {
+        if (ownerVerifier == null || certificate == null
+                || !(ownerVerifier.ownerAtomicDispatchAuthority
+                        instanceof OwnerHighWaterDispatchAuthority)) return "";
+        OwnerSnapshotReadLease lease = ownerVerifier.openOwnerReadLease();
+        if (lease == null) return "";
+        try (OwnerSnapshotReadLease held = lease) {
+            List<Candidate> sealed = frozenCandidateSnapshot(candidates);
+            if (sealed == null || !certificate.generation.equals(held.generation())
+                    || !ownerVerifier.verifies(certificate, sealed)) return "";
+            String target = correctionAssumingOwnerVerified(correctionText, sealed,
+                    certificate.retiredIds, certificate.confirmedRetiredParentIds, now);
+            return certificate.generation.equals(held.generation())
+                    && ownerVerifier.isStillCurrent(certificate) ? target : "";
+        } catch (RuntimeException ex) {
+            return "";
+        }
+    }
+
     /** Certified path: without a trusted owner-pinned verifier, no unlock. */
     public static List<Match> retrieveCertified(String query, List<Candidate> candidates,
             OwnerLineageCertificate certificate, OwnerLineageVerifier trustedG1Verifier,

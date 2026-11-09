@@ -6745,6 +6745,14 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(query,
                 projection,certificate,verifier,NOW),"highwater-cat",
                 "current protected owner permits a first-party correction suggestion");
+        // FUTURE-ONLY stricter read contract: a protected owner and a live
+        // consistent-snapshot lease are required, not a caller-selected reader.
+        eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(query,projection,
+                certificate,verifier,8,NOW).size(),1,
+                "strict high-water memory recall accepts a current leased source");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertifiedOwnerHighWater(
+                query,projection,certificate,verifier,NOW),"highwater-cat",
+                "strict high-water correction ID accepts only current owner lineage");
         // A full rollback of BOTH local frame+versioned anchor is modeled by
         // restoring local revision/receipts; only the independent witness stays new.
         owner.revokeAndKeepHighWater();
@@ -6758,6 +6766,16 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(query,
                 projection,certificate,verifier,NOW),"",
                 "restored G1 ledger cannot reauthorize automatic correction");
+        eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(query,projection,
+                certificate,verifier,8,NOW).size(),0,
+                "strict G1 recall denies previously corrected fact after compaction rollback");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertifiedOwnerHighWater(
+                query,projection,certificate,verifier,NOW),"",
+                "strict G1 correction denies an old reimported owner revision");
+        eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(query,
+                Arrays.asList(c("highwater-new","Meine Katze Luna")),certificate,
+                verifier,8,NOW).size(),0,
+                "strict recall rejects reimported source content with stale certificate MAC");
         eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
                 "hw1",query,projection,certificate,verifier,8,NOW),reject,
                 "old-generation completed receipt rejected after full local restore");
@@ -6784,6 +6802,12 @@ public final class FutureMemoryRecallContract {
         StrictAtomicFixture oldOwner=new StrictAtomicFixture();
         var oldVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
                 Fixture.TEST_ONLY_SECRET,oldOwner,(gen,text)->sent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(query,projection,
+                certificate,oldVerifier,8,NOW).size(),0,
+                "legacy owner with no independent protected capability cannot enter strict read");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertifiedOwnerHighWater(
+                query,projection,certificate,oldVerifier,NOW),"",
+                "legacy owner cannot enter strict correction target path");
         eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
                 "legacy",query,projection,certificate,oldVerifier,8,NOW),reject,
                 "legacy strict owner cannot bypass mandatory protected witness");
@@ -6804,6 +6828,12 @@ public final class FutureMemoryRecallContract {
         eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(query,
                 projection,certificate,unavailableVerifier,NOW),"",
                 "missing independent custody blocks correction target");
+        eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(query,projection,
+                certificate,unavailableVerifier,8,NOW).size(),0,
+                "strict recall denies source when protected witness is absent");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertifiedOwnerHighWater(
+                query,projection,certificate,unavailableVerifier,NOW),"",
+                "strict correction denies source when protected witness is absent");
         eq(unavailable.protectedGenerationStatus(certificate.generation),
                 CelineFutureMemoryRecall.OwnerHighWaterStatus.MISSING,
                 "missing protected witness distinct from ordinary snapshot rollback");
@@ -6814,6 +6844,12 @@ public final class FutureMemoryRecallContract {
         eq(unavailable.protectedGenerationStatus(certificate.generation),
                 CelineFutureMemoryRecall.OwnerHighWaterStatus.COMPROMISED,
                 "compromised witness distinct from missing witness");
+        eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(query,projection,
+                certificate,unavailableVerifier,8,NOW).size(),0,
+                "strict read denies compromised independent custodian");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertifiedOwnerHighWater(
+                query,projection,certificate,unavailableVerifier,NOW),"",
+                "strict correction denies compromised independent custodian");
         eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
                 "unavailable",query,projection,certificate,unavailableVerifier,8,NOW),reject,
                 "current local snapshot cannot bypass corrupt witness");
