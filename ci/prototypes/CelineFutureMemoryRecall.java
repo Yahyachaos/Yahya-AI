@@ -4540,19 +4540,45 @@ public final class CelineFutureMemoryRecall {
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE =
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[([^\\r\\n\\[\\]]{0,512})\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
-    private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE_ENTRY =
-            java.util.regex.Pattern.compile("\\{[^{}\\r\\n]*\\}");
-
+    // The array itself is matched only on known chat keys. Within its bounded
+    // payload, parse matching top-level braces rather than finding any inner
+    // `{...}`: an inner note can contain fake role/content that must NEVER
+    // become the actor/body of a copied message.
     private static boolean hasYamlFlowSequenceChatFrame(String value) {
         java.util.regex.Matcher sequences = YAML_CHAT_FLOW_SEQUENCE.matcher(
                 maskedYamlQuotedFlowBraces(value));
         while (sequences.find()) {
-            java.util.regex.Matcher entries = YAML_CHAT_FLOW_SEQUENCE_ENTRY.matcher(
-                    sequences.group(1));
-            while (entries.find()) {
-                String flow = maskedYamlFlowQuotedScalarValues(entries.group());
-                if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()
-                        && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
+            String items = sequences.group(1);
+            int depth = 0;
+            int start = -1;
+            for (int i = 0; i < items.length(); i++) {
+                char c = items.charAt(i);
+                if (c == '{') {
+                    if (depth == 0) start = i;
+                    depth++;
+                    if (depth > 8) break; // bounded, unknown syntax abstains
+                } else if (c == '}') {
+                    if (depth == 0) break;
+                    depth--;
+                    if (depth == 0 && start >= 0) {
+                        String entry = items.substring(start, i + 1);
+                        if (entry.length() > 512) break;
+                        // Keep outer role/content keys; mask the full contents
+                        // of any nested map before running top-level tests.
+                        StringBuilder top = new StringBuilder(entry);
+                        int inner = 0;
+                        for (int j = 1; j < entry.length() - 1; j++) {
+                            char innerChar = entry.charAt(j);
+                            if (innerChar == '{') inner++;
+                            if (inner > 0) top.setCharAt(j, '_');
+                            if (innerChar == '}' && inner > 0) inner--;
+                        }
+                        String flow = maskedYamlFlowQuotedScalarValues(top.toString());
+                        if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()
+                                && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
+                        start = -1;
+                    }
+                }
             }
         }
         return false;
