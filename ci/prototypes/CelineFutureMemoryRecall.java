@@ -5389,6 +5389,7 @@ public final class CelineFutureMemoryRecall {
     // IDs originate from G1 prefix+UUID; exceptionally large or control-laden
     // lineage keys are corrupt metadata, not authoritative correction evidence.
     private static boolean validId(String id, boolean allowEmpty) {
+        if (id == null) return false;
         if (id.isEmpty()) return allowEmpty;
         if (id.length() > MAX_ID_CHARS) return false;
         // Source-owned G1 IDs are ASCII prefix + UUID. Do not accept

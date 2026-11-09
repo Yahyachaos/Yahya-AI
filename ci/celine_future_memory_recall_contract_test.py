@@ -6733,6 +6733,20 @@ public final class FutureMemoryRecallContract {
                 eq(text,Arrays.asList("Meine Katze Luna"),"trusted sink receives text only");
                 sent.incrementAndGet();
             });
+        // A missing caller request identifier must fail closed before entering
+        // the owner's transaction; it must not crash the conversation path.
+        // The G1 owner still must guarantee uniqueness and durable receipt
+        // binding; these checks only validate the Java input boundary.
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerContextHighWater(
+            null,query,records,cert,verifier,8,NOW),reject,
+            "null consumption request ID rejects without throwing");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
+            null,query,records,cert,verifier,8,NOW),reject,
+            "null high-water request ID rejects without throwing");
+        eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextAtomic(
+            null,query,records,cert,verifier,8,NOW),reject,
+            "null atomic request ID rejects without throwing");
+        eq(sent.get(),0,"invalid request ID never invokes the trusted callback");
         var stale=CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(
             query,records,cert,verifier,8,NOW);
         eq(stale.size(),1,"a read result can exist before later retraction");
