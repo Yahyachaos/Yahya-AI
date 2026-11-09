@@ -4270,7 +4270,7 @@ public final class CelineFutureMemoryRecall {
             // It cannot open a quoted key on the following mapping line.
             if (yaml && yamlComment) {
                 out.append(c);
-                if (c == '\n') yamlComment = false;
+                if (c == '\n' || c == '\r') yamlComment = false;
                 i++;
                 continue;
             }
