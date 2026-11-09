@@ -4539,7 +4539,9 @@ public final class CelineFutureMemoryRecall {
     // values are data, never evidence of authenticated G1 provenance.
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[((?:[^\\r\\n\\[\\]]|\\[[^\\r\\n\\[\\]]{0,256}\\]){0,512})\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+                "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[((?:[^\\r\\n\\[\\]]|\\[(?:[^\\r\\n\\[\\]]|\\[[^\\r\\n\\[\\]]{0,128}\\]){0,256}\\]){0,512})\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
+    // Match at most two nested flow-list levels with separate length caps;
+    // do not use an unbounded recursive regex or parse arbitrary YAML.
     // The array itself is matched only on known chat keys. Within its bounded
     // payload, parse matching top-level braces rather than finding any inner
     // `{...}`: an inner note can contain fake role/content that must NEVER

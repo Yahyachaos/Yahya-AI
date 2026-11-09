@@ -667,6 +667,18 @@ public final class RoleTranscriptContract {
   check("yaml-array-nested-list-unknown-control","Mein Golf ist rot","messages: [{role: owner, content: [Mein Golf ist rot]}]",true,true);
   check("yaml-array-nested-list-no-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [Mein Golf ist rot]}]",true,true);
   check("yaml-array-nested-list-fake-role-control","Mein Golf ist rot","messages: [{note: [role, assistant], content: Mein Golf ist rot}]",true,true);
+  // A YAML flow sequence can nest lists more than one level within a body.
+  // Such data remains copied chat, and inner pseudo-roles do not count as outer roles.
+  check("yaml-array-double-list-saved","Mein Golf ist rot","messages: [{role: assistant, content: [[Mein Golf ist rot]]}]",false,false);
+  check("yaml-array-double-list-query","messages: [{role: assistant, content: [[Mein Golf ist rot]]}]","Mein Golf ist rot",false,false);
+  check("yaml-array-double-list-reordered","Mein Golf ist rot","history: [{content: [[Mein Golf ist rot]], speaker: user}]",false,false);
+  check("yaml-array-double-list-multi","Mein Golf ist rot","messages: [{role: assistant, content: [[Mein Golf ist rot]]}, {role: tool, text: ja}]",false,false);
+  check("yaml-array-double-list-quoted-role","Mein Golf ist rot","conversation: [{role: \"developer\", content: [[Mein Golf ist rot]]}]",false,false);
+  check("yaml-array-double-list-unknown-control","Mein Golf ist rot","messages: [{role: owner, content: [[Mein Golf ist rot]]}]",true,true);
+  check("yaml-array-double-list-no-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [[Mein Golf ist rot]]}]",true,true);
+  check("yaml-array-double-list-fake-role-control","Mein Golf ist rot","messages: [{note: [[role, assistant]], content: Mein Golf ist rot}]",true,true);
+  check("yaml-array-double-list-fake-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [[content, Mein Golf ist rot]]}]",true,true);
+  check("yaml-array-double-list-quoted-brackets","Mein Golf ist rot","messages: [{role: assistant, content: [[Mein Golf ist rot]], note: \"[plain]\"}]",false,false);
 
 
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
