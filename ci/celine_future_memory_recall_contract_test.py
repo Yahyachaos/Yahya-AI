@@ -658,6 +658,16 @@ public final class RoleTranscriptContract {
   check("yaml-array-nested-unknown-role-control","Mein Golf ist rot","messages: [{role: owner, content: {text: Mein Golf ist rot}}]",true,true);
   check("yaml-array-nested-no-body-control","Mein Golf ist rot","messages: [{role: assistant, note: {text: Mein Golf ist rot}}]",true,true);
   check("yaml-array-nested-fake-quoted-map-control","Mein Golf ist rot","messages: [{note: \"{role: assistant, content: Mein Golf ist rot}\", other: ok}]",true,true);
+  // Independent PyYAML-valid nested LIST content is also copied chat, not first-party G1.
+  check("yaml-array-nested-list-saved","Mein Golf ist rot","messages: [{role: assistant, content: [Mein Golf ist rot]}]",false,false);
+  check("yaml-array-nested-list-query","messages: [{role: assistant, content: [Mein Golf ist rot]}]","Mein Golf ist rot",false,false);
+  check("yaml-array-nested-list-reordered","Mein Golf ist rot","history: [{content: [Mein Golf ist rot], speaker: user}]",false,false);
+  check("yaml-array-nested-list-multi","Mein Golf ist rot","messages: [{role: assistant, content: [Mein Golf ist rot]}, {role: tool, text: ja}]",false,false);
+  check("yaml-array-nested-list-quoted-role","Mein Golf ist rot","conversation: [{role: \"developer\", content: [Mein Golf ist rot]}]",false,false);
+  check("yaml-array-nested-list-unknown-control","Mein Golf ist rot","messages: [{role: owner, content: [Mein Golf ist rot]}]",true,true);
+  check("yaml-array-nested-list-no-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [Mein Golf ist rot]}]",true,true);
+  check("yaml-array-nested-list-fake-role-control","Mein Golf ist rot","messages: [{note: [role, assistant], content: Mein Golf ist rot}]",true,true);
+
 
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
