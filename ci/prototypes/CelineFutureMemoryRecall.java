@@ -4991,6 +4991,30 @@ public final class CelineFutureMemoryRecall {
         return false;
     }
 
+    // FUTURE ONLY. YAML can anchor a chomped block scalar actor and reuse it
+    // in an immediately following flow chat frame. For classification only,
+    // reduce that exact, top-level single-line actor into an inline anchor so
+    // the existing bounded same-name alias checks apply. Do NOT interpret
+    // arbitrary YAML, unchomped scalars, indented content or other documents.
+    private static final java.util.regex.Pattern YAML_CHOMPED_ACTOR_ANCHOR =
+            java.util.regex.Pattern.compile(
+                "(?im)^([A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&[A-Za-z0-9_-]{1,64}[ \\t]+)"
+                + "(?:!!str[ \\t]+)?[>|]-[ \\t]*(?:#[^\\r\\n]*)?(?:\\r\\n|\\r|\\n)"
+                + "[ \\t]+(assistant|user|system|developer|tool)[ \\t]*(?:\\r\\n|\\r|\\n)"
+                + "(?:[ \\t]*(?:\\r\\n|\\r|\\n)|#[^\\r\\n]*(?:\\r\\n|\\r|\\n))*"
+                + "(?=(?:messages|chat|history|conversation|message|frame|record|entry)[ \\t]*:)");
+
+    private static String normalizedChompedYamlActorAnchors(String value) {
+        java.util.regex.Matcher source = YAML_CHOMPED_ACTOR_ANCHOR.matcher(value);
+        StringBuffer out = new StringBuffer(value.length());
+        while (source.find()) {
+            source.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(
+                    source.group(1) + source.group(2) + "\n"));
+        }
+        source.appendTail(out);
+        return out.toString();
+    }
+
     private static boolean hasImportedTranscriptFrame(String value) {
         if (value == null || value.length() > MAX_INPUT) return false;
         // YAML 1.2 double-quoted scalar keys/roles can encode ASCII
@@ -4998,6 +5022,7 @@ public final class CelineFutureMemoryRecall {
         // backslashes and single-quoted literals. Normalize only the YAML
         // lexical classifier; never change stored G1 projections.
         String yamlAliases = normalizedQuotedChatAsciiAliases(value, true);
+        String yamlBlockAliases = normalizedChompedYamlActorAnchors(yamlAliases);
         return IMPORTED_TRANSCRIPT_FRAME.matcher(value).find()
                 || TIMESTAMPED_TRANSCRIPT_FRAME.matcher(value).find()
                 || hasJsonChatFrame(value)
@@ -5005,9 +5030,9 @@ public final class CelineFutureMemoryRecall {
                     && YAML_CHAT_BODY_LINE.matcher(yamlAliases).find())
                 || YAML_CHAT_BLOCK_SCALAR_FRAME.matcher(yamlAliases).find()
                 || YAML_CHAT_ANCHORED_ALIAS_BLOCK.matcher(yamlAliases).find()
-                || hasYamlAnchoredAliasFlowFrame(yamlAliases)
+                || hasYamlAnchoredAliasFlowFrame(yamlBlockAliases)
                 || hasYamlFlowChatFrame(yamlAliases)
-                || hasYamlFlowSequenceChatFrame(yamlAliases)
+                || hasYamlFlowSequenceChatFrame(yamlBlockAliases)
                 || hasTomlChatFrame(value)
                 || hasTomlInlineChatFrame(value)
                 || hasTomlMultilineChatFrame(value);
