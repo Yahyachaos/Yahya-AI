@@ -6897,6 +6897,66 @@ public final class FutureMemoryRecallContract {
         eq(sent.get(),1,"owner retraction keeps old callback from replaying");
         System.out.println("FUTURE_G1_OWNER_ISSUED_ID_GATE=JVM_FIXTURE_ONLY");
     }
+    /**
+     * FUTURE ONLY: two simulated owner-reconstruction boundaries followed by
+     * a total rollback of BOTH issued-ID and completed-receipt state, using
+     * the SAME original certificate key. This is not a durable owner service.
+     * Positive reconstructions must not redeliver. The strict third stage is
+     * an EXPECTED SECURITY FAILURE when independent antirollback is missing.
+     */
+    private static void issuedIdTwoRestartResetThreat(boolean strict) throws Exception {
+        String requestId="owner-issued-before-two-restarts";
+        String query="Meine Katze Luna";
+        var candidates=Arrays.asList(c("issued-reset-cat","Meine Katze Luna"));
+        var certificate=Fixture.sourceFixture(candidates,Collections.emptySet(),Collections.emptySet());
+        var calls=new java.util.concurrent.atomic.AtomicInteger();
+        var owner=new IssuedHighWaterFixture();
+        owner.register(requestId,certificate.generation);
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,owner,(g,data)->calls.incrementAndGet());
+        var outcome=CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+                requestId,query,candidates,certificate,verifier,8,NOW);
+        eq(outcome,CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED,
+                "original owner stores issued ID and completion");
+        eq(calls.get(),1,"first authenticated delivery exactly once");
+        for(int restart=1;restart<=2;restart++) {
+            // Model serialized state restoration by copying both owner-ledger
+            // maps into a new object. No new key is minted at either restart.
+            var next=new IssuedHighWaterFixture();
+            next.issued.putAll(owner.issued);
+            next.delegate.local.receipts.putAll(owner.delegate.local.receipts);
+            next.delegate.local.digests.putAll(owner.delegate.local.digests);
+            next.delegate.local.revision=owner.delegate.local.revision;
+            next.delegate.protectedGeneration=owner.delegate.protectedGeneration;
+            owner=next;
+            verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    Fixture.TEST_ONLY_SECRET,owner,(g,data)->calls.incrementAndGet());
+            eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+                    requestId,query,candidates,certificate,verifier,8,NOW),
+                    CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED,
+                    "simulated restart reads committed receipt without redelivery "+restart);
+            eq(calls.get(),1,"restarted owner does not republish "+restart);
+        }
+        System.out.println("TWO_OWNER_RESTARTS_MODEL_PASS original_key=unchanged callbacks="+calls.get());
+        if(!strict)return;
+        // Adversary restores every rollbackable ledger and high-water value to
+        // its genesis snapshot, retaining the original MAC key and certificate.
+        // The forged owner can issue the SAME already-consumed request ID again.
+        var reset=new IssuedHighWaterFixture();
+        reset.register(requestId,certificate.generation);
+        var resetVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                Fixture.TEST_ONLY_SECRET,reset,(g,data)->calls.incrementAndGet());
+        var resetOutcome=CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+                requestId,query,candidates,certificate,resetVerifier,8,NOW);
+        System.out.println("TWO_OWNER_RESTARTS_TOTAL_RESET_ATTACK outcome="+resetOutcome+
+                " callbacks="+calls.get()+" original_key=unchanged root=ROLLBACKABLE");
+        // The REQUIRED secure behavior is NO duplicate after total reset.
+        // This assertion MUST fail until a genuinely independent, durable,
+        // nonrollbackable per-request authority is provisioned outside caller.
+        if(calls.get()!=1)
+            throw new AssertionError("SECURITY FAIL: original-key total reset "+
+                    "redelivered a consumed request after two owner restarts");
+    }
     private static void highWaterMidflightRaceTests() throws Exception {
         var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
         var done=CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
@@ -7237,6 +7297,11 @@ public final class FutureMemoryRecallContract {
     }
 
     public static void main(String[] args) throws Exception {
+        if(Boolean.getBoolean("celine.issued.twoRestart.only")) {
+            issuedIdTwoRestartResetThreat(Boolean.getBoolean("celine.issued.strictReset"));
+            System.out.println("FUTURE_OWNER_ISSUED_RESTART_MODEL_PASS cases="+passed);
+            return;
+        }
         // A trusted owner must pin the verifier OUTSIDE the snapshot; this
         // deterministic fixture proves signatures only, not G1/Android custody.
         java.security.KeyPair owner=java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
@@ -10785,6 +10850,7 @@ public final class FutureMemoryRecallContract {
         highWaterLeasedReadCorrectionRaceTests();
         highWaterSynchronousConsumeTests();
         highWaterIssuedRequestTests();
+        issuedIdTwoRestartResetThreat(false);
         highWaterMidflightRaceTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
@@ -18421,6 +18487,15 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     if '--focused-owner-2jvm' in sys.argv:
         process_independent_owner_attestation_proof(temp)
         raise SystemExit(0)
+    if '--focused-issued-two-restarts' in sys.argv or '--strict-issued-total-reset' in sys.argv:
+        command=['java','-Dceline.issued.twoRestart.only=true']
+        if '--strict-issued-total-reset' in sys.argv:
+            command.append('-Dceline.issued.strictReset=true')
+        result=subprocess.run(command+['-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'],
+                text=True,capture_output=True,timeout=20)
+        print(result.stdout,end='')
+        print(result.stderr,end='',file=sys.stderr)
+        sys.exit(result.returncode)
     if '--focused-attestation' in sys.argv:
         subprocess.run(['java','-cp',temp,'de.yahya.ai.FutureMemoryRecallContract'], check=True)
         raise SystemExit(0)
