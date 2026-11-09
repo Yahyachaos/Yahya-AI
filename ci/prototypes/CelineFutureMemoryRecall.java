@@ -4453,7 +4453,7 @@ public final class CelineFutureMemoryRecall {
     // role/speaker mapping value, never when role-like words appear in notes.
     private static final java.util.regex.Pattern YAML_FLOW_ACTOR_VALUE_PREFIX =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \t\\r\\n]*(?:role|speaker|\\x22(?:role|speaker)\\x22|'(?:role|speaker)')[ \t]*:[ \t\\r\\n]*$");
+                "(?i)(?:\\{|,)[ \t\\r\\n]*(?:role|speaker|\\x22(?:role|speaker)\\x22|'(?:role|speaker)')[ \t]*:[ \t\\r\\n]*" + YAML_ROLE_PROPERTIES + "$");
 
     // Only classify top-level keys in a bounded YAML flow map. Quoted scalar
     // VALUES may contain literal `, role:` or `, content:` text; these are

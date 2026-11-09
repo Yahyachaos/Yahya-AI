@@ -707,6 +707,17 @@ public final class RoleTranscriptContract {
   check("yaml-array-inner-list-cross-record-control","Mein Golf ist rot","messages: [{role: assistant, notes: [test]}, {content: Mein Golf ist rot}]",true,true);
   // Quote escapes and bracket-shaped scalar data cannot change structural array depth.
   check("yaml-array-escaped-quote-brackets-saved","Mein Golf ist rot","messages: [{role: assistant, content: \"quoted [ ]\", note: \"escaped \\\" ] [ \\\"\"}]",false,false);
+  // PyYAML 6.0.3 resolves YAML scalar properties BEFORE quoted role values;
+  // the quoted value is the actual actor, not ordinary nonstructural prose.
+  check("yaml-tagged-quoted-actor-saved","Mein Golf ist rot","messages: [{role: !!str \"assistant\", content: Mein Golf ist rot}]",false,false);
+  check("yaml-tagged-quoted-actor-query","messages: [{role: !!str \"assistant\", content: Mein Golf ist rot}]","Mein Golf ist rot",false,false);
+  check("yaml-anchored-quoted-actor-saved","Mein Golf ist rot","messages: [{role: &actor \"assistant\", content: Mein Golf ist rot}]",false,false);
+  check("yaml-quoted-key-tagged-actor","Mein Golf ist rot","messages: [{\"role\": !!str \"assistant\", content: Mein Golf ist rot}]",false,false);
+  check("yaml-tagged-anchored-quoted-actor","Mein Golf ist rot","messages: [{role: &actor !!str \"assistant\", content: Mein Golf ist rot}]",false,false);
+  check("yaml-direct-tagged-quoted-actor","Mein Golf ist rot","message: {role: !!str \"assistant\", content: Mein Golf ist rot}",false,false);
+  check("yaml-tagged-quoted-unknown-control","Mein Golf ist rot","messages: [{role: !!str \"owner\", content: Mein Golf ist rot}]",true,true);
+  check("yaml-anchored-note-not-actor-control","Mein Golf ist rot","messages: [{note: &actor \"assistant\", content: Mein Golf ist rot}]",true,true);
+  check("yaml-tagged-quoted-fake-actor-control","Mein Golf ist rot","messages: [{note: {role: !!str \"assistant\", content: Mein Golf ist rot}}]",true,true);
   // Too-deep copied sequence exceeds the bounded scanner's supported grammar and abstains.
   check("yaml-array-overdepth-failclosed-control","Mein Golf ist rot","messages: [{role: assistant, content: "+"[".repeat(9)+"Mein Golf ist rot"+"]".repeat(9)+"}]",true,true);
 
