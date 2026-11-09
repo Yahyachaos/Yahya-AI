@@ -4349,6 +4349,20 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:-[ \\t]+)?(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \\t]*:[ \\t]*\\S");
 
+    // YAML copied-message role values may use a single folded/literal block
+    // scalar instead of an inline role value. Match only a
+    // known actor on its sole indented scalar line, followed immediately by
+    // a top-level body key. Restrict to top-level mapping keys so role-like
+    // lines INSIDE literal note blocks are not treated as block-role headers.
+    // This is fail-closed import abstention, NOT authenticated provenance.
+    private static final java.util.regex.Pattern YAML_CHAT_BLOCK_SCALAR_FRAME =
+            java.util.regex.Pattern.compile(
+                "(?im)^(?:role|speaker|\\\"(?:role|speaker)\\\"|'(?:role|speaker)')[ \\t]*:[ \\t]*"
+                + YAML_ROLE_PROPERTIES
+                + "[>|](?:[+-][1-9]?|[1-9][+-]?|)[ \\t]*(?:#[^\\r\\n]*)?(?:\\r\\n|\\r|\\n)"
+                + "[ \\t]+(?:assistant|user|system|developer|tool)[ \\t]*(?:\\r\\n|\\r|\\n)"
+                + "(?:content|text|message|parts|delta|\\\"(?:content|text|message|parts|delta)\\\"|'(?:content|text|message|parts|delta)')[ \\t]*:[ \\t]*\\S");
+
     // A YAML alias (role: *actor) is a reference, not an authenticated
     // first-party statement. Abstain only for a source-proven, allowlisted
     // role anchor immediately followed by its SAME-NAME alias and a body
@@ -4988,6 +5002,7 @@ public final class CelineFutureMemoryRecall {
                 || hasJsonChatFrame(value)
                 || (YAML_CHAT_ROLE_LINE.matcher(yamlAliases).find()
                     && YAML_CHAT_BODY_LINE.matcher(yamlAliases).find())
+                || YAML_CHAT_BLOCK_SCALAR_FRAME.matcher(yamlAliases).find()
                 || YAML_CHAT_ANCHORED_ALIAS_BLOCK.matcher(yamlAliases).find()
                 || hasYamlAnchoredAliasFlowFrame(yamlAliases)
                 || hasYamlFlowChatFrame(yamlAliases)
