@@ -2434,6 +2434,27 @@ public final class CelineFutureMemoryRecall {
         OwnerHighWaterStatus protectedGenerationStatus(String certifiedGeneration);
     }
 
+    /**
+     * FUTURE-ONLY, stricter owner-issued request ID capability. An untrusted
+     * caller-chosen text ID is NOT itself a one-shot authorization. The real
+     * G1 owner must mint a unique opaque ID and bind it, in the SAME durable
+     * owner transaction as dispatchUnderOwnerLock, to the originating scope,
+     * source generation and exact dispatch intent. It must reject missing,
+     * cross-generation, conflicting or previously STARTED identifiers after
+     * any process restart; COMPLETED matches can only be read, not republished.
+     * No local recreation, new-ID retry after indeterminate STARTED or
+     * caller-controlled issuer/ledger is allowed. The owner-side registry
+     * must not be independently rollbackable, including its signing keys.
+     *
+     * This Java subtype is an explicit *contract gate*, NOT proof of actual
+     * durable issuance, independent custody or owner authenticity. A dishonest
+     * or caller-installed implementation can still lie. No Android backing
+     * implementation is provided by this prototype.
+     */
+    public interface OwnerIssuedHighWaterDispatchAuthority
+            extends OwnerHighWaterDispatchAuthority {
+    }
+
     public static final class OwnerLineageVerifier {
         private final byte[] ownerKey;
         private final String expectedGeneration;
@@ -2900,6 +2921,27 @@ public final class CelineFutureMemoryRecall {
             OwnerLineageCertificate certificate, OwnerLineageVerifier ownerVerifier,
             int maxResults, long now) {
         return publishCertifiedOwnerContextHighWater(ownerIssuedRequestId, query,
+                candidates, certificate, ownerVerifier, maxResults, now);
+    }
+
+    /**
+     * FUTURE ONLY: require an explicitly owner-issued durable ID authority
+     * before any synchronous memory publication. Merely supplying a syntactically
+     * valid caller-selected ID to consumeCertifiedOwnerContextHighWater is not
+     * sufficient. The source MAC, high-water read and serialized transaction
+     * are still checked by the existing strict high-water path; the G1 owner
+     * must atomically enforce issuance+binding inside dispatchUnderOwnerLock.
+     * A subtype assertion alone cannot establish a real security trust root.
+     */
+    public static OwnerPublicationOutcome consumeCertifiedOwnerIssuedContextHighWater(
+            String ownerIssuedRequestId, String query, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier ownerVerifier,
+            int maxResults, long now) {
+        if (ownerVerifier == null
+                || !(ownerVerifier.ownerAtomicDispatchAuthority
+                     instanceof OwnerIssuedHighWaterDispatchAuthority))
+            return OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        return consumeCertifiedOwnerContextHighWater(ownerIssuedRequestId, query,
                 candidates, certificate, ownerVerifier, maxResults, now);
     }
 

@@ -6609,6 +6609,37 @@ public final class FutureMemoryRecallContract {
             protectedGeneration = local.revision;
         }
     }
+    /**
+     * FUTURE-only issuer model: the issued-ID registry is owner-owned and is
+     * shared by recreated verifier instances. This map is deliberately NOT a
+     * durable nonrollbackable/Android authority. Unknown or cross-generation
+     * IDs cannot reach the callback; digest collisions use the same journal.
+     */
+    static final class IssuedHighWaterFixture
+            implements CelineFutureMemoryRecall.OwnerIssuedHighWaterDispatchAuthority {
+        final HighWaterFixture delegate=new HighWaterFixture();
+        final Map<String,String> issued=new HashMap<>();
+        void register(String id,String generation){
+            synchronized(delegate.local.transactionLock){
+                if(issued.putIfAbsent(id,generation)!=null)
+                    throw new IllegalStateException("owner request ID already issued");
+            }
+        }
+        @Override public String currentGeneration(){return delegate.currentGeneration();}
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease(){
+            return delegate.acquireReadLease();
+        }
+        @Override public CelineFutureMemoryRecall.OwnerHighWaterStatus
+                protectedGenerationStatus(String gen){return delegate.protectedGenerationStatus(gen);}
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome dispatchUnderOwnerLock(
+                String gen,String id,byte[] digest,Runnable publisher){
+            synchronized(delegate.local.transactionLock){
+                if(!gen.equals(issued.get(id)))
+                    return CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+                return delegate.dispatchUnderOwnerLock(gen,id,digest,publisher);
+            }
+        }
+    }
     /** Simulated revocation during a leased read: intentionally UNTRUSTED JVM fixture. */
     static final class CloseRevokeHighWaterOwner
             implements CelineFutureMemoryRecall.OwnerHighWaterDispatchAuthority {
@@ -6818,6 +6849,53 @@ public final class FutureMemoryRecallContract {
             "sync-legacy",query,records,cert,legacy,8,NOW),reject,
             "owner with no protected high-water capability cannot consume");
         System.out.println("FUTURE_G1_SYNCHRONOUS_OWNER_CONSUME=JVM_FIXTURE_ONLY");
+    }
+    private static void highWaterIssuedRequestTests() throws Exception {
+        var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        var done=CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+        var uncertain=CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        String q="Meine Katze Luna";
+        var xs=Arrays.asList(c("issued-cat","Meine Katze Luna"));
+        var cert=Fixture.sourceFixture(xs,Collections.emptySet(),Collections.emptySet());
+        var sent=new java.util.concurrent.atomic.AtomicInteger();
+        var legacy=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,new HighWaterFixture(),(g,text)->sent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "caller-selected",q,xs,cert,legacy,8,NOW),reject,
+            "high-water alone cannot attest owner issuance of request ID");
+        eq(sent.get(),0,"unverified owner issuance cannot publish");
+        var owner=new IssuedHighWaterFixture();
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,owner,(g,text)->sent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "unissued",q,xs,cert,verifier,8,NOW),uncertain,
+            "unknown caller-selected request ID cannot publish; attempted dispatch remains indeterminate");
+        owner.register("wrong-generation","g1-old-owner-generation");
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "wrong-generation",q,xs,cert,verifier,8,NOW),uncertain,
+            "cross-generation request ID cannot publish; attempted dispatch stays indeterminate");
+        eq(sent.get(),0,"no unissued or cross-generation callback");
+        owner.register("issued-once",cert.generation);
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "issued-once",q,xs,cert,verifier,8,NOW),done,
+            "owner-issued and generation-bound request completes once");
+        eq(sent.get(),1,"first valid issued request delivers once");
+        var restarted=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,owner,(g,text)->sent.incrementAndGet());
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "issued-once",q,xs,cert,restarted,8,NOW),done,
+            "recreated verifier retains same-owner completed request receipt");
+        eq(sent.get(),1,"recreated verifier never duplicates the callback");
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "issued-once",q+" extra",xs,cert,restarted,8,NOW),uncertain,
+            "conflicting intent under same ID cannot be re-issued or published");
+        eq(sent.get(),1,"conflicting intent never publishes");
+        owner.delegate.revokeAndKeepHighWater();
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+            "issued-once",q,xs,cert,restarted,8,NOW),reject,
+            "completed issued ID cannot override a later owner retraction");
+        eq(sent.get(),1,"owner retraction keeps old callback from replaying");
+        System.out.println("FUTURE_G1_OWNER_ISSUED_ID_GATE=JVM_FIXTURE_ONLY");
     }
     private static void highWaterMidflightRaceTests() throws Exception {
         var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
@@ -10706,6 +10784,7 @@ public final class FutureMemoryRecallContract {
         highWaterOwnerTests();
         highWaterLeasedReadCorrectionRaceTests();
         highWaterSynchronousConsumeTests();
+        highWaterIssuedRequestTests();
         highWaterMidflightRaceTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");
