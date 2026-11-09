@@ -6711,6 +6711,100 @@ public final class FutureMemoryRecallContract {
             return delegate.dispatchUnderOwnerLock(generation,requestId,digest,publisher);
         }
     }
+    /**
+     * FUTURE-ONLY contract: a list returned by a read is not publication
+     * authority. Consume inside the trusted owner transaction instead;
+     * the untrusted caller never provides the outbound callback or a Match.
+     */
+    private static void highWaterSynchronousConsumeTests() throws Exception {
+        var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
+        var done=CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
+        var uncertain=CelineFutureMemoryRecall.OwnerPublicationOutcome.STARTED_INDETERMINATE;
+        String query="Meine Katze Luna";
+        var records=Arrays.asList(c("sync-cat","Meine Katze Luna"));
+        var cert=Fixture.sourceFixture(records,Collections.emptySet(),Collections.emptySet());
+        // TOCTOU witness: a previously valid list is an ordinary, stale Java
+        // object after an owner correction; it carries no permission to send.
+        HighWaterFixture owner=new HighWaterFixture();
+        java.util.concurrent.atomic.AtomicInteger sent=new java.util.concurrent.atomic.AtomicInteger();
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,owner,(generation,text)->{
+                eq(generation,cert.generation,"trusted consumer receives certified generation");
+                eq(text,Arrays.asList("Meine Katze Luna"),"trusted sink receives text only");
+                sent.incrementAndGet();
+            });
+        var stale=CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(
+            query,records,cert,verifier,8,NOW);
+        eq(stale.size(),1,"a read result can exist before later retraction");
+        owner.revokeAndKeepHighWater();
+        eq(stale.size(),1,"old list remains cached after protected owner advances");
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerContextHighWater(
+            "sync-after-revoke",query,records,cert,verifier,8,NOW),reject,
+            "synchronous owner consumption rejects a previously valid stale read");
+        eq(sent.get(),0,"stale cached recall did not reach the trusted consumer");
+        // A real in-process fixture blocks a competing owner revision while
+        // the trusted callback runs in the serialized dispatch transaction.
+        HighWaterFixture active=new HighWaterFixture();
+        var entered=new java.util.concurrent.CountDownLatch(1);
+        var resume=new java.util.concurrent.CountDownLatch(1);
+        var delivered=new java.util.concurrent.atomic.AtomicInteger();
+        var liveVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,active,(generation,text)->{
+                delivered.incrementAndGet();
+                entered.countDown();
+                try {
+                    if (!resume.await(10,java.util.concurrent.TimeUnit.SECONDS))
+                        throw new IllegalStateException("bounded sink timeout");
+                } catch (InterruptedException interruption) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interruption);
+                }
+            });
+        var outcome=new java.util.concurrent.atomic.AtomicReference<
+            CelineFutureMemoryRecall.OwnerPublicationOutcome>();
+        Thread send=new Thread(()->outcome.set(
+            CelineFutureMemoryRecall.consumeCertifiedOwnerContextHighWater(
+                "sync-live",query,records,cert,liveVerifier,8,NOW)),"future-sync-send");
+        var revoked=new java.util.concurrent.atomic.AtomicBoolean();
+        Thread revoke=new Thread(()->{
+            active.revokeAndKeepHighWater();
+            revoked.set(true);
+        },"future-sync-revoke");
+        send.start();
+        boolean sinkEntered=entered.await(10,java.util.concurrent.TimeUnit.SECONDS);
+        try {
+            eq(sinkEntered,true,"trusted consumer starts while owner lock held");
+            revoke.start();
+            // Stable control: revoke is queued on the SAME serialized owner lock.
+            eq(revoked.get(),false,"revocation cannot overtake synchronous callback");
+        } finally { resume.countDown(); }
+        send.join(10000);revoke.join(10000);
+        eq(send.isAlive()||revoke.isAlive(),false,"bounded owner callback/revoke complete");
+        eq(outcome.get()==done||outcome.get()==uncertain,true,
+            "completed callback may be reported indeterminate after unlock-time revoke");
+        eq(delivered.get(),1,"trusted consumer executed exactly once");
+        eq(revoked.get(),true,"queued owner revision committed after callback");
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerContextHighWater(
+            "sync-live",query,records,cert,liveVerifier,8,NOW),reject,
+            "later old-generation consumption cannot replay a completed intent");
+        eq(delivered.get(),1,"no duplicate after correction");
+        HighWaterFixture failed=new HighWaterFixture();
+        var crashedVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,failed,(generation,text)->{
+                throw new IllegalStateException("synthetic sink crash after entry");
+            });
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerContextHighWater(
+            "sync-crash",query,records,cert,crashedVerifier,8,NOW),uncertain,
+            "a started consumer exception is indeterminate, never safe rejection");
+        eq(failed.local.receipt("sync-crash"),"STARTED",
+            "started intent is not silently cleared or retried");
+        var legacy=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+            Fixture.TEST_ONLY_SECRET,new StrictAtomicFixture(),(generation,text)->{});
+        eq(CelineFutureMemoryRecall.consumeCertifiedOwnerContextHighWater(
+            "sync-legacy",query,records,cert,legacy,8,NOW),reject,
+            "owner with no protected high-water capability cannot consume");
+        System.out.println("FUTURE_G1_SYNCHRONOUS_OWNER_CONSUME=JVM_FIXTURE_ONLY");
+    }
     private static void highWaterMidflightRaceTests() throws Exception {
         var reject=CelineFutureMemoryRecall.OwnerPublicationOutcome.REJECTED_BEFORE_START;
         var done=CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED;
@@ -10597,6 +10691,7 @@ public final class FutureMemoryRecallContract {
         strictAtomicOwnerTests();
         highWaterOwnerTests();
         highWaterLeasedReadCorrectionRaceTests();
+        highWaterSynchronousConsumeTests();
         highWaterMidflightRaceTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");

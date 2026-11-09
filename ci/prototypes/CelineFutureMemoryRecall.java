@@ -2872,6 +2872,37 @@ public final class CelineFutureMemoryRecall {
         return result;
     }
 
+    /**
+     * FUTURE-ONLY synchronous *consume* contract for a trusted G1 owner.
+     *
+     * A result from retrieveCertifiedOwnerHighWater() is a read-only hint:
+     * its owner lease has already closed by the time the list is returned,
+     * so a correction can make it stale BEFORE an external consumer uses it.
+     * Call this operation INSTEAD of "retrieve, then later publish".
+     *
+     * No caller-provided consumer or Match escapes: delivery goes exclusively
+     * to OwnerContextPublisher installed in OwnerLineageVerifier by the G1
+     * owner. The existing high-water dispatch path checks source MAC and
+     * protected generation under the read lease, derives bounded summaries,
+     * and invokes that trusted sink inside the owner's serialized one-shot
+     * transaction with its owner-issued request ID and receipt. A returned
+     * COMPLETED is only a report from that owner transaction; if delivery
+     * started and its receipt or post-dispatch witness is uncertain, report
+     * STARTED_INDETERMINATE and NEVER automatically retry.
+     *
+     * This wrapper intentionally reuses the same dispatch protocol; it must
+     * NOT introduce a second unsynchronized callback or journal. Neither the
+     * JVM fixture nor this method provides genuine nonrollbackable authority,
+     * Android integration, a trusted provider sink, or safe deferred delivery.
+     */
+    public static OwnerPublicationOutcome consumeCertifiedOwnerContextHighWater(
+            String ownerIssuedRequestId, String query, List<Candidate> candidates,
+            OwnerLineageCertificate certificate, OwnerLineageVerifier ownerVerifier,
+            int maxResults, long now) {
+        return publishCertifiedOwnerContextHighWater(ownerIssuedRequestId, query,
+                candidates, certificate, ownerVerifier, maxResults, now);
+    }
+
     private static byte[] ownerDispatchIntent(String requestId, String query,
             OwnerLineageCertificate certificate, List<Candidate> candidates,
             int maxResults, long now, List<String> summaries) {
