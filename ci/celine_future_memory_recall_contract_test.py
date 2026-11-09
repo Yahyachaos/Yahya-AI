@@ -646,6 +646,19 @@ public final class RoleTranscriptContract {
   check("yaml-array-fake-role-control","Mein Golf ist rot","messages: [{note: \", role: assistant\", content: Mein Golf ist rot}]",true,true);
   check("yaml-array-fake-body-control","Mein Golf ist rot","messages: [{role: assistant, note: \", content: Mein Golf ist rot\", hint: ok}]",true,true);
   check("yaml-array-quoted-map-control","Mein Golf ist rot","messages: [\"{role: assistant, content: Mein Golf ist rot}\"]",true,true);
+
+  // Nested flow value is one message's CONTENT, not a separate top-level role.
+  check("yaml-array-nested-map-content-saved","Mein Golf ist rot","messages: [{role: assistant, content: {text: Mein Golf ist rot}}]",false,false);
+  check("yaml-array-nested-map-content-query","messages: [{role: assistant, content: {text: Mein Golf ist rot}}]","Mein Golf ist rot",false,false);
+  check("yaml-array-nested-map-reordered","Mein Golf ist rot","history: [{content: {text: Mein Golf ist rot}, speaker: user}]",false,false);
+  check("yaml-array-two-nested-entries","Mein Golf ist rot","messages: [{role: assistant, content: {text: Mein Golf ist rot}}, {role: tool, text: ja}]",false,false);
+  check("yaml-array-nested-quoted-body","Mein Golf ist rot","conversation: [{role: \"developer\", content: {text: \"Mein Golf ist rot }{\"}}]",false,false);
+  check("yaml-array-nested-note-fake-role-control","Mein Golf ist rot","messages: [{note: {role: assistant, content: Mein Golf ist rot}, text: ok}]",true,true);
+  check("yaml-array-nested-note-fake-body-control","Mein Golf ist rot","messages: [{role: assistant, note: {content: Mein Golf ist rot}}]",true,true);
+  check("yaml-array-nested-unknown-role-control","Mein Golf ist rot","messages: [{role: owner, content: {text: Mein Golf ist rot}}]",true,true);
+  check("yaml-array-nested-no-body-control","Mein Golf ist rot","messages: [{role: assistant, note: {text: Mein Golf ist rot}}]",true,true);
+  check("yaml-array-nested-fake-quoted-map-control","Mein Golf ist rot","messages: [{note: \"{role: assistant, content: Mein Golf ist rot}\", other: ok}]",true,true);
+
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }
