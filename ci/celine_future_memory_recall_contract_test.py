@@ -18271,6 +18271,145 @@ def process_one_shot_epoch_migration_proof(compiled, strict=False):
           ' five_original_keys=5 cross_JVM=true')
     print('CLAIM_LEDGER_AND_TRUSTED_MINIMUM_ARE_ROLLBACKABLE_TEST_DOUBLES')
 
+# FUTURE-ONLY: real independent JVM invocations of the EXACT Core owner-issued
+# G1 consume entry point. The two filesystem roots are ordinary rollbackable
+# test data. Preserving the external directory models a trust assumption;
+# this harness does NOT provision a real nonrollbackable external authority.
+future_issued_multi_jvm_harness = r'''package de.yahya.ai;
+import java.util.*;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import javax.crypto.*;
+import javax.crypto.spec.*;
+import java.security.*;
+public final class FutureIssuedMultiJvmProcess {
+    static final String ID="two-jvm-issued-001";
+    static final String GEN="fixture-source-snapshot-1";
+    static final String QUERY="Meine Katze Luna";
+    static final byte[] KEY=new byte[32];
+    static { Arrays.fill(KEY,(byte)0x29); }
+    static void require(boolean ok,String msg) {
+        if(!ok) throw new AssertionError(msg);
+    }
+    static int count(Path path) throws Exception {
+        return Files.isRegularFile(path)? Integer.parseInt(Files.readString(path).trim()):0;
+    }
+    static void save(Path path,int n) {
+        try { Files.writeString(path,Integer.toString(n),StandardCharsets.UTF_8); }
+        catch(Exception e) { throw new IllegalStateException("simulated delivery journal failed",e); }
+    }
+    static CelineFutureMemoryRecall.OwnerLineageCertificate cert(
+            List<CelineFutureMemoryRecall.Candidate> candidates) throws Exception {
+        byte[] payload=CelineFutureMemoryRecall.certificatePayload(
+                GEN,candidates,Collections.emptySet(),Collections.emptySet());
+        Mac mac=Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(KEY,"HmacSHA256"));
+        return new CelineFutureMemoryRecall.OwnerLineageCertificate(
+                GEN,Collections.emptySet(),Collections.emptySet(),mac.doFinal(payload));
+    }
+    static FutureMemoryRecallContract.IssuedHighWaterFixture restore(Path state)
+            throws Exception {
+        var owner=new FutureMemoryRecallContract.IssuedHighWaterFixture();
+        if(Files.isRegularFile(state)) {
+            Properties props=new Properties();
+            try(var stream=Files.newInputStream(state)) { props.load(stream); }
+            require(GEN.equals(props.getProperty("issued")),"missing prior issued receipt");
+            owner.issued.put(ID,props.getProperty("issued"));
+            owner.delegate.local.receipts.put(ID,props.getProperty("receipt"));
+            owner.delegate.local.digests.put(ID,props.getProperty("digest"));
+        } else {
+            owner.register(ID,GEN);
+        }
+        return owner;
+    }
+    static void persist(Path state,FutureMemoryRecallContract.IssuedHighWaterFixture owner)
+            throws Exception {
+        var p=new Properties();
+        p.setProperty("issued",owner.issued.get(ID));
+        p.setProperty("receipt",owner.delegate.local.receipts.get(ID));
+        p.setProperty("digest",owner.delegate.local.digests.get(ID));
+        try(var stream=Files.newOutputStream(state)) { p.store(stream,"TEST_ONLY rollbackable owner"); }
+    }
+    public static void main(String[] args) throws Exception {
+        require(args.length==3,"action, owner path, external path required");
+        String action=args[0];
+        Path ownerRoot=Path.of(args[1]),externalRoot=Path.of(args[2]);
+        Files.createDirectories(ownerRoot);Files.createDirectories(externalRoot);
+        Path state=ownerRoot.resolve("owner-state.properties");
+        Path deliveries=ownerRoot.resolve("published.count");
+        Path spent=externalRoot.resolve("spent-claim.txt");
+        if(action.equals("TOTAL_RESET")) {
+            // Restore owner ledger to its pre-issue genesis, and remove the
+            // external mock floor too: original owner MAC key is unchanged.
+            Files.deleteIfExists(state);
+            Files.deleteIfExists(spent);
+        }
+        if(action.equals("FENCED_RESET")) {
+            Files.deleteIfExists(state); // owner-only rollback
+            require(Files.exists(spent),"external test floor unexpectedly missing");
+            System.out.println("OWNER_ROLLBACK_FENCED_BY_PRESERVED_EXTERNAL_MOCK callbacks="+count(deliveries));
+            return; // CONDITIONAL model, not a real authority implementation
+        }
+        var owner=restore(state);
+        var candidates=List.of(FutureMemoryRecallContract.c("issued-reset-cat",QUERY));
+        var certificate=cert(candidates);
+        var verifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(KEY,owner,(g,data)->{
+            save(deliveries,countUnchecked(deliveries)+1);
+            try { Files.writeString(spent,ID,StandardCharsets.UTF_8); }
+            catch(Exception e) {throw new IllegalStateException("mock spent-file write failed",e);}
+        });
+        var result=CelineFutureMemoryRecall.consumeCertifiedOwnerIssuedContextHighWater(
+                ID,QUERY,candidates,certificate,verifier,8,FutureMemoryRecallContract.NOW);
+        persist(state,owner);
+        int callbacks=count(deliveries);
+        require(result==CelineFutureMemoryRecall.OwnerPublicationOutcome.COMPLETED,
+                "exact Core consume must produce a completed owner result: "+result);
+        System.out.println("ISSUED_OWNER_JVM action="+action+" outcome="+result+
+                " callbacks="+callbacks+" key_sha256="+java.util.HexFormat.of().formatHex(
+                  MessageDigest.getInstance("SHA-256").digest(KEY)));
+        if(action.equals("FIRST")) require(callbacks==1,"first callback must publish once");
+        if(action.equals("RESTART")) require(callbacks==1,"preserved receipt must prevent replay");
+        if(action.equals("TOTAL_RESET")) {
+            // Intentionally RED, not a production fix. A duplicate must FAIL.
+            require(callbacks==1,"SECURITY FAIL: fresh JVM after full original-key rollback "
+                    +"republished already consumed owner-issued request; callbacks="+callbacks);
+        }
+    }
+    static int countUnchecked(Path path) {
+        try { return count(path); } catch(Exception e) {throw new IllegalStateException(e);}
+    }
+}
+'''
+
+
+def process_issued_multi_jvm(compiled,strict=False):
+    with tempfile.TemporaryDirectory(prefix='celine_issued_multijvm_') as root:
+        owner=Path(root)/'rollbackable-owner'
+        external=Path(root)/'rollbackable-external-floor'
+        cmd=['java','-cp',compiled,'de.yahya.ai.FutureIssuedMultiJvmProcess']
+        def step(action,expected_exit=0,marker=''):
+            r=subprocess.run(cmd+[action,str(owner),str(external)],text=True,
+                             capture_output=True,timeout=15)
+            print(r.stdout,end='')
+            if r.stderr: print(r.stderr,end='',file=sys.stderr)
+            assert r.returncode==expected_exit,(
+                'unexpected independent-JVM exit',action,r.returncode,r.stderr)
+            assert not marker or marker in r.stdout,(action,marker,r.stdout)
+            return r
+        step('FIRST',marker='callbacks=1')
+        step('RESTART',marker='callbacks=1')
+        step('RESTART',marker='callbacks=1')
+        step('FENCED_RESET',marker='callbacks=1')
+        if strict:
+            result=step('TOTAL_RESET',expected_exit=1,
+                        marker='callbacks=2')
+            assert 'SECURITY FAIL' in result.stderr, result.stderr
+            print('STRICT_ISSUED_MULTI_JVM_SECURITY_FAIL same_key=true callbacks=2 '
+                  'full_rollback_of_owner_and_external_mock=true',file=sys.stderr)
+            raise SystemExit(1)
+        print('ISSUED_MULTI_JVM_FOCUSED_PASS processes=4 persisted_receipt=true '
+              'external_floor=rollbackable_mock_only')
+
 with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     one_shot_child=Path(temp)/'FutureOneShotEnrollmentContract.java'
     one_shot_child.write_text(one_shot_enrollment_harness,encoding='utf-8')
@@ -18326,7 +18465,9 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     cross_child.write_text(cross_authority_recovery_harness,encoding='utf-8')
     floor_child=Path(temp)/'FutureIndependentClaimFloorProcess.java'
     floor_child.write_text(monotonic_claim_floor_harness,encoding='utf-8')
-    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child),str(cross_child),str(one_shot_child)], check=True)
+    multi_jvm_child=Path(temp)/'FutureIssuedMultiJvmProcess.java'
+    multi_jvm_child.write_text(future_issued_multi_jvm_harness,encoding='utf-8')
+    subprocess.run(['javac','-encoding','UTF-8','-d',temp,str(source),str(p),str(multi_jvm_child),str(child),str(strict_child),str(highwater_child),str(memory_id_child),str(owner_child),str(atomic_child),str(epoch_child),str(restored_child),str(witness_child),str(epoch_authority_child),str(epoch_client_child),str(same_witness_child),str(dual_client),str(triple_client),str(atomic_restart_child),str(pinned_child),str(protected_child),str(independent_floor_child),str(enrollment_child),str(claim_child),str(anchor_child),str(custodian_child),str(floor_child),str(provider_child),str(cross_child),str(one_shot_child)], check=True)
     import sys
     if '--focused-one-shot-epoch-migration' in sys.argv:
         process_one_shot_epoch_migration_proof(temp)
@@ -18487,6 +18628,12 @@ with tempfile.TemporaryDirectory(prefix='celine_future_recall_') as temp:
     if '--focused-owner-2jvm' in sys.argv:
         process_independent_owner_attestation_proof(temp)
         raise SystemExit(0)
+    if '--focused-issued-multi-jvm' in sys.argv:
+        process_issued_multi_jvm(temp)
+        sys.exit(0)
+    if '--strict-issued-multi-jvm-reset' in sys.argv:
+        process_issued_multi_jvm(temp,strict=True)
+        sys.exit(0)
     if '--focused-issued-two-restarts' in sys.argv or '--strict-issued-total-reset' in sys.argv:
         command=['java','-Dceline.issued.twoRestart.only=true']
         if '--strict-issued-total-reset' in sys.argv:
