@@ -4361,6 +4361,7 @@ public final class CelineFutureMemoryRecall {
                 + YAML_ROLE_PROPERTIES
                 + "[>|](?:[+-][1-9]?|[1-9][+-]?|)[ \\t]*(?:#[^\\r\\n]*)?(?:\\r\\n|\\r|\\n)"
                 + "[ \\t]+(?:assistant|user|system|developer|tool)[ \\t]*(?:\\r\\n|\\r|\\n)"
+                + "(?:[ \\t]*(?:\\r\\n|\\r|\\n)|#[^\\r\\n]*(?:\\r\\n|\\r|\\n))*"
                 + "(?:content|text|message|parts|delta|\\\"(?:content|text|message|parts|delta)\\\"|'(?:content|text|message|parts|delta)')[ \\t]*:[ \\t]*\\S");
 
     // A YAML alias (role: *actor) is a reference, not an authenticated

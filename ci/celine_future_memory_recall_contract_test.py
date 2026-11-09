@@ -801,6 +801,16 @@ public final class RoleTranscriptContract {
   check("yaml-block-unrelated-note-control","Mein Golf ist rot","notes: >-\n  assistant\ncontent: Mein Golf ist rot",true,true);
   check("yaml-block-quoted-marker-control","Mein Golf ist rot","role: \" >- assistant\"\ncontent: Mein Golf ist rot",true,true);
   check("yaml-block-no-body-control","Mein Golf ist rot","role: >-\n  assistant\nnote: Mein Golf ist rot",true,true);
+  // A top-level YAML blank or unindented comment can separate a folded
+  // scalar's actor value from its next top-level content field.
+  check("yaml-block-blank-saved","Mein Golf ist rot","role: >-\n  assistant\n\ncontent: Mein Golf ist rot",false,false);
+  check("yaml-block-blank-query","role: >-\n  assistant\n\ncontent: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("yaml-block-blank-cr","Mein Golf ist rot","role: >-\r  assistant\r\rcontent: Mein Golf ist rot",false,false);
+  check("yaml-block-comment-saved","Mein Golf ist rot","role: >-\n  assistant\n# note\ncontent: Mein Golf ist rot",false,false);
+  check("yaml-block-comment-query","role: >-\n  assistant\n# note\ncontent: Mein Golf ist rot","Mein Golf ist rot",false,false);
+  check("yaml-block-comment-crlf","Mein Golf ist rot","role: >-\r\n  user\r\n# note\r\ncontent: Mein Golf ist rot",false,false);
+  check("yaml-block-indented-scalar-comment-control","Mein Golf ist rot","role: >-\n  assistant\n  # note\ncontent: Mein Golf ist rot",true,true);
+  check("yaml-block-comment-no-body-control","Mein Golf ist rot","role: >-\n  assistant\n# content: Mein Golf ist rot\nnote: x",true,true);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }
