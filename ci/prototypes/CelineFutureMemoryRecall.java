@@ -4604,11 +4604,27 @@ public final class CelineFutureMemoryRecall {
                         // of any nested map before running top-level tests.
                         StringBuilder top = new StringBuilder(entry);
                         int inner = 0;
+                        int innerArray = 0;
+                        char scalarQuote = 0;
                         for (int j = 1; j < entry.length() - 1; j++) {
                             char innerChar = entry.charAt(j);
-                            if (innerChar == '{') inner++;
-                            if (inner > 0) top.setCharAt(j, '_');
-                            if (innerChar == '}' && inner > 0) inner--;
+                            if (scalarQuote != 0) {
+                                if (innerChar == scalarQuote) {
+                                    if (innerChar == '\'' && j + 1 < entry.length() - 1
+                                            && entry.charAt(j + 1) == '\'') {
+                                        if (inner > 0 || innerArray > 0) top.setCharAt(++j, '_');
+                                    } else scalarQuote = 0;
+                                } else if (scalarQuote == '"' && innerChar == '\\'
+                                        && j + 1 < entry.length() - 1) {
+                                    if (inner > 0 || innerArray > 0) top.setCharAt(++j, '_');
+                                }
+                            } else if (innerChar == '\'' || innerChar == '"') {
+                                scalarQuote = innerChar;
+                            } else if (innerChar == '{') inner++;
+                            else if (innerChar == '[') innerArray++;
+                            if (inner > 0 || innerArray > 0) top.setCharAt(j, '_');
+                            if (scalarQuote == 0 && innerChar == '}' && inner > 0) inner--;
+                            else if (scalarQuote == 0 && innerChar == ']' && innerArray > 0) innerArray--;
                         }
                         String flow = maskedYamlFlowQuotedScalarValues(top.toString());
                         if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()

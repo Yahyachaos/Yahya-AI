@@ -692,6 +692,24 @@ public final class RoleTranscriptContract {
   check("yaml-array-triple-list-quoted-note-control","Mein Golf ist rot","messages: [{note: \"[role: assistant]\", content: Mein Golf ist rot}]",true,true);
 
 
+  // A nested YAML flow sequence is NOT a top-level role/content field.
+  // Independently parsed by PyYAML as list-valued `notes`, with no outer actor/body.
+  check("yaml-array-inner-list-fake-role-control","Mein Golf ist rot","messages: [{notes: [x, role: assistant], content: Mein Golf ist rot}]",true,true);
+  check("yaml-array-inner-list-fake-role-with-list-body-control","Mein Golf ist rot","messages: [{notes: [x, role: assistant], content: [Mein Golf ist rot]}]",true,true);
+  check("yaml-array-inner-list-fake-content-control","Mein Golf ist rot","messages: [{role: assistant, notes: [x, content: Mein Golf ist rot]}]",true,true);
+  check("yaml-array-inner-list-fake-content-with-text-control","Mein Golf ist rot","messages: [{role: assistant, notes: [x, content: Mein Golf ist rot], note: end}]",true,true);
+  // Outer actor and body still prove a copied transcript despite unrelated nested metadata.
+  check("yaml-array-inner-list-real-fields-saved","Mein Golf ist rot","messages: [{role: user, notes: [x, role: assistant], content: Mein Golf ist rot}]",false,false);
+  check("yaml-array-inner-list-real-fields-query","messages: [{role: user, notes: [x, role: assistant], content: Mein Golf ist rot}]","Mein Golf ist rot",false,false);
+  // Unknown OUTER actor is not upgraded by an inner recognized actor.
+  check("yaml-array-inner-list-unknown-outer-control","Mein Golf ist rot","messages: [{role: owner, notes: [x, role: assistant], content: Mein Golf ist rot}]",true,true);
+  // A role/content split across distinct messages must not be combined.
+  check("yaml-array-inner-list-cross-record-control","Mein Golf ist rot","messages: [{role: assistant, notes: [test]}, {content: Mein Golf ist rot}]",true,true);
+  // Quote escapes and bracket-shaped scalar data cannot change structural array depth.
+  check("yaml-array-escaped-quote-brackets-saved","Mein Golf ist rot","messages: [{role: assistant, content: \"quoted [ ]\", note: \"escaped \\\" ] [ \\\"\"}]",false,false);
+  // Too-deep copied sequence exceeds the bounded scanner's supported grammar and abstains.
+  check("yaml-array-overdepth-failclosed-control","Mein Golf ist rot","messages: [{role: assistant, content: "+"[".repeat(9)+"Mein Golf ist rot"+"]".repeat(9)+"}]",true,true);
+
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }
