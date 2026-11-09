@@ -4998,8 +4998,11 @@ public final class CelineFutureMemoryRecall {
     // arbitrary YAML, unchomped scalars, indented content or other documents.
     private static final java.util.regex.Pattern YAML_CHOMPED_ACTOR_ANCHOR =
             java.util.regex.Pattern.compile(
-                "(?im)^([A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&[A-Za-z0-9_-]{1,64}[ \\t]+)"
-                + "(?:!!str[ \\t]+)?([>|](?:[1-9]-|-[1-9]?|-))[ \\t]*(?:#[^\\r\\n]*)?(?:\\r\\n|\\r|\\n)"
+                "(?im)^([A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*)"
+                + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
+                + "(&[A-Za-z0-9_-]{1,64}[ \\t]+)"
+                + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
+                + "([>|](?:[1-9]-|-[1-9]?|-))[ \\t]*(?:#[^\\r\\n]*)?(?:\\r\\n|\\r|\\n)"
                 + "([ \\t]+)(assistant|user|system|developer|tool)[ \\t]*(?:\\r\\n|\\r|\\n)"
                 + "(?:[ \\t]*(?:\\r\\n|\\r|\\n)|#[^\\r\\n]*(?:\\r\\n|\\r|\\n))*"
                 + "(?=(?:messages|chat|history|conversation|message|frame|record|entry)[ \\t]*:)");
@@ -5010,19 +5013,19 @@ public final class CelineFutureMemoryRecall {
         while (source.find()) {
             // An explicit YAML indentation indicator is the exact number
             // of leading spaces. Extra indentation changes scalar content.
-            String indicator = source.group(2);
+            String indicator = source.group(3);
             int explicit = 0;
             for (int i = 0; i < indicator.length(); i++) {
                 char ch = indicator.charAt(i);
                 if (ch >= '1' && ch <= '9') explicit = ch - '0';
             }
-            if (explicit > 0 && !source.group(3).equals(" ".repeat(explicit))) {
+            if (explicit > 0 && !source.group(4).equals(" ".repeat(explicit))) {
                 source.appendReplacement(out,
                         java.util.regex.Matcher.quoteReplacement(source.group()));
                 continue;
             }
             source.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(
-                    source.group(1) + source.group(4) + "\n"));
+                    source.group(1) + source.group(2) + source.group(5) + "\n"));
         }
         source.appendTail(out);
         return out.toString();
