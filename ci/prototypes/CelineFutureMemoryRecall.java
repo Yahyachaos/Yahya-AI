@@ -4540,6 +4540,20 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile(
                 "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[");
 
+    // A copied flow-array message may use a same-document YAML alias for its
+    // actor: `actor: &who assistant` directly before `messages: [{role: *who,
+    // content: ...}]`. Accept only the immediately adjacent, allowlisted,
+    // source-proven scalar anchor. Never globally resolve aliases across
+    // unrelated mappings, comments, or YAML document boundaries.
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE_ALIAS_ANCHOR =
+            java.util.regex.Pattern.compile(
+                "(?im)^[ \\t]*[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&([A-Za-z0-9_-]{1,64})[ \\t]+"
+                + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
+                + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
+                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
+                + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
+                + "[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[");
+
     private static String boundedYamlChatFlowArray(String value, int openIndex) {
         int squareDepth = 1;
         char quote = 0;
@@ -4586,6 +4600,15 @@ public final class CelineFutureMemoryRecall {
         while (sequences.find()) {
             String items = boundedYamlChatFlowArray(masked, sequences.end() - 1);
             if (items == null) continue;
+            String sourceAlias = null;
+            java.util.regex.Matcher sourceAnchors =
+                    YAML_CHAT_FLOW_SEQUENCE_ALIAS_ANCHOR.matcher(masked);
+            while (sourceAnchors.find()) {
+                if (sourceAnchors.end() == sequences.end()) {
+                    sourceAlias = sourceAnchors.group(1);
+                    break;
+                }
+            }
             int depth = 0;
             int start = -1;
             for (int i = 0; i < items.length(); i++) {
@@ -4627,8 +4650,16 @@ public final class CelineFutureMemoryRecall {
                             else if (scalarQuote == 0 && innerChar == ']' && innerArray > 0) innerArray--;
                         }
                         String flow = maskedYamlFlowQuotedScalarValues(top.toString());
-                        if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()
-                                && YAML_CHAT_FLOW_BODY.matcher(flow).find()) return true;
+                        if (YAML_CHAT_FLOW_BODY.matcher(flow).find()) {
+                            if (YAML_CHAT_FLOW_ROLE.matcher(flow).find()) return true;
+                            if (sourceAlias != null) {
+                                java.util.regex.Matcher sourceRole =
+                                        YAML_CHAT_FLOW_ALIAS_ROLE.matcher(flow);
+                                if (sourceRole.find()
+                                        && sourceAlias.equals(sourceRole.group(1)))
+                                    return true;
+                            }
+                        }
                         start = -1;
                     }
                 }
