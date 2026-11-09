@@ -4550,8 +4550,8 @@ public final class CelineFutureMemoryRecall {
                 "(?im)^[ \\t]*[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&([A-Za-z0-9_-]{1,64})[ \\t]+"
                 + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
-                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
-                + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
+                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*(?:\\r?\\n|\\r)"
+                + "(?:[ \\t]*#[^\\r\\n]*(?:\\r?\\n|\\r))*"
                 + "[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[");
 
     private static String boundedYamlChatFlowArray(String value, int openIndex) {
