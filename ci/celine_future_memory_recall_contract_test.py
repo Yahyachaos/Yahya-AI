@@ -710,6 +710,20 @@ public final class RoleTranscriptContract {
   // Too-deep copied sequence exceeds the bounded scanner's supported grammar and abstains.
   check("yaml-array-overdepth-failclosed-control","Mein Golf ist rot","messages: [{role: assistant, content: "+"[".repeat(9)+"Mein Golf ist rot"+"]".repeat(9)+"}]",true,true);
 
+  // YAML plain scalar `role:assistant` without mapping separator whitespace is NOT role=assistant.
+  check("yaml-no-space-plain-role-control","Mein Golf ist rot","messages: [{role:assistant, content: Mein Golf ist rot}]",true,true);
+  check("yaml-no-space-plain-body-control","Mein Golf ist rot","messages: [{role: assistant, content:Mein Golf ist rot}]",true,true);
+  check("yaml-no-space-both-control","Mein Golf ist rot","messages: [{role:assistant, content:Mein Golf ist rot}]",true,true);
+  check("yaml-no-space-plain-quoted-role-control","Mein Golf ist rot","messages: [{role:\"assistant\", content: Mein Golf ist rot}]",true,true);
+  check("yaml-no-space-plain-quoted-body-control","Mein Golf ist rot","messages: [{role: assistant, content:\"Mein Golf ist rot\"}]",true,true);
+  // Quoted YAML flow KEY, unlike plain key, CAN have a zero-space mapping separator.
+  check("yaml-no-space-quoted-key-legal-role","Mein Golf ist rot","messages: [{\"role\":assistant, content: Mein Golf ist rot}]",false,false);
+  check("yaml-no-space-quoted-key-legal-body","Mein Golf ist rot","messages: [{role: assistant, \"content\":Mein Golf ist rot}]",false,false);
+  check("yaml-no-space-quoted-keys-both","Mein Golf ist rot","messages: [{\"role\":assistant, \"content\":Mein Golf ist rot}]",false,false);
+  check("yaml-flow-plain-space-positive","Mein Golf ist rot","messages: [{role: assistant, content: Mein Golf ist rot}]",false,false);
+  check("yaml-wrapped-no-space-fake-role-control","Mein Golf ist rot","message: {role:assistant, content: Mein Golf ist rot}",true,true);
+  check("yaml-wrapped-no-space-fake-body-control","Mein Golf ist rot","message: {role: assistant, content:Mein Golf ist rot}",true,true);
+
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }

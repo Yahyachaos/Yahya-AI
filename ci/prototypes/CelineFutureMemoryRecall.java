@@ -4375,10 +4375,10 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile("(?m)^[ \t]*(?:-[ \t]+)?(?:(?:message|frame|record|entry|chat)[ \t]*:[ \t]*)?\\{[^\\r\\n{}]*\\}[ \t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ROLE =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \t]*(?:role|speaker|\"(?:role|speaker)\"|'(?:role|speaker)')\\s*:\\s*" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
+                "(?i)(?:\\{|,)[ \t]*(?:(?:role|speaker)[ \t]*:[ \t]+|(?:\"(?:role|speaker)\"|'(?:role|speaker)')[ \t]*:[ \t]*)" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_BODY =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \\t\\r\\n]*(?:content|text|message|parts|delta|\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')\\s*:[ \t]*\\S");
+                "(?i)(?:\\{|,)[ \t\r\n]*(?:(?:content|text|message|parts|delta)[ \t]*:[ \t]+|(?:\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \t]*:[ \t]*)\\S");
 
     // YAML may put an alias role and its message body in the SAME flow
     // mapping, with an explicit anchor on the immediately preceding line:
