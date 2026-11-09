@@ -6609,6 +6609,68 @@ public final class FutureMemoryRecallContract {
             protectedGeneration = local.revision;
         }
     }
+    /** Simulated revocation during a leased read: intentionally UNTRUSTED JVM fixture. */
+    static final class CloseRevokeHighWaterOwner
+            implements CelineFutureMemoryRecall.OwnerHighWaterDispatchAuthority {
+        final HighWaterFixture delegate=new HighWaterFixture();
+        final boolean flipDuringRead;
+        int closes, generationReads;
+        CloseRevokeHighWaterOwner(boolean flipDuringRead) {
+            this.flipDuringRead=flipDuringRead;
+        }
+        @Override public String currentGeneration(){return delegate.currentGeneration();}
+        @Override public CelineFutureMemoryRecall.OwnerHighWaterStatus
+                protectedGenerationStatus(String gen){return delegate.protectedGenerationStatus(gen);}
+        @Override public CelineFutureMemoryRecall.OwnerSnapshotReadLease acquireReadLease(){
+            return new CelineFutureMemoryRecall.OwnerSnapshotReadLease(){
+                @Override public String generation(){
+                    generationReads++;
+                    // Simulate a misbehaving lease: a retraction can occur after
+                    // the initial certificate check but before the final check.
+                    if(flipDuringRead && generationReads==2)
+                        delegate.revokeAndKeepHighWater();
+                    return Fixture.TEST_ONLY_GENERATION; // deliberately stale lease report
+                }
+                @Override public void close(){
+                    closes++;
+                    // With a real serialized lease a pending correction may
+                    // commit at unlock, before the read result reaches caller.
+                    if(!flipDuringRead) delegate.revokeAndKeepHighWater();
+                }
+            };
+        }
+        @Override public CelineFutureMemoryRecall.OwnerPublicationOutcome dispatchUnderOwnerLock(
+                String gen,String id,byte[] digest,Runnable publisher){
+            return delegate.dispatchUnderOwnerLock(gen,id,digest,publisher);
+        }
+    }
+    private static void highWaterLeasedReadCorrectionRaceTests() throws Exception {
+        var records=Arrays.asList(c("close-race-cat","Meine Katze Luna"));
+        var cert=Fixture.sourceFixture(records,Collections.emptySet(),Collections.emptySet());
+        for(boolean duringRead:new boolean[]{true,false}){
+            CloseRevokeHighWaterOwner recall=new CloseRevokeHighWaterOwner(duringRead);
+            var recallVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    Fixture.TEST_ONLY_SECRET,recall,(gen,text)->{});
+            eq(CelineFutureMemoryRecall.retrieveCertifiedOwnerHighWater(
+                    "Meine Katze Luna",records,cert,recallVerifier,8,NOW).size(),0,
+                    "strict retrieval must reject correction at evaluation or lease unlock");
+            eq(recall.closes,1,"strict recall always releases owner read lease");
+            eq(recall.protectedGenerationStatus(cert.generation),
+                    CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK,
+                    "revoked G1 generation remains rejected after strict recall");
+            CloseRevokeHighWaterOwner correction=new CloseRevokeHighWaterOwner(duringRead);
+            var correctionVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
+                    Fixture.TEST_ONLY_SECRET,correction,(gen,text)->{});
+            eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertifiedOwnerHighWater(
+                    "Meine Katze Luna",records,cert,correctionVerifier,NOW),"",
+                    "strict correction must reject retraction at evaluation or lease unlock");
+            eq(correction.closes,1,"strict correction releases owner read lease");
+            eq(correction.protectedGenerationStatus(cert.generation),
+                    CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK,
+                    "revoked generation prevents any later correction suggestion");
+        }
+        System.out.println("FUTURE_G1_PROTECTED_READ_UNLOCK_RACE=TEST_ONLY");
+    }
     /**
      * FUTURE ONLY: deterministic competing JVM-thread fixture.  The lease
      * acquisition pauses AFTER the public high-water preflight returned CURRENT
@@ -10534,6 +10596,7 @@ public final class FutureMemoryRecallContract {
         }
         strictAtomicOwnerTests();
         highWaterOwnerTests();
+        highWaterLeasedReadCorrectionRaceTests();
         highWaterMidflightRaceTests();
         System.out.println("FUTURE_G1_OWNER_CONTEXT_PUBLISHER=SIMULATED_ONLY");
         System.out.println("FUTURE_G1_PROVIDER_CONTEXT_SNAPSHOT_LEASE=PROTOTYPE_ONLY");

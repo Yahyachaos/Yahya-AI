@@ -2999,20 +2999,27 @@ public final class CelineFutureMemoryRecall {
             return Collections.emptyList();
         OwnerSnapshotReadLease lease = ownerVerifier.openOwnerReadLease();
         if (lease == null) return Collections.emptyList();
+        List<Match> matches;
         try (OwnerSnapshotReadLease held = lease) {
             List<Candidate> sealed = frozenCandidateSnapshot(candidates);
             if (sealed == null || !certificate.generation.equals(held.generation())
                     || !ownerVerifier.verifies(certificate, sealed))
                 return Collections.emptyList();
-            List<Match> matches = retrieveAssumingOwnerVerified(query, sealed,
+            matches = retrieveAssumingOwnerVerified(query, sealed,
                     certificate.retiredIds, certificate.confirmedRetiredParentIds,
                     maxResults, now);
-            return certificate.generation.equals(held.generation())
-                    && ownerVerifier.isStillCurrent(certificate)
-                    ? matches : Collections.<Match>emptyList();
+            if (!certificate.generation.equals(held.generation())
+                    || !ownerVerifier.isStillCurrent(certificate))
+                return Collections.emptyList();
         } catch (RuntimeException ex) {
             return Collections.emptyList();
         }
+        // A pending correction may be committed by the owner at lease close.
+        // Reject a known unlock-time revision/rollback before returning even a
+        // read-only suggestion. A later correction can still race with callers
+        // consuming the returned list: this is NOT a provider-dispatch permit.
+        return ownerVerifier.isStillCurrent(certificate)
+                ? matches : Collections.<Match>emptyList();
     }
 
     /**
@@ -3030,17 +3037,22 @@ public final class CelineFutureMemoryRecall {
                         instanceof OwnerHighWaterDispatchAuthority)) return "";
         OwnerSnapshotReadLease lease = ownerVerifier.openOwnerReadLease();
         if (lease == null) return "";
+        String target;
         try (OwnerSnapshotReadLease held = lease) {
             List<Candidate> sealed = frozenCandidateSnapshot(candidates);
             if (sealed == null || !certificate.generation.equals(held.generation())
                     || !ownerVerifier.verifies(certificate, sealed)) return "";
-            String target = correctionAssumingOwnerVerified(correctionText, sealed,
+            target = correctionAssumingOwnerVerified(correctionText, sealed,
                     certificate.retiredIds, certificate.confirmedRetiredParentIds, now);
-            return certificate.generation.equals(held.generation())
-                    && ownerVerifier.isStillCurrent(certificate) ? target : "";
+            if (!certificate.generation.equals(held.generation())
+                    || !ownerVerifier.isStillCurrent(certificate)) return "";
         } catch (RuntimeException ex) {
             return "";
         }
+        // A correction/retraction can commit at read-lease release; a cached
+        // suggestion must not survive a known post-close high-water advance.
+        // This read-only suggestion is never authority to mutate G1 by ID.
+        return ownerVerifier.isStillCurrent(certificate) ? target : "";
     }
 
     /** Certified path: without a trusted owner-pinned verifier, no unlock. */
