@@ -6736,6 +6736,15 @@ public final class FutureMemoryRecallContract {
                 "hw1",query,projection,certificate,verifier,8,NOW),done,
                 "current repeated receipt does not republish");
         eq(sent.get(),1,"current protected receipt sends once");
+        // FUTURE-ONLY G1 read-path: after compaction/reimport, a previously
+        // authenticated certificate is not enough when the independently
+        // protected owner revision says local source/custodian was rolled back.
+        eq(CelineFutureMemoryRecall.retrieveCertified(query,projection,certificate,
+                verifier,8,NOW).get(0).candidate.id,"highwater-cat",
+                "current protected owner permits a certified read-only projection");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(query,
+                projection,certificate,verifier,NOW),"highwater-cat",
+                "current protected owner permits a first-party correction suggestion");
         // A full rollback of BOTH local frame+versioned anchor is modeled by
         // restoring local revision/receipts; only the independent witness stays new.
         owner.revokeAndKeepHighWater();
@@ -6743,6 +6752,12 @@ public final class FutureMemoryRecallContract {
         eq(owner.protectedGenerationStatus(certificate.generation),
                 CelineFutureMemoryRecall.OwnerHighWaterStatus.ROLLED_BACK,
                 "external high-water detects full rollback of local source");
+        eq(CelineFutureMemoryRecall.retrieveCertified(query,projection,certificate,
+                verifier,8,NOW).size(),0,
+                "restored G1 snapshot cannot replay previously corrected fact");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(query,
+                projection,certificate,verifier,NOW),"",
+                "restored G1 ledger cannot reauthorize automatic correction");
         eq(CelineFutureMemoryRecall.publishCertifiedOwnerContextHighWater(
                 "hw1",query,projection,certificate,verifier,8,NOW),reject,
                 "old-generation completed receipt rejected after full local restore");
@@ -6783,6 +6798,12 @@ public final class FutureMemoryRecallContract {
         var unavailableVerifier=new CelineFutureMemoryRecall.OwnerLineageVerifier(
                 Fixture.TEST_ONLY_SECRET,unavailable,(gen,text)->unavailableSent.incrementAndGet());
         unavailable.missing=true;
+        eq(CelineFutureMemoryRecall.retrieveCertified(query,projection,certificate,
+                unavailableVerifier,8,NOW).size(),0,
+                "missing independent custody blocks read-only memory recall");
+        eq(CelineFutureMemoryRecall.unambiguousCorrectionTargetCertified(query,
+                projection,certificate,unavailableVerifier,NOW),"",
+                "missing independent custody blocks correction target");
         eq(unavailable.protectedGenerationStatus(certificate.generation),
                 CelineFutureMemoryRecall.OwnerHighWaterStatus.MISSING,
                 "missing protected witness distinct from ordinary snapshot rollback");

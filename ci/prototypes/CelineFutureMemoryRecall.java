@@ -2550,8 +2550,22 @@ public final class CelineFutureMemoryRecall {
         }
 
         private boolean isStillCurrent(OwnerLineageCertificate proof) {
-            return proof != null && proof.generation != null
-                    && proof.generation.equals(pinnedGenerationNow());
+            if (proof == null || proof.generation == null
+                    || !proof.generation.equals(pinnedGenerationNow())) return false;
+            // An ordinary G1 source generation can be restored with its valid
+            // HMAC after compaction, correction, or a complete local rollback.
+            // When a separately protected owner witness was installed, ALL
+            // certified read paths must honor it, not only provider dispatch.
+            // A returned CURRENT remains conditional on real independent
+            // nonrollbackable custody, which this prototype does not provide.
+            if (ownerAtomicDispatchAuthority instanceof OwnerHighWaterDispatchAuthority) {
+                try {
+                    return ((OwnerHighWaterDispatchAuthority) ownerAtomicDispatchAuthority)
+                            .protectedGenerationStatus(proof.generation)
+                            == OwnerHighWaterStatus.CURRENT;
+                } catch (RuntimeException ex) { return false; }
+            }
+            return true; // Historical fixture-only readers are NOT antirollback proof.
         }
 
         private boolean verifies(OwnerLineageCertificate proof, List<Candidate> records) {
@@ -2570,7 +2584,8 @@ public final class CelineFutureMemoryRecall {
                 // DURING verification. G1 still needs a true snapshot lease for
                 // a race-free production read after this function returns.
                 return MessageDigest.isEqual(hmac.doFinal(payload), proof.mac)
-                        && generationBefore.equals(pinnedGenerationNow());
+                        && generationBefore.equals(pinnedGenerationNow())
+                        && isStillCurrent(proof);
             } catch (GeneralSecurityException e) {
                 return false; // Missing cryptographic provider must never allow recall.
             }
