@@ -751,6 +751,13 @@ public final class RoleTranscriptContract {
   check("yaml-comment-closing-bracket-after-role","Mein Golf ist rot","messages: [\n {role: assistant, content: Mein Golf ist rot}, # ] note\n {note: x}\n]",false,false);
   check("yaml-comment-closing-bracket-before-role","Mein Golf ist rot","messages: [\n # ] pretend close\n {role: assistant, content: Mein Golf ist rot}\n]",false,false);
   check("yaml-comment-alias-closing-bracket","Mein Golf ist rot","actor: &who assistant\nmessages: [\n {role: *who, content: Mein Golf ist rot}, # ] fake end\n {note: x}\n]",false,false);
+  // YAML accepts CR-only as a line break. Do not let bracket glyphs in
+  // comments alter flow-array depth or permit untrusted copied content.
+  check("yaml-cr-comment-bracket-after-role","Mein Golf ist rot","messages: [\r {role: assistant, content: Mein Golf ist rot}, # ] note\r {note: x}\r]",false,false);
+  check("yaml-cr-comment-bracket-before-role","Mein Golf ist rot","messages: [\r # ] fake close\r {role: assistant, content: Mein Golf ist rot}\r]",false,false);
+  check("yaml-cr-comment-opening-bracket-after-role","Mein Golf ist rot","messages: [\r {role: assistant, content: Mein Golf ist rot}, # [ note\r {note: x}\r]",false,false);
+  check("yaml-cr-only-role-no-comment-control","Mein Golf ist rot","messages: [\r {role: assistant, content: Mein Golf ist rot}\r]",false,false);
+  check("yaml-crlf-comment-control","Mein Golf ist rot","messages: [\r\n {role: assistant, content: Mein Golf ist rot}, # ] note\r\n {note: x}\r\n]",false,false);
   check("yaml-comment-no-actor-control","Mein Golf ist rot","messages: [\n {note: Mein Golf ist rot}, # ] not a role\n {note: x}\n]",true,true);
   check("yaml-quoted-hash-bracket-control","Mein Golf ist rot","messages: [{role: assistant, content: \"Mein Golf ist rot # ]\"}]",false,false);
   // Independently parsed as YAML flow-array chat with same-document actor alias.

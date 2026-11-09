@@ -4410,7 +4410,7 @@ public final class CelineFutureMemoryRecall {
         int flowDepth = 0;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (c == '\n') { inlineComment = false; continue; }
+            if (c == '\n' || c == '\r') { inlineComment = false; continue; }
             if (inlineComment) {
                 // Inside a flow map, inline comments cannot contain fields.
                 // Outside the map, retain comment-only rows because the
@@ -4566,7 +4566,7 @@ public final class CelineFutureMemoryRecall {
             // YAML comments may include literal '[' and ']' characters, but
             // those are text, never sequence boundaries. Preserve quoted #.
             if (comment) {
-                if (c == '\n') comment = false;
+                if (c == '\n' || c == '\r') comment = false;
                 continue;
             }
             if (quote == 0 && c == '#' && i > 0
