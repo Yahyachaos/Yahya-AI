@@ -99,6 +99,46 @@ public final class CelineRoomProofCeilingScopeV80Test {
         check(onReadback[0] != null, "No asynchronous completion registered");
         onReadback[0].run();
 
-        System.out.println("S25 CEILING PROOF BRACKET: 9/9 tests PASS (pure Java, NOT Android visual proof)");
+        // Room post-frame verification must keep the active scene only when
+        // both ceiling and 13/13 mesh/shell guards really pass.
+        final int[] validFinalization = {0, 0};
+        CelineRoomProofCeilingScopeV80.verifyOrFailClosed(
+                () -> validFinalization[0]++,
+                () -> validFinalization[1]++);
+        check(validFinalization[0] == 1 && validFinalization[1] == 0,
+                "Clean post-frame Room must not be destroyed");
+
+        // If the ceiling cannot be restored or a cached native shell/mesh
+        // check fails, the caller must perform Room destruction/fallback.
+        final boolean[] failedRoomActive = {true};
+        final IllegalStateException roofMissing =
+                new IllegalStateException("missing post-frame ceiling");
+        try {
+            CelineRoomProofCeilingScopeV80.verifyOrFailClosed(
+                    () -> { throw roofMissing; },
+                    () -> failedRoomActive[0] = false);
+            throw new AssertionError("Missing roof was accepted");
+        } catch (IllegalStateException failure) {
+            check(failure == roofMissing && !failedRoomActive[0],
+                    "Roof guard error not preserved or Room remained active");
+        }
+
+        // Even when teardown fails, preserve the original roof/geometry fault
+        // and attach the cleanup failure as suppressed diagnostic evidence.
+        final IllegalArgumentException badMesh =
+                new IllegalArgumentException("S25 mesh drift");
+        try {
+            CelineRoomProofCeilingScopeV80.verifyOrFailClosed(
+                    () -> { throw badMesh; },
+                    () -> { throw new IllegalStateException("cleanup failed"); });
+            throw new AssertionError("Post-frame mesh drift was accepted");
+        } catch (IllegalArgumentException failure) {
+            check(failure == badMesh && failure.getSuppressed().length == 1
+                            && "cleanup failed".equals(
+                                    failure.getSuppressed()[0].getMessage()),
+                    "Cleanup exception masked original S25 failure");
+        }
+
+        System.out.println("S25 CEILING PROOF BRACKET: 12/12 tests PASS (pure Java, NOT Android visual proof)");
     }
 }

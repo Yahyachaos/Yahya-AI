@@ -219,9 +219,30 @@ final class CelineRoomEnvironmentV80 {
                         }
                     }, synchronousFrameAndCapture);
         } finally {
-            // A broken callback/restoration must never yield a green cached
-            // ROOM. Retain the original floor/ceiling/wall + 13/13 guards.
-            state.verifyCachedS25WorldMatrices();
+            // A failed roof restore/post-frame matrix or shell check must
+            // invalidate this Room immediately. Otherwise isActive() could
+            // remain true and suppress the fallback Canvas while roofless.
+            CelineRoomProofCeilingScopeV80.verifyOrFailClosed(
+                    state::verifyCachedS25WorldMatrices,
+                    () -> {
+                        try { state.destroyRoom(); }
+                        finally {
+                            // The GLB teardown runs on the Filament owner;
+                            // invalidate the sibling Canvas only on UI thread.
+                            view.post(() -> {
+                                android.view.ViewParent parent = view.getParent();
+                                if (!(parent instanceof android.view.ViewGroup)) return;
+                                android.view.ViewGroup group =
+                                        (android.view.ViewGroup) parent;
+                                for (int i = 0; i < group.getChildCount(); i++) {
+                                    android.view.View child = group.getChildAt(i);
+                                    if (child instanceof CelineRoomBackdropView) {
+                                        child.invalidate();
+                                    }
+                                }
+                            });
+                        }
+                    });
         }
         Celine3DDiagnostics.record(state.context, "ROOM-S25-DIAG-CEILING",
                 "Synchronous DEBUG topview bracket completed; original ceiling restored",

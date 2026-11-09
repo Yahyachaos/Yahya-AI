@@ -15,6 +15,29 @@ final class CelineRoomProofCeilingScopeV80 {
 
     private CelineRoomProofCeilingScopeV80() {}
 
+    /**
+     * A roof/frame postcondition failure must invalidate the built Room, not
+     * merely throw while a roofless Scene is still classified as active.
+     * Caller owns the Engine-thread teardown and UI Canvas fallback redraw.
+     * No raster/Android acceptance is inferred from this control-flow guard.
+     */
+    static void verifyOrFailClosed(Runnable verifier, Runnable failClosed) {
+        if (verifier == null || failClosed == null) {
+            throw new IllegalArgumentException("S25 finalization requires verifier and cleanup");
+        }
+        try {
+            verifier.run();
+        } catch (Throwable verificationFailure) {
+            try { failClosed.run(); }
+            catch (Throwable cleanupFailure) {
+                if (cleanupFailure != verificationFailure) {
+                    verificationFailure.addSuppressed(cleanupFailure);
+                }
+            }
+            throw verificationFailure;
+        }
+    }
+
     static void run(CeilingScene ceiling, Runnable synchronousFrame) {
         if (ceiling == null || synchronousFrame == null) {
             throw new IllegalArgumentException("S25 proof requires a ceiling and synchronous frame");
