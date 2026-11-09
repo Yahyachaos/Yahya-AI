@@ -718,6 +718,16 @@ public final class RoleTranscriptContract {
   check("yaml-tagged-quoted-unknown-control","Mein Golf ist rot","messages: [{role: !!str \"owner\", content: Mein Golf ist rot}]",true,true);
   check("yaml-anchored-note-not-actor-control","Mein Golf ist rot","messages: [{note: &actor \"assistant\", content: Mein Golf ist rot}]",true,true);
   check("yaml-tagged-quoted-fake-actor-control","Mein Golf ist rot","messages: [{note: {role: !!str \"assistant\", content: Mein Golf ist rot}}]",true,true);
+  // Bounded YAML flow arrays can span lines; PyYAML parses these as the
+  // SAME copied assistant/user frame, not first-party personal memory.
+  check("yaml-multiline-array-body-saved","Mein Golf ist rot","messages: [{role: assistant,\n content: Mein Golf ist rot}]",false,false);
+  check("yaml-multiline-array-body-query","messages: [{role: assistant,\n content: Mein Golf ist rot}]","Mein Golf ist rot",false,false);
+  check("yaml-multiline-array-opening","Mein Golf ist rot","messages: [\n {role: assistant, content: Mein Golf ist rot}\n]",false,false);
+  check("yaml-multiline-map-opening","Mein Golf ist rot","messages: [{\n role: assistant, content: Mein Golf ist rot}]",false,false);
+  check("yaml-multiline-two-frames","Mein Golf ist rot","messages: [{role: assistant, content: Mein Golf ist rot},\n {role: user, content: ja}]",false,false);
+  check("yaml-multiline-quoted-body","Mein Golf ist rot","history: [\n {role: \"assistant\", content: \"Mein Golf ist rot\"}\n]",false,false);
+  check("yaml-multiline-unknown-actor-control","Mein Golf ist rot","messages: [{role: owner,\n content: Mein Golf ist rot}]",true,true);
+  check("yaml-multiline-no-content-control","Mein Golf ist rot","messages: [{role: assistant,\n note: Mein Golf ist rot}]",true,true);
   // Too-deep copied sequence exceeds the bounded scanner's supported grammar and abstains.
   check("yaml-array-overdepth-failclosed-control","Mein Golf ist rot","messages: [{role: assistant, content: "+"[".repeat(9)+"Mein Golf ist rot"+"]".repeat(9)+"}]",true,true);
 

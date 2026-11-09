@@ -4375,7 +4375,7 @@ public final class CelineFutureMemoryRecall {
             java.util.regex.Pattern.compile("(?m)^[ \t]*(?:-[ \t]+)?(?:(?:message|frame|record|entry|chat)[ \t]*:[ \t]*)?\\{[^\\r\\n{}]*\\}[ \t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ROLE =
             java.util.regex.Pattern.compile(
-                "(?i)(?:\\{|,)[ \t]*(?:(?:role|speaker)[ \t]*:[ \t]+|(?:\"(?:role|speaker)\"|'(?:role|speaker)')[ \t]*:[ \t]*)" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t]*[,}])");
+                "(?i)(?:\\{|,)[ \t\\r\\n]*(?:(?:role|speaker)[ \t]*:[ \t]+|(?:\"(?:role|speaker)\"|'(?:role|speaker)')[ \t]*:[ \t]*)" + YAML_ROLE_PROPERTIES + "(?:(?:assistant|user|system|developer|tool)|(['\"])(?:assistant|user|system|developer|tool)\\1)(?=[ \t\\r\\n]*[,}])");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_BODY =
             java.util.regex.Pattern.compile(
                 "(?i)(?:\\{|,)[ \t\r\n]*(?:(?:content|text|message|parts|delta)[ \t]*:[ \t]+|(?:\"(?:content|text|message|parts|delta)\"|'(?:content|text|message|parts|delta)')[ \t]*:[ \t]*)\\S");
@@ -4548,7 +4548,7 @@ public final class CelineFutureMemoryRecall {
         int limit = Math.min(value.length(), openIndex + 514);
         for (int i = openIndex + 1; i < limit; i++) {
             char c = value.charAt(i);
-            if (c == '\r' || c == '\n') return null; // single line only
+            // Newlines are legal whitespace inside bounded YAML flow sequences.
             if (quote != 0) {
                 if (c == quote) {
                     if (quote == '\'' && i + 1 < limit && value.charAt(i + 1) == '\'') i++;
