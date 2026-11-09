@@ -4404,11 +4404,11 @@ public final class CelineFutureMemoryRecall {
     // not prove a transcript. No generic YAML alias graph or G1 write.
     private static final java.util.regex.Pattern YAML_CHAT_ANCHORED_ALIAS_FLOW_PAIR =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*(?:-[ \\t]+)?[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&([A-Za-z0-9_-]{1,64})[ \\t]+"
+                "(?im)^[ \\t]*(?:-[ \\t]+)?[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?&([A-Za-z0-9_-]{1,64})[ \\t]+"
                 + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
-                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*\\r?\\n"
-                + "(?:[ \\t]*#[^\\r\\n]*\\r?\\n)*"
+                + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*(?:\\r?\\n|\\r)"
+                + "(?:[ \\t]*#[^\\r\\n]*(?:\\r?\\n|\\r))*"
                 + "[ \\t]*(?:-[ \\t]+)?(?:message|frame|record|entry|chat)[ \\t]*:[ \\t]*\\{((?:(?:[^{}\\r\\n]|\\{[^{}\\r\\n]{0,256}\\})*\\r?\\n){0,4}(?:[^{}\\r\\n]|\\{[^{}\\r\\n]{0,256}\\})*)\\}[ \\t]*(?=\\r?$)");
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_ALIAS_ROLE =
             java.util.regex.Pattern.compile(
@@ -4562,7 +4562,7 @@ public final class CelineFutureMemoryRecall {
     // unrelated mappings, comments, or YAML document boundaries.
     private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE_ALIAS_ANCHOR =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*&([A-Za-z0-9_-]{1,64})[ \\t]+"
+                "(?im)^[ \\t]*[A-Za-z_][A-Za-z0-9_-]{0,63}[ \\t]*:[ \\t]*(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?&([A-Za-z0-9_-]{1,64})[ \\t]+"
                 + "(?:(?:!!str|!<tag:yaml\\.org,2002:str>)[ \\t]+)?"
                 + "(?:(?:assistant|user|system|developer|tool)|(['\\\"])(?:assistant|user|system|developer|tool)\\2)"
                 + "(?:[ \\t]+#[^\\r\\n]*)?[ \\t]*(?:\\r?\\n|\\r)"

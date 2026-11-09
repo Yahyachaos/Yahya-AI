@@ -854,6 +854,27 @@ public final class RoleTranscriptContract {
   check("yaml-tag-before-anchor-wrong-alias","Mein Golf ist rot","actor: !!str &who >2-\n  assistant\nmessages: [{role: *other, content: Mein Golf ist rot}]",true,true);
   check("yaml-tag-before-anchor-unknown-actor","Mein Golf ist rot","actor: !!str &who >2-\n  owner\nmessages: [{role: *who, content: Mein Golf ist rot}]",true,true);
   check("yaml-tag-before-anchor-not-chomped","Mein Golf ist rot","actor: !!str &who >2\n  assistant\nmessages: [{role: *who, content: Mein Golf ist rot}]",true,true);
+
+  // YAML permits `actor: !!str &who assistant` as well as anchor-before-tag.
+  // Same-name adjacent anchor only: quoted alias, unrelated or unknown actors
+  // must not become transcript provenance. Verified against PyYAML 6.0.3.
+  check("yaml-tag-before-anchor-sequence-saved","Mein Golf ist rot","actor: !!str &who assistant\nmessages: [{role: *who, content: Mein Golf ist rot}]",false,false);
+  check("yaml-tag-before-anchor-sequence-query","actor: !!str &who assistant\nmessages: [{role: *who, content: Mein Golf ist rot}]","Mein Golf ist rot",false,false);
+  check("yaml-longtag-before-anchor-sequence","Mein Golf ist rot","actor: !<tag:yaml.org,2002:str> &who tool\nchat: [{content: Mein Golf ist rot, role: *who}]",false,false);
+  check("yaml-tag-before-anchor-single-map","Mein Golf ist rot","actor: !!str &who user\nmessage: {role: *who, content: Mein Golf ist rot}",false,false);
+  check("yaml-longtag-before-anchor-single-map","Mein Golf ist rot","actor: !<tag:yaml.org,2002:str> &who assistant\nmessage: {content: Mein Golf ist rot, role: *who}",false,false);
+  check("yaml-tag-before-anchor-quoted-alias-control","Mein Golf ist rot","actor: !!str &who assistant\nmessages: [{role: '*who', content: Mein Golf ist rot}]",true,true);
+  check("yaml-tag-before-anchor-no-body-control","Mein Golf ist rot","actor: !!str &who assistant\nmessages: [{role: *who, note: Mein Golf ist rot}]",true,true);
+  check("yaml-tag-before-anchor-wrong-alias-control","Mein Golf ist rot","actor: !!str &who assistant\nmessages: [{role: *other, content: Mein Golf ist rot}]",true,true);
+  check("yaml-tag-before-anchor-intervening-control","Mein Golf ist rot","actor: !!str &who assistant\nother: x\nmessages: [{role: *who, content: Mein Golf ist rot}]",true,true);
+
+  // PyYAML treats bare CR as a line ending in an adjacent actor-alias chat map.
+  check("yaml-cr-tag-before-anchor-map-saved","Mein Golf ist rot","actor: !!str &who assistant\rmessage: {role: *who, content: Mein Golf ist rot}",false,false);
+  check("yaml-cr-tag-before-anchor-map-query","actor: !!str &who assistant\rmessage: {role: *who, content: Mein Golf ist rot}","Mein Golf ist rot",false,false);
+  check("yaml-cr-tag-before-anchor-map-comment","Mein Golf ist rot","actor: !!str &who assistant\r# note\rmessage: {role: *who, content: Mein Golf ist rot}",false,false);
+  check("yaml-cr-no-tag-map","Mein Golf ist rot","actor: &who assistant\rmessage: {role: *who, content: Mein Golf ist rot}",false,false);
+  check("yaml-cr-quoted-alias-control","Mein Golf ist rot","actor: !!str &who assistant\rmessage: {role: '*who', content: Mein Golf ist rot}",true,true);
+  check("yaml-cr-missing-body-control","Mein Golf ist rot","actor: !!str &who assistant\rmessage: {role: *who, note: Mein Golf ist rot}",true,true);
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);
  }
 }
