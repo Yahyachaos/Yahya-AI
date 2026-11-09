@@ -679,6 +679,17 @@ public final class RoleTranscriptContract {
   check("yaml-array-double-list-fake-role-control","Mein Golf ist rot","messages: [{note: [[role, assistant]], content: Mein Golf ist rot}]",true,true);
   check("yaml-array-double-list-fake-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [[content, Mein Golf ist rot]]}]",true,true);
   check("yaml-array-double-list-quoted-brackets","Mein Golf ist rot","messages: [{role: assistant, content: [[Mein Golf ist rot]], note: \"[plain]\"}]",false,false);
+  // Independently PyYAML-valid deeper nested content stays copied chat.
+  check("yaml-array-triple-list-saved","Mein Golf ist rot","messages: [{role: assistant, content: [[[Mein Golf ist rot]]]}]",false,false);
+  check("yaml-array-triple-list-query","messages: [{role: assistant, content: [[[Mein Golf ist rot]]]}]","Mein Golf ist rot",false,false);
+  check("yaml-array-triple-list-reordered","Mein Golf ist rot","history: [{content: [[[Mein Golf ist rot]]], speaker: user}]",false,false);
+  check("yaml-array-quad-list-saved","Mein Golf ist rot","chat: [{role: tool, content: [[[[Mein Golf ist rot]]]]}]",false,false);
+  check("yaml-array-triple-list-quoted-brackets","Mein Golf ist rot","messages: [{role: assistant, content: [[[Mein Golf ist rot]]], note: \"[[ data ]]\"}]",false,false);
+  check("yaml-array-triple-list-unknown-control","Mein Golf ist rot","messages: [{role: owner, content: [[[Mein Golf ist rot]]]}]",true,true);
+  check("yaml-array-triple-list-no-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [[[Mein Golf ist rot]]]}]",true,true);
+  check("yaml-array-triple-list-fake-role-control","Mein Golf ist rot","messages: [{note: [[[role, assistant]]], content: Mein Golf ist rot}]",true,true);
+  check("yaml-array-triple-list-fake-body-control","Mein Golf ist rot","messages: [{role: assistant, note: [[[content, Mein Golf ist rot]]]}]",true,true);
+  check("yaml-array-triple-list-quoted-note-control","Mein Golf ist rot","messages: [{note: \"[role: assistant]\", content: Mein Golf ist rot}]",true,true);
 
 
   System.out.println("ROLE_TRANSCRIPTS_PASS checks="+checks);

@@ -4532,25 +4532,60 @@ public final class CelineFutureMemoryRecall {
         return false;
     }
 
-    // YAML may keep copied chat messages in a compact one-line sequence:
-    // `messages: [{role: assistant, content: ...}, {role: user, ...}]`.
-    // Inspect only bounded top-level flow-map members in known chat arrays.
-    // Quoted map-looking strings and fake role/body fields within note scalar
-    // values are data, never evidence of authenticated G1 provenance.
-    private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE =
+    // A compact YAML chat sequence can contain nested list-valued content:
+    // messages: [{role: assistant, content: [[[copied chat]]] }].
+    // Match the allowlisted top-level key only; bound the rest with a linear
+    // quote-aware bracket scanner, rather than adding another regex depth.
+    private static final java.util.regex.Pattern YAML_CHAT_FLOW_SEQUENCE_PREFIX =
             java.util.regex.Pattern.compile(
-                "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[((?:[^\\r\\n\\[\\]]|\\[(?:[^\\r\\n\\[\\]]|\\[[^\\r\\n\\[\\]]{0,128}\\]){0,256}\\]){0,512})\\][ \\t]*(?:#[^\\r\\n]*)?(?=\\r?$)");
-    // Match at most two nested flow-list levels with separate length caps;
-    // do not use an unbounded recursive regex or parse arbitrary YAML.
-    // The array itself is matched only on known chat keys. Within its bounded
-    // payload, parse matching top-level braces rather than finding any inner
-    // `{...}`: an inner note can contain fake role/content that must NEVER
-    // become the actor/body of a copied message.
+                "(?im)^[ \\t]*(?:messages|chat|history|conversation)[ \\t]*:[ \\t]*\\[");
+
+    private static String boundedYamlChatFlowArray(String value, int openIndex) {
+        int squareDepth = 1;
+        char quote = 0;
+        // At most 512 payload chars and eight nested [] levels. Any unknown
+        // syntax is NOT a proof of first-party G1 provenance.
+        int limit = Math.min(value.length(), openIndex + 514);
+        for (int i = openIndex + 1; i < limit; i++) {
+            char c = value.charAt(i);
+            if (c == '\r' || c == '\n') return null; // single line only
+            if (quote != 0) {
+                if (c == quote) {
+                    if (quote == '\'' && i + 1 < limit && value.charAt(i + 1) == '\'') i++;
+                    else quote = 0;
+                } else if (quote == '"' && c == '\\' && i + 1 < limit) i++;
+                continue;
+            }
+            if ((c == '\'' || c == '"') && (i == 0
+                    || !Character.isLetterOrDigit(value.charAt(i - 1)))) {
+                quote = c;
+            } else if (c == '[') {
+                if (++squareDepth > 8) return null;
+            } else if (c == ']') {
+                if (--squareDepth < 0) return null;
+                if (squareDepth == 0) {
+                    int end = i + 1;
+                    while (end < value.length() && (value.charAt(end) == ' '
+                            || value.charAt(end) == '\t')) end++;
+                    if (end < value.length() && value.charAt(end) != '\n'
+                            && value.charAt(end) != '\r' && value.charAt(end) != '#')
+                        return null;
+                    return value.substring(openIndex + 1, i);
+                }
+            }
+        }
+        return null;
+    }
+
+    // Parse only outer YAML flow-map members in the verified compact chat
+    // array, never role/content-looking keys inside nested notes or scalar
+    // text. This is a conservative transcript detector, not a YAML parser.
     private static boolean hasYamlFlowSequenceChatFrame(String value) {
-        java.util.regex.Matcher sequences = YAML_CHAT_FLOW_SEQUENCE.matcher(
-                maskedYamlQuotedFlowBraces(value));
+        String masked = maskedYamlQuotedFlowBraces(value);
+        java.util.regex.Matcher sequences = YAML_CHAT_FLOW_SEQUENCE_PREFIX.matcher(masked);
         while (sequences.find()) {
-            String items = sequences.group(1);
+            String items = boundedYamlChatFlowArray(masked, sequences.end() - 1);
+            if (items == null) continue;
             int depth = 0;
             int start = -1;
             for (int i = 0; i < items.length(); i++) {
