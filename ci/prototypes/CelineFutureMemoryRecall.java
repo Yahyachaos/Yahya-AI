@@ -4557,11 +4557,24 @@ public final class CelineFutureMemoryRecall {
     private static String boundedYamlChatFlowArray(String value, int openIndex) {
         int squareDepth = 1;
         char quote = 0;
+        boolean comment = false;
         // At most 512 payload chars and eight nested [] levels. Any unknown
         // syntax is NOT a proof of first-party G1 provenance.
         int limit = Math.min(value.length(), openIndex + 514);
         for (int i = openIndex + 1; i < limit; i++) {
             char c = value.charAt(i);
+            // YAML comments may include literal '[' and ']' characters, but
+            // those are text, never sequence boundaries. Preserve quoted #.
+            if (comment) {
+                if (c == '\n') comment = false;
+                continue;
+            }
+            if (quote == 0 && c == '#' && i > 0
+                    && (value.charAt(i - 1) == ' ' || value.charAt(i - 1) == '\t'
+                        || value.charAt(i - 1) == '\n' || value.charAt(i - 1) == '\r')) {
+                comment = true;
+                continue;
+            }
             // Newlines are legal whitespace inside bounded YAML flow sequences.
             if (quote != 0) {
                 if (c == quote) {
