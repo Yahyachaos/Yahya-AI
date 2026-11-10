@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "status": "ASSET_CANDIDATE_READY_FOR_RUNTIME_INTEGRATION_NOT_YET_RUNTIME_ACCEPTED",
+  "status": "POST_V83_S25_NATIVE_FRAME_DRAFT__RUNTIME_VISUAL_AND_9R_GEOMETRY_UNVERIFIED",
   "phase": "4R",
   "room_id": "celine_room_v80_final_modular",
   "room_shell_m": {
-    "width": 6.4,
-    "depth": 5.8,
-    "height": 2.8
+    "width": 4.4,
+    "depth": 4.2,
+    "height": 2.65
   },
   "viewer": {
     "type": "laptop_webcam",
@@ -73,7 +73,7 @@
       "extent_ratio_xyz": [
         0.9996600151062012,
         0.9997303485870361,
-        1.0
+        1
       ],
       "textures": [
         {
@@ -118,7 +118,7 @@
       "optimized_bytes": 3753232,
       "extent_ratio_xyz": [
         0.9998970031738281,
-        1.0,
+        1,
         0.9999456405639648
       ],
       "textures": [
@@ -163,9 +163,9 @@
       "optimized_vertices": 45963,
       "optimized_bytes": 2749796,
       "extent_ratio_xyz": [
-        1.0,
+        1,
         0.9999458193778992,
-        1.0
+        1
       ],
       "textures": [
         {
@@ -255,9 +255,9 @@
       "optimized_vertices": 91127,
       "optimized_bytes": 5855624,
       "extent_ratio_xyz": [
-        1.0,
+        1,
         0.9997755289077759,
-        1.0
+        1
       ],
       "textures": [
         {
@@ -617,10 +617,10 @@
       "id": "recovery_home_anchor",
       "kind": "nav",
       "world_xz_m": [
-        0.0,
+        0,
         0.75
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 180,
       "object_id": null,
       "approach_anchor": null,
@@ -636,16 +636,17 @@
       ],
       "allowed_predecessors": [
         "camera_talk_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "camera_talk_anchor": {
       "id": "camera_talk_anchor",
       "kind": "nav",
       "world_xz_m": [
-        0.0,
+        0,
         1.15
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 180,
       "object_id": null,
       "approach_anchor": null,
@@ -669,16 +670,17 @@
         "foreground_table_approach_anchor",
         "room_walk_anchor_left",
         "room_walk_anchor_right"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "camera_near_anchor": {
       "id": "camera_near_anchor",
       "kind": "nav",
       "world_xz_m": [
-        0.0,
+        0,
         1.4
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 180,
       "object_id": null,
       "approach_anchor": null,
@@ -695,7 +697,8 @@
       ],
       "allowed_predecessors": [
         "camera_talk_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "room_walk_anchor_left": {
       "id": "room_walk_anchor_left",
@@ -704,7 +707,7 @@
         -0.65,
         0.45
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": null,
       "object_id": null,
       "approach_anchor": null,
@@ -726,7 +729,8 @@
         "chair_approach_anchor",
         "dresser_anchor",
         "lamp_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "room_walk_anchor_right": {
       "id": "room_walk_anchor_right",
@@ -735,7 +739,7 @@
         0.2,
         0.35
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": null,
       "object_id": null,
       "approach_anchor": null,
@@ -755,7 +759,8 @@
         "camera_talk_anchor",
         "window_anchor",
         "bed_approach_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "chair_approach_anchor": {
       "id": "chair_approach_anchor",
@@ -764,7 +769,7 @@
         -0.72,
         -0.8
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": null,
       "object_id": null,
       "approach_anchor": null,
@@ -784,7 +789,8 @@
         "room_walk_anchor_left",
         "chair_sit_anchor",
         "back_center_nav_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "back_center_nav_anchor": {
       "id": "back_center_nav_anchor",
@@ -793,7 +799,7 @@
         -0.35,
         -1.75
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": null,
       "object_id": null,
       "approach_anchor": null,
@@ -811,7 +817,8 @@
       "allowed_predecessors": [
         "chair_approach_anchor",
         "shelf_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "window_anchor": {
       "id": "window_anchor",
@@ -820,7 +827,7 @@
         0.15,
         -2.12
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 180,
       "object_id": null,
       "approach_anchor": null,
@@ -838,7 +845,8 @@
       "allowed_predecessors": [
         "room_walk_anchor_right",
         "shelf_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "dresser_anchor": {
       "id": "dresser_anchor",
@@ -847,7 +855,7 @@
         -2.25,
         0.35
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 270,
       "object_id": null,
       "approach_anchor": null,
@@ -865,7 +873,8 @@
       "allowed_predecessors": [
         "room_walk_anchor_left",
         "mirror_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "shelf_anchor": {
       "id": "shelf_anchor",
@@ -874,7 +883,7 @@
         -1.2,
         -2.08
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 180,
       "object_id": null,
       "approach_anchor": null,
@@ -892,7 +901,8 @@
       "allowed_predecessors": [
         "back_center_nav_anchor",
         "window_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "lamp_anchor": {
       "id": "lamp_anchor",
@@ -901,7 +911,7 @@
         -0.75,
         1.05
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": null,
       "object_id": null,
       "approach_anchor": null,
@@ -917,7 +927,8 @@
       ],
       "allowed_predecessors": [
         "room_walk_anchor_left"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "bed_approach_anchor": {
       "id": "bed_approach_anchor",
@@ -926,7 +937,7 @@
         0.35,
         0.15
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 90,
       "object_id": null,
       "approach_anchor": null,
@@ -944,16 +955,17 @@
       "allowed_predecessors": [
         "room_walk_anchor_right",
         "bed_exit_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "foreground_table_approach_anchor": {
       "id": "foreground_table_approach_anchor",
       "kind": "approach",
       "world_xz_m": [
-        0.0,
+        0,
         1.48
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 180,
       "object_id": "room_foreground_table",
       "approach_anchor": null,
@@ -972,20 +984,21 @@
         "camera_talk_anchor",
         "camera_near_anchor",
         "foreground_table_lean_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "foreground_table_lean_anchor": {
       "id": "foreground_table_lean_anchor",
       "kind": "contact",
       "world_xz_m": [
-        0.0,
+        0,
         1.58
       ],
       "world_y_m": null,
       "facing_y_deg": 180,
       "object_id": "room_foreground_table",
       "approach_anchor": "foreground_table_approach_anchor",
-      "clearance_radius_m": 0.0,
+      "clearance_radius_m": 0,
       "look_target": "camera_viewer",
       "camera_visibility": "close_visible",
       "pose_mode": "TABLE_LEAN",
@@ -997,7 +1010,8 @@
       ],
       "allowed_predecessors": [
         "foreground_table_approach_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "bed_edge_sit_anchor": {
       "id": "bed_edge_sit_anchor",
@@ -1010,7 +1024,7 @@
       "facing_y_deg": 90,
       "object_id": "room_bed",
       "approach_anchor": "bed_approach_anchor",
-      "clearance_radius_m": 0.0,
+      "clearance_radius_m": 0,
       "look_target": "camera_viewer",
       "camera_visibility": "visible",
       "pose_mode": "BED_EDGE_SIT",
@@ -1024,7 +1038,8 @@
       "allowed_predecessors": [
         "bed_approach_anchor",
         "bed_relax_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "bed_relax_anchor": {
       "id": "bed_relax_anchor",
@@ -1037,7 +1052,7 @@
       "facing_y_deg": 90,
       "object_id": "room_bed",
       "approach_anchor": "bed_edge_sit_anchor",
-      "clearance_radius_m": 0.0,
+      "clearance_radius_m": 0,
       "look_target": "camera_viewer",
       "camera_visibility": "visible",
       "pose_mode": "BED_RELAX",
@@ -1051,7 +1066,8 @@
       "allowed_predecessors": [
         "bed_edge_sit_anchor",
         "bed_lie_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "bed_lie_anchor": {
       "id": "bed_lie_anchor",
@@ -1064,7 +1080,7 @@
       "facing_y_deg": 90,
       "object_id": "room_bed",
       "approach_anchor": "bed_relax_anchor",
-      "clearance_radius_m": 0.0,
+      "clearance_radius_m": 0,
       "look_target": "camera_viewer",
       "camera_visibility": "visible",
       "pose_mode": "BED_LIE",
@@ -1076,7 +1092,8 @@
       ],
       "allowed_predecessors": [
         "bed_relax_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "bed_exit_anchor": {
       "id": "bed_exit_anchor",
@@ -1101,20 +1118,21 @@
       ],
       "allowed_predecessors": [
         "bed_edge_sit_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "chair_sit_anchor": {
       "id": "chair_sit_anchor",
       "kind": "contact",
       "world_xz_m": [
         -1.75,
-        -1.0
+        -1
       ],
       "world_y_m": null,
       "facing_y_deg": 0,
       "object_id": "room_lounge_chair",
       "approach_anchor": "chair_approach_anchor",
-      "clearance_radius_m": 0.0,
+      "clearance_radius_m": 0,
       "look_target": "camera_viewer",
       "camera_visibility": "visible",
       "pose_mode": "CHAIR_SIT",
@@ -1126,7 +1144,8 @@
       ],
       "allowed_predecessors": [
         "chair_approach_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     },
     "mirror_anchor": {
       "id": "mirror_anchor",
@@ -1135,7 +1154,7 @@
         -2.28,
         0.35
       ],
-      "world_y_m": 0.0,
+      "world_y_m": 0,
       "facing_y_deg": 270,
       "object_id": "room_round_mirror",
       "approach_anchor": "dresser_anchor",
@@ -1151,12 +1170,13 @@
       ],
       "allowed_predecessors": [
         "dresser_anchor"
-      ]
+      ],
+      "s25_geometry_proof": "UNVERIFIED_HISTORIC_ANCHOR"
     }
   },
   "nav_collision": {
     "schema": 1,
-    "status": "prepared_draft",
+    "status": "POST_V83_S25_FRAME_DRAFT__OLD_COLLIDERS_NOT_ACCEPTED",
     "avatar_capsule": {
       "radius_m": 0.35,
       "standing_height_m": 1.7,
@@ -1164,14 +1184,14 @@
     },
     "room_bounds_m": {
       "min": [
-        -3.2,
+        -2.2,
         0,
-        -2.9
+        -2.1
       ],
       "max": [
-        3.2,
-        2.8,
-        2.9
+        2.2,
+        2.65,
+        2.1
       ]
     },
     "colliders": [
@@ -1182,7 +1202,7 @@
         "aabb_m": {
           "min": [
             0.7058,
-            0.0,
+            0,
             -1.738
           ],
           "max": [
@@ -1192,7 +1212,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": true
+        "interaction_exception": true,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_dresser",
@@ -1201,7 +1222,7 @@
         "aabb_m": {
           "min": [
             -3.2161,
-            0.0,
+            0,
             -0.634
           ],
           "max": [
@@ -1211,7 +1232,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": true
+        "interaction_exception": true,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_plant_large",
@@ -1220,7 +1242,7 @@
         "aabb_m": {
           "min": [
             -3.1859,
-            0.0,
+            0,
             -2.3593
           ],
           "max": [
@@ -1230,7 +1252,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": false
+        "interaction_exception": false,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_plant_small",
@@ -1239,7 +1262,7 @@
         "aabb_m": {
           "min": [
             1.2976,
-            0.0,
+            0,
             -2.8791
           ],
           "max": [
@@ -1249,7 +1272,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": false
+        "interaction_exception": false,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_floor_lamp",
@@ -1258,7 +1282,7 @@
         "aabb_m": {
           "min": [
             -2.0113,
-            0.0,
+            0,
             1.0886
           ],
           "max": [
@@ -1268,7 +1292,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": true
+        "interaction_exception": true,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_nightstand_back",
@@ -1277,7 +1302,7 @@
         "aabb_m": {
           "min": [
             2.2064,
-            0.0,
+            0,
             -2.277
           ],
           "max": [
@@ -1287,7 +1312,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": false
+        "interaction_exception": false,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_nightstand_front",
@@ -1296,7 +1322,7 @@
         "aabb_m": {
           "min": [
             2.2064,
-            0.0,
+            0,
             0.163
           ],
           "max": [
@@ -1306,7 +1332,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": false
+        "interaction_exception": false,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_lounge_chair",
@@ -1315,7 +1342,7 @@
         "aabb_m": {
           "min": [
             -2.3455,
-            0.0,
+            0,
             -1.5301
           ],
           "max": [
@@ -1325,7 +1352,8 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": true
+        "interaction_exception": true,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       },
       {
         "id": "col_room_foreground_table",
@@ -1334,7 +1362,7 @@
         "aabb_m": {
           "min": [
             -0.7481,
-            0.0,
+            0,
             1.6863
           ],
           "max": [
@@ -1344,11 +1372,12 @@
           ]
         },
         "navigation_blocker": true,
-        "interaction_exception": true
+        "interaction_exception": true,
+        "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
       }
     ],
     "walkable_surface": {
-      "floor_y_m": 0.0,
+      "floor_y_m": 0,
       "rug_walkable": true
     },
     "edges": [
@@ -1483,7 +1512,9 @@
       "match root speed to gait",
       "settle before pose switch",
       "camera never chases avatar"
-    ]
+    ],
+    "s25_status": "PENDING_S25_MESH_AABBS",
+    "legacy_collision_notice": "All nine AABBs are preserved only as historic unverified data; 9R navigation/contact action must not be accepted until transformed source-mesh geometry and path clearance are proven."
   },
   "protected_rules": [
     "canonical Celine remains separate",
@@ -1504,7 +1535,13 @@
   ],
   "validation": {
     "errors": [],
-    "warnings": [],
+    "warnings": [
+      "S25 native frame only; original source-static candidate PASS does not establish Android visual, source-mesh collision or contact acceptance"
+    ],
     "result": "PASS_STATIC_ASSET_CANDIDATE"
-  }
+  },
+  "s25_authoritative_layout_sha256": "471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f",
+  "s25_runtime_proof": "UNVERIFIED_13_OF_13_FILAMENT_S25_EMULATOR",
+  "contact_planes_status": "UNVERIFIED_LEGACY",
+  "combined_room_metadata_scope": "HISTORIC_4R_ASSET_PROVENANCE_NOT_13_S25_RENDER_ACCEPTANCE"
 }

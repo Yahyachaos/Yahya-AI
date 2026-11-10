@@ -3,6 +3,7 @@ package de.yahya.ai;
 import android.content.Context;
 import android.opengl.Matrix;
 
+import com.google.android.filament.Box;
 import com.google.android.filament.Engine;
 import com.google.android.filament.EntityManager;
 import com.google.android.filament.LightManager;
@@ -14,6 +15,15 @@ import com.google.android.filament.gltfio.FilamentAsset;
 import com.google.android.filament.gltfio.ResourceLoader;
 
 import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -45,12 +55,20 @@ final class CelineRoomEnvironmentV80 {
             ROOM_PARTITION_BASE + "room_foreground_table.glb",
             ROOM_PARTITION_BASE + "room_window_drapes.glb",
             ROOM_PARTITION_BASE + "room_wall_shelf_books.glb",
-            ROOM_PARTITION_BASE + "room_round_mirror.glb",
-            ROOM_PARTITION_BASE + "room_plant_small.glb" // source-faithful foreground pot
+            ROOM_PARTITION_BASE + "room_round_mirror.glb"
     };
-    // The extra foreground prop reuses one optimized plant; all 12 canonical source
-    // GLBs and their 13 authored furniture instances remain strictly untouched.
-    private static final int FOREGROUND_PLANT_DERIVED_INDEX = ROOM_PATHS.length - 1;
+    // Exactly thirteen user-authored furniture instances, in the same index order
+    // as ROOM_PATHS after the shell. "back" is the GLB filename "rear".
+    private static final String[] S25_IDS = {
+            "room_bed", "room_dresser", "room_plant_large", "room_plant_small",
+            "room_floor_lamp", "room_nightstand_back", "room_nightstand_front",
+            "room_lounge_chair", "room_rug", "room_foreground_table",
+            "room_window_drapes", "room_wall_shelf_books", "room_round_mirror"
+    };
+    private static final String S25_LAYOUT_ASSET =
+            "models/room/layouts/YahyaAI_Raumlayout_FINAL_2026-10-31.json";
+    private static final String S25_LAYOUT_SHA256 =
+            "471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f";
     private static final String FLOOR_LAMP_LIGHT_ID = "floor_lamp_light";
     private static final int ROOM_LIGHT_CHANNEL = 1;
     // Phase-A floor-raster #286 showed an underlit, featureless floor while the back
@@ -66,28 +84,23 @@ final class CelineRoomEnvironmentV80 {
     // than the same reference ROIs, while calibrated walls/ceiling are close.
     // A constrained downward, room-channel-only warm fill targets left/near floor;
     // do not retune the shared key or alter the 9R.5 user-toggle lamp.
-    private static final float ROOM_WARM_FLOOR_FILL_X = -0.80f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
-    private static final float ROOM_WARM_FLOOR_FILL_Y = 2.25f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-    private static final float ROOM_WARM_FLOOR_FILL_Z = 0.75f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    // S25 native shell and loaded furniture use the floor-centered XYZ frame.
+    // Auxiliary Room light positions must not inherit the old shared 4R runtime
+    // offsets. Preserve the source-local fill location and its light parameters.
+    private static final float ROOM_WARM_FLOOR_FILL_X = -0.80f;
+    private static final float ROOM_WARM_FLOOR_FILL_Y = 2.25f;
+    private static final float ROOM_WARM_FLOOR_FILL_Z = 0.75f;
     private static final float ROOM_WARM_FLOOR_FILL_LUMENS = 38_000.0f;
     private static final float ROOM_WARM_FLOOR_FILL_FALLOFF_M = 2.85f;
     private static final float ROOM_WARM_FLOOR_FILL_CONE_INNER_RAD = 0.34f;
     private static final float ROOM_WARM_FLOOR_FILL_CONE_OUTER_RAD = 0.50f;
-    // The CURRENT source-fidelity floor-lamp GLB has a reference-solved anchor at
-    // (+1.71406245, +0.72000003, +1.70734370) before the common 180-degree room yaw.
-    // alignRoomRoot rotates it to X=-1.71406245, Z=-1.70734370 and then applies the
-    // locked runtime offset. The old 6.4m room constants (-1.55,+1.55) left the light
-    // 3.26 m from its actual shade. Bind this focused source-light to the real fitted
-    // lamp position without mutating the original furniture GLB or accepted toggle.
-    private static final float FLOOR_LAMP_LIGHT_X = -1.71406245f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_X;
-    private static final float FLOOR_LAMP_LIGHT_Y = 1.45f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Y;
-    private static final float FLOOR_LAMP_LIGHT_Z = -1.70734370f
-            + CelineRoomWorldContractV80.RUNTIME_OFFSET_Z;
+    // Legacy optional lamp spotlight: retain the pre-existing room-local bulb
+    // candidate until actual S25 GLB bulb geometry and ON/OFF pixels are checked.
+    // Only remove the obsolete WorldContract offset that placed this light well
+    // outside the native 4.40 x 4.20 x 2.65 m shell. Never move the GLB itself.
+    private static final float FLOOR_LAMP_LIGHT_X = -1.71406245f;
+    private static final float FLOOR_LAMP_LIGHT_Y = 1.45f;
+    private static final float FLOOR_LAMP_LIGHT_Z = -1.70734370f;
     private static final float FLOOR_LAMP_LIGHT_LUMENS = 60000.0f;
     // 9R.5 exact real ON/OFF proof #273 changed 0 static wall/floor pixels.
     // The former fitted-chair aim was behind this bulb toward the opaque back
@@ -159,6 +172,83 @@ final class CelineRoomEnvironmentV80 {
     }
 
     private CelineRoomEnvironmentV80() {}
+
+    /**
+     * Explicit DEBUG-only, synchronous proof bracket for an unobstructed
+     * overhead image. BUILD/Proof owns the caller, camera and native capture.
+     * Only the real source ceiling renderable is transiently removed here:
+     * every furniture world matrix and the actual 4.40 x 4.20 x 2.65m shell
+     * must pass the normal cached guards both before and after the callback.
+     *
+     * A callback must encompass the actual frame/capture transaction. This
+     * method does not enable a permanent ceiling-off state, bypass shell
+     * verification, or claim that any Android pixels have been measured.
+     */
+    static void withNativeS25CeilingHiddenForDiagnosticTopview(
+            Celine3DView view, Runnable synchronousFrameAndCapture) {
+        if (view == null || synchronousFrameAndCapture == null
+                || !view.isFilamentOwnerThread()) {
+            throw new IllegalStateException("S25 diagnostic topview requires Filament owner and frame");
+        }
+        if ((view.getContext().getApplicationInfo().flags
+                & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            throw new IllegalStateException("S25 diagnostic ceiling removal forbidden outside DEBUG");
+        }
+        State state;
+        synchronized (STATES) { state = STATES.get(view); }
+        if (state == null || !state.isBuilt() || state.roomShellAsset == null) {
+            throw new IllegalStateException("S25 diagnostic topview requires the fully built Room");
+        }
+        state.verifyCachedS25WorldMatrices();
+        int ceiling = state.roomShellAsset.getFirstEntityByName("room_shell_ceiling");
+        if (ceiling == 0 || !state.engine.getRenderableManager().hasComponent(ceiling)
+                || !state.scene.hasEntity(ceiling)) {
+            throw new IllegalStateException("Real S25 ceiling absent before diagnostic topview");
+        }
+        try {
+            CelineRoomProofCeilingScopeV80.run(
+                    new CelineRoomProofCeilingScopeV80.CeilingScene() {
+                        @Override public boolean isAttached() {
+                            return state.scene.hasEntity(ceiling);
+                        }
+                        @Override public void detach() {
+                            state.scene.removeEntity(ceiling);
+                        }
+                        @Override public void restore() {
+                            state.scene.addEntity(ceiling);
+                        }
+                    }, synchronousFrameAndCapture);
+        } finally {
+            // A failed roof restore/post-frame matrix or shell check must
+            // invalidate this Room immediately. Otherwise isActive() could
+            // remain true and suppress the fallback Canvas while roofless.
+            CelineRoomProofCeilingScopeV80.verifyOrFailClosed(
+                    state::verifyCachedS25WorldMatrices,
+                    () -> {
+                        try { state.destroyRoom(); }
+                        finally {
+                            // The GLB teardown runs on the Filament owner;
+                            // invalidate the sibling Canvas only on UI thread.
+                            view.post(() -> {
+                                android.view.ViewParent parent = view.getParent();
+                                if (!(parent instanceof android.view.ViewGroup)) return;
+                                android.view.ViewGroup group =
+                                        (android.view.ViewGroup) parent;
+                                for (int i = 0; i < group.getChildCount(); i++) {
+                                    android.view.View child = group.getChildAt(i);
+                                    if (child instanceof CelineRoomBackdropView) {
+                                        child.invalidate();
+                                    }
+                                }
+                            });
+                        }
+                    });
+        }
+        Celine3DDiagnostics.record(state.context, "ROOM-S25-DIAG-CEILING",
+                "Synchronous DEBUG topview bracket completed; original ceiling restored",
+                "ceilingRestored=true 13FurnitureUnchanged=true"
+                        + " AndroidPixels=UNVERIFIED G2.3=PAUSED");
+    }
 
     static boolean ensure(Context context, Celine3DView view) {
         if (context == null || view == null) return false;
@@ -273,6 +363,11 @@ final class CelineRoomEnvironmentV80 {
         // Do not lock a multi-second native ResourceLoader transaction from onDraw.
         // Publish true only after the entire Room (including lights/materials) is ready.
         private volatile boolean roomBuilt;
+        // Exact post-build Filament world matrices, never a replacement for the
+        // pinned S25 JSON. A cached READY must retain all 13 original transforms
+        // as well as Scene membership after HOME/CALL reactivation.
+        private final Map<Integer, float[]> builtS25RootWorlds = new LinkedHashMap<>();
+        private final Map<Integer, float[]> builtS25MeshWorlds = new LinkedHashMap<>();
 
         State(Context context, Celine3DView view) throws Exception {
             this.context = context;
@@ -288,11 +383,104 @@ final class CelineRoomEnvironmentV80 {
             return roomBuilt;
         }
 
+        // Called ONLY on the Filament owner by ensureBuilt(). Scene membership
+        // alone cannot detect a relocated or rescaled yet still attached GLB.
+        // On cached activation compare every root and descendant mesh against
+        // the exact matrices verified during the original canonical import.
+        // Fail closed; do not rewrite a user's transform to silence the error.
+        private void verifyCachedS25WorldMatrices() {
+            if (builtS25RootWorlds.size() != S25_IDS.length
+                    || builtS25MeshWorlds.size() < S25_IDS.length) {
+                throw new IllegalStateException("Incomplete S25 cached 13/13 matrix snapshot");
+            }
+            RenderableManager renderables = engine.getRenderableManager();
+            float maxRootDelta = 0f;
+            float maxMeshDelta = 0f;
+            for (Map.Entry<Integer, float[]> entry : builtS25RootWorlds.entrySet()) {
+                int instance = transforms.getInstance(entry.getKey());
+                if (instance == 0) {
+                    throw new IllegalStateException("Missing cached S25 furniture root " + entry.getKey());
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                float[] expected = entry.getValue();
+                for (int i = 0; i < 16; i++) {
+                    if (!Float.isFinite(actual[i]) || !Float.isFinite(expected[i])) {
+                        throw new IllegalStateException("Nonfinite cached S25 furniture root");
+                    }
+                    maxRootDelta = Math.max(maxRootDelta, Math.abs(actual[i] - expected[i]));
+                }
+            }
+            for (Map.Entry<Integer, float[]> entry : builtS25MeshWorlds.entrySet()) {
+                int entity = entry.getKey();
+                int instance = transforms.getInstance(entity);
+                if (instance == 0 || !scene.hasEntity(entity)
+                        || !renderables.hasComponent(entity)) {
+                    throw new IllegalStateException("Missing cached S25 furniture mesh " + entity);
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                float[] expected = entry.getValue();
+                for (int i = 0; i < 16; i++) {
+                    if (!Float.isFinite(actual[i]) || !Float.isFinite(expected[i])) {
+                        throw new IllegalStateException("Nonfinite cached S25 furniture mesh");
+                    }
+                    maxMeshDelta = Math.max(maxMeshDelta, Math.abs(actual[i] - expected[i]));
+                }
+            }
+            if (maxRootDelta > 0.0001f || maxMeshDelta > 0.0001f) {
+                throw new IllegalStateException("Cached S25 furniture matrix drift; root="
+                        + maxRootDelta + " mesh=" + maxMeshDelta);
+            }
+            // A cached 13/13 furniture PASS alone is insufficient: HOME/CALL
+            // may detach or displace the genuine floor, ceiling, walls or
+            // window while leaving all furniture world matrices unchanged.
+            // Reuse the original native shell geometry/Scene guard. Never
+            // reapply or auto-adjust the user's furniture transforms.
+            if (roomShellAsset == null) {
+                throw new IllegalStateException("Missing cached S25 native shell");
+            }
+            int hiddenFrontWall = roomShellAsset.getFirstEntityByName("room_shell_front");
+            if (hiddenFrontWall == 0) {
+                throw new IllegalStateException("Missing cached S25 front-wall anchor");
+            }
+            verifyNativeS25ShellAfterAttach(roomShellAsset, hiddenFrontWall);
+            Celine3DDiagnostics.record(context, "ROOM-S25-CACHED-13",
+                    "Reactivated 13 source GLB furniture transforms verified",
+                    "rootCount=" + builtS25RootWorlds.size()
+                            + " meshCount=" + builtS25MeshWorlds.size()
+                            + " maxRootDelta=" + maxRootDelta
+                            + " maxMeshDelta=" + maxMeshDelta
+                            + " visual=UNVERIFIED G2.3=PAUSED");
+        }
+
         synchronized boolean ensureBuilt() {
-            if (isBuilt()) return true;
+            if (isBuilt()) {
+                try {
+                    verifyCachedS25WorldMatrices();
+                    return true;
+                } catch (Throwable cachedError) {
+                    Celine3DDiagnostics.error(context, "ROOM-199",
+                            "S25 cached shell or furniture changed after original import; Canvas fallback",
+                            cachedError);
+                    try { destroyRoom(); }
+                    catch (Throwable cleanupError) {
+                        roomBuilt = false;
+                        Celine3DDiagnostics.error(context, "ROOM-198",
+                                "S25 cached room cleanup after transform drift failed", cleanupError);
+                    }
+                    return false;
+                }
+            }
             ArrayList<FilamentAsset> candidates = new ArrayList<>();
             try {
                 CelineRoomWorldContractV80 contract = CelineRoomWorldContractV80.load(context);
+                Map<String, JSONObject> exactLayout = readExactS25Layout();
+                int exactApplied = 0;
+                int verifiedFurnitureMeshNodes = 0;
+                // Expected GLB world matrices captured from actual Filament nodes, not JSON guesses.
+                Map<Integer, float[]> expectedS25Roots = new LinkedHashMap<>();
+                Map<Integer, float[]> expectedS25Meshes = new LinkedHashMap<>();
+                Map<Integer, String> expectedS25RootIds = new LinkedHashMap<>();
+                Map<Integer, String> expectedS25MeshIds = new LinkedHashMap<>();
                 FilamentAsset shell = null;
                 int renderables = 0;
                 for (int partitionIndex = 0; partitionIndex < ROOM_PATHS.length; partitionIndex++) {
@@ -309,30 +497,20 @@ final class CelineRoomEnvironmentV80 {
                         if (partRenderables <= 0) {
                             throw new IllegalStateException("Raum-Partition ohne Renderables: " + roomPath);
                         }
-                        alignRoomRoot(part);
-                        if (partitionIndex == FOREGROUND_PLANT_DERIVED_INDEX) {
-                            positionForegroundDerivedPlant(part);
+                        if (partitionIndex == 0) {
+                            // Native S25 shell and 13 furniture GLBs share the
+                            // floor-centered XYZ frame. No legacy 180-degree yaw or
+                            // WorldContract offset is allowed on the shell alone.
+                            verifyNativeS25ShellFrame(part);
+                        } else {
+                            String authoredId = S25_IDS[partitionIndex - 1];
+                            verifiedFurnitureMeshNodes += applyExactS25Furniture(
+                                    part, authoredId, exactLayout.get(authoredId),
+                                    expectedS25Roots, expectedS25Meshes, expectedS25RootIds,
+                                    expectedS25MeshIds);
+                            exactApplied++;
                         }
-                        if (roomPath.endsWith("room_dresser.glb")) {
-                            correctDresserReferenceEnvelope(part);
-                        }
-                        if (roomPath.endsWith("room_window_drapes.glb")) {
-                            correctWindowDrapeVisibleWidth(part);
-                            // C148: source drape alone, never the independent opaque night pane.
-                            widenVisibleSourceDrapeOnly(part);
-                            // C136: The exact Android #341 CALL still shows cold, high-contrast
-                            // source-fabric stripes. The recovery baseline no longer invokes
-                            // the old window appearance owner at all. Restore ONLY the
-                            // already-derived UV-preserving fabric palette, not its rejected
-                            // overlay planes, opaque backdrop or source-visibility changes.
-                            try {
-                                CelineRoomWindowTextureV80.applySourceMaterialOnly(view, part, engine);
-                            } catch (Throwable drapeError) {
-                                Celine3DDiagnostics.error(context, "ROOM-150",
-                                        "Gardinen-Farbmaterial fehlgeschlagen; Quellgeometrie bleibt",
-                                        drapeError);
-                            }
-                        }
+                        // Preserve original S25 GLB material/UV/texture without image-derived tint.
                         candidates.add(part);
                         renderables += partRenderables;
                         if (ROOM_SHELL_PATH.equals(roomPath)) shell = part;
@@ -341,26 +519,39 @@ final class CelineRoomEnvironmentV80 {
                         throw error;
                     }
                 }
-                if (shell == null) throw new IllegalStateException("Room shell partition missing");
+                if (shell == null || exactApplied != 13 || verifiedFurnitureMeshNodes < 13) {
+                    throw new IllegalStateException("S25 layout requires shell plus exactly 13 GLB instances: " + exactApplied);
+                }
                 validateWorldEntities(candidates, contract);
 
                 for (FilamentAsset part : candidates) scene.addEntities(part.getEntities());
                 int frontWallEntity = shell.getFirstEntityByName("room_shell_front");
-                if (frontWallEntity == 0) {
-                    throw new IllegalStateException("Recovery shell front entity missing");
+                // Removing an empty GLB anchor is not equivalent to hiding a
+                // wall renderable: its mesh children could remain in the Scene.
+                // The original source uses a directly renderable front-wall node.
+                // Fail closed if that invariant is no longer true; never hide
+                // arbitrary descendants or alter the authored shell geometry.
+                if (frontWallEntity == 0 || !scene.hasEntity(frontWallEntity)
+                        || !engine.getRenderableManager().hasComponent(frontWallEntity)) {
+                    throw new IllegalStateException("S25 front-wall renderable not attached");
                 }
+                // The final CALL scene explicitly hides its front wall. Measure
+                // the scene *after* that removal, not a pre-removal shell that
+                // would incorrectly count a hidden wall as a visible renderable.
                 scene.removeEntity(frontWallEntity);
+                verifyNativeS25ShellAfterAttach(shell, frontWallEntity);
+                // Verify the same thirteen authored GLB hierarchies after Scene attachment.
+                // A pre-attachment root readback alone must not count as running scene proof.
+                verifyS25WorldNodesAfterAttach(expectedS25Roots, expectedS25Meshes,
+                        exactApplied, verifiedFurnitureMeshNodes);
                 roomAssets.addAll(candidates);
                 candidates.clear();
                 roomShellAsset = shell;
                 worldContract = contract;
-                seatAnchor = new SeatAnchor(
-                        0.0f, -0.72f, -4.12f,
-                        0.0f, 1.0f, 0.0f,
-                        0.0f, 0.0f, 1.0f,
-                        1.15f, 0.95f, -1.55f,
-                        0.0f, 0.05f, -4.53f,
-                        roomShellAsset.getRoot());
+                // Historical seat geometry lies outside the authored S25 room bounds.
+                // Fail closed until S25 GLB chair/bed contact is calibrated and proved.
+                // Do not derive a seat position from the reference photo or legacy offsets.
+                seatAnchor = null;
                 configureRoomLightChannels();
                 createRecoveryRoomKeyLight();
                 createWarmFloorFillLight();
@@ -372,55 +563,14 @@ final class CelineRoomEnvironmentV80 {
                 } catch (Throwable floorError) {
                     Celine3DDiagnostics.error(context, "ROOM-145",
                             "Holzboden-Bindung FEHLER; Original-Boden unveraendert", floorError);
+                    // Floor material is part of the S25 Room visual contract, not
+                    // an optional decoration. A failed bind must never reach
+                    // ROOM-S25-READY-13 / roomBuilt=true as a false-green room.
+                    throw new IllegalStateException(
+                            "S25 floor material bind failed before Room READY", floorError);
                 }
-
-                // C139: restore the reference's conspicuously missing framed right-wall print.
-                // Cropped only from the canonical image, as Room-owned derived decor;
-                // no GLASS/opening, original furniture, Celine, camera or Core mutation.
-                try {
-                    CelineRoomReferenceArtworkV80.apply(view, shell, engine, scene);
-                } catch (Throwable artworkError) {
-                    Celine3DDiagnostics.error(context, "ROOM-151",
-                            "Referenz-Wandbild konnte nicht geladen werden", artworkError);
-                }
-
-                // C141: The authentic C140 Android CALL still lacks both framed
-                // botanical prints on the reference's upper left wall. Reuse
-                // fixed crops of the already-packaged canonical reference image,
-                // independently of all original furniture and window semantics.
-                try {
-                    CelineRoomReferenceLeftArtworkV80.apply(view, shell, engine, scene);
-                } catch (Throwable leftArtError) {
-                    Celine3DDiagnostics.error(context, "ROOM-155",
-                            "Linke Referenz-Wandbilder konnten nicht geladen werden", leftArtError);
-                }
-
-
-                // C149: Exact Android CALL #369 still has a bare foreground table.
-                // The source-faithful furniture GLBs never contained the laptop lid,
-                // although Refernzbild.png assigns it the dominant bottom-center
-                // quadrilateral. Re-enable the already reference-solved, Room-owned
-                // derived lid against the explicitly available shell (not the
-                // obsolete combined-room reflective field). No window, glass,
-                // backplane, source furniture or Celine transforms are changed.
-                try {
-                    CelineRoomForegroundLaptopV80.apply(view, shell, engine);
-                } catch (Throwable laptopError) {
-                    Celine3DDiagnostics.error(context, "ROOM-159",
-                            "Referenz-Laptop-Vordergrund konnte nicht geladen werden", laptopError);
-                }
-
-                // C150: the real partitioned Android CALL has no foreground candle.
-                // Reuse ONLY the measured upright source-derived jar from the existing
-                // Room geometry owner, with the current shell explicitly supplied.
-                // Leave GLASS/backplanes, original furniture, camera and Celine alone.
-                try {
-                    CelineRoomForegroundPlantV80.applyCandleOnly(view, shell, engine);
-                } catch (Throwable candleError) {
-                    Celine3DDiagnostics.error(context, "ROOM-160",
-                            "Referenzkerze im Raum konnte nicht geladen werden", candleError);
-                }
-
+                // S25 scene is the shell plus thirteen user-authored furniture GLBs:
+                // reject reference-photo artwork, extra laptop and candle geometry.
                 Celine3DDiagnostics.record(context, "ROOM-100",
                         "Source-PBR Filament-Raum aktiv",
                         "partitions=" + roomAssets.size() + " renderables=" + renderables
@@ -428,10 +578,11 @@ final class CelineRoomEnvironmentV80 {
                 Celine3DDiagnostics.record(context, "ROOM-105",
                         "4R Weltvertrag aktiv", contract.diagnosticSummary());
                 Celine3DDiagnostics.record(context, "ROOM-110",
-                        "Filament SeatAnchor bereit", seatAnchor.diagnosticSummary());
+                        "S25 Sitzkontakt nicht freigegeben",
+                        "seatAnchor=null legacySeatOutsideS25=true contactGeometry=UNVERIFIED");
                 Celine3DDiagnostics.record(context, "ROOM-116",
                         "Recovery-Geometrie aktiv",
-                        "combined098M=false partitions15=true sourceGlbsImmutable=true authoredFurnitureInstances13Unchanged=true derivedForegroundPlant=true furnitureOrientationOverride=false sharedRootYawDeg=180 frontWallHidden=true sourceWindowPBR=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
+                        "sourceGlbsImmutable=true roomPartitions14=true authoredFurnitureInstances13=true extraReferenceGeometry=false furnitureOrientationOverride=false furnitureSharedRootYawDeg=0 shellNativeS25Frame=true sharedWorldContractS25Dimensions=true contactCalibrated=false frontWallHidden=true originalDrapeMaterial=true sharedCelineKeyMutated=false roomLightChannel=1 neutralKeyIntensity="
                                 + ROOM_RECOVERY_NEUTRAL_KEY_INTENSITY);
                 Celine3DDiagnostics.record(context, "ROOM-120",
                         "9R.5 Lampenlicht bereit",
@@ -445,11 +596,46 @@ final class CelineRoomEnvironmentV80 {
                                 + FLOOR_LAMP_LIGHT_DIR_Z + " coneRad="
                                 + FLOOR_LAMP_SPOT_INNER_RAD + "/" + FLOOR_LAMP_SPOT_OUTER_RAD
                                 + " materialEmission=false");
+                // Capture machine-readable per-furniture *live* Filament world matrices
+                // after resources, light channels and optional floor setup have settled.
+                // This checks numerical runtime state, never Android raster appearance.
+                recordReadyS25WorldMatrices(expectedS25RootIds,
+                        expectedS25Roots, expectedS25Meshes, expectedS25MeshIds);
+                // Publish immutable copies only after full attached-scene 13/13
+                // measurement; these are used to detect later transform drift.
+                builtS25RootWorlds.clear();
+                for (Map.Entry<Integer, float[]> entry : expectedS25Roots.entrySet()) {
+                    builtS25RootWorlds.put(entry.getKey(), entry.getValue().clone());
+                }
+                builtS25MeshWorlds.clear();
+                for (Map.Entry<Integer, float[]> entry : expectedS25Meshes.entrySet()) {
+                    builtS25MeshWorlds.put(entry.getKey(), entry.getValue().clone());
+                }
                 failureLogged = false;
                 roomBuilt = true;
+                // Emit whole-scene 13/13 evidence only after scene attachment and
+                // all resource/light setup succeeds; partial imports must never
+                // produce a misleading completed-room diagnostic.
+                Celine3DDiagnostics.record(context, "ROOM-S25-13",
+                        "13/13 S25 GLB roots and descendant nodes verified after Room build",
+                        "verifiedFurniture=" + exactApplied
+                                + " verifiedMeshNodes=" + verifiedFurnitureMeshNodes
+                                + " postAttachRootNodes=" + expectedS25Roots.size()
+                                + " postAttachMeshNodes=" + expectedS25Meshes.size()
+                                + " sourceSHA256=" + S25_LAYOUT_SHA256
+                                + " room=4.4x4.2x2.65"
+                                + " shellAndWorldContract=UNVERIFIED visual=UNVERIFIED G2.3=PAUSED");
                 return true;
             } catch (Throwable error) {
                 for (FilamentAsset candidate : candidates) {
+                    // Scene.addEntities may already have attached this candidate before a
+                    // later S25 integrity check failed. Detach it before destroying the
+                    // gltfio asset so a retry cannot inherit stale/ghost Room meshes.
+                    for (int entity : candidate.getEntities()) {
+                        try {
+                            if (scene.hasEntity(entity)) scene.removeEntity(entity);
+                        } catch (Throwable ignored) {}
+                    }
                     try { assetLoader.destroyAsset(candidate); } catch (Throwable ignored) {}
                 }
                 if (!roomAssets.isEmpty() || recoveryRoomKeyLightEntity != 0
@@ -472,6 +658,749 @@ final class CelineRoomEnvironmentV80 {
             }
         }
 
+
+        /**
+         * Fail-closed source read. Never rewrite, clamp or normalize the S25 export.
+         * The legacy yaw/scale and locked flags remain independent JSON metadata.
+         */
+        private Map<String, JSONObject> readExactS25Layout() throws Exception {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream(8192);
+            try (InputStream in = context.getAssets().open(S25_LAYOUT_ASSET)) {
+                byte[] block = new byte[4096];
+                int count;
+                while ((count = in.read(block)) != -1) {
+                    if (count > 0) bytes.write(block, 0, count);
+                }
+            }
+            byte[] raw = bytes.toByteArray();
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(raw);
+            StringBuilder digest = new StringBuilder(64);
+            for (byte b : hash) {
+                digest.append(Character.forDigit((b >>> 4) & 15, 16));
+                digest.append(Character.forDigit(b & 15, 16));
+            }
+            if (!S25_LAYOUT_SHA256.equals(digest.toString())) {
+                throw new IllegalStateException("Canonical S25 source bytes changed: " + digest);
+            }
+            JSONObject json = new JSONObject(new String(raw, StandardCharsets.UTF_8));
+            if (!"yahya-room-layout-editor/v1".equals(json.getString("schema"))) {
+                throw new IllegalStateException("Unexpected S25 layout schema");
+            }
+            JSONObject room = json.getJSONObject("room");
+            JSONObject originalRoom = json.getJSONObject("original_room_m");
+            for (JSONObject dimensions : new JSONObject[] { room, originalRoom }) {
+                if (dimensions.getDouble("width") != 4.4
+                        || dimensions.getDouble("depth") != 4.2
+                        || dimensions.getDouble("height") != 2.65) {
+                    throw new IllegalStateException("S25 room shell dimensions are not 4.4x4.2x2.65m");
+                }
+            }
+            JSONArray objects = json.getJSONArray("objects");
+            if (objects.length() != S25_IDS.length) {
+                throw new IllegalStateException("S25 requires exactly 13 author objects");
+            }
+            Map<String, JSONObject> byId = new LinkedHashMap<>();
+            Set<String> expected = new HashSet<>();
+            for (String id : S25_IDS) expected.add(id);
+            for (int i = 0; i < objects.length(); i++) {
+                JSONObject item = objects.getJSONObject(i);
+                String id = item.getString("id");
+                if (!expected.contains(id) || byId.put(id, item) != null) {
+                    throw new IllegalStateException("Unexpected or duplicate S25 furniture ID: " + id);
+                }
+                requireFiniteTriple(item, "translation_m", false);
+                requireFiniteTriple(item, "rotation_euler_deg", false);
+                requireFiniteTriple(item, "scale_xyz", true);
+                if (!Double.isFinite(item.getDouble("rotation_y_deg"))
+                        || !Double.isFinite(item.getDouble("uniform_scale"))) {
+                    throw new IllegalStateException("Invalid independent S25 metadata: " + id);
+                }
+                item.getBoolean("locked");
+            }
+            if (byId.size() != S25_IDS.length) {
+                throw new IllegalStateException("Missing S25 furniture IDs");
+            }
+            return byId;
+        }
+
+        private double[] requireFiniteTriple(JSONObject object, String field, boolean positive)
+                throws Exception {
+            JSONArray a = object.getJSONArray(field);
+            if (a.length() != 3) throw new IllegalStateException("Invalid S25 " + field);
+            double[] values = new double[3];
+            for (int i = 0; i < 3; i++) {
+                values[i] = a.getDouble(i);
+                if (!Double.isFinite(values[i]) || (positive && values[i] <= 0)) {
+                    throw new IllegalStateException("Invalid S25 " + field + " axis " + i);
+                }
+            }
+            return values;
+        }
+
+        /**
+         * THREE editor: wrapper T(position)*RZ*RY*RX*S(scale_xyz);
+         * GLTFLoader scene offset T(-Box3.setFromObject(model).getCenter()).
+         * gltfio already owns the identical unmodified GLB hierarchy; therefore
+         * set ROOT to wrapper*T(-source-bounds-center)*original-root. Never
+         * apply the legacy 180deg root yaw or image-fitted drape/dresser offsets.
+         */
+        private int applyExactS25Furniture(FilamentAsset part, String id, JSONObject item,
+                Map<Integer, float[]> expectedS25Roots,
+                Map<Integer, float[]> expectedS25Meshes,
+                Map<Integer, String> expectedS25RootIds,
+                Map<Integer, String> expectedS25MeshIds) throws Exception {
+            if (item == null) throw new IllegalStateException("Missing S25 transform " + id);
+            // Verify that the *loaded partition* owns this furniture anchor, not
+            // merely that the combined scene contains an anchor with this name.
+            // The user id "back" intentionally maps to the GLB's "rear" anchor.
+            String sourceAnchor = ("room_nightstand_back".equals(id)
+                    ? "room_nightstand_rear" : id) + "__anchor";
+            int anchorEntity = part.getFirstEntityByName(sourceAnchor);
+            if (anchorEntity == 0 || transforms.getInstance(anchorEntity) == 0) {
+                throw new IllegalStateException("Wrong or unanchored S25 GLB partition "
+                        + id + " expected=" + sourceAnchor);
+            }
+            double[] pos = requireFiniteTriple(item, "translation_m", false);
+            double[] euler = requireFiniteTriple(item, "rotation_euler_deg", false);
+            double[] scale = requireFiniteTriple(item, "scale_xyz", true);
+            int root = transforms.getInstance(part.getRoot());
+            if (root == 0) throw new IllegalStateException("Missing GLB root: " + id);
+            float[] originalRoot = transforms.getTransform(root, new float[16]);
+            float[] originalRootWorld = transforms.getWorldTransform(root, new float[16]);
+            float[] center = originalGeometryCenter(part);
+            // Snapshot the REAL loaded GLB renderable nodes before changing their
+            // common gltfio root. Root readback alone cannot prove descendant motion.
+            RenderableManager meshManager = engine.getRenderableManager();
+            Map<Integer, float[]> originalMeshWorlds = new LinkedHashMap<>();
+            for (int entity : part.getEntities()) {
+                if (!meshManager.hasComponent(entity)) continue;
+                int meshTransform = transforms.getInstance(entity);
+                if (meshTransform == 0) {
+                    throw new IllegalStateException("S25 renderable has no transform: " + id);
+                }
+                originalMeshWorlds.put(entity,
+                        transforms.getWorldTransform(meshTransform, new float[16]));
+            }
+            if (originalMeshWorlds.isEmpty()) {
+                throw new IllegalStateException("S25 furniture GLB has no renderables: " + id);
+            }
+            float[] wrapper = new float[16];
+            float[] target = new float[16];
+            Matrix.setIdentityM(wrapper, 0);
+            Matrix.translateM(wrapper, 0, (float) pos[0], (float) pos[1], (float) pos[2]);
+            Matrix.rotateM(wrapper, 0, (float) euler[2], 0, 0, 1);
+            Matrix.rotateM(wrapper, 0, (float) euler[1], 0, 1, 0);
+            Matrix.rotateM(wrapper, 0, (float) euler[0], 1, 0, 0);
+            Matrix.scaleM(wrapper, 0, (float) scale[0], (float) scale[1], (float) scale[2]);
+            Matrix.translateM(wrapper, 0, -center[0], -center[1], -center[2]);
+            Matrix.multiplyMM(target, 0, wrapper, 0, originalRoot, 0);
+            transforms.setTransform(root, target);
+
+            // Actual Filament root readback: measured float matrix vs serialized
+            // target. The untouched JSON doubles retain exact user precision.
+            float[] observed = transforms.getTransform(root, new float[16]);
+            float worst = 0f;
+            for (int i = 0; i < 16; i++) {
+                if (!Float.isFinite(observed[i])) {
+                    throw new IllegalStateException("Nonfinite Filament S25 root: " + id);
+                }
+                worst = Math.max(worst, Math.abs(observed[i] - target[i]));
+            }
+            if (worst > 0.00002f) {
+                throw new IllegalStateException("Filament S25 root readback mismatch " + id
+                        + " worst=" + worst);
+            }
+            // Independent center-to-authored-XYZ assertion on the REAL imported root:
+            // observedWorld * inverse(sourceWorld) must carry the pre-imported GLB
+            // geometry center to translation_m, including the exact user Y height.
+            // Root-vs-expected matrix equality alone cannot prove this semantics.
+            float[] inverseSourceWorld = new float[16];
+            if (!Matrix.invertM(inverseSourceWorld, 0, originalRootWorld, 0)) {
+                throw new IllegalStateException("Noninvertible source GLB root: " + id);
+            }
+            float[] observedWorld = transforms.getWorldTransform(root, new float[16]);
+            float[] effectiveWorldWrapper = new float[16];
+            Matrix.multiplyMM(effectiveWorldWrapper, 0, observedWorld, 0,
+                    inverseSourceWorld, 0);
+            float[] centeredWorld = new float[4];
+            Matrix.multiplyMV(centeredWorld, 0, effectiveWorldWrapper, 0,
+                    new float[] { center[0], center[1], center[2], 1f }, 0);
+            float authoredXYZError = 0f;
+            for (int axis = 0; axis < 3; axis++) {
+                if (!Float.isFinite(centeredWorld[axis])) {
+                    throw new IllegalStateException("Nonfinite GLB center readback " + id);
+                }
+                authoredXYZError = Math.max(authoredXYZError,
+                        Math.abs(centeredWorld[axis] - (float) pos[axis]));
+            }
+            if (!Float.isFinite(centeredWorld[3])
+                    || Math.abs(centeredWorld[3] - 1f) > 0.0002f
+                    || authoredXYZError > 0.0002f) {
+                throw new IllegalStateException("S25 real GLB center XYZ/height mismatch "
+                        + id + " deltaMeters=" + authoredXYZError);
+            }
+            if (expectedS25Roots.put(part.getRoot(),
+                    transforms.getWorldTransform(root, new float[16])) != null) {
+                throw new IllegalStateException("Duplicate Filament furniture root entity: " + id);
+            }
+            if (expectedS25RootIds.put(part.getRoot(), id) != null) {
+                throw new IllegalStateException("Duplicate authored S25 root identity: " + id);
+            }
+            // With the unmodified GLB hierarchy, each descendant must move as
+            // authoredWrapper * originalWorld. Detect lost/doubled node transforms,
+            // not just a successfully written but visually unused root matrix.
+            float meshWorst = 0f;
+            for (Map.Entry<Integer, float[]> mesh : originalMeshWorlds.entrySet()) {
+                int meshTransform = transforms.getInstance(mesh.getKey());
+                float[] observedMeshWorld = transforms.getWorldTransform(
+                        meshTransform, new float[16]);
+                float[] expectedMeshWorld = new float[16];
+                Matrix.multiplyMM(expectedMeshWorld, 0, wrapper, 0, mesh.getValue(), 0);
+                for (int axis = 0; axis < 16; axis++) {
+                    if (!Float.isFinite(observedMeshWorld[axis])
+                            || !Float.isFinite(expectedMeshWorld[axis])) {
+                        throw new IllegalStateException("Nonfinite S25 GLB node matrix: " + id);
+                    }
+                    meshWorst = Math.max(meshWorst,
+                            Math.abs(observedMeshWorld[axis] - expectedMeshWorld[axis]));
+                }
+                if (expectedS25Meshes.put(mesh.getKey(), observedMeshWorld) != null
+                        || expectedS25MeshIds.put(mesh.getKey(), id) != null) {
+                    throw new IllegalStateException("Duplicate S25 renderable entity: " + id);
+                }
+            }
+            if (meshWorst > 0.0001f) {
+                throw new IllegalStateException("S25 GLB node world readback mismatch " + id
+                        + " worst=" + meshWorst);
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-READBACK",
+                    "Verified authored furniture root and " + originalMeshWorlds.size()
+                            + " GLB renderable nodes " + id,
+                    "translation_m=" + pos[0] + "," + pos[1] + "," + pos[2]
+                            + " euler_xyz_deg=" + euler[0] + "," + euler[1] + "," + euler[2]
+                            + " scale_xyz=" + scale[0] + "," + scale[1] + "," + scale[2]
+                            + " rotation_y_deg_legacy=" + item.getDouble("rotation_y_deg")
+                            + " uniform_scale_legacy=" + item.getDouble("uniform_scale")
+                            + " locked=" + item.getBoolean("locked")
+                            + " originalCenter=" + center[0] + "," + center[1] + "," + center[2]
+                            + " rootMatrixMaxError=" + worst
+                            + " authoredXYZCenterErrorMeters=" + authoredXYZError
+                            + " meshWorldMatrixMaxError=" + meshWorst
+                            + " meshNodesChecked=" + originalMeshWorlds.size());
+            return originalMeshWorlds.size();
+        }
+
+        /**
+         * The first 13/13 checks run while gltfio assets are imported. Re-read the
+         * actual loaded root and renderable world matrices AFTER Scene.addEntities,
+         * without reapplying any transform or modifying the user's JSON values.
+         * This is structural proof only, not evidence of a visible Android frame.
+         */
+        private void verifyS25WorldNodesAfterAttach(
+                Map<Integer, float[]> rootWorlds, Map<Integer, float[]> meshWorlds,
+                int expectedFurniture, int expectedMeshNodes) {
+            if (rootWorlds.size() != expectedFurniture || expectedFurniture != S25_IDS.length
+                    || meshWorlds.size() != expectedMeshNodes || expectedMeshNodes < S25_IDS.length) {
+                throw new IllegalStateException("Incomplete post-attach S25 scene readback");
+            }
+            // World matrices alone can be valid even for a renderable absent from
+            // the actual Filament Scene. Verify genuine post-attachment membership.
+            RenderableManager sceneRenderables = engine.getRenderableManager();
+            for (Integer meshEntity : meshWorlds.keySet()) {
+                if (!scene.hasEntity(meshEntity)
+                        || !sceneRenderables.hasComponent(meshEntity)) {
+                    throw new IllegalStateException(
+                            "S25 furniture mesh missing from Filament Scene: " + meshEntity);
+                }
+            }
+            Map<Integer, float[]> all = new LinkedHashMap<>(rootWorlds);
+            for (Map.Entry<Integer, float[]> node : meshWorlds.entrySet()) {
+                if (all.put(node.getKey(), node.getValue()) != null) {
+                    throw new IllegalStateException("S25 root/renderable entity collision");
+                }
+            }
+            float worst = 0f;
+            for (Map.Entry<Integer, float[]> node : all.entrySet()) {
+                int instance = transforms.getInstance(node.getKey());
+                if (instance == 0) {
+                    throw new IllegalStateException("Detached S25 scene node " + node.getKey());
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                for (int i = 0; i < 16; i++) {
+                    if (!Float.isFinite(actual[i]) || !Float.isFinite(node.getValue()[i])) {
+                        throw new IllegalStateException("Nonfinite S25 attached GLB node");
+                    }
+                    worst = Math.max(worst, Math.abs(actual[i] - node.getValue()[i]));
+                }
+            }
+            if (worst > 0.0001f) {
+                throw new IllegalStateException("S25 post-attach node movement mismatch: " + worst);
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-ATTACH",
+                    "13/13 GLB scene roots and real descendant renderables unchanged after Scene.addEntities",
+                    "rootNodes=" + rootWorlds.size() + " meshNodes=" + meshWorlds.size()
+                            + " maxMatrixError=" + worst
+                            + " AndroidVisibleFrame=UNVERIFIED shell=UNVERIFIED");
+        }
+
+        /**
+         * Last-stage numerical proof source: actual Filament matrices when the whole
+         * 13-furniture Room is ready, not just authored JSON or pre-attach nodes.
+         * All descendants must still be live Scene renderables. This intentionally
+         * does NOT classify a visible Android frame as PASS.
+         */
+        private void recordReadyS25WorldMatrices(
+                Map<Integer, String> rootIds, Map<Integer, float[]> originalRoots,
+                Map<Integer, float[]> originalMeshes, Map<Integer, String> meshIds) {
+            if (rootIds.size() != S25_IDS.length || originalRoots.size() != S25_IDS.length
+                    || originalMeshes.size() < S25_IDS.length
+                    || meshIds.size() != originalMeshes.size()) {
+                throw new IllegalStateException("S25 ready-scene numeric proof incomplete");
+            }
+            float rootWorst = 0f;
+            float meshWorst = 0f;
+            Map<String, float[]> liveRoots = new LinkedHashMap<>();
+            for (Map.Entry<Integer, String> entry : rootIds.entrySet()) {
+                int instance = transforms.getInstance(entry.getKey());
+                float[] expected = originalRoots.get(entry.getKey());
+                if (instance == 0 || expected == null) {
+                    throw new IllegalStateException("Missing ready S25 root " + entry.getValue());
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                for (int axis = 0; axis < 16; axis++) {
+                    if (!Float.isFinite(actual[axis]) || !Float.isFinite(expected[axis])) {
+                        throw new IllegalStateException("Nonfinite ready S25 root " + entry.getValue());
+                    }
+                    rootWorst = Math.max(rootWorst, Math.abs(actual[axis] - expected[axis]));
+                }
+                if (liveRoots.put(entry.getValue(), actual) != null) {
+                    throw new IllegalStateException("Duplicate ready S25 ID " + entry.getValue());
+                }
+            }
+            RenderableManager renderables = engine.getRenderableManager();
+            Map<Integer, float[]> liveMeshes = new LinkedHashMap<>();
+            // The sixteen matrix floats alone do not reveal whether the real
+            // GLB geometry is on-screen or beyond the authored room shell.
+            // Aggregate the native renderable AABBs per original user furniture ID;
+            // NEVER clamp, move, rescale or infer user placement from these bounds.
+            Map<String, float[]> perFurnitureWorldBounds = new LinkedHashMap<>();
+            for (String id : S25_IDS) {
+                perFurnitureWorldBounds.put(id, new float[] {
+                        Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                        Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY
+                });
+            }
+            for (Map.Entry<Integer, float[]> entry : originalMeshes.entrySet()) {
+                int entity = entry.getKey();
+                if (!liveRoots.containsKey(meshIds.get(entity))) {
+                    throw new IllegalStateException("Unowned ready S25 mesh " + entity);
+                }
+                int instance = transforms.getInstance(entity);
+                if (instance == 0 || !scene.hasEntity(entity)
+                        || !renderables.hasComponent(entity)) {
+                    throw new IllegalStateException("Missing ready S25 renderable " + entity);
+                }
+                float[] actual = transforms.getWorldTransform(instance, new float[16]);
+                float[] expected = entry.getValue();
+                for (int axis = 0; axis < 16; axis++) {
+                    if (!Float.isFinite(actual[axis]) || !Float.isFinite(expected[axis])) {
+                        throw new IllegalStateException("Nonfinite ready S25 mesh " + entity);
+                    }
+                    meshWorst = Math.max(meshWorst, Math.abs(actual[axis] - expected[axis]));
+                }
+                liveMeshes.put(entity, actual);
+                // Filament's Box is mesh-local; transform all eight corners by
+                // this *observed* post-attachment GLB mesh world matrix.
+                Box box = renderables.getAxisAlignedBoundingBox(
+                        renderables.getInstance(entity), new Box());
+                float[] center = box.getCenter();
+                float[] extent = box.getHalfExtent();
+                float[] furnitureBounds = perFurnitureWorldBounds.get(meshIds.get(entity));
+                for (int corner = 0; corner < 8; corner++) {
+                    float x = center[0] + ((corner & 1) == 0 ? -extent[0] : extent[0]);
+                    float y = center[1] + ((corner & 2) == 0 ? -extent[1] : extent[1]);
+                    float z = center[2] + ((corner & 4) == 0 ? -extent[2] : extent[2]);
+                    float[] world = {
+                            actual[0] * x + actual[4] * y + actual[8] * z + actual[12],
+                            actual[1] * x + actual[5] * y + actual[9] * z + actual[13],
+                            actual[2] * x + actual[6] * y + actual[10] * z + actual[14]
+                    };
+                    for (int axis = 0; axis < 3; axis++) {
+                        if (!Float.isFinite(world[axis])) {
+                            throw new IllegalStateException("Nonfinite ready S25 geometry bounds "
+                                    + meshIds.get(entity));
+                        }
+                        furnitureBounds[axis] = Math.min(furnitureBounds[axis], world[axis]);
+                        furnitureBounds[axis + 3] = Math.max(furnitureBounds[axis + 3], world[axis]);
+                    }
+                }
+            }
+            if (rootWorst > 0.0001f || meshWorst > 0.0001f) {
+                throw new IllegalStateException("S25 ready-scene transform drift roots="
+                        + rootWorst + " meshes=" + meshWorst);
+            }
+            // Emit thirteen computed 3D geometry envelopes, not guesswork from
+            // the original anchor XYZ. Bounds beyond the room remain legitimate
+            // user-authored input, never grounds for an automatic placement fix.
+            for (Map.Entry<String, float[]> entry : perFurnitureWorldBounds.entrySet()) {
+                float[] bounds = entry.getValue();
+                int nonDegenerateAxes = 0;
+                for (int axis = 0; axis < 3; axis++) {
+                    float span = bounds[axis + 3] - bounds[axis];
+                    if (!Float.isFinite(bounds[axis])
+                            || !Float.isFinite(bounds[axis + 3])
+                            || !Float.isFinite(span) || span < 0f) {
+                        throw new IllegalStateException(
+                                "Missing actual S25 geometry AABB " + entry.getKey());
+                    }
+                    // A valid flat rug or drape can have zero thickness on ONE axis;
+                    // a point or line is not drawable furniture geometry. Reject
+                    // collapsed GLB renderables without adjusting authored XYZ/scale.
+                    if (span > 0.001f) nonDegenerateAxes++;
+                }
+                if (nonDegenerateAxes < 2) {
+                    throw new IllegalStateException(
+                            "Degenerate attached S25 furniture geometry " + entry.getKey());
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-READY-BOUNDS",
+                        "Ready actual GLB geometry envelope " + entry.getKey(),
+                        "id=" + entry.getKey()
+                                + " worldMinXYZ=" + bounds[0] + "," + bounds[1] + "," + bounds[2]
+                                + " worldMaxXYZ=" + bounds[3] + "," + bounds[4] + "," + bounds[5]
+                                + " userPositionsUnchanged=true AndroidFrame=UNVERIFIED");
+            }
+            // Emit a separately keyed 16-float row for every real attached GLB root.
+            // Build/Proof owner can compare these with the canonical authored XYZ,
+            // Euler and scale while capturing actual Android/emulator frames.
+            for (Map.Entry<String, float[]> entry : liveRoots.entrySet()) {
+                StringBuilder csv = new StringBuilder(240);
+                for (float value : entry.getValue()) {
+                    if (csv.length() != 0) csv.append(',');
+                    csv.append(value);
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-READY-MATRIX",
+                        "Ready Filament root readback " + entry.getKey(),
+                        "id=" + entry.getKey() + " matrix16=" + csv
+                                + " runtimeScene=true AndroidFrame=UNVERIFIED");
+            }
+            // Preserve each real mesh's furniture identity in the final numeric readback.
+            // This is GLB geometry-node state, not a visual pass or authored-value rewrite.
+            for (Map.Entry<Integer, float[]> mesh : liveMeshes.entrySet()) {
+                StringBuilder csv = new StringBuilder(240);
+                for (float value : mesh.getValue()) {
+                    if (csv.length() != 0) csv.append(',');
+                    csv.append(value);
+                }
+                Celine3DDiagnostics.record(context, "ROOM-S25-READY-MESH",
+                        "Ready Filament geometry-node readback " + meshIds.get(mesh.getKey()),
+                        "id=" + meshIds.get(mesh.getKey()) + " entity=" + mesh.getKey()
+                                + " matrix16=" + csv + " runtimeScene=true AndroidFrame=UNVERIFIED");
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-READY-13",
+                    "Thirteen authored GLB roots and all meshes remain live after full Room setup",
+                    "rootCount=" + liveRoots.size()
+                            + " descendantMeshCount=" + originalMeshes.size()
+                            + " maxRootDelta=" + rootWorst
+                            + " maxMeshDelta=" + meshWorst
+                            + " sourceSHA256=" + S25_LAYOUT_SHA256
+                            + " AndroidFrame=UNVERIFIED G2.3=PAUSED");
+        }
+
+        /**
+         * Recheck the REAL source shell in the final scene, after the front
+         * wall was intentionally detached. A gltfio asset can own valid root
+         * transforms even if its meshes were not added to the Filament Scene.
+         * Only the single deliberately hidden front entity may be absent.
+         * This structural check cannot establish Android raster visibility.
+         */
+        private void verifyNativeS25ShellAfterAttach(FilamentAsset shell, int hiddenFrontWall) {
+            int authoredRoot = shell.getFirstEntityByName("room_world_root");
+            if (authoredRoot == 0) {
+                throw new IllegalStateException("Attached S25 shell source root missing");
+            }
+            for (int entity : new int[] { shell.getRoot(), authoredRoot }) {
+                int instance = transforms.getInstance(entity);
+                if (instance == 0) {
+                    throw new IllegalStateException("Attached S25 shell transform missing");
+                }
+                float[] world = transforms.getWorldTransform(instance, new float[16]);
+                for (int i = 0; i < 16; i++) {
+                    float identity = (i % 5 == 0 ? 1.0f : 0.0f);
+                    if (!Float.isFinite(world[i])
+                            || Math.abs(world[i] - identity) > 0.00002f) {
+                        throw new IllegalStateException(
+                                "Attached S25 shell displaced from native XYZ frame: "
+                                        + entity + " component=" + i);
+                    }
+                }
+            }
+            RenderableManager renderables = engine.getRenderableManager();
+            int attachedMeshes = 0;
+            // Identity roots are not proof that the imported shell GLB has the
+            // correct physical envelope. Measure its REAL attached mesh geometry;
+            // wall thickness may exceed interior dimensions, so do not rescale
+            // or reject bounds merely for lying outside the authored room.
+            int floorEntity = shell.getFirstEntityByName("room_shell_floor");
+            int ceilingEntity = shell.getFirstEntityByName("room_shell_ceiling");
+            // The native shell also requires three real enclosing wall meshes.
+            // A correct floor/ceiling alone is not a usable Room shell.
+            final String[] wallNames = {
+                    "room_shell_back", "room_shell_left", "room_shell_right"
+            };
+            int[] wallEntities = new int[wallNames.length];
+            for (int wi = 0; wi < wallNames.length; wi++) {
+                wallEntities[wi] = shell.getFirstEntityByName(wallNames[wi]);
+            }
+            float[] shellBounds = { Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                    Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY,
+                    Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
+            float[] floorBounds = shellBounds.clone();
+            float[] ceilingBounds = shellBounds.clone();
+            float[][] wallBounds = {
+                    shellBounds.clone(), shellBounds.clone(), shellBounds.clone()
+            };
+            // The floor anchor's name alone does not prove the native GLB floor
+            // mesh survived scene attachment. The original floor texture binder
+            // also requires this exact named entity to be a renderable. Fail closed
+            // instead of emitting floorRenderable=false as a successful Room check.
+            if (floorEntity == 0 || floorEntity == hiddenFrontWall
+                    || !renderables.hasComponent(floorEntity)
+                    || !scene.hasEntity(floorEntity)) {
+                throw new IllegalStateException("S25 source floor renderable missing from Scene");
+            }
+            if (ceilingEntity == 0 || ceilingEntity == hiddenFrontWall
+                    || !renderables.hasComponent(ceilingEntity)
+                    || !scene.hasEntity(ceilingEntity)) {
+                throw new IllegalStateException("S25 source ceiling renderable missing from Scene");
+            }
+            for (int wi = 0; wi < wallEntities.length; wi++) {
+                int entity = wallEntities[wi];
+                if (entity == 0 || entity == hiddenFrontWall
+                        || !renderables.hasComponent(entity)
+                        || !scene.hasEntity(entity)) {
+                    throw new IllegalStateException(
+                            "S25 native wall renderable missing: " + wallNames[wi]);
+                }
+            }
+            if (scene.hasEntity(hiddenFrontWall)) {
+                throw new IllegalStateException("S25 front wall not detached");
+            }
+            for (int entity : shell.getEntities()) {
+                if (entity == hiddenFrontWall) continue;
+                if (!renderables.hasComponent(entity)) continue;
+                if (!scene.hasEntity(entity)) {
+                    throw new IllegalStateException(
+                            "S25 shell renderable absent from Filament Scene: " + entity);
+                }
+                int instance = transforms.getInstance(entity);
+                if (instance == 0) {
+                    throw new IllegalStateException("S25 shell renderable lacks transform");
+                }
+                float[] world = transforms.getWorldTransform(instance, new float[16]);
+                for (float value : world) {
+                    if (!Float.isFinite(value)) {
+                        throw new IllegalStateException("Nonfinite attached S25 shell mesh");
+                    }
+                }
+                Box box = renderables.getAxisAlignedBoundingBox(
+                        renderables.getInstance(entity), new Box());
+                float[] center = box.getCenter();
+                float[] extent = box.getHalfExtent();
+                for (int corner = 0; corner < 8; corner++) {
+                    float x = center[0] + ((corner & 1) == 0 ? -extent[0] : extent[0]);
+                    float y = center[1] + ((corner & 2) == 0 ? -extent[1] : extent[1]);
+                    float z = center[2] + ((corner & 4) == 0 ? -extent[2] : extent[2]);
+                    float[] p = {
+                            world[0] * x + world[4] * y + world[8] * z + world[12],
+                            world[1] * x + world[5] * y + world[9] * z + world[13],
+                            world[2] * x + world[6] * y + world[10] * z + world[14]
+                    };
+                    for (int axis = 0; axis < 3; axis++) {
+                        if (!Float.isFinite(p[axis])) {
+                            throw new IllegalStateException("Nonfinite S25 shell geometry");
+                        }
+                        shellBounds[axis] = Math.min(shellBounds[axis], p[axis]);
+                        shellBounds[axis + 3] = Math.max(shellBounds[axis + 3], p[axis]);
+                        if (entity == floorEntity) {
+                            floorBounds[axis] = Math.min(floorBounds[axis], p[axis]);
+                            floorBounds[axis + 3] = Math.max(floorBounds[axis + 3], p[axis]);
+                        }
+                        if (entity == ceilingEntity) {
+                            ceilingBounds[axis] = Math.min(ceilingBounds[axis], p[axis]);
+                            ceilingBounds[axis + 3] = Math.max(ceilingBounds[axis + 3], p[axis]);
+                        }
+                        for (int wi = 0; wi < wallEntities.length; wi++) {
+                            if (entity != wallEntities[wi]) continue;
+                            wallBounds[wi][axis] = Math.min(wallBounds[wi][axis], p[axis]);
+                            wallBounds[wi][axis + 3] = Math.max(
+                                    wallBounds[wi][axis + 3], p[axis]);
+                        }
+                    }
+                }
+                attachedMeshes++;
+            }
+            if (attachedMeshes == 0 || !Float.isFinite(floorBounds[0])
+                    || !Float.isFinite(floorBounds[1]) || !Float.isFinite(floorBounds[2])
+                    || !Float.isFinite(floorBounds[3]) || !Float.isFinite(floorBounds[4])
+                    || !Float.isFinite(floorBounds[5])) {
+                throw new IllegalStateException("Attached S25 shell or floor bounds missing");
+            }
+            // Source room_shell.glb uses a floor-top origin at Y=0 and a
+            // ceiling underside at Y=2.65m. Verify REAL attached mesh geometry,
+            // not merely identity roots or a string claiming the target size.
+            // Floor thickness and outer wall extents are deliberately NOT
+            // mistaken for the authored 4.40 x 4.20 x 2.65m clear interior.
+            final float dimensionToleranceM = 0.002f;
+            float floorWidthM = floorBounds[3] - floorBounds[0];
+            float floorDepthM = floorBounds[5] - floorBounds[2];
+            float floorCenterX = (floorBounds[0] + floorBounds[3]) * 0.5f;
+            float floorCenterZ = (floorBounds[2] + floorBounds[5]) * 0.5f;
+            // The genuine ceiling GLB must have the right horizontal footprint.
+            // Fail closed without changing any user-authored transform.
+            float ceilingWidthM = ceilingBounds[3] - ceilingBounds[0];
+            float ceilingDepthM = ceilingBounds[5] - ceilingBounds[2];
+            float ceilingCenterX = (ceilingBounds[0] + ceilingBounds[3]) * 0.5f;
+            float ceilingCenterZ = (ceilingBounds[2] + ceilingBounds[5]) * 0.5f;
+            if (!Float.isFinite(ceilingBounds[1])
+                    || !Float.isFinite(floorWidthM) || !Float.isFinite(floorDepthM)
+                    || Math.abs(floorWidthM - 4.40f) > dimensionToleranceM
+                    || Math.abs(floorDepthM - 4.20f) > dimensionToleranceM
+                    || Math.abs(floorCenterX) > dimensionToleranceM
+                    || Math.abs(floorCenterZ) > dimensionToleranceM
+                    || Math.abs(floorBounds[4]) > dimensionToleranceM
+                    || !Float.isFinite(ceilingWidthM) || !Float.isFinite(ceilingDepthM)
+                    || Math.abs(ceilingWidthM - 4.40f) > dimensionToleranceM
+                    || Math.abs(ceilingDepthM - 4.20f) > dimensionToleranceM
+                    || Math.abs(ceilingCenterX) > dimensionToleranceM
+                    || Math.abs(ceilingCenterZ) > dimensionToleranceM
+                    || Math.abs(ceilingBounds[1] - 2.65f) > dimensionToleranceM) {
+                throw new IllegalStateException(
+                        "Native attached S25 floor/ceiling interior geometry mismatch");
+            }
+            // Inspect the actual post-attachment native back/left/right wall
+            // planes, not only their named GLB nodes. In source room_shell.glb
+            // the inner faces are back Z=+2.10, left X=-2.20, right X=+2.20.
+            // Their height is Y=[0,2.65] and their spans match the clear
+            // 4.40 x 4.20 room. Check the original 10cm OUTER wall planes separately;
+             // those must never be folded into the clear interior. Never move any authored mesh.
+            for (int wi = 0; wi < wallBounds.length; wi++) {
+                for (float value : wallBounds[wi]) {
+                    if (!Float.isFinite(value)) {
+                        throw new IllegalStateException(
+                                "Missing S25 native wall geometry bounds: " + wallNames[wi]);
+                    }
+                }
+            }
+            float[] backWall = wallBounds[0];
+            float[] leftWall = wallBounds[1];
+            float[] rightWall = wallBounds[2];
+            if (Math.abs(backWall[0] + 2.20f) > dimensionToleranceM
+                    || Math.abs(backWall[3] - 2.20f) > dimensionToleranceM
+                    || Math.abs(backWall[1]) > dimensionToleranceM
+                    || Math.abs(backWall[4] - 2.65f) > dimensionToleranceM
+                    || Math.abs(backWall[2] - 2.10f) > dimensionToleranceM
+                    || Math.abs(backWall[5] - 2.20f) > dimensionToleranceM
+                    || Math.abs(leftWall[0] + 2.30f) > dimensionToleranceM
+                    || Math.abs(leftWall[3] + 2.20f) > dimensionToleranceM
+                    || Math.abs(leftWall[1]) > dimensionToleranceM
+                    || Math.abs(leftWall[4] - 2.65f) > dimensionToleranceM
+                    || Math.abs(leftWall[2] + 2.10f) > dimensionToleranceM
+                    || Math.abs(leftWall[5] - 2.10f) > dimensionToleranceM
+                    || Math.abs(rightWall[0] - 2.20f) > dimensionToleranceM
+                    || Math.abs(rightWall[3] - 2.30f) > dimensionToleranceM
+                    || Math.abs(rightWall[1]) > dimensionToleranceM
+                    || Math.abs(rightWall[4] - 2.65f) > dimensionToleranceM
+                    || Math.abs(rightWall[2] + 2.10f) > dimensionToleranceM
+                    || Math.abs(rightWall[5] - 2.10f) > dimensionToleranceM) {
+                throw new IllegalStateException(
+                        "Native attached S25 enclosing-wall interior geometry mismatch");
+            }
+            // In the original room_shell.glb the hidden front wall spans
+            // Z=-2.20..-2.10m, while the surviving floor/side walls start
+            // exactly at Z=-2.10m. A child or duplicate renderable can remain
+            // after removeEntity(frontWallEntity); checking only the named
+            // node's Scene membership would then falsely accept a closed front.
+            // Check the FINAL, actually attached renderable geometry without
+            // touching any authored furniture or shell transform.
+            if (!Float.isFinite(shellBounds[2])
+                    || Math.abs(shellBounds[2] + 2.10f) > dimensionToleranceM) {
+                throw new IllegalStateException(
+                        "S25 front-wall geometry remains after Scene detachment");
+            }
+            Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-BOUNDS",
+                    "Final attached visible-shell and floor AABBs (NOT raster acceptance)",
+                    "shellWorldMinXYZ=" + shellBounds[0] + "," + shellBounds[1] + "," + shellBounds[2]
+                            + " shellWorldMaxXYZ=" + shellBounds[3] + "," + shellBounds[4] + "," + shellBounds[5]
+                            + " floorRenderable=true"
+                            + " floorWorldMinXYZ=" + floorBounds[0] + "," + floorBounds[1] + "," + floorBounds[2]
+                            + " floorWorldMaxXYZ=" + floorBounds[3] + "," + floorBounds[4] + "," + floorBounds[5]
+                            + " frontWallDetached=true interiorTarget_m=4.4,4.2,2.65"
+                            + " measuredFloorWidthDepth_m=" + floorWidthM + "," + floorDepthM
+                            + " measuredCeilingWidthDepth_m=" + ceilingWidthM + "," + ceilingDepthM
+                            + " measuredCeilingCenterXZ_m=" + ceilingCenterX + "," + ceilingCenterZ
+                            + " measuredCeilingUndersideY_m=" + ceilingBounds[1]
+                            + " observedInnerWallPlanes_m=backZ:" + backWall[2]
+                            + ",leftX:" + leftWall[3] + ",rightX:" + rightWall[0]
+                            + " observedOuterWallPlanes_m=backZ:" + backWall[5]
+                            + ",leftX:" + leftWall[0] + ",rightX:" + rightWall[3]
+                            + " nativeFloorCeilingAndWallsVerified=true AndroidFrame=UNVERIFIED");
+            Celine3DDiagnostics.record(context, "ROOM-S25-SHELL-ATTACH",
+                    "Native shell root and final visible renderables checked",
+                    "sourceRoom_m=4.40x4.20x2.65"
+                            + " frontWallDetached=true rootWorld=IDENTITY attachedMeshes=" + attachedMeshes
+                            + " sharedWorldContract=UNVERIFIED AndroidVisibleFrame=UNVERIFIED");
+        }
+
+        /**
+         * Mirrors Three.js Box3.setFromObject BEFORE model.position.sub(center).
+         * Includes GLB anchor/mesh baked transforms (rather than assuming the
+         * authoring anchor's origin is the visible geometry's center).
+         */
+        private float[] originalGeometryCenter(FilamentAsset part) {
+            RenderableManager manager = engine.getRenderableManager();
+            float[] low = { Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY };
+            float[] high = { Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY };
+            int seen = 0;
+            for (int entity : part.getEntities()) {
+                if (!manager.hasComponent(entity)) continue;
+                int renderInstance = manager.getInstance(entity);
+                int transformInstance = transforms.getInstance(entity);
+                if (renderInstance == 0 || transformInstance == 0) {
+                    throw new IllegalStateException("Renderable missing GLB transform: " + entity);
+                }
+                // Filament 1.72.0 exposes an explicit Box out-argument and
+                // float[3] getters (not the newer getCenterX() accessors).
+                Box b = manager.getAxisAlignedBoundingBox(renderInstance, new Box());
+                float[] matrix = transforms.getWorldTransform(transformInstance, new float[16]);
+                float[] c = b.getCenter();
+                float[] r = b.getHalfExtent();
+                for (int corner = 0; corner < 8; corner++) {
+                    float x = c[0] + ((corner & 1) == 0 ? -r[0] : r[0]);
+                    float y = c[1] + ((corner & 2) == 0 ? -r[1] : r[1]);
+                    float z = c[2] + ((corner & 4) == 0 ? -r[2] : r[2]);
+                    float[] v = {
+                            matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12],
+                            matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13],
+                            matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14]
+                    };
+                    for (int a = 0; a < 3; a++) {
+                        low[a] = Math.min(low[a], v[a]);
+                        high[a] = Math.max(high[a], v[a]);
+                    }
+                }
+                seen++;
+            }
+            if (seen == 0) throw new IllegalStateException("No renderable AABBs to center");
+            float[] center = new float[3];
+            for (int i = 0; i < 3; i++) {
+                center[i] = (low[i] + high[i]) * 0.5f;
+                if (!Float.isFinite(center[i])) {
+                    throw new IllegalStateException("Invalid source GLB geometry center");
+                }
+            }
+            return center;
+        }
+
         private int countRenderables(FilamentAsset asset) {
             RenderableManager manager = engine.getRenderableManager();
             int count = 0;
@@ -481,242 +1410,44 @@ final class CelineRoomEnvironmentV80 {
             return count;
         }
 
-        private void alignRoomRoot(FilamentAsset asset) {
-            int root = transforms.getInstance(asset.getRoot());
-            if (root == 0) {
-                throw new IllegalStateException("4R Raum-Root-Transform fehlt");
-            }
-            float[] base = transforms.getTransform(root, new float[16]);
-            float[] runtimeFrameYaw = new float[16];
-            float[] framed = new float[16];
-            float[] translation = new float[16];
-            float[] aligned = new float[16];
-            // Standard Blender Y-up glTF export is (X,height,-depth), while the accepted
-            // Proof #63 runtime camera contract is (-X,height,+depth) plus room offset.
-            // Apply the missing common 180deg Filament-Y frame once at every partition root.
-            Matrix.setRotateM(runtimeFrameYaw, 0, 180.0f, 0.0f, 1.0f, 0.0f);
-            Matrix.multiplyMM(framed, 0, runtimeFrameYaw, 0, base, 0);
-            Matrix.setIdentityM(translation, 0);
-            Matrix.translateM(translation, 0,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_X,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Y,
-                    CelineRoomWorldContractV80.RUNTIME_OFFSET_Z);
-            Matrix.multiplyMM(aligned, 0, translation, 0, framed, 0);
-            transforms.setTransform(root, aligned);
-        }
-
         /**
-         * C135 exact Android CALL #340 vs canonical /Refernzbild.png:
-         * The previous #339 clipped the derived foreground pot at the right edge;
-         * #340 restores its complete silhouette, a genuine partial improvement,
-         * but measured visible pot bbox remains x=749..840,y=696..803 on
-         * 1016x813 CALL stage versus reference approximately x=870..977,
-         * y=650..769. The derived source must move right and deeper on the
-         * SAME foreground table, without raising its foot or replacing its GLB.
-         * A coherent fitted x/z/scale correction uses world .18,-.80,-1.78
-         * and 1.70x. Await one authentic Android raster A/B; no visual PASS
-         * granted from predicted geometry or green compilation.
-         * All 12 original LFS source GLBs, 13 authored furniture instances,
-         * shell/window/backplanes, camera, Celine and Core remain untouched.
+         * The original room_shell.glb defines a 4.40 x 4.20 x 2.65 m
+         * floor-centered user XYZ space, exactly like the S25 furniture JSON.
+         * The old shell-only 180-degree rotation and runtime offset separated
+         * the shell from all thirteen authored furniture instances.
+         * Validate both imported GLB roots instead of changing the source.
+         * Shared WorldContract, camera and 9R data remain BUILD-owned.
          */
-        private void positionForegroundDerivedPlant(FilamentAsset asset) {
-            final int rootEntity = asset.getRoot();
-            final int root = transforms.getInstance(rootEntity);
-            final int anchorEntity = asset.getFirstEntityByName("room_plant_small__anchor");
-            if (anchorEntity == 0 || root == 0) {
-                throw new IllegalStateException("Foreground source plant root/anchor missing");
+        private void verifyNativeS25ShellFrame(FilamentAsset asset) {
+            int authoredRoot = asset.getFirstEntityByName("room_world_root");
+            if (authoredRoot == 0) {
+                throw new IllegalStateException("S25 shell missing source room_world_root");
             }
-            final int anchor = transforms.getInstance(anchorEntity);
-            if (anchor == 0) {
-                throw new IllegalStateException("Foreground source plant transform missing");
+            for (int entity : new int[] { asset.getRoot(), authoredRoot }) {
+                int instance = transforms.getInstance(entity);
+                if (instance == 0) {
+                    throw new IllegalStateException("S25 shell root transform missing");
+                }
+                float[] actual = transforms.getTransform(instance, new float[16]);
+                for (int i = 0; i < 16; i++) {
+                    float identity = i % 5 == 0 ? 1.0f : 0.0f;
+                    if (!Float.isFinite(actual[i])
+                            || Math.abs(actual[i] - identity) > 0.00002f) {
+                        throw new IllegalStateException(
+                                "S25 shell already transformed (no silent yaw/offset): "
+                                        + entity + " component=" + i);
+                    }
+                }
             }
-            float[] rootBase = transforms.getTransform(root, new float[16]);
-            float[] originalAnchor = transforms.getTransform(anchor, new float[16]);
-            float[] derivedScale = new float[16];
-            float[] scaledAnchor = new float[16];
-            float[] worldAnchor = new float[16];
-            float[] worldOffset = new float[16];
-            float[] fittedRoot = new float[16];
-            Matrix.setIdentityM(derivedScale, 0);
-            Matrix.scaleM(derivedScale, 0, 1.70f, 1.70f, 1.70f);
-            Matrix.multiplyMM(scaledAnchor, 0, originalAnchor, 0, derivedScale, 0);
-            Matrix.multiplyMM(worldAnchor, 0, rootBase, 0, scaledAnchor, 0);
-            Matrix.setIdentityM(worldOffset, 0);
-            Matrix.translateM(worldOffset, 0,
-                    0.18f - worldAnchor[12],
-                    -0.80f - worldAnchor[13],
-                    -1.78f - worldAnchor[14]);
-            Matrix.multiplyMM(fittedRoot, 0, worldOffset, 0, rootBase, 0);
-            transforms.setTransform(anchor, scaledAnchor);
-            transforms.setTransform(root, fittedRoot);
-            Celine3DDiagnostics.record(context, "ROOM-150",
-                    "Quelltreue Vordergrundpflanze als eigene Instanz",
-                    "reference=Refernzbild.png #340 target=x.812..1.000,y.645..946"
-                            + " worldAnchor=0.18,-0.80,-1.78 derivedScale=1.70"
-                            + " canonicalSources12=true authoredInstances13Unchanged=true"
-                            + " windowsGlassBackplanesUnchanged=true");
+            Celine3DDiagnostics.record(context, "ROOM-S25-SHELL",
+                    "Native floor-centered source shell retained without legacy yaw or offset",
+                    "interior_m=4.4,4.2,2.65 shellRoot=IDENTITY"
+                            + " oldRuntimeOffsetApplied=false"
+                            + " sharedWorldContractAndCamera=UNVERIFIED");
         }
 
-        /**
-         * C129: exact #324 Android CALL has the drape silhouette's left/top almost
-         * aligned, but the right edge ends roughly 40-45 stage pixels before
-         * Refernzbild.png. Stretch the already-derived partition horizontally
-         * by 13.5%, then compensate by half the added source-local width so the
-         * accepted projected left edge stays put. The common 180-degree frame
-         * maps negative local X toward screen-right. No opacity, GLASS/opening,
-         * backplane, source geometry, camera or other furniture gets changed.
-         * Accept this correction ONLY after an authentic Android CALL raster A/B.
-         */
-        private void correctWindowDrapeVisibleWidth(FilamentAsset asset) {
-            final int entity = asset.getFirstEntityByName("room_window_drapes__anchor");
-            if (entity == 0) {
-                throw new IllegalStateException("Room source-drape partition anchor missing");
-            }
-            final int instance = transforms.getInstance(entity);
-            if (instance == 0) {
-                throw new IllegalStateException("Room source-drape anchor transform missing");
-            }
-            float[] base = transforms.getTransform(instance, new float[16]);
-            float[] correction = new float[16];
-            float[] fitted = new float[16];
-            Matrix.setIdentityM(correction, 0);
-            Matrix.translateM(correction, 0, -0.094f, 0.0f, 0.0f);
-            Matrix.scaleM(correction, 0, 1.135f, 1.0f, 1.0f);
-            Matrix.multiplyMM(fitted, 0, base, 0, correction, 0);
-            transforms.setTransform(instance, fitted);
-            Celine3DDiagnostics.record(context, "ROOM-147",
-                    "Quelltreue Fenster-Gardinenbreite kalibriert",
-                    "source=Refernzbild.png #324 axis=localX factor=1.135"
-                            + " sourceLocalShiftX=-0.094 preserveLeftTop=true"
-                            + " windowsGlassBackplaneChanged=false originalsChanged=false");
-        }
-
-        /**
-         * C148, measured on the real C147 Android HOME-CALL-HOME #367 CALL stage:
-         * the existing sourced top-rail/drape envelope spans approximately
-         * x=0.199..0.545 versus Refernzbild.png's x=0.205..0.588.
-         * Its top is already near the canonical target, so preserve all Y/Z,
-         * camera and room-shell geometry. Expand the real drape mesh by 10.5%
-         * in local X and compensate its left edge by a small source-local shift.
-         *
-         * IMPORTANT: the night-depth node shares the partition anchor. Changing
-         * that anchor again would also stretch the independent, authored opaque
-         * background. Apply this second, bounded correction ONLY to the drape
-         * mesh_node.010 child; leave the partition anchor's previously validated
-         * transform and the night plane's transform/material strictly unchanged.
-         * This is a runtime-derived transform, not a source-GLB edit, and no
-         * GLASS/open-window/backplane semantic choice is fabricated.
-         *
-         * Projection estimate only: KEEP only if next genuine Android CALL A/B
-         * visibly improves silhouette with no lost source fabric or black gaps.
-         */
-        private void widenVisibleSourceDrapeOnly(FilamentAsset asset) {
-            final int drapeEntity = asset.getFirstEntityByName("mesh_node.010");
-            final int nightEntity =
-                    asset.getFirstEntityByName("CELINE_WindowNightDepth_Background");
-            if (drapeEntity == 0 || nightEntity == 0 || drapeEntity == nightEntity) {
-                throw new IllegalStateException("Source drape/night identities ambiguous");
-            }
-            final int drapeTransform = transforms.getInstance(drapeEntity);
-            if (drapeTransform == 0) {
-                throw new IllegalStateException("Source drape local transform missing");
-            }
-            float[] before = transforms.getTransform(drapeTransform, new float[16]);
-            float[] correction = new float[16];
-            float[] widened = new float[16];
-            Matrix.setIdentityM(correction, 0);
-            Matrix.translateM(correction, 0, -0.090f, 0.0f, 0.0f);
-            Matrix.scaleM(correction, 0, 1.105f, 1.0f, 1.0f);
-            Matrix.multiplyMM(widened, 0, before, 0, correction, 0);
-            transforms.setTransform(drapeTransform, widened);
-            Celine3DDiagnostics.record(context, "ROOM-158",
-                    "Quellgardinen-Silhouette erweitert, Nachtfläche unverändert",
-                    "reference=Refernzbild.png androidProof=367"
-                            + " oldEnvelope=.199..545 target=.205..588"
-                            + " drapeLocalXScale=1.105 drapeLocalXShift=-0.090"
-                            + " nightDepthTransformMaterialChanged=false"
-                            + " originalFurnitureGlbsChanged=false"
-                            + " windowGlassOpeningsBackplanesChanged=false");
-        }
-
-        /**
-         * C130 / genuine Android CALL #327 vs Refernzbild.png:
-         * the existing derived dresser reads low and slightly too far to screen right
-         * (visible top ~0.434 vs 0.420; foot ~0.729 vs 0.718; right ~0.190 vs 0.184).
-         * Retain the already-proved +8 cm source X / +9 cm deeper parent shift.
-         * C131 corrective A/B after exact #331 Android CALL: -8 degrees
-         * increased the clipped dresser top-edge diagonal and shifted the
-         * right envelope outside the reference. Source-vertex projection at
-         * the exact CALL camera instead fits a +6-degree local yaw and an
-         * 8 cm source-X re-centering while preserving the accepted +9 cm
-         * depth, local/vertical scale, grounded floor and all original GLBs.
-         * Predicted right edge is ~188/1016 vs the canonical 0.184*1016=187;
-         * this geometric prediction is NOT visual acceptance.
-         * Accept ONLY after a genuine Android HOME/CALL/HOME visual A/B.
-         */
-        private void correctDresserReferenceEnvelope(FilamentAsset asset) {
-            final int entity = asset.getFirstEntityByName("room_dresser__anchor");
-            if (entity == 0) {
-                throw new IllegalStateException("Room source-dresser partition anchor missing");
-            }
-            final int instance = transforms.getInstance(entity);
-            if (instance == 0) {
-                throw new IllegalStateException("Room source-dresser anchor transform missing");
-            }
-            float[] base = transforms.getTransform(instance, new float[16]);
-            float[] parentSpaceShift = new float[16];
-            float[] localYaw = new float[16];
-            float[] rotated = new float[16];
-            float[] fitted = new float[16];
-            Matrix.setIdentityM(parentSpaceShift, 0);
-            // Common room-root 180-degree Y alignment maps +source X to
-            // screen-left and +source Z toward the back of the actual room.
-            Matrix.translateM(parentSpaceShift, 0, 0.0f, 0.0f, 0.090f);
-            // Post-multiply: rotate around the dresser's existing anchor,
-            // without changing the accepted parent shift or grounding.
-            Matrix.setRotateM(localYaw, 0, 6.0f, 0.0f, 1.0f, 0.0f);
-            Matrix.multiplyMM(rotated, 0, base, 0, localYaw, 0);
-            Matrix.multiplyMM(fitted, 0, parentSpaceShift, 0, rotated, 0);
-            transforms.setTransform(instance, fitted);
-            Celine3DDiagnostics.record(context, "ROOM-148",
-                    "Referenzgebundene Kommodentiefe beibehalten",
-                    "source=Refernzbild.png #331 sourceX=+0.000m sourceZ=+0.090m"
-                            + " parentSpace=true preserveFloorScale=true"
-                            + " originalsChanged=false otherPartitionsChanged=false");
-            Celine3DDiagnostics.record(context, "ROOM-149",
-                    "Kommodenfront im CALL referenzgebunden ausgerichtet",
-                    "source=Refernzbild.png #331 anchorLocalYaw=+6deg"
-                            + " preserveDepthShiftScaleFloor=true"
-                            + " originalGlbChanged=false cameraChanged=false");
-        }
-
-        private void applyUserApprovedFurnitureOrientation(FilamentAsset asset) {
-            // The prepared 4R GLB baked the bed with its headboard toward the room center and left
-            // the two bedside drawer fronts sideways. Correct only those confirmed orientation
-            // defects at the furniture-node level; footprint, anchors, camera and Celine stay fixed.
-            applyLocalYaw(asset, "room_bed", -180.0f);
-            applyLocalYaw(asset, "room_nightstand_back", 90.0f);
-            applyLocalYaw(asset, "room_nightstand_front", 90.0f);
-        }
-
-        private void applyLocalYaw(FilamentAsset asset, String entityName, float deltaDegrees) {
-            int entity = asset.getFirstEntityByName(entityName);
-            if (entity == 0) {
-                throw new IllegalStateException("4R Raum-Entity fehlt: " + entityName);
-            }
-            int instance = transforms.getInstance(entity);
-            if (instance == 0) {
-                throw new IllegalStateException("4R Transform fehlt: " + entityName);
-            }
-            float[] base = transforms.getTransform(instance, new float[16]);
-            float[] yaw = new float[16];
-            float[] corrected = new float[16];
-            Matrix.setRotateM(yaw, 0, deltaDegrees, 0.0f, 1.0f, 0.0f);
-            // Post-multiply so the node keeps its world translation and rotates around its own
-            // origin. All three affected source nodes use uniform scale.
-            Matrix.multiplyMM(corrected, 0, base, 0, yaw, 0);
-            transforms.setTransform(instance, corrected);
-        }
+        // The obsolete photo-derived adjustment helpers are intentionally removed.
+        // Only the byte-verified S25 authoring layout may transform furniture nodes.
 
         private void validateWorldEntities(
                 List<FilamentAsset> assets, CelineRoomWorldContractV80 contract) {
@@ -878,6 +1609,8 @@ final class CelineRoomEnvironmentV80 {
             int floorFillLight = warmFloorFillLightEntity;
             int lampLight = floorLampLightEntity;
             roomAssets.clear();
+            builtS25RootWorlds.clear();
+            builtS25MeshWorlds.clear();
             roomShellAsset = null;
             seatAnchor = null;
             worldContract = null;
@@ -885,12 +1618,42 @@ final class CelineRoomEnvironmentV80 {
             warmFloorFillLightEntity = 0;
             floorLampLightEntity = 0;
             floorLampLightEnabled = false;
-            CelineRoomForegroundPlantV80.releaseCandleOnly(view);
-            CelineRoomForegroundLaptopV80.release(view);
-            CelineRoomReferenceLeftArtworkV80.release(view, engine);
-            CelineRoomReferenceArtworkV80.release(view, engine);
-            CelineRoomWindowTextureV80.release(view, engine);
-            CelineRoomSurfaceTextureV80.release(view, engine);
+            // A failing optional room overlay/texture release must never prevent
+            // the real S25 shell and thirteen furniture GLBs from being detached.
+            Throwable firstAuxiliaryCleanupFailure = null;
+            try { CelineRoomForegroundPlantV80.releaseCandleOnly(view); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomForegroundLaptopV80.release(view); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomReferenceLeftArtworkV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomReferenceArtworkV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomWindowTextureV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            try { CelineRoomSurfaceTextureV80.release(view, engine); }
+            catch (Throwable auxiliaryError) {
+                if (firstAuxiliaryCleanupFailure == null) firstAuxiliaryCleanupFailure = auxiliaryError;
+            }
+            if (firstAuxiliaryCleanupFailure != null) {
+                try {
+                    Celine3DDiagnostics.error(context, "ROOM-198",
+                            "Auxiliary Room cleanup failed; GLB cleanup continues",
+                            firstAuxiliaryCleanupFailure);
+                } catch (Throwable ignored) {
+                    // Diagnostic failure must not strand the imported GLB assets.
+                }
+            }
             if (current.isEmpty() && roomKeyLight == 0 && floorFillLight == 0 && lampLight == 0) return;
             try {
                 if (roomKeyLight != 0) {
@@ -908,11 +1671,23 @@ final class CelineRoomEnvironmentV80 {
                     try { engine.getLightManager().destroy(lampLight); } catch (Throwable ignored) {}
                     try { EntityManager.get().destroy(lampLight); } catch (Throwable ignored) {}
                 }
+                // A faulty GLB teardown must not strand later room partitions.
+                // Scene membership is removed first for every furniture/shell entity.
+                Throwable firstAssetCleanupFailure = null;
                 for (FilamentAsset asset : current) {
                     for (int entity : asset.getEntities()) {
                         try { scene.removeEntity(entity); } catch (Throwable ignored) {}
                     }
-                    assetLoader.destroyAsset(asset);
+                    try {
+                        assetLoader.destroyAsset(asset);
+                    } catch (Throwable assetError) {
+                        if (firstAssetCleanupFailure == null) firstAssetCleanupFailure = assetError;
+                    }
+                }
+                if (firstAssetCleanupFailure != null) {
+                    Celine3DDiagnostics.error(context, "ROOM-198",
+                            "GLB teardown partial failure; all partitions attempted",
+                            firstAssetCleanupFailure);
                 }
                 Celine3DDiagnostics.record(context, "ROOM-130",
                         "Filament-Raum freigegeben", "detach lifecycle cleanup partitions=" + current.size());

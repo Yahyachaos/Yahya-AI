@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "prepared_draft",
+  "status": "POST_V83_S25_FRAME_DRAFT__OLD_COLLIDERS_NOT_ACCEPTED",
   "avatar_capsule": {
     "radius_m": 0.35,
     "standing_height_m": 1.7,
@@ -8,14 +8,14 @@
   },
   "room_bounds_m": {
     "min": [
-      -3.2,
+      -2.2,
       0,
-      -2.9
+      -2.1
     ],
     "max": [
-      3.2,
-      2.8,
-      2.9
+      2.2,
+      2.65,
+      2.1
     ]
   },
   "colliders": [
@@ -26,7 +26,7 @@
       "aabb_m": {
         "min": [
           0.7058,
-          0.0,
+          0,
           -1.738
         ],
         "max": [
@@ -36,7 +36,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": true
+      "interaction_exception": true,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_dresser",
@@ -45,7 +46,7 @@
       "aabb_m": {
         "min": [
           -3.2161,
-          0.0,
+          0,
           -0.634
         ],
         "max": [
@@ -55,7 +56,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": true
+      "interaction_exception": true,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_plant_large",
@@ -64,7 +66,7 @@
       "aabb_m": {
         "min": [
           -3.1859,
-          0.0,
+          0,
           -2.3593
         ],
         "max": [
@@ -74,7 +76,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": false
+      "interaction_exception": false,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_plant_small",
@@ -83,7 +86,7 @@
       "aabb_m": {
         "min": [
           1.2976,
-          0.0,
+          0,
           -2.8791
         ],
         "max": [
@@ -93,7 +96,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": false
+      "interaction_exception": false,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_floor_lamp",
@@ -102,7 +106,7 @@
       "aabb_m": {
         "min": [
           -2.0113,
-          0.0,
+          0,
           1.0886
         ],
         "max": [
@@ -112,7 +116,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": true
+      "interaction_exception": true,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_nightstand_back",
@@ -121,7 +126,7 @@
       "aabb_m": {
         "min": [
           2.2064,
-          0.0,
+          0,
           -2.277
         ],
         "max": [
@@ -131,7 +136,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": false
+      "interaction_exception": false,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_nightstand_front",
@@ -140,7 +146,7 @@
       "aabb_m": {
         "min": [
           2.2064,
-          0.0,
+          0,
           0.163
         ],
         "max": [
@@ -150,7 +156,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": false
+      "interaction_exception": false,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_lounge_chair",
@@ -159,7 +166,7 @@
       "aabb_m": {
         "min": [
           -2.3455,
-          0.0,
+          0,
           -1.5301
         ],
         "max": [
@@ -169,7 +176,8 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": true
+      "interaction_exception": true,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     },
     {
       "id": "col_room_foreground_table",
@@ -178,7 +186,7 @@
       "aabb_m": {
         "min": [
           -0.7481,
-          0.0,
+          0,
           1.6863
         ],
         "max": [
@@ -188,11 +196,12 @@
         ]
       },
       "navigation_blocker": true,
-      "interaction_exception": true
+      "interaction_exception": true,
+      "s25_mesh_collision_proof": "UNVERIFIED_HISTORIC_AABB_DO_NOT_TREAT_AS_NEW_BOUND"
     }
   ],
   "walkable_surface": {
-    "floor_y_m": 0.0,
+    "floor_y_m": 0,
     "rug_walkable": true
   },
   "edges": [
@@ -327,5 +336,7 @@
     "match root speed to gait",
     "settle before pose switch",
     "camera never chases avatar"
-  ]
+  ],
+  "s25_status": "PENDING_S25_MESH_AABBS",
+  "legacy_collision_notice": "All nine AABBs are preserved only as historic unverified data; 9R navigation/contact action must not be accepted until transformed source-mesh geometry and path clearance are proven."
 }
