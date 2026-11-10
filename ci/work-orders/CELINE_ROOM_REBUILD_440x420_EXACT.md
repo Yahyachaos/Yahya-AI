@@ -118,9 +118,11 @@ Der ROOM-Owner hat auf bestehendem #121, ausschließlich auf Room-eigenen Java- 
 
 ---
 
-# Celine Room Rebuild — reference-constrained 4.40 m × 4.20 m contract
+# HISTORICAL ONLY — withdrawn photo-constrained Room rebuild (original dimensions 4.40 m × 4.20 m)
 
-Status: **ACTIVE — Proof #18 visually rejected; reference-constrained rebuild required**.
+Status: **SUPERSEDED_HISTORICAL — NOT ACTIVE; DO NOT EXECUTE (owner override 2026-10-31).**
+
+**Historical fence:** The Photo/`Refernzbild.png` composition solver, camera fitting, all furniture re-placement/rotation/scaling/height fitting, floor grounding and the earlier `REJECTED_LEGACY_LAYOUT` advice below are revoked. Do not implement any imperative guidance in this historical section. The only current layout authority is `app/src/main/assets/models/room/layouts/YahyaAI_Raumlayout_FINAL_2026-10-31.json` (SHA256 `471a0cbfd267299f878e74783d003dfc808a6fb2c3fc6449e1d62acc7ca7611f`, 13 exact objects, 4.40 × 4.20 × 2.65m). Current acceptance requires **native** 13/13 Filament matrix/mesh/AABB readback and same-frame GPU/3D/topview/HOME/CALL evidence by the authorized BUILD/Proof owner. Until then ROOM VISUAL FAIL / G2.3 PAUSED. This paragraph changes documentation authority only; the historical instructions below are preserved solely for audit.
 
 ## Absolute source of truth
 
