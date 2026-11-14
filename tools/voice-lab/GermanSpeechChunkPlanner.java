@@ -15,9 +15,18 @@ public final class GermanSpeechChunkPlanner {
 
     public static List<String> split(String text) {
         if (text == null || text.trim().isEmpty()) return Collections.emptyList();
-        String normalized = text.replaceAll("(?U)\\s+", " ").trim();
-        if (normalized.isEmpty()) return Collections.emptyList();
         List<String> result = new ArrayList<>();
+        // Preserve intentional paragraph pauses even when the author does not
+        // write a period. A single soft-wrapped line is not a paragraph break.
+        // Unicode U+2029 is an explicit paragraph separator by definition.
+        for (String paragraph : text.split("(?:\\R\\h*\\R|\\u2029)+")) {
+            String normalized = paragraph.replaceAll("(?U)\\s+", " ").trim();
+            if (!normalized.isEmpty()) appendSentenceChunks(result, normalized);
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private static void appendSentenceChunks(List<String> result, String normalized) {
         int start = 0;
         for (int pos = 0; pos < normalized.length(); pos++) {
             char ch = normalized.charAt(pos);
@@ -44,7 +53,6 @@ public final class GermanSpeechChunkPlanner {
             }
         }
         if (start < normalized.length()) appendLengthBounded(result, normalized.substring(start));
-        return Collections.unmodifiableList(result);
     }
 
     private static boolean isSentencePunctuation(char c) {
